@@ -1,0 +1,13 @@
+# Dependency & build output
+node_modules
+dist
+.next
+build
+coverage
+
+# Lockfile & generated
+pnpm-lock.yaml
+**/prisma/generated
+
+# Dokumen sumber (jangan diformat ulang agar tabel/isi tetap utuh)
+docs

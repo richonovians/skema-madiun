@@ -1,0 +1,74 @@
+# Docker Compose — environment DEVELOPMENT
+#
+# Saat ini hanya menjalankan PostgreSQL. Service `api` (NestJS) dan `web`
+# (Next.js) ditambahkan pada langkah berikutnya dengan menempel ke `network`
+# dan pola `depends_on` yang sudah disiapkan di bawah — tanpa mengubah
+# arsitektur network/volume.
+
+name: skm-spm
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: skm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-skm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skm_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-skm_db}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - skm-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-skm} -d ${POSTGRES_DB:-skm_db}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # PLACEHOLDER — belum aktif (sengaja dikomentari).
+  # Ditambahkan pada langkah scaffolding NestJS/Next.js. Struktur network,
+  # dependency healthcheck, dan variabel port sudah disiapkan agar cukup
+  # meng-uncomment + menambah Dockerfile, tanpa mengubah bagian lain.
+  #
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: infra/docker/api.Dockerfile
+  #   container_name: skm-api
+  #   restart: unless-stopped
+  #   env_file: .env
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy   # api menunggu DB benar-benar siap
+  #   ports:
+  #     - '${API_PORT:-3001}:3001'
+  #   networks:
+  #     - skm-network
+  #
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: infra/docker/web.Dockerfile
+  #   container_name: skm-web
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - '${WEB_PORT:-3000}:3000'
+  #   networks:
+  #     - skm-network
+  # ---------------------------------------------------------------------------
+
+volumes:
+  postgres-data:
+    name: skm-postgres-data
+
+networks:
+  skm-network:
+    name: skm-network
+    driver: bridge

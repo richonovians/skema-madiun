@@ -1,0 +1,26 @@
+# EditorConfig — https://editorconfig.org
+# Menyelaraskan perilaku editor lintas IDE agar konsisten dengan Prettier.
+# Berhenti mencari konfigurasi di direktori ini (root proyek).
+root = true
+
+# Default untuk seluruh berkas.
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Markdown: spasi ganda di akhir baris bermakna "hard line break",
+# jadi jangan dipangkas.
+[*.md]
+trim_trailing_whitespace = false
+
+# Berkas YAML wajib memakai spasi (tab tidak valid di YAML).
+[*.{yml,yaml}]
+indent_size = 2
+
+# package.json & lockfile umumnya ditulis/diformat dengan 2 spasi.
+[*.json]
+indent_size = 2

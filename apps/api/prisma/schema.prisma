@@ -1,0 +1,324 @@
+// Skema Prisma — Sistem SKM & Pengaduan Masyarakat (Diskominfo)
+// Konvensi: model PascalCase (dipetakan ke tabel snake_case via @@map),
+// field camelCase (dipetakan ke kolom snake_case via @map).
+// Berkas ini murni struktur data — tanpa logika bisnis/auth/RBAC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================================
+// ENUM
+// =====================================================================
+
+enum Role {
+  kabupaten
+  opd
+  responden
+
+  @@map("user_role")
+}
+
+enum JenisKelamin {
+  laki_laki
+  perempuan
+
+  @@map("jenis_kelamin")
+}
+
+enum SurveyStatus {
+  draft
+  aktif
+  ditutup
+
+  @@map("survey_status")
+}
+
+enum QuestionType {
+  skala
+  pilihan
+  teks
+
+  @@map("question_type")
+}
+
+enum IkmMutu {
+  A
+  B
+  C
+  D
+
+  @@map("ikm_mutu")
+}
+
+enum ComplaintStatus {
+  diterima
+  diproses
+  selesai
+  ditolak
+
+  @@map("complaint_status")
+}
+
+// =====================================================================
+// PENGGUNA & PROFIL
+// =====================================================================
+
+model User {
+  id          Int       @id @default(autoincrement())
+  ssoSubject  String    @unique @map("sso_subject") // identitas stabil dari Helpdesk (klaim `sub`)
+  nama        String    @db.VarChar(50)
+  email       String    @unique @db.VarChar(100)
+  role        Role      @default(responden)
+  opdId       Int?      @map("opd_id") // hanya untuk admin OPD; null selain itu
+  isActive    Boolean   @default(true) @map("is_active")
+  consentAt   DateTime? @map("consent_at") // persetujuan PDP saat pertama login
+  lastLoginAt DateTime? @map("last_login_at")
+  deletedAt   DateTime? @map("deleted_at") // soft delete (UU PDP)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  opd               Opd?               @relation(fields: [opdId], references: [id])
+  respondentProfile RespondentProfile?
+  surveyResponses   SurveyResponse[]
+  complaints        Complaint[]
+  complaintReplies  ComplaintReply[]
+  auditLogs         AuditLog[]
+
+  @@index([opdId])
+  @@index([role])
+  @@map("users")
+}
+
+model RespondentProfile {
+  id           Int          @id @default(autoincrement())
+  userId       Int          @unique @map("user_id")
+  jenisKelamin JenisKelamin @map("jenis_kelamin")
+  kelompokUmur String       @map("kelompok_umur") @db.VarChar(20)
+  pendidikan   String       @db.VarChar(20)
+  pekerjaan    String       @db.VarChar(25)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("respondent_profiles")
+}
+
+// =====================================================================
+// ORGANISASI PERANGKAT DAERAH (OPD)
+// =====================================================================
+
+model Opd {
+  id              Int       @id @default(autoincrement())
+  externalId      String?   @unique @map("external_id") // id OPD di Helpdesk (hasil sinkronisasi)
+  nama            String    @db.VarChar(80)
+  kode            String    @unique @db.VarChar(10)
+  jenisLayanan    String?   @map("jenis_layanan") @db.VarChar(50)
+  penanggungJawab String?   @map("penanggung_jawab") @db.VarChar(40)
+  isActive        Boolean   @default(true) @map("is_active")
+  syncedAt        DateTime? @map("synced_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  users      User[]
+  surveys    Survey[]
+  complaints Complaint[]
+
+  @@map("opd")
+}
+
+// =====================================================================
+// SURVEI & PERTANYAAN
+// =====================================================================
+
+model Survey {
+  id                  Int          @id @default(autoincrement())
+  opdId               Int          @map("opd_id")
+  judul               String       @db.VarChar(100)
+  periode             String       @db.VarChar(20)
+  status              SurveyStatus @default(draft)
+  allowMultipleSubmit Boolean      @default(false) @map("allow_multiple_submit")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  opd        Opd              @relation(fields: [opdId], references: [id])
+  questions  Question[]
+  responses  SurveyResponse[]
+  ikmResults IkmResult[]
+
+  @@index([opdId])
+  @@index([status])
+  @@map("surveys")
+}
+
+model Question {
+  id         Int          @id @default(autoincrement())
+  surveyId   Int          @map("survey_id")
+  teks       String       @db.Text
+  tipe       QuestionType
+  isIkmUnsur Boolean      @default(false) @map("is_ikm_unsur")
+  kodeUnsur  String?      @map("kode_unsur") @db.VarChar(5) // U1..U9; null jika kustom
+  urutan     Int
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  survey  Survey           @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  options QuestionOption[]
+  answers Answer[]
+
+  @@index([surveyId])
+  @@map("questions")
+}
+
+// Opsi untuk pertanyaan tipe `pilihan`. Struktur disiapkan sekarang;
+// fitur pilihan ganda diimplementasikan pada Fase 3.
+model QuestionOption {
+  id         Int    @id @default(autoincrement())
+  questionId Int    @map("question_id")
+  label      String @db.VarChar(255)
+  nilai      Int? // skor opsi bila berkontribusi ke perhitungan
+  urutan     Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers  Answer[]
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+// =====================================================================
+// PENGISIAN SURVEI
+// =====================================================================
+
+model SurveyResponse {
+  id          Int      @id @default(autoincrement())
+  surveyId    Int      @map("survey_id")
+  userId      Int      @map("user_id")
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  survey  Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id])
+  answers Answer[]
+
+  @@index([surveyId])
+  @@index([userId])
+  @@map("survey_responses")
+}
+
+model Answer {
+  id               Int     @id @default(autoincrement())
+  responseId       Int     @map("response_id")
+  questionId       Int     @map("question_id")
+  nilai            Int? // untuk tipe skala (1-4)
+  teks             String? @db.Text // untuk tipe teks/saran
+  selectedOptionId Int?    @map("selected_option_id") // untuk tipe pilihan (Fase 3)
+
+  response       SurveyResponse  @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question       Question        @relation(fields: [questionId], references: [id])
+  selectedOption QuestionOption? @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([responseId, questionId]) // satu jawaban per pertanyaan per respons
+  @@index([questionId])
+  @@index([selectedOptionId])
+  @@map("answers")
+}
+
+// =====================================================================
+// HASIL IKM (ringkasan/snapshot per periode)
+// =====================================================================
+
+model IkmResult {
+  id              Int      @id @default(autoincrement())
+  surveyId        Int      @map("survey_id")
+  periode         String   @db.VarChar(20)
+  nrrPerUnsur     Json     @map("nrr_per_unsur") // fleksibel terhadap perubahan jumlah unsur
+  nilaiIkm        Decimal  @map("nilai_ikm") @db.Decimal(5, 2)
+  mutu            IkmMutu
+  jumlahResponden Int      @map("jumlah_responden")
+  dihitungPada    DateTime @default(now()) @map("dihitung_pada")
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, periode]) // satu hasil per survei per periode (di-upsert saat dihitung ulang)
+  @@map("ikm_results")
+}
+
+// =====================================================================
+// PENGADUAN
+// =====================================================================
+
+model Complaint {
+  id        Int             @id @default(autoincrement())
+  ticketNo  String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
+  userId    Int             @map("user_id")
+  opdId     Int             @map("opd_id")
+  kategori  String          @db.VarChar(50)
+  judul     String          @db.VarChar(255)
+  uraian    String          @db.Text
+  status    ComplaintStatus @default(diterima)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  user        User                  @relation(fields: [userId], references: [id])
+  opd         Opd                   @relation(fields: [opdId], references: [id])
+  replies     ComplaintReply[]
+  attachments ComplaintAttachment[]
+
+  @@index([userId])
+  @@index([opdId])
+  @@index([status])
+  @@map("complaints")
+}
+
+// Lampiran pengaduan (multi-file) — menggantikan kolom tunggal `lampiran`.
+model ComplaintAttachment {
+  id          Int      @id @default(autoincrement())
+  complaintId Int      @map("complaint_id")
+  fileUrl     String   @map("file_url") @db.VarChar(500)
+  mimeType    String?  @map("mime_type") @db.VarChar(100)
+  sizeBytes   Int?     @map("size_bytes")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_attachments")
+}
+
+model ComplaintReply {
+  id          Int      @id @default(autoincrement())
+  complaintId Int      @map("complaint_id")
+  authorId    Int      @map("author_id")
+  pesan       String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id])
+
+  @@index([complaintId])
+  @@index([authorId])
+  @@map("complaint_replies")
+}
+
+// =====================================================================
+// AUDIT
+// =====================================================================
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   Int      @map("actor_id")
+  aksi      String   @db.VarChar(30)
+  entitas   String   @db.VarChar(25)
+  detail    Json?
+  timestamp DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entitas])
+  @@map("audit_logs")
+}
