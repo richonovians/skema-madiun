@@ -42,7 +42,17 @@ export default tseslint.config(
     },
   },
 
-  // 5) HARUS TERAKHIR: matikan seluruh aturan format ESLint yang berpotensi
+  // 5) Berkas test: kenali global Jest (describe/it/expect/beforeAll, dll).
+  {
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/test/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+      },
+    },
+  },
+
+  // 6) HARUS TERAKHIR: matikan seluruh aturan format ESLint yang berpotensi
   //    bentrok dengan Prettier. Formatting sepenuhnya ditangani Prettier.
   eslintConfigPrettier,
 );
