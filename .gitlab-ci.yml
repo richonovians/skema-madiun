@@ -1,0 +1,62 @@
+# GitLab CI/CD — SKM & Pengaduan Masyarakat (backend)
+# Pipeline: lint → build → test (unit + e2e dengan PostgreSQL) + pemeriksaan migrasi.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - lint
+  - build
+  - test
+
+variables:
+  POSTGRES_USER: skm
+  POSTGRES_PASSWORD: skm_dev_password
+  POSTGRES_DB: skm_db
+  DATABASE_URL: 'postgresql://skm:skm_dev_password@postgres:5432/skm_db?schema=public'
+
+default:
+  image: node:22
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  before_script:
+    - npm install -g pnpm@9.15.0 --force
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @skm-spm/api exec prisma generate
+
+lint:
+  stage: lint
+  script:
+    - pnpm lint
+    - pnpm format:check
+
+build:
+  stage: build
+  script:
+    - pnpm --filter @skm-spm/api build
+
+# Pastikan schema.prisma tidak "drift" dari migrasi (skema berubah tapi lupa migrasi).
+migrate_check:
+  stage: build
+  services:
+    - name: postgres:16-alpine
+  script:
+    - pnpm --filter @skm-spm/api exec prisma validate
+    - pnpm --filter @skm-spm/api exec prisma migrate deploy
+    - pnpm --filter @skm-spm/api exec prisma migrate diff --from-database-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+test:
+  stage: test
+  services:
+    - name: postgres:16-alpine
+  script:
+    - pnpm --filter @skm-spm/api exec prisma migrate deploy
+    - pnpm --filter @skm-spm/api test
+    - pnpm --filter @skm-spm/api test:e2e
