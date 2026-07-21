@@ -1,7 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import { Public } from './common/decorators/public.decorator';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { HealthEntity } from './app.health.entity';
 import { AppService } from './app.service';
+import { Public } from './common/decorators/public.decorator';
 
 @ApiTags('health')
 @Controller()
@@ -11,7 +12,8 @@ export class AppController {
   // Health check publik untuk memverifikasi aplikasi berjalan: GET /api/v1/health
   @Public()
   @Get('health')
-  getHealth() {
-    return this.appService.getHealth();
+  @ApiOkResponse({ type: HealthEntity })
+  getHealth(): HealthEntity {
+    return new HealthEntity(this.appService.getHealth());
   }
 }

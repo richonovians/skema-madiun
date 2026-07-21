@@ -2,6 +2,7 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2023",
+    "useDefineForClassFields": false,
     "moduleResolution": "node",
     "declaration": true,
     "removeComments": true,

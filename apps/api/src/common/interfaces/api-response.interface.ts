@@ -3,9 +3,12 @@
  * (web, Android, iOS). Sukses dan error memakai bentuk yang seragam agar mudah
  * diproses semua klien.
  */
+import { PaginationMeta } from '../dto/paginated-result';
+
 export interface ApiResponseMeta {
   timestamp: string;
   path: string;
+  pagination?: PaginationMeta;
   [key: string]: unknown;
 }
 
