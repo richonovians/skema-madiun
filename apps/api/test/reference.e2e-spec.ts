@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
 import { devHeaders } from './helpers/auth.helper';
 
 describe('Reference (e2e)', () => {
@@ -14,7 +15,7 @@ describe('Reference (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
+    configureApp(app);
     await app.init();
   }, 60000);
 

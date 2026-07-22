@@ -45,11 +45,13 @@ import { UsersModule } from './modules/users/users.module';
   controllers: [AppController],
   providers: [
     AppService,
-    // Urutan penting: ResponseInterceptor didaftarkan lebih dulu sehingga pada fase
-    // respons ia berjalan TERAKHIR (membungkus envelope), setelah ClassSerializerInterceptor
-    // selesai men-serialize data.
-    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    // Urutan penting — fase respons berjalan TERBALIK dari urutan daftar ini:
+    // ResponseInterceptor didaftarkan TERAKHIR agar BERJALAN LEBIH DULU, sehingga sempat
+    // melihat instance PaginatedResult (mengangkat items + meta.pagination) SEBELUM
+    // ClassSerializerInterceptor (didaftarkan lebih dulu → berjalan terakhir) men-serialize
+    // envelope beserta entity di dalam `data`.
     { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })
