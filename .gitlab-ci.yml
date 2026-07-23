@@ -46,7 +46,7 @@ build:
 migrate_check:
   stage: build
   services:
-    - name: postgres:16-alpine
+    - name: postgres:18-alpine
   script:
     - pnpm --filter @skm-spm/api exec prisma validate
     - pnpm --filter @skm-spm/api exec prisma migrate deploy
@@ -55,7 +55,7 @@ migrate_check:
 test:
   stage: test
   services:
-    - name: postgres:16-alpine
+    - name: postgres:18-alpine
   script:
     - pnpm --filter @skm-spm/api exec prisma migrate deploy
     - pnpm --filter @skm-spm/api test

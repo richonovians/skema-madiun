@@ -9,13 +9,17 @@ name: skm-spm
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: skm-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-skm}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skm_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-skm_db}
+      # Sejak image postgres:18, default PGDATA pindah ke /var/lib/postgresql/18/docker.
+      # Dikunci ke path lama agar tetap jatuh di dalam volume `postgres-data` di bawah —
+      # tanpa ini data ditulis ke layer container dan hilang saat `compose down`.
+      PGDATA: /var/lib/postgresql/data
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
