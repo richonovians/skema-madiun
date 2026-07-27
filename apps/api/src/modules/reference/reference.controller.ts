@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ComplaintCategoryEntity } from './entities/complaint-category.entity';
 import { UnsurEntity } from './entities/unsur.entity';
 import { ReferenceService } from './reference.service';
 
@@ -17,5 +18,12 @@ export class ReferenceController {
   @ApiOkResponse({ type: UnsurEntity, isArray: true })
   getUnsur(): UnsurEntity[] {
     return this.referenceService.getUnsur();
+  }
+
+  /** Daftar kategori baku pengaduan (semua peran terautentikasi). */
+  @Get('complaint-categories')
+  @ApiOkResponse({ type: ComplaintCategoryEntity, isArray: true })
+  getComplaintCategories(): ComplaintCategoryEntity[] {
+    return this.referenceService.getComplaintCategories();
   }
 }

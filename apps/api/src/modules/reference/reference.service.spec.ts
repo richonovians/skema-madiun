@@ -20,4 +20,13 @@ describe('ReferenceService', () => {
       'U9',
     ]);
   });
+
+  it('mengembalikan daftar kategori pengaduan', () => {
+    const categories = service.getComplaintCategories();
+
+    expect(categories.length).toBeGreaterThan(0);
+    expect(categories[0]).toEqual(
+      expect.objectContaining({ kode: expect.any(String), nama: expect.any(String) }),
+    );
+  });
 });

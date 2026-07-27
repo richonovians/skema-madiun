@@ -18,3 +18,22 @@ export const SKM_UNSUR: readonly SkmUnsur[] = [
   { kode: 'U8', teks: 'Sarana dan Prasarana' },
   { kode: 'U9', teks: 'Penanganan Pengaduan, Saran, dan Masukan' },
 ];
+
+/**
+ * Kategori baku pengaduan masyarakat. Data referensi statis — dipakai endpoint
+ * GET /ref/complaint-categories dan (nanti) validasi `complaints.kategori`.
+ */
+export interface ComplaintCategory {
+  kode: string;
+  nama: string;
+}
+
+export const COMPLAINT_CATEGORIES: readonly ComplaintCategory[] = [
+  { kode: 'infrastruktur', nama: 'Infrastruktur' },
+  { kode: 'pelayanan_administrasi', nama: 'Pelayanan Administrasi' },
+  { kode: 'kesehatan', nama: 'Kesehatan' },
+  { kode: 'pendidikan', nama: 'Pendidikan' },
+  { kode: 'kebersihan_lingkungan', nama: 'Kebersihan & Lingkungan' },
+  { kode: 'keamanan_ketertiban', nama: 'Keamanan & Ketertiban' },
+  { kode: 'lainnya', nama: 'Lainnya' },
+];

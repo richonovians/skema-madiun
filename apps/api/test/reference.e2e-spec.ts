@@ -50,4 +50,24 @@ describe('Reference (e2e)', () => {
     expect(response.status).toBe(403);
     expect(response.body.success).toBe(false);
   });
+
+  it('GET /api/v1/ref/complaint-categories (responden) -> 200 (semua peran)', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/ref/complaint-categories')
+      .set(devHeaders({ role: Role.responden }));
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.length).toBeGreaterThan(0);
+    expect(response.body.data[0]).toEqual(
+      expect.objectContaining({ kode: expect.any(String), nama: expect.any(String) }),
+    );
+  });
+
+  it('GET /api/v1/ref/complaint-categories (kabupaten) -> 200', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/ref/complaint-categories')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(response.status).toBe(200);
+  });
 });
