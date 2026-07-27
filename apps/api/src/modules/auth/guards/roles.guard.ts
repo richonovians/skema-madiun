@@ -43,6 +43,11 @@ export class RolesGuard implements CanActivate {
     }
     request.user = user;
 
+    // Superuser (pengelola sistem) melampaui seluruh pembatasan @Roles.
+    if (user.role === Role.superuser) {
+      return true;
+    }
+
     const requiredRoles = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),

@@ -19,21 +19,41 @@ async function main(): Promise<void> {
     },
   });
 
-  // 2) Beberapa OPD contoh (idempoten via `kode` yang unik).
+  // 1b) Superuser (pengelola sistem) contoh — akses penuh, melampaui kabupaten.
+  const superuser = await prisma.user.upsert({
+    where: { ssoSubject: 'seed-superuser' },
+    update: {},
+    create: {
+      ssoSubject: 'seed-superuser',
+      nama: 'Superuser (Contoh)',
+      email: 'superuser@example.go.id',
+      role: Role.superuser,
+      isActive: true,
+      consentAt: new Date(),
+    },
+  });
+
+  // 2) Beberapa OPD contoh — mencerminkan data hasil sinkronisasi Helpdesk:
+  //    `externalId` selaras dengan fixture StubOpdSource (HD-00x) + `syncedAt` terisi,
+  //    sehingga sync pertama (OPD-3) mengenalinya via externalId (bukan adopsi by-kode).
+  const syncedAt = new Date();
   const opdSeed = [
     {
+      externalId: 'HD-001',
       kode: 'DINKES',
       nama: 'Dinas Kesehatan',
       jenisLayanan: 'Kesehatan',
       penanggungJawab: 'Kepala Dinas Kesehatan',
     },
     {
+      externalId: 'HD-002',
       kode: 'DISDIK',
       nama: 'Dinas Pendidikan',
       jenisLayanan: 'Pendidikan',
       penanggungJawab: 'Kepala Dinas Pendidikan',
     },
     {
+      externalId: 'HD-003',
       kode: 'DUKCAPIL',
       nama: 'Dinas Kependudukan dan Pencatatan Sipil',
       jenisLayanan: 'Administrasi Kependudukan',
@@ -43,10 +63,11 @@ async function main(): Promise<void> {
 
   const opdByKode: Record<string, { id: number }> = {};
   for (const opd of opdSeed) {
+    // `update` mem-backfill externalId/syncedAt pada baris seed lama (idempoten).
     opdByKode[opd.kode] = await prisma.opd.upsert({
       where: { kode: opd.kode },
-      update: {},
-      create: { ...opd, isActive: true },
+      update: { externalId: opd.externalId, syncedAt },
+      create: { ...opd, isActive: true, syncedAt },
     });
   }
 
@@ -76,7 +97,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (contoh survei).`,
+    `Seed selesai: superuser (id=${superuser.id}), admin kabupaten (id=${adminKabupaten.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (contoh survei).`,
   );
 }
 

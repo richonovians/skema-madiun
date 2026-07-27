@@ -20,6 +20,7 @@ enum Role {
   kabupaten
   opd
   responden
+  superuser // pengelola sistem — akses penuh (melampaui kabupaten)
 
   @@map("user_role")
 }
