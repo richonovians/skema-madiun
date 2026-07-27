@@ -87,4 +87,40 @@ describe('OPD (e2e)', () => {
 
     expect(res.status).toBe(404);
   });
+
+  it('POST /opd/sync (kabupaten) -> 200, sinkronisasi 3 fixture', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/opd/sync')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.fetched).toBe(3);
+    expect(res.body.data.created + res.body.data.updated).toBe(3);
+    expect(res.body.data.skipped).toBe(0);
+  });
+
+  it('OPD hasil sync memiliki externalId & syncedAt', async () => {
+    const dinkes = await prisma.opd.findUnique({ where: { kode: 'DINKES' } });
+
+    expect(dinkes?.externalId).toBe('HD-001');
+    expect(dinkes?.syncedAt).not.toBeNull();
+  });
+
+  it('POST /opd/sync idempoten -> created 0, updated 3', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/opd/sync')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.created).toBe(0);
+    expect(res.body.data.updated).toBe(3);
+  });
+
+  it('POST /opd/sync (opd) -> 403', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/opd/sync')
+      .set(devHeaders({ role: Role.opd, opdId }));
+
+    expect(res.status).toBe(403);
+  });
 });

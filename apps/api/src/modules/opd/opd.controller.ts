@@ -1,4 +1,13 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
@@ -7,6 +16,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
 import { OpdEntity } from './entities/opd.entity';
+import { OpdSyncReport } from './entities/opd-sync-report.entity';
 import { OpdService } from './opd.service';
 
 @ApiTags('opd')
@@ -21,6 +31,15 @@ export class OpdController {
   @ApiOkResponse({ type: OpdEntity, isArray: true })
   findAll(@Query() query: ListOpdQueryDto): Promise<PaginatedResult<OpdEntity>> {
     return this.opdService.findAll(query);
+  }
+
+  /** Sinkronisasi data OPD dari Helpdesk (upsert by external_id). Hanya Admin Kabupaten. */
+  @Post('sync')
+  @Roles(Role.kabupaten)
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: OpdSyncReport })
+  sync(): Promise<OpdSyncReport> {
+    return this.opdService.syncFromSource();
   }
 
   /** Detail OPD. Admin Kabupaten (semua) atau Admin OPD (miliknya sendiri). */
