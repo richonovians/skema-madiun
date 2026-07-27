@@ -1,15 +1,23 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
 import { OpdEntity } from './entities/opd.entity';
 import { OpdSyncReport } from './entities/opd-sync-report.entity';
-import { OpdSource } from './interfaces/opd-source.interface';
+import { HelpdeskOpd, OpdSource } from './interfaces/opd-source.interface';
 import { OPD_SOURCE } from './opd.constants';
 
 @Injectable()
 export class OpdService {
+  private readonly logger = new Logger(OpdService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(OPD_SOURCE) private readonly opdSource: OpdSource,
@@ -58,25 +66,40 @@ export class OpdService {
   }
 
   /**
-   * Sinkronisasi OPD dari Helpdesk: upsert berdasarkan `externalId`.
-   * Bila belum ada baris ber-`externalId` tetapi ada baris dengan `kode` sama
-   * (mis. data seed lama), baris itu diadopsi (di-*update* + di-set `externalId`)
-   * agar tidak melanggar keunikan `kode`. Record tak lengkap dilewati (skipped).
+   * Sinkronisasi OPD dari Helpdesk.
+   * - Upsert by `externalId` (fallback adopsi baris ber-`kode` sama agar tak bentrok unik).
+   * - OPD yang pernah disinkron tetapi HILANG dari source → dinonaktifkan (`isActive=false`),
+   *   TIDAK dihapus (jaga FK surveys/complaints).
+   * - Record tak lengkap dilewati (skipped).
+   * - Sumber Helpdesk tidak tersedia → 503, cache TIDAK diubah.
    */
   async syncFromSource(): Promise<OpdSyncReport> {
     const start = Date.now();
-    const items = await this.opdSource.fetchOpdList();
-    const syncedAt = new Date();
 
+    let items: HelpdeskOpd[];
+    try {
+      items = await this.opdSource.fetchOpdList();
+    } catch (error) {
+      this.logger.error(
+        'Sinkronisasi OPD gagal: sumber data Helpdesk tidak tersedia',
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new ServiceUnavailableException('Sumber data OPD (Helpdesk) tidak tersedia');
+    }
+
+    const syncedAt = new Date();
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    let deactivated = 0;
+    const seenExternalIds: string[] = [];
 
     for (const item of items) {
       if (!item.externalId || !item.kode || !item.nama) {
         skipped += 1;
         continue;
       }
+      seenExternalIds.push(item.externalId);
 
       const data = {
         externalId: item.externalId,
@@ -101,13 +124,34 @@ export class OpdService {
       }
     }
 
-    return new OpdSyncReport({
+    // OPD-4: nonaktifkan OPD tersinkron (ber-externalId) yang hilang dari source.
+    // `notIn` pada kolom nullable otomatis mengecualikan baris ber-externalId null.
+    // Guard: hanya jalan bila ada externalId valid (hindari mass-deactivate saat source kosong/anomali).
+    if (seenExternalIds.length > 0) {
+      const result = await this.prisma.opd.updateMany({
+        where: { isActive: true, externalId: { notIn: seenExternalIds } },
+        data: { isActive: false, syncedAt },
+      });
+      deactivated = result.count;
+    }
+
+    const report = new OpdSyncReport({
       fetched: items.length,
       created,
       updated,
+      deactivated,
       skipped,
       durationMs: Date.now() - start,
       syncedAt,
     });
+
+    this.logger.log(
+      `Sinkronisasi OPD selesai: fetched=${report.fetched} created=${created} updated=${updated} deactivated=${deactivated} skipped=${skipped} (${report.durationMs}ms)`,
+    );
+    if (skipped > 0) {
+      this.logger.warn(`${skipped} record OPD dilewati karena data tidak lengkap`);
+    }
+
+    return report;
   }
 }

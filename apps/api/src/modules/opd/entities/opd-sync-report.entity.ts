@@ -5,6 +5,7 @@ export class OpdSyncReport extends BaseEntity<OpdSyncReport> {
   fetched: number;
   created: number;
   updated: number;
+  deactivated: number;
   skipped: number;
   durationMs: number;
   syncedAt: Date;

@@ -1,5 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotFoundException } from '@nestjs/common';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
 import { OpdSource } from './interfaces/opd-source.interface';
 import { OpdService } from './opd.service';
@@ -26,13 +27,17 @@ describe('OpdService', () => {
       findFirst: jest.fn(),
       update: jest.fn(),
       create: jest.fn(),
+      updateMany: jest.fn(),
     },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const opdSource = { fetchOpdList: jest.fn() };
   const service = new OpdService(prisma, opdSource as unknown as OpdSource);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.opd.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+  });
 
   it('findAll mengembalikan PaginatedResult dengan meta yang benar', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
@@ -65,8 +70,8 @@ describe('OpdService', () => {
       { externalId: 'HD-002', kode: 'DISDIK', nama: 'Dinas Pendidikan' },
     ]);
     (prisma.opd.findFirst as jest.Mock)
-      .mockResolvedValueOnce({ id: 1 }) // HD-001 sudah ada → update
-      .mockResolvedValueOnce(null); // HD-002 baru → create
+      .mockResolvedValueOnce({ id: 1 })
+      .mockResolvedValueOnce(null);
 
     const report = await service.syncFromSource();
 
@@ -78,7 +83,7 @@ describe('OpdService', () => {
     expect(prisma.opd.create).toHaveBeenCalledTimes(1);
   });
 
-  it('syncFromSource: melewati record tak lengkap (skipped)', async () => {
+  it('syncFromSource: melewati record tak lengkap (skipped) & tidak menonaktifkan apa pun', async () => {
     opdSource.fetchOpdList.mockResolvedValue([{ externalId: '', kode: 'X', nama: 'Y' }]);
 
     const report = await service.syncFromSource();
@@ -86,5 +91,47 @@ describe('OpdService', () => {
     expect(report.skipped).toBe(1);
     expect(report.created).toBe(0);
     expect(report.updated).toBe(0);
+    // seenExternalIds kosong → guard mencegah updateMany (hindari mass-deactivate).
+    expect(prisma.opd.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('OPD-4: menonaktifkan OPD tersinkron yang hilang dari source (bukan menghapus)', async () => {
+    opdSource.fetchOpdList.mockResolvedValue([
+      { externalId: 'HD-001', kode: 'DINKES', nama: 'Dinas Kesehatan' },
+    ]);
+    (prisma.opd.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
+    (prisma.opd.updateMany as jest.Mock).mockResolvedValueOnce({ count: 2 });
+
+    const report = await service.syncFromSource();
+
+    expect(report.deactivated).toBe(2);
+    expect(prisma.opd.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isActive: true, externalId: { notIn: ['HD-001'] } }),
+        data: expect.objectContaining({ isActive: false }),
+      }),
+    );
+  });
+
+  it('OPD-6: melempar ServiceUnavailableException & tidak menyentuh DB saat source gagal', async () => {
+    opdSource.fetchOpdList.mockRejectedValue(new Error('Helpdesk down'));
+
+    await expect(service.syncFromSource()).rejects.toThrow(ServiceUnavailableException);
+    expect(prisma.opd.create).not.toHaveBeenCalled();
+    expect(prisma.opd.update).not.toHaveBeenCalled();
+    expect(prisma.opd.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('OPD-5: mencatat ringkasan sinkronisasi via Logger', async () => {
+    const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    opdSource.fetchOpdList.mockResolvedValue([
+      { externalId: 'HD-001', kode: 'DINKES', nama: 'Dinas Kesehatan' },
+    ]);
+    (prisma.opd.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
+
+    await service.syncFromSource();
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Sinkronisasi OPD selesai'));
+    logSpy.mockRestore();
   });
 });

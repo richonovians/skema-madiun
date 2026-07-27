@@ -97,6 +97,7 @@ describe('OPD (e2e)', () => {
     expect(res.body.data.fetched).toBe(3);
     expect(res.body.data.created + res.body.data.updated).toBe(3);
     expect(res.body.data.skipped).toBe(0);
+    expect(res.body.data).toHaveProperty('deactivated');
   });
 
   it('OPD hasil sync memiliki externalId & syncedAt', async () => {
@@ -122,5 +123,13 @@ describe('OPD (e2e)', () => {
       .set(devHeaders({ role: Role.opd, opdId }));
 
     expect(res.status).toBe(403);
+  });
+
+  it('OPD-4: OPD tersinkron yang hilang dari source dinonaktifkan, BUKAN dihapus', async () => {
+    // E2ETEST (externalId E2E-1) tidak ada di fixture stub → sync menonaktifkannya.
+    const row = await prisma.opd.findUnique({ where: { kode: 'E2ETEST' } });
+
+    expect(row).not.toBeNull(); // tidak dihapus → FK surveys/complaints aman
+    expect(row?.isActive).toBe(false); // dinonaktifkan
   });
 });
