@@ -22,6 +22,8 @@ Dokumen ini adalah **rujukan resmi** daftar routes. Semua route API bersifat fin
 
 Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak.
 
+> **Superuser** (pengelola sistem) memiliki **akses penuh ke seluruh endpoint** — melampaui kolom Peran (di-*bypass* pada RolesGuard), jadi tidak dicantumkan berulang di tiap baris. Pada `/users`, hanya Superuser yang boleh menetapkan/mengelola akun ber-role `kabupaten`/`superuser`.
+
 ## A.1 Autentikasi & Akun (`/auth`)
 
 | # | Method | Path | Auth | Peran | Deskripsi |

@@ -16,7 +16,7 @@
 
 Diskominfo membutuhkan sebuah platform terpadu yang menjalankan dua fungsi utama pelayanan publik: **(1) Survei Kepuasan Masyarakat (SKM)** untuk mengukur kualitas layanan setiap Organisasi Perangkat Daerah (OPD), dan **(2) Pengaduan Masyarakat** sebagai kanal masukan dan keluhan warga.
 
-Sistem melibatkan tiga aktor: **Admin Kabupaten** (pengawas tingkat kabupaten), **Admin OPD** (pengelola survei & pengaduan di masing-masing perangkat daerah), dan **Responden/Masyarakat** (pengguna layanan). Warga cukup registrasi sekali, lalu dapat mengikuti survei apa pun dan mengajukan pengaduan tanpa mengisi ulang data diri.
+Sistem melibatkan tiga aktor bisnis: **Admin Kabupaten** (pengawas tingkat kabupaten), **Admin OPD** (pengelola survei & pengaduan di masing-masing perangkat daerah), dan **Responden/Masyarakat** (pengguna layanan). Selain itu terdapat peran teknis **Superuser** (pengelola sistem) dengan akses penuh melampaui Admin Kabupaten. Warga cukup registrasi sekali, lalu dapat mengikuti survei apa pun dan mengajukan pengaduan tanpa mengisi ulang data diri.
 
 Secara metodologi, modul SKM dirancang selaras dengan pedoman nasional (9 unsur pelayanan, skala penilaian 1–4, dan konversi ke Indeks Kepuasan Masyarakat/IKM), namun tetap fleksibel karena Admin OPD boleh menambah pertanyaan kustom di luar unsur baku.
 
@@ -80,20 +80,23 @@ Penyelenggara pelayanan publik wajib mengukur kepuasan masyarakat sebagai dasar 
 
 ## 6. Peran Pengguna & Hak Akses (RBAC)
 
-> **Catatan asumsi (A-1):** Anda menyebut 2 admin. Namun seseorang tetap harus membuat daftar OPD dan akun Admin OPD. PRD ini mengasumsikan **Admin Kabupaten (Diskominfo)** yang menjalankan fungsi pengelolaan tersebut. Jika ke depan dibutuhkan peran teknis terpisah, dapat ditambahkan peran **Super Admin** (lihat *OQ-2*).
+> **Catatan asumsi (A-1):** Anda menyebut 2 admin. Namun seseorang tetap harus membuat daftar OPD dan akun Admin OPD. PRD ini mengasumsikan **Admin Kabupaten (Diskominfo)** yang menjalankan fungsi pengelolaan tersebut. Peran teknis terpisah **Superuser** (pengelola sistem, akses penuh) **telah ditambahkan** — lihat *OQ-2* (sudah diputuskan).
 
-| Kemampuan | Admin Kabupaten | Admin OPD | Responden |
-|---|:---:|:---:|:---:|
-| Kelola daftar OPD | ✅ | ❌ | ❌ |
-| Buat/nonaktifkan akun Admin OPD | ✅ | ❌ | ❌ |
-| Buat & kelola pertanyaan survei | ❌ | ✅ (OPD sendiri) | ❌ |
-| Publikasikan / tutup survei | ❌ | ✅ (OPD sendiri) | ❌ |
-| Lihat hasil survei OPD sendiri | ✅ (semua OPD) | ✅ (OPD sendiri) | ❌ |
-| Lihat hasil survei agregat semua OPD | ✅ | ❌ | ❌ |
-| Kelola & tindak lanjut pengaduan | ✅ (pantau semua) | ✅ (OPD sendiri) | ❌ |
-| Registrasi & login | (akun dibuatkan) | (akun dibuatkan) | ✅ |
-| Isi survei | ❌ | ❌ | ✅ |
-| Ajukan pengaduan & pantau statusnya | ❌ | ❌ | ✅ |
+| Kemampuan | Superuser | Admin Kabupaten | Admin OPD | Responden |
+|---|:---:|:---:|:---:|:---:|
+| Kelola akun Admin Kabupaten & Superuser | ✅ | ❌ | ❌ | ❌ |
+| Kelola daftar OPD | ✅ | ✅ | ❌ | ❌ |
+| Buat/nonaktifkan akun Admin OPD | ✅ | ✅ | ❌ | ❌ |
+| Buat & kelola pertanyaan survei | ✅ | ❌ | ✅ (OPD sendiri) | ❌ |
+| Publikasikan / tutup survei | ✅ | ❌ | ✅ (OPD sendiri) | ❌ |
+| Lihat hasil survei OPD sendiri | ✅ | ✅ (semua OPD) | ✅ (OPD sendiri) | ❌ |
+| Lihat hasil survei agregat semua OPD | ✅ | ✅ | ❌ | ❌ |
+| Kelola & tindak lanjut pengaduan | ✅ | ✅ (pantau semua) | ✅ (OPD sendiri) | ❌ |
+| Registrasi & login | (akun dibuatkan) | (akun dibuatkan) | (akun dibuatkan) | ✅ |
+| Isi survei | — | ❌ | ❌ | ✅ |
+| Ajukan pengaduan & pantau statusnya | — | ❌ | ❌ | ✅ |
+
+**Peran Superuser (pengelola sistem):** akses penuh yang **melampaui** seluruh batasan pada tabel di atas (implementasi: *bypass* pada RolesGuard), mis. mengelola akun Admin Kabupaten. Hanya Superuser yang boleh menetapkan/mengelola akun ber-role `kabupaten`/`superuser` (mencegah eskalasi privilege).
 
 **Prinsip penting:** Admin OPD hanya bisa mengakses data milik OPD-nya sendiri (*data isolation* per OPD). Admin Kabupaten bersifat **read-only** terhadap hasil survei — ia memantau, bukan membuat pertanyaan.
 
@@ -228,7 +231,7 @@ Model data berikut selaras dengan **ERD final** (file: `ERD-Sistem-SKM-dan-Penga
 
 | Entitas | Field | Relasi |
 |---|---|---|
-| **USER** | `id` (PK), `nama`, `email` (UK), `role` (`kabupaten`/`opd`/`responden`), `password_hash`, `opd_id` (FK, null jika bukan admin OPD), `is_active`, `created_at` | 1–0..1 RESPONDENT_PROFILE; N–1 OPD (admin); 1–N SURVEY_RESPONSE, COMPLAINT, COMPLAINT_REPLY, AUDIT_LOG |
+| **USER** | `id` (PK), `sso_subject` (UK), `nama`, `email` (UK), `role` (`superuser`/`kabupaten`/`opd`/`responden`), `opd_id` (FK, null jika bukan admin OPD), `is_active`, `consent_at`, `last_login_at`, `deleted_at`, `created_at`, `updated_at` | 1–0..1 RESPONDENT_PROFILE; N–1 OPD (admin); 1–N SURVEY_RESPONSE, COMPLAINT, COMPLAINT_REPLY, AUDIT_LOG |
 | **RESPONDENT_PROFILE** | `id` (PK), `user_id` (FK), `jenis_kelamin`, `kelompok_umur`, `pendidikan`, `pekerjaan` | 1–1 dengan USER (responden) |
 | **OPD** | `id` (PK), `nama`, `kode` (UK), `jenis_layanan`, `penanggung_jawab`, `is_active` | 1–N USER (admin), SURVEY, COMPLAINT |
 | **SURVEY** | `id` (PK), `opd_id` (FK), `judul`, `periode`, `status` (`draft`/`aktif`/`ditutup`), `allow_multiple_submit`, `created_at` | 1–N QUESTION, SURVEY_RESPONSE, IKM_RESULT |
@@ -353,7 +356,7 @@ Daftar endpoint berikut bersifat **final dan mengikat** sebagai kontrak antara b
 ## 17. Pertanyaan Terbuka (Open Questions)
 
 - **OQ-1:** Apakah standar yang dipakai PermenPANRB 14/2017 (9 unsur, IKM) atau sudah mengadopsi PermenPANRB 6/2022 (Survei Kualitas Pelayanan dengan analisis gap)? Ini menentukan struktur kuesioner & rumus.
-- **OQ-2:** Perlukah peran teknis **Super Admin** terpisah dari Admin Kabupaten?
+- **OQ-2:** ~~Perlukah peran teknis Super Admin terpisah dari Admin Kabupaten?~~ **TERJAWAB (2026-07-27):** ya — ditambahkan role **`superuser`** (pengelola sistem, akses penuh; hanya superuser boleh mengelola akun Admin Kabupaten/Superuser).
 - **OQ-3:** Apakah pengaduan boleh anonim, atau wajib login? (PRD ini mengasumsikan wajib login.)
 - **OQ-4:** Perlukah verifikasi identitas resmi (NIK) untuk responden, atau cukup email/HP?
 - **OQ-5:** Apakah hasil IKM dipublikasikan ke publik (transparansi) atau internal saja?
