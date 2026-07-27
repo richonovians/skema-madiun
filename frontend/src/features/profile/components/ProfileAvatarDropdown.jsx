@@ -76,16 +76,6 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
 
           {/* Navigation Items */}
           <div className="space-y-0.5 py-1">
-            {pathname !== '/profile' && (
-              <Link
-                href="/profile"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors"
-              >
-                <User size={16} className="text-text-secondary group-hover:text-primary shrink-0" />
-                <span>Profil Saya</span>
-              </Link>
-            )}
 
             {!hideDashboardLink && (
               <Link
