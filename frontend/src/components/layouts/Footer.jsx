@@ -1,60 +1,64 @@
 import React from 'react';
 import Link from 'next/link';
-import { Smile, Globe, AtSign, MapPin, Phone, Mail } from 'lucide-react';
+import Image from 'next/image';
+import { Globe, AtSign, MapPin, Phone, Mail } from 'lucide-react';
 
 export default function Footer() {
   return (
     <footer className="w-full py-16 bg-[#0F172A] text-white">
-      <div className="max-w-[1280px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
-        {/* Brand & Info */}
-        <div className="flex flex-col gap-6">
-          <span className="font-h2 text-h2 text-white">SKEMA Madiun</span>
-          <p className="text-outline-variant font-body text-body-md">
-            Layanan aspirasi dan pengaduan online rakyat Kabupaten Madiun. Terpercaya, transparan, dan akuntabel.
-          </p>
-          <div className="flex gap-4 mt-2">
-            <a href="#" className="p-2 border border-white/20 rounded-full hover:bg-white/10 transition-colors">
-              <Smile size={20} />
-            </a>
-            <a href="#" className="p-2 border border-white/20 rounded-full hover:bg-white/10 transition-colors">
-              <Globe size={20} />
-            </a>
-            <a href="#" className="p-2 border border-white/20 rounded-full hover:bg-white/10 transition-colors">
-              <AtSign size={20} />
-            </a>
+      <div className="max-w-[1280px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12">
+        {/* Brand & Info (Sejajar Horizontal antara Logo dan Keterangan) */}
+        <div className="flex flex-col sm:flex-row items-start gap-5 col-span-1 md:col-span-2 lg:col-span-6">
+          {/* Logo di Kiri */}
+          <div className="relative w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 shrink-0 flex items-center justify-center">
+            <Image 
+              src="/images/footer/Kabupaten-Madiun-Logo-transparent.png" 
+              alt="Logo Kabupaten Madiun" 
+              fill
+              sizes="(max-width: 640px) 96px, 128px"
+              className="object-contain"
+            />
+          </div>
+          
+          {/* Judul, Keterangan, dan Ikon di Kanan */}
+          <div className="flex flex-col gap-3 flex-1">
+            <span className="font-h2 text-2xl md:text-3xl font-bold text-white tracking-wide leading-tight">SKEMA Madiun</span>
+            <p className="text-outline-variant font-body text-sm sm:text-base leading-relaxed text-slate-300">
+              Layanan aspirasi dan pengaduan online rakyat Kabupaten Madiun. Terpercaya, transparan, dan akuntabel.
+            </p>
+            <div className="flex gap-3 mt-2">
+              <a href="#" className="p-2.5 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
+                <Globe size={18} className="text-white" />
+              </a>
+              <a href="#" className="p-2.5 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
+                <AtSign size={18} className="text-white" />
+              </a>
+            </div>
           </div>
         </div>
         
-        {/* Links 1 */}
-        <div className="flex flex-col gap-4">
-          <h4 className="font-bold text-lg mb-1">Tautan Cepat</h4>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="/">Beranda</Link>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="#">Statistik Pelayanan</Link>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="#">Daftar OPD</Link>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="#">Bantuan</Link>
-        </div>
-        
-        {/* Links 2 */}
-        <div className="flex flex-col gap-4">
-          <h4 className="font-bold text-lg mb-1">Legalitas</h4>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="#">Kebijakan Privasi</Link>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="#">Syarat &amp; Ketentuan</Link>
-          <Link className="text-outline-variant hover:text-white hover:underline transition-all duration-300" href="#">Kontak Kami</Link>
+        {/* Links */}
+        <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3 lg:pl-6">
+          <h4 className="font-bold text-lg text-white mb-1">Tautan Cepat</h4>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/">Beranda</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="#">Statistik Pelayanan</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="#">Daftar OPD</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="#">Bantuan</Link>
         </div>
         
         {/* Contact */}
-        <div className="flex flex-col gap-4">
-          <h4 className="font-bold text-lg mb-1">Hubungi Kami</h4>
-          <div className="flex gap-2 items-start">
-            <MapPin className="text-outline-variant shrink-0 mt-1" size={18} />
-            <p className="text-outline-variant text-sm">Jl. Alun-Alun Utara No. 1, Kota Madiun, Jawa Timur</p>
+        <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3">
+          <h4 className="font-bold text-lg text-white mb-1">Hubungi Kami</h4>
+          <div className="flex gap-3 items-start">
+            <MapPin className="text-primary shrink-0 mt-0.5" size={18} />
+            <p className="text-outline-variant text-sm leading-relaxed">Pusat Pemerintahan Kabupaten Madiun di Caruban (Mejayan), Jl. Alun-Alun Utara No. 4, Kab. Madiun, Jawa Timur 63153</p>
           </div>
-          <div className="flex gap-2 items-center">
-            <Phone className="text-outline-variant shrink-0" size={18} />
-            <p className="text-outline-variant text-sm">(0351) 464xxx</p>
+          <div className="flex gap-3 items-center">
+            <Phone className="text-primary shrink-0" size={18} />
+            <p className="text-outline-variant text-sm font-mono">(0351) 464xxx</p>
           </div>
-          <div className="flex gap-2 items-center">
-            <Mail className="text-outline-variant shrink-0" size={18} />
+          <div className="flex gap-3 items-center">
+            <Mail className="text-primary shrink-0" size={18} />
             <p className="text-outline-variant text-sm">hubungi@madiunkab.go.id</p>
           </div>
         </div>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
+import Image from 'next/image';
 import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
 
@@ -27,8 +28,20 @@ export default function Navbar() {
     <nav className="bg-surface sticky top-0 z-50 shadow-sm h-16 w-full">
       <div className="flex justify-between items-center h-full max-w-[1280px] mx-auto px-6">
         <div className="flex items-center gap-4">
-          <Link href="/" className="font-h3 text-h3 text-primary font-bold">
-            SKEMA Madiun
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="shrink-0 transition-transform duration-300 group-hover:scale-105 flex items-center">
+              <Image 
+                src="/images/navbar/skema-logo-transparent.png" 
+                alt="Logo SKEMA" 
+                width={88}
+                height={48}
+                className="object-contain h-8 md:h-10 w-auto"
+                priority
+              />
+            </div>
+            <span className="font-h3 text-xl md:text-2xl text-primary font-bold tracking-tight">
+              SKEMA Madiun
+            </span>
           </Link>
         </div>
         <div className="hidden md:flex items-center gap-8">
