@@ -17,7 +17,7 @@ export default function InsightCard({ text }) {
             Insight & Kesimpulan
           </h3>
           <p className="text-lg md:text-xl font-medium leading-relaxed">
-            "{text}"
+            &quot;{text}&quot;
           </p>
         </div>
       </div>

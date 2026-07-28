@@ -31,7 +31,7 @@ export default function SurveyCompletion() {
         <div className="bg-white/60 border border-border rounded-2xl p-md md:p-lg mb-xl w-full shadow-sm hover:shadow-md transition-shadow">
           <p className="text-body-md text-text-secondary mb-xs">Tanggapan Anda untuk survei:</p>
           <p className="font-h3 text-h3 text-text-primary leading-snug mb-sm">
-            "{surveyData?.title || 'Evaluasi Mutu Pelayanan'}"
+            &quot;{surveyData?.title || 'Evaluasi Mutu Pelayanan'}&quot;
           </p>
           <div className="w-16 h-1 bg-gradient-to-r from-primary to-emerald-400 mx-auto rounded-full mb-md"></div>
           <p className="text-body-md text-text-secondary">

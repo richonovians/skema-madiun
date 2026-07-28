@@ -21,7 +21,7 @@ export default function VisionMission() {
             </div>
             <div className="p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-hover rounded-3xl text-white shadow-xl shadow-primary/20">
               <p className="font-h3 text-h3 font-medium leading-relaxed">
-                "{vision}"
+                &quot;{vision}&quot;
               </p>
             </div>
           </div>
