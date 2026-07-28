@@ -22,6 +22,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.min.js',
       '**/prisma/generated/**',
+      // Frontend Next.js punya eslint.config sendiri (eslint-config-next).
+      'apps/web/**',
     ],
   },
 

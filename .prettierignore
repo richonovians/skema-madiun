@@ -11,3 +11,7 @@ pnpm-lock.yaml
 
 # Dokumen sumber (jangan diformat ulang agar tabel/isi tetap utuh)
 docs
+
+# Frontend Next.js: gaya kode dikelola oleh setup-nya sendiri (eslint-config-next),
+# bukan Prettier root — hindari reformat masal kode tim frontend.
+apps/web
