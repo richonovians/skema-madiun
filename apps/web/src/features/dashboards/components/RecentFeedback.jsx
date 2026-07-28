@@ -31,7 +31,7 @@ export default function RecentFeedback({ feedbacks }) {
                     <span className="text-sm font-bold text-on-surface">{item.name}</span>
                     <span className="text-[10px] text-secondary">{item.time}</span>
                   </div>
-                  <p className="text-xs text-on-surface-variant line-clamp-2">"{item.comment}"</p>
+                  <p className="text-xs text-on-surface-variant line-clamp-2">&quot;{item.comment}&quot;</p>
                   <div className="mt-2">
                     <StarRating score={item.rating} size={12} />
                   </div>
