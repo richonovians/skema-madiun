@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function RespondentDashboard() {
   return (
-    <main className="max-w-[1280px] mx-auto py-8 px-6 space-y-8 w-full">
+    <main className="max-w-[1280px] mx-auto py-8 px-4 sm:px-6 space-y-8 w-full">
       <WelcomeHeader />
       <RecentComplaintWidget />
       <AvailableSurveysWidget />

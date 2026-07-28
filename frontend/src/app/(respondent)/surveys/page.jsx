@@ -80,7 +80,7 @@ export default function SurveysPage() {
   });
 
   return (
-    <main className="max-w-container-max mx-auto py-12 px-6">
+    <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
       <SurveyListHeader />
       
       <SurveyFilter 

@@ -60,14 +60,14 @@ export default function SurveyWizardPage() {
   }, [id, initSurvey, resetSurvey]);
 
   return (
-    <main className="max-w-container-max mx-auto py-12 px-6 min-h-[calc(100vh-64px)]">
+    <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6 min-h-[calc(100vh-64px)]">
       {isCompleted ? (
         <SurveyCompletion />
       ) : (
         <div className="w-full max-w-[800px] mx-auto">
           <SurveyProgress />
           
-          <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-lg md:p-xl border border-outline-variant/20">
+          <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-5 sm:p-8 md:p-10 border border-outline-variant/20">
             <QuestionCard />
             <SurveyNavigation />
           </div>

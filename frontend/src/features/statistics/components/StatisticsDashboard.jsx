@@ -23,7 +23,7 @@ export default function StatisticsDashboard() {
   } = dummyStatisticsResponse;
 
   return (
-    <div className="bg-background py-12 px-6">
+    <div className="bg-background py-8 sm:py-12 px-4 sm:px-6">
       <div className="max-w-[1280px] mx-auto flex flex-col gap-8">
         
         {/* Insight Section */}

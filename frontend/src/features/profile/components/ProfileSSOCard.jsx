@@ -9,7 +9,7 @@ export default function ProfileSSOCard({ user = DUMMY_CURRENT_USER }) {
   const { sso } = user;
 
   return (
-    <Card className="p-6 md:p-8 space-y-6 transition-all duration-300 hover:shadow-md">
+    <Card className="p-5 sm:p-6 md:p-8 space-y-5 sm:space-y-6 transition-all duration-300 hover:shadow-md">
       <div className="flex items-center justify-between border-b border-border pb-4">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-lg bg-primary-container/30 text-primary">

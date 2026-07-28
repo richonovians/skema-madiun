@@ -36,7 +36,7 @@ export function Tr({ children, className = '', ...props }) {
 
 export function Th({ children, className = '', ...props }) {
   return (
-    <th className={`px-6 py-4 text-sm font-bold text-text-primary uppercase tracking-wider ${className}`} {...props}>
+    <th className={`px-4 sm:px-6 py-3 sm:py-4 text-sm font-bold text-text-primary uppercase tracking-wider ${className}`} {...props}>
       {children}
     </th>
   );
@@ -44,7 +44,7 @@ export function Th({ children, className = '', ...props }) {
 
 export function Td({ children, className = '', ...props }) {
   return (
-    <td className={`px-6 py-4 ${className}`} {...props}>
+    <td className={`px-4 sm:px-6 py-3 sm:py-4 ${className}`} {...props}>
       {children}
     </td>
   );

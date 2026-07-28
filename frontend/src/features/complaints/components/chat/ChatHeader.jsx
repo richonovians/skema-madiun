@@ -4,7 +4,7 @@ import AvatarGroup from '@/components/ui/AvatarGroup';
 
 export default function ChatHeader({ title = 'Riwayat Interaksi', subtitle = 'Diskusi aktif dengan petugas lapangan', participants = [] }) {
   return (
-    <div className="p-lg border-b border-border bg-surface-container-low flex items-center justify-between">
+    <div className="p-4 sm:p-6 border-b border-border bg-surface-container-low flex items-center justify-between">
       <div>
         <h2 className="font-headline-md text-headline-md text-text-primary">{title}</h2>
         <p className="text-text-secondary text-label-md">{subtitle}</p>

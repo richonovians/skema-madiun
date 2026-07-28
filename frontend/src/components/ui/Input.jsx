@@ -22,7 +22,7 @@ export default function Input({
         )}
         <input
           id={id}
-          className={`w-full p-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-body-md ${
+          className={`w-full min-h-[44px] p-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-body-md ${
             leftIcon ? 'pl-10' : ''
           }`}
           {...props}

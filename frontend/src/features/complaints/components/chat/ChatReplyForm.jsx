@@ -18,8 +18,8 @@ export default function ChatReplyForm({ onSubmit }) {
   };
 
   return (
-    <div className="p-lg bg-surface border-t border-border">
-      <form onSubmit={handleSubmit} className="flex items-end gap-md">
+    <div className="p-4 sm:p-6 bg-surface border-t border-border">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 sm:gap-4">
         <div className="flex-grow relative">
           <Textarea 
             value={reply}
@@ -39,7 +39,7 @@ export default function ChatReplyForm({ onSubmit }) {
         <Button 
           type="submit" 
           variant="primary"
-          className="h-[56px] px-lg rounded-xl font-bold flex items-center justify-center gap-sm whitespace-nowrap"
+          className="h-[56px] px-6 rounded-xl font-bold flex items-center justify-center gap-2 whitespace-nowrap w-full sm:w-auto min-h-[48px]"
           disabled={!reply.trim()}
         >
           Kirim Tanggapan

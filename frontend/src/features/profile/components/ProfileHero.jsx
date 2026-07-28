@@ -7,11 +7,11 @@ import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
 
 export default function ProfileHero({ user = DUMMY_CURRENT_USER }) {
   return (
-    <div className="bg-surface border border-border rounded-2xl p-6 md:p-8 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md">
+    <div className="bg-surface border border-border rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md">
       {/* Background Decorative Gradient Accent */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-bl-full pointer-events-none -mr-16 -mt-16" />
 
-      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10 text-center sm:text-left">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10 text-center sm:text-left">
         {/* Large Avatar */}
         <div className="relative group">
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-3xl sm:text-4xl shadow-inner border-4 border-background overflow-hidden shrink-0">
@@ -49,7 +49,7 @@ export default function ProfileHero({ user = DUMMY_CURRENT_USER }) {
             {user.roleLabel} • <span className="text-text-primary font-semibold">{user.occupation}</span>
           </p>
 
-          <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs sm:text-sm text-text-secondary">
+          <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-3 sm:gap-4 text-xs sm:text-sm text-text-secondary">
             <div className="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-lg border border-border/60">
               <UserCheck size={15} className="text-primary" />
               <span>Status Akun: <strong className="text-emerald-600 font-semibold">Aktif</strong></span>

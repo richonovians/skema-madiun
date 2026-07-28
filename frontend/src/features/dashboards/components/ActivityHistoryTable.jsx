@@ -34,7 +34,7 @@ export default function ActivityHistoryTable() {
               </Td>
               <Td className="text-sm text-text-secondary">15 Juli 2026</Td>
               <Td className="text-right">
-                <button className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-all">
+                <button type="button" className="text-primary hover:bg-primary/10 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg transition-all" aria-label="Lihat Detail">
                   <Eye size={20} />
                 </button>
               </Td>
@@ -54,7 +54,7 @@ export default function ActivityHistoryTable() {
               </Td>
               <Td className="text-sm text-text-secondary">10 Juli 2026</Td>
               <Td className="text-right">
-                <button className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-all">
+                <button type="button" className="text-primary hover:bg-primary/10 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg transition-all" aria-label="Lihat Detail">
                   <Eye size={20} />
                 </button>
               </Td>

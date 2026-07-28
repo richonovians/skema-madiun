@@ -38,15 +38,15 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
   };
 
   return (
-    <Card className="p-lg">
-      <h3 className="font-h3 text-h3 mb-lg text-text-primary">Status Progress</h3>
-      <div className="relative space-y-lg">
+    <Card className="p-5 sm:p-6 md:p-8">
+      <h3 className="font-h3 text-h3 mb-6 text-text-primary">Status Progress</h3>
+      <div className="relative space-y-6">
         {steps.map((step, index) => {
           const state = getStepState(step.id, currentStatus);
           const isLast = index === steps.length - 1;
           
           return (
-            <div key={step.id} className="flex gap-md relative">
+            <div key={step.id} className="flex gap-3 sm:gap-4 relative">
               <div className="z-10 flex flex-col items-center">
                 
                 {/* Icon Container */}

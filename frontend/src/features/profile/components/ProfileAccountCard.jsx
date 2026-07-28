@@ -26,7 +26,7 @@ export default function ProfileAccountCard({ user = DUMMY_CURRENT_USER }) {
   ];
 
   return (
-    <Card className="p-6 md:p-8 space-y-6 transition-all duration-300 hover:shadow-md">
+    <Card className="p-5 sm:p-6 md:p-8 space-y-5 sm:space-y-6 transition-all duration-300 hover:shadow-md">
       <div className="border-b border-border pb-4">
         <h2 className="text-lg font-bold text-text-primary">Informasi Akun</h2>
         <p className="text-sm text-text-secondary">
@@ -34,7 +34,7 @@ export default function ProfileAccountCard({ user = DUMMY_CURRENT_USER }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 pt-2">
         {accountItems.map((item, index) => {
           const IconComponent = item.icon;
           return (

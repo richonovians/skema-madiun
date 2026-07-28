@@ -26,67 +26,36 @@ export default function ComplaintSuccessCard() {
   ];
 
   return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: '640px',
-        margin: '0 auto',
-        background: 'rgba(255,255,255,0.9)',
-        backdropFilter: 'blur(12px)',
-        borderRadius: '20px',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.08)',
-        border: '1px solid rgba(255,255,255,0.6)',
-        padding: '48px 40px',
-        textAlign: 'center',
-        boxSizing: 'border-box',
-      }}
-    >
+    <div className="w-full max-w-[640px] mx-auto bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/60 p-6 sm:p-10 md:p-12 text-center box-border">
       {/* Icon */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-        <div style={{
-          width: 80,
-          height: 80,
-          borderRadius: '50%',
-          background: '#d1fae5',
-          border: '4px solid white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(16,185,129,0.2)'
-        }}>
-          <CheckCircle2 size={40} color="#059669" />
+      <div className="flex justify-center mb-6">
+        <div className="w-20 h-20 rounded-full bg-emerald-100 border-4 border-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <CheckCircle2 size={40} className="text-emerald-600" />
         </div>
       </div>
 
       {/* Title */}
-      <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#111827', marginBottom: '12px' }}>
+      <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-3">
         Pengaduan Berhasil Dikirim
       </h1>
-      <p style={{ fontSize: '15px', color: '#6b7280', lineHeight: 1.7, marginBottom: '32px', maxWidth: '480px', margin: '0 auto 32px auto' }}>
+      <p className="text-sm sm:text-base text-slate-500 leading-relaxed mb-8 max-w-[480px] mx-auto">
         Terima kasih. Pengaduan Anda telah berhasil dikirim kepada{' '}
-        <strong style={{ color: '#111827' }}>{opdName}</strong>{' '}
+        <strong className="text-slate-900">{opdName}</strong>{' '}
         dan akan segera diproses oleh petugas.
       </p>
 
       {/* Summary Box */}
-      <div style={{
-        background: '#f8fafc',
-        borderRadius: '12px',
-        border: '1px solid #e2e8f0',
-        padding: '24px',
-        marginBottom: '32px',
-        textAlign: 'left',
-      }}>
-        <p style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+      <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 sm:p-6 mb-8 text-left">
+        <p className="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-4 border-b border-slate-200 pb-3">
           Detail Pengajuan
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {infos.map((info, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              <div style={{ marginTop: '2px', flexShrink: 0 }}>{info.icon}</div>
+            <div key={i} className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">{info.icon}</div>
               <div>
-                <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '2px' }}>{info.label}</p>
-                <p style={{ fontSize: '14px', fontWeight: 700, color: '#111827', wordBreak: 'break-word' }}>{info.value}</p>
+                <p className="text-[11px] text-slate-400 mb-0.5">{info.label}</p>
+                <p className="text-sm font-bold text-slate-900 break-words">{info.value}</p>
               </div>
             </div>
           ))}
@@ -94,63 +63,32 @@ export default function ComplaintSuccessCard() {
       </div>
 
       {/* CTA Buttons */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '380px', margin: '0 auto' }}>
+      <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
         <button
+          type="button"
           onClick={() => router.push(opdId ? `/surveys/${opdId}` : '/surveys')}
-          style={{
-            width: '100%',
-            padding: '14px 24px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-            color: 'white',
-            fontWeight: 700,
-            fontSize: '15px',
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
-            transition: 'all 0.2s',
-          }}
+          className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 hover:from-blue-700 hover:to-blue-800 transition-all"
         >
           Lanjut Isi Survei
         </button>
         <button
+          type="button"
           onClick={() => router.push('/complaints')}
-          style={{
-            width: '100%',
-            padding: '12px 24px',
-            borderRadius: '12px',
-            background: 'white',
-            color: '#2563eb',
-            fontWeight: 600,
-            fontSize: '15px',
-            border: '2px solid #2563eb',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
+          className="w-full py-3 px-6 min-h-[48px] rounded-xl bg-white text-blue-600 font-semibold text-sm sm:text-base border-2 border-blue-600 hover:bg-blue-50 transition-all"
         >
           Lihat Status Pengaduan
         </button>
         <button
+          type="button"
           onClick={() => router.push('/')}
-          style={{
-            width: '100%',
-            padding: '10px 24px',
-            borderRadius: '12px',
-            background: 'transparent',
-            color: '#6b7280',
-            fontWeight: 500,
-            fontSize: '14px',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
+          className="w-full py-2.5 px-6 min-h-[44px] rounded-xl bg-transparent text-slate-500 font-medium text-sm hover:text-slate-700 transition-all"
         >
           Kembali ke Beranda
         </button>
       </div>
 
       {/* Footer note */}
-      <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #f1f5f9' }}>
+      <p className="text-xs text-slate-400 mt-8 pt-6 border-t border-slate-100">
         Pendapat Anda sangat berarti untuk membantu Pemerintah Kabupaten Madiun meningkatkan kualitas pelayanan publik.
       </p>
     </div>

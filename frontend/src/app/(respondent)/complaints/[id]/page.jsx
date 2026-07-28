@@ -1,6 +1,9 @@
 'use client';
 
 import React, { use } from 'react';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 import ComplaintInfoCard from '@/features/complaints/components/ComplaintInfoCard';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
@@ -53,11 +56,32 @@ export default function ComplaintDetailPage({ params }) {
     ]
   };
 
+  const breadcrumbItems = [
+    { label: 'Beranda', href: '/dashboard' },
+    { label: 'Daftar Pengaduan', href: '/complaints' },
+    { label: 'Detail', active: true }
+  ];
+
   return (
-    <main className="max-w-container-max w-full mx-auto px-lg py-xl">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-lg h-full">
+    <main className="max-w-container-max w-full mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-10 md:py-12">
+      {/* Back Button & Breadcrumb */}
+      <div className="mb-6 sm:mb-8 space-y-4">
+        <div>
+          <Link 
+            href="/complaints" 
+            className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all shadow-sm group"
+            aria-label="Kembali ke Daftar Pengaduan"
+            title="Kembali ke Daftar Pengaduan"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
+        <Breadcrumb items={breadcrumbItems} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 h-full">
         {/* LEFT COLUMN (1/3) */}
-        <aside className="md:col-span-4 space-y-lg">
+        <aside className="md:col-span-4 space-y-6 sm:space-y-8">
           <ComplaintInfoCard 
             ticketId={dummyComplaint.ticketId}
             date={dummyComplaint.date}

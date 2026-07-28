@@ -32,8 +32,9 @@ export default function FAQSection() {
                 style={{ animationDelay: `${index * 100}ms` }}
               >
                 <button
+                  type="button"
                   onClick={() => toggleAccordion(item.id)}
-                  className="w-full flex items-center justify-between p-6 text-left hover:bg-surface-hover transition-colors"
+                  className="w-full flex items-center justify-between p-4 sm:p-6 min-h-[64px] text-left hover:bg-surface-hover transition-colors"
                 >
                   <h3 className="font-h4 text-h4 text-text-primary pr-8">
                     {item.question}

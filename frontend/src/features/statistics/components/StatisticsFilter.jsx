@@ -36,15 +36,15 @@ export default function StatisticsFilter() {
   ];
 
   return (
-    <div className="bg-surface border-y border-border py-4 px-6 sticky top-16 z-40 shadow-sm">
+    <div className="bg-surface border-y border-border py-4 px-4 sm:px-6 sticky top-16 z-40 shadow-sm">
       <div className="max-w-[1280px] mx-auto flex flex-col md:flex-row md:items-center gap-4">
         <div className="flex items-center gap-2 text-text-secondary">
           <Filter size={18} />
           <span className="font-bold text-sm uppercase tracking-wider">Filter Data</span>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative z-[60]">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <div className="relative z-[60] w-full sm:w-auto">
             <Dropdown 
               options={yearOptions}
               value={year}
@@ -52,7 +52,7 @@ export default function StatisticsFilter() {
               variant="default"
             />
           </div>
-          <div className="relative z-[50]">
+          <div className="relative z-[50] w-full sm:w-auto">
             <Dropdown 
               options={kecamatanOptions}
               value={kecamatan}
@@ -60,7 +60,7 @@ export default function StatisticsFilter() {
               variant="default"
             />
           </div>
-          <div className="relative z-[40]">
+          <div className="relative z-[40] w-full sm:w-auto">
             <Dropdown 
               options={opdOptions}
               value={opd}
@@ -68,7 +68,7 @@ export default function StatisticsFilter() {
               variant="default"
             />
           </div>
-          <div className="relative z-[30]">
+          <div className="relative z-[30] w-full sm:w-auto">
             <Dropdown 
               options={layananOptions}
               value={layanan}

@@ -41,13 +41,13 @@ export default function AboutStatistics() {
   ];
 
   return (
-    <section className="py-20 bg-surface">
-      <div className="max-w-[1280px] mx-auto px-6">
-        <div className="bg-gradient-to-br from-primary to-primary-hover rounded-[2rem] p-8 md:p-12 shadow-2xl overflow-hidden relative">
+    <section className="py-16 sm:py-20 bg-surface">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+        <div className="bg-gradient-to-br from-primary to-primary-hover rounded-[2rem] p-6 sm:p-8 md:p-12 shadow-2xl overflow-hidden relative">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3"></div>
           
-          <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
+          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12">
             {statItems.map((item, index) => {
               const Icon = item.icon;
               return (

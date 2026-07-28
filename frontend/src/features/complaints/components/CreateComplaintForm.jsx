@@ -54,13 +54,13 @@ export default function CreateComplaintForm() {
   ];
 
   return (
-    <Card className="p-8 shadow-xl border border-border">
-      <div className="flex items-center gap-4 mb-10">
+    <Card className="p-5 sm:p-8 shadow-xl border border-border">
+      <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-10">
         <div className="w-1 h-10 bg-primary-container rounded-full"></div>
-        <h1 className="text-3xl font-bold text-text-primary">Sampaikan Keluhan & Pengaduan Anda</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Sampaikan Keluhan & Pengaduan Anda</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Select 
             label="OPD / Instansi Tujuan" 
@@ -106,11 +106,11 @@ export default function CreateComplaintForm() {
           <FileDropzone files={files} onFilesChange={setFiles} />
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-8 border-t border-border">
+        <div className="flex flex-col md:flex-row items-center justify-end gap-3 sm:gap-4 pt-6 sm:pt-8 border-t border-border">
           <Button 
             type="button" 
             variant="outline" 
-            className="w-full md:w-auto h-12 px-8 rounded-lg border-2 border-outline text-outline font-bold hover:bg-surface-variant transition-colors bg-transparent"
+            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg border-2 border-outline text-outline font-bold hover:bg-surface-variant transition-colors bg-transparent"
             onClick={() => router.back()}
             disabled={isSubmitting}
           >
@@ -118,7 +118,7 @@ export default function CreateComplaintForm() {
           </Button>
           <Button 
             type="submit" 
-            className="w-full md:w-auto h-12 px-8 rounded-lg bg-primary-container text-white font-bold shadow-lg shadow-primary-container/20 hover:bg-primary-hover transition-all active:scale-95 flex items-center justify-center gap-2"
+            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg bg-primary-container text-white font-bold shadow-lg shadow-primary-container/20 hover:bg-primary-hover transition-all active:scale-95 flex items-center justify-center gap-2"
             disabled={isSubmitting}
           >
             {isSubmitting ? (

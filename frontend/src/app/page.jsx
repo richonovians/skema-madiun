@@ -19,7 +19,7 @@ export default function Home() {
       
       <HeroSection />
 
-      <main className="max-w-[1280px] mx-auto -mt-32 relative z-30 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start px-6 mb-16">
+      <main className="max-w-[1280px] mx-auto -mt-16 sm:-mt-24 md:-mt-32 relative z-30 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start px-4 sm:px-6 mb-16">
         <aside className="lg:col-span-4 flex flex-col gap-4">
           <ServiceSelector 
             activeTab={activeTab} 

@@ -14,11 +14,11 @@ export default function WelcomeHeader() {
   }).format(new Date('2026-07-24')); // Menggunakan tanggal dummy yang sama
 
   return (
-    <section className="bg-primary-container/20 border border-primary/10 rounded-3xl p-8 md:p-10 mb-8">
-      <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+    <section className="bg-primary-container/20 border border-primary/10 rounded-3xl p-5 sm:p-8 md:p-10 mb-6 sm:mb-8">
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-6 sm:gap-8">
         {/* Avatar Section */}
         <div className="shrink-0 relative">
-          <div className="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden shadow-md border-4 border-white">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full overflow-hidden shadow-md border-4 border-white">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} className="w-full h-full object-cover" alt={user.name} />
             ) : (
@@ -34,7 +34,7 @@ export default function WelcomeHeader() {
         
         {/* Greeting Section */}
         <div className="flex-1 text-center md:text-left space-y-3">
-          <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary tracking-tight">
             Selamat datang kembali, <span className="text-primary">{user.name.split(' ')[0]}</span>!
           </h1>
           

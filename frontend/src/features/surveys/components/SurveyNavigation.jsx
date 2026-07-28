@@ -31,7 +31,7 @@ export default function SurveyNavigation() {
     <div className="pt-8 border-t border-outline-variant/30 mt-12">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <button 
-          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 rounded-lg border border-outline font-semibold transition-colors
+          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 min-h-[48px] rounded-lg border border-outline font-semibold transition-colors
             ${isFirstStep 
               ? 'opacity-50 cursor-not-allowed text-outline' 
               : 'text-secondary hover:bg-surface-container-low active:scale-95'
@@ -45,7 +45,7 @@ export default function SurveyNavigation() {
         </button>
         
         <button 
-          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 rounded-lg font-semibold shadow-sm transition-all
+          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 min-h-[48px] rounded-lg font-semibold shadow-sm transition-all
             ${isNextDisabled 
               ? 'bg-surface-dim text-secondary cursor-not-allowed border border-outline-variant' 
               : 'bg-primary text-white hover:bg-primary-hover shadow-primary/20 active:scale-95'

@@ -17,7 +17,7 @@ export default function ServiceSelector({ activeTab = 'pengaduan', onTabChange }
       <div className="flex flex-col gap-3">
         <button 
           onClick={() => onTabChange?.('pengaduan')}
-          className={`group relative w-full p-4 rounded-xl flex items-center gap-4 transition-all duration-300 text-left overflow-hidden border ${
+          className={`group relative w-full min-h-[64px] p-3.5 sm:p-4 rounded-xl flex items-center gap-4 transition-all duration-300 text-left overflow-hidden border ${
             activeTab === 'pengaduan' 
               ? 'bg-slate-800 border-slate-700 text-white shadow-lg shadow-slate-800/20 scale-[1.02]' 
               : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5'
@@ -43,7 +43,7 @@ export default function ServiceSelector({ activeTab = 'pengaduan', onTabChange }
 
         <button 
           onClick={() => onTabChange?.('skm')}
-          className={`group relative w-full p-4 rounded-xl flex items-center gap-4 transition-all duration-300 text-left overflow-hidden border ${
+          className={`group relative w-full min-h-[64px] p-3.5 sm:p-4 rounded-xl flex items-center gap-4 transition-all duration-300 text-left overflow-hidden border ${
             activeTab === 'skm' 
               ? 'bg-slate-800 border-slate-700 text-white shadow-lg shadow-slate-800/20 scale-[1.02]' 
               : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5'

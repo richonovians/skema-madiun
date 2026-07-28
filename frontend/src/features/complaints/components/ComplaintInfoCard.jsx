@@ -25,11 +25,11 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
       <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute -left-12 -bottom-12 w-40 h-40 bg-secondary/10 rounded-full blur-2xl pointer-events-none"></div>
 
-      <div className="p-xl relative z-10">
+      <div className="p-5 sm:p-6 md:p-8 relative z-10">
         
         {/* Header: Icon & Badge */}
-        <div className="flex items-center justify-between mb-xl">
-          <div className="flex items-center gap-md">
+        <div className="flex items-center justify-between mb-6 sm:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white shadow-lg shadow-primary/30 transform transition-transform hover:scale-105 hover:rotate-3">
               <Ticket size={24} strokeWidth={2} />
             </div>
@@ -41,7 +41,7 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
         </div>
 
         {/* Hero Section: Ticket ID */}
-        <div className="mb-xl pt-sm">
+        <div className="mb-6 sm:mb-8 pt-2">
           <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mb-1">Nomor Registrasi</p>
           <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-primary via-primary-hover to-secondary bg-clip-text text-transparent tracking-tight">
             {ticketId || '-'}
@@ -49,9 +49,9 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
         </div>
 
         {/* Footer Data Grid */}
-        <div className="grid grid-cols-2 gap-lg pt-lg border-t-2 border-dashed border-border/60">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-6 border-t-2 border-dashed border-border/60">
           
-          <div className="flex items-start gap-sm group">
+          <div className="flex items-start gap-3 group">
             <div className="mt-0.5 p-2 bg-surface-container-highest/40 rounded-xl text-text-secondary group-hover:bg-primary/10 group-hover:text-primary transition-colors">
               <CalendarDays size={18} />
             </div>
@@ -61,7 +61,7 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
             </div>
           </div>
 
-          <div className="flex items-start gap-sm group">
+          <div className="flex items-start gap-3 group">
             <div className="mt-0.5 p-2 bg-surface-container-highest/40 rounded-xl text-text-secondary group-hover:bg-primary/10 group-hover:text-primary transition-colors">
               <Building2 size={18} />
             </div>

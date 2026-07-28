@@ -6,9 +6,9 @@ export default function VisionMission() {
   const { vision, missions } = aboutContent;
 
   return (
-    <section className="py-20 bg-surface">
-      <div className="max-w-[1280px] mx-auto px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+    <section className="py-16 sm:py-20 bg-surface">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-16">
           {/* Vision */}
           <div className="animate-fade-in-up">
             <div className="flex items-center gap-4 mb-6">
@@ -19,7 +19,7 @@ export default function VisionMission() {
                 Visi
               </h2>
             </div>
-            <div className="p-8 bg-gradient-to-br from-primary to-primary-hover rounded-3xl text-white shadow-xl shadow-primary/20">
+            <div className="p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-hover rounded-3xl text-white shadow-xl shadow-primary/20">
               <p className="font-h3 text-h3 font-medium leading-relaxed">
                 "{vision}"
               </p>
@@ -31,9 +31,9 @@ export default function VisionMission() {
             <h2 className="font-h2 text-h2-sm md:text-h2 text-text-primary mb-8">
               Misi
             </h2>
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {missions.map((mission) => (
-                <div key={mission.id} className="flex gap-4 p-6 bg-background rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
+                <div key={mission.id} className="flex gap-3 sm:gap-4 p-4 sm:p-6 bg-background rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex-shrink-0 mt-1">
                     <CheckCircle2 className="w-6 h-6 text-primary" />
                   </div>

@@ -8,11 +8,11 @@ export default function AvailableSurveysWidget() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-text-primary">Survei Kepuasan Tersedia</h2>
-        <Link href="#" className="text-primary text-sm font-medium hover:underline">
+        <Link href="#" className="text-primary text-sm font-medium hover:underline inline-flex items-center min-h-[44px]">
           Lihat Semua Survei
         </Link>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <SurveyCard 
           icon={FileText}
           title="Survei Kualitas Layanan DPMPTSP"

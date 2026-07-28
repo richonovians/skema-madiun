@@ -10,13 +10,13 @@ export default function Footer() {
         {/* Brand & Info (Sejajar Horizontal antara Logo dan Keterangan) */}
         <div className="flex flex-col sm:flex-row items-start gap-5 col-span-1 md:col-span-2 lg:col-span-6">
           {/* Logo di Kiri */}
-          <div className="relative w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 shrink-0 flex items-center justify-center">
+          <div className="shrink-0 flex items-center justify-center">
             <Image 
               src="/images/footer/Kabupaten-Madiun-Logo-transparent.png" 
               alt="Logo Kabupaten Madiun" 
-              fill
-              sizes="(max-width: 640px) 96px, 128px"
-              className="object-contain"
+              width={800}
+              height={917}
+              className="object-contain w-auto h-32 sm:h-40 md:h-48 lg:h-56 drop-shadow-lg"
             />
           </div>
           

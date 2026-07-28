@@ -7,8 +7,8 @@ export default function AboutHero() {
   const { hero } = aboutContent;
 
   return (
-    <section className="relative bg-surface py-20 lg:py-32 overflow-hidden">
-      <div className="max-w-[1280px] mx-auto px-6 relative z-10">
+    <section className="relative bg-surface py-16 sm:py-20 lg:py-32 overflow-hidden">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="flex flex-col gap-8 animate-fade-in-up">
             <h1 className="font-h1 text-h1-sm md:text-h1 text-text-primary">
@@ -17,17 +17,17 @@ export default function AboutHero() {
             <p className="font-body text-body-lg text-text-secondary">
               {hero.description}
             </p>
-            <div className="flex flex-wrap gap-4 mt-4">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mt-4">
               <Link
                 href="/"
-                className="flex items-center gap-2 px-6 py-3 bg-surface border border-border rounded-xl text-text-primary font-medium hover:bg-surface-hover transition-colors shadow-sm"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] bg-surface border border-border rounded-xl text-text-primary font-medium hover:bg-surface-hover transition-colors shadow-sm w-full sm:w-auto"
               >
                 <ArrowLeft className="w-5 h-5" />
                 Kembali ke Beranda
               </Link>
               <Link
                 href="/statistics"
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors shadow-md shadow-primary/20"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors shadow-md shadow-primary/20 w-full sm:w-auto"
               >
                 <BarChart2 className="w-5 h-5" />
                 Lihat Statistik Publik
@@ -65,7 +65,7 @@ export default function AboutHero() {
               </div>
 
               {/* Floating Card 1 - Right Top */}
-              <div className="absolute top-[10%] right-[2%] md:right-[5%] z-20 w-40 md:w-48 bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1">
+              <div className="hidden sm:block absolute top-[10%] right-[2%] md:right-[5%] z-20 w-40 md:w-48 bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 shrink-0">
                     <BarChart3 size={18} />
@@ -78,7 +78,7 @@ export default function AboutHero() {
               </div>
 
               {/* Floating Card 2 - Left Bottom */}
-              <div className="absolute bottom-[10%] left-[2%] md:left-[5%] z-20 w-44 md:w-[220px] bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1">
+              <div className="hidden sm:block absolute bottom-[10%] left-[2%] md:left-[5%] z-20 w-44 md:w-[220px] bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
                     <CheckCircle2 size={18} />

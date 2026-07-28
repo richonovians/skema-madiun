@@ -18,8 +18,8 @@ export default function DonutChart({ data, title }) {
       <div className="flex flex-col md:flex-row items-center gap-8 justify-center flex-1">
         
         {/* SVG Chart */}
-        <div className="relative" style={{ width: size, height: size }}>
-          <svg width={size} height={size} className="-rotate-90">
+        <div className="relative w-full max-w-[200px] aspect-square flex items-center justify-center">
+          <svg viewBox={`0 0 ${size} ${size}`} preserveAspectRatio="xMidYMid meet" width="100%" height="100%" className="-rotate-90">
             {/* Background Circle */}
             <circle 
               cx={center} 
