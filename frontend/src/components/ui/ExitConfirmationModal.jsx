@@ -32,7 +32,7 @@ export default function ExitConfirmationModal({ isOpen, onConfirm, onCancel }) {
           <Button variant="primary" onClick={onCancel} className="w-full">
             Lanjutkan Mengisi
           </Button>
-          <Button variant="secondary" onClick={onConfirm} className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
+          <Button variant="secondary" onClick={onConfirm} className="w-full text-red-600 border-red-200 hover:!bg-red-600 hover:!text-white hover:!border-red-600">
             Keluar dari Survei
           </Button>
         </div>

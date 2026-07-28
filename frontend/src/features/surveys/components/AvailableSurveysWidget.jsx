@@ -8,7 +8,7 @@ export default function AvailableSurveysWidget() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-text-primary">Survei Kepuasan Tersedia</h2>
-        <Link href="#" className="text-primary text-sm font-medium hover:underline inline-flex items-center min-h-[44px]">
+        <Link href="/surveys" className="text-primary text-sm font-medium hover:underline inline-flex items-center min-h-[44px]">
           Lihat Semua Survei
         </Link>
       </div>

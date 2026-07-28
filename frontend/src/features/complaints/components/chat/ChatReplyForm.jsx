@@ -19,36 +19,38 @@ export default function ChatReplyForm({ onSubmit }) {
 
   return (
     <div className="p-4 sm:p-6 bg-surface border-t border-border">
-      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 sm:gap-4">
-        <div className="flex-grow relative">
-          <Textarea 
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            className="w-full !border-border rounded-xl focus:ring-primary focus:border-primary px-md py-md pr-12 min-h-[56px] max-h-32 text-body-md resize-none" 
-            placeholder="Tulis tanggapan Anda di sini..."
-            rows={1}
-            // we override some padding and styling for custom chat input look if needed
-          />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        <div className="flex flex-row items-center gap-3 sm:gap-4">
+          <div className="flex-grow">
+            <textarea
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              className="w-full p-3 md:p-4 border border-border rounded-xl bg-surface focus:ring-2 focus:ring-primary outline-none resize-none transition-all text-body-md"
+              placeholder="Tulis tanggapan Anda di sini..."
+              rows={1}
+              style={{ minHeight: '52px' }}
+            />
+          </div>
           <IconButton 
-            className="absolute right-3 bottom-3 text-text-secondary hover:text-primary transition-colors p-1" 
+            className="text-text-secondary hover:text-primary transition-colors p-2 shrink-0" 
             type="button"
           >
-            <Paperclip size={20} />
+            <Paperclip size={24} />
           </IconButton>
+          <Button 
+            type="submit" 
+            variant="primary"
+            className="h-[52px] px-5 sm:px-6 rounded-xl font-bold flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+            disabled={!reply.trim()}
+          >
+            Kirim Pesan
+            <Send size={20} />
+          </Button>
         </div>
-        <Button 
-          type="submit" 
-          variant="primary"
-          className="h-[56px] px-6 rounded-xl font-bold flex items-center justify-center gap-2 whitespace-nowrap w-full sm:w-auto min-h-[48px]"
-          disabled={!reply.trim()}
-        >
-          Kirim Tanggapan
-          <Send size={20} />
-        </Button>
+        <p className="text-[11px] text-text-secondary italic pl-1">
+          Pastikan informasi yang Anda berikan sopan dan jelas.
+        </p>
       </form>
-      <p className="mt-sm text-[11px] text-text-secondary italic">
-        Pastikan informasi yang Anda berikan sopan dan jelas.
-      </p>
     </div>
   );
 }

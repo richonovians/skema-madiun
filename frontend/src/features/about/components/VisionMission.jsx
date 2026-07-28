@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, CheckCircle2 } from 'lucide-react';
+import { Target, CheckCircle2, Rocket } from 'lucide-react';
 import { aboutContent } from '../constants/aboutContent';
 
 export default function VisionMission() {
@@ -28,9 +28,14 @@ export default function VisionMission() {
 
           {/* Mission */}
           <div className="animate-fade-in-up" style={{ animationDelay: '150ms' }}>
-            <h2 className="font-h2 text-h2-sm md:text-h2 text-text-primary mb-8">
-              Misi
-            </h2>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                <Rocket className="w-6 h-6" />
+              </div>
+              <h2 className="font-h2 text-h2-sm md:text-h2 text-text-primary">
+                Misi
+              </h2>
+            </div>
             <div className="space-y-4 sm:space-y-6">
               {missions.map((mission) => (
                 <div key={mission.id} className="flex gap-3 sm:gap-4 p-4 sm:p-6 bg-background rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">

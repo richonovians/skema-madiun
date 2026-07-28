@@ -49,10 +49,6 @@ export default function AdminSidebar() {
           <TrendingUp size={20} />
           <span>Statistik & Laporan</span>
         </Link>
-        <Link href="/admin-opd/settings" className={getLinkClass('/admin-opd/settings')}>
-          <Settings size={20} />
-          <span>Pengaturan</span>
-        </Link>
       </nav>
       
       <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">

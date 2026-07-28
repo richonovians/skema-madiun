@@ -20,14 +20,14 @@ export default function RecentComplaintWidget() {
             <span className="text-primary font-bold text-sm tracking-wider">#CMP-2026-894</span>
             <Badge variant="secondary">Dalam Proses</Badge>
           </div>
-          <h3 className="text-xl sm:text-2xl font-semibold text-text-primary">Keluhan Lampu Jalan Mati</h3>
+          <h3 className="text-xl sm:text-2xl font-semibold text-text-primary">Keluhan Antrean Loket Puskesmas</h3>
           <p className="text-text-secondary font-body flex items-center gap-2 text-sm sm:text-base">
             <Info size={18} className="text-primary shrink-0" />
-            <span>Sedang ditindaklanjuti oleh Dinas Perhubungan</span>
+            <span>Sedang ditindaklanjuti oleh Dinas Kesehatan</span>
           </p>
         </div>
         <div className="flex-shrink-0 relative z-10 w-full md:w-auto mt-2 md:mt-0">
-          <Link href="#" className="text-primary font-bold inline-flex items-center min-h-[44px] gap-2 hover:gap-3 transition-all group">
+          <Link href="/complaints/CMP-2026-894" className="text-primary font-bold inline-flex items-center min-h-[44px] gap-2 hover:gap-3 transition-all group">
             Lihat Detail
             <ArrowRight size={20} />
           </Link>

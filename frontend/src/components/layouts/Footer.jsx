@@ -41,9 +41,8 @@ export default function Footer() {
         <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3 lg:pl-6">
           <h4 className="font-bold text-lg text-white mb-1">Tautan Cepat</h4>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/">Beranda</Link>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="#">Statistik Pelayanan</Link>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="#">Daftar OPD</Link>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="#">Bantuan</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/statistics">Statistik Pelayanan</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/about#faq">Bantuan</Link>
         </div>
         
         {/* Contact */}
@@ -51,7 +50,7 @@ export default function Footer() {
           <h4 className="font-bold text-lg text-white mb-1">Hubungi Kami</h4>
           <div className="flex gap-3 items-start">
             <MapPin className="text-primary shrink-0 mt-0.5" size={18} />
-            <p className="text-outline-variant text-sm leading-relaxed">Pusat Pemerintahan Kabupaten Madiun di Caruban (Mejayan), Jl. Alun-Alun Utara No. 4, Kab. Madiun, Jawa Timur 63153</p>
+            <p className="text-outline-variant text-sm leading-relaxed">Jl. Alun-Alun Utara No. 4, Mejayan, Kab. Madiun, Jawa Timur 63153</p>
           </div>
           <div className="flex gap-3 items-center">
             <Phone className="text-primary shrink-0" size={18} />

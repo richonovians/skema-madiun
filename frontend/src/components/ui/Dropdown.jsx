@@ -61,11 +61,11 @@ export default function Dropdown({
         type="button"
         id={id}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-3 min-w-[140px] py-3 px-4 rounded-lg font-medium text-sm transition-all focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500' : 'focus:ring-primary'} shadow-sm ${styles.button}`}
+        className={`w-full flex items-center justify-between gap-3 min-w-[140px] min-h-[44px] p-md rounded-lg font-medium text-body-md transition-all focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500' : 'focus:ring-primary'} shadow-sm ${styles.button}`}
       >
         <span className="truncate">{selectedOption?.label || 'Pilih...'}</span>
         <ChevronDown 
-          size={16} 
+          size={20} 
           className={`flex-shrink-0 transition-all duration-300 ${isOpen ? 'rotate-180' : ''} ${styles.icon}`} 
         />
       </button>
