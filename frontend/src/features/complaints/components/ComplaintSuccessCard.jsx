@@ -66,10 +66,10 @@ export default function ComplaintSuccessCard() {
       <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
         <button
           type="button"
-          onClick={() => router.push(opdId ? `/surveys/${opdId}` : '/surveys')}
+          onClick={() => router.push('/surveys')}
           className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 hover:from-blue-700 hover:to-blue-800 transition-all"
         >
-          Lanjut Isi Survei
+          Isi Survey Lain
         </button>
         <button
           type="button"

@@ -61,23 +61,24 @@ export default function FileDropzone({
       </div>
 
       {files.length > 0 && (
-        <div className="w-full max-w-md space-y-2 mt-4">
+        <div className="w-full space-y-2 mt-4">
           {files.map((file, idx) => (
-            <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-border shadow-sm">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <FileText className="text-primary w-5 h-5 flex-shrink-0" />
-                <span className="text-base truncate max-w-[200px]">{file.name}</span>
+            <div key={idx} className="flex items-center justify-between bg-white p-4 rounded-xl border border-border shadow-sm w-full">
+              <div className="flex items-center gap-3 overflow-hidden flex-1 mr-4">
+                <FileText className="text-primary w-6 h-6 flex-shrink-0" />
+                <span className="text-base font-medium truncate">{file.name || 'Dokumen Terlampir'}</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-text-secondary">
+              <div className="flex items-center gap-4 flex-shrink-0">
+                <span className="text-sm font-medium text-text-secondary whitespace-nowrap">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </span>
                 <button 
                   type="button" 
                   onClick={() => removeFile(idx)}
-                  className="text-error hover:bg-error-container p-1 rounded transition-colors"
+                  className="text-error hover:bg-error-container p-1.5 rounded-lg transition-colors flex-shrink-0"
+                  title="Hapus file"
                 >
-                  <X size={16} />
+                  <X size={18} strokeWidth={2.5} />
                 </button>
               </div>
             </div>

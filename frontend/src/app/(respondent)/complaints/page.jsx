@@ -38,17 +38,17 @@ export default function RespondentComplaints() {
     <main className="max-w-[1280px] mx-auto py-8 sm:py-12 px-4 sm:px-6 w-full">
       <ComplaintListHeader userName="Ahmad Fauzi" activeCount={3} />
       
-      {/* Tombol Buat Pengaduan di antara header dan tabel */}
-      <div className="my-6 flex justify-end">
-        <Link href="/complaints/new" className="w-full sm:w-auto">
-          <Button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary-600 text-white font-semibold px-6 py-3 min-h-[48px] rounded-xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5">
-            <Plus size={20} strokeWidth={2.5} />
+      <ComplaintTable complaints={dummyComplaints} />
+
+      {/* Tombol Buat Pengaduan di bawah tabel */}
+      <div className="mt-6 flex justify-end">
+        <Link href="/complaints/new" className="w-auto">
+          <Button className="w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary-600 text-white font-semibold px-4 sm:px-6 py-2 sm:py-3 min-h-[40px] sm:min-h-[48px] text-sm sm:text-base rounded-xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5">
+            <Plus size={18} strokeWidth={2.5} className="sm:w-5 sm:h-5" />
             <span>Buat Pengaduan Baru</span>
           </Button>
         </Link>
       </div>
-
-      <ComplaintTable complaints={dummyComplaints} />
     </main>
   );
 }

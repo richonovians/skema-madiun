@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import Textarea from '@/components/ui/Textarea';
-import FileUpload from '@/components/ui/FileUpload';
+import FileDropzone from '@/components/ui/FileDropzone';
 import Button from '@/components/ui/Button';
 import Switch from '@/components/ui/Switch';
 import { User, UserX } from 'lucide-react';
@@ -20,6 +20,7 @@ export default function ComplaintForm() {
     uraian: '',
     isAnonymous: false,
   });
+  const [files, setFiles] = useState([]);
   const [errors, setErrors] = useState({});
 
   const handleSubmit = (e) => {
@@ -121,10 +122,10 @@ export default function ComplaintForm() {
           onChange={handleChange}
         />
 
-        <FileUpload
-          id="lampiran"
-          label="LAMPIRAN PENDUKUNG"
-        />
+        <div>
+          <label className="block text-sm font-bold text-text-primary mb-2">Lampiran Bukti (Foto/Dokumen)</label>
+          <FileDropzone files={files} onFilesChange={setFiles} />
+        </div>
 
         <div className="flex justify-end w-full">
           <button

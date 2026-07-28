@@ -70,7 +70,7 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
                 {!isLast && (
                   <div 
                     className={clsx(
-                      "w-[2px] h-full absolute top-8",
+                      "w-[2px] absolute top-8 -bottom-6",
                       state === 'completed' ? "bg-primary" : "bg-outline-variant"
                     )}
                   ></div>

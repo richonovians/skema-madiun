@@ -10,27 +10,27 @@ export default function AboutHero() {
     <section className="relative bg-surface py-16 sm:py-20 lg:py-32 overflow-hidden">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div className="flex flex-col gap-8 animate-fade-in-up">
-            <h1 className="font-h1 text-h1-sm md:text-h1 text-text-primary">
+          <div className="flex flex-col gap-5 sm:gap-8 animate-fade-in-up text-center lg:text-left">
+            <h1 className="font-h1 text-3xl sm:text-h1-sm md:text-h1 text-text-primary leading-tight">
               {hero.title}
             </h1>
-            <p className="font-body text-body-lg text-text-secondary">
+            <p className="font-body text-base sm:text-body-lg text-text-secondary">
               {hero.description}
             </p>
-            <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 mt-4">
+            <div className="flex flex-row w-full sm:w-auto gap-3 sm:gap-4 mt-2 sm:mt-4 justify-center lg:justify-start">
               <Link
                 href="/"
-                className="flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] bg-surface border border-border rounded-xl text-text-primary font-medium hover:bg-surface-hover transition-colors shadow-sm w-full sm:w-auto"
+                className="flex flex-1 sm:flex-none flex-row items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-3 sm:py-3.5 min-h-[48px] bg-surface border border-border rounded-xl text-text-primary font-medium hover:bg-surface-hover transition-colors shadow-sm text-sm sm:text-base text-center"
               >
-                <ArrowLeft className="w-5 h-5" />
-                Kembali ke Beranda
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                <span>Beranda</span>
               </Link>
               <Link
                 href="/statistics"
-                className="flex items-center justify-center gap-2 px-6 py-3.5 min-h-[48px] bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors shadow-md shadow-primary/20 w-full sm:w-auto"
+                className="flex flex-1 sm:flex-none flex-row items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-3 sm:py-3.5 min-h-[48px] bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors shadow-md shadow-primary/20 text-sm sm:text-base text-center"
               >
-                <BarChart2 className="w-5 h-5" />
-                Lihat Statistik Publik
+                <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                <span>Statistik Publik</span>
               </Link>
             </div>
           </div>

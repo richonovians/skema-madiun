@@ -3,7 +3,7 @@ import { PlusCircle, GripVertical, Info } from 'lucide-react';
 
 export default function BuilderSidebar() {
   return (
-    <aside className="w-80 bg-surface border-r border-border overflow-y-auto p-lg flex flex-col gap-xl">
+    <aside className="w-full md:w-80 bg-surface border-b md:border-b-0 md:border-r border-border overflow-y-auto p-4 md:p-lg flex flex-col gap-4 md:gap-xl max-h-[35vh] md:max-h-none shrink-0">
       {/* Section 1: Template */}
       <section>
         <h3 className="text-label-md font-label-md text-text-secondary uppercase tracking-wider mb-md">Template Unsur Baku</h3>

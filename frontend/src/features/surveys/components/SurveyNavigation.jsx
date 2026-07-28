@@ -29,9 +29,9 @@ export default function SurveyNavigation() {
 
   return (
     <div className="pt-8 border-t border-outline-variant/30 mt-12">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="flex flex-row items-center justify-between gap-3 sm:gap-4">
         <button 
-          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 min-h-[48px] rounded-lg border border-outline font-semibold transition-colors
+          className={`flex-1 sm:flex-none w-full sm:w-auto flex items-center justify-center px-2 sm:px-8 py-3 min-h-[48px] rounded-lg border border-outline font-semibold transition-colors text-sm sm:text-base
             ${isFirstStep 
               ? 'opacity-50 cursor-not-allowed text-outline' 
               : 'text-secondary hover:bg-surface-container-low active:scale-95'
@@ -40,12 +40,12 @@ export default function SurveyNavigation() {
           onClick={prevStep}
           disabled={isFirstStep}
         >
-          <ArrowLeft className="mr-2" size={20} />
+          <ArrowLeft className="mr-1 sm:mr-2" size={18} />
           Kembali
         </button>
         
         <button 
-          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 min-h-[48px] rounded-lg font-semibold shadow-sm transition-all
+          className={`flex-[1.2] sm:flex-none w-full sm:w-auto flex items-center justify-center px-2 sm:px-8 py-3 min-h-[48px] rounded-lg font-semibold shadow-sm transition-all text-sm sm:text-base text-center leading-tight
             ${isNextDisabled 
               ? 'bg-surface-dim text-secondary cursor-not-allowed border border-outline-variant' 
               : 'bg-primary text-white hover:bg-primary-hover shadow-primary/20 active:scale-95'
@@ -54,8 +54,8 @@ export default function SurveyNavigation() {
           onClick={handleNextOrSubmit}
           disabled={isNextDisabled}
         >
-          {isLastStep ? 'Kirim Survei' : 'Pertanyaan Selanjutnya'}
-          {isLastStep ? <Send className="ml-2" size={20} /> : <ArrowRight className="ml-2" size={20} />}
+          <span>{isLastStep ? 'Kirim Survei' : 'Selanjutnya'}</span>
+          {isLastStep ? <Send className="ml-1 sm:ml-2 shrink-0" size={18} /> : <ArrowRight className="ml-1 sm:ml-2 shrink-0" size={18} />}
         </button>
       </div>
 

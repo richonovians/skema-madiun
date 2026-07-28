@@ -35,8 +35,8 @@ export default function AboutStatistics() {
       value: statistics.tingkatPenyelesaian,
       suffix: "%",
       icon: CheckCircle2,
-      color: "text-primary",
-      bg: "bg-primary/10"
+      color: "text-purple-600",
+      bg: "bg-purple-100"
     }
   ];
 
@@ -47,7 +47,7 @@ export default function AboutStatistics() {
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3"></div>
           
-          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12">
+          <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12">
             {statItems.map((item, index) => {
               const Icon = item.icon;
               return (
