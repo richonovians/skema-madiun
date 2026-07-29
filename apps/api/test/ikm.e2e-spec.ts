@@ -274,4 +274,84 @@ describe('IKM (e2e)', () => {
       expect(res.body.data.rataRataIkm).toBeNull();
     });
   });
+
+  describe('GET /surveys/:id/results/export (EXP-1)', () => {
+    it('format=csv (Admin OPD pemilik) -> 200, Content-Type text/csv, berisi data survei', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .query({ format: 'csv' })
+        .set(opdHeaders());
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('attachment');
+      expect(res.text).toContain('Survei IKM E2E');
+      expect(res.text).toContain('Nilai IKM,100');
+    });
+
+    it('format=excel (Kabupaten) -> 200, berkas xlsx valid (magic bytes PK)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .query({ format: 'excel' })
+        .set(devHeaders({ role: Role.kabupaten }))
+        .buffer(true)
+        .parse((r, cb) => {
+          const chunks: Buffer[] = [];
+          r.on('data', (c: Buffer) => chunks.push(c));
+          r.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('spreadsheetml');
+      expect((res.body as Buffer).subarray(0, 2).toString()).toBe('PK');
+    });
+
+    it('format=pdf -> 200, berkas PDF valid (magic bytes %PDF)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .query({ format: 'pdf' })
+        .set(opdHeaders())
+        .buffer(true)
+        .parse((r, cb) => {
+          const chunks: Buffer[] = [];
+          r.on('data', (c: Buffer) => chunks.push(c));
+          r.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('application/pdf');
+      expect((res.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+    });
+
+    it('format tidak valid -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .query({ format: 'xml' })
+        .set(opdHeaders());
+      expect(res.status).toBe(400);
+    });
+
+    it('tanpa format -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .set(opdHeaders());
+      expect(res.status).toBe(400);
+    });
+
+    it('Admin OPD lain -> 403', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .query({ format: 'csv' })
+        .set(devHeaders({ role: Role.opd, opdId: opdId + 99999 }));
+      expect(res.status).toBe(403);
+    });
+
+    it('Responden -> 403 (bukan OPD/Kabupaten)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${surveyId}/results/export`)
+        .query({ format: 'csv' })
+        .set(respondHeaders(respondenIds[0]));
+      expect(res.status).toBe(403);
+    });
+  });
 });

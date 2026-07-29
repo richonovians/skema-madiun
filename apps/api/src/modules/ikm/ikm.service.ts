@@ -4,8 +4,10 @@ import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardIkmQueryDto } from './dto/dashboard-ikm-query.dto';
+import type { ExportFormat } from './dto/export-results-query.dto';
 import { IkmDashboardEntity, IkmDashboardItemEntity } from './entities/ikm-dashboard.entity';
 import { IkmResultEntity, IkmUnsurEntity } from './entities/ikm-result.entity';
+import { EXPORT_CONTENT_TYPES, ExportedFile, IkmExportService } from './ikm-export.service';
 
 const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
@@ -27,7 +29,10 @@ function mutuFromNilai(nilaiIkm: number): IkmMutu {
  */
 @Injectable()
 export class IkmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ikmExportService: IkmExportService,
+  ) {}
 
   /** Hasil IKM survei (live-compute) — Admin OPD (miliknya) & Admin Kabupaten. */
   async getResults(surveyId: number, user: CurrentUser): Promise<IkmResultEntity> {
@@ -72,6 +77,45 @@ export class IkmService {
         dihitungPada: new Date(),
       },
     });
+  }
+
+  /** Ekspor laporan hasil IKM (CSV/Excel/PDF) — akses sama dengan `getResults`. */
+  async exportResults(
+    surveyId: number,
+    format: ExportFormat,
+    user: CurrentUser,
+  ): Promise<ExportedFile> {
+    const survey = await this.prisma.survey.findUnique({
+      where: { id: surveyId },
+      include: { opd: true },
+    });
+    if (!survey) {
+      throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
+    }
+    assertOpdAccess(user, survey.opdId);
+    const result = await this.computeResult(survey);
+    const ctx = { surveyJudul: survey.judul, opdNama: survey.opd.nama, result };
+
+    const filename = this.ikmExportService.buildFilename(surveyId, result.periode, format);
+    if (format === 'csv') {
+      return {
+        buffer: this.ikmExportService.toCsv(ctx),
+        filename,
+        contentType: EXPORT_CONTENT_TYPES.csv,
+      };
+    }
+    if (format === 'excel') {
+      return {
+        buffer: await this.ikmExportService.toExcel(ctx),
+        filename,
+        contentType: EXPORT_CONTENT_TYPES.excel,
+      };
+    }
+    return {
+      buffer: await this.ikmExportService.toPdf(ctx),
+      filename,
+      contentType: EXPORT_CONTENT_TYPES.pdf,
+    };
   }
 
   /**
