@@ -3,6 +3,8 @@ import { IkmMutu, Prisma, Survey } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DashboardIkmQueryDto } from './dto/dashboard-ikm-query.dto';
+import { IkmDashboardEntity, IkmDashboardItemEntity } from './entities/ikm-dashboard.entity';
 import { IkmResultEntity, IkmUnsurEntity } from './entities/ikm-result.entity';
 
 const round = (value: number, decimals: number): number => {
@@ -70,6 +72,52 @@ export class IkmService {
         dihitungPada: new Date(),
       },
     });
+  }
+
+  /**
+   * Agregat & perbandingan IKM seluruh OPD (DASH-1, Admin Kabupaten) — dibangun dari
+   * snapshot `ikm_results` (bukan live-compute: hanya survei `ditutup` yang punya
+   * angka final untuk dibandingkan/diranking secara wajar), terfilter periode/jenis layanan.
+   */
+  async getDashboard(query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
+    const where: Prisma.IkmResultWhereInput = {};
+    if (query.periode) {
+      where.periode = query.periode;
+    }
+    if (query.jenisLayanan) {
+      where.survey = { opd: { jenisLayanan: query.jenisLayanan } };
+    }
+
+    const rows = await this.prisma.ikmResult.findMany({
+      where,
+      include: { survey: { include: { opd: true } } },
+      orderBy: { nilaiIkm: 'desc' },
+    });
+
+    const items = rows.map(
+      (row, index) =>
+        new IkmDashboardItemEntity({
+          peringkat: index + 1,
+          opdId: row.survey.opdId,
+          opdNama: row.survey.opd.nama,
+          jenisLayanan: row.survey.opd.jenisLayanan,
+          surveyId: row.surveyId,
+          judul: row.survey.judul,
+          periode: row.periode,
+          nilaiIkm: Number(row.nilaiIkm),
+          mutu: row.mutu,
+          jumlahResponden: row.jumlahResponden,
+        }),
+    );
+
+    const rataRataIkm =
+      items.length > 0
+        ? round(items.reduce((acc, item) => acc + item.nilaiIkm, 0) / items.length, 2)
+        : null;
+    const totalOpd = new Set(items.map((item) => item.opdId)).size;
+    const totalResponden = items.reduce((acc, item) => acc + item.jumlahResponden, 0);
+
+    return new IkmDashboardEntity({ items, rataRataIkm, totalOpd, totalResponden });
   }
 
   /** Inti perhitungan — dipisah agar dipakai bersama oleh live-compute & snapshot. */

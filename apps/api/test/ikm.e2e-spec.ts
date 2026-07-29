@@ -15,6 +15,10 @@ describe('IKM (e2e)', () => {
   let q1: number;
   let q2: number;
   let respondenIds: number[];
+  let opdId2: number;
+  let surveyId2: number;
+  let q3: number;
+  let respondenId3: number;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -29,9 +33,21 @@ describe('IKM (e2e)', () => {
     const opd = await prisma.opd.upsert({
       where: { kode: 'E2EIKM' },
       update: {},
-      create: { kode: 'E2EIKM', nama: 'OPD E2E IKM', isActive: true },
+      create: { kode: 'E2EIKM', nama: 'OPD E2E IKM', jenisLayanan: 'Kesehatan', isActive: true },
     });
     opdId = opd.id;
+
+    const opd2 = await prisma.opd.upsert({
+      where: { kode: 'E2EIKM2' },
+      update: {},
+      create: {
+        kode: 'E2EIKM2',
+        nama: 'OPD E2E IKM 2',
+        jenisLayanan: 'Pendidikan',
+        isActive: true,
+      },
+    });
+    opdId2 = opd2.id;
 
     const survey = await prisma.survey.create({
       data: {
@@ -79,16 +95,53 @@ describe('IKM (e2e)', () => {
       ),
     );
     respondenIds = respondents.map((r) => r.id);
+
+    const survey2 = await prisma.survey.create({
+      data: {
+        opdId: opdId2,
+        judul: 'Survei IKM E2E 2',
+        periode: '2026',
+        status: SurveyStatus.aktif,
+        questions: {
+          create: [
+            {
+              teks: 'Unsur 1',
+              tipe: QuestionType.skala,
+              urutan: 1,
+              isIkmUnsur: true,
+              kodeUnsur: 'U1',
+            },
+          ],
+        },
+      },
+      include: { questions: true },
+    });
+    surveyId2 = survey2.id;
+    q3 = survey2.questions[0].id;
+
+    const r3 = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-ikm-resp-3' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-ikm-resp-3',
+        nama: 'Responden IKM 3',
+        email: 'e2e-ikm-resp-3@example.go.id',
+        role: Role.responden,
+      },
+    });
+    respondenId3 = r3.id;
   }, 60000);
 
   afterAll(async () => {
-    await prisma.ikmResult.deleteMany({ where: { survey: { opdId } } });
-    await prisma.surveyResponse.deleteMany({ where: { survey: { opdId } } });
-    await prisma.survey.deleteMany({ where: { opdId } });
-    await prisma.user.deleteMany({
-      where: { ssoSubject: { in: ['e2e-ikm-resp-1', 'e2e-ikm-resp-2'] } },
+    await prisma.ikmResult.deleteMany({ where: { survey: { opdId: { in: [opdId, opdId2] } } } });
+    await prisma.surveyResponse.deleteMany({
+      where: { survey: { opdId: { in: [opdId, opdId2] } } },
     });
-    await prisma.opd.deleteMany({ where: { kode: 'E2EIKM' } });
+    await prisma.survey.deleteMany({ where: { opdId: { in: [opdId, opdId2] } } });
+    await prisma.user.deleteMany({
+      where: { ssoSubject: { in: ['e2e-ikm-resp-1', 'e2e-ikm-resp-2', 'e2e-ikm-resp-3'] } },
+    });
+    await prisma.opd.deleteMany({ where: { kode: { in: ['E2EIKM', 'E2EIKM2'] } } });
     await app.close();
   }, 30000);
 
@@ -150,5 +203,75 @@ describe('IKM (e2e)', () => {
     expect(Number(snapshot?.nilaiIkm)).toBe(100);
     expect(snapshot?.mutu).toBe('A');
     expect(snapshot?.jumlahResponden).toBe(2);
+  });
+
+  describe('GET /dashboard/ikm (DASH-1)', () => {
+    beforeAll(async () => {
+      // OPD kedua: 1 responden menilai 1 (minimal) -> IKM=25, mutu D — untuk pembanding ranking.
+      await request(app.getHttpServer())
+        .post(`/api/v1/surveys/${surveyId2}/responses`)
+        .set(devHeaders({ role: Role.responden, userId: respondenId3 }))
+        .send({ answers: [{ questionId: q3, nilai: 1 }] });
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${surveyId2}/status`)
+        .set(devHeaders({ role: Role.opd, opdId: opdId2 }))
+        .send({ status: 'ditutup' });
+    });
+
+    it('Admin OPD -> 403 (hanya Kabupaten)', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/dashboard/ikm').set(opdHeaders());
+      expect(res.status).toBe(403);
+    });
+
+    it('Responden -> 403', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/ikm')
+        .set(respondHeaders(respondenIds[0]));
+      expect(res.status).toBe(403);
+    });
+
+    it('Kabupaten -> 200, terurut dari nilai IKM tertinggi dengan peringkat', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/ikm')
+        .set(devHeaders({ role: Role.kabupaten }));
+
+      expect(res.status).toBe(200);
+      const items = res.body.data.items as {
+        surveyId: number;
+        nilaiIkm: number;
+        peringkat: number;
+      }[];
+      const idx1 = items.findIndex((i) => i.surveyId === surveyId);
+      const idx2 = items.findIndex((i) => i.surveyId === surveyId2);
+      expect(idx1).toBeGreaterThanOrEqual(0);
+      expect(idx2).toBeGreaterThanOrEqual(0);
+      expect(items[idx1].nilaiIkm).toBe(100);
+      expect(items[idx1].peringkat).toBeLessThan(items[idx2].peringkat); // IKM lebih tinggi = peringkat lebih baik
+      expect(items[idx2].nilaiIkm).toBe(25);
+    });
+
+    it('filter jenisLayanan=Pendidikan -> hanya OPD kedua', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/ikm')
+        .query({ jenisLayanan: 'Pendidikan' })
+        .set(devHeaders({ role: Role.kabupaten }));
+
+      expect(res.status).toBe(200);
+      const items = res.body.data.items as { opdId: number }[];
+      expect(items.length).toBeGreaterThan(0);
+      expect(items.every((i) => i.opdId === opdId2)).toBe(true);
+    });
+
+    it('filter periode tidak cocok -> items kosong', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/ikm')
+        .query({ periode: '1999' })
+        .set(devHeaders({ role: Role.kabupaten }));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toEqual([]);
+      expect(res.body.data.rataRataIkm).toBeNull();
+    });
   });
 });
