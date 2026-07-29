@@ -2,6 +2,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { IkmMutu, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { IkmExportService } from './ikm-export.service';
 import { IkmService } from './ikm.service';
 
 const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
@@ -46,7 +47,13 @@ describe('IkmService', () => {
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
   } as unknown as PrismaService;
-  const service = new IkmService(prisma);
+  const ikmExportService = {
+    buildFilename: jest.fn().mockReturnValue('hasil-ikm-1-2026.csv'),
+    toCsv: jest.fn().mockReturnValue(Buffer.from('csv-content')),
+    toExcel: jest.fn().mockResolvedValue(Buffer.from('excel-content')),
+    toPdf: jest.fn().mockResolvedValue(Buffer.from('pdf-content')),
+  } as unknown as IkmExportService;
+  const service = new IkmService(prisma, ikmExportService);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -157,6 +164,67 @@ describe('IkmService', () => {
       (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
       await service.snapshot(999);
       expect(prisma.ikmResult.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('exportResults', () => {
+    const surveyWithOpd = (over: Record<string, unknown> = {}) => ({
+      ...survey(),
+      judul: 'Survei Kepuasan Layanan',
+      opd: { id: 5, nama: 'Dinas Kesehatan' },
+      ...over,
+    });
+
+    it('survei tidak ada → NotFound', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(service.exportResults(1, 'csv', kabupatenUser())).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('Admin OPD lain → Forbidden', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd({ opdId: 99 }));
+      await expect(service.exportResults(1, 'csv', opdUser(5))).rejects.toThrow(ForbiddenException);
+    });
+
+    it('format csv → memanggil IkmExportService.toCsv', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd());
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[4, 4]]));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+
+      const result = await service.exportResults(1, 'csv', kabupatenUser());
+
+      expect(ikmExportService.toCsv).toHaveBeenCalledWith(
+        expect.objectContaining({
+          surveyJudul: 'Survei Kepuasan Layanan',
+          opdNama: 'Dinas Kesehatan',
+        }),
+      );
+      expect(result.contentType).toContain('text/csv');
+      expect(result.buffer.toString()).toBe('csv-content');
+    });
+
+    it('format excel → memanggil IkmExportService.toExcel', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd());
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[4, 4]]));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+
+      const result = await service.exportResults(1, 'excel', kabupatenUser());
+
+      expect(ikmExportService.toExcel).toHaveBeenCalled();
+      expect(result.contentType).toContain('spreadsheetml');
+    });
+
+    it('format pdf → memanggil IkmExportService.toPdf', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd());
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[4, 4]]));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+
+      const result = await service.exportResults(1, 'pdf', kabupatenUser());
+
+      expect(ikmExportService.toPdf).toHaveBeenCalled();
+      expect(result.contentType).toBe('application/pdf');
+      expect(result.filename).toBe('hasil-ikm-1-2026.csv');
     });
   });
 
