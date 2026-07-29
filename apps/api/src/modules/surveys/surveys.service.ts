@@ -5,6 +5,7 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { IkmService } from '../ikm/ikm.service';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
@@ -20,7 +21,10 @@ const ALLOWED_TRANSITIONS: Record<SurveyStatus, SurveyStatus[]> = {
 
 @Injectable()
 export class SurveysService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ikmService: IkmService,
+  ) {}
 
   /** Daftar survei — Kabupaten semua, Admin OPD hanya milik OPD-nya (data isolation). */
   async findAll(
@@ -138,6 +142,12 @@ export class SurveysService {
       where: { id },
       data: { status: dto.status },
     });
+
+    if (dto.status === SurveyStatus.ditutup) {
+      // Snapshot hasil IKM final saat survei ditutup — sumber rumus tunggal di IkmService.
+      await this.ikmService.snapshot(id);
+    }
+
     return new SurveyEntity(updated);
   }
 
