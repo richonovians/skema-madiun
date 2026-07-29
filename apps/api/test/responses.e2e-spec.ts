@@ -18,6 +18,10 @@ describe('Responses (e2e)', () => {
   let draftSurveyId: number;
   let q1: number; // skala
   let q2: number; // teks
+  let pilihanSurveyId: number; // aktif, berisi pertanyaan tipe pilihan
+  let q3: number; // pilihan
+  let opt1: number;
+  let opt2: number;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -94,6 +98,35 @@ describe('Responses (e2e)', () => {
       data: { opdId, judul: 'Draft E2E', periode: '2026', status: SurveyStatus.draft },
     });
     draftSurveyId = draft.id;
+
+    const pilihanSurvey = await prisma.survey.create({
+      data: {
+        opdId,
+        judul: 'Survei Pilihan E2E',
+        periode: '2026',
+        status: SurveyStatus.aktif,
+        questions: {
+          create: [
+            {
+              teks: 'Bagaimana kepuasan Anda?',
+              tipe: QuestionType.pilihan,
+              urutan: 1,
+              options: {
+                create: [
+                  { label: 'Puas', nilai: 1, urutan: 1 },
+                  { label: 'Tidak puas', nilai: 0, urutan: 2 },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      include: { questions: { include: { options: { orderBy: { urutan: 'asc' } } } } },
+    });
+    pilihanSurveyId = pilihanSurvey.id;
+    q3 = pilihanSurvey.questions[0].id;
+    opt1 = pilihanSurvey.questions[0].options[0].id;
+    opt2 = pilihanSurvey.questions[0].options[1].id;
   }, 60000);
 
   afterAll(async () => {
@@ -220,5 +253,52 @@ describe('Responses (e2e)', () => {
       .get(`/api/v1/surveys/${surveyId}/responses`)
       .set(devHeaders({ role: Role.opd, opdId: opdId + 99999 }));
     expect(res.status).toBe(403);
+  });
+
+  describe('tipe pilihan (QST-3)', () => {
+    it('GET /surveys/:id/fill menampilkan opsi jawaban', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${pilihanSurveyId}/fill`)
+        .set(asResponden(respondenId));
+      expect(res.status).toBe(200);
+      const question = res.body.data.questions[0];
+      expect(question.options).toHaveLength(2);
+      expect(question.options[0].label).toBe('Puas');
+    });
+
+    it('submit tanpa selectedOptionId -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/surveys/${pilihanSurveyId}/responses`)
+        .set(asResponden(respondenId))
+        .send({ answers: [{ questionId: q3 }] });
+      expect(res.status).toBe(400);
+    });
+
+    it('submit dengan selectedOptionId opsi lain (tidak valid) -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/surveys/${pilihanSurveyId}/responses`)
+        .set(asResponden(respondenId))
+        .send({ answers: [{ questionId: q3, selectedOptionId: 999999 }] });
+      expect(res.status).toBe(400);
+    });
+
+    it('submit valid -> 201, selectedOptionId tersimpan', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/surveys/${pilihanSurveyId}/responses`)
+        .set(asResponden(respondenId))
+        .send({ answers: [{ questionId: q3, selectedOptionId: opt2 }] });
+      expect(res.status).toBe(201);
+      expect(res.body.data.answers[0].selectedOptionId).toBe(opt2);
+      expect(res.body.data.answers[0].nilai).toBeNull();
+    });
+
+    it('respons admin menampilkan selectedOptionId (bukan label — client join via GET questions)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${pilihanSurveyId}/responses`)
+        .set(devHeaders({ role: Role.opd, opdId }));
+      expect(res.status).toBe(200);
+      const answer = res.body.data[0].answers[0];
+      expect([opt1, opt2]).toContain(answer.selectedOptionId);
+    });
   });
 });

@@ -39,6 +39,7 @@ describe('QuestionsService', () => {
       urutan: 3,
       createdAt: new Date(),
       updatedAt: new Date(),
+      options: [],
     });
 
     const dto: CreateQuestionDto = { teks: 'Q', tipe: QuestionType.skala };
@@ -90,5 +91,100 @@ describe('QuestionsService', () => {
       survey: { opdId: 5, status: SurveyStatus.aktif },
     });
     await expect(service.update(7, { teks: 'X' }, opdUser(5))).rejects.toThrow(BadRequestException);
+  });
+
+  describe('tipe pilihan', () => {
+    it('create pilihan tanpa opsi → BadRequest', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      const dto: CreateQuestionDto = { teks: 'Q', tipe: QuestionType.pilihan };
+      await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
+    });
+
+    it('create pilihan dengan 1 opsi saja → BadRequest (minimal 2)', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      const dto: CreateQuestionDto = {
+        teks: 'Q',
+        tipe: QuestionType.pilihan,
+        options: [{ label: 'A' }],
+      };
+      await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
+    });
+
+    it('create pilihan dengan isIkmUnsur=true → BadRequest (unsur IKM hanya skala)', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      const dto: CreateQuestionDto = {
+        teks: 'Q',
+        tipe: QuestionType.pilihan,
+        isIkmUnsur: true,
+        options: [{ label: 'A' }, { label: 'B' }],
+      };
+      await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
+    });
+
+    it('create skala dengan options terisi → BadRequest (options hanya untuk pilihan)', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      const dto: CreateQuestionDto = {
+        teks: 'Q',
+        tipe: QuestionType.skala,
+        options: [{ label: 'A' }, { label: 'B' }],
+      };
+      await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
+    });
+
+    it('create pilihan valid (≥2 opsi) → sukses, opsi tersimpan nested', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.question.aggregate as jest.Mock).mockResolvedValue({ _max: { urutan: 0 } });
+      (prisma.question.create as jest.Mock).mockResolvedValue({
+        id: 5,
+        surveyId: 1,
+        teks: 'Kepuasan',
+        tipe: QuestionType.pilihan,
+        isIkmUnsur: false,
+        kodeUnsur: null,
+        urutan: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        options: [
+          { id: 1, questionId: 5, label: 'Puas', nilai: 1, urutan: 1 },
+          { id: 2, questionId: 5, label: 'Tidak puas', nilai: 0, urutan: 2 },
+        ],
+      });
+
+      const dto: CreateQuestionDto = {
+        teks: 'Kepuasan',
+        tipe: QuestionType.pilihan,
+        options: [
+          { label: 'Puas', nilai: 1 },
+          { label: 'Tidak puas', nilai: 0 },
+        ],
+      };
+      const result = await service.create(1, dto, opdUser(5));
+
+      expect(result.options).toHaveLength(2);
+      expect(result.options?.[0].label).toBe('Puas');
+      expect(prisma.question.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            options: {
+              create: [
+                { label: 'Puas', nilai: 1, urutan: 1 },
+                { label: 'Tidak puas', nilai: 0, urutan: 2 },
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('update pertanyaan pilihan dengan isIkmUnsur=true → BadRequest', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue({
+        id: 5,
+        tipe: QuestionType.pilihan,
+        survey: { opdId: 5, status: SurveyStatus.draft },
+      });
+      await expect(service.update(5, { isIkmUnsur: true }, opdUser(5))).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 });

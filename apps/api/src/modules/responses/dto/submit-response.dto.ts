@@ -12,7 +12,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-/** Satu jawaban dalam payload pengisian. Isi `nilai` untuk skala, `teks` untuk teks/saran. */
+/**
+ * Satu jawaban dalam payload pengisian. Isi `nilai` untuk skala, `teks` untuk teks/saran,
+ * `selectedOptionId` untuk pilihan.
+ */
 export class AnswerInputDto {
   @ApiProperty({ description: 'Id pertanyaan yang dijawab' })
   @IsInt()
@@ -31,6 +34,12 @@ export class AnswerInputDto {
   @IsString()
   @MaxLength(1000)
   teks?: string;
+
+  @ApiPropertyOptional({ description: 'Id opsi terpilih (tipe pilihan)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  selectedOptionId?: number;
 }
 
 export class SubmitResponseDto {

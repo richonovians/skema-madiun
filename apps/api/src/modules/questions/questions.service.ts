@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { QuestionType, Survey, SurveyStatus } from '@prisma/client';
+import { Question, QuestionOption, QuestionType, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -8,6 +8,9 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { ReorderQuestionsDto } from './dto/reorder-questions.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { QuestionEntity } from './entities/question.entity';
+import { QuestionOptionEntity } from './entities/question-option.entity';
+
+type QuestionWithOptions = Question & { options: QuestionOption[] };
 
 @Injectable()
 export class QuestionsService {
@@ -18,12 +21,13 @@ export class QuestionsService {
     await this.getSurveyOrThrow(surveyId, user);
     const rows = await this.prisma.question.findMany({
       where: { surveyId },
+      include: { options: { orderBy: { urutan: 'asc' } } },
       orderBy: { urutan: 'asc' },
     });
-    return rows.map((row) => new QuestionEntity(row));
+    return rows.map((row) => this.toEntity(row));
   }
 
-  /** Tambah pertanyaan (skala/teks) di akhir urutan. Hanya saat survei draft. */
+  /** Tambah pertanyaan (skala/teks/pilihan) di akhir urutan. Hanya saat survei draft. */
   async create(
     surveyId: number,
     dto: CreateQuestionDto,
@@ -31,6 +35,7 @@ export class QuestionsService {
   ): Promise<QuestionEntity> {
     const survey = await this.getSurveyOrThrow(surveyId, user);
     this.assertDraft(survey);
+    this.assertValidOptionsForType(dto.tipe, dto.options, dto.isIkmUnsur);
 
     const created = await this.prisma.question.create({
       data: {
@@ -40,9 +45,20 @@ export class QuestionsService {
         isIkmUnsur: dto.isIkmUnsur ?? false,
         kodeUnsur: dto.kodeUnsur ?? null,
         urutan: await this.nextUrutan(surveyId),
+        options:
+          dto.tipe === QuestionType.pilihan
+            ? {
+                create: dto.options!.map((o, i) => ({
+                  label: o.label,
+                  nilai: o.nilai ?? null,
+                  urutan: i + 1,
+                })),
+              }
+            : undefined,
       },
+      include: { options: { orderBy: { urutan: 'asc' } } },
     });
-    return new QuestionEntity(created);
+    return this.toEntity(created);
   }
 
   /** Terapkan template 9 unsur baku (skip kode yang sudah ada). Hanya saat draft. */
@@ -73,21 +89,27 @@ export class QuestionsService {
     return this.findAllForSurvey(surveyId, user);
   }
 
-  /** Ubah pertanyaan. Hanya saat survei draft. */
+  /** Ubah pertanyaan. Hanya saat survei draft. Opsi (tipe pilihan) tidak dapat diubah di sini. */
   async update(id: number, dto: UpdateQuestionDto, user: CurrentUser): Promise<QuestionEntity> {
-    const survey = await this.getQuestionSurveyOrThrow(id, user);
+    const { question, survey } = await this.getQuestionSurveyOrThrow(id, user);
     this.assertDraft(survey);
+    if (question.tipe === QuestionType.pilihan && dto.isIkmUnsur) {
+      throw new BadRequestException(
+        'Pertanyaan pilihan ganda tidak dapat ditandai sebagai unsur IKM (unsur IKM hanya tipe skala)',
+      );
+    }
 
     const updated = await this.prisma.question.update({
       where: { id },
       data: { teks: dto.teks, isIkmUnsur: dto.isIkmUnsur, kodeUnsur: dto.kodeUnsur },
+      include: { options: { orderBy: { urutan: 'asc' } } },
     });
-    return new QuestionEntity(updated);
+    return this.toEntity(updated);
   }
 
-  /** Hapus pertanyaan. Hanya saat survei draft. */
+  /** Hapus pertanyaan (beserta opsinya, cascade). Hanya saat survei draft. */
   async remove(id: number, user: CurrentUser): Promise<void> {
-    const survey = await this.getQuestionSurveyOrThrow(id, user);
+    const { survey } = await this.getQuestionSurveyOrThrow(id, user);
     this.assertDraft(survey);
     await this.prisma.question.delete({ where: { id } });
   }
@@ -144,7 +166,10 @@ export class QuestionsService {
     return survey;
   }
 
-  private async getQuestionSurveyOrThrow(questionId: number, user: CurrentUser): Promise<Survey> {
+  private async getQuestionSurveyOrThrow(
+    questionId: number,
+    user: CurrentUser,
+  ): Promise<{ question: Question; survey: Survey }> {
     const question = await this.prisma.question.findUnique({
       where: { id: questionId },
       include: { survey: true },
@@ -153,6 +178,34 @@ export class QuestionsService {
       throw new NotFoundException(`Pertanyaan dengan id ${questionId} tidak ditemukan`);
     }
     assertOpdAccess(user, question.survey.opdId);
-    return question.survey;
+    const { survey, ...rest } = question;
+    return { question: rest, survey };
+  }
+
+  /** Tipe `pilihan` wajib punya ≥2 opsi & tidak boleh jadi unsur IKM (unsur IKM hanya skala). */
+  private assertValidOptionsForType(
+    tipe: QuestionType,
+    options: { label: string; nilai?: number }[] | undefined,
+    isIkmUnsur: boolean | undefined,
+  ): void {
+    if (tipe === QuestionType.pilihan) {
+      if (!options || options.length < 2) {
+        throw new BadRequestException('Pertanyaan pilihan ganda memerlukan minimal 2 opsi');
+      }
+      if (isIkmUnsur) {
+        throw new BadRequestException(
+          'Pertanyaan pilihan ganda tidak dapat ditandai sebagai unsur IKM (unsur IKM hanya tipe skala)',
+        );
+      }
+    } else if (options) {
+      throw new BadRequestException(`Opsi hanya berlaku untuk tipe pilihan, bukan ${tipe}`);
+    }
+  }
+
+  private toEntity(row: QuestionWithOptions): QuestionEntity {
+    return new QuestionEntity({
+      ...row,
+      options: row.options.map((o) => new QuestionOptionEntity(o)),
+    });
   }
 }

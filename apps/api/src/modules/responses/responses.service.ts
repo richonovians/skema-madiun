@@ -4,12 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Question, QuestionType, SurveyStatus } from '@prisma/client';
+import { Prisma, Question, QuestionOption, QuestionType, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { AnswerEntity } from './entities/answer.entity';
@@ -24,7 +25,12 @@ export class ResponsesService {
   async getFill(surveyId: number, user: CurrentUser): Promise<SurveyFillEntity> {
     const survey = await this.prisma.survey.findUnique({
       where: { id: surveyId },
-      include: { questions: { orderBy: { urutan: 'asc' } } },
+      include: {
+        questions: {
+          orderBy: { urutan: 'asc' },
+          include: { options: { orderBy: { urutan: 'asc' } } },
+        },
+      },
     });
     // Survei non-aktif tidak boleh diisi; jangan bocorkan keberadaannya → NotFound.
     if (!survey || survey.status !== SurveyStatus.aktif) {
@@ -45,7 +51,13 @@ export class ResponsesService {
       status: survey.status,
       allowMultipleSubmit: survey.allowMultipleSubmit,
       sudahMengisi,
-      questions: survey.questions.map((q) => new QuestionEntity(q)),
+      questions: survey.questions.map(
+        (q) =>
+          new QuestionEntity({
+            ...q,
+            options: q.options.map((o) => new QuestionOptionEntity(o)),
+          }),
+      ),
     });
   }
 
@@ -57,7 +69,7 @@ export class ResponsesService {
   ): Promise<ResponseEntity> {
     const survey = await this.prisma.survey.findUnique({
       where: { id: surveyId },
-      include: { questions: true },
+      include: { questions: { include: { options: true } } },
     });
     if (!survey || survey.status !== SurveyStatus.aktif) {
       throw new NotFoundException(`Survei aktif dengan id ${surveyId} tidak ditemukan`);
@@ -132,10 +144,10 @@ export class ResponsesService {
 
   /**
    * Validasi jawaban terhadap pertanyaan survei; kembalikan data siap-insert.
-   * Aturan: pertanyaan skala WAJIB dijawab nilai 1-4; pertanyaan teks opsional.
+   * Aturan: pertanyaan skala & pilihan WAJIB dijawab; pertanyaan teks opsional.
    */
   private validateAnswers(
-    questions: Question[],
+    questions: (Question & { options: QuestionOption[] })[],
     dto: SubmitResponseDto,
   ): Prisma.AnswerCreateWithoutResponseInput[] {
     const byId = new Map(questions.map((q) => [q.id, q]));
@@ -161,15 +173,23 @@ export class ResponsesService {
         data.push({ question: { connect: { id: q.id } }, nilai: a.nilai });
       } else if (q.tipe === QuestionType.teks) {
         data.push({ question: { connect: { id: q.id } }, teks: a.teks ?? null });
-      } else {
-        // Tipe `pilihan` baru diimplementasikan Fase 3.
-        throw new BadRequestException(`Tipe pertanyaan ${q.tipe} belum didukung`);
+      } else if (q.tipe === QuestionType.pilihan) {
+        if (a.selectedOptionId == null) {
+          throw new BadRequestException(`Pertanyaan ${q.id} (pilihan) wajib memilih satu opsi`);
+        }
+        if (!q.options.some((o) => o.id === a.selectedOptionId)) {
+          throw new BadRequestException(`Opsi ${a.selectedOptionId} bukan opsi pertanyaan ${q.id}`);
+        }
+        data.push({
+          question: { connect: { id: q.id } },
+          selectedOption: { connect: { id: a.selectedOptionId } },
+        });
       }
     }
 
-    // Kelengkapan: seluruh pertanyaan skala (dasar perhitungan IKM) harus terjawab.
+    // Kelengkapan: skala (dasar IKM) & pilihan wajib terjawab; teks tetap opsional.
     for (const q of questions) {
-      if (q.tipe === QuestionType.skala && !seen.has(q.id)) {
+      if ((q.tipe === QuestionType.skala || q.tipe === QuestionType.pilihan) && !seen.has(q.id)) {
         throw new BadRequestException(`Pertanyaan ${q.id} wajib dijawab`);
       }
     }
