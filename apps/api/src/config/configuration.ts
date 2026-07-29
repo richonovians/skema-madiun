@@ -16,4 +16,15 @@ export default () => ({
     enabled: (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
     path: 'api/docs',
   },
+  cors: {
+    // Comma-separated di production (mis. dashboard OPD + kabupaten beda subdomain).
+    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+  },
+  throttle: {
+    ttlMs: parseInt(process.env.THROTTLE_TTL_MS ?? '60000', 10),
+    limit: parseInt(process.env.THROTTLE_LIMIT ?? '100', 10),
+  },
 });

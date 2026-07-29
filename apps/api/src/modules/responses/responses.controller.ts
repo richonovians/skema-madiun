@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -27,9 +28,10 @@ export class ResponsesController {
     return this.responsesService.getFill(surveyId, user);
   }
 
-  /** Kirim jawaban survei (Responden). Duplikat → 409. */
+  /** Kirim jawaban survei (Responden). Duplikat → 409. Dibatasi lebih ketat (anti-spam). */
   @Post('surveys/:surveyId/responses')
   @Roles(Role.responden)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiCreatedResponse({ type: ResponseEntity })
   submit(
     @Param('surveyId', ParseIntPipe) surveyId: number,
