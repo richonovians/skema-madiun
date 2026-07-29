@@ -1,8 +1,10 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { DashboardIkmQueryDto } from './dto/dashboard-ikm-query.dto';
+import { IkmDashboardEntity } from './entities/ikm-dashboard.entity';
 import { IkmResultEntity } from './entities/ikm-result.entity';
 import { IkmService } from './ikm.service';
 
@@ -21,5 +23,13 @@ export class IkmController {
     @CurrentUser() user: CurrentUser,
   ): Promise<IkmResultEntity> {
     return this.ikmService.getResults(surveyId, user);
+  }
+
+  /** Agregat & perbandingan IKM seluruh OPD (Admin Kabupaten), filter periode/jenis layanan. */
+  @Get('dashboard/ikm')
+  @Roles(Role.kabupaten)
+  @ApiOkResponse({ type: IkmDashboardEntity })
+  getDashboard(@Query() query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
+    return this.ikmService.getDashboard(query);
   }
 }

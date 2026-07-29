@@ -23,12 +23,28 @@ const unsurQuestions = (nilai: number[][]) =>
     answers: nilaiList.map((n) => ({ nilai: n })),
   }));
 
+const dashboardRow = (over: Record<string, unknown> = {}) => ({
+  id: 1,
+  surveyId: 10,
+  periode: '2026',
+  nilaiIkm: 90,
+  mutu: IkmMutu.A,
+  jumlahResponden: 5,
+  survey: {
+    id: 10,
+    opdId: 1,
+    judul: 'Survei Dinkes',
+    opd: { id: 1, nama: 'Dinas Kesehatan', jenisLayanan: 'Kesehatan' },
+  },
+  ...over,
+});
+
 describe('IkmService', () => {
   const prisma = {
     survey: { findUnique: jest.fn() },
     question: { findMany: jest.fn() },
     surveyResponse: { count: jest.fn() },
-    ikmResult: { upsert: jest.fn() },
+    ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
   } as unknown as PrismaService;
   const service = new IkmService(prisma);
 
@@ -141,6 +157,71 @@ describe('IkmService', () => {
       (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
       await service.snapshot(999);
       expect(prisma.ikmResult.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getDashboard', () => {
+    it('tanpa hasil → items kosong, rataRataIkm null', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      const result = await service.getDashboard({});
+      expect(result.items).toEqual([]);
+      expect(result.rataRataIkm).toBeNull();
+      expect(result.totalOpd).toBe(0);
+      expect(result.totalResponden).toBe(0);
+    });
+
+    it('mengurutkan dari nilai IKM tertinggi & menghitung peringkat', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([
+        dashboardRow({ nilaiIkm: 90, surveyId: 10, jumlahResponden: 5 }),
+        dashboardRow({
+          nilaiIkm: 70,
+          surveyId: 11,
+          jumlahResponden: 3,
+          survey: {
+            id: 11,
+            opdId: 2,
+            judul: 'Survei Disdik',
+            opd: { id: 2, nama: 'Dinas Pendidikan', jenisLayanan: 'Pendidikan' },
+          },
+        }),
+      ]);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0].peringkat).toBe(1);
+      expect(result.items[0].nilaiIkm).toBe(90);
+      expect(result.items[1].peringkat).toBe(2);
+      expect(result.rataRataIkm).toBe(80);
+      expect(result.totalOpd).toBe(2);
+      expect(result.totalResponden).toBe(8);
+    });
+
+    it('filter periode diteruskan ke where', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      await service.getDashboard({ periode: '2025' });
+      expect(prisma.ikmResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { periode: '2025' } }),
+      );
+    });
+
+    it('filter jenisLayanan diteruskan sebagai nested where survey.opd', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      await service.getDashboard({ jenisLayanan: 'Kesehatan' });
+      expect(prisma.ikmResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { survey: { opd: { jenisLayanan: 'Kesehatan' } } },
+        }),
+      );
+    });
+
+    it('dua OPD sama menghasilkan totalOpd unik (bukan jumlah baris)', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([
+        dashboardRow({ surveyId: 10, periode: '2025' }),
+        dashboardRow({ surveyId: 20, periode: '2026' }), // OPD sama (opdId:1), periode beda
+      ]);
+      const result = await service.getDashboard({});
+      expect(result.totalOpd).toBe(1);
     });
   });
 });
