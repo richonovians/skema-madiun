@@ -3,6 +3,7 @@ import { Prisma, Role, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess, opdWhereFilter } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
@@ -31,6 +32,29 @@ export class SurveysService {
     if (status) {
       where.status = status;
     }
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.survey.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.survey.count({ where }),
+    ]);
+
+    return paginate(
+      rows.map((row) => new SurveyEntity(row)),
+      total,
+      page,
+      limit,
+    );
+  }
+
+  /** Daftar survei berstatus `aktif` (semua OPD) — untuk dipilih responden (BE-21). */
+  async findActive(query: PaginationQueryDto): Promise<PaginatedResult<SurveyEntity>> {
+    const { page, limit } = query;
+    const where: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.survey.findMany({
