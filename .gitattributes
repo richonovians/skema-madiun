@@ -1,0 +1,16 @@
+# Normalisasi baris baru: repo menyimpan & checkout LF (bukan CRLF) untuk semua
+# file teks, apa pun OS pengembang. Menghapus noise "M" semu di git status/diff
+# di Windows yang selama ini muncul berulang pada file lama (checkout sebelum
+# berkas ini ada, masih membawa CRLF fisik di working tree).
+* text=auto eol=lf
+
+# Biner — JANGAN pernah dikonversi line-ending (akan merusak isinya).
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
