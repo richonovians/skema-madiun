@@ -1,6 +1,7 @@
 import { ClassSerializerInterceptor, Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -28,6 +29,17 @@ import { UsersModule } from './modules/users/users.module';
       validate: validateEnv,
       envFilePath: ['.env'],
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.get<number>('throttle.ttlMs') ?? 60_000,
+            limit: config.get<number>('throttle.limit') ?? 100,
+          },
+        ],
+      }),
+    }),
     PrismaModule,
     // Modul fondasi autentikasi (menyediakan RolesGuard global via APP_GUARD).
     AuthModule,
@@ -45,6 +57,9 @@ import { UsersModule } from './modules/users/users.module';
   controllers: [AppController],
   providers: [
     AppService,
+    // Rate limiting global (anti-DoS/brute-force dasar) — didaftarkan terpisah dari
+    // RolesGuard (AuthModule) agar keduanya tetap berjalan independen sebagai guard global.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Urutan penting — fase respons berjalan TERBALIK dari urutan daftar ini:
     // ResponseInterceptor didaftarkan TERAKHIR agar BERJALAN LEBIH DULU, sehingga sempat
     // melihat instance PaginatedResult (mengangkat items + meta.pagination) SEBELUM

@@ -39,4 +39,21 @@ describe('App (e2e)', () => {
     expect(response.body.success).toBe(false);
     expect(response.body.error).toHaveProperty('code', 'NOT_FOUND');
   });
+
+  it('menyertakan header keamanan (helmet) — M5 hardening', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/health');
+
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-dns-prefetch-control']).toBe('off');
+    expect(response.headers).not.toHaveProperty('x-powered-by'); // helmet menyembunyikannya
+  });
+
+  it('CORS: origin yang diizinkan (CORS_ORIGIN) -> header Access-Control-Allow-Origin', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set('Origin', 'http://localhost:3000');
+
+    expect(response.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
+  });
 });
