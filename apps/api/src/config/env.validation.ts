@@ -49,6 +49,10 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   THROTTLE_LIMIT: number = 100;
+
+  @IsOptional()
+  @IsString()
+  UPLOAD_DIR: string = 'uploads';
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
