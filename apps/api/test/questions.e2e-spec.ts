@@ -52,11 +52,50 @@ describe('Questions (e2e)', () => {
     expect(res.body.data.urutan).toBeGreaterThan(0);
   });
 
-  it('POST question pilihan -> 400 (Fase 3, ditolak)', async () => {
+  it('POST question pilihan tanpa opsi -> 400 (minimal 2 opsi)', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/v1/surveys/${surveyId}/questions`)
       .set(opdHeaders())
       .send({ teks: 'Pilih salah satu', tipe: 'pilihan' });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST question pilihan dengan opsi -> 201, opsi tersimpan terurut', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${surveyId}/questions`)
+      .set(opdHeaders())
+      .send({
+        teks: 'Bagaimana kepuasan Anda?',
+        tipe: 'pilihan',
+        options: [
+          { label: 'Puas', nilai: 1 },
+          { label: 'Tidak puas', nilai: 0 },
+        ],
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.options).toHaveLength(2);
+    expect(res.body.data.options[0].label).toBe('Puas');
+    expect(res.body.data.options[0].urutan).toBe(1);
+  });
+
+  it('POST question pilihan dengan isIkmUnsur=true -> 400 (unsur IKM hanya skala)', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${surveyId}/questions`)
+      .set(opdHeaders())
+      .send({
+        teks: 'X',
+        tipe: 'pilihan',
+        isIkmUnsur: true,
+        options: [{ label: 'A' }, { label: 'B' }],
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST question skala dengan options terisi -> 400 (options hanya untuk pilihan)', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${surveyId}/questions`)
+      .set(opdHeaders())
+      .send({ teks: 'X', tipe: 'skala', options: [{ label: 'A' }, { label: 'B' }] });
     expect(res.status).toBe(400);
   });
 

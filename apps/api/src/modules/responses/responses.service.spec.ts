@@ -6,8 +6,20 @@ import { ResponsesService } from './responses.service';
 
 const responden = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
 
-const skalaQ = (id: number) => ({ id, surveyId: 1, tipe: QuestionType.skala });
-const teksQ = (id: number) => ({ id, surveyId: 1, tipe: QuestionType.teks });
+const skalaQ = (id: number) => ({ id, surveyId: 1, tipe: QuestionType.skala, options: [] });
+const teksQ = (id: number) => ({ id, surveyId: 1, tipe: QuestionType.teks, options: [] });
+const pilihanQ = (id: number, optionIds: number[]) => ({
+  id,
+  surveyId: 1,
+  tipe: QuestionType.pilihan,
+  options: optionIds.map((oid, i) => ({
+    id: oid,
+    questionId: id,
+    label: `Opsi ${i + 1}`,
+    nilai: null,
+    urutan: i + 1,
+  })),
+});
 
 const aktifSurvey = (over: Record<string, unknown> = {}) => ({
   id: 1,
@@ -131,6 +143,76 @@ describe('ResponsesService', () => {
       expect(prisma.surveyResponse.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ dedupeUserId: null }) }),
       );
+    });
+
+    describe('tipe pilihan', () => {
+      const surveyWithPilihan = () =>
+        aktifSurvey({ questions: [skalaQ(101), pilihanQ(201, [301, 302])] });
+
+      it('pilihan wajib memilih opsi → BadRequest bila kosong', async () => {
+        (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithPilihan());
+        await expect(
+          service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden()),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('selectedOptionId bukan milik pertanyaan tsb → BadRequest', async () => {
+        (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithPilihan());
+        await expect(
+          service.submit(
+            1,
+            {
+              answers: [
+                { questionId: 101, nilai: 4 },
+                { questionId: 201, selectedOptionId: 999 },
+              ],
+            },
+            responden(),
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('sukses → Answer dibuat dengan selectedOption terhubung', async () => {
+        (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithPilihan());
+        (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+        (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+          id: 1,
+          surveyId: 1,
+          submittedAt: new Date(),
+          answers: [
+            { id: 1, questionId: 101, nilai: 4, teks: null, selectedOptionId: null },
+            { id: 2, questionId: 201, nilai: null, teks: null, selectedOptionId: 302 },
+          ],
+        });
+
+        const res = await service.submit(
+          1,
+          {
+            answers: [
+              { questionId: 101, nilai: 4 },
+              { questionId: 201, selectedOptionId: 302 },
+            ],
+          },
+          responden(10),
+        );
+
+        expect(res.answers?.[1].selectedOptionId).toBe(302);
+        expect(prisma.surveyResponse.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              answers: {
+                create: [
+                  { question: { connect: { id: 101 } }, nilai: 4 },
+                  {
+                    question: { connect: { id: 201 } },
+                    selectedOption: { connect: { id: 302 } },
+                  },
+                ],
+              },
+            }),
+          }),
+        );
+      });
     });
   });
 
