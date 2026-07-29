@@ -1,0 +1,173 @@
+%% ERD — Sistem SKM & Pengaduan Masyarakat (Diskominfo Kabupaten Madiun)
+%%
+%% Sumber kebenaran = apps/api/prisma/schema.prisma. Berkas ini adalah representasi
+%% visual dari skema tsb (13 tabel per 2026-07-29) — perbarui setiap kali schema.prisma
+%% berubah struktur (tabel/kolom/relasi baru), bukan sebaliknya.
+%%
+%% Nama entitas & kolom memakai nama tabel/kolom DB (snake_case, hasil @@map/@map di
+%% Prisma), bukan nama model/field Prisma (PascalCase/camelCase), agar diagram ini
+%% langsung mencerminkan skema fisik PostgreSQL.
+%%
+%% Render: buka https://mermaid.live lalu tempel isi berkas ini, atau pakai ekstensi
+%% "Markdown Preview Mermaid Support" di VS Code, lalu ekspor ke PNG (docs/ERD.png).
+
+erDiagram
+    users {
+        int id PK
+        varchar sso_subject UK "identitas stabil dari Helpdesk (klaim sub)"
+        varchar nama
+        varchar email UK
+        user_role role
+        int opd_id FK "hanya admin OPD; null selain itu"
+        boolean is_active
+        timestamp consent_at "persetujuan PDP saat login pertama"
+        timestamp last_login_at
+        timestamp deleted_at "soft delete (UU PDP)"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    respondent_profiles {
+        int id PK
+        int user_id FK,UK
+        jenis_kelamin jenis_kelamin
+        varchar kelompok_umur
+        varchar pendidikan
+        varchar pekerjaan
+    }
+
+    opd {
+        int id PK
+        varchar external_id UK "id OPD di Helpdesk (hasil sinkronisasi)"
+        varchar nama
+        varchar kode UK
+        varchar jenis_layanan
+        varchar penanggung_jawab
+        boolean is_active
+        timestamp synced_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    surveys {
+        int id PK
+        int opd_id FK
+        varchar judul
+        varchar periode
+        survey_status status
+        boolean allow_multiple_submit
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    questions {
+        int id PK
+        int survey_id FK
+        text teks
+        question_type tipe "skala | pilihan | teks"
+        boolean is_ikm_unsur
+        varchar kode_unsur "U1..U9; null jika kustom"
+        int urutan
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    question_options {
+        int id PK
+        int question_id FK
+        varchar label
+        int nilai "skor opsi (opsional, di luar rumus IKM resmi)"
+        int urutan
+    }
+
+    survey_responses {
+        int id PK
+        int survey_id FK
+        int user_id FK
+        int dedupe_user_id "userId bila single-submit, null bila multi (anti-duplikat)"
+        timestamp submitted_at
+    }
+
+    answers {
+        int id PK
+        int response_id FK
+        int question_id FK
+        int nilai "tipe skala (1-4)"
+        text teks "tipe teks/saran"
+        int selected_option_id FK "tipe pilihan"
+    }
+
+    ikm_results {
+        int id PK
+        int survey_id FK
+        varchar periode
+        json nrr_per_unsur
+        decimal nilai_ikm
+        ikm_mutu mutu
+        int jumlah_responden
+        timestamp dihitung_pada
+    }
+
+    complaints {
+        int id PK
+        varchar ticket_no UK "identifier publik"
+        int user_id FK
+        int opd_id FK
+        varchar kategori
+        varchar judul
+        text uraian
+        complaint_status status
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    complaint_attachments {
+        int id PK
+        int complaint_id FK
+        varchar file_url
+        varchar mime_type
+        int size_bytes
+        timestamp created_at
+    }
+
+    complaint_replies {
+        int id PK
+        int complaint_id FK
+        int author_id FK
+        text pesan
+        timestamp created_at
+    }
+
+    audit_logs {
+        int id PK
+        int actor_id FK
+        varchar aksi
+        varchar entitas
+        json detail
+        timestamp timestamp
+    }
+
+    %% --- Relasi ---
+    opd ||--o{ users : "admin dari (opd_id nullable)"
+    users ||--o| respondent_profiles : "punya profil"
+    opd ||--o{ surveys : memiliki
+    surveys ||--o{ questions : berisi
+    questions ||--o{ question_options : "punya opsi (tipe pilihan)"
+    surveys ||--o{ survey_responses : menerima
+    users ||--o{ survey_responses : mengisi
+    survey_responses ||--o{ answers : "terdiri dari"
+    questions ||--o{ answers : dijawab
+    question_options ||--o{ answers : "dipilih pada (opsional)"
+    surveys ||--o{ ikm_results : menghasilkan
+    opd ||--o{ complaints : menerima
+    users ||--o{ complaints : mengajukan
+    complaints ||--o{ complaint_attachments : "punya lampiran"
+    complaints ||--o{ complaint_replies : "punya balasan"
+    users ||--o{ complaint_replies : menulis
+    users ||--o{ audit_logs : melakukan
+
+    %% --- Catatan constraint komposit (tak sepenuhnya tergambar oleh notasi ER standar) ---
+    %% survey_responses: UNIQUE(survey_id, dedupe_user_id) — NULLS DISTINCT Postgres
+    %%   → 1 respons/user saat single-submit, tak dibatasi saat multi-submit.
+    %% answers: UNIQUE(response_id, question_id) — satu jawaban per pertanyaan per respons.
+    %% ikm_results: UNIQUE(survey_id, periode) — satu hasil per survei per periode (upsert).
