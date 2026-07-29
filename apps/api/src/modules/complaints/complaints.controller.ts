@@ -20,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { memoryStorage } from 'multer';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -86,6 +87,7 @@ export class ComplaintsController {
   /** Ubah status pengaduan (Admin OPD pemilik). */
   @Patch(':id/status')
   @Roles(Role.opd)
+  @Audit('complaint', 'update_status')
   @ApiOkResponse({ type: ComplaintEntity })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,

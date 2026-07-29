@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -44,6 +45,7 @@ export class SurveysController {
   /** Buat paket survei (Admin OPD). */
   @Post()
   @Roles(Role.opd)
+  @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   create(@Body() dto: CreateSurveyDto, @CurrentUser() user: CurrentUser): Promise<SurveyEntity> {
     return this.surveysService.create(dto, user);
@@ -75,6 +77,7 @@ export class SurveysController {
   /** Ubah survei (draft, Admin OPD). */
   @Patch(':id')
   @Roles(Role.opd)
+  @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -87,6 +90,7 @@ export class SurveysController {
   /** Hapus survei (draft, Admin OPD). */
   @Delete(':id')
   @Roles(Role.opd)
+  @Audit('survey')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
     return this.surveysService.remove(id, user);
@@ -95,6 +99,7 @@ export class SurveysController {
   /** Publikasikan / tutup survei (Admin OPD). */
   @Patch(':id/status')
   @Roles(Role.opd)
+  @Audit('survey', 'update_status')
   @ApiOkResponse({ type: SurveyEntity })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
@@ -107,6 +112,7 @@ export class SurveysController {
   /** Duplikasi survei periode sebelumnya (Admin OPD). */
   @Post(':id/duplicate')
   @Roles(Role.opd)
+  @Audit('survey', 'duplicate')
   @ApiOkResponse({ type: SurveyEntity })
   duplicate(
     @Param('id', ParseIntPipe) id: number,

@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -39,6 +40,7 @@ export class QuestionsController {
 
   /** Tambah pertanyaan (baku/kustom). */
   @Post('surveys/:surveyId/questions')
+  @Audit('question')
   @ApiOkResponse({ type: QuestionEntity })
   create(
     @Param('surveyId', ParseIntPipe) surveyId: number,
@@ -50,6 +52,7 @@ export class QuestionsController {
 
   /** Terapkan template 9 unsur SKM. */
   @Post('surveys/:surveyId/questions/template')
+  @Audit('question', 'apply_template')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: QuestionEntity, isArray: true })
   applyTemplate(
@@ -61,6 +64,7 @@ export class QuestionsController {
 
   /** Ubah urutan pertanyaan. */
   @Patch('surveys/:surveyId/questions/reorder')
+  @Audit('question', 'reorder')
   @ApiOkResponse({ type: QuestionEntity, isArray: true })
   reorder(
     @Param('surveyId', ParseIntPipe) surveyId: number,
@@ -72,6 +76,7 @@ export class QuestionsController {
 
   /** Ubah pertanyaan. */
   @Patch('questions/:id')
+  @Audit('question')
   @ApiOkResponse({ type: QuestionEntity })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -83,6 +88,7 @@ export class QuestionsController {
 
   /** Hapus pertanyaan. */
   @Delete('questions/:id')
+  @Audit('question')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
     return this.questionsService.remove(id, user);
