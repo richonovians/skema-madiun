@@ -16,6 +16,7 @@ import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
@@ -46,6 +47,18 @@ export class SurveysController {
   @ApiOkResponse({ type: SurveyEntity })
   create(@Body() dto: CreateSurveyDto, @CurrentUser() user: CurrentUser): Promise<SurveyEntity> {
     return this.surveysService.create(dto, user);
+  }
+
+  /**
+   * Daftar survei aktif untuk dipilih responden.
+   * WAJIB dideklarasikan sebelum `@Get(':id')`: Express 5 mencocokkan rute sesuai
+   * urutan registrasi, sehingga literal `active` harus mendahului param `:id`.
+   */
+  @Get('active')
+  @Roles(Role.responden)
+  @ApiOkResponse({ type: SurveyEntity, isArray: true })
+  findActive(@Query() query: PaginationQueryDto): Promise<PaginatedResult<SurveyEntity>> {
+    return this.surveysService.findActive(query);
   }
 
   /** Detail survei. */
