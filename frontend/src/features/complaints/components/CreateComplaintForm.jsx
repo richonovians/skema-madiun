@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
+import Dropdown from '@/components/ui/Dropdown';
 import Textarea from '@/components/ui/Textarea';
 import FileDropzone from '@/components/ui/FileDropzone';
 import Button from '@/components/ui/Button';
@@ -27,8 +27,16 @@ export default function CreateComplaintForm() {
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 
+  const handleDropdownChange = (id, value) => {
+    setFormData(prev => ({ ...prev, [id]: value }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!formData.department || !formData.category) {
+      alert('Pilih instansi dan kategori pengaduan terlebih dahulu.');
+      return;
+    }
     setIsSubmitting(true);
     
     // Simulate API call
@@ -40,6 +48,7 @@ export default function CreateComplaintForm() {
   };
 
   const departmentOptions = [
+    { label: 'Pilih Instansi', value: '' },
     { label: 'Dinas Kesehatan', value: 'dinkes' },
     { label: 'Dinas Pendidikan', value: 'disdik' },
     { label: 'Dinas PUPR', value: 'pupr' },
@@ -47,6 +56,7 @@ export default function CreateComplaintForm() {
   ];
 
   const categoryOptions = [
+    { label: 'Pilih Kategori', value: '' },
     { label: 'Layanan Publik', value: 'layanan' },
     { label: 'Infrastruktur', value: 'infrastruktur' },
     { label: 'Lingkungan Hidup', value: 'lingkungan' },
@@ -61,24 +71,20 @@ export default function CreateComplaintForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Select 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-50">
+          <Dropdown 
             label="OPD / Instansi Tujuan" 
             id="department"
-            placeholder="Pilih Instansi"
             options={departmentOptions}
             value={formData.department}
-            onChange={handleChange}
-            required
+            onChange={(val) => handleDropdownChange('department', val)}
           />
-          <Select 
+          <Dropdown 
             label="Kategori Pengaduan" 
             id="category"
-            placeholder="Pilih Kategori"
             options={categoryOptions}
             value={formData.category}
-            onChange={handleChange}
-            required
+            onChange={(val) => handleDropdownChange('category', val)}
           />
         </div>
 

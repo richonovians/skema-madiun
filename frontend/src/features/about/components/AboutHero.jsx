@@ -19,13 +19,6 @@ export default function AboutHero() {
             </p>
             <div className="flex flex-row w-full sm:w-auto gap-3 sm:gap-4 mt-2 sm:mt-4 justify-center lg:justify-start">
               <Link
-                href="/"
-                className="flex flex-1 sm:flex-none flex-row items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-3 sm:py-3.5 min-h-[48px] bg-surface border border-border rounded-xl text-text-primary font-medium hover:bg-surface-hover transition-colors shadow-sm text-sm sm:text-base text-center"
-              >
-                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                <span>Beranda</span>
-              </Link>
-              <Link
                 href="/statistics"
                 className="flex flex-1 sm:flex-none flex-row items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-3 sm:py-3.5 min-h-[48px] bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-colors shadow-md shadow-primary/20 text-sm sm:text-base text-center"
               >

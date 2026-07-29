@@ -64,7 +64,7 @@ export default function AdminOPDComplaintsPage() {
   };
 
   return (
-    <div className="p-lg md:p-3xl max-w-container-max mx-auto min-h-screen pt-16">
+    <div className="w-full min-w-0 max-w-container-max mx-auto">
       <ComplaintListHeader 
         totalComplaints={dummyComplaints.length}
         onExportExcel={handleExportExcel}

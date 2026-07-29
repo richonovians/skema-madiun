@@ -1,6 +1,5 @@
 'use client';
 import React, { useState } from 'react';
-import AnalyticsHeader from '@/features/analytics/components/AnalyticsHeader';
 import AnalyticsTabs from '@/features/analytics/components/AnalyticsTabs';
 import SkmAnalysisView from '@/features/analytics/components/SkmAnalysisView';
 import ComplaintAnalysisView from '@/features/analytics/components/ComplaintAnalysisView';
@@ -19,10 +18,7 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <div className="min-h-screen relative flex flex-col">
-      <AnalyticsHeader filters={filters} setFilters={setFilters} />
-      
-      <div className="px-xl pb-xl flex-1 flex flex-col">
+    <div className="w-full min-w-0 max-w-container-max mx-auto flex-1 flex flex-col">
         <AnalyticsTabs 
           tabs={tabs} 
           activeTab={activeTab} 
@@ -33,6 +29,5 @@ export default function AnalyticsPage() {
           {activeTab === 'skm' ? <SkmAnalysisView /> : <ComplaintAnalysisView />}
         </div>
       </div>
-    </div>
   );
 }

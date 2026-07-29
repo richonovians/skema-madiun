@@ -32,7 +32,7 @@ export default function AdminSurveysPage() {
   });
 
   return (
-    <main className="flex-1 p-xl max-w-container-max w-full mx-auto">
+    <div className="w-full min-w-0 max-w-container-max mx-auto flex-1 flex flex-col">
       <SurveyPageHeader />
       <SurveyTabs 
         activeTab={activeTab}
@@ -42,6 +42,6 @@ export default function AdminSurveysPage() {
         surveys={filteredSurveys}
         onTogglePeriod={handleTogglePeriod}
       />
-    </main>
+    </div>
   );
 }

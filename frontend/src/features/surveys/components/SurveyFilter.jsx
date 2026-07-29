@@ -23,23 +23,21 @@ export default function SurveyFilter({
         />
       </div>
       
-      <div className="flex overflow-x-auto md:flex-wrap gap-sm justify-start md:justify-end flex-1 w-full pb-2 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        <Button 
-          variant={activeCategory === 'Semua' ? 'primary' : 'outline'}
-          className={activeCategory === 'Semua' ? 'rounded-lg px-lg shrink-0 whitespace-nowrap' : 'rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container shrink-0 whitespace-nowrap'}
+      <div className="flex overflow-x-auto md:flex-wrap gap-3 justify-start md:justify-end flex-1 w-full py-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <button 
+          className={`min-h-[44px] py-2 px-6 rounded-lg text-base font-bold whitespace-nowrap transition-all duration-300 hover:-translate-y-1 active:scale-[0.98] border ${activeCategory === 'Semua' ? 'bg-primary text-white border-primary shadow-md hover:shadow-lg hover:shadow-primary/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm hover:shadow-md'}`}
           onClick={() => onCategoryChange('Semua')}
         >
           Semua
-        </Button>
+        </button>
         {categories.map((cat) => (
-          <Button 
+          <button 
             key={cat}
-            variant={activeCategory === cat ? 'primary' : 'outline'}
-            className={activeCategory === cat ? 'rounded-lg px-lg shrink-0 whitespace-nowrap' : 'rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container shrink-0 whitespace-nowrap'}
+            className={`min-h-[44px] py-2 px-6 rounded-lg text-base font-bold whitespace-nowrap transition-all duration-300 hover:-translate-y-1 active:scale-[0.98] border ${activeCategory === cat ? 'bg-primary text-white border-primary shadow-md hover:shadow-lg hover:shadow-primary/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm hover:shadow-md'}`}
             onClick={() => onCategoryChange(cat)}
           >
             {cat}
-          </Button>
+          </button>
         ))}
       </div>
     </div>

@@ -11,7 +11,7 @@ export default function AdminLayout({ children }) {
       <AdminSidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
       <AdminNavbar onMenuClick={() => setIsMobileMenuOpen(true)} />
       
-      <main className="md:ml-64 pt-24 p-4 md:p-lg space-y-6 md:space-y-lg min-h-screen">
+      <main className="md:ml-64 pt-24 px-4 pb-4 md:pt-28 md:px-lg md:pb-lg space-y-6 md:space-y-lg min-h-screen flex flex-col">
         {children}
       </main>
 

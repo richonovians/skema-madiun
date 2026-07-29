@@ -15,7 +15,7 @@ export default function AdminNavbar({ onMenuClick }) {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-4 md:px-lg z-40 transition-all duration-300">
+    <header className="fixed top-0 right-0 left-0 md:left-64 h-[72px] md:h-20 bg-surface border-b border-outline-variant flex justify-between items-center px-4 md:px-lg z-40 transition-all duration-300">
       <div className="flex items-center gap-2 md:gap-lg">
         <button 
           onClick={onMenuClick}
@@ -23,18 +23,17 @@ export default function AdminNavbar({ onMenuClick }) {
         >
           <Menu size={24} />
         </button>
-        <span className="font-headline-md text-base md:text-headline-md font-extrabold text-primary truncate max-w-[140px] sm:max-w-none">
+        <span className="font-headline-md text-sm sm:text-base md:text-headline-md font-extrabold text-primary truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">
           Dinas Kesehatan
         </span>
-        <div className="h-8 w-[1px] bg-outline-variant hidden sm:block"></div>
-        <div className="hidden sm:flex items-center gap-3">
+        <div className="h-6 sm:h-8 w-[1px] bg-outline-variant hidden md:block"></div>
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
           <Dropdown 
             options={periodOptions} 
             value={period} 
             onChange={setPeriod} 
             variant="primary"
           />
-
         </div>
       </div>
       
