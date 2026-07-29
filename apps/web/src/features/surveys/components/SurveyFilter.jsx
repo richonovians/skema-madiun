@@ -23,10 +23,10 @@ export default function SurveyFilter({
         />
       </div>
       
-      <div className="flex flex-wrap gap-sm justify-center md:justify-end flex-1">
+      <div className="flex overflow-x-auto gap-2 md:gap-3 justify-start md:justify-end w-full flex-1 pb-2 scrollbar-hide">
         <Button 
           variant={activeCategory === 'Semua' ? 'primary' : 'outline'}
-          className={activeCategory === 'Semua' ? 'rounded-lg px-lg' : 'rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container'}
+          className={activeCategory === 'Semua' ? 'shrink-0 rounded-lg px-lg' : 'shrink-0 rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container'}
           onClick={() => onCategoryChange('Semua')}
         >
           Semua
@@ -35,7 +35,7 @@ export default function SurveyFilter({
           <Button 
             key={cat}
             variant={activeCategory === cat ? 'primary' : 'outline'}
-            className={activeCategory === cat ? 'rounded-lg px-lg' : 'rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container'}
+            className={activeCategory === cat ? 'shrink-0 rounded-lg px-lg' : 'shrink-0 rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container'}
             onClick={() => onCategoryChange(cat)}
           >
             {cat}

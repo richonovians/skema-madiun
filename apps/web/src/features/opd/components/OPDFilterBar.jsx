@@ -17,7 +17,7 @@ export default function OPDFilterBar({ searchQuery, setSearchQuery, selectedServ
 
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border mb-lg p-md flex flex-wrap items-center gap-4">
-      <div className="flex-1 relative min-w-[300px]">
+      <div className="flex-1 relative w-full min-w-0 md:min-w-[300px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" size={20} />
         <input 
           className="w-full pl-10 pr-4 py-2 border border-border rounded-xl bg-surface-container-low focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm" 
@@ -27,7 +27,7 @@ export default function OPDFilterBar({ searchQuery, setSearchQuery, selectedServ
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
         <Dropdown 
           options={serviceOptions}
           value={selectedService}

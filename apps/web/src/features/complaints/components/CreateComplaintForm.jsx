@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
+import Dropdown from '@/components/ui/Dropdown';
 import Textarea from '@/components/ui/Textarea';
 import FileDropzone from '@/components/ui/FileDropzone';
 import Button from '@/components/ui/Button';
@@ -62,23 +62,19 @@ export default function CreateComplaintForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Select 
+          <Dropdown 
             label="OPD / Instansi Tujuan" 
             id="department"
-            placeholder="Pilih Instansi"
-            options={departmentOptions}
+            options={[{label: 'Pilih Instansi', value: ''}, ...departmentOptions]}
             value={formData.department}
-            onChange={handleChange}
-            required
+            onChange={(val) => setFormData(prev => ({ ...prev, department: val }))}
           />
-          <Select 
+          <Dropdown 
             label="Kategori Pengaduan" 
             id="category"
-            placeholder="Pilih Kategori"
-            options={categoryOptions}
+            options={[{label: 'Pilih Kategori', value: ''}, ...categoryOptions]}
             value={formData.category}
-            onChange={handleChange}
-            required
+            onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
           />
         </div>
 
@@ -110,7 +106,7 @@ export default function CreateComplaintForm() {
           <Button 
             type="button" 
             variant="outline" 
-            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg border-2 border-outline text-outline font-bold hover:bg-surface-variant transition-colors bg-transparent"
+            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg text-outline font-bold hover:bg-surface-variant transition-colors bg-transparent"
             onClick={() => router.back()}
             disabled={isSubmitting}
           >

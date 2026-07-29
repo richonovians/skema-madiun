@@ -19,7 +19,7 @@ export default function VisionMission() {
                 Visi
               </h2>
             </div>
-            <div className="p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-hover rounded-3xl text-white shadow-xl shadow-primary/20">
+            <div className="p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-hover rounded-3xl text-white shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
               <p className="font-h3 text-h3 font-medium leading-relaxed">
                 &quot;{vision}&quot;
               </p>
@@ -38,7 +38,7 @@ export default function VisionMission() {
             </div>
             <div className="space-y-4 sm:space-y-6">
               {missions.map((mission) => (
-                <div key={mission.id} className="flex gap-3 sm:gap-4 p-4 sm:p-6 bg-background rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
+                <div key={mission.id} className="flex gap-3 sm:gap-4 p-4 sm:p-6 bg-background rounded-2xl border border-border shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300">
                   <div className="flex-shrink-0 mt-1">
                     <CheckCircle2 className="w-6 h-6 text-primary" />
                   </div>

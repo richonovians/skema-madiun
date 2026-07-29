@@ -48,8 +48,9 @@ export default function UsersTable({ data }) {
 
   return (
     <div className="bg-surface rounded-xl shadow-sm overflow-hidden border border-border">
-      <Table>
-        <Thead>
+      <div className="w-full overflow-x-auto">
+        <Table>
+          <Thead>
           <Tr className="bg-gradient-to-r from-slate-100/80 via-slate-50/80 to-slate-100/80 border-b-2 border-slate-200 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.02)] relative z-10">
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">NAMA LENGKAP</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">HAK AKSES (ROLE)</Th>
@@ -105,8 +106,9 @@ export default function UsersTable({ data }) {
               </Tr>
             );
           })}
-        </Tbody>
-      </Table>
+          </Tbody>
+        </Table>
+      </div>
     </div>
   );
 }

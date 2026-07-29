@@ -47,7 +47,7 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
           
           return (
             <div key={step.id} className="flex gap-3 sm:gap-4 relative">
-              <div className="z-10 flex flex-col items-center">
+              <div className="z-10 flex flex-col items-center shrink-0 w-8 relative">
                 
                 {/* Icon Container */}
                 {state === 'completed' && (
@@ -56,8 +56,9 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
                   </div>
                 )}
                 {state === 'active' && (
-                  <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center animate-pulse">
-                    <div className="w-3 h-3 bg-primary rounded-full"></div>
+                  <div className="w-8 h-8 relative flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full bg-primary-container animate-pulse"></div>
+                    <div className="w-3 h-3 bg-primary rounded-full relative z-10"></div>
                   </div>
                 )}
                 {state === 'pending' && (
@@ -70,7 +71,7 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
                 {!isLast && (
                   <div 
                     className={clsx(
-                      "w-[2px] h-full absolute top-8",
+                      "w-[2px] h-[calc(100%-8px)] absolute top-8 left-0 right-0 mx-auto",
                       state === 'completed' ? "bg-primary" : "bg-outline-variant"
                     )}
                   ></div>

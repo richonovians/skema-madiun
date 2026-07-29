@@ -1,6 +1,6 @@
 import React from 'react';
 import DashboardNavbar from '@/components/layouts/DashboardNavbar';
-import DashboardFooter from '@/components/layouts/DashboardFooter';
+import Footer from '@/components/layouts/Footer';
 
 export default function RespondentLayout({ children }) {
   return (
@@ -9,7 +9,7 @@ export default function RespondentLayout({ children }) {
       <div className="flex-grow">
         {children}
       </div>
-      <DashboardFooter />
+      <Footer />
     </div>
   );
 }

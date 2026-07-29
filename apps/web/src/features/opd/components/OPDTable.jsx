@@ -28,8 +28,9 @@ export default function OPDTable({ data }) {
 
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
-      <Table>
-        <Thead>
+      <div className="w-full overflow-x-auto">
+        <Table>
+          <Thead>
           <Tr className="bg-[#F8FAFC]">
             <Th>KODE OPD</Th>
             <Th>NAMA INSTANSI</Th>
@@ -103,8 +104,9 @@ export default function OPDTable({ data }) {
               </Td>
             </Tr>
           )}
-        </Tbody>
-      </Table>
+          </Tbody>
+        </Table>
+      </div>
     </div>
   );
 }

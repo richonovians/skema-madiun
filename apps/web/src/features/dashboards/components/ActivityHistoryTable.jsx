@@ -15,7 +15,6 @@ export default function ActivityHistoryTable() {
               <Th>Aktivitas</Th>
               <Th>Status</Th>
               <Th>Tanggal</Th>
-              <Th className="text-right">Aksi</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -33,11 +32,6 @@ export default function ActivityHistoryTable() {
                 <Badge variant="success">Selesai</Badge>
               </Td>
               <Td className="text-sm text-text-secondary">15 Juli 2026</Td>
-              <Td className="text-right">
-                <button type="button" className="text-primary hover:bg-primary/10 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg transition-all" aria-label="Lihat Detail">
-                  <Eye size={20} />
-                </button>
-              </Td>
             </Tr>
             <Tr>
               <Td>
@@ -53,11 +47,6 @@ export default function ActivityHistoryTable() {
                 <Badge variant="info">Disubmit</Badge>
               </Td>
               <Td className="text-sm text-text-secondary">10 Juli 2026</Td>
-              <Td className="text-right">
-                <button type="button" className="text-primary hover:bg-primary/10 min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg transition-all" aria-label="Lihat Detail">
-                  <Eye size={20} />
-                </button>
-              </Td>
             </Tr>
           </Tbody>
         </Table>

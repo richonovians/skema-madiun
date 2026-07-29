@@ -35,8 +35,8 @@ export default function AboutStatistics() {
       value: statistics.tingkatPenyelesaian,
       suffix: "%",
       icon: CheckCircle2,
-      color: "text-primary",
-      bg: "bg-primary/10"
+      color: "text-white",
+      bg: "bg-white/20"
     }
   ];
 

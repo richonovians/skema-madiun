@@ -111,37 +111,51 @@ export default function AdminKabDashboardPage() {
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Tren IKM */}
-          <div className="lg:col-span-2">
-            <TrendChart 
-              title="Tren Indeks Kepuasan Masyarakat (6 Bulan)" 
-              data={ikmTrend} 
-              dataKey="value"
-              yMin={75}
-              yMax={100}
-            />
+          <div className="lg:col-span-2 w-full overflow-x-auto hide-scrollbar">
+            <div className="min-w-[600px]">
+              <TrendChart 
+                title="Tren Indeks Kepuasan Masyarakat (6 Bulan)" 
+                data={ikmTrend} 
+                dataKey="value"
+                yMin={75}
+                yMax={100}
+              />
+            </div>
           </div>
           
           {/* Distribusi Nilai */}
-          <div>
-            <BarChart 
-              title="Distribusi Nilai Penilaian"
-              data={valueDistribution}
-            />
+          <div className="w-full overflow-x-auto hide-scrollbar">
+            <div className="min-w-[300px]">
+              <BarChart 
+                title="Distribusi Nilai Penilaian"
+                data={valueDistribution}
+              />
+            </div>
           </div>
           
           {/* 9 Unsur Pelayanan */}
-          <div className="lg:col-span-3">
-            <HorizontalProgress 
-              title="Penilaian 9 Unsur Pelayanan (PermenPAN RB)"
-              data={serviceElements}
-            />
+          <div className="lg:col-span-3 w-full overflow-x-auto hide-scrollbar">
+            <div className="min-w-[600px]">
+              <HorizontalProgress 
+                title="Penilaian 9 Unsur Pelayanan (PermenPAN RB)"
+                data={serviceElements}
+              />
+            </div>
           </div>
         </div>
       </section>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg mt-8">
-        <IkmLeaderboard data={leaderboardData} />
-        <ComplaintStatusDonut data={complaintData} />
+        <div className="lg:col-span-2 w-full overflow-x-auto hide-scrollbar">
+          <div className="min-w-[500px]">
+            <IkmLeaderboard data={leaderboardData} />
+          </div>
+        </div>
+        <div className="w-full overflow-x-auto hide-scrollbar">
+          <div className="min-w-[300px]">
+            <ComplaintStatusDonut data={complaintData} />
+          </div>
+        </div>
       </div>
 
       <RecentActivities data={activitiesData} />

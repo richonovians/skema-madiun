@@ -129,29 +129,31 @@ export default function SkmAnalysisView() {
         {/* Trend Line Chart SVG */}
         <div className="lg:col-span-4 bg-white/95 backdrop-blur border border-border rounded-xl p-lg shadow-sm flex flex-col">
           <h3 className="font-h3 text-h3 text-primary mb-lg">Tren IKM Tahunan (2024-2026)</h3>
-          <div className="flex-1 relative border-l border-b border-outline-variant mt-md ml-8 mb-8">
-            <svg className="w-full h-full stroke-primary fill-none overflow-visible" viewBox="0 0 400 200" preserveAspectRatio="none">
-              <path 
-                d="M0,180 L50,160 L100,165 L150,150 L200,140 L250,130 L300,110 L350,90 L400,70" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth="4"
-                style={{
-                  strokeDasharray: 800,
-                  strokeDashoffset: animate ? 0 : 800,
-                  transition: 'stroke-dashoffset 2s ease-out'
-                }}
-              ></path>
-              <circle cx="400" cy="70" fill="#2563EB" r="6" className={`transition-opacity duration-1000 delay-[1500ms] ${animate ? 'opacity-100' : 'opacity-0'}`}></circle>
-              
-              <text className="fill-secondary text-[10px]" x="-35" y="180">75.0</text>
-              <text className="fill-secondary text-[10px]" x="-35" y="130">80.0</text>
-              <text className="fill-secondary text-[10px]" x="-35" y="80">85.0</text>
-              
-              <text className="fill-secondary text-[10px]" x="0" y="210">2024</text>
-              <text className="fill-secondary text-[10px]" x="200" y="210">2025</text>
-              <text className="fill-secondary text-[10px]" x="400" y="210">2026</text>
-            </svg>
+          <div className="flex-1 w-full overflow-x-auto pb-4">
+            <div className="relative border-l border-b border-outline-variant mt-md ml-8 mb-8 min-w-[300px] h-40 md:h-auto">
+              <svg className="w-full h-full stroke-primary fill-none overflow-visible" viewBox="0 0 400 200" preserveAspectRatio="none">
+                <path 
+                  d="M0,180 L50,160 L100,165 L150,150 L200,140 L250,130 L300,110 L350,90 L400,70" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="4"
+                  style={{
+                    strokeDasharray: 800,
+                    strokeDashoffset: animate ? 0 : 800,
+                    transition: 'stroke-dashoffset 2s ease-out'
+                  }}
+                ></path>
+                <circle cx="400" cy="70" fill="#2563EB" r="6" className={`transition-opacity duration-1000 delay-[1500ms] ${animate ? 'opacity-100' : 'opacity-0'}`}></circle>
+                
+                <text className="fill-secondary text-[10px]" x="-35" y="180">75.0</text>
+                <text className="fill-secondary text-[10px]" x="-35" y="130">80.0</text>
+                <text className="fill-secondary text-[10px]" x="-35" y="80">85.0</text>
+                
+                <text className="fill-secondary text-[10px]" x="0" y="210">2024</text>
+                <text className="fill-secondary text-[10px]" x="200" y="210">2025</text>
+                <text className="fill-secondary text-[10px]" x="400" y="210">2026</text>
+              </svg>
+            </div>
           </div>
           <p className="text-label-md text-secondary text-center">Data menunjukkan kenaikan konsisten sebesar 1.8% per tahun.</p>
         </div>

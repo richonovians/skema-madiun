@@ -40,7 +40,8 @@ export default function RecentActivities({ data = [] }) {
         </button>
       </div>
 
-      <div className="divide-y divide-border">
+      <div className="w-full overflow-x-auto">
+        <div className="divide-y divide-border min-w-[500px]">
         {data.map((item) => (
           <div key={item.id} className="p-lg hover:bg-background transition-colors flex items-center justify-between group">
             <div className="flex items-center gap-lg">
@@ -73,6 +74,7 @@ export default function RecentActivities({ data = [] }) {
             Tidak ada aktivitas terbaru.
           </div>
         )}
+        </div>
       </div>
     </section>
   );

@@ -11,7 +11,7 @@ const ROLES = [
 
 export default function UsersRoleFilter({ activeRoleFilter, setActiveRoleFilter }) {
   return (
-    <div className="flex flex-wrap gap-2 mb-lg p-1 bg-surface-container-low w-fit rounded-xl border border-outline-variant">
+    <div className="flex gap-2 mb-lg p-1 bg-surface-container-low w-full md:w-fit overflow-x-auto hide-scrollbar rounded-xl border border-outline-variant">
       {ROLES.map((role) => {
         const isActive = activeRoleFilter === role.value;
         return (
@@ -20,7 +20,7 @@ export default function UsersRoleFilter({ activeRoleFilter, setActiveRoleFilter 
             onClick={() => setActiveRoleFilter(role.value)}
             className={twMerge(
               clsx(
-                "px-lg py-2 rounded-lg font-label-md text-sm transition-all",
+                "px-lg py-2 rounded-lg font-label-md text-sm transition-all whitespace-nowrap",
                 isActive
                   ? "bg-text-primary text-white shadow-sm"
                   : "bg-transparent text-text-secondary hover:bg-surface-container-highest hover:text-text-primary border border-transparent"

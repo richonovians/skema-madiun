@@ -1,27 +1,35 @@
 'use client';
 import React, { useState } from 'react';
-import { Bell, RefreshCw, ChevronDown } from 'lucide-react';
+import { Bell, RefreshCw, Menu } from 'lucide-react';
 import Image from 'next/image';
 import Dropdown from '@/components/ui/Dropdown';
+import { useAdminLayout } from './AdminLayoutProvider';
 
 export default function AdminNavbar() {
+  const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminLayout();
   const [period, setPeriod] = useState('q1');
 
   const periodOptions = [
-    { value: 'q1', label: 'Periode Triwulan I' },
-    { value: 'q2', label: 'Periode Triwulan II' },
-    { value: 'q3', label: 'Periode Triwulan III' },
-    { value: 'q4', label: 'Periode Triwulan IV' }
+    { value: 'q1', label: 'Triwulan I' },
+    { value: 'q2', label: 'Triwulan II' },
+    { value: 'q3', label: 'Triwulan III' },
+    { value: 'q4', label: 'Triwulan IV' }
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-lg z-40">
-      <div className="flex items-center gap-lg">
-        <span className="font-headline-md text-headline-md font-extrabold text-primary">
+    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 md:h-20 bg-surface border-b border-outline-variant flex justify-between items-center px-4 md:px-lg z-30 transition-all gap-2">
+      <div className="flex items-center gap-2 md:gap-lg flex-1 min-w-0">
+        <button 
+          className="md:hidden p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+        >
+          <Menu size={24} />
+        </button>
+        <span className="font-headline-md text-base md:text-headline-md font-extrabold text-primary truncate">
           Dinas Kesehatan
         </span>
-        <div className="h-8 w-[1px] bg-outline-variant"></div>
-        <div className="flex items-center gap-3">
+        <div className="hidden md:block h-8 w-[1px] bg-outline-variant shrink-0"></div>
+        <div className="flex items-center shrink-0">
           <Dropdown 
             options={periodOptions} 
             value={period} 
@@ -32,19 +40,19 @@ export default function AdminNavbar() {
         </div>
       </div>
       
-      <div className="flex items-center gap-lg">
-        <div className="flex gap-md">
+      <div className="flex items-center gap-2 md:gap-lg shrink-0 ml-auto">
+        <div className="flex gap-1 md:gap-md">
           <button className="p-2 hover:bg-surface-container rounded-full transition-colors relative">
             <Bell size={20} className="text-on-surface" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
           </button>
-          <button className="p-2 hover:bg-surface-container rounded-full transition-colors">
+          <button className="p-2 hover:bg-surface-container rounded-full transition-colors hidden sm:block">
             <RefreshCw size={20} className="text-on-surface" />
           </button>
         </div>
         
-        <div className="flex items-center gap-md border-l border-outline-variant pl-lg">
-          <div className="text-right">
+        <div className="flex items-center gap-2 md:gap-md md:border-l border-outline-variant md:pl-lg">
+          <div className="text-right hidden sm:block">
             <p className="text-label-md font-bold text-primary">Dr. Handoko</p>
             <p className="text-xs text-secondary">Kepala Dinas</p>
           </div>

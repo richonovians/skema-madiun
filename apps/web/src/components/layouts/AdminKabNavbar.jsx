@@ -1,9 +1,12 @@
 'use client';
 import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Menu } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
+import { useAdminKabLayout } from './AdminKabLayoutProvider';
 
 export default function AdminKabNavbar() {
+  const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminKabLayout();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,40 +39,59 @@ export default function AdminKabNavbar() {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-lg z-40">
-      <div className="flex items-center gap-lg">
-        <h2 className="font-headline-md text-headline-md font-extrabold text-primary">
-          {getPageTitle()}
-        </h2>
+    <header className="fixed top-0 right-0 left-0 md:left-64 min-h-[80px] bg-surface border-b border-outline-variant flex flex-col md:flex-row justify-center md:justify-between px-4 py-3 md:px-lg md:py-0 z-30 gap-3 md:gap-0 transition-all">
+      <div className="flex items-center justify-between md:justify-start gap-4 w-full md:w-auto">
+        <div className="flex items-center gap-2">
+          <button 
+            className="md:hidden p-2 text-on-surface hover:bg-surface-container rounded-lg"
+            onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          >
+            <Menu size={24} />
+          </button>
+          <h2 className="font-headline-md text-base md:text-headline-md font-extrabold text-primary truncate max-w-[200px] md:max-w-none">
+            {getPageTitle()}
+          </h2>
+        </div>
         
+        {/* Mobile Profile Avatar (only visible on mobile) */}
+        <div className="md:hidden w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold border-2 border-primary/20 shrink-0">
+          AK
+        </div>
+      </div>
+      
+      <div className="flex items-center flex-wrap gap-2 md:gap-md w-full md:w-auto justify-between md:justify-end">
         {isDashboard && (
-          <>
-            <div className="hidden md:block h-6 w-[1px] bg-border mx-sm"></div>
-            <div className="flex items-center gap-md">
+          <div className="flex items-center gap-2 w-full md:w-auto pb-1 md:pb-0">
+            <div className="flex-1 min-w-0">
               <Dropdown 
                 options={yearOptions}
                 value={searchParams.get('year') || '2024'}
                 onChange={(val) => handleFilterChange('year', val)}
                 variant="primary"
+                className="w-full"
               />
+            </div>
+            <div className="flex-1 min-w-0">
               <Dropdown 
                 options={serviceOptions}
                 value={searchParams.get('service') || 'all'}
                 onChange={(val) => handleFilterChange('service', val)}
                 variant="primary"
+                className="w-full"
               />
             </div>
-          </>
+          </div>
         )}
-      </div>
-      
-      <div className="flex items-center gap-md pl-lg">
+        
+        {/* Desktop Profile (only visible on desktop) */}
+        <div className="hidden md:flex items-center gap-md pl-lg border-l border-border">
         <div className="text-right">
           <p className="text-label-md font-bold text-primary">Admin Kabupaten</p>
           <p className="text-xs text-secondary">Administrator Kabupaten</p>
         </div>
         <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold border-2 border-primary/20">
           AK
+        </div>
         </div>
       </div>
     </header>

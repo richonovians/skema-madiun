@@ -24,7 +24,7 @@ export default function AboutPlatform() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-stretch animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           {/* Background Card */}
-          <div className="group relative p-6 sm:p-8 md:p-10 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 overflow-hidden flex flex-col justify-center">
+          <div className="group relative p-6 sm:p-8 md:p-10 rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-start">
             <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -z-0 transition-transform group-hover:scale-110 duration-500"></div>
             <div className="relative z-10">
               <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 mb-6 shadow-sm border border-slate-200/50 group-hover:bg-primary group-hover:text-white transition-colors duration-300">
@@ -38,7 +38,7 @@ export default function AboutPlatform() {
           </div>
 
           {/* Purpose Card */}
-          <div className="group relative p-6 sm:p-8 md:p-10 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xl shadow-slate-900/10 transition-all duration-300 overflow-hidden flex flex-col justify-center">
+          <div className="group relative p-6 sm:p-8 md:p-10 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xl shadow-slate-900/10 hover:shadow-2xl hover:shadow-slate-900/20 hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-start">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-bl-full -z-0 transition-transform group-hover:scale-110 duration-500"></div>
             <div className="relative z-10">
               <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-blue-300 mb-6 backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-colors duration-300">
