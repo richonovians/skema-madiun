@@ -1,5 +1,7 @@
-# GitLab CI/CD — SKM & Pengaduan Masyarakat (backend)
+# GitLab CI/CD — SKM & Pengaduan Masyarakat (backend + frontend)
 # Pipeline: lint → build → test (unit + e2e dengan PostgreSQL) + pemeriksaan migrasi.
+# `apps/web` sengaja DIKECUALIKAN dari job `lint`/root eslint (lihat eslint.config.mjs +
+# .prettierignore) — job `web:lint` di bawah menutup celah itu dengan linter-nya sendiri.
 
 workflow:
   rules:
@@ -37,10 +39,20 @@ lint:
     - pnpm lint
     - pnpm format:check
 
+web:lint:
+  stage: lint
+  script:
+    - pnpm --filter @skm-spm/web lint
+
 build:
   stage: build
   script:
     - pnpm --filter @skm-spm/api build
+
+web:build:
+  stage: build
+  script:
+    - pnpm --filter @skm-spm/web build
 
 # Pastikan schema.prisma tidak "drift" dari migrasi (skema berubah tapi lupa migrasi).
 migrate_check:
