@@ -50,7 +50,7 @@ migrate_check:
   script:
     - pnpm --filter @skm-spm/api exec prisma validate
     - pnpm --filter @skm-spm/api exec prisma migrate deploy
-    - pnpm --filter @skm-spm/api exec prisma migrate diff --from-database-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+    - pnpm --filter @skm-spm/api exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
 
 test:
   stage: test
