@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { IkmService } from '../ikm/ikm.service';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { SurveysService } from './surveys.service';
@@ -34,7 +35,8 @@ describe('SurveysService', () => {
     opd: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
-  const service = new SurveysService(prisma);
+  const ikmService = { snapshot: jest.fn() } as unknown as IkmService;
+  const service = new SurveysService(prisma, ikmService);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -93,5 +95,27 @@ describe('SurveysService', () => {
   it('findOne: Admin OPD akses survei OPD lain → Forbidden', async () => {
     (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyRow({ opdId: 99 }));
     await expect(service.findOne(1, opdUser(5))).rejects.toThrow(ForbiddenException);
+  });
+
+  it('updateStatus aktif → ditutup memicu snapshot IKM', async () => {
+    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.aktif }),
+    );
+    (prisma.survey.update as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.ditutup }),
+    );
+    await service.updateStatus(1, { status: SurveyStatus.ditutup }, opdUser(5));
+    expect(ikmService.snapshot).toHaveBeenCalledWith(1);
+  });
+
+  it('updateStatus draft → aktif TIDAK memicu snapshot IKM', async () => {
+    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.draft }),
+    );
+    (prisma.survey.update as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.aktif }),
+    );
+    await service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
+    expect(ikmService.snapshot).not.toHaveBeenCalled();
   });
 });
