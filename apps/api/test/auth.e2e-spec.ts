@@ -81,4 +81,71 @@ describe('Auth me/profile (e2e)', () => {
 
     expect(res.status).toBe(400);
   });
+
+  describe('POST /auth/dev-login (INT-2)', () => {
+    it('identifier = email -> 200, token + profil, lastLoginAt terisi', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/dev-login')
+        .send({ identifier: 'responden@auth.e2e.test' });
+
+      expect(res.status).toBe(201);
+      expect(typeof res.body.data.token).toBe('string');
+      expect(res.body.data.token.split('.')).toHaveLength(3); // format JWT
+      expect(res.body.data.user.email).toBe('responden@auth.e2e.test');
+
+      const updated = await prisma.user.findUnique({ where: { id: userId } });
+      expect(updated?.lastLoginAt).not.toBeNull();
+    });
+
+    it('identifier = ssoSubject -> 200 (bukan hanya email)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/dev-login')
+        .send({ identifier: 'e2e-responden' });
+      expect(res.status).toBe(201);
+      expect(res.body.data.user.email).toBe('responden@auth.e2e.test');
+    });
+
+    it('identifier tidak dikenal -> 404', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/dev-login')
+        .send({ identifier: 'tidak-ada-di-manapun' });
+      expect(res.status).toBe(404);
+    });
+
+    it('pengguna nonaktif -> 403', async () => {
+      const inactive = await prisma.user.upsert({
+        where: { ssoSubject: 'e2e-devlogin-inactive' },
+        update: { isActive: false },
+        create: {
+          ssoSubject: 'e2e-devlogin-inactive',
+          nama: 'Nonaktif E2E',
+          email: 'nonaktif@auth.e2e.test',
+          role: Role.responden,
+          isActive: false,
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/dev-login')
+        .send({ identifier: 'nonaktif@auth.e2e.test' });
+      expect(res.status).toBe(403);
+
+      await prisma.user.delete({ where: { id: inactive.id } });
+    });
+
+    it('tanpa identifier -> 400 (validasi DTO)', async () => {
+      const res = await request(app.getHttpServer()).post('/api/v1/auth/dev-login').send({});
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /auth/logout', () => {
+    it('dengan header dev valid -> 200 { success: true }', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set(devHeaders({ role: Role.responden, userId }));
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ success: true });
+    });
+  });
 });
