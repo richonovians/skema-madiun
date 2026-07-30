@@ -8,7 +8,7 @@ import Textarea from '@/components/ui/Textarea';
 import FileUpload from '@/components/ui/FileUpload';
 import Button from '@/components/ui/Button';
 import Switch from '@/components/ui/Switch';
-import { User, UserX } from 'lucide-react';
+import { User, UserX, CheckCircle, X } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ComplaintForm() {
@@ -21,6 +21,17 @@ export default function ComplaintForm() {
     isAnonymous: false,
   });
   const [errors, setErrors] = useState({});
+  const [file, setFile] = useState(null);
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const removeFile = () => {
+    setFile(null);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -121,10 +132,33 @@ export default function ComplaintForm() {
           onChange={handleChange}
         />
 
-        <FileUpload
-          id="lampiran"
-          label="LAMPIRAN PENDUKUNG"
-        />
+        <div>
+          <FileUpload
+            id="lampiran"
+            label="LAMPIRAN PENDUKUNG"
+            onChange={handleFileChange}
+          />
+          {file && (
+            <div className="mt-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="bg-emerald-100 p-2 rounded-md text-emerald-600 shrink-0">
+                  <CheckCircle size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-emerald-800">File berhasil diunggah</p>
+                  <p className="text-xs text-emerald-600 truncate">{file.name}</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={removeFile}
+                className="text-emerald-600 hover:text-emerald-800 p-1.5 hover:bg-emerald-100 rounded-md transition-colors shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="flex justify-end w-full">
           <button

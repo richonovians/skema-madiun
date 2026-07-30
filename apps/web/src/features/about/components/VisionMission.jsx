@@ -11,7 +11,7 @@ export default function VisionMission() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-16">
           {/* Vision */}
           <div className="animate-fade-in-up">
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-4 mb-6 shrink-0">
               <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
                 <Target className="w-6 h-6" />
               </div>
@@ -19,10 +19,15 @@ export default function VisionMission() {
                 Visi
               </h2>
             </div>
-            <div className="p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-hover rounded-3xl text-white shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
-              <p className="font-h3 text-h3 font-medium leading-relaxed">
-                &quot;{vision}&quot;
-              </p>
+            <div className="flex gap-3 sm:gap-4 p-4 sm:p-6 bg-background rounded-2xl border border-border shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300">
+              <div className="flex-shrink-0 mt-1">
+                <Target className="w-6 h-6 text-primary" />
+              </div>
+              <div className="flex items-center">
+                <p className="font-body text-body text-text-secondary leading-relaxed">
+                  &quot;{vision}&quot;
+                </p>
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, use } from 'react';
 import BuilderLayout from '@/features/surveys/builder/components/BuilderLayout';
 import BuilderCanvas from '@/features/surveys/builder/components/BuilderCanvas';
 import FloatingStatus from '@/features/surveys/builder/components/FloatingStatus';
@@ -37,7 +37,9 @@ const NINE_UNSUR = [
 ];
 
 export default function SurveyBuilderPage({ params }) {
-  const [questions, setQuestions] = useState(DUMMY_INITIAL_QUESTIONS);
+  const resolvedParams = use(params);
+  const isNew = resolvedParams.id === 'new';
+  const [questions, setQuestions] = useState(isNew ? [] : DUMMY_INITIAL_QUESTIONS);
 
   // In a real application, we would use dnd-kit or similar for drag and drop.
   // For now, we simulate delete and update operations.

@@ -1,10 +1,12 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Headset, Paperclip, Smile, CheckCircle } from 'lucide-react';
+import { User, Headset, Paperclip, CheckCircle, X } from 'lucide-react';
 
 export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdate, onCloseTicket }) {
   const [replyText, setReplyText] = useState('');
+  const [attachedFile, setAttachedFile] = useState(null);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -12,10 +14,24 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
     }
   }, [chatHistory]);
 
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setAttachedFile(e.target.files[0]);
+    }
+  };
+
+  const removeFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSend = () => {
-    if (replyText.trim()) {
+    if (replyText.trim() || attachedFile) {
       onSendUpdate(replyText);
       setReplyText('');
+      removeFile();
     }
   };
 
@@ -61,6 +77,28 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
 
       {/* Response Editor */}
       <div className="p-lg border-t border-border bg-white rounded-b-xl">
+        {/* File Attachment Preview */}
+        {attachedFile && (
+          <div className="mb-3">
+            <div className="inline-flex items-center gap-3 bg-emerald-50 border border-emerald-200 p-2 sm:pr-4 rounded-lg">
+              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 shrink-0">
+                <Paperclip size={18} />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-sm font-semibold text-emerald-800 truncate max-w-[200px]">{attachedFile.name}</span>
+                <span className="text-xs text-emerald-600">{(attachedFile.size / 1024 / 1024).toFixed(2)} MB</span>
+              </div>
+              <button 
+                type="button"
+                onClick={removeFile}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-emerald-200 text-emerald-600 transition-colors ml-2 shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="relative mb-lg">
           <textarea 
             value={replyText}
@@ -69,13 +107,16 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
             placeholder="Tulis jawaban solusi atau update status di sini..."
           />
           <div className="absolute bottom-md left-md flex items-center gap-sm">
-            <button className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs">
+            <label className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs cursor-pointer">
+              <input 
+                type="file" 
+                className="hidden" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+              />
               <Paperclip size={20} />
               <span className="text-label-md hidden sm:inline">Lampirkan Dokumen/Foto</span>
-            </button>
-            <button className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors">
-              <Smile size={20} />
-            </button>
+            </label>
           </div>
         </div>
 

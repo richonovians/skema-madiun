@@ -33,7 +33,7 @@ export default function SurveyForm() {
   return (
     <section className="w-full bg-white rounded-xl shadow-2xl p-6 lg:p-8 border border-slate-100">
       <div className="mb-8 border-b border-border pb-6">
-        <h2 className="font-h2 text-h2 text-text-primary mb-2">Formulir Survei Kepuasan (SKM)</h2>
+        <h2 className="font-h2 text-h2 text-text-primary mb-2">Formulir Survei Kepuasan</h2>
         <p className="text-text-secondary text-sm">Pilih instansi untuk memulai pengisian survei kepuasan masyarakat.</p>
       </div>
 

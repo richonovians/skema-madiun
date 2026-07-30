@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { Paperclip, FileText, X } from 'lucide-react';
+import { Paperclip, CheckCircle, X } from 'lucide-react';
 
 export default function FileDropzone({ 
   files = [], 
@@ -61,25 +61,25 @@ export default function FileDropzone({
       </div>
 
       {files.length > 0 && (
-        <div className="w-full max-w-md space-y-2 mt-4">
+        <div className="w-full space-y-2 mt-4">
           {files.map((file, idx) => (
-            <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-border shadow-sm">
+            <div key={idx} className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center gap-3 overflow-hidden">
-                <FileText className="text-primary w-5 h-5 flex-shrink-0" />
-                <span className="text-base truncate max-w-[200px]">{file.name}</span>
+                <div className="bg-emerald-100 p-2 rounded-md text-emerald-600 shrink-0">
+                  <CheckCircle size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-emerald-800">File berhasil diunggah</p>
+                  <p className="text-xs text-emerald-600 truncate">{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-text-secondary">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </span>
-                <button 
-                  type="button" 
-                  onClick={() => removeFile(idx)}
-                  className="text-error hover:bg-error-container p-1 rounded transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              <button 
+                type="button" 
+                onClick={() => removeFile(idx)}
+                className="text-emerald-600 hover:text-emerald-800 p-1.5 hover:bg-emerald-100 rounded-md transition-colors shrink-0"
+              >
+                <X size={16} />
+              </button>
             </div>
           ))}
         </div>

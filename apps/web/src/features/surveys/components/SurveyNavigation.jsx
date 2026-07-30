@@ -29,9 +29,9 @@ export default function SurveyNavigation() {
 
   return (
     <div className="pt-8 border-t border-outline-variant/30 mt-12">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="flex flex-row items-center justify-between gap-3 w-full">
         <button 
-          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 min-h-[48px] rounded-lg border border-outline font-semibold transition-colors
+          className={`flex-1 sm:flex-none flex items-center justify-center px-3 sm:px-8 py-3 min-h-[48px] rounded-lg border border-outline-variant font-semibold transition-colors text-sm sm:text-base
             ${isFirstStep 
               ? 'opacity-50 cursor-not-allowed text-outline' 
               : 'text-secondary hover:bg-surface-container-low active:scale-95'
@@ -40,22 +40,23 @@ export default function SurveyNavigation() {
           onClick={prevStep}
           disabled={isFirstStep}
         >
-          <ArrowLeft className="mr-2" size={20} />
-          Kembali
+          <ArrowLeft className="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+          <span>Kembali</span>
         </button>
         
         <button 
-          className={`w-full sm:w-auto flex items-center justify-center px-8 py-3 min-h-[48px] rounded-lg font-semibold shadow-sm transition-all
+          className={`flex-1 sm:flex-none flex items-center justify-center px-3 sm:px-8 py-3 min-h-[48px] rounded-lg font-semibold shadow-sm transition-all text-sm sm:text-base
             ${isNextDisabled 
               ? 'bg-surface-dim text-secondary cursor-not-allowed border border-outline-variant' 
-              : 'bg-primary text-white hover:bg-primary-hover shadow-primary/20 active:scale-95'
+              : 'bg-primary text-white hover:bg-primary-hover shadow-primary/20 active:scale-95 border border-transparent'
             }
           `}
           onClick={handleNextOrSubmit}
           disabled={isNextDisabled}
         >
-          {isLastStep ? 'Kirim Survei' : 'Pertanyaan Selanjutnya'}
-          {isLastStep ? <Send className="ml-2" size={20} /> : <ArrowRight className="ml-2" size={20} />}
+          <span className="hidden sm:inline">{isLastStep ? 'Kirim Survei' : 'Pertanyaan Selanjutnya'}</span>
+          <span className="sm:hidden">{isLastStep ? 'Kirim' : 'Selanjutnya'}</span>
+          {isLastStep ? <Send className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> : <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
         </button>
       </div>
 

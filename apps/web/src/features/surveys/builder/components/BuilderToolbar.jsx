@@ -16,6 +16,8 @@ export default function BuilderToolbar() {
     }, 1500);
   };
 
+  const [title, setTitle] = useState("Survei Tanpa Judul");
+
   return (
     <>
       {showSuccess && (
@@ -37,9 +39,15 @@ export default function BuilderToolbar() {
           <ArrowLeft size={18} />
         </Link>
         <div className="hidden md:block h-8 w-px bg-slate-200 shrink-0"></div>
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col min-w-0 flex-1">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
-            <h1 className="text-base md:text-xl font-bold text-slate-900 tracking-tight truncate">Survei Q3 Dinas Kesehatan</h1>
+            <input 
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="text-base md:text-xl font-bold text-slate-900 tracking-tight truncate bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none transition-colors px-1 py-0.5 w-full max-w-[400px]"
+              placeholder="Judul Survei"
+            />
             <span className="shrink-0 px-2 py-0.5 rounded text-[10px] md:text-[11px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider">Draf</span>
           </div>
           <p className="text-[10px] md:text-xs text-slate-500 font-medium truncate">Buat dan atur pertanyaan untuk kuesioner ini</p>

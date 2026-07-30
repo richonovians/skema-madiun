@@ -2,7 +2,7 @@ import React from 'react';
 import QuestionBlock from './QuestionBlock';
 import { Plus } from 'lucide-react';
 
-export default function BuilderCanvas({ questions, onDelete, onUpdate }) {
+export default function BuilderCanvas({ questions, onDelete, onUpdate, onAdd }) {
   return (
     <main className="flex-1 bg-slate-50 relative overflow-y-auto" style={{
       backgroundSize: '24px 24px',
@@ -28,7 +28,10 @@ export default function BuilderCanvas({ questions, onDelete, onUpdate }) {
         </div>
 
         {/* Drop Placeholder */}
-        <div className="border-2 border-dashed border-border rounded-xl p-2xl flex flex-col items-center justify-center gap-md text-text-secondary hover:border-primary-container hover:bg-primary-container/5 transition-all cursor-pointer group mt-md">
+        <div 
+          onClick={onAdd}
+          className="border-2 border-dashed border-border rounded-xl p-2xl flex flex-col items-center justify-center gap-md text-text-secondary hover:border-primary-container hover:bg-primary-container/5 transition-all cursor-pointer group mt-md"
+        >
           <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center group-hover:scale-110 transition-transform">
             <Plus size={24} />
           </div>

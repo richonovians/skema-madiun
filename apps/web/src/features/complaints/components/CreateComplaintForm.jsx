@@ -33,9 +33,20 @@ export default function CreateComplaintForm() {
     
     // Simulate API call
     setTimeout(() => {
-      alert('Laporan berhasil terkirim! Tiket Anda sedang diproses.');
+      const departmentOptions = [
+        { label: 'Dinas Kesehatan', value: 'dinkes' },
+        { label: 'Dinas Pendidikan', value: 'disdik' },
+        { label: 'Dinas PUPR', value: 'pupr' },
+        { label: 'Dinas Perhubungan', value: 'dishub' }
+      ];
+      
+      const selectedOpd = departmentOptions.find(o => o.value === formData.department);
+      const opdName = selectedOpd ? selectedOpd.label : 'Instansi Terkait';
+      const randomId = Math.floor(10000 + Math.random() * 90000);
+      const complaintId = `COM-2026-${randomId}`;
+      
       setIsSubmitting(false);
-      router.push('/complaints');
+      router.push(`/complaints/success?complaintId=${complaintId}&opdId=${formData.department}&opdName=${encodeURIComponent(opdName)}`);
     }, 1500);
   };
 

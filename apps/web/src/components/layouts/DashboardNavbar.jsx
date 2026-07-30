@@ -7,6 +7,7 @@ import { Bell, Menu, X } from 'lucide-react';
 import useSurveyStore from '@/features/surveys/store/useSurveyStore';
 import ExitConfirmationModal from '@/components/ui/ExitConfirmationModal';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 
 export default function DashboardNavbar() {
   const pathname = usePathname();
@@ -95,9 +96,7 @@ export default function DashboardNavbar() {
           </nav>
           
           <div className="flex items-center gap-2 md:gap-4">
-            <button className="text-outline p-2 hover:bg-surface-container-low rounded-full transition-all flex items-center justify-center min-w-[44px] min-h-[44px]">
-              <Bell size={20} />
-            </button>
+            <NotificationDropdown />
             <ProfileAvatarDropdown />
             
             {/* Mobile Hamburger Button */}

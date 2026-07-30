@@ -4,6 +4,7 @@ import { Bell, RefreshCw, Menu } from 'lucide-react';
 import Image from 'next/image';
 import Dropdown from '@/components/ui/Dropdown';
 import { useAdminLayout } from './AdminLayoutProvider';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 
 export default function AdminNavbar() {
   const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminLayout();
@@ -42,13 +43,7 @@ export default function AdminNavbar() {
       
       <div className="flex items-center gap-2 md:gap-lg shrink-0 ml-auto">
         <div className="flex gap-1 md:gap-md">
-          <button className="p-2 hover:bg-surface-container rounded-full transition-colors relative">
-            <Bell size={20} className="text-on-surface" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
-          </button>
-          <button className="p-2 hover:bg-surface-container rounded-full transition-colors hidden sm:block">
-            <RefreshCw size={20} className="text-on-surface" />
-          </button>
+          <NotificationDropdown hasIndicator={false} />
         </div>
         
         <div className="flex items-center gap-2 md:gap-md md:border-l border-outline-variant md:pl-lg">

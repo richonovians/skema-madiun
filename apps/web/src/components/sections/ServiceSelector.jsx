@@ -58,7 +58,7 @@ export default function ServiceSelector({ activeTab = 'pengaduan', onTabChange }
             <ClipboardList size={22} className={activeTab === 'skm' ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-600'} />
           </div>
           <div className="flex flex-col relative z-10">
-            <span className="font-semibold text-base">Survei Kepuasan (SKM)</span>
+            <span className="font-semibold text-base">Survei Kepuasan</span>
             <span className={`text-xs mt-0.5 transition-colors duration-300 ${
               activeTab === 'skm' ? 'text-slate-300' : 'text-slate-500 group-hover:text-slate-600'
             }`}>
