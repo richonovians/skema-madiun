@@ -22,10 +22,13 @@ Backend dan frontend sama-sama "selesai" secara terpisah, tetapi **belum pernah 
 | D | Data turunan/relasi yang belum disediakan backend (jumlah, nama relasi) | 🟡 Sedang | Backend |
 | E | **Endpoint agregat dashboard/statistik yang sama sekali belum ada** | 🔴 Berat | Backend |
 | F | **Halaman/aksi yang belum ada** → beberapa fitur backend tak terjangkau UI | 🟡 Sedang | Frontend |
+| G | **Konflik model data** dari pekerjaan frontend terbaru (kategori, kecamatan, anonim) | 🔴 Blocker pengaduan | Perlu keputusan bisnis |
 
 Ditambah 2 utang non-teknis: **dokumen Routes-List sudah tidak sesuai kenyataan**, dan **service layer frontend masih kosong** padahal `AGENTS.md` mewajibkannya.
 
 > **Catatan penjadwalan.** Kelas **F** adalah satu-satunya pekerjaan yang **tidak bergantung pada autentikasi**, sehingga dapat dikerjakan tim frontend **paralel** selagi backend membereskan blocker A. Ini jalur tercepat memanfaatkan dua sisi sekaligus.
+>
+> **Kelas G ditemukan setelah analisis awal** (empat commit frontend terbaru). Sifatnya berbeda dari yang lain: bukan pekerjaan teknis yang tinggal dieksekusi, melainkan **kebutuhan bisnis yang perlu diklarifikasi lebih dulu** (§2.9, D12–D14). Karena berpotensi menuntut migrasi skema, sebaiknya diajukan **sedini mungkin** — bila jawabannya baru datang setelah Fase 4 berjalan, biaya perbaikannya jauh lebih besar.
 
 ---
 
@@ -217,6 +220,49 @@ Tidak ada halaman yang "setengah jadi" — semuanya utuh secara tampilan. Masala
 
 Ini penomoran standar regulasi, jadi tertukarnya berpengaruh pada pelaporan resmi. Akar masalahnya: daftar 9 unsur **di-hardcode ulang di frontend**, padahal backend sudah menyediakan `GET /ref/unsur` justru untuk keperluan ini. Perbaikannya bukan sekadar menukar dua baris, tetapi **mengambil daftar dari `/ref/unsur`** — sekali diperbaiki, jenis kesalahan ini tak akan terulang.
 
+### 2.9 🔴 Konflik model data dari pekerjaan frontend terbaru
+
+Empat commit frontend terbaru (`d2b9d78..14c5dfb` — form kecamatan, layanan dinamis, opsi anonim) memperkenalkan model data yang **berbenturan dengan backend di lima titik**. Formnya masih `console.log` (belum POST sungguhan), jadi belum ada yang rusak — tetapi **fitur pengaduan tidak akan bisa jalan sama sekali** begitu di-wire.
+
+> **Penting untuk kerangka berpikir:** ini **bukan kesalahan tim frontend.** Mereka membangun sesuai kebutuhan nyata Diskominfo yang tampaknya belum tertangkap saat backend dirancang — kecamatan sebagai unit pelayanan, kategori spesifik per instansi, dan opsi anonim. Yang dibutuhkan adalah **klarifikasi kebutuhan bersama**, bukan salah satu sisi mengalah ke sisi lain.
+
+**Konflik 1 — Kategori pengaduan: kecocokan NOL** 🔴
+
+| | Jumlah | Sifat | Validasi |
+|---|---|---|---|
+| Frontend (baru) | 18 kode | **Dinamis per instansi** (`categoryOptionsMap`) | — |
+| Backend | 7 kode | **Statis & flat** (`COMPLAINT_CATEGORIES`) | `@IsIn(KATEGORI_KODE)` ketat |
+
+Tidak **satu pun** kode frontend ada di daftar backend → setiap `POST /complaints` ditolak **HTTP 400**.
+
+Namun setelah dipetakan, ternyata ada **hierarki yang bersih** — daftar frontend sebenarnya adalah **sub-level** dari 7 kategori backend, bukan penggantinya:
+
+| Instansi | Kode frontend | Padanan kategori backend |
+|---|---|---|
+| PUPR | `infrastruktur_jalan`, `infrastruktur_air`, `tata_ruang` | `infrastruktur` |
+| Dishub | `rambu`, `parkir`, `angkutan` | `infrastruktur` / `keamanan_ketertiban` |
+| Dinkes | `pelayanan_puskesmas`, `fasilitas_kesehatan`, `bpjs` | `kesehatan` |
+| Dukcapil | `ktp_kk`, `akta`, `pindah_datang` | `pelayanan_administrasi` |
+| 15 Kecamatan | `adm_kependudukan`, `surat_pengantar`, `legalisasi`, `perizinan_tertentu`, `pengaduan_masyarakat`, `pembinaan_desa` | `pelayanan_administrasi` |
+
+**Rekomendasi:** pertahankan 7 kategori backend sebagai **kategori** (dibutuhkan untuk agregasi & pelaporan lintas kabupaten — justru inti dashboard Diskominfo), lalu tambahkan field **`subKategori`/`layanan`** untuk daftar spesifik per-OPD. Keduanya bukan konsep yang sama: yang satu *jenis keluhan*, yang lain *layanan yang dikeluhkan*. Menghapus 7 kategori umum akan mematikan kemampuan agregasi.
+
+**Konflik 2 — Identitas instansi: tipe berbeda** 🔴
+Frontend mengirim slug string (`'pupr'`, `'kec_balerejo'`, `'disdukcapil'`, `'dpmptsp'`); backend menuntut `opdId: number` (FK ke tabel `opd`). Frontend tidak pernah memegang ID numerik. Perbaikan: ambil daftar instansi dari `GET /opd` (dengan `id` sungguhan) alih-alih hardcode slug.
+
+**Konflik 3 — 15 Kecamatan sebagai instansi tujuan** 🔴
+Kebutuhan ini **sah secara bisnis** (kecamatan memang unit pelayanan publik). Tetapi tabel `opd` adalah **cache read-only dari Helpdesk** (keputusan terkunci), sehingga kecamatan hanya bisa muncul **bila master data OPD Helpdesk memuatnya**. Bila tidak, 15 opsi itu tak akan pernah bisa dipilih — dan ini menyentuh keputusan arsitektur, bukan sekadar seeding data.
+
+**Konflik 4 — Fitur "Anonim" belum ada di backend; untuk survei justru bertabrakan** 🔴
+
+Toggle Anonim ditambahkan di **dua** tempat: form pengaduan (`isAnonymous`) dan survei (`?anonymous=`).
+
+- **Pengaduan:** `Complaint.userId` adalah FK **NOT NULL**. Lebih dari itu, anonim berbenturan dengan **FR-CMP-04/05** — admin harus dapat menindaklanjuti dan berbalas pesan dengan pelapor; bila anonim, riwayat balasan (`complaint_replies`) kehilangan tujuan.
+- **Survei:** respons survei **sudah anonim** by design (`ResponseEntity` tak pernah mengekspos `userId`). Namun `userId` tetap disimpan karena **anti-duplikat BE-4 bergantung padanya** (`dedupeUserId`). Jadi anonim sungguhan pada survei berarti **mematikan pencegahan pengisian ganda** — persisnya risiko yang sudah terdaftar di PRD Bab 15: *"Responden ganda/manipulasi → Nilai IKM bias"*. Kemungkinan besar toggle ini **tidak diperlukan** untuk survei, karena kerahasiaan yang diinginkan sudah terpenuhi.
+
+**Konflik 5 — "Layanan" tak punya padanan di backend** 🟡
+`SurveyForm` mengarahkan ke `/surveys/${opd}?layanan=${layanan}` — memakai **slug OPD sebagai id survei**, padahal `GET /surveys/:id/fill` menuntut id survei numerik. Selain itu "layanan" tidak ada di model backend; `Opd.jenisLayanan` granularitasnya berbeda (satu nilai per OPD, bukan daftar sub-layanan). Belum ada cara memetakan *instansi + layanan → survei aktif*, sehingga alur dari landing page belum bisa sampai ke kuesioner yang benar.
+
 ---
 
 ## 3. Roadmap Integrasi
@@ -270,6 +316,17 @@ Ringan, tidak butuh migrasi.
 | **INT-9** | `GET /surveys` + `respondentsCount` & `nilaiIkm` | Backend | 0.5 hari | — |
 | **INT-10** | `GET /opd` + `activeSurveys` & `openComplaints` | Backend | 0.5 hari | — |
 | **INT-11** | `GET /users` + `opdNama`; `GET /complaints` + `reporterNama` | Backend | 0.5 hari | — |
+
+### Fase 2B — Penyelarasan model pengaduan & survei (backend) 🔴
+
+Menutup konflik §2.9. **Harus selesai sebelum Fase 4** (wiring pengaduan & survei), karena sebagian menuntut migrasi skema — jauh lebih murah dikerjakan sekarang daripada saat halaman sudah ter-wire. Seluruhnya **tertahan keputusan D12–D14**.
+
+| ID | Pekerjaan | Est. | Ketergantungan |
+|---|---|---|---|
+| **INT-42** | Tambah `subKategori`/`layanan` pada pengaduan + endpoint referensinya (daftar sub-kategori per OPD). Pertahankan 7 kategori umum untuk agregasi. Butuh migrasi. | 1.5–2 hari | **D12** |
+| **INT-43** | Pastikan instansi tujuan (termasuk kecamatan bila disetujui) tersedia lewat `GET /opd` — lewat sinkronisasi Helpdesk atau jalur lain sesuai keputusan | 0.5–2 hari | **D13** (sangat bergantung jawabannya) |
+| **INT-44** | Dukungan pengaduan anonim bila memang diminta: kebijakan `userId`, dampaknya pada alur balasan, dan migrasi terkait | 1–2 hari | **D14** |
+| **INT-45** | Pemetaan *instansi + layanan → survei aktif* agar alur landing page sampai ke kuesioner yang benar (§2.9 konflik 5) | 1 hari | **D12** |
 
 ### Fase 3 — Endpoint agregat baru (backend) 🔴
 
@@ -329,6 +386,14 @@ Dikerjakan halaman demi halaman, tiap halaman: pasang service → hapus dummy �
 | **D10** | Tombol "Tambah Instansi OPD Baru" (§2.8a) | **Ganti jadi "Sinkronkan dari Helpdesk"** — keputusan OPD read-only sudah dikunci, backend tak akan pernah menyediakan CRUD OPD lokal. Bila Diskominfo memang menghendaki OPD dikelola manual di SKM, itu **membalik keputusan arsitektur** dan perlu dibahas tersendiri (berdampak ke sync, `externalId`, dan konflik data dengan Helpdesk) | INT-31, INT-41 |
 | **D11** | Cakupan halaman baru Fase 0B | Konfirmasi 9 halaman/aksi di §2.8 memang diinginkan. Bila ada yang dianggap tidak perlu, fitur backend terkait sebaiknya ditandai "tidak dipakai" agar tidak menyesatkan (bukan dibiarkan menggantung) | Fase 0B |
 
+**Keputusan dari konflik §2.9 — perlu klarifikasi Diskominfo, tidak bisa diputuskan tim teknis sendiri:**
+
+| ID | Keputusan | Rekomendasi | Memblokir |
+|---|---|---|---|
+| **D12** | Kategori pengaduan: 7 umum (backend) atau 18 spesifik per instansi (frontend)? | **Keduanya, bertingkat** — 7 kategori umum dipertahankan untuk agregasi & pelaporan lintas kabupaten (inti dashboard Diskominfo), daftar spesifik frontend menjadi `subKategori`/`layanan`. Keduanya konsep berbeda: *jenis keluhan* vs *layanan yang dikeluhkan*. Menghapus kategori umum akan mematikan kemampuan agregasi | INT-42, INT-45 |
+| **D13** | **Apakah master data OPD di Helpdesk memuat 15 kecamatan?** | Pertanyaan faktual yang harus dijawab Helpdesk lebih dulu. Bila **ya** → cukup sinkronisasi. Bila **tidak** → pilih: (a) minta Helpdesk menambahkan, atau (b) izinkan sumber instansi tambahan di luar Helpdesk — dan opsi (b) **membalik sebagian keputusan OPD read-only**, jadi perlu pembahasan tersendiri | INT-43, seluruh alur pengaduan |
+| **D14** | Fitur "Anonim" benar-benar diminta? | **Pisahkan dua kasusnya.** Untuk **survei: sebaiknya dihapus** — kerahasiaan yang diinginkan sudah terpenuhi (respons memang anonim bagi admin), sementara anonim sungguhan akan mematikan anti-duplikat BE-4 dan membuka risiko manipulasi nilai IKM yang sudah terdaftar di PRD Bab 15. Untuk **pengaduan**: bila diminta, perlu kejelasan bagaimana admin menindaklanjuti & membalas pelapor anonim (FR-CMP-04/05) | INT-44 |
+
 ---
 
 ## 5. Estimasi & Jalur Kritis
@@ -339,6 +404,7 @@ Dikerjakan halaman demi halaman, tiap halaman: pasang service → hapus dummy �
 | Fase 0B — Kelengkapan halaman | Frontend | 6.5–8 hari | 🟢 **Paralel dengan Fase 0** — tidak butuh auth |
 | Fase 1 — Kontrak & adapter | Frontend | 2.5–3.5 hari | Paralel dengan Fase 2–3 |
 | Fase 2 — Pengayaan endpoint | Backend | 1.5 hari | Paralel |
+| Fase 2B — Penyelarasan model pengaduan | Backend | 4–7 hari | 🔴 Tertahan **D12–D14**; wajib sebelum Fase 4 |
 | Fase 3 — Agregat baru | Backend | 5–7 hari | 🔴 Terberat; tertahan keputusan D2–D6 |
 | Fase 4 — Wiring halaman (13 butir) | Frontend | 6–10 hari | Bertahap per halaman |
 | Fase 5 — Pembersihan & docs | Docs + Repo | 2 hari | |
@@ -352,14 +418,19 @@ Dua hal yang memperpendek waktu nyata dibanding penjumlahan di atas:
 
 **Rekomendasi urutan mulai:**
 
-| Langkah | Backend | Frontend |
-|---|---|---|
-| 1 | INT-1, INT-2 (sesi lokal + dev-login) | INT-30 (perbaiki U8/U9 — mendesak), INT-3 |
-| 2 | INT-9 s.d. INT-11 (pengayaan endpoint) | INT-4, INT-5 (klien HTTP + alur login) |
-| 3 | — | Fase 0B sisanya (INT-31 s.d. INT-38) |
-| 4 | Fase 3 (setelah D2–D6 diputuskan) | Fase 1 → Fase 4 halaman non-dashboard |
+| Langkah | Backend | Frontend | Paralel: klarifikasi |
+|---|---|---|---|
+| 1 | INT-1, INT-2 (sesi lokal + dev-login) | INT-30 (perbaiki U8/U9 — mendesak), INT-3 | **Ajukan D12–D14 ke Diskominfo & Helpdesk sekarang** |
+| 2 | INT-9 s.d. INT-11 (pengayaan endpoint) | INT-4, INT-5 (klien HTTP + alur login) | Matangkan D2–D6 |
+| 3 | Fase 2B (setelah D12–D14 dijawab) | Fase 0B sisanya (INT-31 s.d. INT-38) | |
+| 4 | Fase 3 (setelah D2–D6 diputuskan) | Fase 1 → Fase 4 halaman non-dashboard | |
 
-Keputusan **D2–D6** sebaiknya dimatangkan bersama Diskominfo **selagi langkah 1–3 berjalan**, agar Fase 3 tidak tertahan saat tiba waktunya.
+**Dua rangkaian keputusan, dua tingkat urgensi:**
+
+- **D12–D14 (§2.9) paling mendesak** — memblokir seluruh alur pengaduan, dan **D13 butuh jawaban dari pihak luar** (apakah master data OPD Helpdesk memuat kecamatan). Karena bergantung pihak ketiga, pertanyaan ini sebaiknya dikirim **hari pertama**, bukan menunggu Fase 2B tiba.
+- **D2–D6** hanya memblokir 3 halaman dashboard/statistik, jadi masih ada kelonggaran waktu.
+
+**Risiko utama jadwal:** bila D13 dijawab "Helpdesk tidak memuat kecamatan", konsekuensinya menyentuh keputusan arsitektur OPD read-only dan bisa menambah pekerjaan yang belum terhitung di estimasi mana pun. Ini alasan tambahan mengapa pertanyaan itu perlu diajukan lebih dulu.
 
 ---
 
@@ -370,4 +441,6 @@ Keputusan **D2–D6** sebaiknya dimatangkan bersama Diskominfo **selagi langkah 
 - **Anonimitas SKM harus dijaga.** Beberapa UI dummy menampilkan nama responden (`recentFeedback`) — ini bertentangan dengan desain anonim yang sudah ditegakkan di backend. Perlu diselaraskan di sisi UI, bukan dilonggarkan di backend.
 - **`/api/docs` (Swagger) adalah kontrak hidup.** Selama integrasi, frontend sebaiknya merujuk ke sana, bukan ke tabel di dokumen yang bisa tertinggal (sebagaimana terbukti di §2.6).
 - **"Backend selesai" ≠ "fitur sampai ke pengguna".** §2.8 menunjukkan 9 fitur backend yang sudah selesai, teruji, dan ter-merge — tetapi tak punya pintu masuk dari UI. Untuk pekerjaan berikutnya, sebaiknya setiap tiket backend diperiksa: *siapa yang akan memanggil endpoint ini, dan apakah halamannya sudah ada?* Lebih murah menjawab itu saat perencanaan daripada menemukannya berbulan-bulan kemudian.
-- **Data referensi jangan di-hardcode dua kali.** U8/U9 tertukar di frontend (§2.8b) terjadi karena daftar 9 unsur ditulis ulang manual, padahal `GET /ref/unsur` memang disediakan untuk itu. Pola yang sama berlaku untuk kategori pengaduan (`GET /ref/complaint-categories`) — pastikan frontend mengambilnya dari API, bukan menyalin daftarnya.
+- **Data referensi jangan di-hardcode dua kali.** U8/U9 tertukar di frontend (§2.8b) terjadi karena daftar 9 unsur ditulis ulang manual, padahal `GET /ref/unsur` memang disediakan untuk itu. Pola yang sama berlaku untuk kategori pengaduan (`GET /ref/complaint-categories`) — pastikan frontend mengambilnya dari API, bukan menyalin daftarnya. Konflik §2.9 nomor 1 & 2 pun berakar dari hal yang sama: daftar instansi & kategori di-hardcode di frontend, bukan diambil dari `GET /opd` dan `GET /ref/complaint-categories`.
+- **Bekerja paralel tanpa kontrak bersama menimbulkan drift yang mahal.** §2.9 adalah contohnya: tim frontend menambahkan kecamatan, kategori dinamis, dan opsi anonim — semuanya kebutuhan yang masuk akal — tetapi tanpa kontrak yang disepakati lebih dulu, hasilnya berbenturan dengan model backend termasuk keputusan yang sudah dikunci. Untuk ke depan, perubahan pada **field yang akan dikirim ke API** sebaiknya disepakati dulu (cukup lewat Swagger + kesepakatan singkat), sementara perubahan yang murni tampilan tetap bebas.
+- **Kebutuhan bisnis yang belum tertangkap lebih baik ditemukan sekarang.** Kecamatan sebagai unit pelayanan dan kategori spesifik per instansi kemungkinan besar **kebutuhan yang benar** — hanya belum tertangkap saat backend dirancang. Menemukannya di tahap perencanaan integrasi (saat form masih `console.log`) jauh lebih murah daripada setelah pengaduan berjalan di produksi dengan model data yang salah.
