@@ -66,14 +66,14 @@ export default function AdminKabDashboardPage() {
           />
           <MetricCard 
             title="Total Responden" 
-            value={summary.totalRespondents.toLocaleString()} 
+            value={summary.totalRespondents.toLocaleString('id-ID')} 
             subtitle="Masyarakat yang berpartisipasi"
             icon={Users} 
             colorClass="text-blue-600"
           />
           <MetricCard 
             title="Total Pengaduan" 
-            value={summary.totalComplaints.toLocaleString()} 
+            value={summary.totalComplaints.toLocaleString('id-ID')} 
             subtitle="Aduan masuk sistem"
             icon={FileText} 
             colorClass="text-orange-500"
