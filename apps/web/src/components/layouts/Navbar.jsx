@@ -33,7 +33,7 @@ export default function Navbar() {
           <Link href="/" className="flex items-center gap-2.5 group">
             <div className="shrink-0 transition-transform duration-300 group-hover:scale-105 flex items-center">
               <Image 
-                src="/images/navbar/skema-logo-transparent.png" 
+                src="/images/navbar/skema-logo-2.1.png" 
                 alt="Logo SKEMA" 
                 width={88}
                 height={48}

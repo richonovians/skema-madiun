@@ -73,8 +73,35 @@ export default function ComplaintForm() {
   };
 
   const handleDropdownChange = (id, value) => {
-    setFormData(prev => ({ ...prev, [id]: value }));
+    if (id === 'opd') {
+      setFormData(prev => ({ ...prev, opd: value, kategori: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, [id]: value }));
+    }
     if (errors[id]) setErrors(prev => ({ ...prev, [id]: null }));
+  };
+
+  const categoryOptionsMap = {
+    pupr: [
+      { value: 'infrastruktur_jalan', label: 'Infrastruktur Jalan & Jembatan' },
+      { value: 'infrastruktur_air', label: 'Infrastruktur Pengairan' },
+      { value: 'tata_ruang', label: 'Tata Ruang & Bangunan' },
+    ],
+    dishub: [
+      { value: 'rambu', label: 'Rambu Lalu Lintas & PJU' },
+      { value: 'parkir', label: 'Pelayanan Parkir' },
+      { value: 'angkutan', label: 'Angkutan Umum' },
+    ],
+    dinkes: [
+      { value: 'pelayanan_puskesmas', label: 'Pelayanan Puskesmas' },
+      { value: 'fasilitas_kesehatan', label: 'Fasilitas Kesehatan' },
+      { value: 'bpjs', label: 'Layanan BPJS/Jaminan Kesehatan' },
+    ],
+    dukcapil: [
+      { value: 'ktp_kk', label: 'Pelayanan KTP & KK' },
+      { value: 'akta', label: 'Pelayanan Akta Kelahiran/Kematian' },
+      { value: 'pindah_datang', label: 'Pelayanan Pindah Datang' },
+    ],
   };
 
   return (
@@ -107,12 +134,10 @@ export default function ComplaintForm() {
             value={formData.kategori}
             onChange={(value) => setFormData(prev => ({ ...prev, kategori: value }))}
             options={[
-              { value: '', label: 'Pilih Kategori' },
-              { value: 'pelayanan', label: 'Pelayanan Publik' },
-              { value: 'infrastruktur', label: 'Infrastruktur' },
-              { value: 'kesehatan', label: 'Kesehatan' },
-              { value: 'pendidikan', label: 'Pendidikan' }
+              { value: '', label: formData.opd ? 'Pilih Kategori' : 'Pilih OPD Terlebih Dahulu' },
+              ...(formData.opd && categoryOptionsMap[formData.opd] ? categoryOptionsMap[formData.opd] : [])
             ]}
+            disabled={!formData.opd}
           />
           <Input
             id="judul"

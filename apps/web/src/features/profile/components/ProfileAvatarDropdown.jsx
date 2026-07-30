@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { User, LayoutDashboard, LogOut, ChevronDown, ShieldCheck } from 'lucide-react';
+import { User, LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
 
@@ -13,8 +13,6 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
   const router = useRouter();
   const pathname = usePathname();
   
-  const hideDashboardLink = pathname === '/dashboard' || pathname === '/profile' || pathname.startsWith('/complaints') || pathname.startsWith('/surveys');
-
   // Menutup dropdown jika user mengklik area di luar dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -77,16 +75,32 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
           {/* Navigation Items */}
           <div className="space-y-0.5 py-1">
 
-            {!hideDashboardLink && (
-              <Link
-                href="/dashboard"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
-              >
-                <LayoutDashboard size={16} className="text-text-secondary group-hover:text-primary shrink-0" />
-                <span>Dashboard Saya</span>
-              </Link>
-            )}
+            <Link
+              href="/dashboard"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
+            >
+              <LayoutDashboard size={16} className="text-text-secondary group-hover:text-primary shrink-0" />
+              <span>Dashboard Saya</span>
+            </Link>
+
+            <Link
+              href="/complaints"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
+            >
+              <MessageSquare size={16} className="text-text-secondary group-hover:text-primary shrink-0" />
+              <span>Pengaduan Saya</span>
+            </Link>
+
+            <Link
+              href="/surveys"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
+            >
+              <ClipboardList size={16} className="text-text-secondary group-hover:text-primary shrink-0" />
+              <span>Survei</span>
+            </Link>
           </div>
 
           <div className="border-t border-border/60 my-1 pt-1">
