@@ -53,7 +53,22 @@ export default function ComplaintForm() {
       { value: 'pupr', label: 'Dinas Pekerjaan Umum dan Penataan Ruang' },
       { value: 'dishub', label: 'Dinas Perhubungan' },
       { value: 'dinkes', label: 'Dinas Kesehatan' },
-      { value: 'dukcapil', label: 'Dinas Kependudukan dan Pencatatan Sipil' }
+      { value: 'dukcapil', label: 'Dinas Kependudukan dan Pencatatan Sipil' },
+      { value: 'kec_balerejo', label: 'Kecamatan Balerejo' },
+      { value: 'kec_dagangan', label: 'Kecamatan Dagangan' },
+      { value: 'kec_dolopo', label: 'Kecamatan Dolopo' },
+      { value: 'kec_geger', label: 'Kecamatan Geger' },
+      { value: 'kec_gemarang', label: 'Kecamatan Gemarang' },
+      { value: 'kec_jiwan', label: 'Kecamatan Jiwan' },
+      { value: 'kec_kare', label: 'Kecamatan Kare' },
+      { value: 'kec_kebonsari', label: 'Kecamatan Kebonsari' },
+      { value: 'kec_madiun', label: 'Kecamatan Madiun' },
+      { value: 'kec_mejayan', label: 'Kecamatan Mejayan' },
+      { value: 'kec_pilangkenceng', label: 'Kecamatan Pilangkenceng' },
+      { value: 'kec_saradan', label: 'Kecamatan Saradan' },
+      { value: 'kec_sawahan', label: 'Kecamatan Sawahan' },
+      { value: 'kec_wonoasri', label: 'Kecamatan Wonoasri' },
+      { value: 'kec_wungu', label: 'Kecamatan Wungu' }
     ];
     const selectedOpd = opdOptions.find(o => o.value === formData.opd);
     const opdName = selectedOpd ? selectedOpd.label : 'Instansi Terkait';
@@ -104,6 +119,19 @@ export default function ComplaintForm() {
     ],
   };
 
+  // Add default categories for all kecamatans
+  const kecamatanList = ['balerejo', 'dagangan', 'dolopo', 'geger', 'gemarang', 'jiwan', 'kare', 'kebonsari', 'madiun', 'mejayan', 'pilangkenceng', 'saradan', 'sawahan', 'wonoasri', 'wungu'];
+  kecamatanList.forEach(kec => {
+    categoryOptionsMap[`kec_${kec}`] = [
+      { value: 'adm_kependudukan', label: 'Administrasi Kependudukan' },
+      { value: 'surat_pengantar', label: 'Surat Pengantar' },
+      { value: 'legalisasi', label: 'Legalisasi' },
+      { value: 'perizinan_tertentu', label: 'Perizinan Tertentu' },
+      { value: 'pengaduan_masyarakat', label: 'Pengaduan Masyarakat' },
+      { value: 'pembinaan_desa', label: 'Pembinaan Desa' },
+    ];
+  });
+
   return (
     <section className="w-full bg-white rounded-xl shadow-2xl p-6 lg:p-8 border border-slate-100">
       <div className="mb-8 border-b border-border pb-6">
@@ -123,7 +151,22 @@ export default function ComplaintForm() {
             { value: 'pupr', label: 'Dinas Pekerjaan Umum dan Penataan Ruang' },
             { value: 'dishub', label: 'Dinas Perhubungan' },
             { value: 'dinkes', label: 'Dinas Kesehatan' },
-            { value: 'dukcapil', label: 'Dinas Kependudukan dan Pencatatan Sipil' }
+            { value: 'dukcapil', label: 'Dinas Kependudukan dan Pencatatan Sipil' },
+            { value: 'kec_balerejo', label: 'Kecamatan Balerejo' },
+            { value: 'kec_dagangan', label: 'Kecamatan Dagangan' },
+            { value: 'kec_dolopo', label: 'Kecamatan Dolopo' },
+            { value: 'kec_geger', label: 'Kecamatan Geger' },
+            { value: 'kec_gemarang', label: 'Kecamatan Gemarang' },
+            { value: 'kec_jiwan', label: 'Kecamatan Jiwan' },
+            { value: 'kec_kare', label: 'Kecamatan Kare' },
+            { value: 'kec_kebonsari', label: 'Kecamatan Kebonsari' },
+            { value: 'kec_madiun', label: 'Kecamatan Madiun' },
+            { value: 'kec_mejayan', label: 'Kecamatan Mejayan' },
+            { value: 'kec_pilangkenceng', label: 'Kecamatan Pilangkenceng' },
+            { value: 'kec_saradan', label: 'Kecamatan Saradan' },
+            { value: 'kec_sawahan', label: 'Kecamatan Sawahan' },
+            { value: 'kec_wonoasri', label: 'Kecamatan Wonoasri' },
+            { value: 'kec_wungu', label: 'Kecamatan Wungu' }
           ]}
         />
 
