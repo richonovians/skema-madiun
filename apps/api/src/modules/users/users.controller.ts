@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -27,6 +28,7 @@ export class UsersController {
 
   /** Buat akun admin (OPD/Kabupaten/Superuser — dibatasi aturan role). */
   @Post()
+  @Audit('user')
   @ApiOkResponse({ type: UserEntity })
   create(@Body() dto: CreateUserDto, @CurrentUser() actor: CurrentUser): Promise<UserEntity> {
     return this.usersService.create(dto, actor);
@@ -41,6 +43,7 @@ export class UsersController {
 
   /** Ubah akun (nama, OPD tautan). */
   @Patch(':id')
+  @Audit('user')
   @ApiOkResponse({ type: UserEntity })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -52,6 +55,7 @@ export class UsersController {
 
   /** Aktif/nonaktifkan akun. */
   @Patch(':id/status')
+  @Audit('user', 'update_status')
   @ApiOkResponse({ type: UserEntity })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,

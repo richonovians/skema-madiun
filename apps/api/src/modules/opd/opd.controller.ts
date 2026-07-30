@@ -11,6 +11,7 @@ import {
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -36,6 +37,7 @@ export class OpdController {
   /** Sinkronisasi data OPD dari Helpdesk (upsert by external_id). Hanya Admin Kabupaten. */
   @Post('sync')
   @Roles(Role.kabupaten)
+  @Audit('opd', 'sync')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: OpdSyncReport })
   sync(): Promise<OpdSyncReport> {

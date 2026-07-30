@@ -196,15 +196,20 @@ model QuestionOption {
 // =====================================================================
 
 model SurveyResponse {
-  id          Int      @id @default(autoincrement())
-  surveyId    Int      @map("survey_id")
-  userId      Int      @map("user_id")
-  submittedAt DateTime @default(now()) @map("submitted_at")
+  id           Int      @id @default(autoincrement())
+  surveyId     Int      @map("survey_id")
+  userId       Int      @map("user_id")
+  // Anti-duplikat: diisi = userId bila survei TIDAK mengizinkan multi-submit,
+  // null bila boleh berulang. Postgres memperlakukan NULL sebagai distinct,
+  // sehingga @@unique di bawah = 1 respons/user saat single-submit, tak dibatasi saat multi.
+  dedupeUserId Int?     @map("dedupe_user_id")
+  submittedAt  DateTime @default(now()) @map("submitted_at")
 
   survey  Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   user    User     @relation(fields: [userId], references: [id])
   answers Answer[]
 
+  @@unique([surveyId, dedupeUserId])
   @@index([surveyId])
   @@index([userId])
   @@map("survey_responses")

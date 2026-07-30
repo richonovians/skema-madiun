@@ -227,7 +227,7 @@ Agar API benar-benar tahan untuk banyak klien, PRD mensyaratkan:
 
 ## 12. Model Data
 
-Model data berikut selaras dengan **ERD final** (file: `ERD-Sistem-SKM-dan-Pengaduan.mermaid`). Terdiri dari 11 entitas.
+Model data berikut selaras dengan **ERD final** (file: `ERD-Sistem-SKM-dan-Pengaduan.mermaid`). Terdiri dari 13 entitas (bertambah dari 11 sejak `QuestionOption` diaktifkan penuh — QST-3 — dan `AuditLog` ditambahkan — AUD-1).
 
 | Entitas | Field | Relasi |
 |---|---|---|
@@ -235,13 +235,15 @@ Model data berikut selaras dengan **ERD final** (file: `ERD-Sistem-SKM-dan-Penga
 | **RESPONDENT_PROFILE** | `id` (PK), `user_id` (FK), `jenis_kelamin`, `kelompok_umur`, `pendidikan`, `pekerjaan` | 1–1 dengan USER (responden) |
 | **OPD** | `id` (PK), `nama`, `kode` (UK), `jenis_layanan`, `penanggung_jawab`, `is_active` | 1–N USER (admin), SURVEY, COMPLAINT |
 | **SURVEY** | `id` (PK), `opd_id` (FK), `judul`, `periode`, `status` (`draft`/`aktif`/`ditutup`), `allow_multiple_submit`, `created_at` | 1–N QUESTION, SURVEY_RESPONSE, IKM_RESULT |
-| **QUESTION** | `id` (PK), `survey_id` (FK), `teks`, `tipe` (`skala`/`pilihan`/`teks`), `is_ikm_unsur`, `kode_unsur` (`U1`–`U9`, null jika kustom), `urutan` | 1–N ANSWER |
-| **SURVEY_RESPONSE** | `id` (PK), `survey_id` (FK), `user_id` (FK), `submitted_at` | 1–N ANSWER |
-| **ANSWER** | `id` (PK), `response_id` (FK), `question_id` (FK), `nilai` (1–4 untuk skala), `teks` (untuk tipe teks) | — |
+| **QUESTION** | `id` (PK), `survey_id` (FK), `teks`, `tipe` (`skala`/`pilihan`/`teks`), `is_ikm_unsur`, `kode_unsur` (`U1`–`U9`, null jika kustom), `urutan` | 1–N QUESTION_OPTION (tipe pilihan), ANSWER |
+| **QUESTION_OPTION** | `id` (PK), `question_id` (FK), `label`, `nilai` (skor opsional, di luar rumus IKM resmi), `urutan` | 1–N ANSWER (via `selected_option_id`) |
+| **SURVEY_RESPONSE** | `id` (PK), `survey_id` (FK), `user_id` (FK), `dedupe_user_id` (anti-duplikat), `submitted_at` | 1–N ANSWER |
+| **ANSWER** | `id` (PK), `response_id` (FK), `question_id` (FK), `nilai` (1–4 untuk skala), `teks` (untuk tipe teks), `selected_option_id` (FK, untuk tipe pilihan) | — |
 | **IKM_RESULT** | `id` (PK), `survey_id` (FK), `periode`, `nrr_per_unsur` (json), `nilai_ikm` (decimal), `mutu` (`A`/`B`/`C`/`D`), `jumlah_responden`, `dihitung_pada` | ringkasan hasil per periode |
-| **COMPLAINT** | `id` (PK), `ticket_no` (UK), `user_id` (FK), `opd_id` (FK), `kategori`, `judul`, `uraian`, `lampiran`, `status` (`diterima`/`diproses`/`selesai`/`ditolak`), `created_at` | 1–N COMPLAINT_REPLY |
+| **COMPLAINT** | `id` (PK), `ticket_no` (UK), `user_id` (FK), `opd_id` (FK), `kategori`, `judul`, `uraian`, `status` (`diterima`/`diproses`/`selesai`/`ditolak`), `created_at` | 1–N COMPLAINT_ATTACHMENT, COMPLAINT_REPLY |
+| **COMPLAINT_ATTACHMENT** | `id` (PK), `complaint_id` (FK), `file_url`, `mime_type`, `size_bytes`, `created_at` | — |
 | **COMPLAINT_REPLY** | `id` (PK), `complaint_id` (FK), `author_id` (FK, admin/pelapor), `pesan`, `created_at` | — |
-| **AUDIT_LOG** | `id` (PK), `actor_id` (FK), `aksi`, `entitas`, `timestamp` | — |
+| **AUDIT_LOG** | `id` (PK), `actor_id` (FK), `aksi`, `entitas`, `detail` (json), `timestamp` | — |
 
 > **Catatan desain:** `nrr_per_unsur` disimpan sebagai `json` agar fleksibel terhadap perubahan jumlah unsur (mis. adopsi PermenPANRB 6/2022). Bila diperlukan query per-unsur di tingkat SQL, dapat dinormalkan menjadi tabel terpisah `IKM_RESULT_DETAIL` (satu baris per unsur).
 

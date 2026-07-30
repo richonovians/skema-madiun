@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# Lampiran pengaduan (storage lokal dev) — lihat UPLOAD_DIR di .env.example
+/uploads

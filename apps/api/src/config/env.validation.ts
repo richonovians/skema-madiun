@@ -35,6 +35,24 @@ class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   DATABASE_URL!: string;
+
+  @IsOptional()
+  @IsString()
+  CORS_ORIGIN: string = 'http://localhost:3000';
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  THROTTLE_TTL_MS: number = 60_000;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  THROTTLE_LIMIT: number = 100;
+
+  @IsOptional()
+  @IsString()
+  UPLOAD_DIR: string = 'uploads';
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
