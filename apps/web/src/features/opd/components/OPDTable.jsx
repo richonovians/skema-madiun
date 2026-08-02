@@ -1,8 +1,65 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Badge from '@/components/ui/Badge';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
+import { ChevronDown } from 'lucide-react';
 
-export default function OPDTable({ data }) {
+const ActionMenu = ({ item, onUpdateStatus }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button 
+        className="flex items-center gap-1 text-primary hover:underline font-semibold text-sm"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        Edit
+        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-border overflow-hidden z-50">
+          <ul className="py-1">
+            <li>
+              {item.status === 'ACTIVE' ? (
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-surface-container"
+                  onClick={() => {
+                    onUpdateStatus?.(item.id, 'INACTIVE');
+                    setIsOpen(false);
+                  }}
+                >
+                  Nonaktifkan
+                </button>
+              ) : (
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-surface-container"
+                  onClick={() => {
+                    onUpdateStatus?.(item.id, 'ACTIVE');
+                    setIsOpen(false);
+                  }}
+                >
+                  Aktifkan
+                </button>
+              )}
+            </li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function OPDTable({ data, onUpdateStatus }) {
   
   const getStatusVariant = (status) => {
     switch (status) {
@@ -28,7 +85,7 @@ export default function OPDTable({ data }) {
 
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
-      <div className="w-full overflow-x-auto">
+      <div className="w-full overflow-x-auto min-h-[250px]">
         <Table>
           <Thead>
           <Tr className="bg-[#F8FAFC]">
@@ -71,29 +128,7 @@ export default function OPDTable({ data }) {
                 </Badge>
               </Td>
               <Td>
-                <div className="flex items-center gap-4 font-semibold text-sm">
-                  <button 
-                    className="text-primary hover:underline"
-                    onClick={() => console.log('Edit clicked for', item.id)}
-                  >
-                    Edit
-                  </button>
-                  {item.status === 'ACTIVE' ? (
-                    <button 
-                      className="text-error hover:underline"
-                      onClick={() => console.log('Nonaktifkan clicked for', item.id)}
-                    >
-                      Nonaktifkan
-                    </button>
-                  ) : (
-                    <button 
-                      className="text-green-600 hover:underline"
-                      onClick={() => console.log('Aktifkan clicked for', item.id)}
-                    >
-                      Aktifkan
-                    </button>
-                  )}
-                </div>
+                <ActionMenu item={item} onUpdateStatus={onUpdateStatus} />
               </Td>
             </Tr>
           ))}
