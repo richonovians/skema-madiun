@@ -33,6 +33,7 @@ export class UsersService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
+        include: { opd: { select: { nama: true } } },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -41,7 +42,10 @@ export class UsersService {
     ]);
 
     return paginate(
-      rows.map((row) => new UserEntity(row)),
+      rows.map((row) => {
+        const { opd, ...rest } = row;
+        return new UserEntity({ ...rest, opdNama: opd?.nama });
+      }),
       total,
       page,
       limit,
