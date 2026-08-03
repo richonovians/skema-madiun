@@ -15,4 +15,8 @@ export class OpdEntity extends BaseEntity<OpdEntity> {
   syncedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Jumlah survei berstatus `aktif` milik OPD ini. Hanya diisi pada `GET /opd` (INT-10). */
+  activeSurveys?: number;
+  /** Jumlah pengaduan belum tuntas (`diterima`/`diproses`) milik OPD ini. Hanya diisi pada `GET /opd` (INT-10). */
+  openComplaints?: number;
 }
