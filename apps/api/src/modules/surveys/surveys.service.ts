@@ -47,12 +47,10 @@ export class SurveysService {
       this.prisma.survey.count({ where }),
     ]);
 
-    return paginate(
-      rows.map((row) => new SurveyEntity(row)),
-      total,
-      page,
-      limit,
-    );
+    const summaries = await Promise.all(rows.map((row) => this.ikmService.getSummary(row)));
+    const items = rows.map((row, i) => new SurveyEntity({ ...row, ...summaries[i] }));
+
+    return paginate(items, total, page, limit);
   }
 
   /** Daftar survei berstatus `aktif` (semua OPD) — untuk dipilih responden (BE-21). */

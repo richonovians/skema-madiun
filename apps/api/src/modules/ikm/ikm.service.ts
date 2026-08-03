@@ -79,6 +79,15 @@ export class IkmService {
     });
   }
 
+  /**
+   * Ringkasan ringan (jumlah responden + nilai IKM) untuk daftar survei (INT-9) — reuse
+   * rumus tunggal `computeResult` tanpa expose rincian NRR per unsur yang tak dibutuhkan di list.
+   */
+  async getSummary(survey: Survey): Promise<{ respondentsCount: number; nilaiIkm: number | null }> {
+    const result = await this.computeResult(survey);
+    return { respondentsCount: result.jumlahResponden, nilaiIkm: result.nilaiIkm };
+  }
+
   /** Ekspor laporan hasil IKM (CSV/Excel/PDF) — akses sama dengan `getResults`. */
   async exportResults(
     surveyId: number,

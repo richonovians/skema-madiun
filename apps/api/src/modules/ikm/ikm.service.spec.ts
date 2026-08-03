@@ -134,6 +134,37 @@ describe('IkmService', () => {
     });
   });
 
+  describe('getSummary', () => {
+    it('mengembalikan jumlah responden & nilaiIkm dari computeResult (bukan objek Survey mentah)', async () => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(
+        unsurQuestions(Array.from({ length: 9 }, () => [4, 4])),
+      );
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+
+      const result = await service.getSummary(survey() as never);
+
+      expect(result).toEqual({ respondentsCount: 2, nilaiIkm: 100 });
+    });
+
+    it('belum ada responden → nilaiIkm null, respondentsCount 0', async () => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[], [], []]));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+
+      const result = await service.getSummary(survey() as never);
+
+      expect(result).toEqual({ respondentsCount: 0, nilaiIkm: null });
+    });
+
+    it('TIDAK memanggil prisma.survey.findUnique (survey sudah dipunyai caller)', async () => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+
+      await service.getSummary(survey() as never);
+
+      expect(prisma.survey.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
   describe('snapshot', () => {
     it('tanpa responden → tidak upsert', async () => {
       (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey());
