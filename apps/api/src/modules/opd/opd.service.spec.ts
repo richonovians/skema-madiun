@@ -29,6 +29,8 @@ describe('OpdService', () => {
       create: jest.fn(),
       updateMany: jest.fn(),
     },
+    survey: { groupBy: jest.fn() },
+    complaint: { groupBy: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const opdSource = { fetchOpdList: jest.fn() };
@@ -37,6 +39,8 @@ describe('OpdService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.opd.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+    (prisma.survey.groupBy as jest.Mock).mockResolvedValue([]);
+    (prisma.complaint.groupBy as jest.Mock).mockResolvedValue([]);
   });
 
   it('findAll mengembalikan PaginatedResult dengan meta yang benar', async () => {
@@ -47,6 +51,49 @@ describe('OpdService', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].kode).toBe('DINKES');
     expect(result.pagination).toEqual({ total: 1, page: 1, limit: 20, totalPages: 1 });
+  });
+
+  it('findAll (INT-10) menyisipkan activeSurveys & openComplaints dari groupBy per OPD', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
+    (prisma.survey.groupBy as jest.Mock).mockResolvedValue([{ opdId: 1, _count: { _all: 3 } }]);
+    (prisma.complaint.groupBy as jest.Mock).mockResolvedValue([{ opdId: 1, _count: { _all: 5 } }]);
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+
+    expect(result.items[0].activeSurveys).toBe(3);
+    expect(result.items[0].openComplaints).toBe(5);
+    expect(prisma.survey.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ opdId: { in: [1] }, status: 'aktif' }),
+      }),
+    );
+    expect(prisma.complaint.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          opdId: { in: [1] },
+          status: { in: ['diterima', 'diproses'] },
+        }),
+      }),
+    );
+  });
+
+  it('findAll: OPD tanpa survei/pengaduan aktif → default 0 (bukan undefined)', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
+    // groupBy default (dari beforeEach) mengembalikan [] — tak ada baris untuk opdId manapun.
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+
+    expect(result.items[0].activeSurveys).toBe(0);
+    expect(result.items[0].openComplaints).toBe(0);
+  });
+
+  it('findAll: halaman kosong tidak memanggil groupBy sama sekali', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+
+    await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+
+    expect(prisma.survey.groupBy).not.toHaveBeenCalled();
+    expect(prisma.complaint.groupBy).not.toHaveBeenCalled();
   });
 
   it('findOne melempar NotFoundException bila OPD tidak ada', async () => {
