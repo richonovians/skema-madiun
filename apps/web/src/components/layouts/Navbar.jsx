@@ -8,22 +8,15 @@ import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
 import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
+import { isAuthenticated } from '@/features/authentication/services/authStorage';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Cek status login sementara di localStorage untuk keperluan demonstrasi UI
-    if (typeof window !== 'undefined') {
-      const ssoState = localStorage.getItem('sso_logged_in');
-      if (ssoState === 'false') {
-        setIsLoggedIn(false);
-      } else {
-        setIsLoggedIn(true);
-      }
-    }
+    setIsLoggedIn(isAuthenticated());
   }, []);
 
   return (
