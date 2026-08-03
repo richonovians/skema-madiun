@@ -52,6 +52,13 @@ export default function AdminSurveyCardActions({ isDraft, surveyId, onDuplicate,
           Edit Pertanyaan
         </button>
       </Link>
+
+      <Link href={`/admin-opd/surveys/${surveyId}/responses`}>
+        <button className={actionButtonClass}>
+          <Eye size={18} />
+          Daftar Respons Survei
+        </button>
+      </Link>
     </div>
   );
 }
