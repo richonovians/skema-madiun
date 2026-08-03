@@ -35,16 +35,35 @@ describe('SurveysService', () => {
     opd: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
-  const ikmService = { snapshot: jest.fn() } as unknown as IkmService;
+  const ikmService = {
+    snapshot: jest.fn(),
+    getSummary: jest.fn().mockResolvedValue({ respondentsCount: 0, nilaiIkm: null }),
+  } as unknown as IkmService;
   const service = new SurveysService(prisma, ikmService);
 
   beforeEach(() => jest.clearAllMocks());
 
   it('findAll (Admin OPD) mengembalikan PaginatedResult terfilter OPD-nya', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[surveyRow()], 1]);
+    (ikmService.getSummary as jest.Mock).mockResolvedValue({
+      respondentsCount: 0,
+      nilaiIkm: null,
+    });
     const result = await service.findAll({ page: 1, limit: 20 } as ListSurveyQueryDto, opdUser(5));
     expect(result.items).toHaveLength(1);
     expect(result.pagination.total).toBe(1);
+  });
+
+  it('findAll (INT-9) menyisipkan respondentsCount & nilaiIkm dari IkmService.getSummary', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[surveyRow({ id: 7 })], 1]);
+    (ikmService.getSummary as jest.Mock).mockResolvedValue({
+      respondentsCount: 12,
+      nilaiIkm: 81.25,
+    });
+    const result = await service.findAll({ page: 1, limit: 20 } as ListSurveyQueryDto, opdUser(5));
+    expect(result.items[0].respondentsCount).toBe(12);
+    expect(result.items[0].nilaiIkm).toBe(81.25);
+    expect(ikmService.getSummary).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
   it('create (Admin OPD) memakai opdId miliknya', async () => {
