@@ -54,16 +54,22 @@ export default function ManajemenOPDPage() {
         setSelectedService={setSelectedService}
       />
       <div className="flex-1 flex flex-col min-h-0">
-        <OPDTable data={paginatedData} onUpdateStatus={handleUpdateStatus} />
-        {totalItems > 0 && (
-          <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPage}
-          />
-        )}
+        <OPDTable 
+          data={paginatedData} 
+          onUpdateStatus={handleUpdateStatus} 
+          pagination={
+            totalItems > 0 && (
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                itemName="OPD"
+              />
+            )
+          }
+        />
       </div>
     </div>
   );
