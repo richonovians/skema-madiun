@@ -59,7 +59,7 @@ const ActionMenu = ({ item, onUpdateStatus }) => {
   );
 };
 
-export default function OPDTable({ data, onUpdateStatus }) {
+export default function OPDTable({ data, onUpdateStatus, pagination }) {
   
   const getStatusVariant = (status) => {
     switch (status) {
@@ -142,6 +142,7 @@ export default function OPDTable({ data, onUpdateStatus }) {
           </Tbody>
         </Table>
       </div>
+      {pagination}
     </div>
   );
 }

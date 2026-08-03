@@ -58,17 +58,21 @@ export default function ManajemenUsersPage() {
       </div>
       
       <div className="flex-1 flex flex-col min-h-0 mt-xs">
-        <UsersTable data={paginatedData} />
-        
-        {totalItems > 0 && (
-          <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPage}
-          />
-        )}
+        <UsersTable 
+          data={paginatedData} 
+          pagination={
+            totalItems > 0 && (
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                itemName="pengguna"
+              />
+            )
+          }
+        />
       </div>
     </div>
   );

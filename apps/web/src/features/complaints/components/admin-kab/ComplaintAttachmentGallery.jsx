@@ -52,9 +52,9 @@ export default function ComplaintAttachmentGallery({ complaint }) {
                 </div>
               </div>
               
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 text-slate-400 hover:text-primary">
+              <button className="h-8 w-8 p-0 flex items-center justify-center rounded-full shrink-0 text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors">
                 <Download size={16} />
-              </Button>
+              </button>
             </div>
             
           </div>
