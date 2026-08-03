@@ -6,7 +6,7 @@ const ROLES = [
   { label: 'Semua Pengguna', value: 'ALL' },
   { label: 'Admin Kabupaten', value: 'ADMIN_KABUPATEN' },
   { label: 'Admin OPD', value: 'ADMIN_OPD' },
-  { label: 'Responden Terdaftar', value: 'RESPONDENT' },
+  { label: 'Responden Aktif', value: 'RESPONDENT' },
 ];
 
 export default function UsersRoleFilter({ activeRoleFilter, setActiveRoleFilter }) {

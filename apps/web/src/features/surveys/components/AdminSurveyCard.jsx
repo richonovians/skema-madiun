@@ -5,7 +5,7 @@ import Switch from '@/components/ui/Switch';
 import AdminSurveyCardStats from './AdminSurveyCardStats';
 import AdminSurveyCardActions from './AdminSurveyCardActions';
 
-export default function AdminSurveyCard({ survey, onTogglePeriod }) {
+export default function AdminSurveyCard({ survey, onTogglePeriod, onDuplicate, onDelete }) {
   const { id, title, status, period, respondentsCount, ikmScore, isClosed } = survey;
   
   const isDraft = status === 'DRAF';
@@ -56,7 +56,7 @@ export default function AdminSurveyCard({ survey, onTogglePeriod }) {
         isDraft={isDraft}
       />
 
-      <AdminSurveyCardActions isDraft={isDraft} surveyId={id} />
+      <AdminSurveyCardActions isDraft={isDraft} surveyId={id} onDuplicate={onDuplicate} onDelete={onDelete} />
     </Card>
   );
 }
