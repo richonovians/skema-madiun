@@ -1,10 +1,22 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Printer, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, AlertCircle, Clock, CheckCircle, Download, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 
 export default function ComplaintDetailHeader({ complaint }) {
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setIsExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const getStatusVariant = (status) => {
     switch (status) {
       case 'Selesai': return 'success';
@@ -59,15 +71,65 @@ export default function ComplaintDetailHeader({ complaint }) {
           Kembali ke Daftar Pengaduan
         </Link>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="flex items-center gap-2 bg-white">
-            <FileText size={16} />
-            <span className="hidden sm:inline">Export PDF</span>
-          </Button>
-          <Button variant="outline" className="flex items-center gap-2 bg-white">
-            <Printer size={16} />
-            <span className="hidden sm:inline">Cetak Detail</span>
-          </Button>
+        <div className="relative group space-y-1" ref={exportRef}>
+          <button 
+            onClick={() => setIsExportOpen(!isExportOpen)}
+            className="flex items-center justify-between gap-1 sm:gap-3 min-h-[44px] px-md rounded-lg font-medium text-xs sm:text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <Download size={18} className="text-text-secondary group-hover:text-primary" />
+              <span className="hidden sm:inline">Ekspor</span>
+            </div>
+            <ChevronDown size={20} className={`flex-shrink-0 transition-all duration-300 ${isExportOpen ? 'rotate-180' : ''} text-text-secondary group-hover:text-primary`} />
+          </button>
+          
+          {isExportOpen && (
+            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+              <ul className="py-1">
+                <li>
+                  <button 
+                    onClick={async () => { 
+                      try {
+                        setIsExportOpen(false);
+                        const { toPng } = await import('html-to-image');
+                        const { jsPDF } = await import('jspdf');
+                        
+                        const element = document.getElementById('complaint-detail-container');
+                        if (!element) return;
+                        
+                        const dataUrl = await toPng(element, { quality: 0.95, backgroundColor: '#ffffff' });
+                        
+                        const pdf = new jsPDF({
+                          orientation: 'portrait',
+                          unit: 'px',
+                          format: [element.offsetWidth, element.offsetHeight]
+                        });
+                        
+                        pdf.addImage(dataUrl, 'PNG', 0, 0, element.offsetWidth, element.offsetHeight);
+                        pdf.save(`tiket_pengaduan_${complaint.id}.pdf`);
+                      } catch (err) {
+                        console.error('Failed to generate PDF', err);
+                        alert('Gagal menghasilkan PDF.');
+                      }
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    <FileText size={16} />
+                    <span>Export PDF</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => { window.print(); setIsExportOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    <Printer size={16} />
+                    <span>Cetak Detail</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 

@@ -7,7 +7,7 @@ import { USER_ROLES } from '../constants/dummyUsers';
 import EmptyState from '@/components/ui/EmptyState';
 import { Users as UsersIcon } from 'lucide-react';
 
-export default function UsersTable({ data }) {
+export default function UsersTable({ data, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
       case USER_ROLES.SUPER_ADMIN:
@@ -109,6 +109,7 @@ export default function UsersTable({ data }) {
           </Tbody>
         </Table>
       </div>
+      {pagination}
     </div>
   );
 }

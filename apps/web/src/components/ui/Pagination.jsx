@@ -8,6 +8,7 @@ export default function Pagination({
   totalPages = 1, 
   totalItems = 0, 
   itemsPerPage = 10,
+  itemName = 'pengaduan',
   onPageChange 
 }) {
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
@@ -16,7 +17,7 @@ export default function Pagination({
   return (
     <div className="px-6 py-4 bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border">
       <span className="font-body text-sm font-medium text-text-secondary">
-        Menampilkan {startItem}-{endItem} dari {totalItems} pengaduan
+        Menampilkan {startItem}-{endItem} dari {totalItems} {itemName}
       </span>
       <div className="flex gap-2">
         <button 

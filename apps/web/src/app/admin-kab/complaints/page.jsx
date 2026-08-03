@@ -73,11 +73,33 @@ export default function AdminKabComplaintsPage() {
   }, [filteredComplaints, currentPage, itemsPerPage]);
 
   const handleExportExcel = () => {
-    console.log("Exporting to Excel...");
+    const headers = ['NO TIKET', 'OPD', 'KATEGORI', 'JUDUL', 'PELAPOR', 'STATUS', 'PRIORITAS', 'TANGGAL'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredComplaints.map(c => [
+        `#${c.id}`,
+        `"${c.opd?.name || ''}"`,
+        `"${c.category || ''}"`,
+        `"${c.title}"`,
+        `"${c.reporter?.name || ''}"`,
+        c.status,
+        c.priority,
+        `"${c.dateStr}"`
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'data_pengaduan.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleExportPDF = () => {
-    console.log("Exporting to PDF...");
+    window.print();
   };
 
   return (

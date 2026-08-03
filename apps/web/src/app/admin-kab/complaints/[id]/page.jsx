@@ -26,7 +26,7 @@ export default function AdminKabComplaintDetailPage({ params }) {
   }
 
   return (
-    <div className="p-lg w-full max-w-6xl mx-auto space-y-md pb-24">
+    <div id="complaint-detail-container" className="p-lg w-full max-w-6xl mx-auto space-y-md pb-24">
       
       {/* Action Header & Title */}
       <ComplaintDetailHeader complaint={complaint} />

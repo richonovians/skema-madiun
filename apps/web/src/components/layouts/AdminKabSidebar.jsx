@@ -9,7 +9,8 @@ import {
   Users,
   MessageSquare,
   LogOut,
-  X
+  X,
+  History
 } from 'lucide-react';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 
@@ -71,6 +72,10 @@ export default function AdminKabSidebar() {
           <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Users size={20} />
             <span>Manajemen User</span>
+          </Link>
+          <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <History size={20} />
+            <span>Audit Logs</span>
           </Link>
         </nav>
         
