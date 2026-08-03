@@ -194,6 +194,23 @@ describe('ComplaintsService', () => {
         ForbiddenException,
       );
     });
+
+    it('(INT-11) menyertakan include user & menyisipkan reporterNama, tanpa membocorkan objek user mentah', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [complaintRow({ user: { nama: 'Warga Contoh' } })],
+        1,
+      ]);
+
+      const result = await service.findAll({ page: 1, limit: 20 }, kabupatenUser());
+
+      expect(prisma.complaint.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: { attachments: true, user: { select: { nama: true } } },
+        }),
+      );
+      expect(result.items[0].reporterNama).toBe('Warga Contoh');
+      expect((result.items[0] as unknown as { user?: unknown }).user).toBeUndefined();
+    });
   });
 
   describe('findByTicketNo', () => {

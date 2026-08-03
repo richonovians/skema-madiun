@@ -53,6 +53,29 @@ describe('UsersService', () => {
     expect(result.pagination.total).toBe(1);
   });
 
+  it('findAll (INT-11) menyisipkan opdNama dari relasi opd, tanpa membocorkan objek opd mentah', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [{ ...userRow, opd: { nama: 'Dinas Kesehatan' } }],
+      1,
+    ]);
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto);
+
+    expect(result.items[0].opdNama).toBe('Dinas Kesehatan');
+    expect((result.items[0] as unknown as { opd?: unknown }).opd).toBeUndefined();
+  });
+
+  it('findAll: user tanpa opd (responden/kabupaten) → opdNama undefined', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [{ ...userRow, opdId: null, opd: null }],
+      1,
+    ]);
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto);
+
+    expect(result.items[0].opdNama).toBeUndefined();
+  });
+
   it('findOne melempar NotFound bila tidak ada', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     await expect(service.findOne(99)).rejects.toThrow(NotFoundException);
