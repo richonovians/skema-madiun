@@ -15,6 +15,8 @@ export class UserEntity extends BaseEntity<UserEntity> {
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Nama OPD terkait (bila `opdId` terisi). Hanya diisi pada `GET /users` (INT-11). */
+  opdNama?: string | null;
 
   // Field internal — dihidden dari response (BaseEntity meng-Object.assign seluruh baris).
   @Exclude()
