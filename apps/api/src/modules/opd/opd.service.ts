@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ComplaintStatus, Prisma, SurveyStatus } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
@@ -48,12 +48,53 @@ export class OpdService {
       this.prisma.opd.count({ where }),
     ]);
 
-    return paginate(
-      rows.map((row) => new OpdEntity(row)),
-      total,
-      page,
-      limit,
+    const { activeSurveysByOpd, openComplaintsByOpd } = await this.countsByOpd(
+      rows.map((row) => row.id),
     );
+
+    const items = rows.map(
+      (row) =>
+        new OpdEntity({
+          ...row,
+          activeSurveys: activeSurveysByOpd.get(row.id) ?? 0,
+          openComplaints: openComplaintsByOpd.get(row.id) ?? 0,
+        }),
+    );
+
+    return paginate(items, total, page, limit);
+  }
+
+  /** Hitung survei aktif & pengaduan belum tuntas per OPD dalam satu putaran (INT-10). */
+  private async countsByOpd(
+    opdIds: number[],
+  ): Promise<{
+    activeSurveysByOpd: Map<number, number>;
+    openComplaintsByOpd: Map<number, number>;
+  }> {
+    if (opdIds.length === 0) {
+      return { activeSurveysByOpd: new Map(), openComplaintsByOpd: new Map() };
+    }
+
+    const [surveyCounts, complaintCounts] = await Promise.all([
+      this.prisma.survey.groupBy({
+        by: ['opdId'],
+        where: { opdId: { in: opdIds }, status: SurveyStatus.aktif },
+        _count: { _all: true },
+      }),
+      this.prisma.complaint.groupBy({
+        by: ['opdId'],
+        where: {
+          opdId: { in: opdIds },
+          status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    return {
+      activeSurveysByOpd: new Map(surveyCounts.map((c) => [c.opdId, c._count._all])),
+      openComplaintsByOpd: new Map(complaintCounts.map((c) => [c.opdId, c._count._all])),
+    };
   }
 
   /** Detail satu OPD dari cache lokal. */
