@@ -7,6 +7,7 @@ import {
   LayoutDashboard, 
   Building2,
   Users,
+  MessageSquare,
   LogOut,
   X
 } from 'lucide-react';
@@ -62,6 +63,10 @@ export default function AdminKabSidebar() {
           <Link href="/admin-kab/opd" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Building2 size={20} />
             <span>Manajemen OPD</span>
+          </Link>
+          <Link href="/admin-kab/complaints" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <MessageSquare size={20} />
+            <span>Pengaduan</span>
           </Link>
           <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Users size={20} />

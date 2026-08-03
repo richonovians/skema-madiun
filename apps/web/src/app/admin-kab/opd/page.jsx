@@ -8,14 +8,21 @@ import Pagination from '@/components/ui/Pagination';
 import { DUMMY_OPD } from '@/features/opd/constants/dummyOPD';
 
 export default function ManajemenOPDPage() {
+  const [opdData, setOpdData] = useState(DUMMY_OPD);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedService, setSelectedService] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const handleUpdateStatus = (id, newStatus) => {
+    setOpdData(prev => prev.map(item => 
+      item.id === id ? { ...item, status: newStatus } : item
+    ));
+  };
+
   // Filter Data
   const filteredData = useMemo(() => {
-    return DUMMY_OPD.filter((opd) => {
+    return opdData.filter((opd) => {
       const matchSearch = opd.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           opd.code.toLowerCase().includes(searchQuery.toLowerCase());
       
@@ -24,7 +31,7 @@ export default function ManajemenOPDPage() {
       
       return matchSearch && matchService;
     });
-  }, [searchQuery, selectedService]);
+  }, [searchQuery, selectedService, opdData]);
 
   // Pagination Logic
   const totalItems = filteredData.length;
@@ -47,7 +54,7 @@ export default function ManajemenOPDPage() {
         setSelectedService={setSelectedService}
       />
       <div className="flex-1 flex flex-col min-h-0">
-        <OPDTable data={paginatedData} />
+        <OPDTable data={paginatedData} onUpdateStatus={handleUpdateStatus} />
         {totalItems > 0 && (
           <Pagination 
             currentPage={currentPage}

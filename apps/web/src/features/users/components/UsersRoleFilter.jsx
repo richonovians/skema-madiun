@@ -11,7 +11,7 @@ const ROLES = [
 
 export default function UsersRoleFilter({ activeRoleFilter, setActiveRoleFilter }) {
   return (
-    <div className="flex gap-2 mb-lg p-1 bg-surface-container-low w-full md:w-fit overflow-x-auto hide-scrollbar rounded-xl border border-outline-variant">
+    <div className="flex gap-2 p-1 bg-surface-container-low w-full md:w-fit overflow-x-auto hide-scrollbar rounded-xl border border-outline-variant">
       {ROLES.map((role) => {
         const isActive = activeRoleFilter === role.value;
         return (

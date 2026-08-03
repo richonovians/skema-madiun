@@ -56,19 +56,35 @@ export default function AdminOPDComplaintsPage() {
   };
 
   const handleExportExcel = () => {
-    console.log("Exporting to Excel...");
+    // Generate dummy CSV data
+    const csvContent = "ID Pengaduan,Judul,Pelapor,Status,Tanggal\nCOMP-001,Jalan Berlubang di Sudirman,Budi Santoso,Diproses,2026-08-01\nCOMP-002,Pelayanan KTP Lambat,Siti Aminah,Selesai,2026-08-02";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Data_Pengaduan.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleExportPDF = () => {
-    console.log("Exporting to PDF...");
+    // Generate dummy Text file as placeholder for PDF
+    const textContent = "LAPORAN PENGADUAN MASYARAKAT\n\n1. COMP-001 - Jalan Berlubang (Diproses)\n2. COMP-002 - Pelayanan KTP (Selesai)\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau backend. Ini adalah simulasi ekspor teks.";
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Data_Pengaduan.txt');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
     <div className="w-full space-y-6">
       <ComplaintListHeader 
         totalComplaints={dummyComplaints.length}
-        onExportExcel={handleExportExcel}
-        onExportPDF={handleExportPDF}
       />
       
       <div className="bg-surface rounded-xl shadow-2xl border border-outline-variant overflow-hidden">
@@ -77,6 +93,8 @@ export default function AdminOPDComplaintsPage() {
           onSearchChange={handleSearchChange}
           statusFilter={statusFilter}
           onStatusChange={handleStatusChange}
+          onExportExcel={handleExportExcel}
+          onExportPDF={handleExportPDF}
         />
         
         {isLoading ? (

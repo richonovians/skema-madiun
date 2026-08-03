@@ -1,23 +1,86 @@
 'use client';
-import React from 'react';
-import { Download } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Download, ChevronDown, FileText } from 'lucide-react';
 
 export default function KabDashboardHeader({ filters }) {
-  const handleExport = () => {
-    // TODO: Integrate with backend export API
-    console.log('Exporting report for', filters);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setIsExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExportExcel = () => {
+    const csvContent = "Kategori,Nilai\nIndeks Kepuasan Masyarakat,85.5\nTotal Responden,15200\nTotal Pengaduan,432\nTingkat Penyelesaian,92%";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Laporan_Tahunan.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setIsExportOpen(false);
+  };
+
+  const handleExportPDF = () => {
+    const textContent = "LAPORAN TAHUNAN KINERJA KABUPATEN\n\n- Indeks Kepuasan Masyarakat: 85.5\n- Total Responden: 15.200\n- Total Pengaduan: 432\n- Tingkat Penyelesaian: 92%\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau integrasi backend. Ini adalah simulasi format teks.";
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Laporan_Tahunan.txt');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setIsExportOpen(false);
   };
 
   return (
     <div className="flex flex-col md:flex-row justify-end items-start md:items-center gap-md mb-lg">
+      <div className="relative group space-y-1" ref={exportRef}>
+        <button 
+          onClick={() => setIsExportOpen(!isExportOpen)}
+          className="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg font-medium flex items-center justify-between gap-sm hover:bg-primary-hover active:scale-95 transition-all shadow-md min-h-[44px]"
+        >
+          <div className="flex items-center gap-2">
+            <Download size={18} />
+            <span>Ekspor Laporan Tahunan</span>
+          </div>
+          <ChevronDown size={20} className={`flex-shrink-0 transition-all duration-300 ${isExportOpen ? 'rotate-180' : ''}`} />
+        </button>
 
-      <button 
-        onClick={handleExport}
-        className="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg font-medium flex items-center gap-sm hover:bg-primary-hover active:scale-95 transition-all shadow-md"
-      >
-        <Download size={18} />
-        Ekspor Laporan Tahunan
-      </button>
+        {isExportOpen && (
+          <div className="absolute right-0 top-full mt-2 w-full bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+            <ul className="py-1 max-h-60 overflow-y-auto">
+              <li>
+                <button 
+                  onClick={handleExportExcel}
+                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <Download size={16} />
+                  <span className="truncate">Excel</span>
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={handleExportPDF}
+                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <FileText size={16} />
+                  <span className="truncate">PDF</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
