@@ -10,9 +10,13 @@ export default function AdminSurveyCardStats({ respondentsCount, ikmScore, isDra
         </div>
         <div>
           <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider">Total Pengisi</p>
-          <p className="text-h3 font-bold text-text-primary">
-            {respondentsCount} <span className="text-label-md font-medium text-text-secondary">Responden</span>
-          </p>
+          {isDraft ? (
+            <p className="text-h3 font-bold text-text-secondary">-</p>
+          ) : (
+            <p className="text-h3 font-bold text-text-primary">
+              {respondentsCount} <span className="text-label-md font-medium text-text-secondary">Responden</span>
+            </p>
+          )}
         </div>
       </div>
 

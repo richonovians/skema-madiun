@@ -22,6 +22,34 @@ export default function AdminSurveysPage() {
     // TODO: Connect to PUT /api/v1/admin-opd/surveys/{id} here
   };
 
+  // Duplicate a survey and place it right below the original
+  const handleDuplicateSurvey = (surveyId) => {
+    setSurveys((prev) => {
+      const index = prev.findIndex(s => s.id === surveyId);
+      if (index === -1) return prev;
+      
+      const original = prev[index];
+      const duplicated = {
+        ...original,
+        id: `srv-${Date.now()}`,
+        title: original.title,
+        status: 'DRAF',
+        isClosed: false,
+        respondentsCount: 0,
+        ikmScore: 0,
+      };
+      
+      const newSurveys = [...prev];
+      newSurveys.splice(index + 1, 0, duplicated);
+      return newSurveys;
+    });
+  };
+
+  // Delete a survey (only allowed for Drafts usually, handled in UI)
+  const handleDeleteSurvey = (surveyId) => {
+    setSurveys((prev) => prev.filter(s => s.id !== surveyId));
+  };
+
   // Filter surveys based on active tab
   const filteredSurveys = surveys.filter(survey => {
     if (activeTab === 'all') return true;
@@ -41,6 +69,8 @@ export default function AdminSurveysPage() {
       <AdminSurveyCardList 
         surveys={filteredSurveys}
         onTogglePeriod={handleTogglePeriod}
+        onDuplicate={handleDuplicateSurvey}
+        onDelete={handleDeleteSurvey}
       />
     </div>
   );

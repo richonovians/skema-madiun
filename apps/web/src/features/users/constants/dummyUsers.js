@@ -34,9 +34,9 @@ export const DUMMY_USERS = [
   },
   {
     id: 3,
-    name: 'Agus Setiawan',
-    email: 'agus.s@diskominfo.go.id',
-    initials: 'AS',
+    name: 'Bahri Prmaudya',
+    email: 'bahri.p@diskominfo.go.id',
+    initials: 'BP',
     role: USER_ROLES.ADMIN_OPD,
     organization: 'Diskominfo',
     createdAt: '2026-05-20',
