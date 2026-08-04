@@ -195,9 +195,9 @@ describe('ComplaintsService', () => {
       );
     });
 
-    it('(INT-11) menyertakan include user & menyisipkan reporterNama, tanpa membocorkan objek user mentah', async () => {
+    it('(INT-11/INT-18) menyertakan include user+opd & menyisipkan reporterNama+opdNama, tanpa membocorkan objek mentah', async () => {
       (prisma.$transaction as jest.Mock).mockResolvedValue([
-        [complaintRow({ user: { nama: 'Warga Contoh' } })],
+        [complaintRow({ user: { nama: 'Warga Contoh' }, opd: { nama: 'Dinas Kesehatan' } })],
         1,
       ]);
 
@@ -205,11 +205,17 @@ describe('ComplaintsService', () => {
 
       expect(prisma.complaint.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          include: { attachments: true, user: { select: { nama: true } } },
+          include: {
+            attachments: true,
+            user: { select: { nama: true } },
+            opd: { select: { nama: true } },
+          },
         }),
       );
       expect(result.items[0].reporterNama).toBe('Warga Contoh');
+      expect(result.items[0].opdNama).toBe('Dinas Kesehatan');
       expect((result.items[0] as unknown as { user?: unknown }).user).toBeUndefined();
+      expect((result.items[0] as unknown as { opd?: unknown }).opd).toBeUndefined();
     });
   });
 
@@ -237,6 +243,22 @@ describe('ComplaintsService', () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
       const result = await service.findByTicketNo('PGDX', kabupatenUser());
       expect(result.id).toBe(1);
+    });
+
+    it('(INT-18) menyertakan include opd & menyisipkan opdNama, tanpa membocorkan objek opd mentah', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ opd: { nama: 'Dinas Kesehatan' } }),
+      );
+
+      const result = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(prisma.complaint.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: { attachments: true, opd: { select: { nama: true } } },
+        }),
+      );
+      expect(result.opdNama).toBe('Dinas Kesehatan');
+      expect((result as unknown as { opd?: unknown }).opd).toBeUndefined();
     });
   });
 
