@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import UsersRoleFilter from '@/features/users/components/UsersRoleFilter';
 import UsersTable from '@/features/users/components/UsersTable';
 import { Plus } from 'lucide-react';
@@ -9,6 +10,7 @@ import Pagination from '@/components/ui/Pagination';
 import { DUMMY_USERS } from '@/features/users/constants/dummyUsers';
 
 export default function ManajemenUsersPage() {
+  const router = useRouter();
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,7 +53,11 @@ export default function ManajemenUsersPage() {
           activeRoleFilter={activeRoleFilter}
           setActiveRoleFilter={setActiveRoleFilter}
         />
-        <Button variant="primary-box" className="shadow-md px-6 py-3 w-full md:w-auto">
+        <Button
+          variant="primary-box"
+          className="shadow-md px-6 py-3 w-full md:w-auto"
+          onClick={() => router.push('/admin-kab/users/create')}
+        >
           <Plus size={20} />
           <span>Buat Akun Admin Baru</span>
         </Button>
