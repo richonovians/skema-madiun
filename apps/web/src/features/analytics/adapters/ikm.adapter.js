@@ -1,13 +1,15 @@
+import { IKM_MUTU_LABEL } from '@/utils/enumLabels';
+
 /**
  * Terjemahkan IkmResultEntity backend (GET /surveys/:id/results) ke bentuk yang
  * dipakai komponen (lihat features/analytics/constants/skmAnalytics.js). Satu
  * tempat -- perubahan kontrak backend cukup diubah di sini (INT-6).
  *
- * Label mutu (A=Sangat Baik dst) BUKAN dikarang -- tabel resmi PermenPANRB
- * 14/2017 (docs/PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md baris 388-395),
- * sama seperti yang dipakai IkmService.mutuFromNilai di backend, cuma
- * huruf mutu (A/B/C/D) itu sendiri sudah dihitung backend, di sini cuma
- * tambah label deskriptifnya.
+ * Label mutu (A=Sangat Baik dst, lihat utils/enumLabels.js) BUKAN dikarang --
+ * tabel resmi PermenPANRB 14/2017 (docs/PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md
+ * baris 388-395), sama seperti yang dipakai IkmService.mutuFromNilai di
+ * backend, cuma huruf mutu (A/B/C/D) itu sendiri sudah dihitung backend, di
+ * sini cuma tambah label deskriptifnya.
  *
  * CATATAN GAP: `trend` per unsur & `skmYearlyTrend` (tren multi-tahun) TIDAK
  * ADA sumber backend -- perlu data historis lintas periode yang belum
@@ -15,12 +17,6 @@
  * `skmDistribution` (sebaran skor tiap unsur per kategori nilai) juga tak
  * tersedia -- backend cuma simpan NRR rata-rata, bukan distribusi per nilai.
  */
-const MUTU_LABEL = {
-  A: 'Sangat Baik',
-  B: 'Baik',
-  C: 'Kurang Baik',
-  D: 'Tidak Baik',
-};
 
 export function adaptIkmMetrics(result) {
   return {
@@ -34,7 +30,7 @@ export function adaptIkmMetrics(result) {
       badge: null,
     },
     quality: {
-      grade: result.mutu ? `${result.mutu} - ${MUTU_LABEL[result.mutu]}` : null,
+      grade: result.mutu ? `${result.mutu} - ${IKM_MUTU_LABEL[result.mutu]}` : null,
     },
   };
 }
