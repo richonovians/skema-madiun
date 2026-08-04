@@ -10,6 +10,7 @@ export default function Dropdown({
   value, 
   onChange, 
   variant = 'default',
+  size = 'md',
   className = '',
   error
 }) {
@@ -61,7 +62,11 @@ export default function Dropdown({
         type="button"
         id={id}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-1 sm:gap-3 min-w-0 md:min-w-[140px] min-h-[44px] p-2 md:p-md rounded-lg font-medium text-xs sm:text-body-md transition-all focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500' : 'focus:ring-primary'} shadow-sm ${styles.button}`}
+        className={`w-full flex items-center justify-between transition-all focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500' : 'focus:ring-primary'} shadow-sm ${styles.button} ${
+          size === 'sm' 
+            ? 'gap-1 px-3 py-1 min-h-[32px] rounded-lg font-label-md text-xs min-w-[120px]' 
+            : 'gap-1 sm:gap-3 min-w-0 md:min-w-[140px] min-h-[44px] p-2 md:p-md rounded-lg font-medium text-xs sm:text-body-md'
+        }`}
       >
         <span className="truncate">{selectedOption?.label || 'Pilih...'}</span>
         <ChevronDown 

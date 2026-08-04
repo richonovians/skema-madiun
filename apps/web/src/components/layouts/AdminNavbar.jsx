@@ -18,7 +18,7 @@ export default function AdminNavbar() {
   ];
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 md:h-20 bg-surface border-b border-outline-variant flex justify-between items-center px-4 md:px-lg z-30 transition-all gap-2">
+    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 md:h-20 bg-surface border-b border-outline-variant flex justify-between items-center px-4 md:px-lg z-40 transition-all gap-2">
       <div className="flex items-center gap-2 md:gap-lg flex-1 min-w-0">
         <button 
           className="md:hidden p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"

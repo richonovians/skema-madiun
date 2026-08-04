@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, use } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import BuilderLayout from '@/features/surveys/builder/components/BuilderLayout';
 import BuilderCanvas from '@/features/surveys/builder/components/BuilderCanvas';
 import FloatingStatus from '@/features/surveys/builder/components/FloatingStatus';
+import { getUnsur } from '@/features/surveys/services/reference.api';
 
 const DUMMY_INITIAL_QUESTIONS = [
   {
@@ -24,22 +25,40 @@ const DUMMY_INITIAL_QUESTIONS = [
   }
 ];
 
-const NINE_UNSUR = [
-  { id: 'u1', isBaku: true, title: 'U1: Persyaratan', text: 'Kesesuaian persyaratan pelayanan dengan jenis pelayanannya.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u2', isBaku: true, title: 'U2: Prosedur', text: 'Kemudahan prosedur pelayanan di unit ini.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u3', isBaku: true, title: 'U3: Waktu Pelayanan', text: 'Kecepatan waktu dalam memberikan pelayanan.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u4', isBaku: true, title: 'U4: Biaya/Tarif', text: 'Kewajaran biaya/tarif dalam pelayanan.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u5', isBaku: true, title: 'U5: Produk Spesifikasi', text: 'Kesesuaian produk pelayanan antara yang tercantum dalam standar pelayanan dengan hasil yang diberikan.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u6', isBaku: true, title: 'U6: Kompetensi Pelaksana', text: 'Kompetensi/kemampuan petugas dalam pelayanan.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u7', isBaku: true, title: 'U7: Perilaku Pelaksana', text: 'Perilaku petugas dalam pelayanan terkait kesopanan dan keramahan.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u8', isBaku: true, title: 'U8: Penanganan Pengaduan', text: 'Kualitas sarana prasarana penanganan pengaduan.', type: 'Skala Penilaian 1-4', isRequired: true },
-  { id: 'u9', isBaku: true, title: 'U9: Sarana dan Prasarana', text: 'Kualitas sarana dan prasarana.', type: 'Skala Penilaian 1-4', isRequired: true }
-];
+/** Ubah baris `GET /ref/unsur` (kode+teks) ke bentuk yang dipakai builder ini. */
+function toBakuQuestion(unsur) {
+  return {
+    id: unsur.kode.toLowerCase(),
+    isBaku: true,
+    title: `${unsur.kode}: ${unsur.teks}`,
+    text: unsur.teks,
+    type: 'Skala Penilaian 1-4',
+    isRequired: true,
+  };
+}
 
 export default function SurveyBuilderPage({ params }) {
   const resolvedParams = use(params);
   const isNew = resolvedParams.id === 'new';
   const [questions, setQuestions] = useState(isNew ? [] : DUMMY_INITIAL_QUESTIONS);
+  // Sumber tunggal 9 unsur baku SKM -- JANGAN hardcode ulang di sini (INT-30: U8/U9
+  // pernah tertukar krn frontend menyalin urutan PermenPANRB 14/2017 secara manual).
+  const [nineUnsur, setNineUnsur] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getUnsur()
+      .then((rows) => {
+        if (!cancelled) setNineUnsur(rows.map(toBakuQuestion));
+      })
+      .catch(() => {
+        // Gagal ambil unsur baku -- tombol "tambah unsur baku" akan tampak tak berefek
+        // (nineUnsur tetap []); tidak menghalangi penulisan pertanyaan kustom lainnya.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // In a real application, we would use dnd-kit or similar for drag and drop.
   // For now, we simulate delete and update operations.
@@ -73,7 +92,7 @@ export default function SurveyBuilderPage({ params }) {
   const handleAddBaku = () => {
     // Add all 9 unsur that are not already in the list (by checking title prefix roughly)
     const existingBakuTitles = questions.filter(q => q.isBaku).map(q => q.title.substring(0, 2));
-    const newUnsur = NINE_UNSUR.filter(u => !existingBakuTitles.includes(u.title.substring(0, 2)));
+    const newUnsur = nineUnsur.filter(u => !existingBakuTitles.includes(u.title.substring(0, 2)));
     
     if (newUnsur.length > 0) {
       setQuestions(prev => [...newUnsur, ...prev]);

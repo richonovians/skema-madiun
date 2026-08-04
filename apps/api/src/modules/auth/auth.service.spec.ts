@@ -1,8 +1,9 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { JenisKelamin, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from './auth.service';
+import type { SessionService } from './session/session.service';
 
 const cu = (role: Role, userId = 1): CurrentUser => ({ userId, role, opdId: null });
 
@@ -28,7 +29,10 @@ describe('AuthService', () => {
     user: { findFirst: jest.fn(), update: jest.fn() },
     respondentProfile: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   } as unknown as PrismaService;
-  const service = new AuthService(prisma);
+  const sessionService = {
+    issue: jest.fn().mockReturnValue('signed.jwt.token'),
+  } as unknown as SessionService;
+  const service = new AuthService(prisma, sessionService);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -87,5 +91,48 @@ describe('AuthService', () => {
     expect(prisma.user.update).toHaveBeenCalled();
     expect(prisma.respondentProfile.create).not.toHaveBeenCalled();
     expect(prisma.respondentProfile.update).not.toHaveBeenCalled();
+  });
+
+  describe('devLogin', () => {
+    it('pengguna tak ditemukan (email/ssoSubject) → NotFound', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+      await expect(service.devLogin({ identifier: 'tidak-ada' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('pengguna nonaktif → Forbidden', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ isActive: false }));
+      await expect(service.devLogin({ identifier: 'a@x.go.id' })).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('sukses → menerbitkan token, memperbarui lastLoginAt, mencari via email ATAU ssoSubject', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow());
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      const result = await service.devLogin({ identifier: 'A@X.GO.ID' });
+
+      expect(result.token).toBe('signed.jwt.token');
+      expect(result.user.email).toBe('a@x.go.id');
+      expect(sessionService.issue).toHaveBeenCalledWith(1);
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 1 } }),
+      );
+      expect(prisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ email: 'a@x.go.id' }, { ssoSubject: 'A@X.GO.ID' }],
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('logout', () => {
+    it('mengembalikan konfirmasi sukses (stateless — tak ada state server yang diubah)', () => {
+      expect(service.logout()).toEqual({ success: true });
+    });
   });
 });

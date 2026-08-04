@@ -1,13 +1,16 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import UsersHeader from '@/features/users/components/UsersHeader';
+import { useRouter } from 'next/navigation';
 import UsersRoleFilter from '@/features/users/components/UsersRoleFilter';
 import UsersTable from '@/features/users/components/UsersTable';
+import { Plus } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import { DUMMY_USERS } from '@/features/users/constants/dummyUsers';
 
 export default function ManajemenUsersPage() {
+  const router = useRouter();
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -37,8 +40,6 @@ export default function ManajemenUsersPage() {
 
   return (
     <div className="p-lg flex flex-col min-h-0 flex-1 w-full max-w-container-max mx-auto">
-      <UsersHeader />
-      
       {/* 
         Catatan: searchQuery state sudah disiapkan di page ini (local state). 
         Untuk sementara waktu, tidak ada input text lokal karena sesuai instruksi, 
@@ -47,23 +48,37 @@ export default function ManajemenUsersPage() {
         atau kita bisa menambahkan local search bar di sini jika dibutuhkan.
       */}
       
-      <UsersRoleFilter 
-        activeRoleFilter={activeRoleFilter}
-        setActiveRoleFilter={setActiveRoleFilter}
-      />
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-4">
+        <UsersRoleFilter 
+          activeRoleFilter={activeRoleFilter}
+          setActiveRoleFilter={setActiveRoleFilter}
+        />
+        <Button
+          variant="primary-box"
+          className="shadow-md px-6 py-3 w-full md:w-auto"
+          onClick={() => router.push('/admin-kab/users/create')}
+        >
+          <Plus size={20} />
+          <span>Buat Akun Admin Baru</span>
+        </Button>
+      </div>
       
       <div className="flex-1 flex flex-col min-h-0 mt-xs">
-        <UsersTable data={paginatedData} />
-        
-        {totalItems > 0 && (
-          <Pagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPage}
-          />
-        )}
+        <UsersTable 
+          data={paginatedData} 
+          pagination={
+            totalItems > 0 && (
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                itemName="pengguna"
+              />
+            )
+          }
+        />
       </div>
     </div>
   );

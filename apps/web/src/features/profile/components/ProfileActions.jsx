@@ -4,20 +4,22 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import { authApi } from '@/features/authentication/services/sso.api';
+import { clearSession } from '@/features/authentication/services/authStorage';
 
 export default function ProfileActions() {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLoggingOut(true);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sso_logged_in', 'false');
+    try {
+      await authApi.logout();
+    } catch {
+      // Logout stateless di backend — tetap hapus sesi lokal walau request gagal.
     }
-    // Simulasi proses logout sederhana, kemudian arahkan kembali ke Landing Page (Beranda)
-    setTimeout(() => {
-      router.push('/');
-    }, 500);
+    clearSession();
+    router.push('/');
   };
 
   return (

@@ -5,9 +5,10 @@ import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
 import { USER_ROLES } from '../constants/dummyUsers';
 import EmptyState from '@/components/ui/EmptyState';
+import Dropdown from '@/components/ui/Dropdown';
 import { Users as UsersIcon } from 'lucide-react';
 
-export default function UsersTable({ data }) {
+export default function UsersTable({ data, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
       case USER_ROLES.SUPER_ADMIN:
@@ -17,7 +18,7 @@ export default function UsersTable({ data }) {
       case USER_ROLES.ADMIN_OPD:
         return { label: 'Admin OPD', className: 'bg-blue-100 text-blue-800' };
       case USER_ROLES.RESPONDENT:
-        return { label: 'Responden Terdaftar', className: 'bg-slate-100 text-slate-800' };
+        return { label: 'Responden Aktif', className: 'bg-slate-100 text-slate-800' };
       default:
         return { label: role, className: 'bg-gray-100 text-gray-800' };
     }
@@ -57,7 +58,7 @@ export default function UsersTable({ data }) {
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AFILIASI INSTANSI</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">TANGGAL DIBUAT</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS AKSES</Th>
-            <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5 text-right">AKSI</Th>
+            <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AKSI</Th>
           </Tr>
         </Thead>
         <Tbody className="divide-y divide-outline-variant">
@@ -80,7 +81,7 @@ export default function UsersTable({ data }) {
                   </div>
                 </Td>
                 <Td>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${roleConfig.className}`}>
+                  <span className={`inline-block whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold ${roleConfig.className}`}>
                     {roleConfig.label}
                   </span>
                 </Td>
@@ -93,12 +94,10 @@ export default function UsersTable({ data }) {
                 <Td>
                   <UserStatusBadge status={user.status} />
                 </Td>
-                <Td className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <button className="px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors">
-                      Ubah Akses
-                    </button>
-                    <button className="px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors">
+                <Td>
+                  <div className="flex justify-start gap-2 items-center flex-nowrap">
+                    <RoleActionDropdown />
+                    <button className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center">
                       Reset Token JWT
                     </button>
                   </div>
@@ -109,6 +108,26 @@ export default function UsersTable({ data }) {
           </Tbody>
         </Table>
       </div>
+      {pagination}
+    </div>
+  );
+}
+
+function RoleActionDropdown() {
+  const [role, setRole] = React.useState('');
+  
+  return (
+    <div className="w-[120px] text-left">
+      <Dropdown
+        options={[
+          { label: 'Ubah Role', value: '' },
+          { label: 'Admin OPD', value: 'ADMIN_OPD' },
+          { label: 'Admin Kabupaten', value: 'ADMIN_KABUPATEN' }
+        ]}
+        value={role}
+        onChange={setRole}
+        size="sm"
+      />
     </div>
   );
 }

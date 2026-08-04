@@ -6,13 +6,15 @@ import { useRouter, usePathname } from 'next/navigation';
 import { User, LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
+import { authApi } from '@/features/authentication/services/sso.api';
+import { clearSession } from '@/features/authentication/services/authStorage';
 
 export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
-  
+
   // Menutup dropdown jika user mengklik area di luar dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -24,11 +26,14 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsOpen(false);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sso_logged_in', 'false');
+    try {
+      await authApi.logout();
+    } catch {
+      // Logout stateless di backend — tetap hapus sesi lokal walau request gagal.
     }
+    clearSession();
     router.push('/');
   };
 

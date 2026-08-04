@@ -14,4 +14,6 @@ export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
   createdAt: Date;
   updatedAt: Date;
   attachments?: ComplaintAttachmentEntity[];
+  /** Nama pelapor. Hanya diisi pada `GET /complaints` (INT-11). */
+  reporterNama?: string;
 }

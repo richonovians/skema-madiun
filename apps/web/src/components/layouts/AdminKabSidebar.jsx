@@ -7,8 +7,10 @@ import {
   LayoutDashboard, 
   Building2,
   Users,
+  MessageSquare,
   LogOut,
-  X
+  X,
+  History
 } from 'lucide-react';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 
@@ -63,9 +65,17 @@ export default function AdminKabSidebar() {
             <Building2 size={20} />
             <span>Manajemen OPD</span>
           </Link>
+          <Link href="/admin-kab/complaints" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <MessageSquare size={20} />
+            <span>Pengaduan</span>
+          </Link>
           <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Users size={20} />
             <span>Manajemen User</span>
+          </Link>
+          <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <History size={20} />
+            <span>Audit Logs</span>
           </Link>
         </nav>
         

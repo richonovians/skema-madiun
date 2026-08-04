@@ -53,6 +53,17 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   UPLOAD_DIR: string = 'uploads';
+
+  // Sesi lokal (JWT) — diterbitkan SKM sendiri setelah login (dev-login sekarang,
+  // callback SSO nanti). Wajib diisi eksplisit (fail-fast), bukan default lemah bawaan.
+  @IsString()
+  @IsNotEmpty()
+  SESSION_JWT_SECRET!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  SESSION_TTL_HOURS: number = 24;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

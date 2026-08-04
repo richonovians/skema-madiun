@@ -32,4 +32,8 @@ export default () => ({
     // arsitektur), siap dipindah ke S3 nanti tanpa mengubah kontrak `fileUrl` di DB.
     dir: process.env.UPLOAD_DIR ?? 'uploads',
   },
+  session: {
+    jwtSecret: process.env.SESSION_JWT_SECRET,
+    ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '24', 10),
+  },
 });

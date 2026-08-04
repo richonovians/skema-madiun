@@ -49,6 +49,8 @@ type ComplaintWithAttachments = Complaint & {
     sizeBytes: number | null;
     createdAt: Date;
   }[];
+  /** Hanya terisi bila query di-`include` (lihat findAll, INT-11). */
+  user?: { nama: string };
 };
 
 @Injectable()
@@ -97,7 +99,7 @@ export class ComplaintsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.complaint.findMany({
         where,
-        include: { attachments: true },
+        include: { attachments: true, user: { select: { nama: true } } },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -344,9 +346,11 @@ export class ComplaintsService {
   }
 
   private toEntity(row: ComplaintWithAttachments): ComplaintEntity {
+    const { user, ...rest } = row;
     return new ComplaintEntity({
-      ...row,
-      attachments: row.attachments.map((a) => ({ ...a })),
+      ...rest,
+      attachments: rest.attachments.map((a) => ({ ...a })),
+      reporterNama: user?.nama,
     });
   }
 }

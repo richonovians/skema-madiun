@@ -6,12 +6,12 @@ const ROLES = [
   { label: 'Semua Pengguna', value: 'ALL' },
   { label: 'Admin Kabupaten', value: 'ADMIN_KABUPATEN' },
   { label: 'Admin OPD', value: 'ADMIN_OPD' },
-  { label: 'Responden Terdaftar', value: 'RESPONDENT' },
+  { label: 'Responden Aktif', value: 'RESPONDENT' },
 ];
 
 export default function UsersRoleFilter({ activeRoleFilter, setActiveRoleFilter }) {
   return (
-    <div className="flex gap-2 mb-lg p-1 bg-surface-container-low w-full md:w-fit overflow-x-auto hide-scrollbar rounded-xl border border-outline-variant">
+    <div className="flex gap-2 p-1 bg-surface-container-low w-full md:w-fit overflow-x-auto hide-scrollbar rounded-xl border border-outline-variant">
       {ROLES.map((role) => {
         const isActive = activeRoleFilter === role.value;
         return (

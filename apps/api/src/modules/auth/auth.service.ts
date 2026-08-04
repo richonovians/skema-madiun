@@ -1,13 +1,65 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DevLoginDto } from './dto/dev-login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
+import { SessionEntity } from './entities/session.entity';
+import { SessionService } from './session/session.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessionService: SessionService,
+  ) {}
+
+  /**
+   * Login sementara (BUKAN SSO) — terbitkan sesi untuk pengguna seed yang sudah ada,
+   * tanpa password (konsisten dgn keputusan arsitektur: tidak ada auth lokal). Dipagari
+   * NonProductionGuard di controller. Digantikan callback SSO nyata saat spec Helpdesk
+   * tersedia — SessionService.issue() yang dipanggil di sini akan tetap dipakai sama
+   * persis oleh callback itu nanti (lihat SessionService).
+   */
+  async devLogin(dto: DevLoginDto): Promise<SessionEntity> {
+    const identifier = dto.identifier.trim();
+    const row = await this.prisma.user.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [{ email: identifier.toLowerCase() }, { ssoSubject: identifier }],
+      },
+      include: { respondentProfile: true },
+    });
+    if (!row) {
+      throw new NotFoundException(
+        `Pengguna dengan email/ssoSubject "${identifier}" tidak ditemukan`,
+      );
+    }
+    if (!row.isActive) {
+      throw new ForbiddenException('Akun tidak aktif');
+    }
+
+    await this.prisma.user.update({ where: { id: row.id }, data: { lastLoginAt: new Date() } });
+
+    const token = this.sessionService.issue(row.id);
+    return new SessionEntity({ token, user: new MeEntity(row) });
+  }
+
+  /**
+   * Sesi lokal bersifat stateless (JWT tanpa daftar pencabutan) — logout sungguhan
+   * terjadi di klien (buang token tersimpan). Endpoint ini tetap disediakan sebagai
+   * kontrak stabil bagi frontend, dan titik perluasan bila pencabutan sisi-server
+   * dibutuhkan nanti (mis. saat SSO nyata aktif) tanpa mengubah kontrak klien.
+   */
+  logout(): { success: true } {
+    return { success: true };
+  }
 
   /** Profil pengguna aktif + profil demografis (bila responden). */
   async getMe(user: CurrentUser): Promise<MeEntity> {

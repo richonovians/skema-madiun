@@ -10,4 +10,8 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   allowMultipleSubmit: boolean;
   createdAt: Date;
   updatedAt: Date;
+  /** Jumlah responden yang sudah mengisi. Hanya diisi pada `GET /surveys` (INT-9). */
+  respondentsCount?: number;
+  /** Nilai IKM live-compute (null bila belum ada unsur/responden). Hanya diisi pada `GET /surveys` (INT-9). */
+  nilaiIkm?: number | null;
 }

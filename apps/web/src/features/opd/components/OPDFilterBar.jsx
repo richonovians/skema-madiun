@@ -1,11 +1,19 @@
-import React from 'react';
-import { Search } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, RefreshCw } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
 
 export default function OPDFilterBar({ searchQuery, setSearchQuery, selectedService, setSelectedService }) {
-  const handleClear = () => {
-    setSearchQuery('');
-    setSelectedService('');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await fetch('/opd/sync', { method: 'POST' });
+    } catch (error) {
+      console.error('Error syncing:', error);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const serviceOptions = [
@@ -35,10 +43,12 @@ export default function OPDFilterBar({ searchQuery, setSearchQuery, selectedServ
           variant="default"
         />
         <button 
-          onClick={handleClear}
-          className="text-primary font-semibold text-sm px-3 py-2 hover:bg-primary-fixed-dim rounded-lg transition-colors"
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="text-primary font-semibold text-sm px-3 py-2 hover:bg-primary-fixed-dim rounded-lg transition-colors flex items-center gap-2"
         >
-          Bersihkan
+          <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+          Perbarui
         </button>
       </div>
     </div>

@@ -18,6 +18,9 @@ variables:
   POSTGRES_PASSWORD: skm_dev_password
   POSTGRES_DB: skm_db
   DATABASE_URL: 'postgresql://skm:skm_dev_password@postgres:5432/skm_db?schema=public'
+  # CI hanya butuh app.init() berhasil boot (fail-fast validateEnv) — bukan token nyata
+  # yang pernah dipakai siapa pun. Aman sebagai nilai tetap di CI (bukan secret produksi).
+  SESSION_JWT_SECRET: 'ci-only-secret-tidak-untuk-produksi'
 
 default:
   image: node:22
