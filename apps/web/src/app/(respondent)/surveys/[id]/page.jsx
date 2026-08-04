@@ -1,75 +1,47 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { AlertTriangle, X } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import SurveyProgress from '@/features/surveys/components/SurveyProgress';
 import QuestionCard from '@/features/surveys/components/QuestionCard';
 import SurveyNavigation from '@/features/surveys/components/SurveyNavigation';
 import SurveyCompletion from '@/features/surveys/components/SurveyCompletion';
 import useSurveyStore from '@/features/surveys/store/useSurveyStore';
-
-// Dummy data for development. Ready to be replaced with API call.
-const dummySurveyData = {
-  id: '1',
-  title: 'Evaluasi Mutu Pelayanan Rawat Jalan RSUD Caruban',
-  opd: 'Dinas Kesehatan',
-  questions: [
-    {
-      id: 'q1',
-      text: 'Bagaimana kesesuaian persyaratan pelayanan dengan jenis pelayanannya?',
-      type: 'scale_1_to_4',
-    },
-    {
-      id: 'q2',
-      text: 'Bagaimana kemudahan prosedur pelayanan di unit ini?',
-      type: 'scale_1_to_4',
-    },
-    {
-      id: 'q3',
-      text: 'Bagaimana kecepatan waktu penyerahan dokumen hasil spesifikasi jenis pelayanan di unit ini?',
-      type: 'scale_1_to_4',
-    },
-    {
-      id: 'q4',
-      text: 'Bagaimana kewajaran biaya/tarif dalam pelayanan ini?',
-      type: 'scale_1_to_4',
-    },
-    {
-      id: 'q5',
-      text: 'Bagaimana kesesuaian produk pelayanan antara yang tercantum dalam standar pelayanan dengan hasil yang diberikan?',
-      type: 'scale_1_to_4',
-    }
-  ]
-};
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+import EmptyState from '@/components/ui/EmptyState';
+import { useAsync } from '@/hooks/useAsync';
+import { getSurveyFill } from '@/features/surveys/services/surveys.api';
 
 export default function SurveyWizardPage() {
-  const { id } = useParams(); // URL parameter (survey id)
+  const { id } = useParams();
   const router = useRouter();
   const { isCompleted, initSurvey, resetSurvey } = useSurveyStore();
-  
+
+  const fetchFill = useCallback(() => getSurveyFill(id), [id]);
+  const { data: fillData, isLoading, error, refetch } = useAsync(fetchFill);
+
   const [showWarning, setShowWarning] = useState(false);
   const [pendingUrl, setPendingUrl] = useState('');
 
   useEffect(() => {
-    // 1. In a real scenario, fetch data using `id`:
-    //    fetch(`/api/v1/surveys/${id}`).then(...)
-    
-    // 2. Initialize store with data
-    initSurvey(dummySurveyData);
-
-    // 3. Cleanup on unmount
+    if (fillData && !fillData.sudahMengisi) {
+      initSurvey(fillData);
+    }
     return () => {
       resetSurvey();
     };
-  }, [id, initSurvey, resetSurvey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fillData]);
 
   // Handle prevention of leaving page when survey is active
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (!isCompleted) {
         e.preventDefault();
-        e.returnValue = ''; 
+        e.returnValue = '';
       }
     };
 
@@ -95,6 +67,41 @@ export default function SurveyWizardPage() {
     };
   }, [isCompleted]);
 
+  if (isLoading) {
+    return (
+      <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
+        <LoadingState label="Memuat survei..." />
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
+        <ErrorState title="Gagal memuat survei" description={error.message} onRetry={refetch} />
+      </main>
+    );
+  }
+
+  if (fillData?.sudahMengisi) {
+    return (
+      <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
+        <EmptyState
+          icon={<CheckCircle2 size={64} />}
+          title="Anda Sudah Mengisi Survei Ini"
+          description="Survei ini hanya dapat diisi satu kali per akun. Terima kasih atas partisipasi Anda."
+          action={
+            <Link href="/surveys">
+              <button className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors">
+                Kembali ke Daftar Survei
+              </button>
+            </Link>
+          }
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6 min-h-[calc(100vh-64px)] relative">
       {isCompleted ? (
@@ -102,7 +109,7 @@ export default function SurveyWizardPage() {
       ) : (
         <div className="w-full max-w-[800px] mx-auto">
           <SurveyProgress />
-          
+
           <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-5 sm:p-8 md:p-10 border border-outline-variant/20">
             <QuestionCard />
             <SurveyNavigation />
@@ -112,11 +119,11 @@ export default function SurveyWizardPage() {
 
       {/* Custom Warning Modal */}
       {showWarning && (
-        <div 
+        <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm"
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
         >
-          <div 
+          <div
             className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             style={{ width: '90%', maxWidth: '400px' }}
           >
@@ -129,13 +136,13 @@ export default function SurveyWizardPage() {
                 Anda memiliki survei yang belum diselesaikan. Jika Anda pergi sekarang, progres pengisian Anda akan hilang.
               </p>
               <div className="flex items-center gap-3 w-full">
-                <button 
+                <button
                   onClick={() => setShowWarning(false)}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors"
                 >
                   Lanjutkan Survei
                 </button>
-                <button 
+                <button
                   onClick={() => router.push(pendingUrl)}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors shadow-sm shadow-red-500/20"
                 >

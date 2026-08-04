@@ -53,7 +53,11 @@ export class SurveysService {
     return paginate(items, total, page, limit);
   }
 
-  /** Daftar survei berstatus `aktif` (semua OPD) — untuk dipilih responden (BE-21). */
+  /**
+   * Daftar survei berstatus `aktif` (semua OPD) — untuk dipilih responden (BE-21).
+   * Sertakan `opdNama` & `questionsCount` (INT-17) — kartu survei responden butuh
+   * keduanya untuk ditampilkan (dari OPD mana, berapa pertanyaan).
+   */
   async findActive(query: PaginationQueryDto): Promise<PaginatedResult<SurveyEntity>> {
     const { page, limit } = query;
     const where: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
@@ -61,6 +65,7 @@ export class SurveysService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.survey.findMany({
         where,
+        include: { opd: { select: { nama: true } }, _count: { select: { questions: true } } },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -68,12 +73,12 @@ export class SurveysService {
       this.prisma.survey.count({ where }),
     ]);
 
-    return paginate(
-      rows.map((row) => new SurveyEntity(row)),
-      total,
-      page,
-      limit,
-    );
+    const items = rows.map((row) => {
+      const { opd, _count, ...rest } = row;
+      return new SurveyEntity({ ...rest, opdNama: opd.nama, questionsCount: _count.questions });
+    });
+
+    return paginate(items, total, page, limit);
   }
 
   async findOne(id: number, user: CurrentUser): Promise<SurveyEntity> {

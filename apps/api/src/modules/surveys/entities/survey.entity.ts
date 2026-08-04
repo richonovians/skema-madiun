@@ -14,4 +14,8 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   respondentsCount?: number;
   /** Nilai IKM live-compute (null bila belum ada unsur/responden). Hanya diisi pada `GET /surveys` (INT-9). */
   nilaiIkm?: number | null;
+  /** Nama OPD pemilik survei. Hanya diisi pada `GET /surveys/active` (INT-17). */
+  opdNama?: string;
+  /** Jumlah pertanyaan dalam survei. Hanya diisi pada `GET /surveys/active` (INT-17). */
+  questionsCount?: number;
 }
