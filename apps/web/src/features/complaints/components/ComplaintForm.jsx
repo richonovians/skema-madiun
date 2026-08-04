@@ -35,16 +35,33 @@ export default function ComplaintForm() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setErrors({});
     
-    // Validasi basic
+    let newErrors = {};
+    
+    // Validasi semua kolom wajib
     if (!formData.opd) {
-      setErrors({ opd: "Silakan pilih Instansi / OPD tujuan terlebih dahulu" });
+      newErrors.opd = "Silakan pilih Instansi / OPD tujuan terlebih dahulu.";
+    }
+    if (!formData.kategori) {
+      newErrors.kategori = "Kategori pengaduan wajib dipilih.";
+    }
+    if (!formData.judul || formData.judul.trim() === '') {
+      newErrors.judul = "Judul pengaduan wajib diisi.";
+    }
+    if (!formData.uraian || formData.uraian.trim() === '') {
+      newErrors.uraian = "Uraian kejadian wajib diisi.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       
-      // Auto-scroll ke top form agar terlihat errornya
-      document.getElementById('opd')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Auto-scroll ke form agar error terlihat
+      const firstErrorId = Object.keys(newErrors)[0];
+      document.getElementById(firstErrorId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
+    
+    setErrors({});
     
     console.log("Submitting:", formData);
     
@@ -175,30 +192,51 @@ export default function ComplaintForm() {
             id="kategori"
             label="KATEGORI PENGADUAN"
             value={formData.kategori}
-            onChange={(value) => setFormData(prev => ({ ...prev, kategori: value }))}
+            onChange={(value) => handleDropdownChange('kategori', value)}
+            error={errors.kategori}
             options={[
               { value: '', label: formData.opd ? 'Pilih Kategori' : 'Pilih OPD Terlebih Dahulu' },
               ...(formData.opd && categoryOptionsMap[formData.opd] ? categoryOptionsMap[formData.opd] : [])
             ]}
             disabled={!formData.opd}
           />
-          <Input
-            id="judul"
-            label="JUDUL PENGADUAN"
-            placeholder="Ringkasan laporan Anda"
-            value={formData.judul}
-            onChange={handleChange}
-          />
+          <div className="w-full">
+            <Input
+              id="judul"
+              label="JUDUL PENGADUAN"
+              placeholder="Ringkasan laporan Anda"
+              value={formData.judul}
+              onChange={handleChange}
+            />
+            {errors.judul && (
+              <p className="text-xs text-error flex items-center gap-1.5 mt-1.5">
+                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-error/10 text-error text-[10px] font-bold flex-shrink-0">
+                  !
+                </span>
+                <span>{errors.judul}</span>
+              </p>
+            )}
+          </div>
         </div>
 
-        <Textarea
-          id="uraian"
-          label="URAIAN KEJADIAN"
-          placeholder="Jelaskan secara detail mengenai laporan yang ingin disampaikan..."
-          rows={5}
-          value={formData.uraian}
-          onChange={handleChange}
-        />
+        <div className="w-full">
+          <Textarea
+            id="uraian"
+            label="URAIAN KEJADIAN"
+            placeholder="Jelaskan secara detail mengenai laporan yang ingin disampaikan..."
+            rows={5}
+            value={formData.uraian}
+            onChange={handleChange}
+          />
+          {errors.uraian && (
+            <p className="text-xs text-error flex items-center gap-1.5 mt-1.5">
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-error/10 text-error text-[10px] font-bold flex-shrink-0">
+                !
+              </span>
+              <span>{errors.uraian}</span>
+            </p>
+          )}
+        </div>
 
         <div>
           <FileUpload
