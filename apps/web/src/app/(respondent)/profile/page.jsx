@@ -1,10 +1,5 @@
 import React from 'react';
-import ProfileHero from '@/features/profile/components/ProfileHero';
-import ProfileBiodataCard from '@/features/profile/components/ProfileBiodataCard';
-import ProfileAccountCard from '@/features/profile/components/ProfileAccountCard';
-import ProfileSSOCard from '@/features/profile/components/ProfileSSOCard';
-import ProfileActions from '@/features/profile/components/ProfileActions';
-
+import ProfileContent from '@/features/profile/components/ProfileContent';
 
 export const metadata = {
   title: 'Profil Saya - SKEMA Madiun',
@@ -24,23 +19,7 @@ export default function ProfilePage() {
         </p>
       </section>
 
-      {/* Hero Banner Section */}
-      <ProfileHero />
-
-      {/* Main Grid Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
-        {/* Left Column: Biodata & Account Metadata (7 cols on large screen) */}
-        <div className="lg:col-span-7 space-y-6 sm:space-y-8 w-full">
-          <ProfileBiodataCard />
-          <ProfileAccountCard />
-        </div>
-
-        {/* Right Column: SSO Connection Info & Action Button (5 cols on large screen) */}
-        <div className="lg:col-span-5 space-y-6 sm:space-y-8 w-full lg:sticky lg:top-24">
-          <ProfileSSOCard />
-          <ProfileActions />
-        </div>
-      </div>
+      <ProfileContent />
     </main>
   );
 }
