@@ -1,14 +1,21 @@
 import React from 'react';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
-import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
 import { USER_ROLES } from '../constants/dummyUsers';
 import EmptyState from '@/components/ui/EmptyState';
-import Dropdown from '@/components/ui/Dropdown';
 import { Users as UsersIcon } from 'lucide-react';
 
-export default function UsersTable({ data, pagination }) {
+/**
+ * Kolom AKSI versi dummy lama ("Ubah Role" dropdown + "Reset Token JWT")
+ * DIHAPUS TOTAL -- keduanya tak pernah tersambung ke mana pun DAN backend
+ * TAK PUNYA kapasitas ini sama sekali: `UpdateUserDto` cuma nama+opdId (tak
+ * bisa ubah role), dan sesi login pakai JWT stateless tanpa mekanisme revoke
+ * (lihat SessionService/AuthProvider) -- tak ada yang bisa "direset". Diganti
+ * toggle Aktifkan/Nonaktifkan sungguhan (`PATCH /users/:id/status`),
+ * satu-satunya mutasi akun yang benar-benar didukung dari daftar ini.
+ */
+export default function UsersTable({ data, onUpdateStatus, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
       case USER_ROLES.SUPER_ADMIN:
@@ -39,7 +46,7 @@ export default function UsersTable({ data, pagination }) {
 
   if (data.length === 0) {
     return (
-      <EmptyState 
+      <EmptyState
         icon={UsersIcon}
         title="Tidak ada pengguna"
         description="Belum ada data pengguna yang sesuai dengan filter saat ini."
@@ -64,15 +71,16 @@ export default function UsersTable({ data, pagination }) {
         <Tbody className="divide-y divide-outline-variant">
           {data.map((user) => {
             const roleConfig = getRoleBadgeConfig(user.role);
-            
+            const isActive = user.status === 'ACTIVE';
+
             return (
               <Tr key={user.id} className="hover:bg-slate-50 transition-colors group">
                 <Td>
                   <div className="flex items-center gap-3">
-                    <Avatar 
-                      initials={user.initials} 
-                      size="md" 
-                      variant={getAvatarVariant(user.role)} 
+                    <Avatar
+                      initials={user.initials}
+                      size="md"
+                      variant={getAvatarVariant(user.role)}
                     />
                     <div>
                       <div className="font-label-md text-text-primary">{user.name}</div>
@@ -95,12 +103,12 @@ export default function UsersTable({ data, pagination }) {
                   <UserStatusBadge status={user.status} />
                 </Td>
                 <Td>
-                  <div className="flex justify-start gap-2 items-center flex-nowrap">
-                    <RoleActionDropdown />
-                    <button className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center">
-                      Reset Token JWT
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => onUpdateStatus?.(user.id, !isActive)}
+                    className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
+                  >
+                    {isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                  </button>
                 </Td>
               </Tr>
             );
@@ -109,25 +117,6 @@ export default function UsersTable({ data, pagination }) {
         </Table>
       </div>
       {pagination}
-    </div>
-  );
-}
-
-function RoleActionDropdown() {
-  const [role, setRole] = React.useState('');
-  
-  return (
-    <div className="w-[120px] text-left">
-      <Dropdown
-        options={[
-          { label: 'Ubah Role', value: '' },
-          { label: 'Admin OPD', value: 'ADMIN_OPD' },
-          { label: 'Admin Kabupaten', value: 'ADMIN_KABUPATEN' }
-        ]}
-        value={role}
-        onChange={setRole}
-        size="sm"
-      />
     </div>
   );
 }

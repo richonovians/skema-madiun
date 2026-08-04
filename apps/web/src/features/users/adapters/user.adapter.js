@@ -1,4 +1,4 @@
-import { getInitials } from '@/utils/format';
+import { formatDateId, getInitials } from '@/utils/format';
 
 /**
  * Terjemahkan UserEntity backend (GET /users) ke bentuk yang dipakai komponen
@@ -26,7 +26,7 @@ export function adaptUser(user) {
     initials: getInitials(user.nama),
     role: ROLE_MAP[user.role] ?? user.role,
     organization: user.opdNama ?? null,
-    createdAt: user.createdAt,
+    createdAt: formatDateId(user.createdAt),
     status: user.isActive ? 'ACTIVE' : 'INACTIVE',
   };
 }
@@ -58,7 +58,7 @@ export function toCreateUserPayload({ fullName, email, role, opdId }) {
     nama: fullName,
     email,
     role: ROLE_TO_BACKEND[role] ?? role,
-    opdId: opdId || undefined,
+    opdId: opdId ? Number(opdId) : undefined,
   };
 }
 

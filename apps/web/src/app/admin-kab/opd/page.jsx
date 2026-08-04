@@ -1,69 +1,121 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import OPDHeader from '@/features/opd/components/OPDHeader';
 import OPDFilterBar from '@/features/opd/components/OPDFilterBar';
 import OPDTable from '@/features/opd/components/OPDTable';
 import Pagination from '@/components/ui/Pagination';
-import { DUMMY_OPD } from '@/features/opd/constants/dummyOPD';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+import { useAsync } from '@/hooks/useAsync';
+import { getOpdList, syncOpd } from '@/features/opd/services/opd.api';
+
+const ITEMS_PER_PAGE = 10;
+const FETCH_LIMIT = 100;
 
 export default function ManajemenOPDPage() {
-  const [opdData, setOpdData] = useState(DUMMY_OPD);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedService, setSelectedService] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const [syncNotice, setSyncNotice] = useState(null);
 
-  const handleUpdateStatus = (id, newStatus) => {
-    setOpdData(prev => prev.map(item => 
-      item.id === id ? { ...item, status: newStatus } : item
-    ));
-  };
+  const fetchOpd = useCallback(() => getOpdList({ limit: FETCH_LIMIT }), []);
+  const { data: response, isLoading, error, refetch } = useAsync(fetchOpd);
 
-  // Filter Data
+  // Opsi jenis layanan DIDERIVASI dari data asli (bukan hardcode) -- backend
+  // tak punya enum tetap utk `jenisLayanan` (lihat OPDFilterBar.jsx).
+  const serviceOptions = useMemo(() => {
+    const unique = [...new Set((response?.data ?? []).map((o) => o.serviceType).filter(Boolean))].sort();
+    return [
+      { value: '', label: 'Semua Jenis Layanan' },
+      ...unique.map((s) => ({ value: s, label: s })),
+    ];
+  }, [response]);
+
   const filteredData = useMemo(() => {
-    return opdData.filter((opd) => {
-      const matchSearch = opd.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          opd.code.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchService = selectedService === '' || 
-                           opd.serviceType.toLowerCase().includes(selectedService.toLowerCase());
-      
+    const q = searchQuery.toLowerCase();
+    return (response?.data ?? []).filter((opd) => {
+      const matchSearch =
+        opd.name.toLowerCase().includes(q) || opd.code.toLowerCase().includes(q);
+      const matchService = selectedService === '' || opd.serviceType === selectedService;
       return matchSearch && matchService;
     });
-  }, [searchQuery, selectedService, opdData]);
+  }, [response, searchQuery, selectedService]);
 
-  // Pagination Logic
   const totalItems = filteredData.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Reset page when filter changes
-  React.useEffect(() => {
+  const handleSearchChange = (val) => {
+    setSearchQuery(val);
     setCurrentPage(1);
-  }, [searchQuery, selectedService]);
+  };
+
+  const handleServiceChange = (val) => {
+    setSelectedService(val);
+    setCurrentPage(1);
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    setSyncError(null);
+    setSyncNotice(null);
+    try {
+      const report = await syncOpd();
+      setSyncNotice(
+        `Sinkron selesai: ${report.fetched} diambil, ${report.created} baru, ${report.updated} diperbarui, ${report.deactivated} dinonaktifkan.`,
+      );
+      await refetch();
+    } catch (err) {
+      setSyncError(err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingState label="Memuat data OPD..." />;
+  }
+
+  if (error) {
+    return <ErrorState title="Gagal memuat data OPD" description={error.message} onRetry={refetch} />;
+  }
 
   return (
     <div className="p-lg max-w-container-max w-full mx-auto flex-1 flex flex-col min-h-full">
-      <OPDHeader />
-      <OPDFilterBar 
+      <OPDHeader onSync={handleSync} isSyncing={isSyncing} />
+
+      {syncNotice && (
+        <div className="mb-lg p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium">
+          {syncNotice}
+        </div>
+      )}
+      {syncError && (
+        <div className="mb-lg p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
+          Gagal sinkronisasi: {syncError}
+        </div>
+      )}
+
+      <OPDFilterBar
         searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+        setSearchQuery={handleSearchChange}
         selectedService={selectedService}
-        setSelectedService={setSelectedService}
+        setSelectedService={handleServiceChange}
+        serviceOptions={serviceOptions}
       />
       <div className="flex-1 flex flex-col min-h-0">
-        <OPDTable 
-          data={paginatedData} 
-          onUpdateStatus={handleUpdateStatus} 
+        <OPDTable
+          data={paginatedData}
           pagination={
             totalItems > 0 && (
-              <Pagination 
+              <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalItems}
-                itemsPerPage={itemsPerPage}
+                itemsPerPage={ITEMS_PER_PAGE}
                 onPageChange={setCurrentPage}
                 itemName="OPD"
               />

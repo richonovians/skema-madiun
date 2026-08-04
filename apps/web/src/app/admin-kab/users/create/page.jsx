@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CreateUserHeader from '@/features/users/components/CreateUserHeader';
 import AccountInformationCard from '@/features/users/components/AccountInformationCard';
@@ -10,13 +10,16 @@ import AccountNotice from '@/features/users/components/AccountNotice';
 import UserAccessSummary from '@/features/users/components/UserAccessSummary';
 import Button from '@/components/ui/Button';
 import { USER_ROLES } from '@/features/users/constants/dummyUsers';
-import { createUser } from '@/features/users/services/users.api';
+import { createUser, updateUserStatus } from '@/features/users/services/users.api';
+import { getOpdList } from '@/features/opd/services/opd.api';
+import { useAsync } from '@/hooks/useAsync';
 import { X, Save, Loader2 } from 'lucide-react';
 
+// `phone` DIHAPUS -- skema User backend tak punya kolom ini sama sekali
+// (lihat AccountInformationCard.jsx).
 const INITIAL_FORM = {
   fullName: '',
   email: '',
-  phone: '',
   role: '',
   opdId: '',
   isActive: true,
@@ -37,12 +40,6 @@ function validate(formData) {
     errors.email = 'Format email tidak valid.';
   }
 
-  if (!formData.phone.trim()) {
-    errors.phone = 'Nomor telepon wajib diisi.';
-  } else if (!/^\d{10,15}$/.test(formData.phone.replace(/[\s\-+]/g, ''))) {
-    errors.phone = 'Nomor telepon tidak valid (10–15 digit).';
-  }
-
   if (!formData.role) {
     errors.role = 'Silakan pilih role administrator.';
   }
@@ -60,6 +57,16 @@ export default function CreateUserPage() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+
+  const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
+  const { data: opdResponse } = useAsync(fetchOpd);
+  const opdOptions = useMemo(() => {
+    const list = opdResponse?.data ?? [];
+    return [
+      { value: '', label: 'Pilih Instansi / OPD' },
+      ...list.map((opd) => ({ value: String(opd.id), label: opd.name })),
+    ];
+  }, [opdResponse]);
 
   // Handler untuk input text (Input component)
   const handleChange = (e) => {
@@ -102,25 +109,20 @@ export default function CreateUserPage() {
 
     setIsSubmitting(true);
     try {
-      // Siapkan payload untuk endpoint POST /users
-      const payload = {
+      const created = await createUser({
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
         role: formData.role,
-        opdId: formData.role === USER_ROLES.ADMIN_OPD ? Number(formData.opdId) : null,
-        isActive: formData.isActive,
-      };
+        opdId: formData.role === USER_ROLES.ADMIN_OPD ? formData.opdId : undefined,
+      });
 
-      // TODO: Aktifkan saat backend sudah dihubungkan
-      // await createUser(payload);
+      // Akun baru SELALU dibuat aktif di backend (UsersService.create hardcode
+      // isActive:true) -- kalau admin minta nonaktif sejak awal, susulkan
+      // panggilan status terpisah (satu-satunya cara mewujudkan toggle ini).
+      if (!formData.isActive) {
+        await updateUserStatus(created.id, false);
+      }
 
-      // Simulasi delay untuk UX (hapus saat integrasi real)
-      await new Promise((r) => setTimeout(r, 800));
-
-      console.log('[CreateUser] Payload yang akan dikirim:', payload);
-
-      // Redirect ke halaman users setelah sukses
       router.push('/admin-kab/users');
     } catch (err) {
       setSubmitError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
@@ -160,6 +162,7 @@ export default function CreateUserPage() {
               formData={formData}
               onDropdownChange={handleDropdownChange}
               errors={errors}
+              opdOptions={opdOptions}
             />
             <AccountStatusCard
               isActive={formData.isActive}
@@ -170,13 +173,13 @@ export default function CreateUserPage() {
 
           {/* === Kolom Kanan: Summary Panel (Desktop) === */}
           <div className="hidden lg:block lg:col-span-1">
-            <UserAccessSummary formData={formData} />
+            <UserAccessSummary formData={formData} opdOptions={opdOptions} />
           </div>
         </div>
 
         {/* === Summary Panel Mobile (di bawah form) === */}
         <div className="lg:hidden mt-md">
-          <UserAccessSummary formData={formData} />
+          <UserAccessSummary formData={formData} opdOptions={opdOptions} />
         </div>
 
         {/* === Action Buttons === */}

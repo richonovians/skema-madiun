@@ -3,7 +3,6 @@ import { ClipboardList, ShieldCheck, Building2, ToggleRight } from 'lucide-react
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { USER_ROLES } from '../constants/dummyUsers';
-import { DUMMY_OPD } from '@/features/opd/constants/dummyOPD';
 
 const ROLE_LABELS = {
   [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
@@ -32,17 +31,17 @@ function SummaryRow({ icon: Icon, label, value, emptyText = '—', badge }) {
   );
 }
 
-export default function UserAccessSummary({ formData }) {
+export default function UserAccessSummary({ formData, opdOptions = [] }) {
   const roleLabel = ROLE_LABELS[formData.role] || null;
 
   const opdLabel = React.useMemo(() => {
     if (!formData.opdId) return null;
-    const found = DUMMY_OPD.find((o) => String(o.id) === formData.opdId);
-    return found ? found.name : null;
-  }, [formData.opdId]);
+    const found = opdOptions.find((o) => String(o.value) === String(formData.opdId));
+    return found ? found.label : null;
+  }, [formData.opdId, opdOptions]);
 
   const isComplete =
-    formData.fullName && formData.email && formData.phone && formData.role &&
+    formData.fullName && formData.email && formData.role &&
     (formData.role !== USER_ROLES.ADMIN_OPD || formData.opdId);
 
   return (
