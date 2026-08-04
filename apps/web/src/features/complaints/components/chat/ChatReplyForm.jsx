@@ -9,6 +9,7 @@ import Textarea from '@/components/ui/Textarea';
 export default function ChatReplyForm({ onSubmit }) {
   const [reply, setReply] = useState('');
   const [file, setFile] = useState(null);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -24,11 +25,25 @@ export default function ChatReplyForm({ onSubmit }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (reply.trim() && onSubmit) {
-      onSubmit(reply);
+    if (!reply.trim() || !onSubmit) return;
+    setIsSending(true);
+    try {
+      // CATATAN GAP: `file` (lampiran balasan) TIDAK dikirim -- backend
+      // (CreateReplyDto, POST /complaints/:id/replies) cuma terima `pesan`,
+      // tak ada dukungan lampiran pada balasan sama sekali (beda dari
+      // pengaduan awal yang boleh multipart). UI attach dibiarkan ada,
+      // tapi berkasnya diam-diam tak terkirim -- bukan tugas form ini
+      // mengarang kapasitas backend yang belum ada.
+      await onSubmit(reply);
       setReply('');
+      removeFile();
+    } catch {
+      // Teks SENGAJA tak dihapus supaya pengguna bisa coba lagi -- pesan
+      // error ditampilkan oleh ComplaintChatSection.jsx.
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -83,9 +98,9 @@ export default function ChatReplyForm({ onSubmit }) {
             type="submit" 
             variant="primary"
             className="w-[52px] h-[52px] !p-0 sm:w-auto sm:!px-6 rounded-full sm:!rounded-xl font-bold flex items-center justify-center sm:gap-2 whitespace-nowrap shrink-0 transition-all"
-            disabled={!reply.trim()}
+            disabled={!reply.trim() || isSending}
           >
-            <span className="hidden sm:inline">Kirim Pesan</span>
+            <span className="hidden sm:inline">{isSending ? 'Mengirim...' : 'Kirim Pesan'}</span>
             <Send size={20} />
           </Button>
         </div>

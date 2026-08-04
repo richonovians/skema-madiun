@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
@@ -9,60 +9,64 @@ import Textarea from '@/components/ui/Textarea';
 import FileDropzone from '@/components/ui/FileDropzone';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import { useAsync } from '@/hooks/useAsync';
+import { getOpdList } from '@/features/opd/services/opd.api';
+import { getComplaintCategories } from '../services/reference.api';
+import { createComplaint } from '../services/complaints.api';
 
 export default function CreateComplaintForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [files, setFiles] = useState([]);
-  
+
   const [formData, setFormData] = useState({
     department: '',
     category: '',
     title: '',
-    description: ''
+    description: '',
   });
+
+  const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
+  const { data: opdResponse } = useAsync(fetchOpd);
+  const fetchCategories = useCallback(() => getComplaintCategories(), []);
+  const { data: categories } = useAsync(fetchCategories);
+
+  const departmentOptions = (opdResponse?.data ?? []).map((opd) => ({
+    label: opd.name,
+    value: String(opd.id),
+  }));
+  const categoryOptions = (categories ?? []).map((c) => ({ label: c.nama, value: c.kode }));
 
   const handleChange = (e) => {
     const { id, value } = e.target;
-    setFormData(prev => ({ ...prev, [id]: value }));
+    setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError(null);
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const departmentOptions = [
-        { label: 'Dinas Kesehatan', value: 'dinkes' },
-        { label: 'Dinas Pendidikan', value: 'disdik' },
-        { label: 'Dinas PUPR', value: 'pupr' },
-        { label: 'Dinas Perhubungan', value: 'dishub' }
-      ];
-      
-      const selectedOpd = departmentOptions.find(o => o.value === formData.department);
-      const opdName = selectedOpd ? selectedOpd.label : 'Instansi Terkait';
-      const randomId = Math.floor(10000 + Math.random() * 90000);
-      const complaintId = `COM-2026-${randomId}`;
-      
+    try {
+      const result = await createComplaint(
+        {
+          opdId: formData.department,
+          kategori: formData.category,
+          title: formData.title,
+          description: formData.description,
+        },
+        files,
+      );
+      const opdName =
+        departmentOptions.find((o) => o.value === formData.department)?.label ?? 'Instansi Terkait';
+      router.push(
+        `/complaints/success?complaintId=${result.id}&opdId=${formData.department}&opdName=${encodeURIComponent(opdName)}`,
+      );
+    } catch (err) {
+      setSubmitError(err.message || 'Gagal mengirim pengaduan. Silakan coba lagi.');
       setIsSubmitting(false);
-      router.push(`/complaints/success?complaintId=${complaintId}&opdId=${formData.department}&opdName=${encodeURIComponent(opdName)}`);
-    }, 1500);
+    }
   };
-
-  const departmentOptions = [
-    { label: 'Dinas Kesehatan', value: 'dinkes' },
-    { label: 'Dinas Pendidikan', value: 'disdik' },
-    { label: 'Dinas PUPR', value: 'pupr' },
-    { label: 'Dinas Perhubungan', value: 'dishub' }
-  ];
-
-  const categoryOptions = [
-    { label: 'Layanan Publik', value: 'layanan' },
-    { label: 'Infrastruktur', value: 'infrastruktur' },
-    { label: 'Lingkungan Hidup', value: 'lingkungan' },
-    { label: 'Bantuan Sosial', value: 'sosial' }
-  ];
 
   return (
     <Card className="p-5 sm:p-8 shadow-xl border border-border">
@@ -72,25 +76,31 @@ export default function CreateComplaintForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+        {submitError && (
+          <div className="p-4 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
+            {submitError}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Dropdown 
-            label="OPD / Instansi Tujuan" 
+          <Dropdown
+            label="OPD / Instansi Tujuan"
             id="department"
-            options={[{label: 'Pilih Instansi', value: ''}, ...departmentOptions]}
+            options={[{ label: 'Pilih Instansi', value: '' }, ...departmentOptions]}
             value={formData.department}
-            onChange={(val) => setFormData(prev => ({ ...prev, department: val }))}
+            onChange={(val) => setFormData((prev) => ({ ...prev, department: val }))}
           />
-          <Dropdown 
-            label="Kategori Pengaduan" 
+          <Dropdown
+            label="Kategori Pengaduan"
             id="category"
-            options={[{label: 'Pilih Kategori', value: ''}, ...categoryOptions]}
+            options={[{ label: 'Pilih Kategori', value: '' }, ...categoryOptions]}
             value={formData.category}
-            onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
+            onChange={(val) => setFormData((prev) => ({ ...prev, category: val }))}
           />
         </div>
 
-        <Input 
-          label="Judul Laporan" 
+        <Input
+          label="Judul Laporan"
           id="title"
           placeholder="Ringkasan singkat keluhan Anda"
           value={formData.title}
@@ -98,8 +108,8 @@ export default function CreateComplaintForm() {
           required
         />
 
-        <Textarea 
-          label="Uraian Detail Kejadian" 
+        <Textarea
+          label="Uraian Detail Kejadian"
           id="description"
           placeholder="Ceritakan kronologi kejadian secara lengkap (Waktu, Tempat, dan Pihak terlibat)"
           rows={6}
@@ -114,17 +124,17 @@ export default function CreateComplaintForm() {
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-end gap-3 sm:gap-4 pt-6 sm:pt-8 border-t border-border">
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             className="w-full md:w-auto min-h-[48px] px-8 rounded-lg text-outline font-bold hover:bg-surface-variant transition-colors bg-transparent"
             onClick={() => router.back()}
             disabled={isSubmitting}
           >
             Batalkan
           </Button>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full md:w-auto min-h-[48px] px-8 rounded-lg bg-primary-container text-white font-bold shadow-lg shadow-primary-container/20 hover:bg-primary-hover transition-all active:scale-95 flex items-center justify-center gap-2"
             disabled={isSubmitting}
           >

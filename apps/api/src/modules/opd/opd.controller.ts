@@ -26,9 +26,15 @@ import { OpdService } from './opd.service';
 export class OpdController {
   constructor(private readonly opdService: OpdService) {}
 
-  /** Daftar OPD (cache lokal). Hanya Admin Kabupaten. */
+  /**
+   * Daftar OPD (cache lokal). Tanpa `@Roles` = seluruh peran terautentikasi
+   * boleh (INT-18) -- data direktori OPD tak sensitif & dibutuhkan Responden
+   * utk memilih instansi tujuan saat membuat pengaduan (dropdown
+   * CreateComplaintForm.jsx). Sebelumnya dibatasi Admin Kabupaten saja,
+   * membuat form pengaduan Responden tak bisa menampilkan pilihan OPD sama
+   * sekali (403 diam-diam tertelan di frontend, ditemukan saat wiring INT-18).
+   */
   @Get()
-  @Roles(Role.kabupaten)
   @ApiOkResponse({ type: OpdEntity, isArray: true })
   findAll(@Query() query: ListOpdQueryDto): Promise<PaginatedResult<OpdEntity>> {
     return this.opdService.findAll(query);
