@@ -1,10 +1,12 @@
 import api from '@/services/api';
 import {
   adaptActiveSurveyCardList,
+  adaptBuilderQuestions,
   adaptSurvey,
   adaptSurveyFill,
   adaptSurveyList,
   toBackendStatus,
+  toCreateQuestionPayload,
   toCreateSurveyPayload,
   toSubmitAnswers,
   toUpdateSurveyPayload,
@@ -58,37 +60,40 @@ export async function duplicateSurvey(surveyId) {
   return adaptSurvey(response.data);
 }
 
-// --- Pertanyaan (nested di bawah survei) ---
-// CATATAN: belum ada adapter khusus pertanyaan -- bentuk komponen builder
-// (isBaku/title/text, lihat app/admin-opd/(builder)/surveys/builder/[id]/page.jsx)
-// baru dipetakan penuh saat wiring builder sungguhan (Fase 4, INT-19), bukan
-// cakupan INT-7. Fungsi di bawah masih passthrough bentuk backend apa adanya
-// (teks/tipe/isIkmUnsur/kodeUnsur).
+// --- Pertanyaan (nested di bawah survei, bentuk builder -- lihat survey.adapter.js) ---
 
 export async function getQuestions(surveyId) {
   const response = await api.get(`/surveys/${surveyId}/questions`);
-  return response.data;
+  return adaptBuilderQuestions(response.data);
 }
 
-/** @param {{teks: string, tipe: 'skala'|'teks'|'pilihan', isIkmUnsur?: boolean, kodeUnsur?: string, options?: Array}} payload */
-export async function createQuestion(surveyId, payload) {
-  const response = await api.post(`/surveys/${surveyId}/questions`, payload);
-  return response.data;
+/**
+ * @param {{text: string, type: string}} payload bentuk builder (lihat BuilderSidebar.jsx).
+ * @returns {Promise<{id: number, text: string, type: string, isBaku: false}>} TANPA `title` --
+ *   label "Pertanyaan Kustom #N" bergantung posisi di daftar lokal pemanggil,
+ *   biar tak dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
+ */
+export async function createCustomQuestion(surveyId, payload) {
+  const response = await api.post(`/surveys/${surveyId}/questions`, toCreateQuestionPayload(payload));
+  const q = response.data;
+  return { id: q.id, text: q.teks, type: payload.type, isBaku: false };
 }
 
+/** Terapkan template 9 unsur baku -- SATU panggilan backend, bukan disimulasikan lokal (lihat INT-30 -> INT-19). */
 export async function applyQuestionTemplate(surveyId) {
   const response = await api.post(`/surveys/${surveyId}/questions/template`);
-  return response.data;
+  return adaptBuilderQuestions(response.data);
 }
 
 /** @param {number[]} orderedIds Seluruh id pertanyaan survei dalam urutan baru. */
 export async function reorderQuestions(surveyId, orderedIds) {
   const response = await api.patch(`/surveys/${surveyId}/questions/reorder`, { orderedIds });
-  return response.data;
+  return adaptBuilderQuestions(response.data);
 }
 
-export async function updateQuestion(questionId, payload) {
-  const response = await api.patch(`/questions/${questionId}`, payload);
+/** Hanya `teks` yang bisa diubah (UpdateQuestionDto backend tak dukung ubah tipe). */
+export async function updateQuestionText(questionId, text) {
+  const response = await api.patch(`/questions/${questionId}`, { teks: text });
   return response.data;
 }
 
