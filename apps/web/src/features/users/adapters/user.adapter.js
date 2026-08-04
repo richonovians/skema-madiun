@@ -34,3 +34,35 @@ export function adaptUser(user) {
 export function adaptUserList(users) {
   return users.map(adaptUser);
 }
+
+const ROLE_TO_BACKEND = {
+  ADMIN_OPD: 'opd',
+  ADMIN_KABUPATEN: 'kabupaten',
+  SUPER_ADMIN: 'superuser',
+  RESPONDENT: 'responden',
+};
+
+/**
+ * Terjemahkan payload form buat-akun (bentuk komponen, lihat
+ * app/admin-kab/users/create/page.jsx) -> CreateUserDto backend.
+ *
+ * CATATAN GAP: form mengumpulkan `phone` & `isActive`, TAPI backend
+ * (CreateUserDto) tidak punya field ini sama sekali -- sengaja TIDAK
+ * dikirim di sini, bukan lupa. `isActive` khususnya: akun baru SELALU aktif
+ * di backend (UsersService.create hardcode isActive:true); kalau perlu
+ * nonaktif sejak awal, panggil updateUserStatus terpisah setelah create.
+ * `phone` murni tak punya tempat di skema User sama sekali.
+ */
+export function toCreateUserPayload({ fullName, email, role, opdId }) {
+  return {
+    nama: fullName,
+    email,
+    role: ROLE_TO_BACKEND[role] ?? role,
+    opdId: opdId || undefined,
+  };
+}
+
+/** Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId saja). */
+export function toUpdateUserPayload({ fullName, opdId }) {
+  return { nama: fullName, opdId };
+}

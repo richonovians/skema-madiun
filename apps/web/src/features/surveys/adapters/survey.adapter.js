@@ -24,3 +24,24 @@ export function adaptSurvey(survey) {
 export function adaptSurveyList(surveys) {
   return surveys.map(adaptSurvey);
 }
+
+const STATUS_TO_BACKEND = {
+  DRAF: 'draft',
+  AKTIF: 'aktif',
+  DITUTUP: 'ditutup',
+};
+
+/** Terjemahkan payload buat-survei (bentuk komponen) -> CreateSurveyDto backend. */
+export function toCreateSurveyPayload({ title, period, allowMultipleSubmit, opdId }) {
+  return { judul: title, periode: period, allowMultipleSubmit, opdId };
+}
+
+/** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
+export function toUpdateSurveyPayload({ title, period, allowMultipleSubmit }) {
+  return { judul: title, periode: period, allowMultipleSubmit };
+}
+
+/** Terjemahkan status frontend ('AKTIF' dkk) -> enum backend ('aktif' dkk). */
+export function toBackendStatus(status) {
+  return STATUS_TO_BACKEND[status] ?? status;
+}

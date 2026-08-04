@@ -80,3 +80,15 @@ export function adaptComplaintReply(reply) {
 export function adaptComplaintReplyList(replies) {
   return replies.map(adaptComplaintReply);
 }
+
+const STATUS_TO_BACKEND = {
+  Diterima: 'diterima',
+  Diproses: 'diproses',
+  Selesai: 'selesai',
+  Ditolak: 'ditolak',
+};
+
+/** Terjemahkan status frontend ('Diproses' dkk) -> enum backend ('diproses' dkk). */
+export function toBackendComplaintStatus(status) {
+  return STATUS_TO_BACKEND[status] ?? status;
+}
