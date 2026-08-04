@@ -66,6 +66,32 @@ describe('SurveysService', () => {
     expect(ikmService.getSummary).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
+  it('findActive (INT-17) menyisipkan opdNama & questionsCount, tanpa membocorkan objek opd/_count mentah', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [
+        surveyRow({
+          status: SurveyStatus.aktif,
+          opd: { nama: 'Dinas Kesehatan' },
+          _count: { questions: 9 },
+        }),
+      ],
+      1,
+    ]);
+
+    const result = await service.findActive({ page: 1, limit: 20 });
+
+    expect(result.items[0].opdNama).toBe('Dinas Kesehatan');
+    expect(result.items[0].questionsCount).toBe(9);
+    expect((result.items[0] as unknown as { opd?: unknown }).opd).toBeUndefined();
+    expect((result.items[0] as unknown as { _count?: unknown })._count).toBeUndefined();
+    expect(prisma.survey.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: SurveyStatus.aktif },
+        include: { opd: { select: { nama: true } }, _count: { select: { questions: true } } },
+      }),
+    );
+  });
+
   it('create (Admin OPD) memakai opdId miliknya', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
     (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());
