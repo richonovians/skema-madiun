@@ -1,0 +1,47 @@
+import React from 'react';
+import { Info, KeyRound, Shield } from 'lucide-react';
+import Card from '@/components/ui/Card';
+
+const NOTICE_ITEMS = [
+  {
+    icon: KeyRound,
+    title: 'Mekanisme Login',
+    description:
+      'Akun administrator menggunakan email sebagai identitas login. Kata sandi awal akan dikirimkan ke alamat email yang didaftarkan.',
+  },
+  {
+    icon: Shield,
+    title: 'Keamanan Akses',
+    description:
+      'Setiap sesi administrator akan diverifikasi melalui token JWT. Token akan kedaluwarsa secara otomatis sesuai kebijakan sistem.',
+  },
+];
+
+export default function AccountNotice() {
+  return (
+    <Card className="p-lg bg-blue-50/50 border-blue-100">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-md">
+        <Info size={16} className="text-primary flex-shrink-0" />
+        <h2 className="font-bold text-primary text-sm">Informasi Sistem</h2>
+      </div>
+
+      {/* Notice items */}
+      <ul className="space-y-sm">
+        {NOTICE_ITEMS.map((item) => (
+          <li key={item.title} className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <item.icon size={14} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-text-primary">{item.title}</p>
+              <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
+                {item.description}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
