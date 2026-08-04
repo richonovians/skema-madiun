@@ -1,0 +1,51 @@
+/**
+ * Terjemahkan IkmResultEntity backend (GET /surveys/:id/results) ke bentuk yang
+ * dipakai komponen (lihat features/analytics/constants/skmAnalytics.js). Satu
+ * tempat -- perubahan kontrak backend cukup diubah di sini (INT-6).
+ *
+ * Label mutu (A=Sangat Baik dst) BUKAN dikarang -- tabel resmi PermenPANRB
+ * 14/2017 (docs/PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md baris 388-395),
+ * sama seperti yang dipakai IkmService.mutuFromNilai di backend, cuma
+ * huruf mutu (A/B/C/D) itu sendiri sudah dihitung backend, di sini cuma
+ * tambah label deskriptifnya.
+ *
+ * CATATAN GAP: `trend` per unsur & `skmYearlyTrend` (tren multi-tahun) TIDAK
+ * ADA sumber backend -- perlu data historis lintas periode yang belum
+ * dibangun (Fase 3, INT-15, terblokir keputusan D5). Jangan dikarang di sini.
+ * `skmDistribution` (sebaran skor tiap unsur per kategori nilai) juga tak
+ * tersedia -- backend cuma simpan NRR rata-rata, bukan distribusi per nilai.
+ */
+const MUTU_LABEL = {
+  A: 'Sangat Baik',
+  B: 'Baik',
+  C: 'Kurang Baik',
+  D: 'Tidak Baik',
+};
+
+export function adaptIkmMetrics(result) {
+  return {
+    ikm: {
+      value: result.nilaiIkm,
+      trend: null, // gap: butuh data historis, lihat catatan di atas
+      status: null,
+    },
+    totalRespondents: {
+      value: result.jumlahResponden,
+      badge: null,
+    },
+    quality: {
+      grade: result.mutu ? `${result.mutu} - ${MUTU_LABEL[result.mutu]}` : null,
+    },
+  };
+}
+
+export function adaptIkmServiceElements(nrrPerUnsur) {
+  return nrrPerUnsur.map((u) => ({
+    code: u.kodeUnsur,
+    name: u.teks,
+    nrr: u.nrr,
+    weighted: u.nrrTertimbang,
+    status: null, // gap: backend tak hitung mutu per-unsur, hanya per-survei
+    trend: null, // gap: butuh data historis, lihat catatan di atas
+  }));
+}
