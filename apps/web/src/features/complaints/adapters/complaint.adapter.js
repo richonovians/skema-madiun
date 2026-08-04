@@ -34,6 +34,14 @@ export function adaptComplaint(complaint) {
     reporter: {
       name: complaint.reporterNama ?? null,
       initials: complaint.reporterNama ? getInitials(complaint.reporterNama) : '',
+      // nik/phone/address (dipakai ComplaintReporterProfile.jsx, halaman detail
+      // Admin OPD, INT-20): TIDAK ADA sumbernya di backend -- RespondentProfile
+      // sengaja cuma demografis IKM, bukan identitas pribadi (lihat gap sama
+      // di me.adapter.js, INT-16). Eksplisit null, bukan dikarang; komponen
+      // menampilkan '-' untuk field ini.
+      nik: null,
+      phone: null,
+      address: null,
     },
     title: complaint.judul,
     description: complaint.uraian,

@@ -22,7 +22,7 @@ export default function ComplaintReporterProfile({ reporter }) {
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Nama Lengkap</span>
-            <span className="text-sm font-semibold text-slate-800">{reporter.name}</span>
+            <span className="text-sm font-semibold text-slate-800">{reporter.name ?? '-'}</span>
           </div>
         </div>
 
@@ -32,7 +32,7 @@ export default function ComplaintReporterProfile({ reporter }) {
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">NIK</span>
-            <span className="text-sm font-mono font-medium text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">{reporter.nik}</span>
+            <span className="text-sm font-mono font-medium text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">{reporter.nik ?? '-'}</span>
           </div>
         </div>
 
@@ -42,7 +42,7 @@ export default function ComplaintReporterProfile({ reporter }) {
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">No. Telepon</span>
-            <span className="text-sm font-medium text-slate-700">{reporter.phone}</span>
+            <span className="text-sm font-medium text-slate-700">{reporter.phone ?? '-'}</span>
           </div>
         </div>
 
@@ -52,7 +52,7 @@ export default function ComplaintReporterProfile({ reporter }) {
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Alamat</span>
-            <span className="text-sm font-medium text-slate-700 leading-relaxed">{reporter.address}</span>
+            <span className="text-sm font-medium text-slate-700 leading-relaxed">{reporter.address ?? '-'}</span>
           </div>
         </div>
       </div>

@@ -1,53 +1,66 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ComplaintListHeader from '@/features/complaints/components/ComplaintListHeader';
 import ComplaintListFilter from '@/features/complaints/components/ComplaintListFilter';
 import AdminComplaintTable from '@/features/complaints/components/AdminComplaintTable';
 import Pagination from '@/components/ui/Pagination';
-import { dummyComplaints } from '@/features/complaints/constants/dummyComplaints';
-import { Loader2 } from 'lucide-react';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+import { useAsync } from '@/hooks/useAsync';
+import { getComplaints } from '@/features/complaints/services/complaints.api';
+
+const ITEMS_PER_PAGE = 5;
+// Backend TIDAK punya parameter pencarian bebas teks (lihat ListComplaintQueryDto
+// -- cuma page/limit/status), jadi ambil satu halaman besar (maks limit backend)
+// lalu search+paginasi dikerjakan di klien. Pola sama dgn INT-19 (getSurveys),
+// aman untuk skala data OPD saat ini -- kalau volume tumbuh jauh lebih besar,
+// ini kandidat kuat utk endpoint search sungguhan di backend.
+const FETCH_LIMIT = 100;
+
+function downloadBlob(content, mimeType, filename) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export default function AdminOPDComplaintsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('Semua Status');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const itemsPerPage = 5; // Reduced to 5 to demonstrate pagination with 14 items
 
-  // Simulate loading state on filter change
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery, statusFilter, currentPage]);
+  const fetchComplaints = useCallback(() => getComplaints({ limit: FETCH_LIMIT }), []);
+  const { data: response, isLoading, error, refetch } = useAsync(fetchComplaints);
 
   const filteredComplaints = useMemo(() => {
-    return dummyComplaints.filter((complaint) => {
-      const matchSearch = 
-        complaint.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        complaint.reporter.name.toLowerCase().includes(searchQuery.toLowerCase());
-      
+    const q = searchQuery.toLowerCase();
+    return (response?.data ?? []).filter((complaint) => {
+      const matchSearch =
+        complaint.id.toLowerCase().includes(q) ||
+        complaint.title.toLowerCase().includes(q) ||
+        (complaint.reporter.name ?? '').toLowerCase().includes(q);
       const matchStatus = statusFilter === 'Semua Status' || complaint.status === statusFilter;
-      
       return matchSearch && matchStatus;
     });
-  }, [searchQuery, statusFilter]);
+  }, [response, searchQuery, statusFilter]);
 
   const totalItems = filteredComplaints.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+
   const paginatedComplaints = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredComplaints.slice(start, start + itemsPerPage);
-  }, [filteredComplaints, currentPage, itemsPerPage]);
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredComplaints.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredComplaints, currentPage]);
 
   const handleSearchChange = (val) => {
     setSearchQuery(val);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1);
   };
 
   const handleStatusChange = (val) => {
@@ -56,39 +69,42 @@ export default function AdminOPDComplaintsPage() {
   };
 
   const handleExportExcel = () => {
-    // Generate dummy CSV data
-    const csvContent = "ID Pengaduan,Judul,Pelapor,Status,Tanggal\nCOMP-001,Jalan Berlubang di Sudirman,Budi Santoso,Diproses,2026-08-01\nCOMP-002,Pelayanan KTP Lambat,Siti Aminah,Selesai,2026-08-02";
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'Data_Pengaduan.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const header = 'ID Pengaduan,Judul,Pelapor,Status,Tanggal';
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = filteredComplaints.map((c) =>
+      [c.id, c.title, c.reporter.name, c.status, c.dateStr].map(escape).join(','),
+    );
+    downloadBlob([header, ...rows].join('\n'), 'text/csv;charset=utf-8;', 'Data_Pengaduan.csv');
   };
 
   const handleExportPDF = () => {
-    // Generate dummy Text file as placeholder for PDF
-    const textContent = "LAPORAN PENGADUAN MASYARAKAT\n\n1. COMP-001 - Jalan Berlubang (Diproses)\n2. COMP-002 - Pelayanan KTP (Selesai)\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau backend. Ini adalah simulasi ekspor teks.";
-    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'Data_Pengaduan.txt');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const lines = filteredComplaints.map(
+      (c, i) => `${i + 1}. ${c.id} - ${c.title} (${c.status})`,
+    );
+    const textContent = `LAPORAN PENGADUAN MASYARAKAT\n\n${lines.join('\n')}\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau backend. Ini adalah simulasi ekspor teks.`;
+    downloadBlob(textContent, 'text/plain;charset=utf-8;', 'Data_Pengaduan.txt');
   };
+
+  if (isLoading) {
+    return <LoadingState label="Memuat data pengaduan..." />;
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        title="Gagal memuat pengaduan"
+        description={error.message}
+        onRetry={refetch}
+      />
+    );
+  }
 
   return (
     <div className="w-full space-y-6">
-      <ComplaintListHeader 
-        totalComplaints={dummyComplaints.length}
-      />
-      
+      <ComplaintListHeader totalComplaints={totalItems} />
+
       <div className="bg-surface rounded-xl shadow-2xl border border-outline-variant overflow-hidden">
-        <ComplaintListFilter 
+        <ComplaintListFilter
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
           statusFilter={statusFilter}
@@ -96,25 +112,16 @@ export default function AdminOPDComplaintsPage() {
           onExportExcel={handleExportExcel}
           onExportPDF={handleExportPDF}
         />
-        
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24 text-text-secondary">
-            <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
-            <p className="font-body-md">Memuat data pengaduan...</p>
-          </div>
-        ) : (
-          <>
-            <AdminComplaintTable complaints={paginatedComplaints} />
-            
-            <Pagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-            />
-          </>
-        )}
+
+        <AdminComplaintTable complaints={paginatedComplaints} />
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

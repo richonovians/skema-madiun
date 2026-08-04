@@ -130,11 +130,18 @@ export class ComplaintsService {
    * Detail & lacak status via nomor tiket (identifier publik). Sertakan
    * `opdNama` (INT-18) -- halaman detail pengaduan responden perlu tahu
    * "ditujukan ke OPD mana", sebelumnya endpoint ini tak sertakan sama sekali.
+   * Sertakan juga `reporterNama` (INT-20) -- halaman detail Admin OPD perlu
+   * profil pelapor, endpoint ini sebelumnya cuma include `opd`, bukan `user`,
+   * jadi reporterNama selalu kosong meski findAll sudah menyertakannya.
    */
   async findByTicketNo(ticketNo: string, user: CurrentUser): Promise<ComplaintEntity> {
     const complaint = await this.prisma.complaint.findUnique({
       where: { ticketNo },
-      include: { attachments: true, opd: { select: { nama: true } } },
+      include: {
+        attachments: true,
+        user: { select: { nama: true } },
+        opd: { select: { nama: true } },
+      },
     });
     if (!complaint) {
       throw new NotFoundException(`Pengaduan dengan nomor tiket ${ticketNo} tidak ditemukan`);

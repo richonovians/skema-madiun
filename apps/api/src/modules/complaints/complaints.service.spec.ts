@@ -245,19 +245,25 @@ describe('ComplaintsService', () => {
       expect(result.id).toBe(1);
     });
 
-    it('(INT-18) menyertakan include opd & menyisipkan opdNama, tanpa membocorkan objek opd mentah', async () => {
+    it('(INT-18/INT-20) menyertakan include user+opd & menyisipkan reporterNama+opdNama, tanpa membocorkan objek mentah', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
-        complaintRow({ opd: { nama: 'Dinas Kesehatan' } }),
+        complaintRow({ user: { nama: 'Warga Contoh' }, opd: { nama: 'Dinas Kesehatan' } }),
       );
 
       const result = await service.findByTicketNo('PGDX', kabupatenUser());
 
       expect(prisma.complaint.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          include: { attachments: true, opd: { select: { nama: true } } },
+          include: {
+            attachments: true,
+            user: { select: { nama: true } },
+            opd: { select: { nama: true } },
+          },
         }),
       );
+      expect(result.reporterNama).toBe('Warga Contoh');
       expect(result.opdNama).toBe('Dinas Kesehatan');
+      expect((result as unknown as { user?: unknown }).user).toBeUndefined();
       expect((result as unknown as { opd?: unknown }).opd).toBeUndefined();
     });
   });
