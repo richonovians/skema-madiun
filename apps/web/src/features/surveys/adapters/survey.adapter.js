@@ -131,3 +131,65 @@ export function toSubmitAnswers(questions, answers) {
       return { questionId: q.id, teks: String(raw) };
     });
 }
+
+// --- Builder pertanyaan (admin OPD, INT-19) ---
+// Label tipe di builder pakai Bahasa Indonesia penuh (beda dari label wizard
+// pengisian yg pakai kode singkat spt 'scale_1_to_4', lihat adaptFillQuestion).
+
+const QUESTION_TYPE_TO_BUILDER = {
+  skala: 'Skala Penilaian 1-4',
+  teks: 'Isian Teks',
+  pilihan: 'Pilihan Ganda',
+};
+
+const QUESTION_TYPE_TO_BACKEND_TIPE = {
+  'Skala Penilaian 1-4': 'skala',
+  'Isian Teks': 'teks',
+  'Pilihan Ganda': 'pilihan',
+};
+
+export function builderTypeToBackendTipe(type) {
+  return QUESTION_TYPE_TO_BACKEND_TIPE[type] ?? type;
+}
+
+/**
+ * Terjemahkan QuestionEntity backend -> bentuk builder (lihat QuestionBlock.jsx).
+ * `title` pertanyaan kustom TIDAK PERNAH tersimpan backend (Question cuma py
+ * `teks`, tak ada label terpisah) -- diregenerasi client-side per posisi
+ * (`customIndex`) tiap kali dimuat, murni kosmetik, bukan identitas asli.
+ *
+ * `isRequired` DIDERIVASI dari tipe (bukan dikarang/preferensi tersimpan) --
+ * backend TAK PUNYA flag wajib per-pertanyaan terpisah; ResponsesService.
+ * validateAnswers menegakkan skala/pilihan SELALU wajib, teks SELALU
+ * opsional. Makanya toggle "Wajib Diisi" di UI read-only, bukan interaktif.
+ */
+export function adaptBuilderQuestion(q, customIndex) {
+  const isBaku = q.isIkmUnsur === true;
+  return {
+    id: q.id,
+    isBaku,
+    title: isBaku ? `${q.kodeUnsur}: ${q.teks}` : `Pertanyaan Kustom #${customIndex}`,
+    text: q.teks,
+    type: QUESTION_TYPE_TO_BUILDER[q.tipe] ?? q.tipe,
+    isRequired: q.tipe !== 'teks',
+  };
+}
+
+export function adaptBuilderQuestions(questions) {
+  let customCounter = 0;
+  return questions.map((q) => {
+    if (q.isIkmUnsur !== true) customCounter += 1;
+    return adaptBuilderQuestion(q, customCounter);
+  });
+}
+
+/**
+ * Terjemahkan payload tambah-pertanyaan-kustom (bentuk builder) -> CreateQuestionDto.
+ * CATATAN GAP: tipe 'Pilihan Ganda' butuh `options` (wajib >=2 di backend),
+ * TAPI builder saat ini TAK PUNYA UI pengaturan opsi sama sekali -- caller
+ * (page.jsx) sengaja TIDAK memanggil ini utk tipe pilihan, biar tak coba
+ * kirim payload yg pasti 400. Lihat catatan di page.jsx.
+ */
+export function toCreateQuestionPayload({ text, type }) {
+  return { teks: text, tipe: builderTypeToBackendTipe(type), isIkmUnsur: false };
+}

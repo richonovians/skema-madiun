@@ -2,7 +2,7 @@ import React from 'react';
 import QuestionBlock from './QuestionBlock';
 import { Plus } from 'lucide-react';
 
-export default function BuilderCanvas({ questions, onDelete, onUpdate, onAdd }) {
+export default function BuilderCanvas({ questions, onDelete, onUpdate, onTextCommit, onAdd, title, periode }) {
   return (
     <main className="flex-1 bg-slate-50 relative overflow-y-auto" style={{
       backgroundSize: '24px 24px',
@@ -11,18 +11,21 @@ export default function BuilderCanvas({ questions, onDelete, onUpdate, onAdd }) 
       <div className="max-w-4xl mx-auto py-3xl px-lg flex flex-col">
         {/* Welcome/Header Card */}
         <div className="bg-white border border-border rounded-xl p-2xl shadow-sm text-center mb-xl">
-          <h2 className="font-headline-lg text-headline-lg mb-xs">Kuesioner Kepuasan Layanan</h2>
-          <p className="text-text-secondary font-body-md text-body-md">Dinas Kesehatan Kabupaten Madiun - Periode Triwulan III 2024</p>
+          <h2 className="font-headline-lg text-headline-lg mb-xs">{title || 'Kuesioner Kepuasan Layanan'}</h2>
+          <p className="text-text-secondary font-body-md text-body-md">
+            {periode ? `Periode ${periode}` : 'Periode belum diatur'}
+          </p>
         </div>
 
         {/* Questions List */}
         <div className="flex flex-col">
           {questions.map((q) => (
-            <QuestionBlock 
-              key={q.id} 
-              question={q} 
+            <QuestionBlock
+              key={q.id}
+              question={q}
               onDelete={onDelete}
               onUpdate={onUpdate}
+              onTextCommit={onTextCommit}
             />
           ))}
         </div>

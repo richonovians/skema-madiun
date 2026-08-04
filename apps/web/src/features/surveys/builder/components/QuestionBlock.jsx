@@ -1,7 +1,7 @@
 import React from 'react';
 import { Lock, GripVertical, Trash2, Copy, Settings } from 'lucide-react';
 
-export default function QuestionBlock({ question, onDelete, onUpdate }) {
+export default function QuestionBlock({ question, onDelete, onUpdate, onTextCommit }) {
   const isBaku = question.isBaku;
 
   if (isBaku) {
@@ -54,62 +54,44 @@ export default function QuestionBlock({ question, onDelete, onUpdate }) {
       <div className="flex justify-between items-start mb-md">
         <div className="flex-1 mr-xl">
           <label className="block text-xs font-bold text-primary mb-xs uppercase">{question.title}</label>
-          <input 
-            className="w-full text-headline-md font-headline-md border-none focus:ring-0 p-0 text-text-primary" 
-            placeholder="Tulis pertanyaan di sini..." 
-            type="text" 
+          <input
+            className="w-full text-headline-md font-headline-md border-none focus:ring-0 p-0 text-text-primary"
+            placeholder="Tulis pertanyaan di sini..."
+            type="text"
             value={question.text}
             onChange={(e) => onUpdate(question.id, { text: e.target.value })}
+            onBlur={(e) => onTextCommit && onTextCommit(question.id, e.target.value)}
           />
         </div>
-        <button 
+        <button
           onClick={() => onDelete(question.id)}
-          className="text-error hover:bg-error-container p-sm rounded-lg transition-colors" 
+          className="text-error hover:bg-error-container p-sm rounded-lg transition-colors"
           title="Hapus Pertanyaan"
         >
           <Trash2 size={20} />
         </button>
       </div>
-      
-      <div className="grid grid-cols-2 gap-lg mb-xl">
-        <div className="flex flex-col gap-xs">
+
+      <div className="mb-xl">
+        <div className="flex flex-col gap-xs max-w-[240px]">
+          {/* Tipe HANYA bisa dipilih saat menambah (lihat BuilderSidebar.jsx) --
+              backend (UpdateQuestionDto) tak dukung ubah tipe pertanyaan yang
+              sudah dibuat, jadi read-only di sini, bukan interaktif semu. */}
           <label className="text-[10px] font-bold text-text-secondary uppercase">Tipe Input</label>
-          <select 
-            className="w-full rounded-lg border-border focus:border-primary focus:ring-primary-container/20 font-label-md text-label-md py-sm"
-            value={question.type}
-            onChange={(e) => onUpdate(question.id, { type: e.target.value })}
-          >
-            <option value="Skala Penilaian 1-4">Skala Penilaian 1-4</option>
-            <option value="Pilihan Ganda">Pilihan Ganda</option>
-            <option value="Isian Teks">Isian Teks</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-xs">
-          <label className="text-[10px] font-bold text-text-secondary uppercase">Label Pilihan</label>
-          <div className="flex items-center gap-sm mt-1">
-            <div className="flex-1 h-2 bg-surface-container rounded-full overflow-hidden flex">
-              <div className="h-full bg-error w-1/4"></div>
-              <div className="h-full bg-tertiary w-1/4"></div>
-              <div className="h-full bg-primary-fixed-dim w-1/4"></div>
-              <div className="h-full bg-primary w-1/4"></div>
-            </div>
-            <span className="text-xs font-medium text-text-secondary">4 Opsi</span>
+          <div className="w-full rounded-lg border border-border bg-surface-container-low font-label-md text-label-md py-sm px-sm text-text-secondary">
+            {question.type}
           </div>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between pt-md border-t border-border">
         <div className="flex items-center gap-md">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input 
-              type="checkbox" 
-              className="sr-only peer" 
-              checked={question.isRequired}
-              onChange={(e) => onUpdate(question.id, { isRequired: e.target.checked })}
-            />
-            <div className="w-9 h-5 bg-surface-container peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-            <span className="ms-3 text-xs font-medium text-text-secondary">Wajib Diisi</span>
-          </label>
+          {/* Wajib-diisi DIDERIVASI dari tipe (skala/pilihan selalu wajib, teks
+              selalu opsional) -- backend tak punya flag terpisah yg bisa
+              diubah per pertanyaan, jadi read-only, bukan toggle sungguhan. */}
+          <span className="text-xs font-medium text-text-secondary">
+            {question.isRequired ? '✓ Wajib diisi' : 'Opsional (isian teks)'}
+          </span>
         </div>
         <div className="flex gap-sm">
           <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-primary transition-colors">
