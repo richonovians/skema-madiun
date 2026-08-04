@@ -2,18 +2,22 @@ import React from 'react';
 import { Info, KeyRound, Shield } from 'lucide-react';
 import Card from '@/components/ui/Card';
 
+// "Kata sandi awal dikirim via email" (versi lama) DIHAPUS -- sistem ini
+// TIDAK PERNAH mengelola kata sandi sama sekali (login lewat SSO Helpdesk,
+// keputusan arsitektur terkunci; dev-login jadi jalur sementara sebelum SSO
+// aktif). Klaim lama menjanjikan alur yang tak pernah ada.
 const NOTICE_ITEMS = [
   {
     icon: KeyRound,
     title: 'Mekanisme Login',
     description:
-      'Akun administrator menggunakan email sebagai identitas login. Kata sandi awal akan dikirimkan ke alamat email yang didaftarkan.',
+      'Akun administrator login melalui SSO Helpdesk Diskominfo menggunakan email yang didaftarkan -- sistem ini tidak mengelola kata sandi terpisah.',
   },
   {
     icon: Shield,
     title: 'Keamanan Akses',
     description:
-      'Setiap sesi administrator akan diverifikasi melalui token JWT. Token akan kedaluwarsa secara otomatis sesuai kebijakan sistem.',
+      'Setiap sesi administrator diverifikasi melalui token sesi (JWT). Token akan kedaluwarsa secara otomatis sesuai kebijakan sistem.',
   },
 ];
 

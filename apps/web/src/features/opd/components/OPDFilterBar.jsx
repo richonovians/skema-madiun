@@ -1,28 +1,25 @@
-import React, { useState } from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import React from 'react';
+import { Search } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
 
-export default function OPDFilterBar({ searchQuery, setSearchQuery, selectedService, setSelectedService }) {
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      await fetch('/opd/sync', { method: 'POST' });
-    } catch (error) {
-      console.error('Error syncing:', error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const serviceOptions = [
-    { value: '', label: 'Semua Jenis Layanan' },
-    { value: 'kesehatan', label: 'Kesehatan' },
-    { value: 'pendidikan', label: 'Pendidikan' },
-    { value: 'umum', label: 'Layanan Umum' }
-  ];
-
+/**
+ * `serviceOptions` datang dari page.jsx, DIDERIVASI dari nilai `jenisLayanan`
+ * yang sungguhan ada di data OPD ter-fetch -- backend TIDAK punya enum tetap
+ * utk field ini (VarChar bebas dari Helpdesk, lihat StubOpdSource), jadi 3
+ * opsi hardcode ('kesehatan'/'pendidikan'/'umum') versi dummy lama tak pernah
+ * cocok dgn nilai asli ('Kesehatan', 'Administrasi Kependudukan', dst).
+ *
+ * Tombol sync duplikat (sebelumnya di sini, `fetch('/opd/sync')` relatif ke
+ * origin FRONTEND sendiri -- selalu 404, tak pernah benar2 memanggil backend)
+ * DIHAPUS -- satu-satunya aksi sync sungguhan sekarang di OPDHeader.jsx.
+ */
+export default function OPDFilterBar({
+  searchQuery,
+  setSearchQuery,
+  selectedService,
+  setSelectedService,
+  serviceOptions,
+}) {
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border mb-lg p-md flex flex-wrap items-center gap-4">
       <div className="flex-1 relative w-full min-w-0 md:min-w-[300px]">
@@ -36,20 +33,12 @@ export default function OPDFilterBar({ searchQuery, setSearchQuery, selectedServ
         />
       </div>
       <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-        <Dropdown 
+        <Dropdown
           options={serviceOptions}
           value={selectedService}
           onChange={setSelectedService}
           variant="default"
         />
-        <button 
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="text-primary font-semibold text-sm px-3 py-2 hover:bg-primary-fixed-dim rounded-lg transition-colors flex items-center gap-2"
-        >
-          <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-          Perbarui
-        </button>
       </div>
     </div>
   );

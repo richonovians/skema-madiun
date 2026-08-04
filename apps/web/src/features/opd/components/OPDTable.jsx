@@ -1,66 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import Badge from '@/components/ui/Badge';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
-import { ChevronDown } from 'lucide-react';
+import { formatDateId } from '@/utils/format';
 
-const ActionMenu = ({ item, onUpdateStatus }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button 
-        className="flex items-center gap-1 text-primary hover:underline font-semibold text-sm"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        Edit
-        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-border overflow-hidden z-50">
-          <ul className="py-1">
-            <li>
-              {item.status === 'ACTIVE' ? (
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-surface-container"
-                  onClick={() => {
-                    onUpdateStatus?.(item.id, 'INACTIVE');
-                    setIsOpen(false);
-                  }}
-                >
-                  Nonaktifkan
-                </button>
-              ) : (
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-surface-container"
-                  onClick={() => {
-                    onUpdateStatus?.(item.id, 'ACTIVE');
-                    setIsOpen(false);
-                  }}
-                >
-                  Aktifkan
-                </button>
-              )}
-            </li>
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default function OPDTable({ data, onUpdateStatus, pagination }) {
-  
+/**
+ * `TINDAKAN` (menu Aktifkan/Nonaktifkan) DIHAPUS -- backend TAK PUNYA endpoint
+ * mutasi status OPD sama sekali (cuma `GET /opd` & `POST /opd/sync`, lihat D10).
+ * Isian sebelumnya 100% dummy, tak pernah terhubung apa pun. Diganti kolom
+ * `TERAKHIR DISINKRON` (`syncedAt`, field asli yg sebelumnya tak ditampilkan
+ * sama sekali) -- info nyata yg berguna menggantikan aksi karangan.
+ */
+export default function OPDTable({ data, pagination }) {
   const getStatusVariant = (status) => {
     switch (status) {
       case 'ACTIVE':
@@ -94,7 +44,7 @@ export default function OPDTable({ data, onUpdateStatus, pagination }) {
             <Th>JENIS LAYANAN</Th>
             <Th>AKTIVITAS SISTEM</Th>
             <Th>STATUS</Th>
-            <Th>TINDAKAN</Th>
+            <Th>TERAKHIR DISINKRON</Th>
           </Tr>
         </Thead>
         <Tbody>
@@ -104,8 +54,11 @@ export default function OPDTable({ data, onUpdateStatus, pagination }) {
                 {item.code}
               </Td>
               <Td>
+                {/* Alamat DIHAPUS dari tampilan (bukan disembunyikan diam-diam)
+                    -- backend tak punya kolom ini, OPD cache read-only dari
+                    Helpdesk (D7): menambah kolom lokal berarti data itu tak
+                    akan pernah tersinkronisasi. */}
                 <div className="font-bold text-text-primary">{item.name}</div>
-                <div className="text-xs text-text-secondary">{item.address}</div>
               </Td>
               <Td className="text-on-surface-variant font-body-md text-body-md">
                 {item.serviceType}
@@ -113,7 +66,7 @@ export default function OPDTable({ data, onUpdateStatus, pagination }) {
               <Td>
                 <div className="flex items-center gap-2 text-sm text-on-surface-variant">
                   <span className={`flex items-center gap-1 font-semibold ${item.activeSurveys > 0 ? 'text-primary' : 'text-outline'}`}>
-                    <span className={`w-2 h-2 rounded-full ${item.activeSurveys > 0 ? 'bg-primary' : 'bg-outline'}`}></span> 
+                    <span className={`w-2 h-2 rounded-full ${item.activeSurveys > 0 ? 'bg-primary' : 'bg-outline'}`}></span>
                     {item.activeSurveys} Survei Aktif
                   </span>
                   <span className="text-border">|</span>
@@ -127,8 +80,8 @@ export default function OPDTable({ data, onUpdateStatus, pagination }) {
                   {getStatusLabel(item.status)}
                 </Badge>
               </Td>
-              <Td>
-                <ActionMenu item={item} onUpdateStatus={onUpdateStatus} />
+              <Td className="text-on-surface-variant font-body-md text-body-md whitespace-nowrap">
+                {item.syncedAt ? formatDateId(item.syncedAt) : 'Belum pernah'}
               </Td>
             </Tr>
           ))}

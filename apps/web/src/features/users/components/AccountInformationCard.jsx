@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Mail, Phone } from 'lucide-react';
+import { User, Mail } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 
@@ -57,25 +57,9 @@ export default function AccountInformationCard({ formData, onChange, errors }) {
             </p>
           )}
         </div>
-
-        {/* Nomor Telepon */}
-        <div className="space-y-xs">
-          <Input
-            id="phone"
-            type="tel"
-            label="NOMOR TELEPON"
-            placeholder="Contoh: 08123456789"
-            leftIcon={<Phone size={16} />}
-            value={formData.phone}
-            onChange={onChange}
-          />
-          {errors.phone && (
-            <p className="text-xs text-error flex items-center gap-1 mt-1">
-              <span className="inline-block w-3.5 h-3.5 rounded-full bg-error/10 text-error flex items-center justify-center text-[10px] font-bold flex-shrink-0">!</span>
-              {errors.phone}
-            </p>
-          )}
-        </div>
+        {/* Nomor Telepon DIHAPUS -- skema User backend tak punya kolom ini
+            sama sekali (CreateUserDto: nama/email/role/opdId saja), mengisinya
+            hanya menyesatkan admin krn nilainya tak pernah tersimpan. */}
       </div>
     </Card>
   );
