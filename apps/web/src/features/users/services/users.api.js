@@ -1,44 +1,56 @@
 import api from '@/services/api';
+import { adaptUser, adaptUserList, toCreateUserPayload, toUpdateUserPayload } from '../adapters/user.adapter';
 
 /**
  * Membuat akun administrator baru.
- *
- * Payload yang diharapkan backend (POST /users):
- * {
- *   fullName: string,
- *   email: string,
- *   phone: string,
- *   role: 'ADMIN_KABUPATEN' | 'ADMIN_OPD',
- *   opdId: number | null,   // wajib jika role === 'ADMIN_OPD'
- *   isActive: boolean,
- * }
- *
- * @param {Object} payload
- * @returns {Promise<Object>} Data user yang baru dibuat
+ * @param {{fullName: string, email: string, role: string, opdId?: number}} payload
+ *   role pakai nilai frontend (USER_ROLES.ADMIN_OPD dkk) -- diterjemahkan ke
+ *   backend ('opd'/'kabupaten'/dst) oleh toCreateUserPayload.
+ * @returns {Promise<Object>} User (bentuk frontend, lihat user.adapter.js)
  */
 export async function createUser(payload) {
-  const response = await api.post('/users', payload);
-  return response.data;
+  const response = await api.post('/users', toCreateUserPayload(payload));
+  return adaptUser(response.data);
 }
 
 /**
  * Mengambil daftar pengguna dengan filter opsional.
- *
- * @param {Object} params - Query params (role, status, page, limit, dll)
- * @returns {Promise<{ data: Array, meta: Object }>}
+ * @param {{role?: string, opdId?: number, page?: number, limit?: number}} params
+ * @returns {Promise<{data: Array, meta: Object}>}
  */
 export async function getUsers(params = {}) {
   const response = await api.get('/users', { params });
-  return { data: response.data, meta: response.meta };
+  return { data: adaptUserList(response.data), meta: response.meta };
 }
 
 /**
  * Mengambil detail satu pengguna berdasarkan ID.
- *
  * @param {number|string} userId
  * @returns {Promise<Object>}
  */
 export async function getUserById(userId) {
   const response = await api.get(`/users/${userId}`);
-  return response.data;
+  return adaptUser(response.data);
+}
+
+/**
+ * Mengubah nama/OPD tautan akun.
+ * @param {number|string} userId
+ * @param {{fullName?: string, opdId?: number}} payload
+ * @returns {Promise<Object>}
+ */
+export async function updateUser(userId, payload) {
+  const response = await api.patch(`/users/${userId}`, toUpdateUserPayload(payload));
+  return adaptUser(response.data);
+}
+
+/**
+ * Aktifkan/nonaktifkan akun.
+ * @param {number|string} userId
+ * @param {boolean} isActive
+ * @returns {Promise<Object>}
+ */
+export async function updateUserStatus(userId, isActive) {
+  const response = await api.patch(`/users/${userId}/status`, { isActive });
+  return adaptUser(response.data);
 }
