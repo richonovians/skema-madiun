@@ -49,3 +49,31 @@ export function adaptIkmServiceElements(nrrPerUnsur) {
     trend: null, // gap: butuh data historis, lihat catatan di atas
   }));
 }
+
+/**
+ * Terjemahkan IkmDashboardItemEntity (GET /dashboard/ikm, Admin Kabupaten) ke
+ * bentuk yang dipakai IkmLeaderboard.jsx (opdId/opdName/ikmScore).
+ */
+export function adaptIkmDashboardItem(item) {
+  return {
+    peringkat: item.peringkat,
+    opdId: item.opdId,
+    opdName: item.opdNama,
+    jenisLayanan: item.jenisLayanan,
+    surveyId: item.surveyId,
+    judul: item.judul,
+    periode: item.periode,
+    ikmScore: item.nilaiIkm,
+    mutu: item.mutu,
+    jumlahResponden: item.jumlahResponden,
+  };
+}
+
+export function adaptIkmDashboard(dashboard) {
+  return {
+    items: dashboard.items.map(adaptIkmDashboardItem),
+    rataRataIkm: dashboard.rataRataIkm,
+    totalOpd: dashboard.totalOpd,
+    totalResponden: dashboard.totalResponden,
+  };
+}
