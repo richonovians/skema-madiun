@@ -29,7 +29,7 @@ describe('Questions (e2e)', () => {
     });
     opdId = opd.id;
     const survey = await prisma.survey.create({
-      data: { opdId, judul: 'Survei Pertanyaan', periode: '2026' },
+      data: { opdId, judul: 'Survei Pertanyaan', periode: '2026-Q1' },
     });
     surveyId = survey.id;
   }, 60000);
@@ -157,7 +157,7 @@ describe('Questions (e2e)', () => {
 
   it('POST question pada survei aktif -> 400 (bukan draft)', async () => {
     const aktif = await prisma.survey.create({
-      data: { opdId, judul: 'Survei Aktif', periode: '2026', status: 'aktif' },
+      data: { opdId, judul: 'Survei Aktif', periode: '2026-Q1', status: 'aktif' },
     });
     const res = await request(app.getHttpServer())
       .post(`/api/v1/surveys/${aktif.id}/questions`)

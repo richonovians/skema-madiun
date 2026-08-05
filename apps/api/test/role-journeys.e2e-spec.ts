@@ -142,7 +142,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/surveys')
         .set(opdHeaders())
-        .send({ judul: 'Survei Journey E2E', periode: '2026' });
+        .send({ judul: 'Survei Journey E2E', periode: '2026-Q1' });
 
       expect(res.status).toBe(201);
       expect(res.body.data.status).toBe('draft');
@@ -343,7 +343,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       expect(res.body.data.status).toBe('ditutup');
 
       const snapshot = await prisma.ikmResult.findUnique({
-        where: { surveyId_periode: { surveyId, periode: '2026' } },
+        where: { surveyId_periode: { surveyId, periode: '2026-Q1' } },
       });
       expect(snapshot).not.toBeNull();
       expect(Number(snapshot?.nilaiIkm)).toBe(75);

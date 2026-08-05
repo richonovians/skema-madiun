@@ -4,6 +4,7 @@ import Badge from '@/components/ui/Badge';
 import Switch from '@/components/ui/Switch';
 import AdminSurveyCardStats from './AdminSurveyCardStats';
 import AdminSurveyCardActions from './AdminSurveyCardActions';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 export default function AdminSurveyCard({ survey, onTogglePeriod, onDuplicate, onDelete }) {
   const { id, title, status, period, respondentsCount, ikmScore } = survey;
@@ -31,7 +32,7 @@ export default function AdminSurveyCard({ survey, onTogglePeriod, onDuplicate, o
             variant="default" 
             className={`px-sm py-[2px] text-[10px] uppercase rounded ${isDraft ? 'bg-surface-container-low text-on-surface-variant/40 italic' : ''}`}
           >
-            PERIODE: {period}
+            PERIODE: {formatPeriodeLabel(period)}
           </Badge>
         </div>
         

@@ -1,6 +1,7 @@
 import React from 'react';
 import QuestionBlock from './QuestionBlock';
 import { Plus } from 'lucide-react';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 export default function BuilderCanvas({ questions, onDelete, onUpdate, onTextCommit, onAdd, title, periode }) {
   return (
@@ -13,7 +14,7 @@ export default function BuilderCanvas({ questions, onDelete, onUpdate, onTextCom
         <div className="bg-white border border-border rounded-xl p-2xl shadow-sm text-center mb-xl">
           <h2 className="font-headline-lg text-headline-lg mb-xs">{title || 'Kuesioner Kepuasan Layanan'}</h2>
           <p className="text-text-secondary font-body-md text-body-md">
-            {periode ? `Periode ${periode}` : 'Periode belum diatur'}
+            {periode ? `Periode ${formatPeriodeLabel(periode)}` : 'Periode belum diatur'}
           </p>
         </div>
 

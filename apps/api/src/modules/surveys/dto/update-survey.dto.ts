@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { PERIODE_REGEX } from '../utils/periode.util';
 
 export class UpdateSurveyDto {
   @ApiPropertyOptional({ maxLength: 100 })
@@ -9,11 +10,10 @@ export class UpdateSurveyDto {
   @MaxLength(100)
   judul?: string;
 
-  @ApiPropertyOptional({ maxLength: 20 })
+  @ApiPropertyOptional({ maxLength: 20, example: '2026-Q1' })
   @IsOptional()
   @IsString()
-  @MinLength(1)
-  @MaxLength(20)
+  @Matches(PERIODE_REGEX, { message: 'periode harus berformat {tahun}-Q{1-4}, mis. "2026-Q1"' })
   periode?: string;
 
   @ApiPropertyOptional()

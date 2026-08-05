@@ -67,7 +67,7 @@ describe('Responses (e2e)', () => {
       data: {
         opdId,
         judul: 'Survei Aktif E2E',
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -86,7 +86,7 @@ describe('Responses (e2e)', () => {
       data: {
         opdId,
         judul: 'Survei Multi E2E',
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.aktif,
         allowMultipleSubmit: true,
         questions: { create: [{ teks: 'Nilai', tipe: QuestionType.skala, urutan: 1 }] },
@@ -95,7 +95,7 @@ describe('Responses (e2e)', () => {
     multiSurveyId = multi.id;
 
     const draft = await prisma.survey.create({
-      data: { opdId, judul: 'Draft E2E', periode: '2026', status: SurveyStatus.draft },
+      data: { opdId, judul: 'Draft E2E', periode: '2026-Q1', status: SurveyStatus.draft },
     });
     draftSurveyId = draft.id;
 
@@ -103,7 +103,7 @@ describe('Responses (e2e)', () => {
       data: {
         opdId,
         judul: 'Survei Pilihan E2E',
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -162,7 +162,7 @@ describe('Responses (e2e)', () => {
       data: {
         opdId: otherOpd.id,
         judul: 'Survei Aktif OPD Lain',
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.aktif,
       },
     });

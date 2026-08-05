@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { TrendingUp, Verified, History } from 'lucide-react';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 /**
  * Hasil IKM sungguhan per survei (GET /surveys/:id/results, INT-21) -- props
@@ -11,7 +12,8 @@ import { TrendingUp, Verified, History } from 'lucide-react';
  * CATATAN GAP (lihat komentar ikm.adapter.js): trend IKM, status/trend per
  * unsur, distribusi skor per unsur, dan tren tahunan multi-periode SEMUA
  * butuh data historis lintas periode yang belum dibangun backend (Fase 3,
- * INT-15, terblokir keputusan D5) -- field terkait bernilai `null` dan
+ * INT-15 -- D5 SUDAH terjawab 2026-08-05/granularitas triwulan, tapi endpoint
+ * agregasinya sendiri belum dibangun) -- field terkait bernilai `null` dan
  * ditampilkan sebagai gap eksplisit di bawah, bukan dikarang.
  */
 export default function SkmAnalysisView({
@@ -26,7 +28,7 @@ export default function SkmAnalysisView({
     <section className="space-y-xl animate-in fade-in duration-500">
       {periode && (
         <p className="text-label-md text-secondary">
-          Periode: <span className="font-bold text-on-surface">{periode}</span>
+          Periode: <span className="font-bold text-on-surface">{formatPeriodeLabel(periode)}</span>
         </p>
       )}
 
