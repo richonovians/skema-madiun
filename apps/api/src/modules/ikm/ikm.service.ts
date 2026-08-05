@@ -128,9 +128,14 @@ export class IkmService {
   }
 
   /**
-   * Agregat & perbandingan IKM seluruh OPD (DASH-1, Admin Kabupaten) — dibangun dari
-   * snapshot `ikm_results` (bukan live-compute: hanya survei `ditutup` yang punya
-   * angka final untuk dibandingkan/diranking secara wajar), terfilter periode/jenis layanan.
+   * Agregat & perbandingan IKM seluruh OPD (DASH-1, Admin Kabupaten) — gabungan
+   * snapshot `ikm_results` (survei `ditutup`, angka final) DAN live-compute survei
+   * `aktif` yang sudah punya responden (2026-08-05, temuan audit: SEBELUMNYA dashboard
+   * ini buta total thd survei yang masih berjalan sampai ditutup, walau responden
+   * sudah masuk -- padahal dashboard Admin OPD sudah live-compute lebih dulu, lihat
+   * `DashboardService.getOpdDashboard`). Tiap baris ditandai `status` supaya
+   * pembaca tahu mana angka final vs yang masih bisa berubah, terfilter
+   * periode/jenis layanan (berlaku utk KEDUA sumber).
    */
   async getDashboard(query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
     const where: Prisma.IkmResultWhereInput = {};
@@ -141,27 +146,55 @@ export class IkmService {
       where.survey = { opd: { jenisLayanan: query.jenisLayanan } };
     }
 
-    const rows = await this.prisma.ikmResult.findMany({
+    const closedRows = await this.prisma.ikmResult.findMany({
       where,
       include: { survey: { include: { opd: true } } },
-      orderBy: { nilaiIkm: 'desc' },
     });
+    const closedItems = closedRows.map((row) => ({
+      opdId: row.survey.opdId,
+      opdNama: row.survey.opd.nama,
+      jenisLayanan: row.survey.opd.jenisLayanan,
+      surveyId: row.surveyId,
+      judul: row.survey.judul,
+      periode: row.periode,
+      nilaiIkm: Number(row.nilaiIkm),
+      mutu: row.mutu,
+      jumlahResponden: row.jumlahResponden,
+      status: SurveyStatus.ditutup,
+    }));
 
-    const items = rows.map(
-      (row, index) =>
-        new IkmDashboardItemEntity({
-          peringkat: index + 1,
-          opdId: row.survey.opdId,
-          opdNama: row.survey.opd.nama,
-          jenisLayanan: row.survey.opd.jenisLayanan,
-          surveyId: row.surveyId,
-          judul: row.survey.judul,
-          periode: row.periode,
-          nilaiIkm: Number(row.nilaiIkm),
-          mutu: row.mutu,
-          jumlahResponden: row.jumlahResponden,
-        }),
+    const activeSurveyWhere: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
+    if (query.periode) {
+      activeSurveyWhere.periode = query.periode;
+    }
+    if (query.jenisLayanan) {
+      activeSurveyWhere.opd = { jenisLayanan: query.jenisLayanan };
+    }
+    const activeSurveys = await this.prisma.survey.findMany({
+      where: activeSurveyWhere,
+      include: { opd: true },
+    });
+    const activeComputed = await Promise.all(
+      activeSurveys.map(async (survey) => ({ survey, result: await this.computeResult(survey) })),
     );
+    const activeItems = activeComputed
+      .filter(({ result }) => result.nilaiIkm !== null && result.mutu !== null)
+      .map(({ survey, result }) => ({
+        opdId: survey.opdId,
+        opdNama: survey.opd.nama,
+        jenisLayanan: survey.opd.jenisLayanan,
+        surveyId: survey.id,
+        judul: survey.judul,
+        periode: survey.periode,
+        nilaiIkm: result.nilaiIkm as number,
+        mutu: result.mutu as IkmMutu,
+        jumlahResponden: result.jumlahResponden,
+        status: SurveyStatus.aktif,
+      }));
+
+    const items = [...closedItems, ...activeItems]
+      .sort((a, b) => b.nilaiIkm - a.nilaiIkm)
+      .map((item, index) => new IkmDashboardItemEntity({ peringkat: index + 1, ...item }));
 
     const rataRataIkm =
       items.length > 0
@@ -205,8 +238,13 @@ export class IkmService {
     });
   }
 
-  /** Inti perhitungan — dipisah agar dipakai bersama oleh live-compute & snapshot. */
-  private async computeResult(survey: Survey): Promise<IkmResultEntity> {
+  /**
+   * Inti perhitungan — dipisah agar dipakai bersama oleh live-compute & snapshot.
+   * PUBLIK (2026-08-05) supaya `DashboardService.getStatistics` (endpoint publik,
+   * tanpa `CurrentUser`) bisa ikut menghitung survei aktif secara live tanpa
+   * duplikasi rumus IKM di luar sumber kebenaran tunggal ini.
+   */
+  async computeResult(survey: Survey): Promise<IkmResultEntity> {
     const unsurQuestions = await this.prisma.question.findMany({
       where: { surveyId: survey.id, isIkmUnsur: true },
       include: { answers: { select: { nilai: true } } },

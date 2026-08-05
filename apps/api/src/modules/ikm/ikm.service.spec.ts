@@ -42,7 +42,9 @@ const dashboardRow = (over: Record<string, unknown> = {}) => ({
 
 describe('IkmService', () => {
   const prisma = {
-    survey: { findUnique: jest.fn() },
+    // `findMany` default [] -- getDashboard (2026-08-05) ikut query survei
+    // `aktif` utk live-compute; tes yg tak peduli survei aktif tak perlu tahu ini.
+    survey: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     question: { findMany: jest.fn() },
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
@@ -296,6 +298,49 @@ describe('IkmService', () => {
       expect(result.rataRataIkm).toBe(80);
       expect(result.totalOpd).toBe(2);
       expect(result.totalResponden).toBe(8);
+    });
+
+    it('(2026-08-05) survei AKTIF yg sudah punya responden ikut ditampilkan, status=aktif', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 20,
+          opdId: 3,
+          periode: '2026-Q3',
+          judul: 'Survei Aktif Disdik',
+          opd: { nama: 'Dinas Pendidikan' },
+        },
+      ]);
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(
+        unsurQuestions(Array(9).fill([4, 4])),
+      );
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].status).toBe('aktif');
+      expect(result.items[0].nilaiIkm).toBe(100);
+      expect(result.items[0].opdNama).toBe('Dinas Pendidikan');
+    });
+
+    it('(2026-08-05) survei AKTIF tanpa responden TIDAK ditampilkan (nilaiIkm null)', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 21,
+          opdId: 3,
+          periode: '2026-Q3',
+          judul: 'Survei Kosong',
+          opd: { nama: 'Dinas Pendidikan' },
+        },
+      ]);
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions(Array(9).fill([])));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toEqual([]);
     });
 
     it('filter periode diteruskan ke where', async () => {

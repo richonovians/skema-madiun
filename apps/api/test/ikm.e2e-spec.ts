@@ -43,7 +43,12 @@ describe('IKM (e2e)', () => {
       create: {
         kode: 'E2EIKM2',
         nama: 'OPD E2E IKM 2',
-        jenisLayanan: 'Pendidikan',
+        // Nilai bebas-tabrakan (2026-08-05): sejak GET /dashboard/ikm ikut
+        // live-compute survei AKTIF (bukan cuma snapshot ditutup), label umum
+        // spt "Pendidikan" bisa tabrakan dgn OPD nyata (mis. seed Dinas
+        // Pendidikan) yang kebetulan py jenisLayanan sama -- gagalkan test
+        // exclusive-match `.every()` di bawah tanpa ada yg benar-benar salah.
+        jenisLayanan: 'E2E-Pendidikan',
         isActive: true,
       },
     });
@@ -251,10 +256,10 @@ describe('IKM (e2e)', () => {
       expect(items[idx2].nilaiIkm).toBe(25);
     });
 
-    it('filter jenisLayanan=Pendidikan -> hanya OPD kedua', async () => {
+    it('filter jenisLayanan=E2E-Pendidikan -> hanya OPD kedua', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboard/ikm')
-        .query({ jenisLayanan: 'Pendidikan' })
+        .query({ jenisLayanan: 'E2E-Pendidikan' })
         .set(devHeaders({ role: Role.kabupaten }));
 
       expect(res.status).toBe(200);
