@@ -11,3 +11,16 @@ export async function getComplaintCategories() {
   const response = await api.get('/ref/complaint-categories');
   return response.data;
 }
+
+/**
+ * Daftar sub-kategori pengaduan (INT-42, D12) -- level lebih spesifik di bawah
+ * kategori umum. Opsional filter per kategori induk.
+ * @param {string} [kategoriKode]
+ * @returns {Promise<Array<{kode: string, nama: string, kategoriKode: string}>>}
+ */
+export async function getComplaintSubCategories(kategoriKode) {
+  const response = await api.get('/ref/complaint-sub-categories', {
+    params: kategoriKode ? { kategori: kategoriKode } : undefined,
+  });
+  return response.data;
+}

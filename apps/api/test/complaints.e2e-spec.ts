@@ -112,6 +112,33 @@ describe('Complaints (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /complaints (INT-42) dgn subKategori sejalan kategori -> 201, tersimpan', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'kesehatan')
+      .field('subKategori', 'bpjs')
+      .field('judul', 'Layanan BPJS lambat')
+      .field('uraian', 'Antrean BPJS tidak jelas');
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.subKategori).toBe('bpjs');
+  });
+
+  it('POST /complaints (INT-42) dgn subKategori TIDAK sejalan kategori -> 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'kesehatan')
+      .field('subKategori', 'ktp_kk') // sub-kategori ini milik pelayanan_administrasi
+      .field('judul', 'X')
+      .field('uraian', 'Y');
+
+    expect(res.status).toBe(400);
+  });
+
   it('POST /complaints oleh Admin OPD -> 403 (hanya Responden)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/complaints')

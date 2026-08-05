@@ -152,6 +152,34 @@ describe('Responses (e2e)', () => {
     expect(ids).not.toContain(draftSurveyId);
   });
 
+  it('GET /surveys/active?opdId= (INT-45) -> hanya survei aktif milik OPD tsb', async () => {
+    const otherOpd = await prisma.opd.upsert({
+      where: { kode: 'E2ERESP2' },
+      update: {},
+      create: { kode: 'E2ERESP2', nama: 'OPD E2E Responses Lain', isActive: true },
+    });
+    const otherSurvey = await prisma.survey.create({
+      data: {
+        opdId: otherOpd.id,
+        judul: 'Survei Aktif OPD Lain',
+        periode: '2026',
+        status: SurveyStatus.aktif,
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/surveys/active?opdId=${opdId}`)
+      .set(asResponden(respondenId));
+
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((s: { id: number }) => s.id);
+    expect(ids).toContain(surveyId);
+    expect(ids).not.toContain(otherSurvey.id);
+
+    await prisma.survey.delete({ where: { id: otherSurvey.id } });
+    await prisma.opd.delete({ where: { id: otherOpd.id } });
+  });
+
   it('GET /surveys/:id/fill (Responden) -> 200 dengan pertanyaan', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/surveys/${surveyId}/fill`)
