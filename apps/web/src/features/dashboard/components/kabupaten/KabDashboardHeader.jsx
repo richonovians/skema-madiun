@@ -2,7 +2,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, FileText } from 'lucide-react';
 
-export default function KabDashboardHeader({ filters }) {
+/**
+ * INT-24 (2026-08-05): ekspor SEBELUMNYA berisi 4 angka hardcode (85.5/15200/
+ * 432/92%) tak peduli data sungguhan -- kini pakai `summary` nyata dari GET
+ * /statistics. Format PDF tetap simulasi teks (disclaimer sudah ada sejak
+ * awal, jujur soal keterbatasannya) -- pembuatan PDF asli butuh library
+ * tambahan (mis. jspdf), di luar cakupan tiket wiring ini.
+ */
+export default function KabDashboardHeader({ summary }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef(null);
 
@@ -16,8 +23,15 @@ export default function KabDashboardHeader({ filters }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const rows = [
+    ['Indeks Kepuasan Masyarakat', summary?.ikm ?? '-'],
+    ['Total Responden', summary?.totalRespondents ?? '-'],
+    ['Total Pengaduan', summary?.totalComplaints ?? '-'],
+    ['Tingkat Penyelesaian', summary?.completionRate != null ? `${summary.completionRate}%` : '-'],
+  ];
+
   const handleExportExcel = () => {
-    const csvContent = "Kategori,Nilai\nIndeks Kepuasan Masyarakat,85.5\nTotal Responden,15200\nTotal Pengaduan,432\nTingkat Penyelesaian,92%";
+    const csvContent = `Kategori,Nilai\n${rows.map(([k, v]) => `${k},${v}`).join('\n')}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -30,7 +44,7 @@ export default function KabDashboardHeader({ filters }) {
   };
 
   const handleExportPDF = () => {
-    const textContent = "LAPORAN TAHUNAN KINERJA KABUPATEN\n\n- Indeks Kepuasan Masyarakat: 85.5\n- Total Responden: 15.200\n- Total Pengaduan: 432\n- Tingkat Penyelesaian: 92%\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau integrasi backend. Ini adalah simulasi format teks.";
+    const textContent = `LAPORAN TAHUNAN KINERJA KABUPATEN\n\n${rows.map(([k, v]) => `- ${k}: ${v}`).join('\n')}\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau integrasi backend. Ini adalah simulasi format teks.`;
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
