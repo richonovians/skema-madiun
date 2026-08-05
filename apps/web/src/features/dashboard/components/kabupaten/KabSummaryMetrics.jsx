@@ -5,9 +5,16 @@ import { LineChart, Users, AlertTriangle, Network } from 'lucide-react';
 export default function KabSummaryMetrics({ data }) {
   if (!data) return null;
 
+  // GAP (bukan dikarang): mutu agregat lintas-OPD TIDAK dihitung backend --
+  // `IkmService.mutuFromNilai` cuma utk NILAI PER-SURVEI, rata-rata gabungan
+  // banyak OPD tak py padanan huruf mutu resmi. Tampilkan '-' saat null,
+  // bukan derivasi sendiri (beda dgn label mutu per-survei di ikm.adapter.js
+  // yang memang official).
+  const ikmGradeLabel = data.ikmGrade ? `Mutu: ${data.ikmGrade} (${data.ikmLabel})` : 'Mutu: -';
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
-      
+
       {/* Metric Card 1 */}
       <div className="bg-white p-lg rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 border border-slate-100 flex flex-col justify-between group transition-all duration-300">
         <div className="flex justify-between items-start mb-md">
@@ -15,13 +22,13 @@ export default function KabSummaryMetrics({ data }) {
             <LineChart size={24} />
           </span>
           <span className="bg-blue-100 text-primary text-[10px] font-bold px-sm py-xs rounded-full uppercase tracking-wider">
-            Mutu: {data.ikmGrade} ({data.ikmLabel})
+            {ikmGradeLabel}
           </span>
         </div>
         <div>
           <p className="text-text-secondary text-sm font-medium mb-xs">Rata-Rata IKM Kabupaten</p>
           <h3 className="text-4xl font-extrabold text-text-primary tracking-tight">
-            {data.ikmScore.toFixed(2)}
+            {data.ikmScore != null ? data.ikmScore.toFixed(2) : '-'}
           </h3>
         </div>
       </div>
