@@ -1,9 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
+
+type AuditLogRow = {
+  id: number;
+  actorId: number;
+  actor: { nama: string };
+  aksi: string;
+  entitas: string;
+  detail: unknown;
+  timestamp: Date;
+};
 
 @Injectable()
 export class AuditService {
@@ -50,21 +60,34 @@ export class AuditService {
     ]);
 
     return paginate(
-      rows.map(
-        (row) =>
-          new AuditLogEntity({
-            id: row.id,
-            actorId: row.actorId,
-            actorNama: row.actor.nama,
-            aksi: row.aksi,
-            entitas: row.entitas,
-            detail: row.detail,
-            timestamp: row.timestamp,
-          }),
-      ),
+      rows.map((row) => this.toEntity(row)),
       total,
       page,
       limit,
     );
+  }
+
+  /** Detail satu log aktivitas (Admin Kabupaten) -- dipakai halaman detail (INT-34). */
+  async findOne(id: number): Promise<AuditLogEntity> {
+    const row = await this.prisma.auditLog.findUnique({
+      where: { id },
+      include: { actor: { select: { nama: true } } },
+    });
+    if (!row) {
+      throw new NotFoundException(`Audit log dengan id ${id} tidak ditemukan`);
+    }
+    return this.toEntity(row);
+  }
+
+  private toEntity(row: AuditLogRow): AuditLogEntity {
+    return new AuditLogEntity({
+      id: row.id,
+      actorId: row.actorId,
+      actorNama: row.actor.nama,
+      aksi: row.aksi,
+      entitas: row.entitas,
+      detail: row.detail,
+      timestamp: row.timestamp,
+    });
   }
 }
