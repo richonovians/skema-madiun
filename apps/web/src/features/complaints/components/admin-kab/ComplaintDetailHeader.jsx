@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Printer, AlertCircle, Clock, CheckCircle, Download, ChevronDown } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Download, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
 
+/** Badge Prioritas & SLA DIHAPUS -- tak ada field ini di backend (lihat gap complaint.adapter.js). */
 export default function ComplaintDetailHeader({ complaint }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef(null);
@@ -25,38 +25,6 @@ export default function ComplaintDetailHeader({ complaint }) {
       case 'Diterima': return 'info';
       default: return 'default';
     }
-  };
-
-  const getPriorityVariant = (priority) => {
-    switch (priority) {
-      case 'Tinggi': return 'danger';
-      case 'Sedang': return 'warning';
-      case 'Rendah': return 'success';
-      default: return 'default';
-    }
-  };
-
-  const getSLABadge = (sla) => {
-    if (!sla) return null;
-    if (sla.isOverdue) {
-      return (
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-sm font-bold border border-red-100">
-          <AlertCircle size={16} /> Melebihi SLA
-        </div>
-      );
-    }
-    if (sla.remainingHours <= 24) {
-      return (
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-50 text-yellow-600 text-sm font-bold border border-yellow-100">
-          <Clock size={16} /> Mendekati Batas SLA
-        </div>
-      );
-    }
-    return (
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-sm font-bold border border-emerald-100">
-        <CheckCircle size={16} /> Dalam SLA
-      </div>
-    );
   };
 
   return (
@@ -140,8 +108,6 @@ export default function ComplaintDetailHeader({ complaint }) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-lg font-bold text-primary">#{complaint.id}</span>
               <Badge variant={getStatusVariant(complaint.status)}>{complaint.status}</Badge>
-              <Badge variant={getPriorityVariant(complaint.priority)}>{complaint.priority}</Badge>
-              {getSLABadge(complaint.sla)}
             </div>
             <h1 className="text-headline-sm font-bold text-slate-900 leading-tight">
               {complaint.title}
