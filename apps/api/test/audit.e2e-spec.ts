@@ -161,4 +161,40 @@ describe('Audit Log (e2e)', () => {
     const hasGetEntry = (res.body.data as { aksi: string }[]).some((e) => e.aksi === 'get');
     expect(hasGetEntry).toBe(false);
   });
+
+  it('GET /audit-logs/:id (Kabupaten) mengembalikan satu entri sesuai id', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/surveys')
+      .set(opdHeaders())
+      .send({ judul: 'Survei Detail Audit', periode: '2026' });
+
+    const list = await request(app.getHttpServer())
+      .get('/api/v1/audit-logs')
+      .query({ entitas: 'survey', actorId: opdUserId })
+      .set(kabupatenHeaders());
+    const entry = (list.body.data as { id: number; detail: { body?: { judul?: string } } }[]).find(
+      (e) => e.detail?.body?.judul === 'Survei Detail Audit',
+    );
+    expect(entry).toBeDefined();
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/audit-logs/${entry?.id}`)
+      .set(kabupatenHeaders());
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe(entry?.id);
+    expect(res.body.data.actorNama).toBe('Admin OPD Audit');
+  });
+
+  it('GET /audit-logs/:id tidak ditemukan -> 404', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/audit-logs/999999999')
+      .set(kabupatenHeaders());
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /audit-logs/:id (Admin OPD) -> 403 (hanya Kabupaten)', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/audit-logs/1').set(opdHeaders());
+    expect(res.status).toBe(403);
+  });
 });
