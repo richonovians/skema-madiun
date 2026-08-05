@@ -111,4 +111,46 @@ describe('Users (e2e)', () => {
 
     expect(res.status).toBe(404);
   });
+
+  it('Kabupaten menghapus akun lain (soft delete) -> 200, hilang dari GET /users', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Hapus E2E', email: 'hapus@users.e2e.test', role: 'opd', opdId });
+    const targetId: number = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/v1/users/${targetId}`)
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.isActive).toBe(false);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/users/${targetId}`)
+      .set(devHeaders({ role: Role.kabupaten }));
+    expect(detail.status).toBe(404); // findOne memfilter deletedAt: null
+  });
+
+  it('Kabupaten DILARANG menghapus akun sendiri (cegah self-lockout) -> 403', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Self Delete E2E', email: 'selfdelete@users.e2e.test', role: 'kabupaten' });
+    const selfId: number = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/v1/users/${selfId}`)
+      .set(devHeaders({ role: Role.kabupaten, userId: selfId }));
+
+    expect(res.status).toBe(403);
+  });
+
+  it('DELETE /users/:id tidak ada -> 404', async () => {
+    const res = await request(app.getHttpServer())
+      .delete('/api/v1/users/99999999')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(404);
+  });
 });

@@ -121,6 +121,27 @@ export class UsersService {
     return new UserEntity(updated);
   }
 
+  /**
+   * Hapus akun (2026-08-05, sebelumnya gap: kolom `deletedAt` sudah ada di
+   * skema sejak awal -- UU PDP -- tapi tak ada endpoint yg mengisinya sama
+   * sekali). SOFT delete (`deletedAt` + `isActive: false`), BUKAN hapus baris
+   * -- banyak FK bergantung ke `users` (survey_responses, complaints,
+   * audit_logs, dll), lagipula jejak wajib dipertahankan (audit/PDP).
+   * Anti-self-lockout sama seperti `update()` role: tak boleh hapus akun sendiri.
+   */
+  async remove(id: number, actor: CurrentUser): Promise<UserEntity> {
+    await this.getActiveOrThrow(id);
+    if (id === actor.userId) {
+      throw new ForbiddenException('Tidak bisa menghapus akun sendiri');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+    return new UserEntity(updated);
+  }
+
   private async assertOpdExists(opdId: number): Promise<void> {
     const opd = await this.prisma.opd.findUnique({ where: { id: opdId } });
     if (!opd) {

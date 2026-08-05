@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
@@ -62,5 +72,19 @@ export class UsersController {
     @Body() dto: UpdateUserStatusDto,
   ): Promise<UserEntity> {
     return this.usersService.updateStatus(id, dto);
+  }
+
+  /**
+   * Hapus akun (soft delete -- `deletedAt`+`isActive:false`, bukan hapus baris).
+   * 2026-08-05: sebelumnya kolom `deletedAt` ada di skema tapi tanpa endpoint sama sekali.
+   */
+  @Delete(':id')
+  @Audit('user', 'delete')
+  @ApiOkResponse({ type: UserEntity })
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: CurrentUser,
+  ): Promise<UserEntity> {
+    return this.usersService.remove(id, actor);
   }
 }

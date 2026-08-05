@@ -56,3 +56,15 @@ export async function updateUserStatus(userId, isActive) {
   const response = await api.patch(`/users/${userId}/status`, { isActive });
   return adaptUser(response.data);
 }
+
+/**
+ * Hapus akun (2026-08-05: soft delete di backend -- `deletedAt`+`isActive:
+ * false`, bukan hapus baris). Backend menolak 403 bila userId == diri
+ * sendiri (cegah self-lockout), sama pola dgn updateUser role.
+ * @param {number|string} userId
+ * @returns {Promise<Object>}
+ */
+export async function deleteUser(userId) {
+  const response = await api.delete(`/users/${userId}`);
+  return adaptUser(response.data);
+}

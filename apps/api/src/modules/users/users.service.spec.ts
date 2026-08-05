@@ -174,4 +174,34 @@ describe('UsersService', () => {
       BadRequestException,
     );
   });
+
+  it('remove (2026-08-05) soft-delete akun lain → deletedAt+isActive:false, sukses', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow);
+    (prisma.user.update as jest.Mock).mockResolvedValue({
+      ...userRow,
+      isActive: false,
+      deletedAt: new Date(),
+    });
+
+    const result = await service.remove(10, actor(Role.kabupaten));
+
+    expect(result.isActive).toBe(false);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { deletedAt: expect.any(Date), isActive: false },
+    });
+  });
+
+  it('remove: TIDAK BOLEH menghapus akun sendiri (cegah self-lockout) → Forbidden', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({ ...userRow, id: 1 });
+
+    await expect(service.remove(1, actor(Role.kabupaten))).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('remove: user tak ada/sudah terhapus → NotFound', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.remove(99, actor(Role.kabupaten))).rejects.toThrow(NotFoundException);
+  });
 });
