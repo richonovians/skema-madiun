@@ -64,6 +64,17 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   SESSION_TTL_HOURS: number = 24;
+
+  // Sumber master data OPD (Helpdesk) -- opsional: HelpdeskOpdClient baru gagal
+  // saat POST /opd/sync dipanggil tanpa ini terisi, bukan menolak boot aplikasi
+  // (beda dgn SESSION_JWT_SECRET yg dipakai tiap request).
+  @IsOptional()
+  @IsString()
+  HELPDESK_OPD_API_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  HELPDESK_OPD_API_TOKEN?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

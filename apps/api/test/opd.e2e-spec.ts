@@ -4,6 +4,8 @@ import { Role } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { OPD_SOURCE } from '../src/modules/opd/opd.constants';
+import { StubOpdSource } from '../src/modules/opd/providers/stub-opd-source';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
 
@@ -15,7 +17,13 @@ describe('OPD (e2e)', () => {
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // Test ini sengaja bergantung pada bentuk fixture StubOpdSource yang deterministik
+      // (3 item, kode "DINKES" dkk) -- pin eksplisit, jangan ikut default modul (yang
+      // sekarang HelpdeskOpdClient, real & bergantung jaringan/kredensial, sejak INT-HD-1).
+      .overrideProvider(OPD_SOURCE)
+      .useClass(StubOpdSource)
+      .compile();
 
     app = moduleRef.createNestApplication();
     configureApp(app);

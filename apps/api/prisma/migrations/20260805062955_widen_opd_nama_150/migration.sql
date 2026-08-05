@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "opd" ALTER COLUMN "nama" SET DATA TYPE VARCHAR(150);
