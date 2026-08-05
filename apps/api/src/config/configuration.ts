@@ -36,4 +36,12 @@ export default () => ({
     jwtSecret: process.env.SESSION_JWT_SECRET,
     ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '24', 10),
   },
+  helpdesk: {
+    // Endpoint tenants Helpdesk (sumber master data OPD) + token Bearer.
+    // Opsional di validasi env (HelpdeskOpdClient baru gagal saat dipakai,
+    // bukan saat boot) -- developer tanpa akses Helpdesk tetap bisa jalankan
+    // API secara normal, cuma POST /opd/sync yang akan gagal jelas.
+    opdApiUrl: process.env.HELPDESK_OPD_API_URL,
+    opdApiToken: process.env.HELPDESK_OPD_API_TOKEN,
+  },
 });
