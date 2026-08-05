@@ -1,3 +1,5 @@
+import { formatRelativeTime } from '@/utils/format';
+
 /**
  * Terjemahkan AuditLogEntity (sudah diadaptasi auditLog.adapter.js, GET
  * /audit-logs) ke bentuk yang dipakai RecentActivities.jsx (INT-24, dashboard
@@ -13,21 +15,6 @@ const ENTITAS_ICON = {
   survey: 'school',
   user: 'badge',
 };
-
-/** "5 menit lalu" / "3 jam lalu" / "Kemarin" / "12 Jul 2026". */
-function formatRelativeTime(date) {
-  const target = new Date(date);
-  const diffMs = Date.now() - target.getTime();
-  const diffMinutes = Math.floor(diffMs / 60_000);
-  if (diffMinutes < 1) return 'Baru saja';
-  if (diffMinutes < 60) return `${diffMinutes} menit lalu`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} jam lalu`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return 'Kemarin';
-  if (diffDays < 7) return `${diffDays} hari lalu`;
-  return target.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
 export function adaptRecentActivity(auditLog) {
   return {

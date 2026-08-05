@@ -18,3 +18,20 @@ export function formatDateId(date) {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 }
+
+/** "5 menit lalu" / "3 jam lalu" / "Kemarin" / "12 Jul 2026" (INT-24/D9). */
+export function formatRelativeTime(date) {
+  if (!date) return '';
+  const target = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(target.getTime())) return '';
+  const diffMs = Date.now() - target.getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 1) return 'Baru saja';
+  if (diffMinutes < 60) return `${diffMinutes} menit lalu`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} jam lalu`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Kemarin';
+  if (diffDays < 7) return `${diffDays} hari lalu`;
+  return target.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}

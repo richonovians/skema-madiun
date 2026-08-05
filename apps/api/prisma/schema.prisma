@@ -66,6 +66,16 @@ enum ComplaintStatus {
   @@map("complaint_status")
 }
 
+// D9 (2026-08-05): in-app saja (bukan email) -- cakupan disepakati user:
+// status pengaduan berubah + balasan baru. Enum sengaja sempit sesuai
+// cakupan disetujui, bukan generik "semua jenis event" yang belum diminta.
+enum NotificationType {
+  complaint_status_changed
+  complaint_reply
+
+  @@map("notification_type")
+}
+
 // =====================================================================
 // PENGGUNA & PROFIL
 // =====================================================================
@@ -90,6 +100,7 @@ model User {
   complaints        Complaint[]
   complaintReplies  ComplaintReply[]
   auditLogs         AuditLog[]
+  notifications     Notification[]
 
   @@index([opdId])
   @@index([role])
@@ -332,6 +343,30 @@ model ComplaintReply {
   @@index([complaintId])
   @@index([authorId])
   @@map("complaint_replies")
+}
+
+// =====================================================================
+// NOTIFIKASI (D9, in-app, 2026-08-05)
+// =====================================================================
+
+// Baris per-penerima (bukan event bersama disebar) -- lebih sederhana utk
+// query "punya berapa belum dibaca" & tandai-dibaca per pengguna, sepadan
+// dgn skala pemakaian (bukan broadcast massal).
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  type      NotificationType
+  title     String           @db.VarChar(150)
+  message   String           @db.VarChar(500)
+  link      String?          @db.VarChar(255) // path relatif frontend, mis. /complaints/PGD...
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 // =====================================================================
