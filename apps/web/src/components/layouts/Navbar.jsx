@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
 import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
 
 export default function Navbar() {
@@ -77,7 +78,14 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2 md:gap-4">
           {isLoggedIn ? (
-            <ProfileAvatarDropdown />
+            <>
+              {/* Warga = penerima notifikasi utama (status pengaduan/balasan,
+                  D9) tapi SEBELUMNYA tak ada lonceng sama sekali di sini
+                  (temuan audit 2026-08-05) -- AdminNavbar sudah punya lebih
+                  dulu, di sini baru dipasang. */}
+              <NotificationDropdown />
+              <ProfileAvatarDropdown />
+            </>
           ) : (
             <div className="hidden sm:block">
               <SSOLoginButton />

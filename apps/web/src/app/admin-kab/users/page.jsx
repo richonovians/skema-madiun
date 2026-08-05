@@ -10,7 +10,7 @@ import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
-import { getUsers, updateUserStatus } from '@/features/users/services/users.api';
+import { getUsers, updateUserStatus, deleteUser } from '@/features/users/services/users.api';
 
 const ITEMS_PER_PAGE = 10;
 const FETCH_LIMIT = 100;
@@ -53,6 +53,16 @@ export default function ManajemenUsersPage() {
     setActionError(null);
     try {
       await updateUserStatus(userId, isActive);
+      await refetch();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  };
+
+  const handleDelete = async (userId) => {
+    setActionError(null);
+    try {
+      await deleteUser(userId);
       await refetch();
     } catch (err) {
       setActionError(err.message);
@@ -104,6 +114,7 @@ export default function ManajemenUsersPage() {
         <UsersTable
           data={paginatedData}
           onUpdateStatus={handleUpdateStatus}
+          onDelete={handleDelete}
           pagination={
             totalItems > 0 && (
               <Pagination
