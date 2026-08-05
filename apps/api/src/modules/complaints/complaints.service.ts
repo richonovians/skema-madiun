@@ -220,7 +220,7 @@ export class ComplaintsService {
 
   /** Fragmen `where` sesuai kepemilikan data (dipakai findAll). */
   private ownershipWhere(user: CurrentUser): Prisma.ComplaintWhereInput {
-    if (user.role === Role.superuser || user.role === Role.kabupaten) {
+    if (user.role === Role.kabupaten) {
       return {};
     }
     if (user.role === Role.opd) {
@@ -235,9 +235,9 @@ export class ComplaintsService {
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
   }
 
-  /** Akses per-record: superuser/kabupaten semua; OPD hanya OPD-nya; Responden hanya miliknya. */
+  /** Akses per-record: kabupaten (=superuser) semua; OPD hanya OPD-nya; Responden hanya miliknya. */
   private assertAccess(user: CurrentUser, complaint: { userId: number; opdId: number }): void {
-    if (user.role === Role.superuser || user.role === Role.kabupaten) {
+    if (user.role === Role.kabupaten) {
       return;
     }
     if (user.role === Role.opd) {

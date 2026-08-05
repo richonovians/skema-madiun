@@ -16,11 +16,14 @@ datasource db {
 // ENUM
 // =====================================================================
 
+// `kabupaten` = Admin Kabupaten SEKALIGUS superuser (2026-08-05: role
+// `superuser` terpisah DIHAPUS/digabung ke sini atas permintaan user --
+// sebelumnya ditambah 20260727000000_add_superuser_role, kini dilebur
+// balik). `kabupaten` mewarisi bypass penuh RolesGuard (lihat guard).
 enum Role {
   kabupaten
   opd
   responden
-  superuser // pengelola sistem — akses penuh (melampaui kabupaten)
 
   @@map("user_role")
 }

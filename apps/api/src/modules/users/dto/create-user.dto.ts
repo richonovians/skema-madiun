@@ -3,7 +3,7 @@ import { Role } from '@prisma/client';
 import { IsEmail, IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 /** Role admin yang dapat dibuat lewat endpoint ini (responden dibuat via SSO). */
-export const ADMIN_ROLES: Role[] = [Role.opd, Role.kabupaten, Role.superuser];
+export const ADMIN_ROLES: Role[] = [Role.opd, Role.kabupaten];
 
 export class CreateUserDto {
   @ApiProperty({ maxLength: 50 })
@@ -17,7 +17,7 @@ export class CreateUserDto {
   @MaxLength(100)
   email: string;
 
-  @ApiProperty({ enum: ADMIN_ROLES, description: 'opd | kabupaten | superuser' })
+  @ApiProperty({ enum: ADMIN_ROLES, description: 'opd | kabupaten (kabupaten = superuser)' })
   @IsIn(ADMIN_ROLES)
   role: Role;
 

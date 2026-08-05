@@ -1,5 +1,5 @@
+// ADMIN_KABUPATEN = superuser (2026-08-05: role superuser terpisah digabung ke sini).
 export const USER_ROLES = {
-  SUPER_ADMIN: 'SUPER_ADMIN',
   ADMIN_KABUPATEN: 'ADMIN_KABUPATEN',
   ADMIN_OPD: 'ADMIN_OPD',
   RESPONDENT: 'RESPONDENT',

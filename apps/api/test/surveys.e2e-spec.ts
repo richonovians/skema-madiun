@@ -48,13 +48,26 @@ describe('Surveys (e2e)', () => {
     expect(res.body.data.status).toBe('draft');
   });
 
-  it('POST /surveys (Kabupaten) -> 403 (read-only)', async () => {
+  // Kabupaten (= superuser, 2026-08-05) melampaui @Roles(Role.opd) via bypass
+  // RolesGuard -- bukan lagi read-only, tapi wajib kirim opdId sendiri (tidak
+  // seperti Admin OPD yang opdId-nya tersirat dari akun).
+  it('POST /surveys (Kabupaten) tanpa opdId -> 400', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(devHeaders({ role: Role.kabupaten }))
       .send({ judul: 'X', periode: '2026-Q1' });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /surveys (Kabupaten) dengan opdId -> 201', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/surveys')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ judul: 'Survei Kabupaten E2E', periode: '2026-Q1', opdId });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.opdId).toBe(opdId);
   });
 
   it('GET /surveys (Admin OPD) -> 200 paginated milik OPD', async () => {

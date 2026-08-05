@@ -1,10 +1,10 @@
 import { formatDateId, getInitials } from '@/utils/format';
 import { ROLE_LABEL } from '@/utils/enumLabels';
 
+// kabupaten = superuser (2026-08-05, role superuser terpisah digabung ke kabupaten).
 const ROLE_TO_FRONTEND = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
-  superuser: 'SUPER_ADMIN',
   responden: 'RESPONDENT',
 };
 

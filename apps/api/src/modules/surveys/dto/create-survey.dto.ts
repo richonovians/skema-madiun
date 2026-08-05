@@ -32,7 +32,8 @@ export class CreateSurveyDto {
   allowMultipleSubmit?: boolean;
 
   @ApiPropertyOptional({
-    description: 'OPD tujuan — hanya dipakai oleh superuser (Admin OPD memakai OPD-nya sendiri)',
+    description:
+      'OPD tujuan — hanya dipakai oleh kabupaten (=superuser; Admin OPD memakai OPD-nya sendiri)',
   })
   @IsOptional()
   @IsInt()

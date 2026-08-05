@@ -56,9 +56,7 @@ export class UsersService {
     return new UserEntity(await this.getActiveOrThrow(id));
   }
 
-  async create(dto: CreateUserDto, actor: CurrentUser): Promise<UserEntity> {
-    this.assertCanAssignRole(dto.role, actor);
-
+  async create(dto: CreateUserDto): Promise<UserEntity> {
     if (dto.role === Role.opd && dto.opdId == null) {
       throw new BadRequestException('opdId wajib diisi untuk role opd');
     }
@@ -89,55 +87,38 @@ export class UsersService {
     return new UserEntity(created);
   }
 
+  /** `role` opsional (2026-08-05): kabupaten boleh mengubah role akun lain. */
   async update(id: number, dto: UpdateUserDto, actor: CurrentUser): Promise<UserEntity> {
     const target = await this.getActiveOrThrow(id);
-    this.assertCanManageTarget(target.role, actor);
 
-    if (dto.opdId != null) {
-      await this.assertOpdExists(dto.opdId);
+    if (dto.role && dto.role !== target.role && id === actor.userId) {
+      throw new ForbiddenException('Tidak bisa mengubah role akun sendiri');
+    }
+
+    const nextRole = dto.role ?? target.role;
+    const nextOpdId = nextRole === Role.opd ? (dto.opdId ?? target.opdId) : null;
+    if (nextRole === Role.opd && nextOpdId == null) {
+      throw new BadRequestException('opdId wajib diisi untuk role opd');
+    }
+    if (nextOpdId != null) {
+      await this.assertOpdExists(nextOpdId);
     }
 
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { nama: dto.nama, opdId: dto.opdId },
+      data: { nama: dto.nama, role: dto.role, opdId: nextOpdId },
     });
     return new UserEntity(updated);
   }
 
-  async updateStatus(
-    id: number,
-    dto: UpdateUserStatusDto,
-    actor: CurrentUser,
-  ): Promise<UserEntity> {
-    const target = await this.getActiveOrThrow(id);
-    this.assertCanManageTarget(target.role, actor);
+  async updateStatus(id: number, dto: UpdateUserStatusDto): Promise<UserEntity> {
+    await this.getActiveOrThrow(id);
 
     const updated = await this.prisma.user.update({
       where: { id },
       data: { isActive: dto.isActive },
     });
     return new UserEntity(updated);
-  }
-
-  /** Hanya superuser boleh menetapkan role kabupaten/superuser (cegah eskalasi privilege). */
-  private assertCanAssignRole(role: Role, actor: CurrentUser): void {
-    if ((role === Role.kabupaten || role === Role.superuser) && actor.role !== Role.superuser) {
-      throw new ForbiddenException(
-        'Hanya superuser yang boleh menetapkan role kabupaten atau superuser',
-      );
-    }
-  }
-
-  /** Hanya superuser boleh mengelola akun ber-role kabupaten/superuser. */
-  private assertCanManageTarget(targetRole: Role, actor: CurrentUser): void {
-    if (
-      (targetRole === Role.kabupaten || targetRole === Role.superuser) &&
-      actor.role !== Role.superuser
-    ) {
-      throw new ForbiddenException(
-        'Hanya superuser yang boleh mengelola akun kabupaten atau superuser',
-      );
-    }
   }
 
   private async assertOpdExists(opdId: number): Promise<void> {

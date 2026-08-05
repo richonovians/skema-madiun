@@ -11,11 +11,7 @@ const user = (role: Role, opdId: number | null = null): CurrentUser => ({
 });
 
 describe('opdWhereFilter', () => {
-  it('superuser → filter kosong (semua OPD)', () => {
-    expect(opdWhereFilter(user(Role.superuser))).toEqual({});
-  });
-
-  it('kabupaten → filter kosong (semua OPD)', () => {
+  it('kabupaten (= superuser) → filter kosong (semua OPD)', () => {
     expect(opdWhereFilter(user(Role.kabupaten))).toEqual({});
   });
 
@@ -33,11 +29,7 @@ describe('opdWhereFilter', () => {
 });
 
 describe('assertOpdAccess', () => {
-  it('superuser → boleh akses OPD mana pun', () => {
-    expect(() => assertOpdAccess(user(Role.superuser), 99)).not.toThrow();
-  });
-
-  it('kabupaten → boleh akses OPD mana pun', () => {
+  it('kabupaten (= superuser) → boleh akses OPD mana pun', () => {
     expect(() => assertOpdAccess(user(Role.kabupaten), 99)).not.toThrow();
   });
 
