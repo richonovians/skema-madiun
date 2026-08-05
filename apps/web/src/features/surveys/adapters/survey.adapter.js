@@ -1,7 +1,7 @@
 /**
- * Terjemahkan SurveyEntity backend (GET /surveys) ke bentuk yang dipakai komponen
- * (lihat features/surveys/data/dummySurveys.js). Satu tempat -- perubahan kontrak
- * backend cukup diubah di sini, tak menyebar ke tiap komponen (INT-6).
+ * Terjemahkan SurveyEntity backend (GET /surveys) ke bentuk yang dipakai komponen.
+ * Satu tempat -- perubahan kontrak backend cukup diubah di sini, tak menyebar
+ * ke tiap komponen (INT-6).
  */
 const STATUS_MAP = {
   draft: 'DRAF',

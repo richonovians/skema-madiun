@@ -9,7 +9,7 @@ import AccountStatusCard from '@/features/users/components/AccountStatusCard';
 import AccountNotice from '@/features/users/components/AccountNotice';
 import UserAccessSummary from '@/features/users/components/UserAccessSummary';
 import Button from '@/components/ui/Button';
-import { USER_ROLES } from '@/features/users/constants/dummyUsers';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 import { createUser, updateUserStatus } from '@/features/users/services/users.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { useAsync } from '@/hooks/useAsync';

@@ -1,7 +1,6 @@
 /**
- * Terjemahkan OpdEntity backend (GET /opd) ke bentuk yang dipakai komponen
- * (lihat features/opd/constants/dummyOPD.js). Satu tempat -- perubahan kontrak
- * backend cukup diubah di sini (INT-6).
+ * Terjemahkan OpdEntity backend (GET /opd) ke bentuk yang dipakai komponen.
+ * Satu tempat -- perubahan kontrak backend cukup diubah di sini (INT-6).
  *
  * CATATAN GAP: `address` dipakai beberapa komponen dummy tapi TIDAK ADA di backend
  * (OPD adalah cache read-only dari Helpdesk, lihat keputusan D7 di

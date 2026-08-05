@@ -1,7 +1,6 @@
 /**
  * Terjemahkan AuditLogEntity backend (GET /audit-logs, INT-34) ke bentuk yang
- * dipakai komponen (lihat features/audit-logs/constants/dummyAuditLogs.js utk
- * bentuk lama). Satu tempat -- perubahan kontrak backend cukup diubah di sini.
+ * dipakai komponen. Satu tempat -- perubahan kontrak backend cukup diubah di sini.
  *
  * CATATAN GAP BESAR (bukan penamaan, kapasitas backend yang memang tak ada):
  *   - role/opd per-entri, ipAddress/browser/operatingSystem/device/sessionId,
