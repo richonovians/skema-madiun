@@ -116,7 +116,11 @@ model RespondentProfile {
 model Opd {
   id              Int       @id @default(autoincrement())
   externalId      String?   @unique @map("external_id") // id OPD di Helpdesk (hasil sinkronisasi)
-  nama            String    @db.VarChar(80)
+  // 80 -> 150 (INT-HD-1): nama OPD gabungan asli dari Helpdesk bisa >80 karakter
+  // (mis. "Dinas Pengendalian Penduduk dan Keluarga Berencana, Pemberdayaan
+  // Perempuan dan Perlindungan Anak" = 97 karakter) -- ketahuan saat sinkronisasi
+  // nyata pertama kali dicoba, bukan diasumsikan dari awal.
+  nama            String    @db.VarChar(150)
   kode            String    @unique @db.VarChar(10)
   jenisLayanan    String?   @map("jenis_layanan") @db.VarChar(50)
   penanggungJawab String?   @map("penanggung_jawab") @db.VarChar(40)
