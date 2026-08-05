@@ -88,7 +88,7 @@ export class SurveysService {
     return new SurveyEntity(await this.getAccessibleOrThrow(id, user));
   }
 
-  /** Buat paket survei. Admin OPD → OPD-nya sendiri; superuser → wajib `opdId`. */
+  /** Buat paket survei. Admin OPD → OPD-nya sendiri; kabupaten (=superuser) → wajib `opdId`. */
   async create(dto: CreateSurveyDto, user: CurrentUser): Promise<SurveyEntity> {
     const opdId = this.resolveOpdId(dto, user);
     await this.assertOpdExists(opdId);
@@ -196,7 +196,7 @@ export class SurveysService {
       }
       return user.opdId; // Admin OPD selalu membuat untuk OPD-nya sendiri
     }
-    // superuser (lolos guard) atau lainnya
+    // kabupaten (=superuser, lolos guard) atau lainnya
     if (dto.opdId == null) {
       throw new BadRequestException('opdId wajib diisi');
     }
@@ -221,7 +221,7 @@ export class SurveysService {
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${id} tidak ditemukan`);
     }
-    assertOpdAccess(user, survey.opdId); // Admin OPD hanya OPD-nya; Kabupaten/superuser semua
+    assertOpdAccess(user, survey.opdId); // Admin OPD hanya OPD-nya; kabupaten (=superuser) semua
     return survey;
   }
 }

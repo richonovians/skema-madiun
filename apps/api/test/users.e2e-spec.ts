@@ -47,23 +47,44 @@ describe('Users (e2e)', () => {
     expect(res.body.data).not.toHaveProperty('deletedAt'); // field internal disembunyikan
   });
 
-  it('Kabupaten DILARANG membuat akun kabupaten -> 403', async () => {
+  it('Kabupaten (= superuser) membuat akun kabupaten lain -> 201', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
       .send({ nama: 'Kab E2E', email: 'kab@users.e2e.test', role: 'kabupaten' });
 
-    expect(res.status).toBe(403);
-  });
-
-  it('Superuser BOLEH membuat akun kabupaten -> 201', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/users')
-      .set(devHeaders({ role: Role.superuser }))
-      .send({ nama: 'Kab E2E', email: 'kab@users.e2e.test', role: 'kabupaten' });
-
     expect(res.status).toBe(201);
     expect(res.body.data.role).toBe('kabupaten');
+  });
+
+  it('Kabupaten mengubah role akun lain (opd -> kabupaten) -> 200', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Ubah Role E2E', email: 'ubahrole@users.e2e.test', role: 'opd', opdId });
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/users/${created.body.data.id}`)
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ role: 'kabupaten' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.role).toBe('kabupaten');
+  });
+
+  it('Kabupaten DILARANG mengubah role akun sendiri (cegah self-lockout) -> 403', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Self Lockout E2E', email: 'selflockout@users.e2e.test', role: 'kabupaten' });
+    const selfId: number = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/users/${selfId}`)
+      .set(devHeaders({ role: Role.kabupaten, userId: selfId }))
+      .send({ role: 'opd', opdId });
+
+    expect(res.status).toBe(403);
   });
 
   it('GET /users (kabupaten) -> 200 paginated', async () => {

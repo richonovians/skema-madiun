@@ -19,20 +19,6 @@ async function main(): Promise<void> {
     },
   });
 
-  // 1b) Superuser (pengelola sistem) contoh — akses penuh, melampaui kabupaten.
-  const superuser = await prisma.user.upsert({
-    where: { ssoSubject: 'seed-superuser' },
-    update: {},
-    create: {
-      ssoSubject: 'seed-superuser',
-      nama: 'Superuser (Contoh)',
-      email: 'superuser@example.go.id',
-      role: Role.superuser,
-      isActive: true,
-      consentAt: new Date(),
-    },
-  });
-
   // 2) Beberapa OPD contoh — mencerminkan data hasil sinkronisasi Helpdesk:
   //    `externalId` selaras dengan fixture StubOpdSource (HD-00x) + `syncedAt` terisi,
   //    sehingga sync pertama (OPD-3) mengenalinya via externalId (bukan adopsi by-kode).
@@ -97,7 +83,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed selesai: superuser (id=${superuser.id}), admin kabupaten (id=${adminKabupaten.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (contoh survei).`,
+    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}, = superuser), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (contoh survei).`,
   );
 }
 

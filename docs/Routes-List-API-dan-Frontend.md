@@ -16,13 +16,13 @@ Dokumen ini adalah **rujukan resmi** daftar routes. Versi 1.0 ditulis di awal pe
 - Format data: `application/json` (kecuali unggah lampiran pengaduan: `multipart/form-data`; unduhan ekspor hasil IKM: file biner mentah)
 - **Envelope respons sukses baku**: `{ success, statusCode, message, data, meta }`. Endpoint list menyisipkan `meta.pagination = { total, page, limit, totalPages }`. Endpoint unduhan (`/results/export`) mengembalikan file mentah, bukan envelope.
 - Kode status: `200` OK, `201` Created, `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict
-- Peran: `responden`, `opd`, `kabupaten`, `superuser` (bypass seluruh `@Roles`, melampaui kolom Peran di tabel bawah — tidak dicantumkan berulang)
+- Peran: `responden`, `opd`, `kabupaten` (= superuser, digabung 2026-08-05 — bypass seluruh `@Roles`, melampaui kolom Peran di tabel bawah, tidak dicantumkan berulang)
 
 ---
 
 # BAGIAN A — ROUTES API (Backend Nest.js)
 
-Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak (di luar superuser, yang selalu lolos).
+Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak (di luar `kabupaten`/superuser, yang selalu lolos).
 
 ## A.0 Health (publik)
 

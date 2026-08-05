@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Role } from '@prisma/client';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ADMIN_ROLES } from './create-user.dto';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({ maxLength: 50 })
@@ -13,4 +15,13 @@ export class UpdateUserDto {
   @IsOptional()
   @IsInt()
   opdId?: number;
+
+  @ApiPropertyOptional({
+    enum: ADMIN_ROLES,
+    description:
+      'Ubah role akun (opd | kabupaten; kabupaten = superuser) -- hanya kabupaten yang boleh mengubah',
+  })
+  @IsOptional()
+  @IsIn(ADMIN_ROLES)
+  role?: Role;
 }

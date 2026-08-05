@@ -43,8 +43,8 @@ export class RolesGuard implements CanActivate {
     }
     request.user = user;
 
-    // Superuser (pengelola sistem) melampaui seluruh pembatasan @Roles.
-    if (user.role === Role.superuser) {
+    // Kabupaten (= Admin Kabupaten sekaligus superuser, 2026-08-05) melampaui seluruh pembatasan @Roles.
+    if (user.role === Role.kabupaten) {
       return true;
     }
 

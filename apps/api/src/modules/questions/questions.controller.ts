@@ -23,7 +23,7 @@ import { QuestionsService } from './questions.service';
 
 @ApiTags('questions')
 @ApiBearerAuth()
-@Roles(Role.opd) // superuser lolos via bypass RolesGuard
+@Roles(Role.opd) // kabupaten (=superuser) lolos via bypass RolesGuard
 @Controller()
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}

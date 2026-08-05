@@ -8,18 +8,16 @@ import { Users as UsersIcon } from 'lucide-react';
 
 /**
  * Kolom AKSI versi dummy lama ("Ubah Role" dropdown + "Reset Token JWT")
- * DIHAPUS TOTAL -- keduanya tak pernah tersambung ke mana pun DAN backend
- * TAK PUNYA kapasitas ini sama sekali: `UpdateUserDto` cuma nama+opdId (tak
- * bisa ubah role), dan sesi login pakai JWT stateless tanpa mekanisme revoke
- * (lihat SessionService/AuthProvider) -- tak ada yang bisa "direset". Diganti
- * toggle Aktifkan/Nonaktifkan sungguhan (`PATCH /users/:id/status`),
- * satu-satunya mutasi akun yang benar-benar didukung dari daftar ini.
+ * DIHAPUS TOTAL -- keduanya tak pernah tersambung ke mana pun. Reset token
+ * masih tak berlaku (JWT stateless tanpa mekanisme revoke, lihat
+ * SessionService/AuthProvider). Ubah role KINI didukung backend
+ * (`UpdateUserDto.role`, PATCH /users/:id, 2026-08-05) tapi UI-nya belum
+ * dibangun -- di luar cakupan pembersihan role superuser->kabupaten ini.
+ * Diganti toggle Aktifkan/Nonaktifkan sungguhan (`PATCH /users/:id/status`).
  */
 export default function UsersTable({ data, onUpdateStatus, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
-      case USER_ROLES.SUPER_ADMIN:
-        return { label: 'Super Admin', className: 'bg-rose-100 text-rose-800' };
       case USER_ROLES.ADMIN_KABUPATEN:
         return { label: 'Admin Kabupaten', className: 'bg-indigo-100 text-indigo-800' };
       case USER_ROLES.ADMIN_OPD:
@@ -33,8 +31,6 @@ export default function UsersTable({ data, onUpdateStatus, pagination }) {
 
   const getAvatarVariant = (role) => {
     switch (role) {
-      case USER_ROLES.SUPER_ADMIN:
-        return 'primary';
       case USER_ROLES.ADMIN_KABUPATEN:
         return 'secondary';
       case USER_ROLES.ADMIN_OPD:
