@@ -41,7 +41,7 @@ describe('Surveys (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei E2E', periode: '2026' });
+      .send({ judul: 'Survei E2E', periode: '2026-Q1' });
 
     expect(res.status).toBe(201);
     expect(res.body.data.opdId).toBe(opdId);
@@ -52,7 +52,7 @@ describe('Surveys (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ judul: 'X', periode: '2026' });
+      .send({ judul: 'X', periode: '2026-Q1' });
 
     expect(res.status).toBe(403);
   });
@@ -66,7 +66,7 @@ describe('Surveys (e2e)', () => {
 
   it('GET /surveys/:id Admin OPD lain -> 403', async () => {
     const created = await prisma.survey.create({
-      data: { opdId, judul: 'Milik OPD ini', periode: '2026' },
+      data: { opdId, judul: 'Milik OPD ini', periode: '2026-Q1' },
     });
     const res = await request(app.getHttpServer())
       .get(`/api/v1/surveys/${created.id}`)
@@ -78,7 +78,7 @@ describe('Surveys (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Lifecycle', periode: '2026' });
+      .send({ judul: 'Lifecycle', periode: '2026-Q1' });
     const id = created.body.data.id;
 
     const upd = await request(app.getHttpServer())
@@ -105,7 +105,7 @@ describe('Surveys (e2e)', () => {
 
   it('POST /surveys/:id/duplicate -> 201 status draft', async () => {
     const created = await prisma.survey.create({
-      data: { opdId, judul: 'Untuk Duplikasi', periode: '2025' },
+      data: { opdId, judul: 'Untuk Duplikasi', periode: '2025-Q1' },
     });
     const res = await request(app.getHttpServer())
       .post(`/api/v1/surveys/${created.id}/duplicate`)
@@ -117,7 +117,7 @@ describe('Surveys (e2e)', () => {
 
   it('DELETE /surveys/:id draft -> 200', async () => {
     const created = await prisma.survey.create({
-      data: { opdId, judul: 'Untuk Dihapus', periode: '2026' },
+      data: { opdId, judul: 'Untuk Dihapus', periode: '2026-Q1' },
     });
     const res = await request(app.getHttpServer())
       .delete(`/api/v1/surveys/${created.id}`)

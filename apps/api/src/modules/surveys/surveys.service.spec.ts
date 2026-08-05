@@ -14,7 +14,7 @@ const surveyRow = (overrides: Record<string, unknown> = {}) => ({
   id: 1,
   opdId: 5,
   judul: 'Survei A',
-  periode: '2026',
+  periode: '2026-Q1',
   status: SurveyStatus.draft,
   allowMultipleSubmit: false,
   createdAt: new Date(),
@@ -114,7 +114,7 @@ describe('SurveysService', () => {
   it('create (Admin OPD) memakai opdId miliknya', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
     (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());
-    const dto: CreateSurveyDto = { judul: 'Survei A', periode: '2026' };
+    const dto: CreateSurveyDto = { judul: 'Survei A', periode: '2026-Q1' };
     const result = await service.create(dto, opdUser(5));
     expect(result.opdId).toBe(5);
     expect(prisma.survey.create).toHaveBeenCalledWith(
@@ -123,7 +123,7 @@ describe('SurveysService', () => {
   });
 
   it('create (superuser) tanpa opdId → BadRequest', async () => {
-    const dto: CreateSurveyDto = { judul: 'A', periode: '2026' };
+    const dto: CreateSurveyDto = { judul: 'A', periode: '2026-Q1' };
     await expect(service.create(dto, superUser())).rejects.toThrow(BadRequestException);
   });
 

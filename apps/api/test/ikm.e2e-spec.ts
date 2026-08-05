@@ -53,7 +53,7 @@ describe('IKM (e2e)', () => {
       data: {
         opdId,
         judul: 'Survei IKM E2E',
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -100,7 +100,7 @@ describe('IKM (e2e)', () => {
       data: {
         opdId: opdId2,
         judul: 'Survei IKM E2E 2',
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -197,7 +197,7 @@ describe('IKM (e2e)', () => {
     expect(res.status).toBe(200);
 
     const snapshot = await prisma.ikmResult.findUnique({
-      where: { surveyId_periode: { surveyId, periode: '2026' } },
+      where: { surveyId_periode: { surveyId, periode: '2026-Q1' } },
     });
     expect(snapshot).not.toBeNull();
     expect(Number(snapshot?.nilaiIkm)).toBe(100);

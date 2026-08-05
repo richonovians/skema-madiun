@@ -80,7 +80,7 @@ async function main(): Promise<void> {
       data: {
         opdId: opdByKode.DINKES.id,
         judul: marker,
-        periode: '2026',
+        periode: '2026-Q1',
         status: SurveyStatus.draft,
         allowMultipleSubmit: false,
         questions: {

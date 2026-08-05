@@ -1,4 +1,5 @@
 import { IKM_MUTU_LABEL } from '@/utils/enumLabels';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 /**
  * Terjemahkan IkmResultEntity backend (GET /surveys/:id/results) ke bentuk yang
@@ -58,7 +59,7 @@ export function adaptIkmDashboardItem(item) {
     jenisLayanan: item.jenisLayanan,
     surveyId: item.surveyId,
     judul: item.judul,
-    periode: item.periode,
+    periode: formatPeriodeLabel(item.periode),
     ikmScore: item.nilaiIkm,
     mutu: item.mutu,
     jumlahResponden: item.jumlahResponden,
