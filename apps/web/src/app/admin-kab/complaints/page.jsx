@@ -1,145 +1,168 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ComplaintOverviewCards from '@/features/complaints/components/admin-kab/ComplaintOverviewCards';
 import ComplaintFilterBar from '@/features/complaints/components/admin-kab/ComplaintFilterBar';
 import ComplaintTable from '@/features/complaints/components/admin-kab/ComplaintTable';
 import Pagination from '@/components/ui/Pagination';
-import { dummyComplaintsKabupaten } from '@/features/complaints/constants/dummyComplaintsKabupaten';
-import { Loader2 } from 'lucide-react';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+import { useAsync } from '@/hooks/useAsync';
+import { getComplaints } from '@/features/complaints/services/complaints.api';
+import { getComplaintCategories } from '@/features/complaints/services/reference.api';
+
+const ITEMS_PER_PAGE = 5;
+// Kabupaten melihat SEMUA pengaduan lintas OPD (ownershipWhere kosong utk role
+// kabupaten, lihat ComplaintsService backend) -- ambil satu halaman besar lalu
+// filter+paginasi di klien, backend belum py search/kategori bebas teks
+// (pola sama INT-19/20).
+const FETCH_LIMIT = 100;
+
+function downloadBlob(content, mimeType, filename) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 export default function AdminKabComplaintsPage() {
-  const [filters, setFilters] = useState({
-    search: '',
-    opd: '',
-    status: '',
-    priority: '',
-    category: '',
-    dateRange: ''
-  });
+  const [filters, setFilters] = useState({ search: '', opd: '', status: '', kategori: '' });
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const itemsPerPage = 5;
 
-  // Simulate loading state on filter change
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [filters, currentPage]);
+  const fetchComplaints = useCallback(() => getComplaints({ limit: FETCH_LIMIT }), []);
+  const { data: response, isLoading, error, refetch } = useAsync(fetchComplaints);
+
+  const fetchCategories = useCallback(() => getComplaintCategories(), []);
+  const { data: categories } = useAsync(fetchCategories);
+
+  const categoryMap = useMemo(() => {
+    const map = {};
+    (categories ?? []).forEach((c) => {
+      map[c.kode] = c.nama;
+    });
+    return map;
+  }, [categories]);
+
+  const categoryOptions = useMemo(
+    () => [
+      { value: '', label: 'Semua Kategori' },
+      ...(categories ?? []).map((c) => ({ value: c.kode, label: c.nama })),
+    ],
+    [categories],
+  );
+
+  const opdOptions = useMemo(() => {
+    const seen = new Map();
+    (response?.data ?? []).forEach((c) => {
+      if (c.opdId != null && c.target) {
+        seen.set(String(c.opdId), c.target);
+      }
+    });
+    return [
+      { value: '', label: 'Semua OPD' },
+      ...Array.from(seen.entries()).map(([value, label]) => ({ value, label })),
+    ];
+  }, [response]);
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1);
   };
 
   const handleResetFilters = () => {
-    setFilters({
-      search: '',
-      opd: '',
-      status: '',
-      priority: '',
-      category: '',
-      dateRange: ''
-    });
+    setFilters({ search: '', opd: '', status: '', kategori: '' });
     setCurrentPage(1);
   };
 
   const filteredComplaints = useMemo(() => {
-    return dummyComplaintsKabupaten.filter((complaint) => {
-      const q = filters.search.toLowerCase();
-      const matchSearch = !q ||
+    const q = filters.search.toLowerCase();
+    return (response?.data ?? []).filter((complaint) => {
+      const matchSearch =
+        !q ||
         complaint.id.toLowerCase().includes(q) ||
         complaint.title.toLowerCase().includes(q) ||
-        complaint.reporter.name.toLowerCase().includes(q);
-      
-      const matchOpd = !filters.opd || complaint.opd?.id.toString() === filters.opd;
+        (complaint.reporter.name ?? '').toLowerCase().includes(q);
+
+      const matchOpd = !filters.opd || String(complaint.opdId) === filters.opd;
       const matchStatus = !filters.status || complaint.status === filters.status;
-      const matchPriority = !filters.priority || complaint.priority === filters.priority;
-      const matchCategory = !filters.category || complaint.category?.toLowerCase().includes(filters.category.toLowerCase());
-      
-      return matchSearch && matchOpd && matchStatus && matchPriority && matchCategory;
+      const matchKategori = !filters.kategori || complaint.kategori === filters.kategori;
+
+      return matchSearch && matchOpd && matchStatus && matchKategori;
     });
-  }, [filters]);
+  }, [response, filters]);
 
   const totalItems = filteredComplaints.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+
   const paginatedComplaints = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredComplaints.slice(start, start + itemsPerPage);
-  }, [filteredComplaints, currentPage, itemsPerPage]);
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredComplaints.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredComplaints, currentPage]);
 
   const handleExportExcel = () => {
-    const headers = ['NO TIKET', 'OPD', 'KATEGORI', 'JUDUL', 'PELAPOR', 'STATUS', 'PRIORITAS', 'TANGGAL'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredComplaints.map(c => [
+    const headers = ['NO TIKET', 'OPD', 'KATEGORI', 'JUDUL', 'PELAPOR', 'STATUS', 'TANGGAL'];
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = filteredComplaints.map((c) =>
+      [
         `#${c.id}`,
-        `"${c.opd?.name || ''}"`,
-        `"${c.category || ''}"`,
-        `"${c.title}"`,
-        `"${c.reporter?.name || ''}"`,
+        c.target ?? '',
+        categoryMap[c.kategori] ?? c.kategori ?? '',
+        c.title,
+        c.reporter?.name ?? '',
         c.status,
-        c.priority,
-        `"${c.dateStr}"`
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'data_pengaduan.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        c.dateStr,
+      ]
+        .map(escape)
+        .join(','),
+    );
+    downloadBlob([headers.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;', 'data_pengaduan.csv');
   };
 
   const handleExportPDF = () => {
     window.print();
   };
 
+  if (isLoading) {
+    return <LoadingState label="Memuat data monitoring..." />;
+  }
+
+  if (error) {
+    return (
+      <ErrorState title="Gagal memuat data pengaduan" description={error.message} onRetry={refetch} />
+    );
+  }
+
   return (
     <div className="p-lg w-full space-y-6">
+      <ComplaintOverviewCards complaints={response?.data ?? []} />
 
-
-      {/* Executive Summary Cards */}
-      <ComplaintOverviewCards complaints={dummyComplaintsKabupaten} />
-      
       <div className="bg-surface rounded-xl shadow-lg shadow-slate-200/50 border border-slate-200 overflow-hidden">
-        {/* Advanced Filters */}
-        <ComplaintFilterBar 
+        <ComplaintFilterBar
           filters={filters}
           onFilterChange={handleFilterChange}
           onResetFilters={handleResetFilters}
           onExportExcel={handleExportExcel}
           onExportPDF={handleExportPDF}
+          opdOptions={opdOptions}
+          categoryOptions={categoryOptions}
         />
-        
-        {/* Table Area */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24 text-text-secondary">
-            <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
-            <p className="font-body-md">Memuat data monitoring...</p>
-          </div>
-        ) : (
-          <>
-            <ComplaintTable complaints={paginatedComplaints} />
-            
-            <div className="border-t border-slate-200 p-md">
-              <Pagination 
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={totalItems}
-                itemsPerPage={itemsPerPage}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          </>
-        )}
+
+        <ComplaintTable complaints={paginatedComplaints} categoryMap={categoryMap} />
+
+        <div className="border-t border-slate-200 p-md">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        </div>
       </div>
     </div>
   );

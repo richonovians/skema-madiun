@@ -4,12 +4,20 @@ import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
 import { Search, Download, FileText, ChevronDown, RotateCcw, Filter } from 'lucide-react';
 
-export default function ComplaintFilterBar({ 
+/**
+ * Filter "Prioritas" & "Kecamatan" DIHAPUS -- tak ada field ini di backend
+ * (lihat gap complaint.adapter.js). "OPD" & "Kategori" sekarang opsi ASLI
+ * (opdOptions diderivasi dari data ter-fetch pola sama INT-22; categoryOptions
+ * dari GET /ref/complaint-categories, satu-satunya sumber resmi sejak INT-18).
+ */
+export default function ComplaintFilterBar({
   filters,
   onFilterChange,
   onResetFilters,
   onExportExcel,
-  onExportPDF
+  onExportPDF,
+  opdOptions = [],
+  categoryOptions = [],
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -33,24 +41,6 @@ export default function ComplaintFilterBar({
     { value: 'Ditolak', label: 'Ditolak' },
   ];
 
-  const priorityOptions = [
-    { value: '', label: 'Semua Prioritas' },
-    { value: 'Tinggi', label: 'Tinggi' },
-    { value: 'Sedang', label: 'Sedang' },
-    { value: 'Rendah', label: 'Rendah' },
-  ];
-
-  // Dummy options, ideally fetched from backend
-  const opdOptions = [
-    { value: '', label: 'Semua OPD' },
-    { value: '1', label: 'Dinas Kesehatan' },
-    { value: '2', label: 'Dinas PUPR' },
-    { value: '3', label: 'Dinas Dukcapil' },
-    { value: '4', label: 'Dinas Perhubungan' },
-    { value: '5', label: 'DPMPTSP' },
-    { value: '6', label: 'Dinas Lingkungan Hidup' },
-  ];
-
   const handleChange = (key, value) => {
     onFilterChange({ ...filters, [key]: value });
   };
@@ -60,7 +50,7 @@ export default function ComplaintFilterBar({
       {/* Top row: Search and Actions */}
       <div className="flex flex-col md:flex-row gap-md items-center justify-between mb-md">
         <div className="w-full md:w-96">
-          <Input 
+          <Input
             id="search-complaint"
             leftIcon={<Search size={20} />}
             placeholder="Cari nomor tiket, judul, pelapor..."
@@ -69,9 +59,9 @@ export default function ComplaintFilterBar({
             className="w-full"
           />
         </div>
-        
+
         <div className="flex items-center gap-md w-full md:w-auto justify-between md:justify-end">
-          <Button 
+          <Button
             variant="outline"
             className="md:hidden flex items-center gap-2"
             onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
@@ -80,7 +70,7 @@ export default function ComplaintFilterBar({
             <span>Filter</span>
           </Button>
 
-          <button 
+          <button
             onClick={onResetFilters}
             className="flex items-center gap-2 min-h-[44px] px-md rounded-lg text-white bg-slate-700 hover:bg-slate-800 hover:text-white transition-colors font-medium text-xs sm:text-body-md"
           >
@@ -89,7 +79,7 @@ export default function ComplaintFilterBar({
           </button>
 
           <div className="relative group space-y-1" ref={exportRef}>
-            <button 
+            <button
               onClick={() => setIsExportOpen(!isExportOpen)}
               className="flex items-center justify-between gap-1 sm:gap-3 min-h-[44px] px-md rounded-lg font-medium text-xs sm:text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm"
             >
@@ -97,15 +87,21 @@ export default function ComplaintFilterBar({
                 <Download size={18} className="text-text-secondary group-hover:text-primary" />
                 <span className="hidden sm:inline">Ekspor</span>
               </div>
-              <ChevronDown size={20} className={`flex-shrink-0 transition-all duration-300 ${isExportOpen ? 'rotate-180' : ''} text-text-secondary group-hover:text-primary`} />
+              <ChevronDown
+                size={20}
+                className={`flex-shrink-0 transition-all duration-300 ${isExportOpen ? 'rotate-180' : ''} text-text-secondary group-hover:text-primary`}
+              />
             </button>
-            
+
             {isExportOpen && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
                 <ul className="py-1">
                   <li>
-                    <button 
-                      onClick={() => { onExportExcel?.(); setIsExportOpen(false); }}
+                    <button
+                      onClick={() => {
+                        onExportExcel?.();
+                        setIsExportOpen(false);
+                      }}
                       className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     >
                       <Download size={16} />
@@ -113,8 +109,11 @@ export default function ComplaintFilterBar({
                     </button>
                   </li>
                   <li>
-                    <button 
-                      onClick={() => { onExportPDF?.(); setIsExportOpen(false); }}
+                    <button
+                      onClick={() => {
+                        onExportPDF?.();
+                        setIsExportOpen(false);
+                      }}
                       className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     >
                       <FileText size={16} />
@@ -129,35 +128,28 @@ export default function ComplaintFilterBar({
       </div>
 
       {/* Advanced Filters Row */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md ${isMobileFilterOpen ? 'block' : 'hidden md:grid'}`}>
-        <Dropdown 
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-3 gap-md ${isMobileFilterOpen ? 'block' : 'hidden md:grid'}`}
+      >
+        <Dropdown
           options={opdOptions}
           value={filters.opd}
           onChange={(val) => handleChange('opd', val)}
           placeholder="Semua OPD"
         />
-        <Dropdown 
+        <Dropdown
           options={statusOptions}
           value={filters.status}
           onChange={(val) => handleChange('status', val)}
           placeholder="Semua Status"
         />
-        <Dropdown 
-          options={priorityOptions}
-          value={filters.priority}
-          onChange={(val) => handleChange('priority', val)}
-          placeholder="Semua Prioritas"
-        />
-        
-        {/* Input Text as a fallback for Category & Kecamatan filtering for now */}
-        <Input 
-            id="kategori-filter"
-            placeholder="Kategori spesifik..."
-            value={filters.category}
-            onChange={(e) => handleChange('category', e.target.value)}
+        <Dropdown
+          options={categoryOptions}
+          value={filters.kategori}
+          onChange={(val) => handleChange('kategori', val)}
+          placeholder="Semua Kategori"
         />
       </div>
-
     </div>
   );
 }
