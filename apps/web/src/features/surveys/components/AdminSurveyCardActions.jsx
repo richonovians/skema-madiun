@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Edit2, Copy, FileEdit, Check } from 'lucide-react';
+import { Eye, Edit2, Copy, FileEdit, Check, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminSurveyCardActions({ isDraft, surveyId, onDuplicate, onDelete }) {
@@ -57,6 +57,13 @@ export default function AdminSurveyCardActions({ isDraft, surveyId, onDuplicate,
         <button className={actionButtonClass}>
           <Eye size={18} />
           Daftar Respons Survei
+        </button>
+      </Link>
+
+      <Link href={`/admin-opd/analytics?surveyId=${surveyId}`}>
+        <button className={actionButtonClass}>
+          <BarChart3 size={18} />
+          Lihat Hasil
         </button>
       </Link>
     </div>
