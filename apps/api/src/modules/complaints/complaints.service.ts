@@ -15,6 +15,7 @@ import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { COMPLAINT_SUB_CATEGORIES } from '../reference/reference.constants';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
@@ -63,6 +64,7 @@ export class ComplaintsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
     config: ConfigService,
   ) {
     this.uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
@@ -184,6 +186,7 @@ export class ComplaintsService {
           ]
         : []),
     ]);
+    await this.notificationsService.notifyComplaintStatusChanged(updated);
     return this.toEntity(updated as ComplaintWithAttachments);
   }
 
@@ -211,6 +214,7 @@ export class ComplaintsService {
     const created = await this.prisma.complaintReply.create({
       data: { complaintId, authorId: user.userId, pesan: dto.pesan },
     });
+    await this.notificationsService.notifyComplaintReply(complaint, user.userId);
     return new ComplaintReplyEntity(created);
   }
 
