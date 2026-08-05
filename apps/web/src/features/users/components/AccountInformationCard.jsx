@@ -3,7 +3,13 @@ import { User, Mail } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 
-export default function AccountInformationCard({ formData, onChange, errors }) {
+/**
+ * `emailReadOnly` (2026-08-05, edit akun): UpdateUserDto backend tak punya
+ * field email sama sekali (hanya nama/opdId/role) -- email ditampilkan tapi
+ * dikunci di halaman edit supaya tak menyesatkan (mengetik ubahan yg tak
+ * pernah tersimpan).
+ */
+export default function AccountInformationCard({ formData, onChange, errors, emailReadOnly = false }) {
   return (
     <Card className="p-lg">
       {/* Section Header */}
@@ -49,7 +55,14 @@ export default function AccountInformationCard({ formData, onChange, errors }) {
             leftIcon={<Mail size={16} />}
             value={formData.email}
             onChange={onChange}
+            disabled={emailReadOnly}
+            className={emailReadOnly ? 'opacity-70' : ''}
           />
+          {emailReadOnly && (
+            <p className="text-xs text-text-secondary">
+              Email tidak dapat diubah dari halaman ini.
+            </p>
+          )}
           {errors.email && (
             <p className="text-xs text-error flex items-center gap-1 mt-1">
               <span className="inline-block w-3.5 h-3.5 rounded-full bg-error/10 text-error flex items-center justify-center text-[10px] font-bold flex-shrink-0">!</span>

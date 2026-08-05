@@ -34,9 +34,11 @@ export async function getUserById(userId) {
 }
 
 /**
- * Mengubah nama/OPD tautan akun.
+ * Mengubah nama/OPD tautan/role akun (2026-08-05: role kini bisa diubah
+ * kabupaten, PATCH /users/:id -- backend menolak 403 bila userId == diri
+ * sendiri, cegah self-lockout).
  * @param {number|string} userId
- * @param {{fullName?: string, opdId?: number}} payload
+ * @param {{fullName?: string, opdId?: number, role?: string}} payload
  * @returns {Promise<Object>}
  */
 export async function updateUser(userId, payload) {

@@ -25,6 +25,7 @@ export function adaptUser(user) {
     email: user.email,
     initials: getInitials(user.nama),
     role: ROLE_MAP[user.role] ?? user.role,
+    opdId: user.opdId ?? null,
     organization: user.opdNama ?? null,
     createdAt: formatDateId(user.createdAt),
     status: user.isActive ? 'ACTIVE' : 'INACTIVE',
@@ -61,7 +62,16 @@ export function toCreateUserPayload({ fullName, email, role, opdId }) {
   };
 }
 
-/** Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId saja). */
-export function toUpdateUserPayload({ fullName, opdId }) {
-  return { nama: fullName, opdId };
+/**
+ * Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId+role).
+ * `role` opsional (2026-08-05, kabupaten bisa ubah role user lain) -- kirim
+ * undefined bila tak disertakan pemanggil, class-validator `@IsOptional`
+ * mengabaikannya.
+ */
+export function toUpdateUserPayload({ fullName, opdId, role }) {
+  return {
+    nama: fullName,
+    opdId: opdId ? Number(opdId) : undefined,
+    role: role ? (ROLE_TO_BACKEND[role] ?? role) : undefined,
+  };
 }
