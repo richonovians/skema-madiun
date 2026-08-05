@@ -1,5 +1,6 @@
 'use client';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { BarChart3, Download } from 'lucide-react';
 
 import AnalyticsTabs from '@/features/analytics/components/AnalyticsTabs';
@@ -30,8 +31,20 @@ function downloadBlobFile(blob, filename) {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<LoadingState label="Memuat..." />}>
+      <AnalyticsPageContent />
+    </Suspense>
+  );
+}
+
+function AnalyticsPageContent() {
+  const searchParams = useSearchParams();
+  // Dipicu tombol "Lihat Hasil" di AdminSurveyCardActions.jsx (INT-32) --
+  // survei yg tak eligible (Draf/tak ditemukan) jatuh wajar ke ErrorState
+  // via fetchResults di bawah, bukan divalidasi khusus di sini.
   const [activeTab, setActiveTab] = useState('skm');
-  const [selectedSurveyId, setSelectedSurveyId] = useState(null);
+  const [selectedSurveyId, setSelectedSurveyId] = useState(() => searchParams.get('surveyId'));
   const [exportingFormat, setExportingFormat] = useState(null);
   const [exportError, setExportError] = useState(null);
 
@@ -131,6 +144,16 @@ export default function AnalyticsPage() {
               onChange={(val) => setSelectedSurveyId(val)}
             />
             <div className="flex items-center gap-sm border-l border-outline-variant pl-md ml-xs">
+              <button
+                onClick={() => handleExport('csv')}
+                disabled={exportingFormat === 'csv'}
+                className={`px-md py-sm rounded-lg flex items-center gap-xs transition-all shadow-sm font-bold text-label-md bg-slate-600 hover:bg-slate-700 text-white ${exportingFormat === 'csv' ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                <Download size={18} />
+                <span className="hidden sm:inline">
+                  {exportingFormat === 'csv' ? 'Memproses...' : 'Export CSV'}
+                </span>
+              </button>
               <button
                 onClick={() => handleExport('pdf')}
                 disabled={exportingFormat === 'pdf'}

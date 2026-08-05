@@ -193,3 +193,54 @@ export function adaptBuilderQuestions(questions) {
 export function toCreateQuestionPayload({ text, type }) {
   return { teks: text, tipe: builderTypeToBackendTipe(type), isIkmUnsur: false };
 }
+
+// --- Respons masuk (GET /surveys/:id/responses, Admin OPD, INT-38) ---
+
+/**
+ * Terjemahkan AnswerEntity backend (cuma `questionId`, tanpa teks pertanyaan)
+ * jadi bentuk siap tampil, dgn `question` (dari GET /surveys/:id/questions,
+ * di-Map-kan pemanggil) utk tampilkan teks+tipe pertanyaan di sebelah jawaban.
+ */
+export function adaptSurveyResponseAnswer(answer, question) {
+  return {
+    questionId: answer.questionId,
+    questionText: question?.text ?? `Pertanyaan #${answer.questionId}`,
+    questionType: question?.type ?? null, // 'Skala Penilaian 1-4' | 'Isian Teks' | 'Pilihan Ganda'
+    nilai: answer.nilai,
+    teks: answer.teks,
+    selectedOptionId: answer.selectedOptionId,
+  };
+}
+
+/**
+ * Terjemahkan ResponseEntity (GET /surveys/:id/responses) ke bentuk siap tampil.
+ * `questionsById` (Map<number, builderQuestion>) didapat dari getQuestions(surveyId)
+ * -- dipisah jadi 1 fetch tersendiri krn AnswerEntity backend sengaja ramping
+ * (cuma id relasi, bukan salinan teks pertanyaan).
+ *
+ * CATATAN GAP (bukan dikarang, desain terkunci): ResponseEntity backend SENGAJA
+ * tidak memuat identitas pengisi (userId/dedupeUserId) -- SKM anonim by design
+ * (lihat komentar ResponseEntity backend). `averageScore` DIDERIVASI di sini dari
+ * rata-rata `nilai` jawaban skala PADA RESPONS INI SAJA (bukan field backend),
+ * beda dari `nilaiIkm` survei (itu rata-rata SELURUH responden, dihitung IkmService).
+ */
+export function adaptSurveyResponse(response, questionsById) {
+  const answers = (response.answers ?? []).map((a) =>
+    adaptSurveyResponseAnswer(a, questionsById.get(a.questionId)),
+  );
+  const scaleValues = answers.filter((a) => a.nilai != null).map((a) => a.nilai);
+  const averageScore =
+    scaleValues.length > 0 ? scaleValues.reduce((sum, v) => sum + v, 0) / scaleValues.length : null;
+
+  return {
+    id: response.id,
+    surveyId: response.surveyId,
+    submittedAt: response.submittedAt,
+    answers,
+    averageScore,
+  };
+}
+
+export function adaptSurveyResponseList(responses, questionsById) {
+  return responses.map((r) => adaptSurveyResponse(r, questionsById));
+}
