@@ -1,10 +1,11 @@
 import React from 'react';
+import Link from 'next/link';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
 import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
 import { USER_ROLES } from '../constants/userConstants';
 import EmptyState from '@/components/ui/EmptyState';
-import { Users as UsersIcon } from 'lucide-react';
+import { Users as UsersIcon, Pencil } from 'lucide-react';
 
 /**
  * Kolom AKSI versi dummy lama ("Ubah Role" dropdown + "Reset Token JWT")
@@ -99,12 +100,25 @@ export default function UsersTable({ data, onUpdateStatus, pagination }) {
                   <UserStatusBadge status={user.status} />
                 </Td>
                 <Td>
-                  <button
-                    onClick={() => onUpdateStatus?.(user.id, !isActive)}
-                    className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
-                  >
-                    {isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Ubah Role hanya utk akun admin (opd/kabupaten) -- UpdateUserDto.role
+                        divalidasi @IsIn(ADMIN_ROLES), tak menerima responden sama sekali. */}
+                    {user.role !== USER_ROLES.RESPONDENT && (
+                      <Link
+                        href={`/admin-kab/users/${user.id}/edit`}
+                        className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
+                      >
+                        <Pencil size={12} />
+                        Ubah Role
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => onUpdateStatus?.(user.id, !isActive)}
+                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
+                    >
+                      {isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                  </div>
                 </Td>
               </Tr>
             );
