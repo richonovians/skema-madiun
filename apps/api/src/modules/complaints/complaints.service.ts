@@ -15,6 +15,7 @@ import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
+import { COMPLAINT_SUB_CATEGORIES } from '../reference/reference.constants';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
@@ -74,6 +75,7 @@ export class ComplaintsService {
     user: CurrentUser,
   ): Promise<ComplaintEntity> {
     await this.assertOpdExists(dto.opdId);
+    this.assertSubKategoriConsistent(dto.kategori, dto.subKategori);
     const validFiles = this.validateFiles(files);
     const saved = await this.persistFiles(validFiles);
 
@@ -249,6 +251,19 @@ export class ComplaintsService {
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
   }
 
+  /** subKategori (bila diisi) wajib sejalan dgn kategori induknya (INT-42, D12). */
+  private assertSubKategoriConsistent(kategori: string, subKategori?: string): void {
+    if (!subKategori) {
+      return;
+    }
+    const sub = COMPLAINT_SUB_CATEGORIES.find((s) => s.kode === subKategori);
+    if (!sub || sub.kategoriKode !== kategori) {
+      throw new BadRequestException(
+        `Sub-kategori "${subKategori}" tidak sesuai dengan kategori "${kategori}"`,
+      );
+    }
+  }
+
   private async assertOpdExists(opdId: number): Promise<void> {
     const opd = await this.prisma.opd.findUnique({ where: { id: opdId } });
     if (!opd) {
@@ -294,6 +309,7 @@ export class ComplaintsService {
             userId,
             opdId: dto.opdId,
             kategori: dto.kategori,
+            subKategori: dto.subKategori,
             judul: dto.judul,
             uraian: dto.uraian,
             attachments: { create: attachmentData },

@@ -3,10 +3,10 @@ import { Prisma, Role, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess, opdWhereFilter } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
-import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { CreateSurveyDto } from './dto/create-survey.dto';
+import { ListActiveSurveyQueryDto } from './dto/list-active-survey-query.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
@@ -58,9 +58,12 @@ export class SurveysService {
    * Sertakan `opdNama` & `questionsCount` (INT-17) — kartu survei responden butuh
    * keduanya untuk ditampilkan (dari OPD mana, berapa pertanyaan).
    */
-  async findActive(query: PaginationQueryDto): Promise<PaginatedResult<SurveyEntity>> {
-    const { page, limit } = query;
+  async findActive(query: ListActiveSurveyQueryDto): Promise<PaginatedResult<SurveyEntity>> {
+    const { page, limit, opdId } = query;
     const where: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
+    if (opdId) {
+      where.opdId = opdId;
+    }
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.survey.findMany({

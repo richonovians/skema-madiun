@@ -149,6 +149,36 @@ describe('ComplaintsService', () => {
       expect(prisma.complaint.create).toHaveBeenCalledTimes(2);
     });
 
+    it('(INT-42) subKategori tidak sejalan dgn kategori → BadRequest', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      await expect(
+        service.create(
+          { opdId: 5, kategori: 'kesehatan', subKategori: 'ktp_kk', judul: 'X', uraian: 'Y' },
+          undefined,
+          respondenUser(),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.complaint.create).not.toHaveBeenCalled();
+    });
+
+    it('(INT-42) subKategori sejalan dgn kategori → tersimpan', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.complaint.create as jest.Mock).mockResolvedValue(
+        complaintRow({ kategori: 'kesehatan', subKategori: 'bpjs' }),
+      );
+
+      const result = await service.create(
+        { opdId: 5, kategori: 'kesehatan', subKategori: 'bpjs', judul: 'X', uraian: 'Y' },
+        undefined,
+        respondenUser(),
+      );
+
+      expect(prisma.complaint.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ subKategori: 'bpjs' }) }),
+      );
+      expect(result.subKategori).toBe('bpjs');
+    });
+
     it('tabrakan nomor tiket terus-menerus → Conflict setelah 5 percobaan', async () => {
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
       (prisma.complaint.create as jest.Mock).mockRejectedValue(p2002());

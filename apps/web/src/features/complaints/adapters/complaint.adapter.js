@@ -53,6 +53,9 @@ export function adaptComplaint(complaint) {
     // di-cross-reference terpisah ke GET /ref/complaint-categories, di luar
     // tanggung jawab adapter sinkron ini.
     kategori: complaint.kategori,
+    // Sub-kategori opsional di bawah kategori (INT-42, D12) -- sama seperti
+    // kategori, ini kode mentah; label ramah-baca dari GET /ref/complaint-sub-categories.
+    subKategori: complaint.subKategori ?? null,
     // Nama OPD tujuan (terisi dari GET /complaints maupun /complaints/:ticketNo, INT-18).
     target: complaint.opdNama ?? null,
     attachments: (complaint.attachments ?? []).map(adaptComplaintAttachment),
@@ -100,8 +103,14 @@ export function toBackendComplaintStatus(status) {
 }
 
 /** Terjemahkan payload form (lihat CreateComplaintForm.jsx) -> CreateComplaintDto backend. */
-export function toCreateComplaintPayload({ opdId, kategori, title, description }) {
-  return { opdId: Number(opdId), kategori, judul: title, uraian: description };
+export function toCreateComplaintPayload({ opdId, kategori, subKategori, title, description }) {
+  return {
+    opdId: Number(opdId),
+    kategori,
+    subKategori: subKategori || undefined,
+    judul: title,
+    uraian: description,
+  };
 }
 
 /**
