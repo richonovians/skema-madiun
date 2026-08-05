@@ -72,5 +72,12 @@ export function adaptIkmDashboard(dashboard) {
     rataRataIkm: dashboard.rataRataIkm,
     totalOpd: dashboard.totalOpd,
     totalResponden: dashboard.totalResponden,
+    // INT-13 (2026-08-05): dulu gap total, kini terisi dari GET /dashboard/ikm
+    // yg diperluas. systemActivityPercent = definisi developer (D3, lihat
+    // komentar backend DashboardService) -- proxy "% OPD aktif dgn survei
+    // aktif saat ini", BUKAN metrik resmi Diskominfo.
+    openComplaints: dashboard.openComplaints,
+    newComplaints: dashboard.newComplaints,
+    systemActivityPercent: dashboard.systemActivityPercent,
   };
 }

@@ -258,6 +258,23 @@ model IkmResult {
 }
 
 // =====================================================================
+// STATISTIK PUBLIK (D6, 2026-08-05)
+// =====================================================================
+
+// Narasi `insight.text` di halaman /statistics publik -- keputusan D6:
+// disediakan tempat penyimpanan agar bisa diisi ADMIN (bukan dihapus dari UI,
+// bukan auto-generated dari angka). Baris tunggal (`id` selalu 1, di-upsert),
+// bukan tabel riwayat -- cukup satu narasi aktif pada satu waktu.
+model StatisticsInsight {
+  id        Int      @id @default(1)
+  text      String   @db.Text
+  updatedBy Int?     @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("statistics_insight")
+}
+
+// =====================================================================
 // PENGADUAN
 // =====================================================================
 

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { IkmMutu, Prisma, Survey } from '@prisma/client';
+import { ComplaintStatus, IkmMutu, Prisma, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -170,7 +170,39 @@ export class IkmService {
     const totalOpd = new Set(items.map((item) => item.opdId)).size;
     const totalResponden = items.reduce((acc, item) => acc + item.jumlahResponden, 0);
 
-    return new IkmDashboardEntity({ items, rataRataIkm, totalOpd, totalResponden });
+    const complaintWhere: Prisma.ComplaintWhereInput = query.jenisLayanan
+      ? { opd: { jenisLayanan: query.jenisLayanan } }
+      : {};
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
+
+    const [openComplaints, newComplaints, activeOpdCount, opdWithActiveSurveyCount] =
+      await Promise.all([
+        this.prisma.complaint.count({
+          where: {
+            ...complaintWhere,
+            status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] },
+          },
+        }),
+        this.prisma.complaint.count({
+          where: { ...complaintWhere, createdAt: { gte: sevenDaysAgo } },
+        }),
+        this.prisma.opd.count({ where: { isActive: true } }),
+        this.prisma.opd.count({
+          where: { isActive: true, surveys: { some: { status: SurveyStatus.aktif } } },
+        }),
+      ]);
+    const systemActivityPercent =
+      activeOpdCount > 0 ? round((opdWithActiveSurveyCount / activeOpdCount) * 100, 1) : null;
+
+    return new IkmDashboardEntity({
+      items,
+      rataRataIkm,
+      totalOpd,
+      totalResponden,
+      openComplaints,
+      newComplaints,
+      systemActivityPercent,
+    });
   }
 
   /** Inti perhitungan — dipisah agar dipakai bersama oleh live-compute & snapshot. */
