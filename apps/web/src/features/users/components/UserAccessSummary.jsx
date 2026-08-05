@@ -2,7 +2,7 @@ import React from 'react';
 import { ClipboardList, ShieldCheck, Building2, ToggleRight } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
-import { USER_ROLES } from '../constants/dummyUsers';
+import { USER_ROLES } from '../constants/userConstants';
 
 const ROLE_LABELS = {
   [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',

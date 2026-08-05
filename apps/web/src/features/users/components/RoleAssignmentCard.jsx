@@ -2,7 +2,7 @@ import React from 'react';
 import { ShieldCheck, Building2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Dropdown from '@/components/ui/Dropdown';
-import { USER_ROLES } from '../constants/dummyUsers';
+import { USER_ROLES } from '../constants/userConstants';
 
 const ROLE_OPTIONS = [
   { value: '', label: 'Pilih Hak Akses (Role)' },

@@ -3,186 +3,194 @@
 
 | | |
 |---|---|
-| **Dokumen pendamping** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md |
-| **Versi** | 1.0 |
-| **Tanggal** | 13 Juli 2026 |
-| **Cakupan** | Kontrak routes REST API (Nest.js) & routes halaman frontend (Next.js) |
+| **Dokumen pendamping** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md, Rencana-Integrasi-Frontend-Backend.md |
+| **Versi** | 2.0 — disinkronkan dengan kode sungguhan (INT-26) |
+| **Tanggal** | 5 Agustus 2026 (v1.0: 13 Juli 2026) |
+| **Cakupan** | Kontrak routes REST API (Nest.js) & routes halaman frontend (Next.js) sesuai implementasi saat ini |
 
-Dokumen ini adalah **rujukan resmi** daftar routes. Semua route API bersifat final dan mengikat sebagai kontrak antara backend dan seluruh klien (web, Android, iOS).
+Dokumen ini adalah **rujukan resmi** daftar routes. Versi 1.0 ditulis di awal perencanaan dan sejak itu **arsitektur berubah signifikan** (autentikasi lokal digantikan SSO Helpdesk, OPD jadi cache read-only) — versi ini menggantikannya dengan apa yang sungguhan berjalan di kode. Swagger (`/api/docs`) tetap kontrak paling hidup untuk detail request/response; dokumen ini untuk peta cepat.
 
 **Konvensi umum:**
 - Prefiks API: `/api/v1`
-- Autentikasi: `Authorization: Bearer <JWT>`
-- Format data: `application/json` (kecuali unggah lampiran: `multipart/form-data`)
-- Kode status: `200` OK, `201` Created, `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict, `422` Validation Error
+- Autentikasi: sesi lokal berbasis JWT (`Authorization: Bearer <token>`), diterbitkan sistem sendiri setelah login SSO Helpdesk (OAuth2) — **bukan** JWT dari Helpdesk langsung. Di lingkungan non-produksi, `POST /auth/dev-login` menerbitkan token yang sama tanpa alur SSO sungguhan (404 di produksi).
+- Format data: `application/json` (kecuali unggah lampiran pengaduan: `multipart/form-data`; unduhan ekspor hasil IKM: file biner mentah)
+- **Envelope respons sukses baku**: `{ success, statusCode, message, data, meta }`. Endpoint list menyisipkan `meta.pagination = { total, page, limit, totalPages }`. Endpoint unduhan (`/results/export`) mengembalikan file mentah, bukan envelope.
+- Kode status: `200` OK, `201` Created, `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict
+- Peran: `responden`, `opd`, `kabupaten`, `superuser` (bypass seluruh `@Roles`, melampaui kolom Peran di tabel bawah — tidak dicantumkan berulang)
 
 ---
 
 # BAGIAN A — ROUTES API (Backend Nest.js)
 
-Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak.
+Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak (di luar superuser, yang selalu lolos).
 
-> **Superuser** (pengelola sistem) memiliki **akses penuh ke seluruh endpoint** — melampaui kolom Peran (di-*bypass* pada RolesGuard), jadi tidak dicantumkan berulang di tiap baris. Pada `/users`, hanya Superuser yang boleh menetapkan/mengelola akun ber-role `kabupaten`/`superuser`.
+## A.0 Health (publik)
+
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| GET | `/api/v1/health` | ✗ | Publik | Cek aplikasi berjalan |
 
 ## A.1 Autentikasi & Akun (`/auth`)
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 1 | POST | `/api/v1/auth/register` | ✗ | Publik | Registrasi responden + data profil |
-| 2 | POST | `/api/v1/auth/verify` | ✗ | Publik | Verifikasi akun via OTP/tautan email |
-| 3 | POST | `/api/v1/auth/login` | ✗ | Publik | Login, mengembalikan access token (JWT) |
-| 4 | POST | `/api/v1/auth/refresh` | ✗ | Publik | Perbarui access token via refresh token |
-| 5 | POST | `/api/v1/auth/logout` | ✓ | Semua | Cabut sesi/refresh token |
-| 6 | POST | `/api/v1/auth/forgot-password` | ✗ | Publik | Kirim tautan reset kata sandi |
-| 7 | POST | `/api/v1/auth/reset-password` | ✗ | Publik | Setel ulang kata sandi dengan token |
-| 8 | GET | `/api/v1/auth/me` | ✓ | Semua | Ambil data pengguna aktif |
-| 9 | PATCH | `/api/v1/auth/profile` | ✓ | Semua | Ubah profil / data diri |
-| 10 | PATCH | `/api/v1/auth/change-password` | ✓ | Semua | Ganti kata sandi |
+**TIDAK ADA autentikasi lokal** (password/register/verify/forgot-reset-password) — login sepenuhnya lewat SSO Helpdesk (OAuth2 Authorization Code + PKCE). Modul SSO sungguhan (redirect ke Helpdesk, tukar code→token) belum diimplementasikan (menunggu kredensial Helpdesk); `dev-login` adalah pengganti sementara non-produksi yang menerbitkan sesi lokal yang SAMA persis dengan yang nanti diterbitkan setelah SSO sungguhan aktif.
 
-## A.2 Manajemen OPD (`/opd`)
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| POST | `/api/v1/auth/dev-login` | ✗ | Publik (404 di produksi) | **Non-produksi saja.** Terbitkan sesi lokal by `identifier` (email/ssoSubject) tanpa alur SSO sungguhan |
+| POST | `/api/v1/auth/logout` | ✓ | Semua | Cabut sesi (stateless — hapus token sisi klien) |
+| GET | `/api/v1/auth/me` | ✓ | Semua | Ambil data pengguna aktif |
+| PATCH | `/api/v1/auth/profile` | ✓ | Semua | Ubah profil / data diri |
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 11 | GET | `/api/v1/opd` | ✓ | Kabupaten | Daftar seluruh OPD |
-| 12 | POST | `/api/v1/opd` | ✓ | Kabupaten | Tambah OPD |
-| 13 | GET | `/api/v1/opd/:id` | ✓ | Kabupaten, OPD | Detail OPD |
-| 14 | PATCH | `/api/v1/opd/:id` | ✓ | Kabupaten | Ubah data OPD |
-| 15 | PATCH | `/api/v1/opd/:id/status` | ✓ | Kabupaten | Aktif/nonaktifkan OPD |
+## A.2 Manajemen OPD (`/opd`) — READ-ONLY, cache dari Helpdesk
+
+**Tidak ada create/update/delete OPD lokal** (keputusan arsitektur terkunci, D10) — Helpdesk adalah *source of truth* master data OPD, SKM cuma menyimpan cache tersinkron.
+
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| GET | `/api/v1/opd` | ✓ | Semua | Daftar OPD (data direktori tak sensitif — Responden butuh ini utk pilih tujuan pengaduan) |
+| GET | `/api/v1/opd/:id` | ✓ | Kabupaten, OPD (miliknya) | Detail OPD |
+| POST | `/api/v1/opd/sync` | ✓ | Kabupaten | Sinkronkan dari Helpdesk (upsert by `externalId`) — sumber Helpdesk sungguhan (`HelpdeskOpdClient`) belum dibangun, masih pakai `StubOpdSource` (3 fixture) |
 
 ## A.3 Manajemen Akun Admin (`/users`)
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 16 | GET | `/api/v1/users` | ✓ | Kabupaten | Daftar akun admin (filter role/OPD) |
-| 17 | POST | `/api/v1/users` | ✓ | Kabupaten | Buat akun Admin OPD / Kabupaten |
-| 18 | GET | `/api/v1/users/:id` | ✓ | Kabupaten | Detail akun |
-| 19 | PATCH | `/api/v1/users/:id` | ✓ | Kabupaten | Ubah akun (nama, OPD terkait) |
-| 20 | PATCH | `/api/v1/users/:id/status` | ✓ | Kabupaten | Aktif/nonaktifkan akun |
+Seluruh route di bawah dibatasi Admin Kabupaten (level controller).
+
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| GET | `/api/v1/users` | ✓ | Kabupaten | Daftar akun admin (filter role/OPD) |
+| POST | `/api/v1/users` | ✓ | Kabupaten | Buat akun Admin OPD / Kabupaten |
+| GET | `/api/v1/users/:id` | ✓ | Kabupaten | Detail akun |
+| PATCH | `/api/v1/users/:id` | ✓ | Kabupaten | Ubah akun (nama, OPD terkait) |
+| PATCH | `/api/v1/users/:id/status` | ✓ | Kabupaten | Aktif/nonaktifkan akun |
 
 ## A.4 Survei & Pertanyaan (`/surveys`, `/questions`)
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 21 | GET | `/api/v1/surveys` | ✓ | OPD, Kabupaten | Daftar survei (OPD: milik sendiri) |
-| 22 | POST | `/api/v1/surveys` | ✓ | OPD | Buat paket survei |
-| 23 | GET | `/api/v1/surveys/:id` | ✓ | OPD, Kabupaten | Detail survei |
-| 24 | PATCH | `/api/v1/surveys/:id` | ✓ | OPD | Ubah survei |
-| 25 | DELETE | `/api/v1/surveys/:id` | ✓ | OPD | Hapus survei (draft) |
-| 26 | PATCH | `/api/v1/surveys/:id/status` | ✓ | OPD | Publikasikan / tutup periode |
-| 27 | POST | `/api/v1/surveys/:id/duplicate` | ✓ | OPD | Salin survei periode sebelumnya |
-| 28 | GET | `/api/v1/surveys/:id/questions` | ✓ | OPD | Daftar pertanyaan survei |
-| 29 | POST | `/api/v1/surveys/:id/questions` | ✓ | OPD | Tambah pertanyaan (baku/kustom) |
-| 30 | POST | `/api/v1/surveys/:id/questions/template` | ✓ | OPD | Terapkan template 9 unsur SKM |
-| 31 | PATCH | `/api/v1/questions/:id` | ✓ | OPD | Ubah pertanyaan |
-| 32 | DELETE | `/api/v1/questions/:id` | ✓ | OPD | Hapus pertanyaan |
-| 33 | PATCH | `/api/v1/surveys/:id/questions/reorder` | ✓ | OPD | Ubah urutan pertanyaan |
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| GET | `/api/v1/surveys` | ✓ | OPD, Kabupaten | Daftar survei (OPD: milik sendiri; Kabupaten: semua) |
+| POST | `/api/v1/surveys` | ✓ | OPD | Buat paket survei (draft) |
+| GET | `/api/v1/surveys/active` | ✓ | Responden | Daftar survei berstatus aktif (harus dideklarasikan sebelum `:id` — lihat catatan routing Express 5) |
+| GET | `/api/v1/surveys/:id` | ✓ | OPD, Kabupaten | Detail survei |
+| PATCH | `/api/v1/surveys/:id` | ✓ | OPD | Ubah survei (judul/periode, hanya saat draft) |
+| DELETE | `/api/v1/surveys/:id` | ✓ | OPD | Hapus survei (draft) |
+| PATCH | `/api/v1/surveys/:id/status` | ✓ | OPD | Transisi status: draft→aktif→ditutup (satu arah, tak bisa mundur) |
+| POST | `/api/v1/surveys/:id/duplicate` | ✓ | OPD | Salin survei (jadi draft baru) |
+| GET | `/api/v1/surveys/:id/questions` | ✓ | OPD | Daftar pertanyaan survei |
+| POST | `/api/v1/surveys/:id/questions` | ✓ | OPD | Tambah pertanyaan kustom (survei harus draft) |
+| POST | `/api/v1/surveys/:id/questions/template` | ✓ | OPD | Terapkan template 9 unsur baku SKM |
+| PATCH | `/api/v1/surveys/:id/questions/reorder` | ✓ | OPD | Ubah urutan pertanyaan |
+| PATCH | `/api/v1/questions/:id` | ✓ | OPD | Ubah teks pertanyaan (tipe tak bisa diubah) |
+| DELETE | `/api/v1/questions/:id` | ✓ | OPD | Hapus pertanyaan |
 
 ## A.5 Pengisian, Hasil & IKM
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 34 | GET | `/api/v1/surveys/active` | ✓ | Responden | Daftar survei yang sedang aktif |
-| 35 | GET | `/api/v1/surveys/:id/fill` | ✓ | Responden | Ambil struktur kuesioner untuk diisi |
-| 36 | POST | `/api/v1/surveys/:id/responses` | ✓ | Responden | Kirim jawaban survei |
-| 37 | GET | `/api/v1/surveys/:id/responses` | ✓ | OPD | Daftar respons yang masuk |
-| 38 | GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil: NRR per unsur + nilai IKM + mutu |
-| 39 | GET | `/api/v1/surveys/:id/results/export` | ✓ | OPD, Kabupaten | Ekspor laporan (PDF/Excel/CSV) |
-| 40 | GET | `/api/v1/dashboard/ikm` | ✓ | Kabupaten | Agregat & perbandingan IKM semua OPD |
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| GET | `/api/v1/surveys/:id/fill` | ✓ | Responden | Ambil struktur kuesioner (survei harus aktif) |
+| POST | `/api/v1/surveys/:id/responses` | ✓ | Responden | Kirim jawaban (anonim — tak menyimpan identitas pengisi; anti-duplikat via `dedupeUserId`) |
+| GET | `/api/v1/surveys/:id/responses` | ✓ | OPD, Kabupaten | Daftar respons masuk (jawaban lengkap per respons, tanpa identitas) |
+| GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil live-compute: NRR per unsur + nilai IKM + mutu |
+| GET | `/api/v1/surveys/:id/results/export?format=` | ✓ | OPD, Kabupaten | Ekspor laporan (`csv`\|`excel`\|`pdf`) — file biner mentah, bukan envelope |
+| GET | `/api/v1/dashboard/ikm` | ✓ | Kabupaten | Agregat & perbandingan IKM seluruh OPD (dari snapshot `ikm_results`, bukan live-compute) |
 
 ## A.6 Pengaduan (`/complaints`)
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 41 | POST | `/api/v1/complaints` | ✓ | Responden | Ajukan pengaduan (dapat nomor tiket) |
-| 42 | GET | `/api/v1/complaints` | ✓ | Semua¹ | Daftar pengaduan (terfilter kepemilikan) |
-| 43 | GET | `/api/v1/complaints/:ticketNo` | ✓ | Semua¹ | Detail & lacak status |
-| 44 | PATCH | `/api/v1/complaints/:id/status` | ✓ | OPD | Ubah status (diproses/selesai/ditolak) |
-| 45 | GET | `/api/v1/complaints/:id/replies` | ✓ | Semua¹ | Riwayat tanggapan pada tiket |
-| 46 | POST | `/api/v1/complaints/:id/replies` | ✓ | OPD, Responden | Tambah tanggapan |
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| POST | `/api/v1/complaints` | ✓ | Responden | Ajukan pengaduan (multipart, lampiran opsional maks 5 file @5MB) — dapat nomor tiket |
+| GET | `/api/v1/complaints` | ✓ | Semua¹ | Daftar pengaduan (terfilter kepemilikan) |
+| GET | `/api/v1/complaints/:ticketNo` | ✓ | Semua¹ | Detail & lacak status via nomor tiket publik |
+| PATCH | `/api/v1/complaints/:id/status` | ✓ | OPD (pemilik) | Ubah status: diterima→diproses→selesai, atau →ditolak (catatan wajib bila ditolak) |
+| GET | `/api/v1/complaints/:id/replies` | ✓ | Semua¹ | Riwayat tanggapan pada tiket |
+| POST | `/api/v1/complaints/:id/replies` | ✓ | OPD (pemilik), Responden (pengaju) | Tambah tanggapan |
 
 ## A.7 Audit & Referensi
 
-| # | Method | Path | Auth | Peran | Deskripsi |
-|---|---|---|:---:|---|---|
-| 47 | GET | `/api/v1/audit-logs` | ✓ | Kabupaten | Log aktivitas admin |
-| 48 | GET | `/api/v1/ref/unsur` | ✓ | OPD | Daftar 9 unsur baku SKM (template) |
-| 49 | GET | `/api/v1/ref/complaint-categories` | ✓ | Semua | Daftar kategori pengaduan |
+| Method | Path | Auth | Peran | Deskripsi |
+|---|---|:---:|---|---|
+| GET | `/api/v1/audit-logs` | ✓ | Kabupaten | Daftar log aktivitas admin (filter `entitas`/`actorId`) |
+| GET | `/api/v1/audit-logs/:id` | ✓ | Kabupaten | Detail satu log aktivitas |
+| GET | `/api/v1/ref/unsur` | ✓ | OPD, Kabupaten | Daftar 9 unsur baku SKM (template PermenPANRB 14/2017) |
+| GET | `/api/v1/ref/complaint-categories` | ✓ | Semua | Daftar 7 kategori baku pengaduan |
 
-> ¹ **"Semua"** pada modul pengaduan tetap dibatasi kepemilikan data: responden hanya melihat pengaduannya sendiri, Admin OPD hanya pengaduan OPD-nya, Admin Kabupaten memantau seluruhnya (read-only).
+> ¹ **"Semua"** pada modul pengaduan tetap dibatasi kepemilikan data (ditegakkan di service, bukan `@Roles`): Responden hanya melihat pengaduannya sendiri, Admin OPD hanya pengaduan OPD-nya, Admin Kabupaten memantau seluruhnya (read-only — tak bisa ubah status/balas).
+
+**Belum ada di backend** (dicek eksplisit, bukan sekadar belum terdaftar): `GET /dashboard/opd` (ringkasan Admin OPD — blocked D3, keputusan bisnis avgSlaDays/completionRate belum ada), endpoint statistik publik untuk `/statistics` (blocked D2/D6), agregasi tren bulanan (blocked D5), endpoint detail-per-respons survei (sengaja tak dibangun — daftar respons sudah kembalikan jawaban lengkap).
 
 ---
 
 # BAGIAN B — ROUTES FRONTEND (Next.js App Router)
 
-Menggunakan struktur *App Router* dengan **route groups** untuk memisahkan area berdasarkan peran. Route bertanda 🔒 memerlukan sesi login; route dengan peran tertentu dilindungi *middleware* RBAC.
+Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata **tidak muncul** (hanya pengelompokan folder). Proteksi route dilakukan `apps/web/src/proxy.js` (dulu `middleware.js`, Next 16 mengganti nama) — cek cookie `token`, redirect ke `/` bila kosong, **cakupan matcher HANYA `/admin-kab/:path*` dan `/admin-opd/:path*`**; halaman Responden (`/surveys`, `/complaints`, `/profile`, `/dashboard`) tidak diproteksi di level proxy.
 
-## B.1 Area Publik & Responden `(public)`
+## B.1 Area Publik & Responden
 
-| # | Route | Auth | Halaman |
-|---|---|:---:|---|
-| 1 | `/` | ✗ | Beranda / landing |
-| 2 | `/login` | ✗ | Masuk |
-| 3 | `/register` | ✗ | Registrasi responden |
-| 4 | `/verify` | ✗ | Verifikasi akun |
-| 5 | `/forgot-password` | ✗ | Lupa kata sandi |
-| 6 | `/reset-password` | ✗ | Setel ulang kata sandi |
-| 7 | `/surveys` | 🔒 | Daftar survei aktif |
-| 8 | `/surveys/[id]` | 🔒 | Isi kuesioner survei |
-| 9 | `/surveys/[id]/selesai` | 🔒 | Konfirmasi survei terkirim |
-| 10 | `/pengaduan` | 🔒 | Daftar pengaduan saya |
-| 11 | `/pengaduan/baru` | 🔒 | Form ajukan pengaduan |
-| 12 | `/pengaduan/[ticketNo]` | 🔒 | Detail & lacak pengaduan |
-| 13 | `/profil` | 🔒 | Profil & data diri |
+| Route | Auth | Halaman | Status wiring |
+|---|:---:|---|---|
+| `/` | ✗ | Landing + form login (SSO Helpdesk / dev-login) | ✅ |
+| `/about` | ✗ | Tentang sistem | ✅ (statis) |
+| `/statistics` | ✗ | Statistik publik | ❌ dummy (INT-25, blocked D2/D6/D14) |
+| `/dashboard` | 🔒 | Dashboard Responden | ❌ dummy (belum ada tiket) |
+| `/profile` | 🔒 | Profil & data diri | ✅ (INT-16) |
+| `/surveys` | 🔒 | Daftar survei aktif | ✅ (INT-17) |
+| `/surveys/[id]` | 🔒 | Isi kuesioner survei | ✅ (INT-17) |
+| `/complaints` | 🔒 | Daftar pengaduan saya | ✅ (INT-18) |
+| `/complaints/new` | 🔒 | Form ajukan pengaduan | ✅ (INT-18) |
+| `/complaints/[id]` | 🔒 | Detail & lacak pengaduan (param = ticketNo) | ✅ (INT-18) |
+| `/complaints/success` | 🔒 | Konfirmasi pengaduan terkirim | ✅ |
 
-## B.2 Area Admin OPD `(opd)` — prefiks `/opd`
+## B.2 Area Admin OPD — prefiks `/admin-opd`
 
-| # | Route | Auth | Halaman |
-|---|---|:---:|---|
-| 14 | `/opd/dashboard` | 🔒 OPD | Ringkasan OPD (survei aktif, pengaduan terbuka) |
-| 15 | `/opd/survei` | 🔒 OPD | Daftar survei OPD |
-| 16 | `/opd/survei/baru` | 🔒 OPD | Buat paket survei |
-| 17 | `/opd/survei/[id]` | 🔒 OPD | Detail & kelola survei |
-| 18 | `/opd/survei/[id]/pertanyaan` | 🔒 OPD | Kelola pertanyaan (template + kustom) |
-| 19 | `/opd/survei/[id]/hasil` | 🔒 OPD | Hasil survei + nilai IKM |
-| 20 | `/opd/pengaduan` | 🔒 OPD | Daftar pengaduan OPD |
-| 21 | `/opd/pengaduan/[ticketNo]` | 🔒 OPD | Tangani & tanggapi pengaduan |
+| Route | Auth | Halaman | Status wiring |
+|---|:---:|---|---|
+| `/admin-opd/dashboard` | 🔒 OPD | Ringkasan OPD | ❌ dummy (INT-23, DITUNDA — blocked D3/D4) |
+| `/admin-opd/surveys` | 🔒 OPD | Daftar survei OPD | ✅ (INT-19) |
+| `/admin-opd/surveys/builder/[id]` | 🔒 OPD | Builder pertanyaan (template + kustom) | ✅ (INT-19) |
+| `/admin-opd/surveys/[id]/responses` | 🔒 OPD | Daftar respons masuk (anonim) | ✅ (INT-38) |
+| `/admin-opd/surveys/[id]/responses/[responseId]` | 🔒 OPD | Detail satu respons | ✅ (INT-38) |
+| `/admin-opd/analytics` | 🔒 OPD | Analisis SKM (hasil+ekspor, survei terpilih) & Analisis Pengaduan | ✅ tab SKM (INT-21+32); ❌ tab Pengaduan (blocked Fase 3) |
+| `/admin-opd/complaints` | 🔒 OPD | Daftar pengaduan OPD | ✅ (INT-20) |
+| `/admin-opd/complaints/[id]` | 🔒 OPD | Tangani & tanggapi pengaduan (param = ticketNo) | ✅ (INT-20) |
 
-## B.3 Area Admin Kabupaten `(kabupaten)` — prefiks `/kabupaten`
+## B.3 Area Admin Kabupaten — prefiks `/admin-kab`
 
-| # | Route | Auth | Halaman |
-|---|---|:---:|---|
-| 22 | `/kabupaten/dashboard` | 🔒 Kab | Dashboard agregat IKM semua OPD |
-| 23 | `/kabupaten/opd` | 🔒 Kab | Kelola daftar OPD |
-| 24 | `/kabupaten/opd/baru` | 🔒 Kab | Tambah OPD |
-| 25 | `/kabupaten/opd/[id]` | 🔒 Kab | Detail & ubah OPD |
-| 26 | `/kabupaten/admin` | 🔒 Kab | Kelola akun Admin OPD |
-| 27 | `/kabupaten/admin/baru` | 🔒 Kab | Buat akun Admin OPD |
-| 28 | `/kabupaten/hasil-survei` | 🔒 Kab | Hasil survei seluruh OPD (perbandingan) |
-| 29 | `/kabupaten/pengaduan` | 🔒 Kab | Pantau seluruh pengaduan lintas OPD |
-| 30 | `/kabupaten/audit` | 🔒 Kab | Log aktivitas admin |
+| Route | Auth | Halaman | Status wiring |
+|---|:---:|---|---|
+| `/admin-kab/dashboard` | 🔒 Kab | Dashboard agregat IKM semua OPD | ❌ dummy (INT-24, blocked D3 — sama spt INT-23) |
+| `/admin-kab/opd` | 🔒 Kab | Daftar OPD + sinkronkan dari Helpdesk | ✅ (INT-22) |
+| `/admin-kab/users` | 🔒 Kab | Kelola akun Admin OPD/Kabupaten | ✅ (INT-22) |
+| `/admin-kab/users/create` | 🔒 Kab | Buat akun admin baru | ✅ (INT-22) |
+| `/admin-kab/complaints` | 🔒 Kab | Pantau seluruh pengaduan lintas OPD (read-only) | ✅ (INT-33) |
+| `/admin-kab/complaints/[id]` | 🔒 Kab | Detail pengaduan (read-only, param = ticketNo) | ✅ (INT-33) |
+| `/admin-kab/audit-logs` | 🔒 Kab | Log aktivitas admin | ✅ (INT-34) |
+| `/admin-kab/audit-logs/[id]` | 🔒 Kab | Detail satu log aktivitas | ✅ (INT-34) |
 
-## B.4 Pemetaan Route Frontend → Endpoint API (Contoh Kunci)
+## B.4 Pemetaan Route Frontend → Endpoint API (halaman terwiring)
 
 | Route Frontend | Endpoint API yang dipanggil |
 |---|---|
-| `/register` | `POST /auth/register` |
-| `/login` | `POST /auth/login` |
+| `/` | `POST /auth/dev-login`, `GET /auth/me` |
+| `/profile` | `GET /auth/me`, `PATCH /auth/profile` |
 | `/surveys` | `GET /surveys/active` |
 | `/surveys/[id]` | `GET /surveys/:id/fill` → `POST /surveys/:id/responses` |
-| `/pengaduan/baru` | `POST /complaints` |
-| `/pengaduan/[ticketNo]` | `GET /complaints/:ticketNo`, `POST /complaints/:id/replies` |
-| `/opd/survei/baru` | `POST /surveys` |
-| `/opd/survei/[id]/pertanyaan` | `GET/POST /surveys/:id/questions`, `.../template` |
-| `/opd/survei/[id]/hasil` | `GET /surveys/:id/results` |
-| `/opd/pengaduan/[ticketNo]` | `GET /complaints/:ticketNo`, `PATCH /complaints/:id/status` |
-| `/kabupaten/dashboard` | `GET /dashboard/ikm` |
-| `/kabupaten/opd` | `GET/POST /opd` |
-| `/kabupaten/admin` | `GET/POST /users` |
+| `/complaints/new` | `GET /opd`, `GET /ref/complaint-categories` → `POST /complaints` |
+| `/complaints/[id]` | `GET /complaints/:ticketNo`, `GET/POST /complaints/:id/replies` |
+| `/admin-opd/surveys` | `GET /surveys`, `PATCH /surveys/:id/status`, `POST /surveys/:id/duplicate`, `DELETE /surveys/:id` |
+| `/admin-opd/surveys/builder/[id]` | `GET/PATCH /surveys/:id`, `GET/POST /surveys/:id/questions`, `.../template`, `.../reorder`, `PATCH/DELETE /questions/:id`, `PATCH /surveys/:id/status` |
+| `/admin-opd/surveys/[id]/responses(/[responseId])` | `GET /surveys/:id`, `GET /surveys/:id/questions`, `GET /surveys/:id/responses` |
+| `/admin-opd/analytics` | `GET /surveys`, `GET /surveys/:id/results`, `GET /surveys/:id/results/export` |
+| `/admin-opd/complaints(/[id])` | `GET /complaints`, `GET /complaints/:ticketNo`, `PATCH /complaints/:id/status`, `GET/POST /complaints/:id/replies` |
+| `/admin-kab/opd` | `GET /opd`, `POST /opd/sync` |
+| `/admin-kab/users(/create)` | `GET/POST /users`, `PATCH /users/:id/status` |
+| `/admin-kab/complaints(/[id])` | `GET /complaints`, `GET /complaints/:ticketNo`, `GET /complaints/:id/replies` |
+| `/admin-kab/audit-logs(/[id])` | `GET /audit-logs`, `GET /audit-logs/:id` |
 
 ---
 
 ## Catatan Implementasi
 
-- **Proteksi route frontend** ditangani lewat *middleware* Next.js yang memeriksa keberadaan & peran pada token sebelum mengizinkan akses ke grup `(opd)` dan `(kabupaten)`.
-- **Konsistensi penamaan:** route API memakai bahasa Inggris (konvensi REST), sedangkan route frontend memakai Bahasa Indonesia agar ramah bagi pengguna akhir. Keduanya boleh berbeda karena frontend memanggil API lewat *service layer*, bukan pemetaan 1:1 URL.
-- **Dokumentasi hidup:** implementasi API wajib dilengkapi Swagger di `/api/docs` sebagai kontrak yang selalu sinkron dengan kode.
+- **Proteksi route frontend**: `apps/web/src/proxy.js` (Next.js 16, bukan lagi `middleware.js`) cek cookie `token` untuk `/admin-kab/*` dan `/admin-opd/*` saja. Halaman Responden mengandalkan proteksi di level komponen/service (401 dari API), bukan proxy.
+- **Konsistensi penamaan:** route API memakai bahasa Inggris (konvensi REST), sedangkan route frontend memakai Bahasa Indonesia untuk *label halaman* tapi path URL bahasa Inggris (`/complaints`, `/surveys`, bukan `/pengaduan`, `/survei` seperti draf v1.0) — frontend memanggil API lewat *service layer* (`features/*/services/*.api.js`), bukan pemetaan 1:1 URL.
+- **`ticketNo` vs `id`:** pengaduan pakai `ticketNo` (format `PGD{YYYYMMDD}{4 acak}`) sebagai identifier di route/URL publik; `id` numerik tetap primary key internal, dipakai untuk aksi admin (`PATCH .../:id/status`, `POST .../:id/replies`).
+- **Dokumentasi hidup:** implementasi API dilengkapi Swagger di `/api/docs` sebagai kontrak yang selalu sinkron dengan kode — rujuk ke sana untuk skema request/response detail per endpoint (DTO, entity, enum).
+- Lihat `docs/Rencana-Integrasi-Frontend-Backend.md` untuk daftar keputusan bisnis yang masih menunggu (D12/D14) dan alasan tiap halaman "❌ dummy" di atas belum bisa diwiring.

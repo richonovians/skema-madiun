@@ -2,17 +2,16 @@ import { formatDateId, getInitials } from '@/utils/format';
 
 /**
  * Terjemahkan ComplaintEntity backend (GET /complaints) ke bentuk yang dipakai
- * komponen (lihat features/complaints/constants/dummyComplaints.js). Satu tempat
- * -- perubahan kontrak backend cukup diubah di sini (INT-6).
+ * komponen. Satu tempat -- perubahan kontrak backend cukup diubah di sini (INT-6).
  *
- * CATATAN GAP BESAR: dummyComplaintsKabupaten.js (tampilan detail) mengharapkan
- * banyak field yang SAMA SEKALI TIDAK ADA di backend saat ini -- ini BUKAN
- * masalah penamaan yang bisa diselesaikan adapter, tapi kapasitas backend yang
- * belum dibangun:
- *   - progress, priority, kecamatan, chronology, sla{...}, stats{...}, timeline[]
- *     -> tidak ada konsep ini sama sekali di skema Complaint/ComplaintReply.
- * Adapter ini SENGAJA tidak mengarang nilai untuk field-field itu -- komponen
- * yang menampilkannya perlu backend baru dulu (bukan tugas adapter frontend).
+ * CATATAN GAP BESAR: UI dummy lama (tampilan admin-kab, INT-33) mengharapkan
+ * banyak field yang SAMA SEKALI TIDAK ADA di backend -- ini BUKAN masalah
+ * penamaan yang bisa diselesaikan adapter, tapi kapasitas backend yang belum
+ * dibangun (progress, priority, kecamatan, chronology, sla{...}, stats{...},
+ * timeline[] -> tidak ada konsep ini sama sekali di skema Complaint/
+ * ComplaintReply). Adapter ini SENGAJA tidak mengarang nilai untuk field-field
+ * itu -- komponen yang menampilkannya sudah dirombak/dihapus di INT-33, bukan
+ * tugas adapter frontend mengarang data.
  */
 const STATUS_MAP = {
   diterima: 'Diterima',

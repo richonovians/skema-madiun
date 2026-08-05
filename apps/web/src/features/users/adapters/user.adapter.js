@@ -2,7 +2,7 @@ import { formatDateId, getInitials } from '@/utils/format';
 
 /**
  * Terjemahkan UserEntity backend (GET /users) ke bentuk yang dipakai komponen
- * (lihat features/users/constants/dummyUsers.js). Satu tempat -- perubahan kontrak
+ * (lihat features/users/constants/userConstants.js). Satu tempat -- perubahan kontrak
  * backend cukup diubah di sini (INT-6).
  *
  * CATATAN GAP: status dummy punya 3 nilai (ACTIVE/INACTIVE/PENDING), backend cuma
