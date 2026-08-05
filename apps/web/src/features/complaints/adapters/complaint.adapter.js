@@ -11,9 +11,6 @@ import { formatDateId, getInitials } from '@/utils/format';
  * belum dibangun:
  *   - progress, priority, kecamatan, chronology, sla{...}, stats{...}, timeline[]
  *     -> tidak ada konsep ini sama sekali di skema Complaint/ComplaintReply.
- *   - opd.name / opd.pic -> ComplaintEntity tidak punya opdNama (beda dari
- *     reporterNama yang sudah ditambah INT-11); OpdEntity.penanggungJawab ada
- *     tapi perlu join terpisah yang belum diekspos di endpoint pengaduan.
  * Adapter ini SENGAJA tidak mengarang nilai untuk field-field itu -- komponen
  * yang menampilkannya perlu backend baru dulu (bukan tugas adapter frontend).
  */
@@ -32,9 +29,19 @@ export function adaptComplaint(complaint) {
 
   return {
     id: complaint.ticketNo,
+    numericId: complaint.id,
+    userId: complaint.userId,
     reporter: {
       name: complaint.reporterNama ?? null,
       initials: complaint.reporterNama ? getInitials(complaint.reporterNama) : '',
+      // nik/phone/address (dipakai ComplaintReporterProfile.jsx, halaman detail
+      // Admin OPD, INT-20): TIDAK ADA sumbernya di backend -- RespondentProfile
+      // sengaja cuma demografis IKM, bukan identitas pribadi (lihat gap sama
+      // di me.adapter.js, INT-16). Eksplisit null, bukan dikarang; komponen
+      // menampilkan '-' untuk field ini.
+      nik: null,
+      phone: null,
+      address: null,
     },
     title: complaint.judul,
     description: complaint.uraian,
@@ -46,12 +53,9 @@ export function adaptComplaint(complaint) {
     // di-cross-reference terpisah ke GET /ref/complaint-categories, di luar
     // tanggung jawab adapter sinkron ini.
     kategori: complaint.kategori,
-    attachments: (complaint.attachments ?? []).map((a) => ({
-      id: a.id,
-      url: a.fileUrl,
-      mimeType: a.mimeType,
-      sizeBytes: a.sizeBytes,
-    })),
+    // Nama OPD tujuan (terisi dari GET /complaints maupun /complaints/:ticketNo, INT-18).
+    target: complaint.opdNama ?? null,
+    attachments: (complaint.attachments ?? []).map(adaptComplaintAttachment),
   };
 }
 
@@ -59,26 +63,28 @@ export function adaptComplaintList(complaints) {
   return complaints.map(adaptComplaint);
 }
 
-/**
- * Terjemahkan ComplaintReplyEntity (GET /complaints/:id/replies).
- * CATATAN GAP: backend hanya punya `authorId` (angka), TIDAK ada nama/role
- * pengirim -- dummy responseHistory mengharapkan `sender`/`role` label. Field
- * itu diisi null di sini, bukan ditebak; perlu enrichment backend (join User)
- * yang belum ada di ComplaintReplyEntity.
- */
-export function adaptComplaintReply(reply) {
-  return {
-    id: reply.id,
-    authorId: reply.authorId,
-    sender: null,
-    role: null,
-    text: reply.pesan,
-    timestamp: reply.createdAt,
-  };
+/** Origin API tanpa suffix /api/v1 -- dasar utk URL lampiran statis (INT-18). */
+function getFileOrigin() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  return apiUrl.replace(/\/api\/v1\/?$/, '');
 }
 
-export function adaptComplaintReplyList(replies) {
-  return replies.map(adaptComplaintReply);
+/**
+ * CATATAN GAP: backend TIDAK punya route penyajian file statis untuk `/uploads`
+ * (sengaja ditunda -- lihat catatan CMP-2/Routes-List: perlu keputusan apakah
+ * penyajian file publik-statis atau lewat endpoint terautentikasi, demi privasi
+ * foto bukti pengaduan warga). URL di bawah ini SECARA STRUKTUR benar (origin
+ * API + fileUrl backend) sehingga akan langsung berfungsi begitu route statis
+ * ditambahkan, TAPI saat ini kemungkinan besar 404 -- bukan bug adapter.
+ */
+export function adaptComplaintAttachment(attachment) {
+  return {
+    id: attachment.id,
+    url: `${getFileOrigin()}${attachment.fileUrl}`,
+    alt: attachment.fileUrl.split('/').pop(),
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+  };
 }
 
 const STATUS_TO_BACKEND = {
@@ -91,4 +97,40 @@ const STATUS_TO_BACKEND = {
 /** Terjemahkan status frontend ('Diproses' dkk) -> enum backend ('diproses' dkk). */
 export function toBackendComplaintStatus(status) {
   return STATUS_TO_BACKEND[status] ?? status;
+}
+
+/** Terjemahkan payload form (lihat CreateComplaintForm.jsx) -> CreateComplaintDto backend. */
+export function toCreateComplaintPayload({ opdId, kategori, title, description }) {
+  return { opdId: Number(opdId), kategori, judul: title, uraian: description };
+}
+
+/**
+ * Terjemahkan ComplaintReplyEntity (GET /complaints/:id/replies) -> bentuk
+ * pesan chat (lihat ChatMessageBubble.jsx: role/senderName/text/timestamp).
+ *
+ * CATATAN GAP: backend hanya punya `authorId` (angka), TIDAK ada nama/role
+ * pengirim tersimpan langsung -- role DIDERIVASI (bukan dikarang) dengan
+ * membandingkan `authorId` terhadap `complaintUserId` (pelapor): satu-satunya
+ * 2 pihak yang boleh membalas adalah pelapor & Admin OPD pemilik (lihat
+ * ComplaintsService.assertAccess di backend), jadi perbandingan ini valid.
+ * `senderName` utk pihak OPD tetap generik "Admin OPD" (nama asli butuh join
+ * User yang belum diekspos ComplaintReplyEntity).
+ */
+export function adaptComplaintReplyToChatMessage(reply, complaintUserId) {
+  const isReporter = reply.authorId === complaintUserId;
+  const time = reply.createdAt
+    ? new Date(reply.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  return {
+    type: 'chat',
+    role: isReporter ? 'user' : 'admin',
+    senderName: isReporter ? undefined : 'Admin OPD',
+    text: reply.pesan,
+    timestamp: time ? `${time} WIB` : '',
+    status: 'Terkirim',
+  };
+}
+
+export function adaptComplaintRepliesToChatMessages(replies, complaintUserId) {
+  return replies.map((r) => adaptComplaintReplyToChatMessage(r, complaintUserId));
 }

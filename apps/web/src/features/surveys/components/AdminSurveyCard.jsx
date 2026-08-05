@@ -6,7 +6,7 @@ import AdminSurveyCardStats from './AdminSurveyCardStats';
 import AdminSurveyCardActions from './AdminSurveyCardActions';
 
 export default function AdminSurveyCard({ survey, onTogglePeriod, onDuplicate, onDelete }) {
-  const { id, title, status, period, respondentsCount, ikmScore, isClosed } = survey;
+  const { id, title, status, period, respondentsCount, ikmScore } = survey;
   
   const isDraft = status === 'DRAF';
   const isClosedStatus = status === 'DITUTUP';
@@ -35,16 +35,23 @@ export default function AdminSurveyCard({ survey, onTogglePeriod, onDuplicate, o
           </Badge>
         </div>
         
-        {!isDraft && (
+        {status === 'AKTIF' && (
           <div className="flex items-center gap-sm">
-            <span className="text-label-md text-on-surface-variant">
-              {isClosed ? 'Buka Periode' : 'Tutup Periode'}
-            </span>
-            <Switch 
-              checked={!isClosed} 
-              onChange={() => onTogglePeriod(id, !isClosed)}
+            <span className="text-label-md text-on-surface-variant">Tutup Periode</span>
+            <Switch
+              checked={false}
+              onChange={() => {
+                // Penutupan PERMANEN (backend tak izinkan DITUTUP -> AKTIF lagi,
+                // snapshot IKM final diambil saat itu) -- konfirmasi dulu.
+                if (window.confirm(`Tutup periode survei "${title}"? Tindakan ini tidak dapat dibatalkan.`)) {
+                  onTogglePeriod(id);
+                }
+              }}
             />
           </div>
+        )}
+        {isClosedStatus && (
+          <span className="text-label-md text-on-surface-variant/60 italic">Periode ditutup permanen</span>
         )}
       </div>
 

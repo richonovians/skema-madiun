@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -19,5 +19,13 @@ export class AuditController {
   @ApiOkResponse({ type: AuditLogEntity, isArray: true })
   findAll(@Query() query: ListAuditLogQueryDto): Promise<PaginatedResult<AuditLogEntity>> {
     return this.auditService.findAll(query);
+  }
+
+  /** Detail satu log aktivitas — Admin Kabupaten. */
+  @Get(':id')
+  @Roles(Role.kabupaten)
+  @ApiOkResponse({ type: AuditLogEntity })
+  findOne(@Param('id', ParseIntPipe) id: number): Promise<AuditLogEntity> {
+    return this.auditService.findOne(id);
   }
 }

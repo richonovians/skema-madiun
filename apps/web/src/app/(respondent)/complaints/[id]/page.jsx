@@ -1,74 +1,62 @@
 'use client';
 
-import React, { use } from 'react';
+import React, { useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
 import ComplaintInfoCard from '@/features/complaints/components/ComplaintInfoCard';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import ComplaintChatSection from '@/features/complaints/components/ComplaintChatSection';
+import { useAsync } from '@/hooks/useAsync';
+import { getComplaintByTicketNo, getComplaintReplies, addComplaintReply } from '@/features/complaints/services/complaints.api';
+import { adaptComplaintReplyToChatMessage } from '@/features/complaints/adapters/complaint.adapter';
 
-export default function ComplaintDetailPage({ params }) {
-  // Unwrap params using React.use() for Next.js 15+ App Router
-  const unwrappedParams = use(params);
-  const ticketId = unwrappedParams?.id || 'CMP-2026-894';
+// Avatar dekoratif -- tak ada API terpisah utk identitas 2 pihak percakapan
+// (pelapor & Admin OPD), lihat catatan gap di complaint.adapter.js soal
+// ComplaintReplyEntity yg cuma py authorId. Cukup generik, bukan cerminan
+// data sungguhan per pesan.
+const CHAT_PARTICIPANTS = [
+  { initials: 'AN', variant: 'primary' },
+  { initials: 'AD', variant: 'secondary' },
+];
 
-  // Dummy Data
-  const dummyComplaint = {
-    ticketId: `#${ticketId}`,
-    date: '19 Juli 2026',
-    target: 'Dinas Kesehatan',
-    status: 'diproses',
-    attachments: [
-      {
-        url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDofvS3J3wNCVXf6mYqZJCN-Maj37JGMtKNEXJmwRA8zRR_6F1FCO5893k9dd9o71liAb3mJT0lpFsLVipGs18biaN1C6M2riIpNWqWvj98zT-Tr3MUWEN34bp05sgg-cszhYtjb9UsWS7HK0R8LfrO9IQjurVkbVh8rzvwSAzioQKvJZ1iW8wfr6HNciruKZWk_ExvXqIKq0rhLtS2EiTh3S6cqtuPrLTTv5P-XXAJx49cP9_TmH4zUw',
-        alt: 'Bukti 1'
-      },
-      {
-        url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBlYA1_PsxbyUFwVw93YRWHZnB_5WekCYgdHt3yPM_pft6w7LmJKvj10Eyk5yhkOihi8u3_aFSWq-KsV7YYtZdB1Cl-2NDpu483KziV7JzF3qCWz-WcuY4tN1FfT6fLkDsnFGrOf7ybu-tRJvj5BWKy0VEteGY35vzm5qV_EfosLnrgMhUcsb0e1duEStDxbxtKiqvlnsRLBkscFiL5A5UriCLYZ1Bry45FHt6MugTwEe55Xn4b9wAGoA',
-        alt: 'Bukti 2'
-      }
-    ],
-    participants: [
-      { initials: 'OPD', variant: 'primary' },
-      { initials: 'AD', variant: 'secondary' }
-    ],
-    chatHistory: [
-      {
-        type: 'chat',
-        role: 'user',
-        text: 'Selamat pagi, antrean di Puskesmas X masih menumpuk hingga jalan raya. Mohon bantuannya untuk pengaturan lalu lintas dan penambahan loket.',
-        timestamp: '08:30 WIB',
-        status: 'Terkirim'
-      },
-      {
-        type: 'chat',
-        role: 'admin',
-        senderName: 'ADMIN OPD',
-        text: 'Halo Pak, terima kasih laporannya. Tim pengawas internal kami sedang menuju lokasi untuk mengurai kepadatan dan berkoordinasi dengan petugas keamanan setempat.',
-        timestamp: '09:15 WIB'
-      },
-      {
-        type: 'system',
-        text: 'Petugas sedang menangani aduan Anda'
-      }
-    ]
-  };
+export default function ComplaintDetailPage() {
+  const params = useParams();
+  // URL selalu lowercase (lihat ComplaintRow.jsx: id.toLowerCase()), tapi
+  // ticketNo backend generateTicketNo() selalu UPPERCASE -- konversi di sini
+  // sebelum query, krn perbandingan string Postgres case-sensitive.
+  const ticketNo = (params?.id || '').toUpperCase();
+
+  const fetchDetail = useCallback(async () => {
+    const complaint = await getComplaintByTicketNo(ticketNo);
+    const rawReplies = await getComplaintReplies(complaint.numericId);
+    const chatHistory = rawReplies.map((r) => adaptComplaintReplyToChatMessage(r, complaint.userId));
+    return { complaint, chatHistory };
+  }, [ticketNo]);
+
+  const { data, isLoading, error, refetch } = useAsync(fetchDetail);
 
   const breadcrumbItems = [
     { label: 'Beranda', href: '/dashboard' },
     { label: 'Daftar Pengaduan', href: '/complaints' },
-    { label: 'Detail', active: true }
+    { label: 'Detail', active: true },
   ];
+
+  const handleSendReply = async (text) => {
+    const reply = await addComplaintReply(data.complaint.numericId, text);
+    return adaptComplaintReplyToChatMessage(reply, data.complaint.userId);
+  };
 
   return (
     <main className="max-w-container-max w-full mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-10 md:py-12">
-      {/* Back Button & Breadcrumb */}
       <div className="mb-6 sm:mb-8 space-y-4">
         <div>
-          <Link 
-            href="/complaints" 
+          <Link
+            href="/complaints"
             className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all shadow-sm group"
             aria-label="Kembali ke Daftar Pengaduan"
             title="Kembali ke Daftar Pengaduan"
@@ -79,29 +67,30 @@ export default function ComplaintDetailPage({ params }) {
         <Breadcrumb items={breadcrumbItems} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 h-full">
-        {/* LEFT COLUMN (1/3) */}
-        <aside className="md:col-span-4 space-y-6 sm:space-y-8">
-          <ComplaintInfoCard 
-            ticketId={dummyComplaint.ticketId}
-            date={dummyComplaint.date}
-            target={dummyComplaint.target}
-            status={dummyComplaint.status}
-          />
-          <ComplaintProgressStepper 
-            currentStatus={dummyComplaint.status}
-          />
-          <ComplaintAttachments 
-            attachments={dummyComplaint.attachments}
-          />
-        </aside>
+      {isLoading ? (
+        <LoadingState label="Memuat detail pengaduan..." />
+      ) : error ? (
+        <ErrorState title="Gagal memuat pengaduan" description={error.message} onRetry={refetch} />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 h-full">
+          <aside className="md:col-span-4 space-y-6 sm:space-y-8">
+            <ComplaintInfoCard
+              ticketId={data.complaint.id}
+              date={data.complaint.dateStr}
+              target={data.complaint.target}
+              status={data.complaint.status}
+            />
+            <ComplaintProgressStepper currentStatus={data.complaint.status} />
+            <ComplaintAttachments attachments={data.complaint.attachments} />
+          </aside>
 
-        {/* RIGHT COLUMN (2/3) */}
-        <ComplaintChatSection 
-          initialMessages={dummyComplaint.chatHistory}
-          participants={dummyComplaint.participants}
-        />
-      </div>
+          <ComplaintChatSection
+            initialMessages={data.chatHistory}
+            participants={CHAT_PARTICIPANTS}
+            onSendReply={handleSendReply}
+          />
+        </div>
+      )}
     </main>
   );
 }

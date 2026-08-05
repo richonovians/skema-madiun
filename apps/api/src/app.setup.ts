@@ -15,9 +15,14 @@ export function configureApp(app: INestApplication): void {
 
   // CORS eksplisit: hanya origin frontend yang diizinkan (bukan wildcard `*`),
   // `credentials: true` disiapkan untuk sesi cookie httpOnly saat SSO nyata aktif.
+  // `exposedHeaders: Content-Disposition` WAJIB (INT-21) -- browser sembunyikan
+  // header ini dari JS cross-origin secara default (bukan di "safe list" CORS),
+  // jadi frontend (exportSurveyResults, ikm.api.js) tak bisa baca nama file asli
+  // dari server & diam-diam jatuh ke nama fallback tanpa periode/ekstensi benar.
   app.enableCors({
     origin: config.get<string[]>('cors.origin'),
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   });
 
   // Prefiks versi API: seluruh endpoint di bawah /api/v1 (kontrak arsitektur).

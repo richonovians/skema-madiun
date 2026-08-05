@@ -1,9 +1,10 @@
+import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from './audit.service';
 
 describe('AuditService', () => {
   const prisma = {
-    auditLog: { create: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+    auditLog: { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const service = new AuditService(prisma);
@@ -60,6 +61,32 @@ describe('AuditService', () => {
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { entitas: 'survey', actorId: 5 } }),
       );
+    });
+  });
+
+  describe('findOne', () => {
+    it('tidak ditemukan → NotFound', async () => {
+      (prisma.auditLog.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
+    });
+
+    it('memetakan baris + nama aktor', async () => {
+      (prisma.auditLog.findUnique as jest.Mock).mockResolvedValue({
+        id: 1,
+        actorId: 5,
+        aksi: 'update_status',
+        entitas: 'complaint',
+        detail: { params: { id: '7' }, body: { status: 'diproses' } },
+        timestamp: new Date(),
+        actor: { nama: 'Admin OPD' },
+      });
+
+      const result = await service.findOne(1);
+
+      expect(result.id).toBe(1);
+      expect(result.actorNama).toBe('Admin OPD');
+      expect(result.entitas).toBe('complaint');
+      expect((result as unknown as { actor?: unknown }).actor).toBeUndefined();
     });
   });
 });

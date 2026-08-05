@@ -3,13 +3,25 @@ import React from 'react';
 import Dropdown from '@/components/ui/Dropdown';
 import { Info } from 'lucide-react';
 
+/**
+ * Transisi status yang diizinkan backend (ComplaintsService.ALLOWED_TRANSITIONS,
+ * FR-CMP-03): Diterima -> Diproses/Ditolak, Diproses -> Selesai/Ditolak,
+ * Selesai/Ditolak permanen (terminal). Dropdown HANYA menawarkan target valid
+ * dari status saat ini -- pilihan lain akan gagal 400 di backend, jadi jangan
+ * ditawarkan sama sekali (bukan dibiarkan gagal, pola sama INT-19 status survei).
+ */
+const ALLOWED_NEXT_STATUS = {
+  Diterima: ['Diproses', 'Ditolak'],
+  Diproses: ['Selesai', 'Ditolak'],
+  Selesai: [],
+  Ditolak: [],
+};
+
 export default function ComplaintStatusControl({ currentStatus, onStatusChange }) {
-  const statusOptions = [
-    { value: 'Diproses', label: 'Diproses' },
-    { value: 'Selesai', label: 'Selesai' },
-    { value: 'Ditolak', label: 'Ditolak' },
-    { value: 'Diterima', label: 'Diterima' }
-  ];
+  const isTerminal = (ALLOWED_NEXT_STATUS[currentStatus] ?? []).length === 0;
+  const statusOptions = [currentStatus, ...(ALLOWED_NEXT_STATUS[currentStatus] ?? [])].map(
+    (value) => ({ value, label: value }),
+  );
 
   return (
     <section className="bg-white rounded-2xl shadow-sm border border-border">
@@ -30,7 +42,9 @@ export default function ComplaintStatusControl({ currentStatus, onStatusChange }
         <div className="p-3 bg-blue-50/80 border border-blue-100 rounded-xl flex items-start gap-3">
           <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
           <p className="text-[11px] font-medium text-blue-800 leading-relaxed">
-            Perubahan status akan diberitahukan kepada pelapor via aplikasi & notifikasi.
+            {isTerminal
+              ? 'Status tiket ini sudah final dan tidak dapat diubah lagi.'
+              : 'Perubahan status akan diberitahukan kepada pelapor via aplikasi & notifikasi.'}
           </p>
         </div>
       </div>

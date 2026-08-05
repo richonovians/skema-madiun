@@ -47,12 +47,20 @@ describe('OPD (e2e)', () => {
     expect(res.body.data[0]).toHaveProperty('syncedAt');
   });
 
-  it('GET /opd (opd) -> 403 (list hanya Kabupaten)', async () => {
+  it('GET /opd (opd) -> 200 (INT-18: list terbuka semua peran terautentikasi, bukan hanya Kabupaten)', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/opd')
       .set(devHeaders({ role: Role.opd, opdId }));
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /opd (responden) -> 200 (INT-18: dibutuhkan dropdown OPD tujuan saat buat pengaduan)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/opd')
+      .set(devHeaders({ role: Role.responden }));
+
+    expect(res.status).toBe(200);
   });
 
   it('GET /opd/:id (kabupaten) -> 200', async () => {

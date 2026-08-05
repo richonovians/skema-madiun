@@ -5,7 +5,16 @@ import { ArrowLeft, ArrowRight, Send } from 'lucide-react';
 import useSurveyStore from '../store/useSurveyStore';
 
 export default function SurveyNavigation() {
-  const { currentStepIndex, surveyData, answers, nextStep, prevStep, setCompleted } = useSurveyStore();
+  const {
+    currentStepIndex,
+    surveyData,
+    answers,
+    nextStep,
+    prevStep,
+    submitSurvey,
+    isSubmitting,
+    submitError,
+  } = useSurveyStore();
 
   if (!surveyData || !surveyData.questions) return null;
 
@@ -13,15 +22,13 @@ export default function SurveyNavigation() {
   const totalQuestions = surveyData.questions.length;
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === totalQuestions - 1;
-  
-  // Disable next/submit if no answer is selected for the current question
-  const isNextDisabled = !answers[currentQuestion.id];
 
-  const handleNextOrSubmit = () => {
+  // Disable next/submit if no answer is selected for the current question
+  const isNextDisabled = !answers[currentQuestion.id] || isSubmitting;
+
+  const handleNextOrSubmit = async () => {
     if (isLastStep) {
-      // Logic for submitting the survey
-      // TODO: Implement actual API call here later
-      setCompleted();
+      await submitSurvey();
     } else {
       nextStep();
     }
@@ -54,11 +61,19 @@ export default function SurveyNavigation() {
           onClick={handleNextOrSubmit}
           disabled={isNextDisabled}
         >
-          <span className="hidden sm:inline">{isLastStep ? 'Kirim Survei' : 'Pertanyaan Selanjutnya'}</span>
-          <span className="sm:hidden">{isLastStep ? 'Kirim' : 'Selanjutnya'}</span>
+          <span className="hidden sm:inline">
+            {isLastStep ? (isSubmitting ? 'Mengirim...' : 'Kirim Survei') : 'Pertanyaan Selanjutnya'}
+          </span>
+          <span className="sm:hidden">
+            {isLastStep ? (isSubmitting ? 'Mengirim...' : 'Kirim') : 'Selanjutnya'}
+          </span>
           {isLastStep ? <Send className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> : <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
         </button>
       </div>
+
+      {submitError && (
+        <p className="mt-4 text-center text-error text-sm font-semibold">{submitError}</p>
+      )}
 
       <p className="mt-8 text-center text-text-secondary text-sm">
         Jawaban Anda disimpan secara otomatis. Anda dapat kembali ke pertanyaan sebelumnya jika diperlukan.

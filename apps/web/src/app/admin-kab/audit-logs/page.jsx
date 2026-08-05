@@ -8,32 +8,38 @@ import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
-import { auditLogsApi } from '@/features/audit-logs/services/auditLogs.api';
+import { getAuditLogs } from '@/features/audit-logs/services/auditLogs.api';
+
+const LIMIT = 10;
 
 export default function AdminKabAuditLogsPage() {
-  const [filters, setFilters] = useState({
-    search: '',
-    dateRange: '',
-    module: 'Semua Modul',
-    action: 'Semua Aktivitas',
-    role: 'Semua Role',
-    opd: 'Semua OPD',
-    page: 1,
-    limit: 10
-  });
+  const [entitas, setEntitas] = useState('');
+  const [page, setPage] = useState(1);
 
-  const fetchLogs = useCallback(() => auditLogsApi.getAuditLogs(filters), [filters]);
+  const fetchLogs = useCallback(
+    () => getAuditLogs({ entitas: entitas || undefined, page, limit: LIMIT }),
+    [entitas, page],
+  );
   const { data: response, isLoading, error, refetch } = useAsync(fetchLogs);
 
   const data = response?.data ?? [];
-  const total = response?.total ?? 0;
-  const totalPages = Math.ceil(total / filters.limit) || 1;
+  const pagination = response?.meta?.pagination ?? { total: 0, totalPages: 1 };
+
+  const handleEntitasChange = (val) => {
+    setEntitas(val);
+    setPage(1);
+  };
+
+  const handleReset = () => {
+    setEntitas('');
+    setPage(1);
+  };
 
   return (
     <div className="p-lg w-full max-w-7xl mx-auto space-y-md pb-24">
-      <AuditSummaryCards />
+      <AuditSummaryCards total={pagination.total} />
 
-      <AuditFilterBar filters={filters} setFilters={setFilters} />
+      <AuditFilterBar entitas={entitas} onEntitasChange={handleEntitasChange} onReset={handleReset} />
 
       {isLoading ? (
         <LoadingState label="Memuat log aktivitas..." />
@@ -48,9 +54,11 @@ export default function AdminKabAuditLogsPage() {
           data={data}
           pagination={
             <Pagination
-              currentPage={filters.page}
-              totalPages={totalPages}
-              onPageChange={(page) => setFilters(prev => ({ ...prev, page }))}
+              currentPage={page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.total}
+              itemsPerPage={LIMIT}
+              onPageChange={setPage}
               itemName="aktivitas"
             />
           }

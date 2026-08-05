@@ -51,6 +51,8 @@ type ComplaintWithAttachments = Complaint & {
   }[];
   /** Hanya terisi bila query di-`include` (lihat findAll, INT-11). */
   user?: { nama: string };
+  /** Hanya terisi bila query di-`include` (lihat findByTicketNo, INT-18). */
+  opd?: { nama: string };
 };
 
 @Injectable()
@@ -85,7 +87,12 @@ export class ComplaintsService {
     }
   }
 
-  /** Daftar pengaduan — terfilter kepemilikan (Responden: milik sendiri; OPD: OPD-nya; Kabupaten: semua). */
+  /**
+   * Daftar pengaduan — terfilter kepemilikan (Responden: milik sendiri; OPD:
+   * OPD-nya; Kabupaten: semua). Sertakan `opdNama` (INT-18) selain
+   * `reporterNama` (INT-11) -- daftar pengaduan responden perlu kolom "OPD
+   * Tujuan" per baris.
+   */
   async findAll(
     query: ListComplaintQueryDto,
     user: CurrentUser,
@@ -99,7 +106,11 @@ export class ComplaintsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.complaint.findMany({
         where,
-        include: { attachments: true, user: { select: { nama: true } } },
+        include: {
+          attachments: true,
+          user: { select: { nama: true } },
+          opd: { select: { nama: true } },
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -115,11 +126,22 @@ export class ComplaintsService {
     );
   }
 
-  /** Detail & lacak status via nomor tiket (identifier publik). */
+  /**
+   * Detail & lacak status via nomor tiket (identifier publik). Sertakan
+   * `opdNama` (INT-18) -- halaman detail pengaduan responden perlu tahu
+   * "ditujukan ke OPD mana", sebelumnya endpoint ini tak sertakan sama sekali.
+   * Sertakan juga `reporterNama` (INT-20) -- halaman detail Admin OPD perlu
+   * profil pelapor, endpoint ini sebelumnya cuma include `opd`, bukan `user`,
+   * jadi reporterNama selalu kosong meski findAll sudah menyertakannya.
+   */
   async findByTicketNo(ticketNo: string, user: CurrentUser): Promise<ComplaintEntity> {
     const complaint = await this.prisma.complaint.findUnique({
       where: { ticketNo },
-      include: { attachments: true },
+      include: {
+        attachments: true,
+        user: { select: { nama: true } },
+        opd: { select: { nama: true } },
+      },
     });
     if (!complaint) {
       throw new NotFoundException(`Pengaduan dengan nomor tiket ${ticketNo} tidak ditemukan`);
@@ -346,11 +368,12 @@ export class ComplaintsService {
   }
 
   private toEntity(row: ComplaintWithAttachments): ComplaintEntity {
-    const { user, ...rest } = row;
+    const { user, opd, ...rest } = row;
     return new ComplaintEntity({
       ...rest,
       attachments: rest.attachments.map((a) => ({ ...a })),
       reporterNama: user?.nama,
+      opdNama: opd?.nama,
     });
   }
 }

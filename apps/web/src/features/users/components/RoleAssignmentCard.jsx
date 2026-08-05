@@ -2,7 +2,6 @@ import React from 'react';
 import { ShieldCheck, Building2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Dropdown from '@/components/ui/Dropdown';
-import { DUMMY_OPD } from '@/features/opd/constants/dummyOPD';
 import { USER_ROLES } from '../constants/dummyUsers';
 
 const ROLE_OPTIONS = [
@@ -11,12 +10,10 @@ const ROLE_OPTIONS = [
   { value: USER_ROLES.ADMIN_OPD, label: 'Admin OPD' },
 ];
 
-const OPD_OPTIONS = [
-  { value: '', label: 'Pilih Instansi / OPD' },
-  ...DUMMY_OPD.map((opd) => ({ value: String(opd.id), label: opd.name })),
-];
-
-export default function RoleAssignmentCard({ formData, onDropdownChange, errors }) {
+/** `opdOptions` datang dari page.jsx (GET /opd sungguhan) -- versi dummy lama
+ * pakai DUMMY_OPD (id palsu, tak match OPD asli manapun), akan selalu gagal
+ * validasi backend (`opdId` tak ditemukan) kalau dikirim apa adanya. */
+export default function RoleAssignmentCard({ formData, onDropdownChange, errors, opdOptions = [] }) {
   const isAdminOPD = formData.role === USER_ROLES.ADMIN_OPD;
 
   return (
@@ -60,7 +57,7 @@ export default function RoleAssignmentCard({ formData, onDropdownChange, errors 
             <Dropdown
               id="opdId"
               label="INSTANSI / OPD"
-              options={OPD_OPTIONS}
+              options={opdOptions}
               value={formData.opdId}
               onChange={(value) => onDropdownChange('opdId', value)}
               error={errors.opdId}

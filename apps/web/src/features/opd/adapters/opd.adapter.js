@@ -18,6 +18,10 @@ export function adaptOpd(opd) {
     activeSurveys: opd.activeSurveys ?? 0,
     openComplaints: opd.openComplaints ?? 0,
     status: opd.isActive ? 'ACTIVE' : 'INACTIVE',
+    // Kapan cache lokal ini terakhir disinkron dari Helpdesk -- satu-satunya
+    // "aksi" nyata yang tersedia utk baris OPD (lihat OPDTable.jsx: tak ada
+    // endpoint aktifkan/nonaktifkan manual, OPD murni cache read-only, D10).
+    syncedAt: opd.syncedAt ?? null,
   };
 }
 
