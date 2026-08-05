@@ -10,7 +10,9 @@ const kabupatenUser = (): CurrentUser => ({ userId: 2, role: Role.kabupaten, opd
 
 describe('DashboardService', () => {
   const prisma = {
-    survey: { findFirst: jest.fn() },
+    // `findMany` default [] -- getStatistics (2026-08-05) ikut query survei
+    // `aktif` utk live-compute; tes yg tak peduli survei aktif tak perlu tahu ini.
+    survey: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     surveyResponse: { count: jest.fn().mockResolvedValue(0) },
     complaint: {
       count: jest.fn().mockResolvedValue(0),
@@ -22,7 +24,10 @@ describe('DashboardService', () => {
     ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
     statisticsInsight: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
   } as unknown as PrismaService;
-  const ikmService = { getResults: jest.fn() } as unknown as IkmService;
+  const ikmService = {
+    getResults: jest.fn(),
+    computeResult: jest.fn(),
+  } as unknown as IkmService;
   const service = new DashboardService(prisma, ikmService);
 
   beforeEach(() => jest.clearAllMocks());
@@ -152,6 +157,23 @@ describe('DashboardService', () => {
       expect(result.summary.completionRate).toBeNull();
       expect(result.ikmTrend).toEqual([]);
       expect(result.insight.text).toBeNull();
+    });
+
+    it('(2026-08-05) survei AKTIF yg sudah punya responden ikut masuk summary.ikm/ikmTrend', async () => {
+      (prisma.survey.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 30, opdId: 4, periode: '2026-Q3', judul: 'Survei Aktif', opd: { nama: 'Dinas X' } },
+      ]);
+      (ikmService.computeResult as jest.Mock).mockResolvedValueOnce({
+        nilaiIkm: 84,
+        mutu: IkmMutu.B,
+        jumlahResponden: 2,
+        nrrPerUnsur: [{ kodeUnsur: 'U1', teks: 'Persyaratan', nrr: 3.36 }],
+      });
+
+      const result = await service.getStatistics();
+
+      expect(result.summary.ikm).toBe(84);
+      expect(result.ikmTrend).toEqual([{ periode: '2026-Q3', value: 84 }]);
     });
 
     it('(D5) ikmTrend dikelompokkan per periode triwulan, terurut kronologis', async () => {

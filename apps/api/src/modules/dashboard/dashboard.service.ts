@@ -198,7 +198,7 @@ export class DashboardService {
   /** `GET /statistics` (INT-14, D2: PUBLIK tanpa autentikasi). */
   async getStatistics(): Promise<StatisticsEntity> {
     const [
-      ikmResults,
+      closedIkmRows,
       totalRespondents,
       totalComplaints,
       allComplaints,
@@ -207,6 +207,7 @@ export class DashboardService {
       complaintCategoryRows,
       scaleAnswerRows,
       insightRow,
+      activeSurveys,
     ] = await Promise.all([
       this.prisma.ikmResult.findMany({
         select: {
@@ -232,8 +233,32 @@ export class DashboardService {
         _count: { _all: true },
       }),
       this.prisma.statisticsInsight.findUnique({ where: { id: 1 } }),
+      this.prisma.survey.findMany({
+        where: { status: SurveyStatus.aktif },
+        include: { opd: { select: { nama: true } } },
+      }),
     ]);
     const resolvedComplaints = allComplaints.filter((c) => c.status === ComplaintStatus.selesai);
+
+    // Survei AKTIF yg sudah punya responden ikut dihitung live (2026-08-05,
+    // temuan audit: SEBELUMNYA statistik publik buta total thd survei yang
+    // masih berjalan sampai ditutup -- lihat catatan sama di
+    // `IkmService.getDashboard`, sumber rumus tunggal tetap `computeResult`).
+    const activeComputed = await Promise.all(
+      activeSurveys.map(async (survey) => ({
+        survey,
+        result: await this.ikmService.computeResult(survey),
+      })),
+    );
+    const activeIkmRows = activeComputed
+      .filter(({ result }) => result.nilaiIkm !== null)
+      .map(({ survey, result }) => ({
+        nilaiIkm: result.nilaiIkm as number,
+        periode: survey.periode,
+        nrrPerUnsur: result.nrrPerUnsur,
+        survey: { opdId: survey.opdId, opd: { nama: survey.opd.nama } },
+      }));
+    const ikmResults = [...closedIkmRows, ...activeIkmRows];
 
     const ikm =
       ikmResults.length > 0
