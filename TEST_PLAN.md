@@ -202,7 +202,8 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 - [ ] Seluruh test case prioritas **P0 (Kritis)** lulus 100%.
 - [ ] Seluruh test case prioritas **P1 (Tinggi)** lulus ≥ 95%.
 - [ ] Tidak ada bug severity **Critical** atau **High** yang belum ditangani.
-- [ ] Coverage unit test ≥ 80% untuk service layer.
+- [ ] Coverage unit test ≥ 80% untuk service layer (Backend).
+- [ ] Coverage component test ≥ 80% untuk UI Components (Frontend).
 - [ ] Coverage integration test mencakup seluruh 49 endpoint API.
 - [ ] Isolasi data OPD tervalidasi pada semua modul.
 - [ ] Perhitungan IKM menghasilkan output identik dengan perhitungan manual.
@@ -216,6 +217,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 | Test Pass Rate             | ≥ 95% (P0/P1: 100%) | Jest report         |
 | Code Coverage (service)    | ≥ 80%               | Jest --coverage     |
 | Code Coverage (controller) | ≥ 70%               | Jest --coverage     |
+| Code Coverage (frontend)   | ≥ 80%               | Jest --coverage     |
 | Bug Density                | < 5 bugs/KLOC       | Issue tracker       |
 | Mean Time to Fix (P0 bug)  | < 4 jam             | Issue tracker       |
 | Regression Rate            | < 5%                | CI pipeline history |
@@ -247,15 +249,16 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 
 ## 9. Deliverables
 
-| Deliverable               | Format                        | Lokasi                           |
-| ------------------------- | ----------------------------- | -------------------------------- |
-| Dokumen Rencana Pengujian | Markdown                      | `TEST_PLAN.md` (dokumen ini)     |
-| Matriks Skenario Uji      | Markdown                      | `TEST_CASES.md`                  |
-| Unit Test Code            | TypeScript (Jest)             | `apps/api/src/**/*.spec.ts`      |
-| Integration Test Code     | TypeScript (Jest + Supertest) | `apps/api/test/**/*.e2e-spec.ts` |
-| E2E Test Code             | TypeScript (Playwright)       | `apps/web/e2e/**/*.spec.ts`      |
-| Test Coverage Report      | HTML/LCOV                     | CI artifacts                     |
-| Bug Reports               | Issue                         | GitLab Issues                    |
+| Deliverable               | Format                        | Lokasi                            |
+| ------------------------- | ----------------------------- | --------------------------------- |
+| Dokumen Rencana Pengujian | Markdown                      | `TEST_PLAN.md` (dokumen ini)      |
+| Matriks Skenario Uji      | Markdown                      | `TEST_CASES.md`                   |
+| Unit Test Code            | TypeScript (Jest)             | `apps/api/src/**/*.spec.ts`       |
+| Integration Test Code     | TypeScript (Jest + Supertest) | `apps/api/test/**/*.e2e-spec.ts`  |
+| Component Test Code       | JSX/TSX (Jest + RTL)          | `apps/web/src/**/__tests__/*.jsx` |
+| E2E Test Code             | TypeScript (Playwright)       | `apps/web/e2e/**/*.spec.ts`       |
+| Test Coverage Report      | HTML/LCOV                     | CI artifacts                      |
+| Bug Reports               | Issue                         | GitLab Issues                     |
 
 ---
 
