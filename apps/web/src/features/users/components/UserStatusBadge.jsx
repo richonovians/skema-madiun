@@ -1,5 +1,5 @@
 import React from 'react';
-import { USER_STATUS } from '../constants/dummyUsers';
+import { USER_STATUS } from '../constants/userConstants';
 
 export default function UserStatusBadge({ status }) {
   const getStatusConfig = () => {

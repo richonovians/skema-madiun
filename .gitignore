@@ -6,3 +6,8 @@ dist/
 .next/
 coverage/
 *.log
+
+# Proyek pakai pnpm (pnpm-lock.yaml di root) -- package-lock.json (npm)
+# tak sengaja kebuat kalau ada yang jalanin `npm install` alih-alih `pnpm
+# install`, jangan sampai ke-commit lagi (INT-28).
+package-lock.json

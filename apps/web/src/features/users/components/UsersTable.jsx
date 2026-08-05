@@ -2,7 +2,7 @@ import React from 'react';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
 import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
-import { USER_ROLES } from '../constants/dummyUsers';
+import { USER_ROLES } from '../constants/userConstants';
 import EmptyState from '@/components/ui/EmptyState';
 import { Users as UsersIcon } from 'lucide-react';
 
