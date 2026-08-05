@@ -2,9 +2,15 @@ import React from 'react';
 import Link from 'next/link';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
 import Button from '@/components/ui/Button';
-import Avatar from '@/components/ui/Avatar';
 import { Eye } from 'lucide-react';
 
+/**
+ * Kolom Responden/Email/No. Telepon DIHAPUS -- SKM sengaja anonim by design
+ * (ResponseEntity backend TAK memuat identitas pengisi sama sekali, lihat
+ * catatan di response.entity.ts & survey.adapter.js). "Nilai" sekarang
+ * `averageScore` DIDERIVASI dari jawaban skala respons itu sendiri (bukan
+ * field backend).
+ */
 export default function SurveyResponsesTable({ surveyId, responses }) {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -13,7 +19,7 @@ export default function SurveyResponsesTable({ surveyId, responses }) {
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -22,35 +28,26 @@ export default function SurveyResponsesTable({ surveyId, responses }) {
       <Table>
         <Thead>
           <Tr>
-            <Th>Responden</Th>
-            <Th>Email</Th>
-            <Th>No. Telepon</Th>
+            <Th>Respons</Th>
             <Th>Waktu Pengisian</Th>
-            <Th>Nilai</Th>
-            <Th><span className="sr-only">Aksi</span></Th>
+            <Th>Nilai Rata-Rata</Th>
+            <Th>
+              <span className="sr-only">Aksi</span>
+            </Th>
           </Tr>
         </Thead>
         <Tbody>
-          {responses.map((response) => (
+          {responses.map((response, index) => (
             <Tr key={response.id}>
               <Td>
-                <div className="flex items-center gap-sm">
-                  <Avatar name={response.respondent.name} size="sm" />
-                  <span className="font-medium text-on-surface">{response.respondent.name}</span>
-                </div>
-              </Td>
-              <Td>
-                <span className="text-on-surface-variant">{response.respondent.email || '-'}</span>
-              </Td>
-              <Td>
-                <span className="text-on-surface-variant">{response.respondent.phone || '-'}</span>
+                <span className="font-medium text-on-surface">Respons #{index + 1}</span>
               </Td>
               <Td>
                 <span className="text-on-surface-variant">{formatDate(response.submittedAt)}</span>
               </Td>
               <Td>
                 <span className="font-bold text-on-surface">
-                  {response.score?.toFixed(1) || '-'}
+                  {response.averageScore != null ? `${response.averageScore.toFixed(1)} / 4` : '-'}
                 </span>
               </Td>
               <Td>
@@ -65,7 +62,7 @@ export default function SurveyResponsesTable({ surveyId, responses }) {
           ))}
           {responses.length === 0 && (
             <Tr>
-              <Td colSpan={6} className="text-center py-xl text-on-surface-variant">
+              <Td colSpan={4} className="text-center py-xl text-on-surface-variant">
                 Belum ada respons untuk survei ini.
               </Td>
             </Tr>

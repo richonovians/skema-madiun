@@ -1,79 +1,67 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import SurveyResponsesHeader from '@/features/surveys/components/SurveyResponsesHeader';
 import SurveyResponsesSummary from '@/features/surveys/components/SurveyResponsesSummary';
 import SurveyResponsesTable from '@/features/surveys/components/SurveyResponsesTable';
-import { surveyResponsesApi } from '@/features/surveys/services/surveyResponses.api';
-import { DUMMY_SURVEYS } from '@/features/surveys/data/dummySurveys';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+import { useAsync } from '@/hooks/useAsync';
+import { getSurveyById, getQuestions, getSurveyResponses } from '@/features/surveys/services/surveys.api';
+import { adaptSurveyResponseList } from '@/features/surveys/adapters/survey.adapter';
 
 export default function SurveyResponsesPage() {
   const params = useParams();
   const surveyId = params.id;
 
-  const [responses, setResponses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Set survey info directly from DUMMY_SURVEYS
-  const survey = DUMMY_SURVEYS.find(s => s.id === surveyId);
-  const surveyInfo = {
-    title: survey?.title || 'Judul Survei Tidak Ditemukan',
-    opd: 'RSUD Daerah' // Dummy OPD since DUMMY_SURVEYS doesn't have it
-  };
-
-  useEffect(() => {
-    const fetchResponses = async () => {
-      try {
-        setLoading(true);
-        const data = await surveyResponsesApi.getSurveyResponses(surveyId);
-        setResponses(data);
-      } catch (error) {
-        console.error('Failed to fetch survey responses', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (surveyId) {
-      fetchResponses();
-    }
+  const fetchData = useCallback(async () => {
+    const [survey, questions, responsesResult] = await Promise.all([
+      getSurveyById(surveyId),
+      getQuestions(surveyId),
+      getSurveyResponses(surveyId, { limit: 100 }),
+    ]);
+    const questionsById = new Map(questions.map((q) => [q.id, q]));
+    const responses = adaptSurveyResponseList(responsesResult.data, questionsById);
+    return { survey, responses };
   }, [surveyId]);
 
-  const totalResponses = responses.length;
-  const averageScore = totalResponses > 0 
-    ? responses.reduce((acc, curr) => acc + curr.score, 0) / totalResponses 
-    : 0;
-  const lastResponseDate = totalResponses > 0 
-    ? responses.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0].submittedAt 
-    : null;
+  const { data, isLoading, error, refetch } = useAsync(fetchData);
+
+  const summary = useMemo(() => {
+    const responses = data?.responses ?? [];
+    const total = responses.length;
+    const withScore = responses.filter((r) => r.averageScore != null);
+    const averageScore =
+      withScore.length > 0
+        ? withScore.reduce((sum, r) => sum + r.averageScore, 0) / withScore.length
+        : 0;
+    const lastResponseDate =
+      total > 0
+        ? [...responses].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0]
+            .submittedAt
+        : null;
+    return { total, averageScore, lastResponseDate };
+  }, [data]);
 
   return (
     <div className="w-full pt-4">
-      <SurveyResponsesHeader 
-        surveyTitle={surveyInfo?.title || ''} 
-        opd={surveyInfo?.opd || ''} 
-      />
-      
-      {!loading && (
-        <>
-          <SurveyResponsesSummary 
-            totalResponses={totalResponses} 
-            averageScore={averageScore} 
-            lastResponseDate={lastResponseDate} 
-          />
-          
-          <SurveyResponsesTable 
-            surveyId={surveyId} 
-            responses={responses} 
-          />
-        </>
-      )}
+      <SurveyResponsesHeader surveyTitle={data?.survey.title ?? ''} period={data?.survey.period ?? ''} />
 
-      {loading && (
-        <div className="flex justify-center items-center py-20 text-on-surface-variant">
-          <p>Memuat daftar respons...</p>
-        </div>
+      {isLoading ? (
+        <LoadingState label="Memuat daftar respons..." />
+      ) : error ? (
+        <ErrorState title="Gagal memuat respons" description={error.message} onRetry={refetch} />
+      ) : (
+        <>
+          <SurveyResponsesSummary
+            totalResponses={summary.total}
+            averageScore={summary.averageScore}
+            lastResponseDate={summary.lastResponseDate}
+          />
+
+          <SurveyResponsesTable surveyId={surveyId} responses={data.responses} />
+        </>
       )}
     </div>
   );

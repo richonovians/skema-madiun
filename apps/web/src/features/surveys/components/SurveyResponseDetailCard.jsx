@@ -1,11 +1,15 @@
 import React from 'react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
-import { Calendar, Building2, ClipboardList, Star } from 'lucide-react';
+import { Calendar, ClipboardList, Star } from 'lucide-react';
 
-export default function SurveyResponseDetailCard({ response }) {
-  const { surveyTitle, opd, submittedAt, score } = response;
-
+/**
+ * Field "OPD Penyelenggara" DIHAPUS -- admin OPD sudah tahu instansinya
+ * sendiri, dan `adaptSurvey` tak menyertakan opdNama. "Nilai Akhir" sekarang
+ * `averageScore` DIDERIVASI dari jawaban skala respons ini saja (skala 1-4
+ * sesuai PermenPANRB, bukan 1-5), lihat catatan survey.adapter.js.
+ */
+export default function SurveyResponseDetailCard({ surveyTitle, submittedAt, averageScore }) {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', {
@@ -14,7 +18,7 @@ export default function SurveyResponseDetailCard({ response }) {
       month: 'long',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -23,7 +27,7 @@ export default function SurveyResponseDetailCard({ response }) {
       <h3 className="font-h3 text-h3 text-on-surface mb-md pb-sm border-b border-outline-variant">
         Informasi Survei
       </h3>
-      
+
       <div className="grid grid-cols-1 gap-y-4">
         <div className="flex items-start gap-sm">
           <div className="mt-1 text-primary shrink-0">
@@ -32,16 +36,6 @@ export default function SurveyResponseDetailCard({ response }) {
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wider text-on-surface-variant font-medium">Judul Survei</p>
             <p className="font-medium text-on-surface text-sm">{surveyTitle}</p>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-sm">
-          <div className="mt-1 text-primary shrink-0">
-            <Building2 size={18} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wider text-on-surface-variant font-medium">OPD Penyelenggara</p>
-            <p className="font-medium text-on-surface text-sm">{opd}</p>
           </div>
         </div>
 
@@ -60,9 +54,11 @@ export default function SurveyResponseDetailCard({ response }) {
             <Star size={20} className="fill-amber-500" />
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-on-surface-variant font-medium mb-1">Nilai Akhir</p>
+            <p className="text-[11px] uppercase tracking-wider text-on-surface-variant font-medium mb-1">
+              Nilai Rata-Rata
+            </p>
             <Badge variant="warning" className="font-bold text-sm px-3 py-1">
-              {score?.toFixed(1) || '-'} / 5.0
+              {averageScore != null ? averageScore.toFixed(1) : '-'} / 4
             </Badge>
           </div>
         </div>

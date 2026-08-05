@@ -1,64 +1,44 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import SurveyResponseDetailCard from '@/features/surveys/components/SurveyResponseDetailCard';
-import SurveyResponseIdentity from '@/features/surveys/components/SurveyResponseIdentity';
 import SurveyResponseAnswers from '@/features/surveys/components/SurveyResponseAnswers';
-import { surveyResponsesApi } from '@/features/surveys/services/surveyResponses.api';
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+import { useAsync } from '@/hooks/useAsync';
+import { getSurveyById, getQuestions, getSurveyResponses } from '@/features/surveys/services/surveys.api';
+import { adaptSurveyResponseList } from '@/features/surveys/adapters/survey.adapter';
 
+/**
+ * Tak ada endpoint detail-per-respons di backend (GET /surveys/:id/responses
+ * cuma list) -- ambil daftar (sudah include jawaban lengkap per item) lalu
+ * cari client-side, drpd nambah endpoint baru utk sesuatu yg datanya sudah
+ * ada di respons list manapun.
+ */
 export default function SurveyResponseDetailPage() {
   const params = useParams();
   const surveyId = params.id;
   const responseId = params.responseId;
 
-  const [response, setResponse] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchResponseDetail = async () => {
-      try {
-        setLoading(true);
-        const data = await surveyResponsesApi.getSurveyResponseDetail(surveyId, responseId);
-        setResponse(data);
-      } catch (error) {
-        console.error('Failed to fetch survey response detail', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (surveyId && responseId) {
-      fetchResponseDetail();
+  const fetchData = useCallback(async () => {
+    const [survey, questions, responsesResult] = await Promise.all([
+      getSurveyById(surveyId),
+      getQuestions(surveyId),
+      getSurveyResponses(surveyId, { limit: 100 }),
+    ]);
+    const questionsById = new Map(questions.map((q) => [q.id, q]));
+    const responses = adaptSurveyResponseList(responsesResult.data, questionsById);
+    const response = responses.find((r) => String(r.id) === String(responseId));
+    if (!response) {
+      throw new Error('Respons tidak ditemukan');
     }
+    return { survey, response };
   }, [surveyId, responseId]);
 
-  if (loading) {
-    return (
-      <div className="w-full pt-4">
-        <div className="flex justify-center items-center py-20 text-on-surface-variant">
-          <p>Memuat detail respons...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!response) {
-    return (
-      <div className="w-full pt-4">
-        <div className="flex flex-col justify-center items-center py-20">
-          <p className="text-on-surface-variant mb-md">Respons tidak ditemukan.</p>
-          <Link href={`/admin-opd/surveys/${surveyId}/responses`}>
-            <button className="px-md py-sm bg-primary text-on-primary rounded-lg text-label-md font-bold">
-              Kembali ke Daftar Respons
-            </button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const { data, isLoading, error, refetch } = useAsync(fetchData);
 
   return (
     <div className="w-full pt-4">
@@ -68,7 +48,10 @@ export default function SurveyResponseDetailPage() {
             Daftar Survei
           </Link>
           <ChevronRight size={16} className="mx-xs" />
-          <Link href={`/admin-opd/surveys/${surveyId}/responses`} className="hover:text-primary transition-colors">
+          <Link
+            href={`/admin-opd/surveys/${surveyId}/responses`}
+            className="hover:text-primary transition-colors"
+          >
             Respon Survei
           </Link>
           <ChevronRight size={16} className="mx-xs" />
@@ -84,24 +67,30 @@ export default function SurveyResponseDetailPage() {
           <div>
             <h1 className="font-h2 text-h2 text-on-surface">Detail Respons</h1>
             <p className="text-body-md text-on-surface-variant mt-xs">
-              Melihat respons dari {response.respondent?.name}
+              Respons anonim -- SKM tidak menyimpan identitas pengisi
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
-        <div className="lg:col-span-1 space-y-lg">
-          <SurveyResponseDetailCard response={response} />
-          <SurveyResponseIdentity respondent={response.respondent} />
+      {isLoading ? (
+        <LoadingState label="Memuat detail respons..." />
+      ) : error ? (
+        <ErrorState title="Gagal memuat respons" description={error.message} onRetry={refetch} />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+          <div className="lg:col-span-1 space-y-lg">
+            <SurveyResponseDetailCard
+              surveyTitle={data.survey.title}
+              submittedAt={data.response.submittedAt}
+              averageScore={data.response.averageScore}
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <SurveyResponseAnswers answers={data.response.answers} />
+          </div>
         </div>
-        <div className="lg:col-span-2">
-          <SurveyResponseAnswers 
-            answers={response.answers} 
-            suggestion={response.suggestion} 
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

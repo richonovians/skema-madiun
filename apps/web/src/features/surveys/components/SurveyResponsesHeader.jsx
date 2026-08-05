@@ -2,7 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 
-export default function SurveyResponsesHeader({ surveyTitle, opd }) {
+/** "opd" (dummy hardcode "RSUD Daerah") diganti "period" (periode survei asli) -- admin OPD sudah tahu instansinya sendiri dari navbar. */
+export default function SurveyResponsesHeader({ surveyTitle, period }) {
   return (
     <div className="mb-lg">
       <div className="flex items-center text-label-md text-on-surface-variant mb-md">
@@ -22,7 +23,7 @@ export default function SurveyResponsesHeader({ surveyTitle, opd }) {
         <div>
           <h1 className="font-h2 text-h2 text-on-surface">{surveyTitle || 'Memuat...'}</h1>
           <p className="text-body-md text-on-surface-variant mt-xs">
-            {opd || 'Memuat...'}
+            {period ? `Periode: ${period}` : 'Memuat...'}
           </p>
         </div>
       </div>
