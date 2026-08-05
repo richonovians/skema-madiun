@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { getComplaintCategories } from '../services/reference.api';
+import { getComplaintCategories, getComplaintSubCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 
 export default function CreateComplaintForm() {
@@ -23,6 +23,7 @@ export default function CreateComplaintForm() {
   const [formData, setFormData] = useState({
     department: '',
     category: '',
+    subCategory: '',
     title: '',
     description: '',
   });
@@ -31,16 +32,27 @@ export default function CreateComplaintForm() {
   const { data: opdResponse } = useAsync(fetchOpd);
   const fetchCategories = useCallback(() => getComplaintCategories(), []);
   const { data: categories } = useAsync(fetchCategories);
+  const fetchSubCategories = useCallback(() => getComplaintSubCategories(), []);
+  const { data: subCategories } = useAsync(fetchSubCategories);
 
   const departmentOptions = (opdResponse?.data ?? []).map((opd) => ({
     label: opd.name,
     value: String(opd.id),
   }));
   const categoryOptions = (categories ?? []).map((c) => ({ label: c.nama, value: c.kode }));
+  const subCategoryOptions = (subCategories ?? [])
+    .filter((s) => s.kategoriKode === formData.category)
+    .map((s) => ({ label: s.nama, value: s.kode }));
 
   const handleChange = (e) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleCategoryChange = (value) => {
+    // Sub-kategori bergantung kategori -- reset saat kategori berganti (sub-kategori
+    // lama kemungkinan tak lagi valid utk kategori baru).
+    setFormData((prev) => ({ ...prev, category: value, subCategory: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -52,6 +64,7 @@ export default function CreateComplaintForm() {
         {
           opdId: formData.department,
           kategori: formData.category,
+          subKategori: formData.subCategory,
           title: formData.title,
           description: formData.description,
         },
@@ -95,9 +108,19 @@ export default function CreateComplaintForm() {
             id="category"
             options={[{ label: 'Pilih Kategori', value: '' }, ...categoryOptions]}
             value={formData.category}
-            onChange={(val) => setFormData((prev) => ({ ...prev, category: val }))}
+            onChange={handleCategoryChange}
           />
         </div>
+
+        {formData.category && subCategoryOptions.length > 0 && (
+          <Dropdown
+            label="Sub-Kategori (opsional)"
+            id="subCategory"
+            options={[{ label: 'Pilih Sub-Kategori', value: '' }, ...subCategoryOptions]}
+            value={formData.subCategory}
+            onChange={(val) => setFormData((prev) => ({ ...prev, subCategory: val }))}
+          />
+        )}
 
         <Input
           label="Judul Laporan"

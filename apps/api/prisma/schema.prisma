@@ -262,16 +262,19 @@ model IkmResult {
 // =====================================================================
 
 model Complaint {
-  id        Int             @id @default(autoincrement())
-  ticketNo  String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
-  userId    Int             @map("user_id")
-  opdId     Int             @map("opd_id")
-  kategori  String          @db.VarChar(50)
-  judul     String          @db.VarChar(255)
-  uraian    String          @db.Text
-  status    ComplaintStatus @default(diterima)
-  createdAt DateTime        @default(now()) @map("created_at")
-  updatedAt DateTime        @updatedAt @map("updated_at")
+  id          Int             @id @default(autoincrement())
+  ticketNo    String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
+  userId      Int             @map("user_id")
+  opdId       Int             @map("opd_id")
+  kategori    String          @db.VarChar(50)
+  // INT-42 (D12): sub-level opsional di bawah `kategori` (7 umum tetap wajib
+  // untuk agregasi lintas kabupaten) -- lihat COMPLAINT_SUB_CATEGORIES.
+  subKategori String?         @map("sub_kategori") @db.VarChar(50)
+  judul       String          @db.VarChar(255)
+  uraian      String          @db.Text
+  status      ComplaintStatus @default(diterima)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
 
   user        User                  @relation(fields: [userId], references: [id])
   opd         Opd                   @relation(fields: [opdId], references: [id])

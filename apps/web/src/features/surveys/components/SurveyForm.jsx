@@ -4,14 +4,12 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
-import { User, UserX } from 'lucide-react';
 
 export default function SurveyForm() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     opd: '',
     layanan: '',
-    isAnonymous: false,
   });
   const [errors, setErrors] = useState({});
 
@@ -29,7 +27,7 @@ export default function SurveyForm() {
       return;
     }
 
-    router.push(`/surveys/${formData.opd}?layanan=${formData.layanan}&anonymous=${formData.isAnonymous}`);
+    router.push(`/surveys/${formData.opd}?layanan=${formData.layanan}`);
   };
 
   const handleDropdownChange = (id, value) => {

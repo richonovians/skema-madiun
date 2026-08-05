@@ -8,6 +8,8 @@ export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
   userId: number;
   opdId: number;
   kategori: string;
+  /** Sub-kategori opsional di bawah `kategori` (INT-42, D12). */
+  subKategori: string | null;
   judul: string;
   uraian: string;
   status: ComplaintStatus;

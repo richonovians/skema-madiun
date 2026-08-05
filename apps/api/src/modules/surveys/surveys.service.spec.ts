@@ -92,6 +92,25 @@ describe('SurveysService', () => {
     );
   });
 
+  it('findActive (INT-45) dgn opdId -> where menyertakan filter opdId (instansi->survei aktif)', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [
+        surveyRow({
+          status: SurveyStatus.aktif,
+          opd: { nama: 'Dinas Kesehatan' },
+          _count: { questions: 9 },
+        }),
+      ],
+      1,
+    ]);
+
+    await service.findActive({ page: 1, limit: 20, opdId: 5 });
+
+    expect(prisma.survey.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: SurveyStatus.aktif, opdId: 5 } }),
+    );
+  });
+
   it('create (Admin OPD) memakai opdId miliknya', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
     (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());

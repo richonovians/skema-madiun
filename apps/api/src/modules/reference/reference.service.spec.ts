@@ -29,4 +29,28 @@ describe('ReferenceService', () => {
       expect.objectContaining({ kode: expect.any(String), nama: expect.any(String) }),
     );
   });
+
+  it('mengembalikan 18 sub-kategori pengaduan tanpa filter', () => {
+    const subCategories = service.getComplaintSubCategories();
+
+    expect(subCategories).toHaveLength(18);
+    expect(subCategories[0]).toEqual(
+      expect.objectContaining({
+        kode: expect.any(String),
+        nama: expect.any(String),
+        kategoriKode: expect.any(String),
+      }),
+    );
+  });
+
+  it('memfilter sub-kategori berdasarkan kategoriKode', () => {
+    const subCategories = service.getComplaintSubCategories('kesehatan');
+
+    expect(subCategories.length).toBeGreaterThan(0);
+    expect(subCategories.every((s) => s.kategoriKode === 'kesehatan')).toBe(true);
+  });
+
+  it('kategori tak dikenal -> daftar kosong (bukan error)', () => {
+    expect(service.getComplaintSubCategories('tidak-ada')).toEqual([]);
+  });
 });

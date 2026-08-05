@@ -49,7 +49,7 @@ export default function ComplaintSummaryCard({ complaint }) {
           <span className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
             <User size={14} /> Nama Pelapor
           </span>
-          <p className="font-semibold text-slate-900">{complaint.reporter?.name || 'Anonim'}</p>
+          <p className="font-semibold text-slate-900">{complaint.reporter?.name || '-'}</p>
         </div>
       </div>
     </div>
