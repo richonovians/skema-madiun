@@ -1,4 +1,4 @@
-import { buildPeriode, isValidPeriode, periodeLabel } from './periode.util';
+import { buildPeriode, isValidPeriode, periodeFromDate, periodeLabel } from './periode.util';
 
 describe('periode.util', () => {
   describe('isValidPeriode', () => {
@@ -17,6 +17,17 @@ describe('periode.util', () => {
   describe('buildPeriode', () => {
     it('menyusun tahun+triwulan jadi format kanonik', () => {
       expect(buildPeriode(2026, 2)).toBe('2026-Q2');
+    });
+  });
+
+  describe('periodeFromDate', () => {
+    it.each([
+      [new Date(2026, 0, 15), '2026-Q1'],
+      [new Date(2026, 3, 1), '2026-Q2'],
+      [new Date(2026, 6, 31), '2026-Q3'],
+      [new Date(2026, 11, 31), '2026-Q4'],
+    ])('%s -> %s', (date, expected) => {
+      expect(periodeFromDate(date)).toBe(expected);
     });
   });
 

@@ -46,6 +46,8 @@ describe('IkmService', () => {
     question: { findMany: jest.fn() },
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
+    complaint: { count: jest.fn().mockResolvedValue(0) },
+    opd: { count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
   const ikmExportService = {
     buildFilename: jest.fn().mockReturnValue('hasil-ikm-1-2026.csv'),
@@ -321,6 +323,41 @@ describe('IkmService', () => {
       ]);
       const result = await service.getDashboard({});
       expect(result.totalOpd).toBe(1);
+    });
+
+    it('(INT-13) menyisipkan openComplaints/newComplaints/systemActivityPercent', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.complaint.count as jest.Mock)
+        .mockResolvedValueOnce(4) // openComplaints
+        .mockResolvedValueOnce(2); // newComplaints
+      (prisma.opd.count as jest.Mock)
+        .mockResolvedValueOnce(10) // activeOpdCount
+        .mockResolvedValueOnce(3); // opdWithActiveSurveyCount
+
+      const result = await service.getDashboard({});
+
+      expect(result.openComplaints).toBe(4);
+      expect(result.newComplaints).toBe(2);
+      expect(result.systemActivityPercent).toBe(30);
+    });
+
+    it('(INT-13) tak ada OPD aktif -> systemActivityPercent null (bukan NaN/div-by-zero)', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.opd.count as jest.Mock).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+
+      const result = await service.getDashboard({});
+
+      expect(result.systemActivityPercent).toBeNull();
+    });
+
+    it('(INT-13) filter jenisLayanan diteruskan ke hitung pengaduan', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      await service.getDashboard({ jenisLayanan: 'Kesehatan' });
+      expect(prisma.complaint.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ opd: { jenisLayanan: 'Kesehatan' } }),
+        }),
+      );
     });
   });
 });
