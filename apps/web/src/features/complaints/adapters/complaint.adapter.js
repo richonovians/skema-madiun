@@ -31,6 +31,7 @@ export function adaptComplaint(complaint) {
     id: complaint.ticketNo,
     numericId: complaint.id,
     userId: complaint.userId,
+    opdId: complaint.opdId,
     reporter: {
       name: complaint.reporterNama ?? null,
       initials: complaint.reporterNama ? getInitials(complaint.reporterNama) : '',
