@@ -73,12 +73,10 @@ function getFileOrigin() {
 }
 
 /**
- * CATATAN GAP: backend TIDAK punya route penyajian file statis untuk `/uploads`
- * (sengaja ditunda -- lihat catatan CMP-2/Routes-List: perlu keputusan apakah
- * penyajian file publik-statis atau lewat endpoint terautentikasi, demi privasi
- * foto bukti pengaduan warga). URL di bawah ini SECARA STRUKTUR benar (origin
- * API + fileUrl backend) sehingga akan langsung berfungsi begitu route statis
- * ditambahkan, TAPI saat ini kemungkinan besar 404 -- bukan bug adapter.
+ * Lampiran disajikan lewat `/uploads/*` (2026-08-05, `main.ts` `useStaticAssets`
+ * -- SEBELUMNYA gap: fileUrl backend sudah benar tapi tak ada route yg
+ * menyajikannya, selalu 404). Publik/tanpa-auth SENGAJA (nama file UUID tak
+ * tertebak) -- endpoint terautentikasi adalah pekerjaan terpisah yg lebih besar.
  */
 export function adaptComplaintAttachment(attachment) {
   return {
