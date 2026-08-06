@@ -7,8 +7,8 @@ export default function AdminSurveyCardList({ surveys, onTogglePeriod, onDuplica
   if (!surveys || surveys.length === 0) {
     return (
       <div className="py-2xl">
-        <EmptyState 
-          icon={FileText}
+        <EmptyState
+          icon={<FileText size={48} />}
           title="Tidak ada survei"
           description="Belum ada survei yang sesuai dengan filter saat ini."
         />

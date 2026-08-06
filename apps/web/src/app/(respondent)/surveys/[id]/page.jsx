@@ -36,17 +36,27 @@ export default function SurveyWizardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fillData]);
 
-  // Handle prevention of leaving page when survey is active
+  // Handle prevention of leaving page when survey is active.
+  //
+  // `fillData?.sudahMengisi` dicek DI SINI (2026-08-06, laporan bug user:
+  // "tidak ada tombol yang bisa diklik" di halaman survei yang sudah pernah
+  // diisi sebelumnya) -- SEBELUMNYA listener klik-global ini tetap terpasang
+  // walau survei sudah diisi (tak ada progres yg bisa hilang), padahal modal
+  // konfirmasinya ("Tinggalkan Survei?") CUMA dirender di cabang JSX lain
+  // (return utama di bawah, bukan cabang early-return `sudahMengisi`). Hasilnya
+  // klik pada SEMUA <a>/<Link> di halaman (navbar, dropdown profil, tombol
+  // "Kembali ke Daftar Survei") di-preventDefault tanpa modal apa pun muncul
+  // -- klik terasa "mati". Tombol biasa (bukan link, mis. logout) tak
+  // terpengaruh krn listener ini hanya mencocokkan `closest('a')`.
   useEffect(() => {
+    if (!fillData || fillData.sudahMengisi || isCompleted) return;
+
     const handleBeforeUnload = (e) => {
-      if (!isCompleted) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
+      e.preventDefault();
+      e.returnValue = '';
     };
 
     const handleLinkClick = (e) => {
-      if (isCompleted) return;
       const target = e.target.closest('a');
       if (target && target.href) {
         const url = new URL(target.href, window.location.origin);
@@ -65,7 +75,7 @@ export default function SurveyWizardPage() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('click', handleLinkClick, { capture: true });
     };
-  }, [isCompleted]);
+  }, [fillData, isCompleted]);
 
   if (isLoading) {
     return (

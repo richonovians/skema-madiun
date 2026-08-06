@@ -13,9 +13,11 @@ import {
   History
 } from 'lucide-react';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
+import { useLogout } from '@/hooks/useLogout';
 
 export default function AdminKabSidebar() {
   const pathname = usePathname();
+  const { logout, isLoggingOut } = useLogout();
 
   const getLinkClass = (path) => {
     // Exact match or active section
@@ -80,9 +82,13 @@ export default function AdminKabSidebar() {
         </nav>
         
         <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">
-          <button className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg w-full text-left">
+          <button
+            onClick={logout}
+            disabled={isLoggingOut}
+            className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg w-full text-left disabled:opacity-50"
+          >
             <LogOut size={20} />
-            <span>Keluar</span>
+            <span>{isLoggingOut ? 'Keluar...' : 'Keluar'}</span>
           </button>
         </div>
       </aside>

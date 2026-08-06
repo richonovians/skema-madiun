@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { authApi } from '../services/sso.api';
 import { saveSession } from '../services/authStorage';
+import { ROLE_HOME } from '@/constants/roleHome';
 
 // Sementara: form dev-login (identifier = email/ssoSubject akun seed) menggantikan
 // tombol SSO Helpdesk sungguhan yang menunggu spesifikasi OAuth dari Helpdesk (SSO-1).
@@ -20,8 +21,15 @@ export default function SSOLoginButton() {
     setIsLoading(true);
     try {
       const res = await authApi.devLogin(identifier);
-      saveSession(res.data.token, res.data.user?.role);
-      window.location.reload();
+      const role = res.data.user?.role;
+      saveSession(res.data.token, role);
+      // SEBELUMNYA cuma reload halaman saat ini (biasanya beranda publik) --
+      // admin harus navigasi manual sendiri ke /admin-kab atau /admin-opd
+      // (2026-08-06, laporan bug user). `window.location.href` (bukan
+      // router.push) SENGAJA -- proxy.js baca cookie via full request,
+      // butuh navigasi hard agar cookie `role` yang baru saja ditulis
+      // langsung terbaca proxy pada request berikutnya.
+      window.location.href = ROLE_HOME[role] ?? '/';
     } catch (err) {
       setError(err.message || 'Login gagal');
     } finally {

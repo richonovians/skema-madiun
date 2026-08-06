@@ -23,8 +23,21 @@ async function bootstrap(): Promise<void> {
   // Publik/tanpa-auth SENGAJA (bukan lupa) -- nama file UUID tak tertebak,
   // dan membangun endpoint file terautentikasi adalah pekerjaan terpisah yg
   // lebih besar (lihat catatan gap CMP-2 di complaint.adapter.js frontend).
+  //
+  // `Cross-Origin-Resource-Policy: cross-origin` (2026-08-06, laporan bug user):
+  // 404 di atas sudah teratasi, TAPI `helmet()` (configureApp) pasang default
+  // `Cross-Origin-Resource-Policy: same-origin` di SEMUA respons -- browser
+  // (bukan curl, makanya lolos verifikasi manual sebelumnya) MEMBLOKIR <img>
+  // lintas-origin (frontend :3000 memuat file dari API :3001) walau responsnya
+  // sendiri 200 OK. Dilonggarkan HANYA di sini (bukan global) -- rute ini
+  // memang sengaja publik/dapat-disematkan, endpoint JSON lain tetap dijaga.
   const uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
-  app.useStaticAssets(uploadDir, { prefix: '/uploads' });
+  app.useStaticAssets(uploadDir, {
+    prefix: '/uploads',
+    setHeaders: (res) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    },
+  });
 
   // Panggil onModuleDestroy (mis. PrismaService.$disconnect) saat aplikasi berhenti.
   app.enableShutdownHooks();

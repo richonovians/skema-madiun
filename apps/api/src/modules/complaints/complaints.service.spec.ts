@@ -51,6 +51,7 @@ describe('ComplaintsService', () => {
   } as unknown as PrismaService;
   const config = { get: jest.fn().mockReturnValue('uploads') } as unknown as ConfigService;
   const notificationsService = {
+    notifyComplaintCreated: jest.fn(),
     notifyComplaintStatusChanged: jest.fn(),
     notifyComplaintReply: jest.fn(),
   } as unknown as NotificationsService;
@@ -372,7 +373,7 @@ describe('ComplaintsService', () => {
 
       await service.updateStatus(1, { status: ComplaintStatus.diproses }, opdUser(5));
 
-      expect(notificationsService.notifyComplaintStatusChanged).toHaveBeenCalledWith(updatedRow);
+      expect(notificationsService.notifyComplaintStatusChanged).toHaveBeenCalledWith(updatedRow, 1);
     });
   });
 
@@ -384,9 +385,17 @@ describe('ComplaintsService', () => {
 
     it('addReply: Responden bukan pemilik → Forbidden', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ userId: 999 }));
-      await expect(service.addReply(1, { pesan: 'Halo' }, respondenUser(10))).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10)),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('addReply: pesan kosong & tanpa lampiran → BadRequest', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ userId: 10 }));
+      await expect(
+        service.addReply(1, { pesan: '  ' }, undefined, respondenUser(10)),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.complaintReply.create).not.toHaveBeenCalled();
     });
 
     it('addReply: Responden pemilik → sukses', async () => {
@@ -398,7 +407,7 @@ describe('ComplaintsService', () => {
         pesan: 'Halo',
         createdAt: new Date(),
       });
-      const result = await service.addReply(1, { pesan: 'Halo' }, respondenUser(10));
+      const result = await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
       expect(result.pesan).toBe('Halo');
     });
 
@@ -413,7 +422,7 @@ describe('ComplaintsService', () => {
         createdAt: new Date(),
       });
 
-      await service.addReply(1, { pesan: 'Halo' }, respondenUser(10));
+      await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
 
       expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(row, 10);
     });

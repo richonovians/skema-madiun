@@ -13,8 +13,10 @@ describe('Notifications (e2e)', () => {
   let opdId: number;
   let opdUserId: number;
   let respondenId: number;
+  let kabupatenUserId: number;
   let complaintId: number;
   let ticketNo: string;
+  let createdTicketNo: string | undefined;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -58,6 +60,18 @@ describe('Notifications (e2e)', () => {
     });
     respondenId = responden.id;
 
+    const kabupatenUser = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-notif-kab' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-notif-kab',
+        nama: 'Admin Kabupaten Notifikasi',
+        email: 'e2e-notif-kab@example.go.id',
+        role: Role.kabupaten,
+      },
+    });
+    kabupatenUserId = kabupatenUser.id;
+
     const complaint = await prisma.complaint.create({
       data: {
         ticketNo: 'PGDE2ENOTIF01',
@@ -73,14 +87,24 @@ describe('Notifications (e2e)', () => {
   }, 60000);
 
   afterAll(async () => {
-    await prisma.notification.deleteMany({ where: { userId: { in: [opdUserId, respondenId] } } });
+    // Broadcast kabupaten (2026-08-06) menyasar SEMUA akun kabupaten aktif --
+    // termasuk akun seed NYATA di DB dev bersama (bukan cuma kabupatenUserId
+    // test ini), bukan hanya [opdUserId, respondenId, kabupatenUserId]. Bersihkan
+    // via `link` (memuat ticketNo) supaya penerima manapun ikut terhapus --
+    // pola sama dgn pelajaran opd.e2e-spec.ts (cegah polusi DB dev bersama).
+    const ticketNos = [ticketNo, createdTicketNo].filter((t): t is string => Boolean(t));
+    await prisma.notification.deleteMany({
+      where: { OR: ticketNos.map((t) => ({ link: { contains: t } })) },
+    });
     await prisma.complaintReply.deleteMany({ where: { complaintId } });
     await prisma.complaint.deleteMany({ where: { opdId } });
     // PATCH status pengaduan memicu AuditInterceptor mencatat audit_logs
     // ber-FK RESTRICT ke users -- harus dihapus dulu sebelum user dihapus.
-    await prisma.auditLog.deleteMany({ where: { actorId: { in: [opdUserId, respondenId] } } });
+    await prisma.auditLog.deleteMany({
+      where: { actorId: { in: [opdUserId, respondenId, kabupatenUserId] } },
+    });
     await prisma.user.deleteMany({
-      where: { ssoSubject: { in: ['e2e-notif-opd', 'e2e-notif-resp'] } },
+      where: { ssoSubject: { in: ['e2e-notif-opd', 'e2e-notif-resp', 'e2e-notif-kab'] } },
     });
     await prisma.opd.deleteMany({ where: { kode: 'E2ENOTIF' } });
     await app.close();
@@ -88,6 +112,7 @@ describe('Notifications (e2e)', () => {
 
   const asOpd = () => devHeaders({ role: Role.opd, userId: opdUserId, opdId });
   const asResponden = () => devHeaders({ role: Role.responden, userId: respondenId });
+  const asKabupaten = () => devHeaders({ role: Role.kabupaten, userId: kabupatenUserId });
 
   it('Admin OPD ubah status -> Responden dapat notifikasi complaint_status_changed', async () => {
     const patchRes = await request(app.getHttpServer())
@@ -109,6 +134,16 @@ describe('Notifications (e2e)', () => {
     expect(notif.isRead).toBe(false);
   });
 
+  it('(2026-08-06) Kabupaten JUGA dapat notifikasi complaint_status_changed (oversight, link admin-kab)', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/notifications').set(asKabupaten());
+
+    const notif = res.body.data.find(
+      (n: { type: string }) => n.type === 'complaint_status_changed',
+    );
+    expect(notif).toBeDefined();
+    expect(notif.link).toBe(`/admin-kab/complaints/${ticketNo}`);
+  });
+
   it('Responden membalas -> Admin OPD dapat notifikasi complaint_reply (link admin-opd)', async () => {
     const replyRes = await request(app.getHttpServer())
       .post(`/api/v1/complaints/${complaintId}/replies`)
@@ -121,6 +156,68 @@ describe('Notifications (e2e)', () => {
     const notif = res.body.data.find((n: { type: string }) => n.type === 'complaint_reply');
     expect(notif).toBeDefined();
     expect(notif.link).toBe(`/admin-opd/complaints/${ticketNo}`);
+  });
+
+  it('(2026-08-06) Kabupaten JUGA dapat notifikasi complaint_reply (oversight, link admin-kab)', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/notifications').set(asKabupaten());
+
+    const notif = res.body.data.find((n: { type: string }) => n.type === 'complaint_reply');
+    expect(notif).toBeDefined();
+    expect(notif.link).toBe(`/admin-kab/complaints/${ticketNo}`);
+  });
+
+  it('(2026-08-06) Kabupaten yg JADI PELAKU balasan TIDAK memberi notifikasi ke dirinya sendiri', async () => {
+    const replyRes = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${complaintId}/replies`)
+      .set(asKabupaten())
+      .send({ pesan: 'Dipantau langsung oleh Kabupaten.' });
+    expect(replyRes.status).toBe(201);
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/notifications?unreadOnly=true')
+      .set(asKabupaten());
+    const selfNotifs = res.body.data.filter(
+      (n: { type: string; message: string }) =>
+        n.type === 'complaint_reply' && n.message.includes('Dipantau langsung'),
+    );
+    expect(selfNotifs).toHaveLength(0);
+  });
+
+  it('(2026-08-06) Pengaduan baru via POST /complaints -> Admin OPD & Kabupaten dapat notifikasi complaint_created', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden())
+      .field('opdId', opdId)
+      .field('kategori', 'lainnya')
+      .field('judul', 'Pengaduan baru utk uji notifikasi')
+      .field('uraian', 'Uraian pengaduan baru');
+    expect(createRes.status).toBe(201);
+    createdTicketNo = createRes.body.data.ticketNo;
+
+    const opdRes = await request(app.getHttpServer()).get('/api/v1/notifications').set(asOpd());
+    const opdNotif = opdRes.body.data.find(
+      (n: { type: string; link: string }) =>
+        n.type === 'complaint_created' && n.link === `/admin-opd/complaints/${createdTicketNo}`,
+    );
+    expect(opdNotif).toBeDefined();
+
+    const kabRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set(asKabupaten());
+    const kabNotif = kabRes.body.data.find(
+      (n: { type: string; link: string }) =>
+        n.type === 'complaint_created' && n.link === `/admin-kab/complaints/${createdTicketNo}`,
+    );
+    expect(kabNotif).toBeDefined();
+
+    const respRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set(asResponden());
+    const selfNotif = respRes.body.data.find(
+      (n: { type: string; link: string }) =>
+        n.type === 'complaint_created' && n.link.includes(createdTicketNo as string),
+    );
+    expect(selfNotif).toBeUndefined();
   });
 
   it('Admin OPD membalas -> Responden dapat notifikasi complaint_reply (link responden)', async () => {

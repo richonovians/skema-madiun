@@ -63,7 +63,23 @@ export async function getComplaintReplies(complaintId) {
   return response.data;
 }
 
-export async function addComplaintReply(complaintId, pesan) {
-  const response = await api.post(`/complaints/${complaintId}/replies`, { pesan });
+/**
+ * Kirim balasan chat. Lampiran opsional (2026-08-06, laporan bug user "tidak
+ * bisa mengirim dokumen/foto di chat") -- multipart field `lampiran`, sama
+ * pola dgn createComplaint (maks 5 berkas, JPEG/PNG/WEBP/PDF, maks 5MB,
+ * ditegakkan backend). Tanpa lampiran tetap multipart (bukan JSON) supaya
+ * satu jalur kode saja, backend menerima keduanya lewat FilesInterceptor.
+ * @param {number|string} complaintId
+ * @param {string} pesan
+ * @param {File[]} [files]
+ */
+export async function addComplaintReply(complaintId, pesan, files = []) {
+  const formData = new FormData();
+  formData.append('pesan', pesan);
+  files.forEach((file) => formData.append('lampiran', file));
+
+  const response = await api.post(`/complaints/${complaintId}/replies`, formData, {
+    headers: { 'Content-Type': undefined },
+  });
   return response.data;
 }
