@@ -13,7 +13,19 @@ const customJestConfig = {
     // Handle module aliases (this will be automatically configured for you soon)
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(?:\\.pnpm/)?(?:rettime|@mswjs|msw|outvariant|strict-event-emitter)/)',
+  ],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
-module.exports = createJestConfig(customJestConfig);
+module.exports = async () => {
+  const nextJestConfig = await createJestConfig(customJestConfig)();
+  return {
+    ...nextJestConfig,
+    transformIgnorePatterns: [],
+  };
+};
