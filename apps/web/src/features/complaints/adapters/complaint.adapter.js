@@ -133,6 +133,9 @@ export function adaptComplaintReplyToChatMessage(reply, complaintUserId) {
     role: isReporter ? 'user' : 'admin',
     senderName: isReporter ? undefined : 'Admin OPD',
     text: reply.pesan,
+    // Lampiran balasan (2026-08-06, laporan bug user) -- URL dibangun sama
+    // persis dgn attachments tingkat-pengaduan (adaptComplaintAttachment).
+    attachments: (reply.attachments ?? []).map(adaptComplaintAttachment),
     timestamp: time ? `${time} WIB` : '',
     status: 'Terkirim',
   };

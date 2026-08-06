@@ -325,6 +325,44 @@ describe('Complaints (e2e)', () => {
     expect(list.body.data[1].pesan).toBe('Sedang kami proses');
   });
 
+  it('POST replies dengan lampiran TANPA pesan -> 201 (2026-08-06, laporan bug user)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lainnya')
+      .field('judul', 'Kirim foto tanpa teks')
+      .field('uraian', 'Uraian');
+    const id = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${id}/replies`)
+      .set(asResponden(respondenId))
+      .attach('lampiran', Buffer.from('fake-png-bytes'), 'foto.png');
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.pesan).toBe('');
+    expect(res.body.data.attachments).toHaveLength(1);
+    expect(res.body.data.attachments[0].fileUrl).toContain('/uploads/complaints/');
+  });
+
+  it('POST replies tanpa pesan DAN tanpa lampiran -> 400', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lainnya')
+      .field('judul', 'X')
+      .field('uraian', 'Y');
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${created.body.data.id}/replies`)
+      .set(asResponden(respondenId))
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+
   // Kabupaten (= superuser, 2026-08-05) py akses penuh ke SEMUA pengaduan
   // (assertAccess bypass, sama seperti sejak modul ini pertama dibuat -- lihat
   // PRD Bab 6 "Kelola & tindak lanjut pengaduan: kabupaten pantau semua").

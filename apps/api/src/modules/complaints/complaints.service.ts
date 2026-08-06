@@ -81,14 +81,21 @@ export class ComplaintsService {
     const validFiles = this.validateFiles(files);
     const saved = await this.persistFiles(validFiles);
 
+    let complaint: ComplaintWithAttachments;
     try {
-      const complaint = await this.insertWithUniqueTicket(dto, user.userId, saved);
-      return this.toEntity(complaint);
+      complaint = await this.insertWithUniqueTicket(dto, user.userId, saved);
     } catch (err) {
       // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort).
       await this.cleanupFiles(saved);
       throw err;
     }
+    // DI LUAR try/catch DI ATAS (2026-08-06) -- SEBELUMNYA notify dipanggil DI
+    // DALAM blok yg sama, jadi kalau notifikasi gagal (efek samping), file
+    // lampiran yg SUDAH SAH tersimpan & tertaut ke baris DB yg SUDAH SAH
+    // ter-commit ikut terhapus (cleanupFiles), padahal pengaduannya sendiri
+    // berhasil dibuat -- caller salah dikira gagal total.
+    await this.notificationsService.notifyComplaintCreated(complaint);
+    return this.toEntity(complaint);
   }
 
   /**
@@ -186,7 +193,7 @@ export class ComplaintsService {
           ]
         : []),
     ]);
-    await this.notificationsService.notifyComplaintStatusChanged(updated);
+    await this.notificationsService.notifyComplaintStatusChanged(updated, user.userId);
     return this.toEntity(updated as ComplaintWithAttachments);
   }
 
@@ -197,25 +204,67 @@ export class ComplaintsService {
 
     const rows = await this.prisma.complaintReply.findMany({
       where: { complaintId },
+      include: { attachments: true },
       orderBy: { createdAt: 'asc' },
     });
     return rows.map((row) => new ComplaintReplyEntity(row));
   }
 
-  /** Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). */
+  /**
+   * Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). Lampiran
+   * opsional (2026-08-06, laporan bug user "tidak bisa mengirim dokumen/foto
+   * di chat") -- validasi/simpan file pakai helper yg sama dgn create()
+   * (tipe & ukuran identik), `complaintId` dicatat eksplisit di setiap
+   * lampiran (bukan diturunkan dari relasi replyId) supaya query
+   * kepemilikan/akses tetap bisa lewat `complaint.attachments` tanpa join.
+   *
+   * `pesan` kini opsional (2026-08-06, laporan lanjutan: "kirim foto tanpa
+   * teks tidak terkirim") -- balasan boleh lampiran saja, TAPI minimal salah
+   * satu (pesan/lampiran) harus ada; dicek di sini (bukan class-validator,
+   * yg tak tahu jumlah file) SEBELUM file ditulis ke disk (fail-fast, pola
+   * sama assertSubKategoriConsistent di create()). `pesan: String` di skema
+   * tetap wajib-non-null (tanpa migrasi) -- disubstitusi string kosong.
+   */
   async addReply(
     complaintId: number,
     dto: CreateReplyDto,
+    files: Express.Multer.File[] | undefined,
     user: CurrentUser,
   ): Promise<ComplaintReplyEntity> {
     const complaint = await this.getByIdOrThrow(complaintId);
     this.assertAccess(user, complaint);
 
-    const created = await this.prisma.complaintReply.create({
-      data: { complaintId, authorId: user.userId, pesan: dto.pesan },
-    });
-    await this.notificationsService.notifyComplaintReply(complaint, user.userId);
-    return new ComplaintReplyEntity(created);
+    if (!dto.pesan?.trim() && !(files && files.length > 0)) {
+      throw new BadRequestException('Pesan atau lampiran wajib diisi');
+    }
+
+    const validFiles = this.validateFiles(files);
+    const saved = await this.persistFiles(validFiles);
+
+    try {
+      const created = await this.prisma.complaintReply.create({
+        data: {
+          complaintId,
+          authorId: user.userId,
+          pesan: dto.pesan ?? '',
+          attachments: {
+            create: saved.map(({ fileUrl, mimeType, sizeBytes }) => ({
+              complaintId,
+              fileUrl,
+              mimeType,
+              sizeBytes,
+            })),
+          },
+        },
+        include: { attachments: true },
+      });
+      await this.notificationsService.notifyComplaintReply(complaint, user.userId);
+      return new ComplaintReplyEntity(created);
+    } catch (err) {
+      // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort, pola sama create()).
+      await this.cleanupFiles(saved);
+      throw err;
+    }
   }
 
   /** Fragmen `where` sesuai kepemilikan data (dipakai findAll). */

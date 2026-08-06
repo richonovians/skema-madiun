@@ -57,11 +57,16 @@ export default function AdminComplaintDetailPage() {
     }
   };
 
-  const handleSendUpdate = async (text) => {
-    if (!data || !text || !text.trim()) return;
+  const handleSendUpdate = async (text, file) => {
+    // Boleh kirim lampiran saja tanpa teks (2026-08-06, laporan bug user
+    // "kirim foto tanpa teks tidak terkirim") -- AdminResolutionWorkspace
+    // sudah izinkan ini (handleSend: replyText.trim() || attachedFile), TAPI
+    // guard di sini masih wajibkan teks, jadi lampiran diam-diam gagal
+    // terkirim. Backend (CreateReplyDto) kini terima salah satu.
+    if (!data || (!text?.trim() && !file)) return;
     setActionError(null);
     try {
-      await addComplaintReply(data.complaint.numericId, text);
+      await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
       await refetch();
     } catch (err) {
       setActionError(err.message);

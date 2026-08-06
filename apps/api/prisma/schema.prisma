@@ -75,6 +75,10 @@ enum ComplaintStatus {
 enum NotificationType {
   complaint_status_changed
   complaint_reply
+  // Pengaduan baru masuk (2026-08-06, laporan bug user: OPD/kabupaten tak
+  // pernah tahu ada tiket baru kecuali lewat balasan susulan) -- beri tahu
+  // Admin OPD tujuan + kabupaten (oversight), TIDAK beri tahu pelapor sendiri.
+  complaint_created
 
   @@map("notification_type")
 }
@@ -322,14 +326,23 @@ model Complaint {
 model ComplaintAttachment {
   id          Int      @id @default(autoincrement())
   complaintId Int      @map("complaint_id")
+  // `replyId` (2026-08-06, laporan bug user "tidak bisa mengirim dokumen/foto
+  // di chat"): opsional -- NULL bila lampiran milik pengajuan awal (create()),
+  // terisi bila lampiran disertakan pada satu balasan chat (addReply()).
+  // `complaintId` TETAP diisi pada kedua kasus (bukan diturunkan dari reply)
+  // supaya query akses/kepemilikan (assertAccess by opdId/userId) tak perlu
+  // join tambahan lewat reply.
+  replyId     Int?     @map("reply_id")
   fileUrl     String   @map("file_url") @db.VarChar(500)
   mimeType    String?  @map("mime_type") @db.VarChar(100)
   sizeBytes   Int?     @map("size_bytes")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  complaint Complaint       @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  reply     ComplaintReply? @relation(fields: [replyId], references: [id], onDelete: Cascade)
 
   @@index([complaintId])
+  @@index([replyId])
   @@map("complaint_attachments")
 }
 
@@ -340,8 +353,9 @@ model ComplaintReply {
   pesan       String   @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
 
-  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  author    User      @relation(fields: [authorId], references: [id])
+  complaint   Complaint             @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author      User                  @relation(fields: [authorId], references: [id])
+  attachments ComplaintAttachment[]
 
   @@index([complaintId])
   @@index([authorId])

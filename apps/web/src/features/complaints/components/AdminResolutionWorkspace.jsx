@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Headset, Paperclip, CheckCircle, X } from 'lucide-react';
+import { User, Headset, Paperclip, CheckCircle, X, FileText } from 'lucide-react';
+import ImageViewer from '@/components/ui/ImageViewer';
 
 export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdate, onCloseTicket }) {
   const [replyText, setReplyText] = useState('');
@@ -27,9 +28,42 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
     }
   };
 
+  const renderAttachments = (attachments = []) => {
+    if (!attachments.length) return null;
+    const images = attachments.filter((a) => a.mimeType?.startsWith('image/'));
+    const documents = attachments.filter((a) => !a.mimeType?.startsWith('image/'));
+    return (
+      <>
+        {images.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 mt-2 max-w-[200px]">
+            {images.map((img) => (
+              <ImageViewer key={img.id} src={img.url} alt={img.alt} className="aspect-square" />
+            ))}
+          </div>
+        )}
+        {documents.length > 0 && (
+          <div className="flex flex-col gap-1 mt-2">
+            {documents.map((doc) => (
+              <a
+                key={doc.id}
+                href={doc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-xs font-semibold text-primary underline underline-offset-2"
+              >
+                <FileText size={14} className="flex-shrink-0" />
+                <span className="truncate">{doc.alt}</span>
+              </a>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
+
   const handleSend = () => {
     if (replyText.trim() || attachedFile) {
-      onSendUpdate(replyText);
+      onSendUpdate(replyText, attachedFile);
       setReplyText('');
       removeFile();
     }
@@ -48,7 +82,8 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
               </div>
               <div className="space-y-xs text-right">
                 <div className="bg-primary-container text-on-primary-container p-md rounded-2xl rounded-tr-none shadow-sm text-left">
-                  <p className="font-body-md text-body-md leading-relaxed">{msg.text}</p>
+                  {msg.text && <p className="font-body-md text-body-md leading-relaxed">{msg.text}</p>}
+                  {renderAttachments(msg.attachments)}
                 </div>
                 <span className="text-[11px] text-text-secondary pr-1">{msg.timestamp}</span>
               </div>
@@ -60,7 +95,10 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
               </div>
               <div className="space-y-xs">
                 <div className="bg-white border border-border p-md rounded-2xl rounded-tl-none shadow-sm">
-                  <p className="font-body-md text-body-md text-text-primary leading-relaxed">{msg.text}</p>
+                  {msg.text && (
+                    <p className="font-body-md text-body-md text-text-primary leading-relaxed">{msg.text}</p>
+                  )}
+                  {renderAttachments(msg.attachments)}
                 </div>
                 <span className="text-[11px] text-text-secondary pl-1">{msg.timestamp}</span>
               </div>

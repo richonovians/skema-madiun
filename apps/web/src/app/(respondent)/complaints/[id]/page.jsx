@@ -46,8 +46,8 @@ export default function ComplaintDetailPage() {
     { label: 'Detail', active: true },
   ];
 
-  const handleSendReply = async (text) => {
-    const reply = await addComplaintReply(data.complaint.numericId, text);
+  const handleSendReply = async (text, file) => {
+    const reply = await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
     return adaptComplaintReplyToChatMessage(reply, data.complaint.userId);
   };
 

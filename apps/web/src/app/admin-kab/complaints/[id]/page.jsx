@@ -1,22 +1,30 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { AlertTriangle } from 'lucide-react';
 import ComplaintDetailHeader from '@/features/complaints/components/admin-kab/ComplaintDetailHeader';
 import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
-import ComplaintResponseHistory from '@/features/complaints/components/admin-kab/ComplaintResponseHistory';
 import ComplaintAttachmentGallery from '@/features/complaints/components/admin-kab/ComplaintAttachmentGallery';
+import ComplaintReporterProfile from '@/features/complaints/components/ComplaintReporterProfile';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
+import ComplaintStatusControl from '@/features/complaints/components/ComplaintStatusControl';
+import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getComplaintByTicketNo,
   getComplaintReplies,
+  addComplaintReply,
+  updateComplaintStatus,
 } from '@/features/complaints/services/complaints.api';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
-import { toBackendComplaintStatus } from '@/features/complaints/adapters/complaint.adapter';
+import {
+  adaptComplaintReplyToChatMessage,
+  toBackendComplaintStatus,
+} from '@/features/complaints/adapters/complaint.adapter';
 
 function formatFileSize(bytes) {
   if (!bytes) return '-';
@@ -26,10 +34,10 @@ function formatFileSize(bytes) {
 }
 
 /**
- * Terjemahkan attachment/reply asli (adaptComplaintAttachment/ComplaintReplyEntity)
- * ke bentuk yang diharapkan komponen admin-kab (dibangun dgn kontrak dummy lama) --
- * lokal di sini krn kontraknya spesifik utk komponen ini, bukan tanggung jawab
- * adapter sinkron bersama.
+ * Terjemahkan attachment asli (adaptComplaintAttachment) ke bentuk yang
+ * diharapkan ComplaintAttachmentGallery (dibangun dgn kontrak dummy lama) --
+ * lokal di sini krn kontraknya spesifik utk komponen ini, bukan tanggung
+ * jawab adapter sinkron bersama.
  */
 function toGalleryAttachment(att) {
   return {
@@ -41,28 +49,34 @@ function toGalleryAttachment(att) {
   };
 }
 
-function toResponseHistoryItem(reply, complaintUserId) {
-  const isReporter = reply.authorId === complaintUserId;
-  return {
-    id: reply.id,
-    sender: isReporter ? 'Pelapor' : 'Admin OPD',
-    role: isReporter ? 'Pelapor' : 'Admin OPD',
-    text: reply.pesan,
-    timestamp: reply.createdAt,
-  };
-}
-
+/**
+ * Kabupaten (= superuser, akses penuh) SEKARANG bisa balas & ubah status
+ * tiket (2026-08-06, laporan bug user: "admin kab tidak mempunyai akses
+ * untuk melihat/membuka tiket ... padahal setara superuser") -- SEBELUMNYA
+ * halaman ini murni "Mode pengawasan eksekutif (Read-Only)" (ComplaintResponseHistory
+ * tanpa form balasan sama sekali), padahal backend (RolesGuard) SUDAH SEJAK
+ * AWAL mengizinkan kabupaten membalas/mengubah status APAPUN (bypass penuh
+ * @Roles, lihat roles.guard.ts + e2e "POST replies oleh Admin Kabupaten ->
+ * 201") -- gap murni di frontend, bukan backend. Reuse `ComplaintStatusControl`
+ * + `AdminResolutionWorkspace` (komponen sama yg dipakai admin-opd, sudah
+ * generik/tak ada string ter-hardcode "OPD", sudah teruji dgn lampiran chat
+ * di sesi yg sama) drpd membangun ulang alur balasan dari nol.
+ */
 export default function AdminKabComplaintDetailPage() {
   const params = useParams();
   const ticketNo = (params?.id || '').toUpperCase();
+  const [actionError, setActionError] = useState(null);
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
-    const [replies, categories] = await Promise.all([
+    const [rawReplies, categories] = await Promise.all([
       getComplaintReplies(complaint.numericId),
       getComplaintCategories(),
     ]);
-    return { complaint, replies, categories };
+    const chatHistory = rawReplies.map((r) =>
+      adaptComplaintReplyToChatMessage(r, complaint.userId),
+    );
+    return { complaint, chatHistory, categories };
   }, [ticketNo]);
 
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
@@ -80,10 +94,57 @@ export default function AdminKabComplaintDetailPage() {
     [data],
   );
 
-  const responses = useMemo(
-    () => (data?.replies ?? []).map((r) => toResponseHistoryItem(r, data.complaint.userId)),
-    [data],
-  );
+  const handleStatusChange = async (newStatus) => {
+    if (!data || newStatus === data.complaint.status) return;
+    setActionError(null);
+
+    let catatan;
+    if (newStatus === 'Ditolak') {
+      catatan = window.prompt('Alasan penolakan (wajib diisi):');
+      if (!catatan || !catatan.trim()) return;
+    }
+
+    try {
+      await updateComplaintStatus(data.complaint.numericId, newStatus, catatan);
+      await refetch();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  };
+
+  const handleSendUpdate = async (text, file) => {
+    if (!data || (!text?.trim() && !file)) return;
+    setActionError(null);
+    try {
+      await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
+      await refetch();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  };
+
+  const handleCloseTicket = async () => {
+    if (!data) return;
+    setActionError(null);
+
+    if (data.complaint.status !== 'Diproses') {
+      setActionError(
+        'Tiket harus berstatus "Diproses" sebelum bisa ditutup. Ubah status terlebih dahulu.',
+      );
+      return;
+    }
+
+    try {
+      await updateComplaintStatus(
+        data.complaint.numericId,
+        'Selesai',
+        'Tiket ini telah ditutup karena masalah sudah diselesaikan.',
+      );
+      await refetch();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  };
 
   if (isLoading) {
     return <LoadingState label="Memuat detail pengaduan..." />;
@@ -101,16 +162,32 @@ export default function AdminKabComplaintDetailPage() {
     <div id="complaint-detail-container" className="p-lg w-full max-w-6xl mx-auto space-y-md pb-24">
       <ComplaintDetailHeader complaint={complaintView} />
 
+      {actionError && (
+        <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+          <p className="text-sm font-medium">{actionError}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
         <div className="lg:col-span-2 space-y-md">
           <ComplaintSummaryCard complaint={complaintView} />
           <ComplaintContentCard complaint={complaintView} />
           <ComplaintAttachmentGallery complaint={{ attachments }} />
-          <ComplaintResponseHistory complaint={{ responseHistory: responses }} />
+          <AdminResolutionWorkspace
+            chatHistory={data.chatHistory}
+            onSendUpdate={handleSendUpdate}
+            onCloseTicket={handleCloseTicket}
+          />
         </div>
 
         <div className="lg:col-span-1 space-y-md">
+          <ComplaintReporterProfile reporter={complaintView.reporter} />
           <ComplaintProgressStepper currentStatus={toBackendComplaintStatus(complaintView.status)} />
+          <ComplaintStatusControl
+            currentStatus={complaintView.status}
+            onStatusChange={handleStatusChange}
+          />
         </div>
       </div>
     </div>
