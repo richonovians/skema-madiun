@@ -3,6 +3,7 @@ import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
+import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 
 export default function AdminKabNavbar() {
@@ -83,6 +84,11 @@ export default function AdminKabNavbar() {
           </div>
         )}
         
+        {/* Notifikasi (2026-08-05) -- SEBELUMNYA tak terpasang sama sekali di
+            navbar ini (temuan audit), padahal AdminNavbar (Admin OPD) sudah
+            punya lebih dulu. */}
+        <NotificationDropdown />
+
         {/* Desktop Profile (only visible on desktop) */}
         <div className="hidden md:flex items-center gap-md pl-lg border-l border-border">
         <div className="text-right">

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
@@ -14,7 +24,7 @@ import { UsersService } from './users.service';
 
 @ApiTags('users')
 @ApiBearerAuth()
-@Roles(Role.kabupaten) // superuser otomatis lolos via bypass di RolesGuard
+@Roles(Role.kabupaten) // kabupaten = superuser (bypass RolesGuard, lihat guard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -26,12 +36,12 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
-  /** Buat akun admin (OPD/Kabupaten/Superuser — dibatasi aturan role). */
+  /** Buat akun admin (OPD/Kabupaten). */
   @Post()
   @Audit('user')
   @ApiOkResponse({ type: UserEntity })
-  create(@Body() dto: CreateUserDto, @CurrentUser() actor: CurrentUser): Promise<UserEntity> {
-    return this.usersService.create(dto, actor);
+  create(@Body() dto: CreateUserDto): Promise<UserEntity> {
+    return this.usersService.create(dto);
   }
 
   /** Detail akun. */
@@ -41,7 +51,7 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
-  /** Ubah akun (nama, OPD tautan). */
+  /** Ubah akun (nama, OPD tautan, role). */
   @Patch(':id')
   @Audit('user')
   @ApiOkResponse({ type: UserEntity })
@@ -60,8 +70,21 @@ export class UsersController {
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUserStatusDto,
+  ): Promise<UserEntity> {
+    return this.usersService.updateStatus(id, dto);
+  }
+
+  /**
+   * Hapus akun (soft delete -- `deletedAt`+`isActive:false`, bukan hapus baris).
+   * 2026-08-05: sebelumnya kolom `deletedAt` ada di skema tapi tanpa endpoint sama sekali.
+   */
+  @Delete(':id')
+  @Audit('user', 'delete')
+  @ApiOkResponse({ type: UserEntity })
+  remove(
+    @Param('id', ParseIntPipe) id: number,
     @CurrentUser() actor: CurrentUser,
   ): Promise<UserEntity> {
-    return this.usersService.updateStatus(id, dto, actor);
+    return this.usersService.remove(id, actor);
   }
 }

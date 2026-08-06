@@ -15,6 +15,7 @@ import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { COMPLAINT_SUB_CATEGORIES } from '../reference/reference.constants';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
@@ -63,6 +64,7 @@ export class ComplaintsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
     config: ConfigService,
   ) {
     this.uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
@@ -184,6 +186,7 @@ export class ComplaintsService {
           ]
         : []),
     ]);
+    await this.notificationsService.notifyComplaintStatusChanged(updated);
     return this.toEntity(updated as ComplaintWithAttachments);
   }
 
@@ -211,12 +214,13 @@ export class ComplaintsService {
     const created = await this.prisma.complaintReply.create({
       data: { complaintId, authorId: user.userId, pesan: dto.pesan },
     });
+    await this.notificationsService.notifyComplaintReply(complaint, user.userId);
     return new ComplaintReplyEntity(created);
   }
 
   /** Fragmen `where` sesuai kepemilikan data (dipakai findAll). */
   private ownershipWhere(user: CurrentUser): Prisma.ComplaintWhereInput {
-    if (user.role === Role.superuser || user.role === Role.kabupaten) {
+    if (user.role === Role.kabupaten) {
       return {};
     }
     if (user.role === Role.opd) {
@@ -231,9 +235,9 @@ export class ComplaintsService {
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
   }
 
-  /** Akses per-record: superuser/kabupaten semua; OPD hanya OPD-nya; Responden hanya miliknya. */
+  /** Akses per-record: kabupaten (=superuser) semua; OPD hanya OPD-nya; Responden hanya miliknya. */
   private assertAccess(user: CurrentUser, complaint: { userId: number; opdId: number }): void {
-    if (user.role === Role.superuser || user.role === Role.kabupaten) {
+    if (user.role === Role.kabupaten) {
       return;
     }
     if (user.role === Role.opd) {

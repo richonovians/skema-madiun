@@ -1,25 +1,24 @@
 import React from 'react';
+import Link from 'next/link';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
 import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
 import { USER_ROLES } from '../constants/userConstants';
 import EmptyState from '@/components/ui/EmptyState';
-import { Users as UsersIcon } from 'lucide-react';
+import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
 
 /**
  * Kolom AKSI versi dummy lama ("Ubah Role" dropdown + "Reset Token JWT")
- * DIHAPUS TOTAL -- keduanya tak pernah tersambung ke mana pun DAN backend
- * TAK PUNYA kapasitas ini sama sekali: `UpdateUserDto` cuma nama+opdId (tak
- * bisa ubah role), dan sesi login pakai JWT stateless tanpa mekanisme revoke
- * (lihat SessionService/AuthProvider) -- tak ada yang bisa "direset". Diganti
- * toggle Aktifkan/Nonaktifkan sungguhan (`PATCH /users/:id/status`),
- * satu-satunya mutasi akun yang benar-benar didukung dari daftar ini.
+ * DIHAPUS TOTAL -- keduanya tak pernah tersambung ke mana pun. Reset token
+ * masih tak berlaku (JWT stateless tanpa mekanisme revoke, lihat
+ * SessionService/AuthProvider). Diganti toggle Aktifkan/Nonaktifkan
+ * (`PATCH /users/:id/status`), link Ubah Role (`PATCH /users/:id`,
+ * 2026-08-05), dan Hapus (`DELETE /users/:id`, soft delete, 2026-08-05 --
+ * sebelumnya `deletedAt` ada di skema tapi tak ada endpoint/UI sama sekali).
  */
-export default function UsersTable({ data, onUpdateStatus, pagination }) {
+export default function UsersTable({ data, onUpdateStatus, onDelete, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
-      case USER_ROLES.SUPER_ADMIN:
-        return { label: 'Super Admin', className: 'bg-rose-100 text-rose-800' };
       case USER_ROLES.ADMIN_KABUPATEN:
         return { label: 'Admin Kabupaten', className: 'bg-indigo-100 text-indigo-800' };
       case USER_ROLES.ADMIN_OPD:
@@ -33,8 +32,6 @@ export default function UsersTable({ data, onUpdateStatus, pagination }) {
 
   const getAvatarVariant = (role) => {
     switch (role) {
-      case USER_ROLES.SUPER_ADMIN:
-        return 'primary';
       case USER_ROLES.ADMIN_KABUPATEN:
         return 'secondary';
       case USER_ROLES.ADMIN_OPD:
@@ -103,12 +100,36 @@ export default function UsersTable({ data, onUpdateStatus, pagination }) {
                   <UserStatusBadge status={user.status} />
                 </Td>
                 <Td>
-                  <button
-                    onClick={() => onUpdateStatus?.(user.id, !isActive)}
-                    className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
-                  >
-                    {isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Ubah Role hanya utk akun admin (opd/kabupaten) -- UpdateUserDto.role
+                        divalidasi @IsIn(ADMIN_ROLES), tak menerima responden sama sekali. */}
+                    {user.role !== USER_ROLES.RESPONDENT && (
+                      <Link
+                        href={`/admin-kab/users/${user.id}/edit`}
+                        className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
+                      >
+                        <Pencil size={12} />
+                        Ubah Role
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => onUpdateStatus?.(user.id, !isActive)}
+                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
+                    >
+                      {isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Hapus akun "${user.name}"? Akun tidak bisa login lagi setelah dihapus.`)) {
+                          onDelete?.(user.id);
+                        }
+                      }}
+                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-error hover:bg-error-container transition-colors h-[32px] flex items-center justify-center gap-1"
+                    >
+                      <Trash2 size={12} />
+                      Hapus
+                    </button>
+                  </div>
                 </Td>
               </Tr>
             );

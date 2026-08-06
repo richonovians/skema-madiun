@@ -13,7 +13,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { IkmModule } from './modules/ikm/ikm.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpdModule } from './modules/opd/opd.module';
 import { QuestionsModule } from './modules/questions/questions.module';
 import { ReferenceModule } from './modules/reference/reference.module';
@@ -54,6 +56,8 @@ import { UsersModule } from './modules/users/users.module';
     ComplaintsModule,
     AuditModule,
     ReferenceModule,
+    DashboardModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -47,23 +47,44 @@ describe('Users (e2e)', () => {
     expect(res.body.data).not.toHaveProperty('deletedAt'); // field internal disembunyikan
   });
 
-  it('Kabupaten DILARANG membuat akun kabupaten -> 403', async () => {
+  it('Kabupaten (= superuser) membuat akun kabupaten lain -> 201', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
       .send({ nama: 'Kab E2E', email: 'kab@users.e2e.test', role: 'kabupaten' });
 
-    expect(res.status).toBe(403);
-  });
-
-  it('Superuser BOLEH membuat akun kabupaten -> 201', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/users')
-      .set(devHeaders({ role: Role.superuser }))
-      .send({ nama: 'Kab E2E', email: 'kab@users.e2e.test', role: 'kabupaten' });
-
     expect(res.status).toBe(201);
     expect(res.body.data.role).toBe('kabupaten');
+  });
+
+  it('Kabupaten mengubah role akun lain (opd -> kabupaten) -> 200', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Ubah Role E2E', email: 'ubahrole@users.e2e.test', role: 'opd', opdId });
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/users/${created.body.data.id}`)
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ role: 'kabupaten' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.role).toBe('kabupaten');
+  });
+
+  it('Kabupaten DILARANG mengubah role akun sendiri (cegah self-lockout) -> 403', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Self Lockout E2E', email: 'selflockout@users.e2e.test', role: 'kabupaten' });
+    const selfId: number = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/users/${selfId}`)
+      .set(devHeaders({ role: Role.kabupaten, userId: selfId }))
+      .send({ role: 'opd', opdId });
+
+    expect(res.status).toBe(403);
   });
 
   it('GET /users (kabupaten) -> 200 paginated', async () => {
@@ -86,6 +107,48 @@ describe('Users (e2e)', () => {
   it('GET /users/:id tidak ada -> 404', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/users/99999999')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(404);
+  });
+
+  it('Kabupaten menghapus akun lain (soft delete) -> 200, hilang dari GET /users', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Hapus E2E', email: 'hapus@users.e2e.test', role: 'opd', opdId });
+    const targetId: number = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/v1/users/${targetId}`)
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.isActive).toBe(false);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/users/${targetId}`)
+      .set(devHeaders({ role: Role.kabupaten }));
+    expect(detail.status).toBe(404); // findOne memfilter deletedAt: null
+  });
+
+  it('Kabupaten DILARANG menghapus akun sendiri (cegah self-lockout) -> 403', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set(devHeaders({ role: Role.kabupaten }))
+      .send({ nama: 'Self Delete E2E', email: 'selfdelete@users.e2e.test', role: 'kabupaten' });
+    const selfId: number = created.body.data.id;
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/v1/users/${selfId}`)
+      .set(devHeaders({ role: Role.kabupaten, userId: selfId }));
+
+    expect(res.status).toBe(403);
+  });
+
+  it('DELETE /users/:id tidak ada -> 404', async () => {
+    const res = await request(app.getHttpServer())
+      .delete('/api/v1/users/99999999')
       .set(devHeaders({ role: Role.kabupaten }));
 
     expect(res.status).toBe(404);

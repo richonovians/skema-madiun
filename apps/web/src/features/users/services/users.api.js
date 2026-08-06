@@ -34,9 +34,11 @@ export async function getUserById(userId) {
 }
 
 /**
- * Mengubah nama/OPD tautan akun.
+ * Mengubah nama/OPD tautan/role akun (2026-08-05: role kini bisa diubah
+ * kabupaten, PATCH /users/:id -- backend menolak 403 bila userId == diri
+ * sendiri, cegah self-lockout).
  * @param {number|string} userId
- * @param {{fullName?: string, opdId?: number}} payload
+ * @param {{fullName?: string, opdId?: number, role?: string}} payload
  * @returns {Promise<Object>}
  */
 export async function updateUser(userId, payload) {
@@ -52,5 +54,17 @@ export async function updateUser(userId, payload) {
  */
 export async function updateUserStatus(userId, isActive) {
   const response = await api.patch(`/users/${userId}/status`, { isActive });
+  return adaptUser(response.data);
+}
+
+/**
+ * Hapus akun (2026-08-05: soft delete di backend -- `deletedAt`+`isActive:
+ * false`, bukan hapus baris). Backend menolak 403 bila userId == diri
+ * sendiri (cegah self-lockout), sama pola dgn updateUser role.
+ * @param {number|string} userId
+ * @returns {Promise<Object>}
+ */
+export async function deleteUser(userId) {
+  const response = await api.delete(`/users/${userId}`);
   return adaptUser(response.data);
 }

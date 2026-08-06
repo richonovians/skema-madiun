@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Building2 } from 'lucide-react';
+import { ShieldCheck, Building2, Lock } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Dropdown from '@/components/ui/Dropdown';
 import { USER_ROLES } from '../constants/userConstants';
@@ -10,10 +10,28 @@ const ROLE_OPTIONS = [
   { value: USER_ROLES.ADMIN_OPD, label: 'Admin OPD' },
 ];
 
-/** `opdOptions` datang dari page.jsx (GET /opd sungguhan) -- versi dummy lama
+const ROLE_LABEL = {
+  [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
+  [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
+};
+
+/**
+ * `opdOptions` datang dari page.jsx (GET /opd sungguhan) -- versi dummy lama
  * pakai DUMMY_OPD (id palsu, tak match OPD asli manapun), akan selalu gagal
- * validasi backend (`opdId` tak ditemukan) kalau dikirim apa adanya. */
-export default function RoleAssignmentCard({ formData, onDropdownChange, errors, opdOptions = [] }) {
+ * validasi backend (`opdId` tak ditemukan) kalau dikirim apa adanya.
+ *
+ * `roleLocked` (2026-08-05, edit akun sendiri): backend menolak 403 kalau
+ * kabupaten mengubah role akun sendiri (cegah self-lockout, lihat
+ * UsersService.update). Saat true, role ditampilkan statis (bukan Dropdown
+ * interaktif) supaya pengguna tak mencoba aksi yang pasti ditolak.
+ */
+export default function RoleAssignmentCard({
+  formData,
+  onDropdownChange,
+  errors,
+  opdOptions = [],
+  roleLocked = false,
+}) {
   const isAdminOPD = formData.role === USER_ROLES.ADMIN_OPD;
 
   return (
@@ -33,16 +51,29 @@ export default function RoleAssignmentCard({ formData, onDropdownChange, errors,
 
       {/* Fields */}
       <div className="space-y-md">
-        {/* Role Dropdown */}
+        {/* Role: Dropdown interaktif, KECUALI saat mengedit akun sendiri */}
         <div className="space-y-xs">
-          <Dropdown
-            id="role"
-            label="ROLE ADMINISTRATOR"
-            options={ROLE_OPTIONS}
-            value={formData.role}
-            onChange={(value) => onDropdownChange('role', value)}
-            error={errors.role}
-          />
+          {roleLocked ? (
+            <div className="space-y-xs">
+              <span className="block text-sm font-bold text-text-primary">ROLE ADMINISTRATOR</span>
+              <div className="w-full flex items-center gap-2 min-h-[44px] px-md py-2 border border-outline-variant rounded-lg bg-surface-container-low text-text-secondary">
+                <Lock size={14} className="flex-shrink-0" />
+                <span className="text-body-md">{ROLE_LABEL[formData.role] || formData.role}</span>
+              </div>
+              <p className="text-xs text-text-secondary">
+                Anda tidak dapat mengubah role akun Anda sendiri.
+              </p>
+            </div>
+          ) : (
+            <Dropdown
+              id="role"
+              label="ROLE ADMINISTRATOR"
+              options={ROLE_OPTIONS}
+              value={formData.role}
+              onChange={(value) => onDropdownChange('role', value)}
+              error={errors.role}
+            />
+          )}
         </div>
 
         {/* OPD Dropdown — hanya muncul saat role === ADMIN_OPD */}

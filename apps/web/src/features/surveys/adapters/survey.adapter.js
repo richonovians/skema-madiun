@@ -9,6 +9,34 @@ const STATUS_MAP = {
   ditutup: 'DITUTUP',
 };
 
+/**
+ * Format kanonik periode survei (D5+D8, 2026-08-05): `{tahun}-Q{1-4}` (mis.
+ * "2026-Q2") -- disimpan & divalidasi backend (lihat periode.util.ts),
+ * granularitas triwulan (D5), terurut leksikografis sistematis (D8). Util di
+ * sini murni utk sisi tampilan/builder -- backend tetap sumber kebenaran
+ * validasi.
+ */
+const PERIODE_REGEX = /^(\d{4})-Q([1-4])$/;
+const ROMAN_BY_QUARTER = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
+
+/** "2026-Q2" -> { tahun: 2026, triwulan: 2 }, atau null bila bukan format kanonik. */
+export function parsePeriode(periode) {
+  const match = PERIODE_REGEX.exec(periode ?? '');
+  if (!match) return null;
+  return { tahun: Number(match[1]), triwulan: Number(match[2]) };
+}
+
+export function buildPeriode(tahun, triwulan) {
+  return `${tahun}-Q${triwulan}`;
+}
+
+/** "2026-Q2" -> "Triwulan II - 2026" (label ramah-baca, dipakai kartu/tampilan). */
+export function formatPeriodeLabel(periode) {
+  const parsed = parsePeriode(periode);
+  if (!parsed) return periode; // data lama/tak dikenal -- tampilkan apa adanya
+  return `Triwulan ${ROMAN_BY_QUARTER[parsed.triwulan]} - ${parsed.tahun}`;
+}
+
 export function adaptSurvey(survey) {
   return {
     id: String(survey.id),

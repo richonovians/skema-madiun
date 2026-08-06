@@ -20,7 +20,7 @@ export default function SSOLoginButton() {
     setIsLoading(true);
     try {
       const res = await authApi.devLogin(identifier);
-      saveSession(res.data.token);
+      saveSession(res.data.token, res.data.user?.role);
       window.location.reload();
     } catch (err) {
       setError(err.message || 'Login gagal');

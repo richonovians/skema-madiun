@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { PERIODE_REGEX } from '../utils/periode.util';
 
 export class CreateSurveyDto {
   @ApiProperty({ maxLength: 100 })
@@ -8,10 +17,13 @@ export class CreateSurveyDto {
   @MaxLength(100)
   judul: string;
 
-  @ApiProperty({ maxLength: 20, example: '2026' })
+  @ApiProperty({
+    maxLength: 20,
+    example: '2026-Q1',
+    description: 'Format kanonik triwulan: {tahun}-Q{1-4} (D5+D8)',
+  })
   @IsString()
-  @MinLength(1)
-  @MaxLength(20)
+  @Matches(PERIODE_REGEX, { message: 'periode harus berformat {tahun}-Q{1-4}, mis. "2026-Q1"' })
   periode: string;
 
   @ApiPropertyOptional({ default: false, description: 'Boleh mengisi >1 kali per periode' })
@@ -20,7 +32,8 @@ export class CreateSurveyDto {
   allowMultipleSubmit?: boolean;
 
   @ApiPropertyOptional({
-    description: 'OPD tujuan — hanya dipakai oleh superuser (Admin OPD memakai OPD-nya sendiri)',
+    description:
+      'OPD tujuan — hanya dipakai oleh kabupaten (=superuser; Admin OPD memakai OPD-nya sendiri)',
   })
   @IsOptional()
   @IsInt()

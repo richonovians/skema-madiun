@@ -11,10 +11,10 @@ import { formatDateId, getInitials } from '@/utils/format';
  * API, lihat UserEntity). Adapter ini hanya map ACTIVE/INACTIVE; komponen yang
  * mengandalkan PENDING perlu disesuaikan, bukan ditebak di sini.
  */
+// kabupaten = superuser (2026-08-05, role superuser terpisah digabung ke kabupaten).
 const ROLE_MAP = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
-  superuser: 'SUPER_ADMIN',
   responden: 'RESPONDENT',
 };
 
@@ -25,6 +25,7 @@ export function adaptUser(user) {
     email: user.email,
     initials: getInitials(user.nama),
     role: ROLE_MAP[user.role] ?? user.role,
+    opdId: user.opdId ?? null,
     organization: user.opdNama ?? null,
     createdAt: formatDateId(user.createdAt),
     status: user.isActive ? 'ACTIVE' : 'INACTIVE',
@@ -38,7 +39,6 @@ export function adaptUserList(users) {
 const ROLE_TO_BACKEND = {
   ADMIN_OPD: 'opd',
   ADMIN_KABUPATEN: 'kabupaten',
-  SUPER_ADMIN: 'superuser',
   RESPONDENT: 'responden',
 };
 
@@ -62,7 +62,16 @@ export function toCreateUserPayload({ fullName, email, role, opdId }) {
   };
 }
 
-/** Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId saja). */
-export function toUpdateUserPayload({ fullName, opdId }) {
-  return { nama: fullName, opdId };
+/**
+ * Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId+role).
+ * `role` opsional (2026-08-05, kabupaten bisa ubah role user lain) -- kirim
+ * undefined bila tak disertakan pemanggil, class-validator `@IsOptional`
+ * mengabaikannya.
+ */
+export function toUpdateUserPayload({ fullName, opdId, role }) {
+  return {
+    nama: fullName,
+    opdId: opdId ? Number(opdId) : undefined,
+    role: role ? (ROLE_TO_BACKEND[role] ?? role) : undefined,
+  };
 }

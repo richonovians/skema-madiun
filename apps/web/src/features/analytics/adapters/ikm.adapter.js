@@ -1,4 +1,5 @@
 import { IKM_MUTU_LABEL } from '@/utils/enumLabels';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 /**
  * Terjemahkan IkmResultEntity backend (GET /surveys/:id/results) ke bentuk yang
@@ -58,7 +59,7 @@ export function adaptIkmDashboardItem(item) {
     jenisLayanan: item.jenisLayanan,
     surveyId: item.surveyId,
     judul: item.judul,
-    periode: item.periode,
+    periode: formatPeriodeLabel(item.periode),
     ikmScore: item.nilaiIkm,
     mutu: item.mutu,
     jumlahResponden: item.jumlahResponden,
@@ -71,5 +72,12 @@ export function adaptIkmDashboard(dashboard) {
     rataRataIkm: dashboard.rataRataIkm,
     totalOpd: dashboard.totalOpd,
     totalResponden: dashboard.totalResponden,
+    // INT-13 (2026-08-05): dulu gap total, kini terisi dari GET /dashboard/ikm
+    // yg diperluas. systemActivityPercent = definisi developer (D3, lihat
+    // komentar backend DashboardService) -- proxy "% OPD aktif dgn survei
+    // aktif saat ini", BUKAN metrik resmi Diskominfo.
+    openComplaints: dashboard.openComplaints,
+    newComplaints: dashboard.newComplaints,
+    systemActivityPercent: dashboard.systemActivityPercent,
   };
 }

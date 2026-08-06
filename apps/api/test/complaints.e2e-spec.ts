@@ -325,7 +325,11 @@ describe('Complaints (e2e)', () => {
     expect(list.body.data[1].pesan).toBe('Sedang kami proses');
   });
 
-  it('POST replies oleh Admin Kabupaten -> 403 (bukan OPD/Responden)', async () => {
+  // Kabupaten (= superuser, 2026-08-05) py akses penuh ke SEMUA pengaduan
+  // (assertAccess bypass, sama seperti sejak modul ini pertama dibuat -- lihat
+  // PRD Bab 6 "Kelola & tindak lanjut pengaduan: kabupaten pantau semua").
+  // BUKAN dibatasi ke OPD/Responden pemilik tiket saja.
+  it('POST replies oleh Admin Kabupaten -> 201 (akses penuh, bukan hanya OPD/Responden)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
@@ -337,6 +341,7 @@ describe('Complaints (e2e)', () => {
       .post(`/api/v1/complaints/${created.body.data.id}/replies`)
       .set(asKabupaten())
       .send({ pesan: 'Halo' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    expect(res.body.data.pesan).toBe('Halo');
   });
 });

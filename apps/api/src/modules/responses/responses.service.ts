@@ -120,7 +120,7 @@ export class ResponsesService {
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }
-    assertOpdAccess(user, survey.opdId); // Admin OPD hanya OPD-nya; Kabupaten/superuser semua
+    assertOpdAccess(user, survey.opdId); // Admin OPD hanya OPD-nya; kabupaten (=superuser) semua
 
     const { page, limit } = query;
     const [rows, total] = await this.prisma.$transaction([

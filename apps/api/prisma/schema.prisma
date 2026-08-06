@@ -16,11 +16,14 @@ datasource db {
 // ENUM
 // =====================================================================
 
+// `kabupaten` = Admin Kabupaten SEKALIGUS superuser (2026-08-05: role
+// `superuser` terpisah DIHAPUS/digabung ke sini atas permintaan user --
+// sebelumnya ditambah 20260727000000_add_superuser_role, kini dilebur
+// balik). `kabupaten` mewarisi bypass penuh RolesGuard (lihat guard).
 enum Role {
   kabupaten
   opd
   responden
-  superuser // pengelola sistem — akses penuh (melampaui kabupaten)
 
   @@map("user_role")
 }
@@ -66,6 +69,16 @@ enum ComplaintStatus {
   @@map("complaint_status")
 }
 
+// D9 (2026-08-05): in-app saja (bukan email) -- cakupan disepakati user:
+// status pengaduan berubah + balasan baru. Enum sengaja sempit sesuai
+// cakupan disetujui, bukan generik "semua jenis event" yang belum diminta.
+enum NotificationType {
+  complaint_status_changed
+  complaint_reply
+
+  @@map("notification_type")
+}
+
 // =====================================================================
 // PENGGUNA & PROFIL
 // =====================================================================
@@ -90,6 +103,7 @@ model User {
   complaints        Complaint[]
   complaintReplies  ComplaintReply[]
   auditLogs         AuditLog[]
+  notifications     Notification[]
 
   @@index([opdId])
   @@index([role])
@@ -258,6 +272,23 @@ model IkmResult {
 }
 
 // =====================================================================
+// STATISTIK PUBLIK (D6, 2026-08-05)
+// =====================================================================
+
+// Narasi `insight.text` di halaman /statistics publik -- keputusan D6:
+// disediakan tempat penyimpanan agar bisa diisi ADMIN (bukan dihapus dari UI,
+// bukan auto-generated dari angka). Baris tunggal (`id` selalu 1, di-upsert),
+// bukan tabel riwayat -- cukup satu narasi aktif pada satu waktu.
+model StatisticsInsight {
+  id        Int      @id @default(1)
+  text      String   @db.Text
+  updatedBy Int?     @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("statistics_insight")
+}
+
+// =====================================================================
 // PENGADUAN
 // =====================================================================
 
@@ -315,6 +346,30 @@ model ComplaintReply {
   @@index([complaintId])
   @@index([authorId])
   @@map("complaint_replies")
+}
+
+// =====================================================================
+// NOTIFIKASI (D9, in-app, 2026-08-05)
+// =====================================================================
+
+// Baris per-penerima (bukan event bersama disebar) -- lebih sederhana utk
+// query "punya berapa belum dibaca" & tandai-dibaca per pengguna, sepadan
+// dgn skala pemakaian (bukan broadcast massal).
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  type      NotificationType
+  title     String           @db.VarChar(150)
+  message   String           @db.VarChar(500)
+  link      String?          @db.VarChar(255) // path relatif frontend, mis. /complaints/PGD...
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 // =====================================================================

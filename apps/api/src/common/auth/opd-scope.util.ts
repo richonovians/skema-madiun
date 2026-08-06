@@ -9,12 +9,12 @@ import type { CurrentUser } from '../decorators/current-user.decorator';
 
 /**
  * Fragmen Prisma `where` untuk membatasi query ke OPD milik pengguna.
- * - `superuser` / `kabupaten` → `{}` (tanpa batas)
+ * - `kabupaten` (= superuser, 2026-08-05) → `{}` (tanpa batas)
  * - `opd` → `{ opdId: user.opdId }`
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException (fail-safe)
  */
 export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
-  if (user.role === Role.superuser || user.role === Role.kabupaten) {
+  if (user.role === Role.kabupaten) {
     return {};
   }
   if (user.role === Role.opd) {
@@ -28,12 +28,12 @@ export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
 
 /**
  * Memastikan pengguna boleh mengakses resource milik OPD tertentu (akses by-id).
- * - `superuser` / `kabupaten` → selalu boleh
+ * - `kabupaten` (= superuser, 2026-08-05) → selalu boleh
  * - `opd` → hanya bila `targetOpdId === user.opdId`
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException
  */
 export function assertOpdAccess(user: CurrentUser, targetOpdId: number): void {
-  if (user.role === Role.superuser || user.role === Role.kabupaten) {
+  if (user.role === Role.kabupaten) {
     return;
   }
   if (user.role === Role.opd) {

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ComplaintStatus, Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { NotificationsService } from '../notifications/notifications.service';
 import { ComplaintsService } from './complaints.service';
 
 const respondenUser = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
@@ -49,7 +50,11 @@ describe('ComplaintsService', () => {
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const config = { get: jest.fn().mockReturnValue('uploads') } as unknown as ConfigService;
-  const service = new ComplaintsService(prisma, config);
+  const notificationsService = {
+    notifyComplaintStatusChanged: jest.fn(),
+    notifyComplaintReply: jest.fn(),
+  } as unknown as NotificationsService;
+  const service = new ComplaintsService(prisma, notificationsService, config);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -359,6 +364,16 @@ describe('ComplaintsService', () => {
         data: { complaintId: 1, authorId: 1, pesan: 'Bukan wewenang OPD ini' },
       });
     });
+
+    it('(D9) sukses -> memicu notifyComplaintStatusChanged dgn baris terbaru', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+      const updatedRow = complaintRow({ status: ComplaintStatus.diproses });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([updatedRow]);
+
+      await service.updateStatus(1, { status: ComplaintStatus.diproses }, opdUser(5));
+
+      expect(notificationsService.notifyComplaintStatusChanged).toHaveBeenCalledWith(updatedRow);
+    });
   });
 
   describe('replies', () => {
@@ -385,6 +400,22 @@ describe('ComplaintsService', () => {
       });
       const result = await service.addReply(1, { pesan: 'Halo' }, respondenUser(10));
       expect(result.pesan).toBe('Halo');
+    });
+
+    it('(D9) addReply memicu notifyComplaintReply dgn baris pengaduan & authorId pembalas', async () => {
+      const row = complaintRow({ userId: 10 });
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(row);
+      (prisma.complaintReply.create as jest.Mock).mockResolvedValue({
+        id: 1,
+        complaintId: 1,
+        authorId: 10,
+        pesan: 'Halo',
+        createdAt: new Date(),
+      });
+
+      await service.addReply(1, { pesan: 'Halo' }, respondenUser(10));
+
+      expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(row, 10);
     });
   });
 });

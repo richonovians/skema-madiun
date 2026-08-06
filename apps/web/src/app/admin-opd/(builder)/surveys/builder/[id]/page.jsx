@@ -10,6 +10,7 @@ import FloatingStatus from '@/features/surveys/builder/components/FloatingStatus
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
+import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
 import {
   getSurveyById,
   getQuestions,
@@ -38,7 +39,14 @@ export default function SurveyBuilderPage({ params }) {
 
   const [surveyId, setSurveyId] = useState(isNew ? null : resolvedParams.id);
   const [title, setTitle] = useState('Survei Tanpa Judul');
-  const [periode, setPeriode] = useState('');
+  // Dropdown Tahun/Triwulan (D5+D8) selalu punya nilai valid -- default
+  // triwulan berjalan saat ini, bukan string kosong (beda dari `title` yg
+  // placeholder-nya memang boleh kosong sebelum diisi).
+  const [periode, setPeriode] = useState(() => {
+    const now = new Date();
+    const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+    return buildPeriode(now.getFullYear(), currentQuarter);
+  });
   const [status, setStatus] = useState('DRAF');
   const [questions, setQuestions] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -68,11 +76,7 @@ export default function SurveyBuilderPage({ params }) {
   /** Buat survei sungguhan bila belum ada -- dipicu aksi pertama yg butuh id nyata. */
   const ensureSurveyExists = useCallback(async () => {
     if (surveyId) return surveyId;
-    const trimmedPeriode = periode.trim();
-    if (!trimmedPeriode) {
-      throw new Error('Isi periode survei (mis. "2026" atau "TRIWULAN II - 2026") sebelum menambah pertanyaan.');
-    }
-    const created = await createSurvey({ title: title.trim() || 'Survei Tanpa Judul', period: trimmedPeriode });
+    const created = await createSurvey({ title: title.trim() || 'Survei Tanpa Judul', period: periode });
     setSurveyId(created.id);
     setStatus(created.status);
     return created.id;
@@ -96,11 +100,13 @@ export default function SurveyBuilderPage({ params }) {
     }
   };
 
-  const handlePeriodeBlur = async () => {
+  /** Dipicu langsung saat dropdown Tahun/Triwulan berubah (commit diskret, bukan blur). */
+  const handlePeriodeCommit = async (newPeriode) => {
+    setPeriode(newPeriode);
     if (!surveyId || status !== 'DRAF') return;
     setIsSaving(true);
     try {
-      await updateSurvey(surveyId, { title, period: periode });
+      await updateSurvey(surveyId, { title, period: newPeriode });
     } catch (err) {
       setActionError(err.message);
     } finally {
@@ -226,8 +232,7 @@ export default function SurveyBuilderPage({ params }) {
         onTitleChange={setTitle}
         onTitleBlur={handleTitleBlur}
         periode={periode}
-        onPeriodeChange={setPeriode}
-        onPeriodeBlur={handlePeriodeBlur}
+        onPeriodeCommit={handlePeriodeCommit}
         status={status}
         isSaving={isSaving}
         onPublish={handlePublish}

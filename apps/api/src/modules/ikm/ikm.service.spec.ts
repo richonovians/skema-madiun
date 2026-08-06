@@ -42,10 +42,14 @@ const dashboardRow = (over: Record<string, unknown> = {}) => ({
 
 describe('IkmService', () => {
   const prisma = {
-    survey: { findUnique: jest.fn() },
+    // `findMany` default [] -- getDashboard (2026-08-05) ikut query survei
+    // `aktif` utk live-compute; tes yg tak peduli survei aktif tak perlu tahu ini.
+    survey: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     question: { findMany: jest.fn() },
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
+    complaint: { count: jest.fn().mockResolvedValue(0) },
+    opd: { count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
   const ikmExportService = {
     buildFilename: jest.fn().mockReturnValue('hasil-ikm-1-2026.csv'),
@@ -296,6 +300,49 @@ describe('IkmService', () => {
       expect(result.totalResponden).toBe(8);
     });
 
+    it('(2026-08-05) survei AKTIF yg sudah punya responden ikut ditampilkan, status=aktif', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 20,
+          opdId: 3,
+          periode: '2026-Q3',
+          judul: 'Survei Aktif Disdik',
+          opd: { nama: 'Dinas Pendidikan' },
+        },
+      ]);
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(
+        unsurQuestions(Array(9).fill([4, 4])),
+      );
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].status).toBe('aktif');
+      expect(result.items[0].nilaiIkm).toBe(100);
+      expect(result.items[0].opdNama).toBe('Dinas Pendidikan');
+    });
+
+    it('(2026-08-05) survei AKTIF tanpa responden TIDAK ditampilkan (nilaiIkm null)', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 21,
+          opdId: 3,
+          periode: '2026-Q3',
+          judul: 'Survei Kosong',
+          opd: { nama: 'Dinas Pendidikan' },
+        },
+      ]);
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions(Array(9).fill([])));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toEqual([]);
+    });
+
     it('filter periode diteruskan ke where', async () => {
       (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
       await service.getDashboard({ periode: '2025' });
@@ -321,6 +368,41 @@ describe('IkmService', () => {
       ]);
       const result = await service.getDashboard({});
       expect(result.totalOpd).toBe(1);
+    });
+
+    it('(INT-13) menyisipkan openComplaints/newComplaints/systemActivityPercent', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.complaint.count as jest.Mock)
+        .mockResolvedValueOnce(4) // openComplaints
+        .mockResolvedValueOnce(2); // newComplaints
+      (prisma.opd.count as jest.Mock)
+        .mockResolvedValueOnce(10) // activeOpdCount
+        .mockResolvedValueOnce(3); // opdWithActiveSurveyCount
+
+      const result = await service.getDashboard({});
+
+      expect(result.openComplaints).toBe(4);
+      expect(result.newComplaints).toBe(2);
+      expect(result.systemActivityPercent).toBe(30);
+    });
+
+    it('(INT-13) tak ada OPD aktif -> systemActivityPercent null (bukan NaN/div-by-zero)', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.opd.count as jest.Mock).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+
+      const result = await service.getDashboard({});
+
+      expect(result.systemActivityPercent).toBeNull();
+    });
+
+    it('(INT-13) filter jenisLayanan diteruskan ke hitung pengaduan', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      await service.getDashboard({ jenisLayanan: 'Kesehatan' });
+      expect(prisma.complaint.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ opd: { jenisLayanan: 'Kesehatan' } }),
+        }),
+      );
     });
   });
 });

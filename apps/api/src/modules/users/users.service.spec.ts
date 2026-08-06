@@ -81,25 +81,19 @@ describe('UsersService', () => {
     await expect(service.findOne(99)).rejects.toThrow(NotFoundException);
   });
 
-  it('Kabupaten membuat Admin OPD → sukses', async () => {
+  it('Kabupaten (= superuser) membuat Admin OPD → sukses', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 1 });
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.create as jest.Mock).mockResolvedValue(userRow);
 
     const dto: CreateUserDto = { nama: 'Admin A', email: 'a@x.go.id', role: Role.opd, opdId: 1 };
-    const result = await service.create(dto, actor(Role.kabupaten));
+    const result = await service.create(dto);
 
     expect(result.role).toBe(Role.opd);
     expect(prisma.user.create).toHaveBeenCalled();
   });
 
-  it('Kabupaten DILARANG membuat akun kabupaten (eskalasi privilege) → Forbidden', async () => {
-    const dto: CreateUserDto = { nama: 'K', email: 'k@x.go.id', role: Role.kabupaten };
-    await expect(service.create(dto, actor(Role.kabupaten))).rejects.toThrow(ForbiddenException);
-    expect(prisma.user.create).not.toHaveBeenCalled();
-  });
-
-  it('Superuser BOLEH membuat akun kabupaten → sukses', async () => {
+  it('Kabupaten (= superuser) membuat akun kabupaten lain → sukses', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.create as jest.Mock).mockResolvedValue({
       ...userRow,
@@ -108,14 +102,14 @@ describe('UsersService', () => {
     });
 
     const dto: CreateUserDto = { nama: 'K', email: 'k@x.go.id', role: Role.kabupaten };
-    const result = await service.create(dto, actor(Role.superuser));
+    const result = await service.create(dto);
 
     expect(result.role).toBe(Role.kabupaten);
   });
 
   it('membuat Admin OPD tanpa opdId → BadRequest', async () => {
     const dto: CreateUserDto = { nama: 'A', email: 'a@x.go.id', role: Role.opd };
-    await expect(service.create(dto, actor(Role.kabupaten))).rejects.toThrow(BadRequestException);
+    await expect(service.create(dto)).rejects.toThrow(BadRequestException);
   });
 
   it('email/ssoSubject duplikat → Conflict', async () => {
@@ -123,15 +117,91 @@ describe('UsersService', () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow);
 
     const dto: CreateUserDto = { nama: 'A', email: 'a@x.go.id', role: Role.opd, opdId: 1 };
-    await expect(service.create(dto, actor(Role.kabupaten))).rejects.toThrow(ConflictException);
+    await expect(service.create(dto)).rejects.toThrow(ConflictException);
   });
 
-  it('Kabupaten DILARANG mengubah status akun superuser → Forbidden', async () => {
-    (prisma.user.findFirst as jest.Mock).mockResolvedValue({ ...userRow, role: Role.superuser });
+  it('updateStatus mengubah isActive → sukses', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow);
+    (prisma.user.update as jest.Mock).mockResolvedValue({ ...userRow, isActive: false });
+
+    const result = await service.updateStatus(10, { isActive: false });
+
+    expect(result.isActive).toBe(false);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { isActive: false },
+    });
+  });
+
+  it('update (2026-08-05) mengubah role akun lain, opd → kabupaten, opdId ikut dikosongkan', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow); // role: opd
+    (prisma.user.update as jest.Mock).mockResolvedValue({
+      ...userRow,
+      role: Role.kabupaten,
+      opdId: null,
+    });
+
+    const result = await service.update(10, { role: Role.kabupaten }, actor(Role.kabupaten));
+
+    expect(result.role).toBe(Role.kabupaten);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { nama: undefined, role: Role.kabupaten, opdId: null },
+    });
+  });
+
+  it('update: kabupaten TIDAK BOLEH mengubah role akun sendiri (cegah self-lockout) → Forbidden', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      id: 1,
+      role: Role.kabupaten,
+    });
 
     await expect(
-      service.updateStatus(10, { isActive: false }, actor(Role.kabupaten)),
+      service.update(1, { role: Role.opd, opdId: 1 }, actor(Role.kabupaten)),
     ).rejects.toThrow(ForbiddenException);
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('update: ubah role ke opd tanpa opdId → BadRequest', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      role: Role.kabupaten,
+      opdId: null,
+    });
+
+    await expect(service.update(10, { role: Role.opd }, actor(Role.kabupaten))).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('remove (2026-08-05) soft-delete akun lain → deletedAt+isActive:false, sukses', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow);
+    (prisma.user.update as jest.Mock).mockResolvedValue({
+      ...userRow,
+      isActive: false,
+      deletedAt: new Date(),
+    });
+
+    const result = await service.remove(10, actor(Role.kabupaten));
+
+    expect(result.isActive).toBe(false);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { deletedAt: expect.any(Date), isActive: false },
+    });
+  });
+
+  it('remove: TIDAK BOLEH menghapus akun sendiri (cegah self-lockout) → Forbidden', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({ ...userRow, id: 1 });
+
+    await expect(service.remove(1, actor(Role.kabupaten))).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('remove: user tak ada/sudah terhapus → NotFound', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.remove(99, actor(Role.kabupaten))).rejects.toThrow(NotFoundException);
   });
 });

@@ -101,7 +101,7 @@ Frontend memakai bahasa Inggris + camelCase + enum HURUF BESAR; backend memakai 
 | `name` | `nama` | |
 | `organization: 'Dinas Kesehatan'` | `opdId: 1` | **Butuh backend** — nama OPD tidak dikirim |
 | `status: 'ACTIVE'/'INACTIVE'/'PENDING'` | `isActive: true/false` | Enum vs boolean; `PENDING` **tidak punya padanan** di backend |
-| `role: 'ADMIN_OPD'/'ADMIN_KABUPATEN'/'SUPER_ADMIN'/'RESPONDENT'` | `role: 'opd'/'kabupaten'/'superuser'/'responden'` | Perlu peta 1:1 |
+| `role: 'ADMIN_OPD'/'ADMIN_KABUPATEN'/'RESPONDENT'` | `role: 'opd'/'kabupaten'/'responden'` | Perlu peta 1:1 (`kabupaten` = superuser, digabung 2026-08-05) |
 | `initials: 'SR'` | ✗ | Turunan dari nama — di frontend |
 
 **OPD**

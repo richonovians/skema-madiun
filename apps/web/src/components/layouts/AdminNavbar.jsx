@@ -43,7 +43,7 @@ export default function AdminNavbar() {
       
       <div className="flex items-center gap-2 md:gap-lg shrink-0 ml-auto">
         <div className="flex gap-1 md:gap-md">
-          <NotificationDropdown hasIndicator={false} />
+          <NotificationDropdown />
         </div>
         
         <div className="flex items-center gap-2 md:gap-md md:border-l border-outline-variant md:pl-lg">
