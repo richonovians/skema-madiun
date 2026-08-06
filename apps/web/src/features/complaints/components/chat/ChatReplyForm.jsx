@@ -27,16 +27,13 @@ export default function ChatReplyForm({ onSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!reply.trim() || !onSubmit) return;
+    // Boleh kirim lampiran saja tanpa teks (2026-08-06, laporan bug user
+    // "kirim foto tanpa teks tidak terkirim") -- backend (CreateReplyDto)
+    // kini terima salah satu (pesan/lampiran), bukan wajib keduanya.
+    if ((!reply.trim() && !file) || !onSubmit) return;
     setIsSending(true);
     try {
-      // CATATAN GAP: `file` (lampiran balasan) TIDAK dikirim -- backend
-      // (CreateReplyDto, POST /complaints/:id/replies) cuma terima `pesan`,
-      // tak ada dukungan lampiran pada balasan sama sekali (beda dari
-      // pengaduan awal yang boleh multipart). UI attach dibiarkan ada,
-      // tapi berkasnya diam-diam tak terkirim -- bukan tugas form ini
-      // mengarang kapasitas backend yang belum ada.
-      await onSubmit(reply);
+      await onSubmit(reply, file);
       setReply('');
       removeFile();
     } catch {
@@ -98,7 +95,7 @@ export default function ChatReplyForm({ onSubmit }) {
             type="submit" 
             variant="primary"
             className="w-[52px] h-[52px] !p-0 sm:w-auto sm:!px-6 rounded-full sm:!rounded-xl font-bold flex items-center justify-center sm:gap-2 whitespace-nowrap shrink-0 transition-all"
-            disabled={!reply.trim() || isSending}
+            disabled={(!reply.trim() && !file) || isSending}
           >
             <span className="hidden sm:inline">{isSending ? 'Mengirim...' : 'Kirim Pesan'}</span>
             <Send size={20} />

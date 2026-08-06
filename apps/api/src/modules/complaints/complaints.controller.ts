@@ -107,15 +107,23 @@ export class ComplaintsController {
     return this.complaintsService.listReplies(id, user);
   }
 
-  /** Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). */
+  /** Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). Lampiran opsional (multipart). */
   @Post(':id/replies')
   @Roles(Role.opd, Role.responden)
+  @UseInterceptors(
+    FilesInterceptor('lampiran', 5, {
+      storage: memoryStorage(),
+      limits: { fileSize: MULTER_HARD_CEILING_BYTES, files: 5 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({ type: ComplaintReplyEntity })
   addReply(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateReplyDto,
+    @UploadedFiles() files: Express.Multer.File[],
     @CurrentUser() user: CurrentUser,
   ): Promise<ComplaintReplyEntity> {
-    return this.complaintsService.addReply(id, dto, user);
+    return this.complaintsService.addReply(id, dto, files, user);
   }
 }

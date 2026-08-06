@@ -14,11 +14,26 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 /**
- * Notifikasi in-app (D9, 2026-08-05, cakupan disepakati user): HANYA 2 event
- * -- status pengaduan berubah, dan balasan baru pada pengaduan. Bukan sistem
- * event generik utk seluruh aplikasi (belum diminta, jangan diperluas
- * sendiri). Baris per-penerima disimpan langsung (bukan event+fanout
- * terpisah) -- skala pemakaian tak butuh itu.
+ * Notifikasi in-app (D9, 2026-08-05, cakupan disepakati user): awalnya HANYA
+ * 2 event -- status pengaduan berubah, dan balasan baru pada pengaduan.
+ * Bukan sistem event generik utk seluruh aplikasi (jangan diperluas sendiri
+ * di luar yg disepakati). Baris per-penerima disimpan langsung (bukan
+ * event+fanout terpisah) -- skala pemakaian tak butuh itu.
+ *
+ * REVISI (2026-08-06, laporan bug user "notifikasi tak pernah muncul di
+ * admin opd/kabupaten"):
+ * - `complaint_created` (event ke-3, BARU): SEBELUMNYA pengaduan baru masuk
+ *   TIDAK memicu notifikasi sama sekali (keputusan lama D9) -- OPD baru sadar
+ *   ada tiket lewat balasan susulan, yg sering telat. Kini Admin OPD tujuan
+ *   diberi tahu segera saat pengaduan baru masuk.
+ * - **Kabupaten (= superuser, akses penuh) SEBELUMNYA tidak pernah jadi
+ *   penerima notifikasi utk event APA PUN** -- gap struktural, bukan
+ *   keputusan sengaja (kemungkinan luput sebelum peran superuser digabung ke
+ *   kabupaten). Kini kabupaten diberi tahu utk KETIGA event, utk SEMUA
+ *   pengaduan (bukan cuma yg dia tangani sendiri) via `notifyKabupaten`,
+ *   sesuai perannya yg mengawasi seluruh OPD -- kecuali dia sendiri pelaku
+ *   aksinya (dikecualikan via `excludeUserId`, sekarang kabupaten juga bisa
+ *   ubah status/balas lewat halaman admin-kab).
  *
  * Setiap method `notify*` SENGAJA menelan errornya sendiri (log lalu lanjut)
  * -- notifikasi adalah efek samping, gagal membuatnya TIDAK BOLEH
@@ -31,8 +46,27 @@ export class NotificationsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik). */
-  async notifyComplaintStatusChanged(complaint: Complaint): Promise<void> {
+  /** Pengaduan baru masuk -> beri tahu Admin OPD tujuan + kabupaten (oversight). Pelapor TIDAK diberi tahu (dia sendiri pelakunya). */
+  async notifyComplaintCreated(complaint: Complaint): Promise<void> {
+    await this.notifyRole(
+      Role.opd,
+      complaint.opdId,
+      NotificationType.complaint_created,
+      'Pengaduan Baru Masuk',
+      `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
+      `/admin-opd/complaints/${complaint.ticketNo}`,
+    );
+    await this.notifyKabupaten(
+      complaint.userId,
+      NotificationType.complaint_created,
+      'Pengaduan Baru Masuk',
+      `Pengaduan baru ${complaint.ticketNo} masuk`,
+      `/admin-kab/complaints/${complaint.ticketNo}`,
+    );
+  }
+
+  /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik) + kabupaten (oversight). */
+  async notifyComplaintStatusChanged(complaint: Complaint, actorUserId: number): Promise<void> {
     const label = STATUS_LABEL[complaint.status] ?? complaint.status;
     await this.safeCreate({
       userId: complaint.userId,
@@ -41,40 +75,99 @@ export class NotificationsService {
       message: `Pengaduan ${complaint.ticketNo} kini berstatus "${label}"`,
       link: `/complaints/${complaint.ticketNo}`,
     });
+    await this.notifyKabupaten(
+      actorUserId,
+      NotificationType.complaint_status_changed,
+      'Status Pengaduan Diperbarui',
+      `Pengaduan ${complaint.ticketNo} kini berstatus "${label}"`,
+      `/admin-kab/complaints/${complaint.ticketNo}`,
+    );
   }
 
   /**
-   * Balasan baru -> beri tahu PIHAK LAIN dari yang membalas. Responden
-   * membalas -> semua Admin OPD pemilik (bisa >1 akun per OPD) diberi tahu.
-   * Admin OPD membalas -> pelapor diberi tahu.
+   * Balasan baru -> beri tahu PIHAK LAIN dari yang membalas + kabupaten
+   * (oversight). Responden membalas -> semua Admin OPD pemilik (bisa >1
+   * akun per OPD) diberi tahu. Admin OPD/Kabupaten membalas -> pelapor
+   * diberi tahu.
    */
   async notifyComplaintReply(complaint: Complaint, replyAuthorUserId: number): Promise<void> {
     if (replyAuthorUserId === complaint.userId) {
-      const opdAdmins = await this.prisma.user.findMany({
-        where: { role: Role.opd, opdId: complaint.opdId, isActive: true },
+      await this.notifyRole(
+        Role.opd,
+        complaint.opdId,
+        NotificationType.complaint_reply,
+        'Balasan Baru pada Pengaduan',
+        `Ada balasan baru dari pelapor pada pengaduan ${complaint.ticketNo}`,
+        `/admin-opd/complaints/${complaint.ticketNo}`,
+      );
+    } else {
+      await this.safeCreate({
+        userId: complaint.userId,
+        type: NotificationType.complaint_reply,
+        title: 'Balasan Baru pada Pengaduan',
+        message: `OPD membalas pengaduan ${complaint.ticketNo} Anda`,
+        link: `/complaints/${complaint.ticketNo}`,
+      });
+    }
+
+    await this.notifyKabupaten(
+      replyAuthorUserId,
+      NotificationType.complaint_reply,
+      'Balasan Baru pada Pengaduan',
+      `Ada balasan baru pada pengaduan ${complaint.ticketNo}`,
+      `/admin-kab/complaints/${complaint.ticketNo}`,
+    );
+  }
+
+  /**
+   * Broadcast ke semua akun aktif berperan `role` (opsional terikat `opdId`).
+   * Query pencarian penerima DIBUNGKUS try/catch di sini juga (2026-08-06) --
+   * SEBELUMNYA cuma `safeCreate` (baris DB per-notifikasi) yg aman, TAPI
+   * `prisma.user.findMany` di atasnya tak dijaga -- kalau query itu gagal
+   * (mis. DB hiccup), error bocor ke pemanggil (`create`/`updateStatus`/
+   * `addReply`) dan bisa salah dikira aksi UTAMA gagal, padahal cuma efek
+   * samping notifikasi. Sekarang konsisten dgn kontrak dokumentasi kelas ini.
+   */
+  private async notifyRole(
+    role: Role,
+    opdId: number,
+    type: NotificationType,
+    title: string,
+    message: string,
+    link: string,
+  ): Promise<void> {
+    try {
+      const recipients = await this.prisma.user.findMany({
+        where: { role, opdId, isActive: true },
         select: { id: true },
       });
       await Promise.all(
-        opdAdmins.map((admin) =>
-          this.safeCreate({
-            userId: admin.id,
-            type: NotificationType.complaint_reply,
-            title: 'Balasan Baru pada Pengaduan',
-            message: `Ada balasan baru dari pelapor pada pengaduan ${complaint.ticketNo}`,
-            link: `/admin-opd/complaints/${complaint.ticketNo}`,
-          }),
-        ),
+        recipients.map((r) => this.safeCreate({ userId: r.id, type, title, message, link })),
       );
-      return;
+    } catch (err) {
+      this.logger.warn(`Gagal mencari penerima notifikasi role=${role}: ${String(err)}`);
     }
+  }
 
-    await this.safeCreate({
-      userId: complaint.userId,
-      type: NotificationType.complaint_reply,
-      title: 'Balasan Baru pada Pengaduan',
-      message: `OPD membalas pengaduan ${complaint.ticketNo} Anda`,
-      link: `/complaints/${complaint.ticketNo}`,
-    });
+  /** Broadcast ke semua Admin Kabupaten aktif, kecuali pelaku aksi itu sendiri. */
+  private async notifyKabupaten(
+    excludeUserId: number,
+    type: NotificationType,
+    title: string,
+    message: string,
+    link: string,
+  ): Promise<void> {
+    try {
+      const kabupatenUsers = await this.prisma.user.findMany({
+        where: { role: Role.kabupaten, isActive: true, id: { not: excludeUserId } },
+        select: { id: true },
+      });
+      await Promise.all(
+        kabupatenUsers.map((k) => this.safeCreate({ userId: k.id, type, title, message, link })),
+      );
+    } catch (err) {
+      this.logger.warn(`Gagal mencari penerima notifikasi kabupaten: ${String(err)}`);
+    }
   }
 
   /** Daftar notifikasi milik pengguna saat ini, terbaru dulu. */

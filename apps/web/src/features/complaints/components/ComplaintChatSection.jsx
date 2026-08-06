@@ -6,8 +6,8 @@ import ChatMessageList from './chat/ChatMessageList';
 import ChatReplyForm from './chat/ChatReplyForm';
 
 /**
- * @param {Function} [onSendReply] async (text) => newMessage -- panggilan API
- * sungguhan (lihat app/(respondent)/complaints/[id]/page.jsx). Bila tak
+ * @param {Function} [onSendReply] async (text, file?) => newMessage -- panggilan
+ * API sungguhan (lihat app/(respondent)/complaints/[id]/page.jsx). Bila tak
  * disediakan, form balasan tetap tampil tapi tak melakukan apa pun (jangan
  * dibiarkan begini di produksi -- murni fallback aman).
  */
@@ -15,11 +15,11 @@ export default function ComplaintChatSection({ initialMessages = [], participant
   const [messages, setMessages] = useState(initialMessages);
   const [error, setError] = useState(null);
 
-  const handleReplySubmit = async (replyText) => {
+  const handleReplySubmit = async (replyText, file) => {
     setError(null);
     if (!onSendReply) return;
     try {
-      const newMessage = await onSendReply(replyText);
+      const newMessage = await onSendReply(replyText, file);
       setMessages((prev) => [...prev, newMessage]);
     } catch (err) {
       setError(err.message || 'Gagal mengirim tanggapan');

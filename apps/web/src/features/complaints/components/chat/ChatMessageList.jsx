@@ -28,6 +28,7 @@ export default function ChatMessageList({ messages = [] }) {
           <ChatMessageBubble
             key={idx}
             message={msg.text}
+            attachments={msg.attachments}
             timestamp={msg.timestamp}
             senderRole={msg.role}
             senderName={msg.senderName}
