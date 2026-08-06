@@ -13,6 +13,22 @@ describe('OPD (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let opdId: number;
+  // Snapshot externalId OPD yang AKTIF sebelum test ini jalan (2026-08-06,
+  // bug ditemukan user: dropdown OPD di frontend "tak sinkron" -- ternyata
+  // BUKAN bug frontend sama sekali. `POST /opd/sync` (OPD-4) menonaktifkan
+  // SEMUA OPD ber-externalId yang "hilang" dari hasil fetch source SAAT itu.
+  // Test ini SENGAJA override ke StubOpdSource (3 fixture determinstik, demi
+  // tak bergantung jaringan/kredensial Helpdesk asli di CI) lalu memanggil
+  // endpoint sync SUNGGUHAN -- tapi jest-e2e TAK PAKAI DATABASE TERISOLASI
+  // (DATABASE_URL sama dgn dev sungguhan), jadi tiap kali suite ini jalan,
+  // SEMUA OPD asli hasil sync live Helpdesk (53 entri) ikut dinonaktifkan
+  // secara permanen -- baru ketahuan setelah berkali-kali `npx jest
+  // --config test/jest-e2e.json` dijalankan sepanjang sesi perbaikan bug
+  // lain, korupsi datanya baru terlihat di dropdown OPD form pengaduan/survei.
+  // Snapshot+restore di sini murni mencegah efek samping ini terulang --
+  // BUKAN mengubah perilaku endpoint /opd/sync itu sendiri (memang seharusnya
+  // menonaktifkan OPD yang hilang dari source, itu perilaku benar di produksi).
+  let activeExternalIdsBeforeTest: string[] = [];
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -30,6 +46,14 @@ describe('OPD (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
+
+    activeExternalIdsBeforeTest = (
+      await prisma.opd.findMany({
+        where: { isActive: true, externalId: { not: null } },
+        select: { externalId: true },
+      })
+    ).map((o) => o.externalId as string);
+
     const opd = await prisma.opd.upsert({
       where: { kode: 'E2ETEST' },
       update: { externalId: 'E2E-1', nama: 'OPD E2E Test', isActive: true },
@@ -40,6 +64,13 @@ describe('OPD (e2e)', () => {
 
   afterAll(async () => {
     await prisma.opd.deleteMany({ where: { kode: 'E2ETEST' } });
+    // Pulihkan OPD asli yang dinonaktifkan stub sync test ini (lihat catatan di atas).
+    if (activeExternalIdsBeforeTest.length > 0) {
+      await prisma.opd.updateMany({
+        where: { externalId: { in: activeExternalIdsBeforeTest } },
+        data: { isActive: true },
+      });
+    }
     await app.close();
   }, 30000);
 
