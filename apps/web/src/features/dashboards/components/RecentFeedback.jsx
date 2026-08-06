@@ -17,7 +17,7 @@ export default function RecentFeedback({ feedbacks }) {
       {!feedbacks || feedbacks.length === 0 ? (
         <div className="flex-1 flex flex-col justify-center">
           <EmptyState
-            icon={MessageSquare}
+            icon={<MessageSquare size={48} />}
             title="Belum Ada Umpan Balik"
             description="Umpan balik dari responden akan muncul di sini."
           />
