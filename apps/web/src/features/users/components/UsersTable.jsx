@@ -44,7 +44,7 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
   if (data.length === 0) {
     return (
       <EmptyState
-        icon={UsersIcon}
+        icon={<UsersIcon size={48} />}
         title="Tidak ada pengguna"
         description="Belum ada data pengguna yang sesuai dengan filter saat ini."
       />
