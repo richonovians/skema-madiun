@@ -1,17 +1,30 @@
+import * as path from 'path';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
   // Prefiks + ValidationPipe global (konfigurasi bersama dengan e2e).
   configureApp(app);
+
+  // Sajikan lampiran pengaduan yg sudah ditulis ke disk (ComplaintsService,
+  // fs.writeFile ke `uploadDir/complaints/`) sbg file statis di `/uploads/*`
+  // (2026-08-05, bug ditemukan: fileUrl SUDAH benar terisi & tersimpan sejak
+  // awal, tapi TAK ADA route/middleware apa pun yg menyajikannya -- setiap
+  // request ke fileUrl selalu 404, gambar lampiran tak pernah bisa tampil).
+  // Publik/tanpa-auth SENGAJA (bukan lupa) -- nama file UUID tak tertebak,
+  // dan membangun endpoint file terautentikasi adalah pekerjaan terpisah yg
+  // lebih besar (lihat catatan gap CMP-2 di complaint.adapter.js frontend).
+  const uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
+  app.useStaticAssets(uploadDir, { prefix: '/uploads' });
 
   // Panggil onModuleDestroy (mis. PrismaService.$disconnect) saat aplikasi berhenti.
   app.enableShutdownHooks();
