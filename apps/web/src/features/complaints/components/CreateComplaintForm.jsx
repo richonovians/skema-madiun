@@ -147,15 +147,7 @@ export default function CreateComplaintForm() {
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-end gap-3 sm:gap-4 pt-6 sm:pt-8 border-t border-border">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg text-outline font-bold hover:bg-surface-variant transition-colors bg-transparent"
-            onClick={() => router.back()}
-            disabled={isSubmitting}
-          >
-            Batalkan
-          </Button>
+
           <Button
             type="submit"
             className="w-full md:w-auto min-h-[48px] px-8 rounded-lg bg-primary-container text-white font-bold shadow-lg shadow-primary-container/20 hover:bg-primary-hover transition-all active:scale-95 flex items-center justify-center gap-2"

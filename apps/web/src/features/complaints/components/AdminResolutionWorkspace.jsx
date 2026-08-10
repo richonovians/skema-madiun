@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Headset, Paperclip, CheckCircle, X, FileText } from 'lucide-react';
 import ImageViewer from '@/components/ui/ImageViewer';
 
-export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdate, onCloseTicket }) {
+export default function AdminResolutionWorkspace({ currentStatus, chatHistory = [], onSendUpdate, onCloseTicket }) {
   const [replyText, setReplyText] = useState('');
   const [attachedFile, setAttachedFile] = useState(null);
   const scrollRef = useRef(null);
@@ -166,13 +166,15 @@ export default function AdminResolutionWorkspace({ chatHistory = [], onSendUpdat
           >
             Kirim pesan
           </button>
-          <button 
-            onClick={onCloseTicket}
-            className="w-full sm:w-auto px-lg py-3 rounded-lg bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all active:scale-95 flex items-center justify-center gap-sm"
-          >
-            <CheckCircle size={20} />
-            Simpan & Selesai
-          </button>
+          {currentStatus === 'Diproses' && (
+            <button 
+              onClick={onCloseTicket}
+              className="w-full sm:w-auto px-lg py-3 rounded-lg bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all active:scale-95 flex items-center justify-center gap-sm"
+            >
+              <CheckCircle size={20} />
+              Simpan & Selesai
+            </button>
+          )}
         </div>
       </div>
     </div>

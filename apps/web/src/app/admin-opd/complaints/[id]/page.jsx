@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import ComplaintReporterProfile from '@/features/complaints/components/ComplaintReporterProfile';
 import ComplaintStatusControl from '@/features/complaints/components/ComplaintStatusControl';
+import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import LoadingState from '@/components/ui/LoadingState';
@@ -25,6 +26,7 @@ export default function AdminComplaintDetailPage() {
   // user ketik URL manual huruf kecil (pola sama halaman responden, INT-18).
   const ticketNo = (params?.id || '').toUpperCase();
   const [actionError, setActionError] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState(null);
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
@@ -37,24 +39,27 @@ export default function AdminComplaintDetailPage() {
 
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
 
-  const handleStatusChange = async (newStatus) => {
+  const handleStatusChangeRequest = (newStatus) => {
     if (!data || newStatus === data.complaint.status) return;
+    setPendingStatus(newStatus);
+  };
+
+  const handleConfirmStatus = async (reason) => {
+    if (!data || !pendingStatus) return;
     setActionError(null);
 
-    let catatan;
-    if (newStatus === 'Ditolak') {
-      // Backend WAJIB catatan/alasan saat status=ditolak (UpdateComplaintStatusDto)
-      // -- belum ada modal khusus di desain ini, window.prompt cukup utk MVP.
-      catatan = window.prompt('Alasan penolakan (wajib diisi):');
-      if (!catatan || !catatan.trim()) return;
-    }
-
     try {
-      await updateComplaintStatus(data.complaint.numericId, newStatus, catatan);
+      await updateComplaintStatus(data.complaint.numericId, pendingStatus, reason);
       await refetch();
     } catch (err) {
       setActionError(err.message);
+    } finally {
+      setPendingStatus(null);
     }
+  };
+
+  const handleCancelStatus = () => {
+    setPendingStatus(null);
   };
 
   const handleSendUpdate = async (text, file) => {
@@ -131,19 +136,29 @@ export default function AdminComplaintDetailPage() {
               <ComplaintReporterProfile reporter={data.complaint.reporter} />
               <ComplaintStatusControl
                 currentStatus={data.complaint.status}
-                onStatusChange={handleStatusChange}
+                onStatusChangeRequest={handleStatusChangeRequest}
               />
               <ComplaintAttachments attachments={data.complaint.attachments} />
             </div>
 
             <div className="lg:col-span-8">
               <AdminResolutionWorkspace
+                currentStatus={data.complaint.status}
                 chatHistory={data.chatHistory}
                 onSendUpdate={handleSendUpdate}
                 onCloseTicket={handleCloseTicket}
               />
             </div>
           </div>
+
+          <ConfirmStatusModal
+            isOpen={!!pendingStatus}
+            fromStatus={data.complaint.status}
+            toStatus={pendingStatus ?? ''}
+            requireReason={pendingStatus === 'Ditolak'}
+            onConfirm={handleConfirmStatus}
+            onCancel={handleCancelStatus}
+          />
         </>
       )}
     </div>
