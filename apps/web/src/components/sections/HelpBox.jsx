@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import { Info, ArrowRight } from 'lucide-react';
 
 export default function HelpBox() {
@@ -12,13 +11,16 @@ export default function HelpBox() {
       <p className="text-sm text-on-primary-fixed-variant mb-sm">
         Pelajari tata cara menyampaikan pengaduan yang efektif melalui panduan kami.
       </p>
-      <Link 
-        href="#panduan-penggunaan"
-        className="bg-white text-primary py-sm px-md rounded-full font-bold text-sm hover:bg-primary-hover hover:text-white transition-all duration-300 flex items-center justify-center gap-xs border border-primary/20 hover:border-transparent hover:shadow-md w-full"
+      <button
+        onClick={() => {
+          const el = document.getElementById('panduan-penggunaan');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }}
+        className="bg-white text-primary py-sm px-md rounded-full font-bold text-sm hover:bg-primary-hover hover:text-white transition-all duration-300 flex items-center justify-center gap-xs border border-primary/20 hover:border-transparent hover:shadow-md w-full cursor-pointer"
       >
         Panduan Layanan
         <ArrowRight size={18} />
-      </Link>
+      </button>
     </div>
   );
 }
