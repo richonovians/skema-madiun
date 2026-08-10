@@ -1,7 +1,7 @@
 'use client';
-import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BarChart3, Download } from 'lucide-react';
+import { BarChart3, Download, FileText, ChevronDown } from 'lucide-react';
 
 import AnalyticsTabs from '@/features/analytics/components/AnalyticsTabs';
 import SkmAnalysisView from '@/features/analytics/components/SkmAnalysisView';
@@ -50,6 +50,18 @@ function AnalyticsPageContent() {
   const [selectedSurveyId, setSelectedSurveyId] = useState(() => searchParams.get('surveyId'));
   const [exportingFormat, setExportingFormat] = useState(null);
   const [exportError, setExportError] = useState(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setIsExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchSurveys = useCallback(() => getSurveys({ limit: 100 }), []);
   const { data: surveysResponse, isLoading: isLoadingSurveys, error: surveysError } =
@@ -84,6 +96,7 @@ function AnalyticsPageContent() {
     if (!activeSurveyId) return;
     setExportError(null);
     setExportingFormat(format);
+    setIsExportOpen(false);
     try {
       const { blob, filename } = await exportSurveyResults(activeSurveyId, format);
       downloadBlobFile(blob, filename);
@@ -131,6 +144,69 @@ function AnalyticsPageContent() {
       />
     );
   };
+
+  // Toolbar sejajar tab: dropdown survei + dropdown export
+  const tabRightSlot = activeTab === 'skm' && eligibleSurveys.length > 0 ? (
+    <div className="flex items-center gap-md">
+      <Dropdown
+        options={surveyOptions}
+        value={activeSurveyId}
+        onChange={(val) => setSelectedSurveyId(val)}
+      />
+      {/* Dropdown Export bergaya ComplaintListFilter */}
+      <div className="relative" ref={exportRef}>
+        <button
+          onClick={() => setIsExportOpen(!isExportOpen)}
+          disabled={!!exportingFormat}
+          className={`flex items-center justify-between gap-2 min-w-[140px] min-h-[44px] px-md py-sm rounded-lg font-medium text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm group ${exportingFormat ? 'opacity-70 cursor-not-allowed' : ''}`}
+        >
+          <div className="flex items-center gap-2">
+            <Download size={18} className="text-text-secondary group-hover:text-primary" />
+            <span className="truncate">
+              {exportingFormat ? 'Memproses...' : 'Ekspor'}
+            </span>
+          </div>
+          <ChevronDown
+            size={20}
+            className={`flex-shrink-0 transition-all duration-300 ${isExportOpen ? 'rotate-180' : ''} text-text-secondary group-hover:text-primary`}
+          />
+        </button>
+        {isExportOpen && (
+          <div className="absolute top-full right-0 mt-2 w-full min-w-[140px] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+            <ul className="py-1">
+              <li>
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <Download size={16} />
+                  <span>CSV</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleExport('excel')}
+                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <Download size={16} />
+                  <span>Excel</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <FileText size={16} />
+                  <span>PDF</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   // --- Tab Pengaduan: fetch data saat tab aktif ---
   const fetchComplaintData = useCallback(async () => {
@@ -228,55 +304,14 @@ function AnalyticsPageContent() {
     );
   };
 
-  return (
-    <div className="w-full flex flex-col h-full">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-lg">
-        <h2 className="font-headline-md text-headline-md font-extrabold text-primary">
-          Statistik & Analisis
-        </h2>
 
-        {activeTab === 'skm' && eligibleSurveys.length > 0 && (
-          <div className="flex flex-wrap items-center gap-md z-40">
-            <Dropdown
-              options={surveyOptions}
-              value={activeSurveyId}
-              onChange={(val) => setSelectedSurveyId(val)}
-            />
-            <div className="flex items-center gap-sm border-l border-outline-variant pl-md ml-xs">
-              <button
-                onClick={() => handleExport('csv')}
-                disabled={exportingFormat === 'csv'}
-                className={`px-md py-sm rounded-lg flex items-center gap-xs transition-all shadow-sm font-bold text-label-md bg-slate-600 hover:bg-slate-700 text-white ${exportingFormat === 'csv' ? 'opacity-70 cursor-not-allowed' : ''}`}
-              >
-                <Download size={18} />
-                <span className="hidden sm:inline">
-                  {exportingFormat === 'csv' ? 'Memproses...' : 'Export CSV'}
-                </span>
-              </button>
-              <button
-                onClick={() => handleExport('pdf')}
-                disabled={exportingFormat === 'pdf'}
-                className={`px-md py-sm rounded-lg flex items-center gap-xs transition-all shadow-sm font-bold text-label-md bg-red-600 hover:bg-red-700 text-white ${exportingFormat === 'pdf' ? 'opacity-70 cursor-not-allowed' : ''}`}
-              >
-                <Download size={18} />
-                <span className="hidden sm:inline">
-                  {exportingFormat === 'pdf' ? 'Memproses...' : 'Export PDF'}
-                </span>
-              </button>
-              <button
-                onClick={() => handleExport('excel')}
-                disabled={exportingFormat === 'excel'}
-                className={`px-md py-sm rounded-lg flex items-center gap-xs transition-all shadow-sm font-bold text-label-md bg-green-600 hover:bg-green-700 text-white ${exportingFormat === 'excel' ? 'opacity-70 cursor-not-allowed' : ''}`}
-              >
-                <Download size={18} />
-                <span className="hidden sm:inline">
-                  {exportingFormat === 'excel' ? 'Memproses...' : 'Export Excel'}
-                </span>
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+
+  return (
+    <div className="w-full flex flex-col">
+      {/* Judul halaman */}
+      <h2 className="font-headline-md text-headline-md font-extrabold text-primary mb-4">
+        Statistik &amp; Analisis
+      </h2>
 
       {exportError && (
         <div className="mb-lg p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
@@ -284,7 +319,12 @@ function AnalyticsPageContent() {
         </div>
       )}
 
-      <AnalyticsTabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+      <AnalyticsTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        rightSlot={tabRightSlot}
+      />
 
       <div className="flex-1 mt-4">
         {activeTab === 'skm' ? renderSkmTab() : renderComplaintsTab()}
