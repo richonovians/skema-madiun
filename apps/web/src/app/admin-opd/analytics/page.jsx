@@ -13,6 +13,9 @@ import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getSurveyResults, exportSurveyResults } from '@/features/analytics/services/ikm.api';
+import { getComplaints } from '@/features/complaints/services/complaints.api';
+import { getComplaintCategories } from '@/features/complaints/services/reference.api';
+import { getOpdDashboard } from '@/features/dashboards/services/dashboardOpd.api';
 
 const tabs = [
   { id: 'skm', label: 'Analisis SKM' },
@@ -168,7 +171,6 @@ function AnalyticsPageContent() {
             className={`flex-shrink-0 transition-all duration-300 ${isExportOpen ? 'rotate-180' : ''} text-text-secondary group-hover:text-primary`}
           />
         </button>
-
         {isExportOpen && (
           <div className="absolute top-full right-0 mt-2 w-full min-w-[140px] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
             <ul className="py-1">
@@ -206,6 +208,104 @@ function AnalyticsPageContent() {
     </div>
   ) : null;
 
+  // --- Tab Pengaduan: fetch data saat tab aktif ---
+  const fetchComplaintData = useCallback(async () => {
+    const [complaintsRes, categories, dashboard] = await Promise.all([
+      getComplaints({ limit: 100 }),
+      getComplaintCategories(),
+      getOpdDashboard(),
+    ]);
+    return { complaints: complaintsRes.data, categories, dashboard };
+  }, []);
+  const {
+    data: complaintData,
+    isLoading: isLoadingComplaints,
+    error: complaintsError,
+    refetch: refetchComplaints,
+  } = useAsync(fetchComplaintData);
+
+  // Distribusi kategori pengaduan (client-side groupBy)
+  const complaintAnalytics = useMemo(() => {
+    if (!complaintData) return null;
+    const { complaints, categories, dashboard } = complaintData;
+
+    // Buat map kode -> nama dari reference
+    const categoryLabelMap = Object.fromEntries(
+      categories.map((c) => [c.kode, c.nama]),
+    );
+
+    // GroupBy kategori
+    const catCounts = {};
+    for (const c of complaints) {
+      const kode = c.kategori || 'lainnya';
+      catCounts[kode] = (catCounts[kode] || 0) + 1;
+    }
+    const categoryDistribution = Object.entries(catCounts)
+      .map(([kode, count]) => ({ name: categoryLabelMap[kode] || kode, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Volume bulanan (groupBy bulan dari createdAt)
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const monthBuckets = {};
+    for (const c of complaints) {
+      if (!c.createdAt) continue;
+      const d = new Date(c.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+      if (!monthBuckets[key]) {
+        monthBuckets[key] = { month: MONTH_NAMES[d.getMonth()], received: 0, completed: 0 };
+      }
+      monthBuckets[key].received += 1;
+      if (c.status === 'Selesai') {
+        monthBuckets[key].completed += 1;
+      }
+    }
+    const volumeMonthly = Object.entries(monthBuckets)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6) // 6 bulan terakhir
+      .map(([, v]) => v);
+
+    // Stats resolusi dari dashboard OPD
+    const resolutionStats = {
+      averageHours: dashboard.summary.avgResponseTime !== 'Belum ada data'
+        ? parseFloat(dashboard.summary.avgResponseTime)
+        : null,
+      completionRate: dashboard.summary.completionRate,
+      openTickets: dashboard.summary.activeTickets,
+    };
+
+    return {
+      categories: categoryDistribution,
+      totalComplaints: complaints.length,
+      resolutionStats,
+      volumeMonthly,
+    };
+  }, [complaintData]);
+
+  const renderComplaintsTab = () => {
+    if (isLoadingComplaints) {
+      return <LoadingState label="Memuat data pengaduan..." />;
+    }
+    if (complaintsError) {
+      return (
+        <ErrorState
+          title="Gagal memuat data pengaduan"
+          description={complaintsError.message}
+          onRetry={refetchComplaints}
+        />
+      );
+    }
+    return (
+      <ComplaintAnalysisView
+        categories={complaintAnalytics?.categories ?? []}
+        totalComplaints={complaintAnalytics?.totalComplaints ?? 0}
+        resolutionStats={complaintAnalytics?.resolutionStats ?? null}
+        volumeMonthly={complaintAnalytics?.volumeMonthly ?? []}
+      />
+    );
+  };
+
+
+
   return (
     <div className="w-full flex flex-col">
       {/* Judul halaman */}
@@ -227,7 +327,7 @@ function AnalyticsPageContent() {
       />
 
       <div className="flex-1 mt-4">
-        {activeTab === 'skm' ? renderSkmTab() : <ComplaintAnalysisView />}
+        {activeTab === 'skm' ? renderSkmTab() : renderComplaintsTab()}
       </div>
     </div>
   );
