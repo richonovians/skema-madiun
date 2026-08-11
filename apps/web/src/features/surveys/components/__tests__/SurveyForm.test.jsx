@@ -1,80 +1,94 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { useRouter } from 'next/navigation';
+import { handlers } from '@/mocks/handlers';
 import SurveyForm from '../SurveyForm';
 
-// Mock next/navigation
+/**
+ * TC-FE-004 — Validasi Field Wajib pada formulir pemilihan survei.
+ *
+ * DITULIS ULANG 10 Agustus 2026. Versi sebelumnya dibuat sebelum frontend
+ * terintegrasi dengan backend, sehingga mengasumsikan dua hal yang kini tidak
+ * berlaku lagi:
+ *   1. Ada dropdown "Layanan" — DIHAPUS (keputusan INT-45: backend tidak punya
+ *      konsep layanan sebagai sub-divisi survei), jadi dua kasus uji lama yang
+ *      menguji dropdown itu dibuang, bukan diperbaiki.
+ *   2. Daftar OPD di-hardcode — kini dimuat dari `GET /opd`, sehingga komponen
+ *      punya keadaan memuat dan pengujiannya harus asinkron.
+ *   3. Tombol berlabel "Mulai Survei" — kini "Lihat Survei Tersedia", dan
+ *      tujuan navigasinya `/surveys?opdId=<id>`, bukan slug OPD.
+ */
+
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
-describe('SurveyForm Component (TC-FE-004: Validasi Field Wajib)', () => {
+const server = setupServer(...handlers);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+describe('SurveyForm (TC-FE-004: Validasi Field Wajib)', () => {
   const mockPush = jest.fn();
 
   beforeEach(() => {
-    useRouter.mockReturnValue({
-      push: mockPush,
-    });
+    useRouter.mockReturnValue({ push: mockPush });
     mockPush.mockClear();
   });
 
-  it('menampilkan error "wajib isi" jika submit ditekan tanpa memilih OPD', async () => {
+  /** Kueri berbasis peran & label — tahan terhadap perubahan styling/struktur DOM. */
+  const submitButton = () => screen.getByRole('button', { name: /lihat survei tersedia/i });
+  const opdDropdown = () => screen.getByLabelText(/pilih instansi \/ opd/i);
+
+  it('memuat daftar OPD dari API lalu menampilkannya sebagai opsi', async () => {
     render(<SurveyForm />);
-    
-    // Cari tombol "Mulai Survei"
-    const submitBtn = screen.getByRole('button', { name: /mulai survei/i });
-    fireEvent.click(submitBtn);
-    
-    // Ekspektasi pesan error muncul
+
+    // Keadaan memuat tampil lebih dulu karena daftar OPD diambil dari backend.
+    expect(screen.getByText('Memuat daftar instansi...')).toBeInTheDocument();
+
+    // Setelah GET /opd membalas, placeholder berubah dan opsi bisa dibuka.
+    expect(await screen.findByText('Pilih Instansi')).toBeInTheDocument();
+
+    fireEvent.click(opdDropdown());
+    expect(await screen.findByText('Dinas Kesehatan')).toBeInTheDocument();
+    expect(screen.getByText('Dinas Pendidikan')).toBeInTheDocument();
+  });
+
+  it('menolak submit dan menampilkan pesan error jika OPD belum dipilih', async () => {
+    render(<SurveyForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(submitButton());
+
     expect(await screen.findByText(/silakan pilih instansi \/ opd/i)).toBeInTheDocument();
-    
-    // router.push tidak boleh dipanggil
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('menampilkan error jika OPD dipilih tapi Layanan belum dipilih', async () => {
+  it('mengarahkan ke /surveys?opdId=... setelah OPD dipilih', async () => {
     render(<SurveyForm />);
-    
-    // 1. Klik tombol Dropdown OPD untuk membuka menu
-    const opdTrigger = screen.getByText('Pilih Instansi');
-    fireEvent.click(opdTrigger);
-    
-    // 2. Klik opsi "Dinas Kependudukan"
-    const opdOption = screen.getByText(/dinas kependudukan dan pencatatan sipil/i);
-    fireEvent.click(opdOption);
-    
-    // Submit
-    const submitBtn = screen.getByRole('button', { name: /mulai survei/i });
-    fireEvent.click(submitBtn);
-    
-    // Ekspektasi pesan error muncul
-    expect(await screen.findByText(/silakan pilih layanan/i)).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalled();
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByText('Dinas Kesehatan'));
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/surveys?opdId=1'));
   });
 
-  it('berhasil melakukan redirect jika OPD dan Layanan sudah dipilih dengan benar', () => {
+  it('menghapus pesan error begitu OPD dipilih', async () => {
     render(<SurveyForm />);
-    
-    // 1. Pilih OPD
-    const opdTrigger = screen.getByText('Pilih Instansi');
-    fireEvent.click(opdTrigger);
-    
-    const opdOption = screen.getByText(/dinas kesehatan/i);
-    fireEvent.click(opdOption);
-    
-    // 2. Pilih Layanan
-    // (Setelah OPD dipilih, tulisan default berubah menjadi 'Pilih Layanan')
-    const layananTrigger = screen.getByText('Pilih Layanan');
-    fireEvent.click(layananTrigger);
-    
-    const layananOption = screen.getByText(/layanan bpjs/i);
-    fireEvent.click(layananOption);
-    
-    // Submit
-    const submitBtn = screen.getByRole('button', { name: /mulai survei/i });
-    fireEvent.click(submitBtn);
-    
-    // Ekspektasi router.push dipanggil dengan URL yang benar
-    expect(mockPush).toHaveBeenCalledWith('/surveys/dinkes?layanan=bpjs&anonymous=false');
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(submitButton());
+    expect(await screen.findByText(/silakan pilih instansi \/ opd/i)).toBeInTheDocument();
+
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByText('Dinas Kesehatan'));
+
+    await waitFor(() =>
+      expect(screen.queryByText(/silakan pilih instansi \/ opd/i)).not.toBeInTheDocument(),
+    );
   });
 });
