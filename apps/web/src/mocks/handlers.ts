@@ -150,7 +150,42 @@ export const userFixture = (over = {}) => ({
   ...over,
 });
 
+/**
+ * `detail` hanyalah `{ params, body }` permintaan asli — backend TIDAK menyimpan
+ * diff before/after terstruktur, dan tidak pernah mencatat aksi yang gagal
+ * (AuditInterceptor hanya berjalan setelah handler sukses).
+ */
+export const auditLogFixture = (over = {}) => ({
+  id: 1,
+  actorId: 1,
+  actorNama: 'Admin Kabupaten (Contoh)',
+  aksi: 'create',
+  entitas: 'survey',
+  detail: { params: { id: '1' }, body: { judul: 'Survei IKM 2026' } },
+  timestamp: '2026-08-09T04:12:00.000Z',
+  ...over,
+});
+
 // Daftar dasar yang dipakai beberapa handler sekaligus.
+const AUDIT_LIST = [
+  auditLogFixture(),
+  auditLogFixture({
+    id: 2,
+    aksi: 'update_status',
+    entitas: 'complaint',
+    actorNama: 'Admin OPD (Contoh)',
+    detail: { params: { id: '11' }, body: { status: 'selesai' } },
+    timestamp: '2026-08-09T05:30:00.000Z',
+  }),
+  auditLogFixture({
+    id: 3,
+    aksi: 'sync',
+    entitas: 'opd',
+    detail: { params: {}, body: {} },
+    timestamp: '2026-08-09T06:00:00.000Z',
+  }),
+];
+
 const OPD_LIST = [
   opdFixture(),
   opdFixture({ id: 2, kode: 'DISDIK', nama: 'Dinas Pendidikan', externalId: 'HD-002' }),
@@ -543,30 +578,89 @@ export const handlers = [
   ),
 
   // [REKAM]
+  // SEMBILAN kunci — `insight`, `serviceElements`, `valueDistribution`, dan
+  // `topOpd` WAJIB ada: `adaptStatistics` membacanya tanpa penjagaan, sehingga
+  // respons yang kekurangan salah satunya membuat halaman statistik gagal render.
   http.get(`${API_BASE}/statistics`, () =>
     ok(
       {
         summary: {
-          ikm: null,
-          totalRespondents: 0,
-          totalComplaints: 1,
-          completionRate: 100,
-          avgSlaDays: 0,
-          activeOpd: 3,
+          ikm: 81.25,
+          totalRespondents: 128,
+          totalComplaints: 34,
+          completionRate: 92,
+          avgSlaDays: 3.4,
+          activeOpd: 54,
         },
-        ikmTrend: [],
-        complaintTrend: [{ periode: '2026-Q3', value: 1 }],
-        complaintStatus: [{ status: 'selesai', count: 1 }],
-        complaintCategories: [{ kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban', count: 1 }],
+        ikmTrend: [
+          { periode: '2026-Q1', value: 78.2 },
+          { periode: '2026-Q2', value: 80.1 },
+          { periode: '2026-Q3', value: 81.25 },
+        ],
+        complaintTrend: [
+          { periode: '2026-Q1', value: 8 },
+          { periode: '2026-Q2', value: 14 },
+          { periode: '2026-Q3', value: 12 },
+        ],
+        complaintStatus: [
+          { status: 'diterima', count: 6 },
+          { status: 'diproses', count: 10 },
+          { status: 'selesai', count: 16 },
+          { status: 'ditolak', count: 2 },
+        ],
+        complaintCategories: [
+          { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban', count: 18 },
+          { kode: 'infrastruktur', nama: 'Infrastruktur', count: 11 },
+          { kode: 'lainnya', nama: 'Lainnya', count: 5 },
+        ],
+        // `avgNrr` berskala 1-4; adapter mengalikannya 25 menjadi skala 0-100.
+        serviceElements: UNSUR.map((u, i) => ({
+          code: u.kode,
+          name: u.teks,
+          avgNrr: 3.0 + (i % 4) * 0.1,
+        })),
+        valueDistribution: [
+          { value: 1, count: 5 },
+          { value: 2, count: 15 },
+          { value: 3, count: 50 },
+          { value: 4, count: 30 },
+        ],
+        topOpd: [
+          { peringkat: 1, opdId: 1, opdNama: 'Dinas Kesehatan', nilaiIkm: 88.5 },
+          { peringkat: 2, opdId: 2, opdNama: 'Dinas Pendidikan', nilaiIkm: 85.1 },
+          {
+            peringkat: 3,
+            opdId: 3,
+            opdNama: 'Dinas Kependudukan dan Pencatatan Sipil',
+            nilaiIkm: 82.7,
+          },
+        ],
+        insight: {
+          text: 'Kepuasan masyarakat naik tiga triwulan berturut-turut.',
+          updatedAt: '2026-08-09T04:00:00.000Z',
+        },
       },
       '/statistics',
     ),
   ),
 
   // ===================== AUDIT LOG =====================
-  http.get(`${API_BASE}/audit-logs`, () => paginated([], '/audit-logs', { total: 0 })),
+  // Bidang waktunya `timestamp` (BUKAN `createdAt`) dan nama aktor sudah di-join
+  // sebagai `actorNama` — keduanya dibaca `adaptAuditLog`. Nilai `aksi` tersimpan
+  // huruf kecil (`create`, `update_status`, ...); adapter yang mengubahnya jadi
+  // label huruf besar.
+  http.get(`${API_BASE}/audit-logs`, ({ request }) => {
+    const url = new URL(request.url);
+    const entitas = url.searchParams.get('entitas');
+    const list = entitas ? AUDIT_LIST.filter((l) => l.entitas === entitas) : AUDIT_LIST;
+    return paginated(list, '/audit-logs', {
+      page: Number(url.searchParams.get('page') ?? 1),
+      limit: Number(url.searchParams.get('limit') ?? 20),
+      total: list.length,
+    });
+  }),
 
   http.get(`${API_BASE}/audit-logs/:id`, ({ params }) =>
-    ok({ id: Number(params.id), actorId: 1, aksi: 'CREATE', entitas: 'survey', detail: {}, createdAt: new Date().toISOString() }, `/audit-logs/${params.id}`),
+    ok(auditLogFixture({ id: Number(params.id) }), `/audit-logs/${params.id}`),
   ),
 ];
