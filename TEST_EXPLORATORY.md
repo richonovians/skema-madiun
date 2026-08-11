@@ -44,13 +44,30 @@ menemukan, bukan membetulkan.
 ## 3. Persiapan lingkungan
 
 ```bash
-# 1. Basis data + backend
-docker compose up -d
-cd apps/api && pnpm prisma migrate deploy && pnpm prisma db seed && pnpm start:dev
+# 1. Basis data — compose hanya memuat service `db` (PostgreSQL);
+#    backend & frontend dijalankan langsung di mesin, bukan di container.
+docker compose up -d db
 
-# 2. Frontend (terminal terpisah)
-cd apps/web && pnpm dev        # http://localhost:3000
+# 2. Backend (terminal sendiri)
+cd apps/api
+pnpm prisma:migrate    # menyiapkan skema
+pnpm db:seed           # PAKAI INI — `prisma db seed` gagal, tidak ada blok
+                       # `prisma.seed` di package.json
+pnpm dev               # http://localhost:3001  (nest start --watch)
+
+# 3. Frontend (terminal sendiri)
+cd apps/web
+pnpm dev               # http://localhost:3000
 ```
+
+Pastikan ketiganya benar-benar hidup sebelum sesi dimulai:
+
+```bash
+curl -s -o /dev/null -w "API  %{http_code}\n" http://localhost:3001/api/v1/opd   # 401 = hidup
+curl -s -o /dev/null -w "WEB  %{http_code}\n" http://localhost:3000              # 200 = hidup
+```
+
+`401` pada API justru pertanda benar — endpoint itu memang menuntut autentikasi.
 
 Akun uji: lihat **TEST_PLAN.md §3.3**. Login lewat tombol "Masuk via SSO Helpdesk"
 di beranda, isi **email saja** — tidak ada kata sandi.
