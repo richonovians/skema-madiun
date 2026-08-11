@@ -6,7 +6,13 @@ import { handlers } from '@/mocks/handlers';
 import SurveyForm from '../SurveyForm';
 
 /**
- * TC-FE-004 — Validasi Field Wajib pada formulir pemilihan survei.
+ * TC-FE-016 — Validasi Wajib Pilih OPD pada formulir pemilihan survei.
+ *
+ * CATATAN PENOMORAN (11 Agustus 2026): berkas ini semula berlabel TC-FE-004,
+ * padahal TC-FE-004 mendeskripsikan "kosongi satu unsur IKM lalu Submit" pada
+ * form PENGISIAN survei — komponen yang berbeda. Salah petakan itu dibetulkan:
+ * TC-FE-004 kembali menjadi ⬜ (belum ada otomatisasi), dan berkas ini dipetakan
+ * ke TC-FE-016 yang memang mendeskripsikan form pemilihan OPD.
  *
  * DITULIS ULANG 10 Agustus 2026. Versi sebelumnya dibuat sebelum frontend
  * terintegrasi dengan backend, sehingga mengasumsikan dua hal yang kini tidak
@@ -30,7 +36,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-describe('SurveyForm (TC-FE-004: Validasi Field Wajib)', () => {
+describe('SurveyForm (TC-FE-016: Validasi Wajib Pilih OPD)', () => {
   const mockPush = jest.fn();
 
   beforeEach(() => {
