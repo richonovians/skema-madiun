@@ -10,6 +10,7 @@ import ComplaintAttachmentGallery from '@/features/complaints/components/admin-k
 import ComplaintReporterProfile from '@/features/complaints/components/ComplaintReporterProfile';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
 import ComplaintStatusControl from '@/features/complaints/components/ComplaintStatusControl';
+import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
@@ -66,6 +67,7 @@ export default function AdminKabComplaintDetailPage() {
   const params = useParams();
   const ticketNo = (params?.id || '').toUpperCase();
   const [actionError, setActionError] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState(null);
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
@@ -94,22 +96,26 @@ export default function AdminKabComplaintDetailPage() {
     [data],
   );
 
-  const handleStatusChange = async (newStatus) => {
+  const handleStatusChangeRequest = (newStatus) => {
     if (!data || newStatus === data.complaint.status) return;
+    setPendingStatus(newStatus);
+  };
+
+  const handleConfirmStatus = async (reason) => {
+    if (!data || !pendingStatus) return;
     setActionError(null);
-
-    let catatan;
-    if (newStatus === 'Ditolak') {
-      catatan = window.prompt('Alasan penolakan (wajib diisi):');
-      if (!catatan || !catatan.trim()) return;
-    }
-
     try {
-      await updateComplaintStatus(data.complaint.numericId, newStatus, catatan);
+      await updateComplaintStatus(data.complaint.numericId, pendingStatus, reason);
       await refetch();
     } catch (err) {
       setActionError(err.message);
+    } finally {
+      setPendingStatus(null);
     }
+  };
+
+  const handleCancelStatus = () => {
+    setPendingStatus(null);
   };
 
   const handleSendUpdate = async (text, file) => {
@@ -186,10 +192,21 @@ export default function AdminKabComplaintDetailPage() {
           <ComplaintProgressStepper currentStatus={toBackendComplaintStatus(complaintView.status)} />
           <ComplaintStatusControl
             currentStatus={complaintView.status}
-            onStatusChange={handleStatusChange}
+            onStatusChangeRequest={handleStatusChangeRequest}
           />
         </div>
       </div>
+
+      {data && (
+        <ConfirmStatusModal
+          isOpen={!!pendingStatus}
+          fromStatus={complaintView.status}
+          toStatus={pendingStatus ?? ''}
+          requireReason={pendingStatus === 'Ditolak'}
+          onConfirm={handleConfirmStatus}
+          onCancel={handleCancelStatus}
+        />
+      )}
     </div>
   );
 }
