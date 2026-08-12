@@ -8,6 +8,8 @@ import ComplaintStatusControl from '@/features/complaints/components/ComplaintSt
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
+import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
+import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -17,6 +19,7 @@ import {
   addComplaintReply,
   updateComplaintStatus,
 } from '@/features/complaints/services/complaints.api';
+import { getComplaintCategories } from '@/features/complaints/services/reference.api';
 import { adaptComplaintReplyToChatMessage } from '@/features/complaints/adapters/complaint.adapter';
 
 export default function AdminComplaintDetailPage() {
@@ -30,11 +33,14 @@ export default function AdminComplaintDetailPage() {
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
-    const rawReplies = await getComplaintReplies(complaint.numericId);
+    const [rawReplies, categories] = await Promise.all([
+      getComplaintReplies(complaint.numericId),
+      getComplaintCategories(),
+    ]);
     const chatHistory = rawReplies.map((r) =>
       adaptComplaintReplyToChatMessage(r, complaint.userId),
     );
-    return { complaint, chatHistory };
+    return { complaint, chatHistory, categories };
   }, [ticketNo]);
 
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
@@ -141,7 +147,22 @@ export default function AdminComplaintDetailPage() {
               <ComplaintAttachments attachments={data.complaint.attachments} />
             </div>
 
-            <div className="lg:col-span-8">
+            <div className="lg:col-span-8 space-y-lg">
+              {/* Ringkasan & Isi Pengaduan -- ditambahkan agar admin-opd juga
+                  dapat melihat konteks laporan (kategori, OPD tujuan, deskripsi)
+                  sama seperti tampilan admin-kab. Data sudah tersedia dari
+                  fetchDetail; categoryLabel di-resolve dari daftar kategori
+                  referensi yang di-fetch bersamaan. */}
+              <ComplaintSummaryCard
+                complaint={{
+                  ...data.complaint,
+                  categoryLabel:
+                    (data.categories ?? []).find(
+                      (c) => c.kode === data.complaint.kategori,
+                    )?.nama ?? data.complaint.kategori,
+                }}
+              />
+              <ComplaintContentCard complaint={data.complaint} />
               <AdminResolutionWorkspace
                 currentStatus={data.complaint.status}
                 chatHistory={data.chatHistory}
