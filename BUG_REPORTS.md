@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 1.0                                                                                                        |
+| **Versi**           | 1.1                                                                                                        |
 | **Tanggal**         | 12 Agustus 2026                                                                                            |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -60,11 +60,12 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | Baru   | —       |
 | [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | Baru   | —       |
 | [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | Baru   | —       |
+| [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | Baru   | C-01    |
 
-**Rekap** — 3 temuan: 0 Critical · 1 High · 0 Medium · 2 Low
-Belum ada yang berasal dari sesi eksploratori; ketiganya muncul dari penelaahan
-kode dan penulisan uji otomatis, lalu dikonfirmasi di peramban. Kolom _Charter_
-akan terisi begitu sesi C-01 dan seterusnya dijalankan.
+**Rekap** — 4 temuan: 0 Critical · 1 High · 0 Medium · 3 Low
+
+BUG-001 s.d. BUG-003 muncul dari penelaahan kode dan penulisan uji otomatis,
+lalu dikonfirmasi di peramban. BUG-004 berasal dari sesi eksploratori C-01.
 
 ---
 
@@ -264,7 +265,121 @@ keadaannya.
 
 ---
 
-## 4. Catatan yang bukan cacat produk
+<a id="bug-004"></a>
+
+### BUG-004 — Tipe "Pilihan Ganda" tampil seolah tersedia padahal selalu ditolak
+
+|                       |                                   |
+| --------------------- | --------------------------------- |
+| **Charter**           | C-01                              |
+| **Tanggal**           | 11 Agustus 2026                   |
+| **Peran**             | Admin OPD                         |
+| **Halaman**           | `/admin-opd/surveys/builder/[id]` |
+| **Severity**          | Low                               |
+| **Verifikasi**        | Terkonfirmasi                     |
+| **Kasus uji terkait** | —                                 |
+
+**Langkah reproduksi**
+
+1. Login sebagai Admin OPD, buka builder sebuah survei berstatus draf
+2. Pada panel kiri "Komponen Pertanyaan Kustom", perhatikan ketiga pilihan
+3. Klik "Pilihan Ganda / Multiple Choice"
+
+**Hasil yang diharapkan**
+
+Tipe yang belum didukung terlihat berbeda dari yang didukung — misalnya diberi
+gaya nonaktif atau label "segera hadir" — sehingga admin tahu sebelum mengklik.
+
+**Hasil sebenarnya**
+
+Ketiga tipe dirender dengan gaya yang **persis sama**: sama-sama punya kursor
+`pointer`, pegangan seret, dan efek sorot saat kursor melintas. Tidak ada
+petunjuk apa pun bahwa satu di antaranya tidak bisa dipakai. Barulah setelah
+diklik, muncul pesan bahwa tipe itu belum didukung.
+
+**Bukti**
+
+Ketiganya memakai kelas dan struktur yang identik di
+[BuilderSidebar.jsx:28-57](apps/web/src/features/surveys/builder/components/BuilderSidebar.jsx#L28-L57);
+tidak ada percabangan `disabled` untuk "Pilihan Ganda".
+
+Penolakannya sendiri **sudah ditangani dengan baik dan disengaja** —
+[page.jsx:155-163](<apps/web/src/app/admin-opd/(builder)/surveys/builder/[id]/page.jsx#L155-L163>):
+
+```js
+if (type === 'Pilihan Ganda') {
+  // GAP: builder ini belum punya UI pengaturan opsi jawaban, padahal
+  // backend WAJIB >=2 opsi utk tipe pilihan (CreateQuestionDto). Daripada
+  // kirim payload yg pasti 400, ditolak di sini dgn pesan jelas.
+  setActionError('Tipe "Pilihan Ganda" belum didukung builder ini (...)');
+  return;
+}
+```
+
+**Catatan**
+
+Selalu terjadi.
+
+Penting untuk membedakan dua hal, supaya laporan ini tidak salah alamat:
+
+- **Bukan temuan:** tipe Pilihan Ganda belum berfungsi. Itu memang belum
+  dikerjakan dan diakui sendiri oleh tim — skema Prisma menandainya "Fase 3",
+  dan builder sengaja menahan payload agar tidak menembak backend dengan
+  request yang pasti 400. Perilakunya justru rapi.
+- **Temuan:** tampilannya tidak mencerminkan keadaan itu. Satu-satunya cara
+  admin mengetahuinya adalah dengan mencoba lalu gagal.
+
+Karena itu severity-nya Low: tidak ada kerusakan, tidak ada data salah, dan
+pesannya jelas. Perbaikannya pun kecil — beri gaya nonaktif dan label
+keterangan pada satu komponen di sidebar.
+
+Satu hal yang perlu dipastikan ke tim: pesan galat muncul sebagai spanduk di
+**bagian atas kanvas**, sementara yang diklik ada di **panel kiri**. Bila
+kanvas sedang tergulir ke bawah, ada kemungkinan admin mengklik dan merasa
+tidak terjadi apa-apa. Belum sempat saya uji pada survei berpertanyaan banyak.
+
+---
+
+## 4. Ringkasan sesi eksploratori
+
+### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
+
+| Isi                  | Keterangan                                                                      |
+| -------------------- | ------------------------------------------------------------------------------- |
+| **Tanggal**          | 11 Agustus 2026                                                                 |
+| **Peran**            | Admin OPD                                                                       |
+| **Cakupan tercapai** | Tipe Isian Teks, tipe Pilihan Ganda, duplikasi survei, pengisian oleh responden |
+| **Temuan**           | 1 (BUG-004, Low)                                                                |
+
+**Yang lulus**
+
+| Yang diuji                               | Hasil                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| Survei bertipe Isian Teks                | Berfungsi, tersimpan dan tampil                                      |
+| Duplikasi survei muncul di daftar        | Berfungsi — salinan tampil dengan imbuhan "(Salinan)" berstatus draf |
+| Tombol kirim nonaktif bila belum dijawab | Berfungsi — menutup **TC-FE-004**                                    |
+
+Dua di antaranya layak dicatat alasannya, bukan cuma hasilnya:
+
+- **Duplikasi survei** adalah tempat yang wajar bagi kebocoran data, karena
+  salinan bisa saja ikut membawa status terbit. Ternyata tidak: backend
+  memaksa `status: draft` pada setiap salinan
+  ([surveys.service.ts:171-188](apps/api/src/modules/surveys/surveys.service.ts#L171-L188)),
+  sehingga salinan tidak pernah langsung tampil ke warga. Risiko yang
+  dikhawatirkan memang tidak ada.
+- **Tombol kirim nonaktif** menjawab TC-FE-004, yang ekspektasinya memang
+  menerima dua kemungkinan desain — tombol di-disable **atau** peringatan saat
+  disubmit. Yang terjadi adalah cabang pertama. Statusnya kini ✅ di
+  TEST_CASES.md, dengan catatan bahwa otomatisasinya belum ada.
+
+**Belum tercakup, dibawa ke sesi berikutnya**
+
+- Perilaku duplikasi pada survei yang **sudah terbit dan sudah punya jawaban**
+- Apakah spanduk galat builder terlihat saat kanvas tergulir (lihat BUG-004)
+
+---
+
+## 5. Catatan yang bukan cacat produk
 
 Bagian ini menampung hal-hal yang tidak berdampak langsung ke pengguna,
 sehingga tidak diberi nomor `BUG`, tetapi tetap perlu diketahui tim.
@@ -309,10 +424,28 @@ Hampir pasti berasal dari ekstensi peramban. Cara memastikannya: buka aplikasi
 di jendela Samaran dengan semua ekstensi nonaktif — bila galatnya hilang,
 tuntas. Tidak perlu ditindaklanjuti sebagai cacat produk.
 
+### CAT-004 — Duplikasi survei belum menyalin opsi jawaban (untuk Fase 3)
+
+Ditemukan saat memastikan hasil sesi C-01, dan **berada di wilayah backend**,
+di luar lingkup pengujian frontend saya. Dicatat semata sebagai pengingat
+supaya tidak terlewat nanti.
+
+`duplicate()` di
+[surveys.service.ts:178-186](apps/api/src/modules/surveys/surveys.service.ts#L178-L186)
+menyalin `teks`, `tipe`, `isIkmUnsur`, `kodeUnsur`, dan `urutan`, tetapi tidak
+menyalin relasi opsi jawaban.
+
+Saat ini tidak berdampak apa-apa, karena tipe `pilihan` memang belum bisa
+dibuat (lihat [BUG-004](#bug-004)). Namun begitu Fase 3 aktif, menduplikasi
+survei berpertanyaan Pilihan Ganda akan menghasilkan pertanyaan tanpa satu pun
+opsi — dan backend sendiri mensyaratkan minimal dua. Lebih murah diketahui
+sekarang daripada ditemukan setelah fiturnya rilis.
+
 ---
 
-## 5. Riwayat revisi
+## 6. Riwayat revisi
 
 | Versi | Tanggal         | Perubahan                                                                                                                                        |
 | ----- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1.0   | 12 Agustus 2026 | Berkas dibuat. BUG-001 s.d. BUG-003 dan CAT-001 s.d. CAT-003 dari penelaahan kode dan penulisan uji otomatis, sebelum sesi eksploratori dimulai. |
+| 1.1   | 12 Agustus 2026 | Hasil sesi eksploratori C-01: tambah BUG-004, ringkasan sesi (§4), dan CAT-004. TC-FE-004 ditutup lulus di TEST_CASES.md.                        |
