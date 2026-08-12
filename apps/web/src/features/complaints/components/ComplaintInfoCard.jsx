@@ -43,7 +43,7 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
         {/* Hero Section: Ticket ID */}
         <div className="mb-6 sm:mb-8 pt-2">
           <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mb-1">Nomor Registrasi</p>
-          <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-primary via-primary-hover to-secondary bg-clip-text text-transparent tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-primary via-primary-hover to-secondary bg-clip-text text-transparent tracking-tight break-all">
             {ticketId || '-'}
           </h2>
         </div>
