@@ -120,11 +120,24 @@ manual.
   `diterima → diproses → selesai`.
 - Setiap kali status berubah, periksa **lonceng notifikasi warga**: apakah lencana
   muncul? Apakah pesan sesuai? Apakah tautannya membuka pengaduan yang benar?
-- Admin Kabupaten membuka pengaduan yang sama — apakah benar hanya bisa memantau
-  (tidak bisa mengubah status)?
-- Coba transisi mundur (`selesai → diproses`). Apa yang terjadi di UI?
+- Admin Kabupaten membuka pengaduan yang sama. **Koreksi 12 Agu 2026:** versi
+  pertama charter ini bertanya "apakah benar hanya bisa memantau?" — asumsi itu
+  **salah** dan akan menghasilkan laporan palsu. `RolesGuard` memberi peran
+  `kabupaten` pelewatan penuh atas seluruh `@Roles` (sejak penggabungan peran
+  superuser, 5 Agu 2026), jadi Admin Kabupaten memang **boleh** mengubah status
+  dan membalas. Yang diuji karena itu bukan "boleh atau tidak", melainkan:
+  apakah aksinya benar-benar berhasil sampai ke backend, dan apakah pengaduan
+  milik OPD mana pun bisa dibuka olehnya.
+- Coba transisi mundur (`selesai → diproses`). Perlu diketahui lebih dulu:
+  dropdown hanya menawarkan target yang sah, dan status `selesai`/`ditolak`
+  bersifat terminal sehingga daftarnya kosong. Jadi yang diperiksa bukan apakah
+  ditolak, melainkan apakah UI **menerangkan** kenapa tidak ada pilihan, atau
+  hanya diam.
 - Balas percakapan dari kedua sisi. Apakah pengirim tiap pesan ditampilkan dengan benar?
   (`complaint.adapter.js` mencatat backend hanya menyimpan `authorId`, tanpa nama/peran.)
+  Perhatikan khususnya: nama pengirim pihak admin **selalu** tertulis generik
+  "Admin OPD". Bila yang membalas ternyata Admin Kabupaten, label itu keliru —
+  dan inilah gabungan dua butir di atas yang paling layak ditelusuri.
 
 ---
 
