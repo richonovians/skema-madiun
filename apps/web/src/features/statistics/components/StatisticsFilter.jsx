@@ -6,7 +6,6 @@ import Dropdown from '@/components/ui/Dropdown';
 
 export default function StatisticsFilter() {
   const [year, setYear] = useState('2026');
-  const [kecamatan, setKecamatan] = useState('semua_kecamatan');
   const [opd, setOpd] = useState('semua_opd');
   const [layanan, setLayanan] = useState('semua_layanan');
 
@@ -16,12 +15,7 @@ export default function StatisticsFilter() {
     { value: '2024', label: '2024' },
   ];
 
-  const kecamatanOptions = [
-    { value: 'semua_kecamatan', label: 'Semua Kecamatan' },
-    { value: 'mejayan', label: 'Mejayan' },
-    { value: 'wungu', label: 'Wungu' },
-    { value: 'dolopo', label: 'Dolopo' },
-  ];
+
 
   const opdOptions = [
     { value: 'semua_opd', label: 'Semua OPD' },
@@ -52,14 +46,7 @@ export default function StatisticsFilter() {
               variant="default"
             />
           </div>
-          <div className="relative z-[50] w-full sm:w-auto">
-            <Dropdown 
-              options={kecamatanOptions}
-              value={kecamatan}
-              onChange={setKecamatan}
-              variant="default"
-            />
-          </div>
+
           <div className="relative z-[40] w-full sm:w-auto">
             <Dropdown 
               options={opdOptions}

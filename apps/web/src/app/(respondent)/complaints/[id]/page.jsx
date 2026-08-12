@@ -11,8 +11,11 @@ import ComplaintInfoCard from '@/features/complaints/components/ComplaintInfoCar
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import ComplaintChatSection from '@/features/complaints/components/ComplaintChatSection';
+import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
+import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaintByTicketNo, getComplaintReplies, addComplaintReply } from '@/features/complaints/services/complaints.api';
+import { getComplaintCategories } from '@/features/complaints/services/reference.api';
 import { adaptComplaintReplyToChatMessage } from '@/features/complaints/adapters/complaint.adapter';
 
 // Avatar dekoratif -- tak ada API terpisah utk identitas 2 pihak percakapan
@@ -33,9 +36,12 @@ export default function ComplaintDetailPage() {
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
-    const rawReplies = await getComplaintReplies(complaint.numericId);
+    const [rawReplies, categories] = await Promise.all([
+      getComplaintReplies(complaint.numericId),
+      getComplaintCategories(),
+    ]);
     const chatHistory = rawReplies.map((r) => adaptComplaintReplyToChatMessage(r, complaint.userId));
-    return { complaint, chatHistory };
+    return { complaint, chatHistory, categories };
   }, [ticketNo]);
 
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
@@ -84,11 +90,27 @@ export default function ComplaintDetailPage() {
             <ComplaintAttachments attachments={data.complaint.attachments} />
           </aside>
 
-          <ComplaintChatSection
-            initialMessages={data.chatHistory}
-            participants={CHAT_PARTICIPANTS}
-            onSendReply={handleSendReply}
-          />
+          <div className="md:col-span-8 flex flex-col gap-6 sm:gap-8">
+            {/* Ringkasan & Isi Pengaduan -- ditambahkan agar warga juga
+                dapat melihat kembali konteks laporan yang mereka kirimkan
+                (judul, kategori, OPD tujuan, deskripsi) sebelum melihat
+                histori percakapan dengan admin. */}
+            <ComplaintSummaryCard
+              complaint={{
+                ...data.complaint,
+                categoryLabel:
+                  (data.categories ?? []).find(
+                    (c) => c.kode === data.complaint.kategori,
+                  )?.nama ?? data.complaint.kategori,
+              }}
+            />
+            <ComplaintContentCard complaint={data.complaint} />
+            <ComplaintChatSection
+              initialMessages={data.chatHistory}
+              participants={CHAT_PARTICIPANTS}
+              onSendReply={handleSendReply}
+            />
+          </div>
         </div>
       )}
     </main>
