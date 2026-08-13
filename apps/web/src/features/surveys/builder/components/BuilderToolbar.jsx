@@ -47,6 +47,9 @@ export default function BuilderToolbar({
   isSaving = false,
   onPublish,
   isPublishing = false,
+  // Builder dipakai dua area (Admin OPD & Admin Kabupaten, lihat
+  // SurveyBuilderScreen.jsx) -- tujuan tombol kembali ikut areanya.
+  backHref = '/admin-opd/surveys',
 }) {
   const badge = STATUS_BADGE[status] ?? STATUS_BADGE.DRAF;
   const parsed = parsePeriode(periode) ?? { tahun: CURRENT_YEAR, triwulan: 1 };
@@ -67,7 +70,7 @@ export default function BuilderToolbar({
     <header className="absolute top-0 left-0 w-full h-16 md:h-[72px] bg-white border-b border-border flex items-center px-4 md:px-lg z-50 justify-between shadow-sm">
       <div className="flex items-center gap-2 md:gap-lg flex-1 min-w-0">
         <Link
-          href="/admin-opd/surveys"
+          href={backHref}
           className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition-all active:scale-95 shrink-0"
           title="Kembali ke Daftar Survei"
         >
