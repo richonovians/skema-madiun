@@ -89,7 +89,7 @@ export default function NotificationDropdown({ className = '' }) {
         <>
           <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setIsOpen(false)} />
 
-          <div className="absolute left-0 mt-3 w-[300px] sm:w-[360px] bg-white/95 backdrop-blur-md rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 origin-top-left transition-all duration-200">
+          <div className="absolute right-0 mt-3 w-[300px] sm:w-[360px] bg-white/95 backdrop-blur-md rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 origin-top-right transition-all duration-200">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <span className="text-sm font-bold text-slate-700">Notifikasi</span>
               {unreadCount > 0 && (
