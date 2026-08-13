@@ -84,7 +84,7 @@ export default function AdminComplaintDetailPage() {
     }
   };
 
-  const handleCloseTicket = async () => {
+  const handleCloseTicket = () => {
     if (!data) return;
     setActionError(null);
 
@@ -98,16 +98,10 @@ export default function AdminComplaintDetailPage() {
       return;
     }
 
-    try {
-      await updateComplaintStatus(
-        data.complaint.numericId,
-        'Selesai',
-        'Tiket ini telah ditutup karena masalah sudah diselesaikan.',
-      );
-      await refetch();
-    } catch (err) {
-      setActionError(err.message);
-    }
+    // Buka ConfirmStatusModal -- konfirmasi & pemanggilan API ditangani oleh
+    // handleConfirmStatus yang sudah terpasang di modal, sama seperti alur
+    // perubahan status dari dropdown ComplaintStatusControl.
+    setPendingStatus('Selesai');
   };
 
   return (
