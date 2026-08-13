@@ -12,7 +12,13 @@ export default function Dropdown({
   variant = 'default',
   size = 'md',
   className = '',
-  error
+  error,
+  // Tinggi maksimum daftar pilihan (kelas Tailwind). Daftar SELALU bisa
+  // di-scroll (`overflow-y-auto` di bawah) -- prop ini hanya memperpendeknya
+  // untuk pemakaian di ruang sempit, mis. di dalam modal yang punya tombol
+  // aksi di bawahnya supaya daftar tak menimpa tombol itu (lihat
+  // SurveyFormModal.jsx). Default sama seperti sebelumnya.
+  menuMaxHeight = 'max-h-60',
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -84,7 +90,7 @@ export default function Dropdown({
 
       {isOpen && (
         <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
-          <ul className="py-1 max-h-60 overflow-y-auto">
+          <ul className={`py-1 overflow-y-auto ${menuMaxHeight}`}>
             {options.map((option) => (
               <li key={option.value}>
                 <button

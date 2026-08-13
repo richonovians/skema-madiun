@@ -40,6 +40,11 @@ export function formatPeriodeLabel(periode) {
 export function adaptSurvey(survey) {
   return {
     id: String(survey.id),
+    // `opdId` dipakai monitoring Kabupaten (lintas OPD) utk menyandingkan nama
+    // OPD dari GET /opd -- GET /surveys TIDAK mengirim `opdNama` (cuma
+    // /surveys/active yang mengisinya, lihat SurveyEntity backend), jadi
+    // penggabungan nama dilakukan halaman pemanggil, bukan dikarang di sini.
+    opdId: survey.opdId,
     title: survey.judul,
     status: STATUS_MAP[survey.status] ?? survey.status,
     period: survey.periode,
