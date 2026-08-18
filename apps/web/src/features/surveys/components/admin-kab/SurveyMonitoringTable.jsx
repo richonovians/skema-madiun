@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Badge from '@/components/ui/Badge';
 import { Eye, FileEdit, Pencil, UploadCloud, Lock, Trash2 } from 'lucide-react';
+import ShareSurveyButton from '@/features/surveys/components/ShareSurveyButton';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 const STATUS_VARIANT = {
@@ -26,8 +27,10 @@ const ACTION_CLASS =
  * (kabupaten memang melewati seluruh @Roles lewat bypass RolesGuard, tapi
  * SurveysService tetap menegakkan aturan status):
  * - "Ubah" & "Hapus" hanya untuk DRAF (`assertDraft`, selain draf -> 400).
- * - "Publikasikan" hanya DRAF; "Tutup" untuk DRAF/AKTIF (ALLOWED_TRANSITIONS);
- *   DITUTUP bersifat permanen -- tak ada jalan kembali ke AKTIF.
+ * - "Publikasikan" hanya DRAF; "Tutup" untuk DRAF/AKTIF (ALLOWED_TRANSITIONS).
+ *   CATATAN: sejak 2026-08-18 backend mengizinkan DITUTUP -> AKTIF (survei dapat
+ *   dibuka kembali). Aksi "Buka Kembali" itu sudah ada di kartu Admin OPD tapi
+ *   BELUM di tabel ini -- perlu tiket sendiri, jangan disangka terlewat.
  * - "Pertanyaan" JUGA hanya DRAF: begitu survei dipublikasikan, pertanyaannya
  *   terkunci (builder sendiri menolak lewat assertDraftOrThrow, dan backend
  *   menolak perubahan pertanyaan di luar status draft) -- menampilkan tombol
@@ -123,6 +126,10 @@ export default function SurveyMonitoringTable({
                         <Eye size={12} />
                         Detail
                       </Link>
+
+                      {/* Komponen yang sama dipakai kartu survei Admin OPD --
+                          satu implementasi QR/tautan untuk kedua area. */}
+                      <ShareSurveyButton survey={survey} className={ACTION_CLASS} iconSize={12} />
 
                       {isDraft && (
                         <Link href={`/admin-kab/surveys/builder/${survey.id}`} className={ACTION_CLASS}>

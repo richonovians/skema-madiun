@@ -9,6 +9,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
+import { downloadTablePdf } from '@/utils/pdf';
 
 const ITEMS_PER_PAGE = 5;
 // Backend TIDAK punya parameter pencarian bebas teks (lihat ListComplaintQueryDto
@@ -34,6 +35,7 @@ export default function AdminOPDComplaintsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('Semua Status');
   const [currentPage, setCurrentPage] = useState(1);
+  const [exportError, setExportError] = useState(null);
 
   const fetchComplaints = useCallback(() => getComplaints({ limit: FETCH_LIMIT }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchComplaints);
@@ -77,12 +79,37 @@ export default function AdminOPDComplaintsPage() {
     downloadBlob([header, ...rows].join('\n'), 'text/csv;charset=utf-8;', 'Data_Pengaduan.csv');
   };
 
-  const handleExportPDF = () => {
-    const lines = filteredComplaints.map(
-      (c, i) => `${i + 1}. ${c.id} - ${c.title} (${c.status})`,
-    );
-    const textContent = `LAPORAN PENGADUAN MASYARAKAT\n\n${lines.join('\n')}\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau backend. Ini adalah simulasi ekspor teks.`;
-    downloadBlob(textContent, 'text/plain;charset=utf-8;', 'Data_Pengaduan.txt');
+  /**
+   * SEBELUMNYA mengunduh berkas .txt berisi catatan "ini simulasi ekspor teks"
+   * -- pengguna menekan "PDF" tapi menerima teks. Kini PDF sungguhan lewat
+   * utils/pdf.js (jsPDF, sudah jadi dependensi proyek).
+   */
+  const handleExportPDF = async () => {
+    setExportError(null);
+    try {
+      await downloadTablePdf({
+        filename: 'Data_Pengaduan.pdf',
+        title: 'Laporan Pengaduan Masyarakat',
+        subtitle: `${filteredComplaints.length} pengaduan`,
+        columns: [
+          { header: 'NO. TIKET', width: 2 },
+          { header: 'JUDUL KELUHAN', width: 5 },
+          { header: 'PELAPOR', width: 3 },
+          { header: 'STATUS', width: 2 },
+          { header: 'TANGGAL', width: 2 },
+        ],
+        rows: filteredComplaints.map((c) => [
+          `#${c.id}`,
+          c.title,
+          c.reporter?.name,
+          c.status,
+          c.dateStr,
+        ]),
+        emptyLabel: 'Tidak ada pengaduan yang cocok dengan filter saat ini.',
+      });
+    } catch (err) {
+      setExportError(err.message);
+    }
   };
 
   if (isLoading) {
@@ -102,6 +129,12 @@ export default function AdminOPDComplaintsPage() {
   return (
     <div className="w-full space-y-6">
       <ComplaintListHeader totalComplaints={totalItems} />
+
+      {exportError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
+          Gagal mengekspor: {exportError}
+        </div>
+      )}
 
       <div className="bg-surface rounded-xl shadow-2xl border border-outline-variant overflow-hidden">
         <ComplaintListFilter

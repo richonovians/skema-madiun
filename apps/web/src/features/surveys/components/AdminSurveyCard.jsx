@@ -71,7 +71,15 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
         isDraft={isDraft}
       />
 
-      <AdminSurveyCardActions isDraft={isDraft} surveyId={id} onDuplicate={onDuplicate} onDelete={onDelete} />
+      {/* `survey` diteruskan utuh karena tombol "Bagikan" butuh judul & status
+          untuk isi modal QR/tautan, bukan cuma id. */}
+      <AdminSurveyCardActions
+        isDraft={isDraft}
+        surveyId={id}
+        survey={survey}
+        onDuplicate={onDuplicate}
+        onDelete={onDelete}
+      />
 
       {/* Modal konfirmasi tutup periode (AKTIF → DITUTUP) */}
       <ConfirmActionModal
