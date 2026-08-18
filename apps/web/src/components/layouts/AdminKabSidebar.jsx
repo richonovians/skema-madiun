@@ -3,11 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   Building2,
   Users,
   MessageSquare,
+  ClipboardList,
   LogOut,
   X,
   History
@@ -66,6 +67,10 @@ export default function AdminKabSidebar() {
           <Link href="/admin-kab/opd" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Building2 size={20} />
             <span>Manajemen OPD</span>
+          </Link>
+          <Link href="/admin-kab/surveys" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <ClipboardList size={20} />
+            <span>Monitoring Survei</span>
           </Link>
           <Link href="/admin-kab/complaints" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
             <MessageSquare size={20} />

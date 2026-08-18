@@ -129,7 +129,7 @@ export default function AdminKabComplaintDetailPage() {
     }
   };
 
-  const handleCloseTicket = async () => {
+  const handleCloseTicket = () => {
     if (!data) return;
     setActionError(null);
 
@@ -140,16 +140,9 @@ export default function AdminKabComplaintDetailPage() {
       return;
     }
 
-    try {
-      await updateComplaintStatus(
-        data.complaint.numericId,
-        'Selesai',
-        'Tiket ini telah ditutup karena masalah sudah diselesaikan.',
-      );
-      await refetch();
-    } catch (err) {
-      setActionError(err.message);
-    }
+    // Buka ConfirmStatusModal -- konfirmasi & pemanggilan API ditangani oleh
+    // handleConfirmStatus yang sudah terpasang di modal, pola sama admin-opd.
+    setPendingStatus('Selesai');
   };
 
   if (isLoading) {
@@ -181,6 +174,7 @@ export default function AdminKabComplaintDetailPage() {
           <ComplaintContentCard complaint={complaintView} />
           <ComplaintAttachmentGallery complaint={{ attachments }} />
           <AdminResolutionWorkspace
+            currentStatus={complaintView.status}
             chatHistory={data.chatHistory}
             onSendUpdate={handleSendUpdate}
             onCloseTicket={handleCloseTicket}
