@@ -61,7 +61,7 @@ export default function KabDashboardHeader({ summary }) {
       <div className="relative group space-y-1" ref={exportRef}>
         <button 
           onClick={() => setIsExportOpen(!isExportOpen)}
-          className="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg font-medium flex items-center justify-between gap-sm hover:bg-primary-hover active:scale-95 transition-all shadow-md min-h-[44px]"
+          className="bg-primary text-on-primary px-lg py-sm rounded-lg font-bold flex items-center justify-between gap-sm hover:bg-primary-hover active:scale-95 transition-all shadow-md min-h-[44px]"
         >
           <div className="flex items-center gap-2">
             <Download size={18} />

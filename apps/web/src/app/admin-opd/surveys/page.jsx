@@ -17,14 +17,12 @@ export default function AdminSurveysPage() {
   const { data: response, isLoading, error, refetch } = useAsync(fetchSurveys);
   const surveys = response?.data ?? [];
 
-  // Tutup periode (AKTIF -> DITUTUP) -- SATU ARAH, backend tak izinkan
-  // DITUTUP -> AKTIF lagi (penutupan permanen, snapshot IKM sudah diambil
-  // saat itu). Toggle "Buka Periode" di AdminSurveyCard.jsx sengaja tak lagi
-  // ditampilkan utk survei DITUTUP (lihat perubahan di komponen tsb).
-  const handleTogglePeriod = async (surveyId) => {
+  // Ubah status survei (AKTIF ↔ DITUTUP) -- dua arah, backend kini izinkan
+  // DITUTUP -> AKTIF (buka kembali). Setiap perubahan dikonfirmasi via modal.
+  const handleChangeStatus = async (surveyId, newStatus) => {
     setActionError(null);
     try {
-      await updateSurveyStatus(surveyId, 'DITUTUP');
+      await updateSurveyStatus(surveyId, newStatus);
       refetch();
     } catch (err) {
       setActionError(err.message);
@@ -77,7 +75,7 @@ export default function AdminSurveysPage() {
       ) : (
         <AdminSurveyCardList
           surveys={filteredSurveys}
-          onTogglePeriod={handleTogglePeriod}
+          onChangeStatus={handleChangeStatus}
           onDuplicate={handleDuplicateSurvey}
           onDelete={handleDeleteSurvey}
         />
