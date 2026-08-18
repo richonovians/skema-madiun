@@ -16,9 +16,29 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
+/**
+ * Perekam permintaan keluar. TC-FE-026 menuntut bukti "kedua aksi memanggil
+ * endpoint yang benar" -- sebelumnya kedua skenario hanya memastikan tak ada
+ * teks error muncul, yang tetap lulus meski TAK ADA permintaan terkirim sama
+ * sekali. Dengan rekaman ini, kegagalan pemanggilan endpoint benar-benar
+ * membuat tes merah.
+ */
+const requests = [];
+const recordRequest = ({ request }) => {
+  requests.push(`${request.method} ${new URL(request.url).pathname}`);
+};
+
+const sudahMemanggil = (pola) => requests.some((entry) => pola.test(entry));
+
 describe('SurveyManagement Integration Test (CRUD, Lifecycle, Duplicate)', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    requests.length = 0;
+    server.events.on('request:start', recordRequest);
+  });
+
+  afterEach(() => {
+    server.events.removeListener('request:start', recordRequest);
   });
 
   it('Skenario 1: Merender daftar survei dari API', async () => {
@@ -38,18 +58,18 @@ describe('SurveyManagement Integration Test (CRUD, Lifecycle, Duplicate)', () =>
     // Tunggu daftar muncul
     await screen.findByText('Survei IKM 2026');
     
-    // Cari tombol Duplikasi (di AdminSurveyCardActions judulnya 'Salin Kode')
-    const dupButtons = await screen.findAllByRole('button', { name: /salin kode/i });
-    
-    // Karena refetch belum tentu me-render item baru secara mulus dalam JSDOM,
-    // kita override handler `GET /surveys` khusus tes ini jika diperlukan, atau sekadar 
-    // pastikan fungsi onDuplicate terpanggil.
+    // Tombol pemicu duplikasi di AdminSurveyCardActions berlabel 'Salin'
+    // (sebelum 2026-08-18 labelnya 'Salin Kode' -- diubah tim UI, dan tes ini
+    // sempat merah karenanya).
+    const dupButtons = await screen.findAllByRole('button', { name: /^salin$/i });
+
     fireEvent.click(dupButtons[0]);
-    
-    // Harusnya tidak ada pesan error yang muncul
+
+    // Bukti utama TC-FE-026: endpoint duplikasi benar-benar dipanggil.
     await waitFor(() => {
-      expect(screen.queryByText(/action error/i)).not.toBeInTheDocument();
+      expect(sudahMemanggil(/^POST .*\/surveys\/\d+\/duplicate$/)).toBe(true);
     });
+    expect(screen.queryByText(/action error/i)).not.toBeInTheDocument();
   });
 
   it('Skenario 3: Menekan tombol "Tutup Periode" memanggil API status (Lifecycle)', async () => {
@@ -58,14 +78,20 @@ describe('SurveyManagement Integration Test (CRUD, Lifecycle, Duplicate)', () =>
     await screen.findByText('Survei IKM 2026');
     
     const closeButtons = await screen.findAllByRole('switch');
-    
-    // Kita buat stub untuk window.confirm agar otomatis return true
-    window.confirm = jest.fn(() => true);
-    
+
+    // Sejak 2026-08-18 konfirmasi TIDAK lagi memakai window.confirm melainkan
+    // ConfirmActionModal, sehingga menekan switch saja HANYA membuka modal dan
+    // belum memanggil API apa pun. Stub window.confirm yang dulu dipasang di
+    // sini jadi tak relevan; tanpa menekan tombol konfirmasi, tes ini akan
+    // lulus palsu (tak ada error muncul, tapi juga tak ada permintaan terkirim).
     fireEvent.click(closeButtons[0]);
-    
+
+    const confirmButton = await screen.findByRole('button', { name: /ya, tutup periode/i });
+    fireEvent.click(confirmButton);
+
     await waitFor(() => {
-      expect(screen.queryByText(/action error/i)).not.toBeInTheDocument();
+      expect(sudahMemanggil(/^PATCH .*\/surveys\/\d+\/status$/)).toBe(true);
     });
+    expect(screen.queryByText(/action error/i)).not.toBeInTheDocument();
   });
 });
