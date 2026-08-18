@@ -16,7 +16,7 @@ import { SurveyEntity } from './entities/survey.entity';
 const ALLOWED_TRANSITIONS: Record<SurveyStatus, SurveyStatus[]> = {
   [SurveyStatus.draft]: [SurveyStatus.aktif, SurveyStatus.ditutup],
   [SurveyStatus.aktif]: [SurveyStatus.ditutup],
-  [SurveyStatus.ditutup]: [],
+  [SurveyStatus.ditutup]: [SurveyStatus.aktif], // survei dapat dibuka kembali
 };
 
 @Injectable()

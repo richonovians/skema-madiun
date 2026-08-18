@@ -70,9 +70,9 @@ export default function AuditTable({ data, pagination }) {
                 </td>
                 <td className="p-4 align-top text-left">
                   <Link href={`/admin-kab/audit-logs/${log.id}`}>
-                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-0">
-                      <Eye size={16} className="mr-2" /> Detail
-                    </Button>
+                    <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all flex items-center gap-2">
+                      <Eye size={16} /> Detail
+                    </button>
                   </Link>
                 </td>
               </tr>
