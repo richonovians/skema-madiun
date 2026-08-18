@@ -1,16 +1,20 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, FileText } from 'lucide-react';
+import { downloadTablePdf } from '@/utils/pdf';
 
 /**
  * INT-24 (2026-08-05): ekspor SEBELUMNYA berisi 4 angka hardcode (85.5/15200/
  * 432/92%) tak peduli data sungguhan -- kini pakai `summary` nyata dari GET
- * /statistics. Format PDF tetap simulasi teks (disclaimer sudah ada sejak
- * awal, jujur soal keterbatasannya) -- pembuatan PDF asli butuh library
- * tambahan (mis. jspdf), di luar cakupan tiket wiring ini.
+ * /statistics.
+ *
+ * 2026-08-18: format PDF tak lagi "simulasi teks" (dulu mengunduh .txt lengkap
+ * dengan disclaimer) -- kini PDF sungguhan lewat utils/pdf.js yang memakai
+ * jsPDF, dependensi yang ternyata sudah lama ada di proyek ini.
  */
 export default function KabDashboardHeader({ summary }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportError, setExportError] = useState(null);
   const exportRef = useRef(null);
 
   useEffect(() => {
@@ -43,17 +47,28 @@ export default function KabDashboardHeader({ summary }) {
     setIsExportOpen(false);
   };
 
-  const handleExportPDF = () => {
-    const textContent = `LAPORAN TAHUNAN KINERJA KABUPATEN\n\n${rows.map(([k, v]) => `- ${k}: ${v}`).join('\n')}\n\n*Catatan: Ekspor PDF asli memerlukan library tambahan (mis. jspdf) atau integrasi backend. Ini adalah simulasi format teks.`;
-    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'Laporan_Tahunan.txt');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  /**
+   * SEBELUMNYA mengunduh .txt berisi catatan "ini simulasi format teks" --
+   * tombolnya bilang PDF tapi hasilnya teks. Kini PDF sungguhan lewat
+   * utils/pdf.js (jsPDF, sudah jadi dependensi proyek).
+   */
+  const handleExportPDF = async () => {
     setIsExportOpen(false);
+    setExportError(null);
+    try {
+      await downloadTablePdf({
+        filename: 'Laporan_Tahunan.pdf',
+        title: 'Laporan Tahunan Kinerja Kabupaten',
+        subtitle: 'Ringkasan indikator utama',
+        columns: [
+          { header: 'INDIKATOR', width: 3 },
+          { header: 'NILAI', width: 2 },
+        ],
+        rows: rows.map(([label, value]) => [label, value]),
+      });
+    } catch (err) {
+      setExportError(err.message);
+    }
   };
 
   return (
@@ -93,6 +108,12 @@ export default function KabDashboardHeader({ summary }) {
               </li>
             </ul>
           </div>
+        )}
+
+        {exportError && (
+          <p className="mt-2 text-xs font-medium text-red-600 text-right">
+            Gagal mengekspor: {exportError}
+          </p>
         )}
       </div>
     </div>
