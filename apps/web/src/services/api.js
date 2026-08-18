@@ -1,4 +1,10 @@
 import axios from 'axios';
+// Sengaja memakai ulang clearSession() alih-alih menghapus key di sini: daftar
+// artefak sesi (token & role, masing-masing di localStorage DAN cookie) hanya
+// boleh punya satu definisi. Menyalinnya ke sini persis yang dulu bikin
+// pembersihan tak sinkron. authStorage tak mengimpor apa pun, jadi tak ada
+// impor sirkular.
+import { clearSession } from '@/features/authentication/services/authStorage';
 
 // Konfigurasi instance Axios
 const api = axios.create({
@@ -49,10 +55,16 @@ api.interceptors.response.use(
       }
       if (error.response.status === 401) {
         if (typeof window !== 'undefined') {
-          // Hapus token jika unauthorized
-          localStorage.removeItem('token');
-          // Opsional: redirect ke login
-          // window.location.href = '/login';
+          // SEBELUMNYA hanya `localStorage.removeItem('token')` -- `role` di
+          // localStorage dan KEDUA cookie (`token`, `role`) dibiarkan utuh,
+          // sehingga proxy.js (yang membaca cookie) masih menganggap sesi hidup
+          // dan tetap membuka /admin-* padahal seluruh API-nya 401. Kini seluruh
+          // artefak sesi dibersihkan sekaligus.
+          //
+          // Aman untuk SEMUA 401: backend memakai 401 khusus "Autentikasi
+          // diperlukan" (sesi tak sah), sedangkan penolakan karena peran/akses
+          // dikembalikan sebagai 403 -- lihat RolesGuard & opd-scope.util.ts.
+          clearSession();
         }
       }
     }

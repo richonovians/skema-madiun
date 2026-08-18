@@ -11,11 +11,31 @@ export default function Footer() {
         <div className="flex flex-col sm:flex-row items-start gap-5 col-span-1 md:col-span-2 lg:col-span-6">
           {/* Logo di Kiri */}
           <div className="shrink-0 flex items-center justify-center">
-            <Image 
-              src="/images/footer/Kabupaten-Madiun-Logo-transparent.png" 
-              alt="Logo Kabupaten Madiun" 
+            {/*
+              `sizes` WAJIB di sini: tanpa itu next/image menganggap gambar
+              dipakai sebesar `width` (800px) dan hanya menawarkan kandidat
+              ~828px + ~1920px (2x) di srcset, padahal CSS di bawah cuma
+              merender setinggi 128-224px (lebar ~112-196px). Akibatnya browser
+              mengunduh berkas berkali-kali lebih besar dari kebutuhan, dan logo
+              footer ini malah terdeteksi sebagai elemen LCP.
+
+              Nilai di bawah = lebar render pada tiap breakpoint (tinggi x rasio
+              800/917): h-32->112px, sm:h-40->140px, md:h-48->168px,
+              lg:h-56->196px. Dengan ini browser memilih kandidat ~256px.
+
+              SENGAJA TIDAK memakai `priority`/`loading="eager"` walau peringatan
+              dev Next menyarankannya: logo ini ada di footer, di bawah lipatan
+              layar pada seluruh halaman pemakainya (beranda, /about, /statistics,
+              area responden). Memprioritaskannya justru merebut bandwidth dari
+              konten atas layar -- LCP yang sah adalah logo navbar, dan itu sudah
+              memakai `priority` (lihat Navbar.jsx).
+            */}
+            <Image
+              src="/images/footer/Kabupaten-Madiun-Logo-transparent.png"
+              alt="Logo Kabupaten Madiun"
               width={800}
               height={917}
+              sizes="(min-width: 1024px) 196px, (min-width: 768px) 168px, (min-width: 640px) 140px, 112px"
               className="object-contain w-auto h-32 sm:h-40 md:h-48 lg:h-56 drop-shadow-lg"
             />
           </div>

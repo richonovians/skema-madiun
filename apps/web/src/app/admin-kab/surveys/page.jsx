@@ -44,7 +44,7 @@ const CONFIRM_COPY = {
   close: {
     title: 'Tutup periode survei ini?',
     description: (survey) =>
-      `Periode "${survey.title}" akan ditutup dan hasil IKM final disimpan sebagai snapshot. Penutupan bersifat permanen -- survei tidak dapat dibuka kembali.`,
+      `Periode "${survey.title}" akan ditutup dan hasil IKM saat ini disimpan sebagai snapshot. Responden tidak dapat mengisi selama survei ditutup.`,
     confirmLabel: 'Ya, Tutup Periode',
     tone: 'danger',
   },
