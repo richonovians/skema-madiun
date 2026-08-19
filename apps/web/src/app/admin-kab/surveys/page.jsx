@@ -44,9 +44,16 @@ const CONFIRM_COPY = {
   close: {
     title: 'Tutup periode survei ini?',
     description: (survey) =>
-      `Periode "${survey.title}" akan ditutup dan hasil IKM saat ini disimpan sebagai snapshot. Responden tidak dapat mengisi selama survei ditutup.`,
+      `Periode "${survey.title}" akan ditutup dan hasil IKM saat ini disimpan sebagai snapshot. Responden tidak dapat mengisi selama survei ditutup. Survei masih dapat diaktifkan kembali setelahnya.`,
     confirmLabel: 'Ya, Tutup Periode',
     tone: 'danger',
+  },
+  reopen: {
+    title: 'Aktifkan kembali survei ini?',
+    description: (survey) =>
+      `"${survey.title}" akan kembali berstatus aktif dan dapat diisi responden lagi. Jawaban yang sudah masuk tetap tersimpan. Catatan: snapshot hasil IKM dari penutupan sebelumnya tidak terhapus, sehingga survei ini sementara terhitung dua kali pada rekap lintas-OPD sampai periodenya ditutup lagi.`,
+    confirmLabel: 'Ya, Aktifkan Kembali',
+    tone: 'primary',
   },
   delete: {
     title: 'Hapus survei draf ini?',
@@ -82,9 +89,9 @@ export default function AdminKabSurveysPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
-  // Aksi baris (publikasi/tutup/hapus) -- satu baris terkunci selagi diproses.
-  // `confirmAction` = { type: 'publish'|'close'|'delete', survey } bila dialog
-  // konfirmasi sedang terbuka.
+  // Aksi baris (publikasi/tutup/aktifkan kembali/hapus) -- satu baris terkunci
+  // selagi diproses. `confirmAction` = { type: 'publish'|'close'|'reopen'|'delete',
+  // survey } bila dialog konfirmasi sedang terbuka.
   const [confirmAction, setConfirmAction] = useState(null);
   const [busySurveyId, setBusySurveyId] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -203,7 +210,7 @@ export default function AdminKabSurveysPage() {
     }
   };
 
-  /** Aksi baris yang tak butuh form: publikasi, tutup, hapus. */
+  /** Aksi baris yang tak butuh form: publikasi, tutup, aktifkan kembali, hapus. */
   const runRowAction = async (surveyId, action, successMessage) => {
     setBusySurveyId(surveyId);
     setActionError(null);
@@ -238,6 +245,17 @@ export default function AdminKabSurveysPage() {
         survey.id,
         () => updateSurveyStatus(survey.id, 'DITUTUP'),
         'Periode survei ditutup. Hasil IKM final sudah disimpan sebagai snapshot.',
+      );
+      return;
+    }
+    if (type === 'reopen') {
+      // DITUTUP -> AKTIF, transisi yang memang diizinkan ALLOWED_TRANSITIONS
+      // backend. Endpoint & payloadnya identik dengan publikasi draf ('aktif'),
+      // hanya konfirmasi & pesannya yang berbeda karena akibatnya berbeda.
+      await runRowAction(
+        survey.id,
+        () => updateSurveyStatus(survey.id, 'AKTIF'),
+        'Survei diaktifkan kembali dan sudah dapat diisi responden.',
       );
       return;
     }
@@ -330,6 +348,7 @@ export default function AdminKabSurveysPage() {
           onEdit={openEditForm}
           onPublish={(survey) => setConfirmAction({ type: 'publish', survey })}
           onClose={(survey) => setConfirmAction({ type: 'close', survey })}
+          onReopen={(survey) => setConfirmAction({ type: 'reopen', survey })}
           onDelete={(survey) => setConfirmAction({ type: 'delete', survey })}
           busySurveyId={busySurveyId}
         />
