@@ -83,12 +83,12 @@ export const aboutContent = {
       icon: HeartHandshake
     }
   ],
-  statistics: {
-    totalOPD: 45,
-    totalResponden: 12500,
-    totalPengaduan: 8430,
-    tingkatPenyelesaian: 98 // percentage
-  },
+  // Blok `statistics` DIHAPUS (2026-08-19). Isinya angka karangan yang dipajang
+  // di halaman publik sebagai capaian sistem -- 45 OPD, 12.500 responden, 8.430
+  // pengaduan, penyelesaian 98% -- padahal data sungguhannya jauh berbeda.
+  // AboutStatistics.jsx & AboutHeroShowcase.jsx kini mengambil GET /statistics.
+  // Berkas ini SENGAJA hanya menyimpan naskah editorial (visi, misi, nilai, FAQ):
+  // teks itu memang ditulis manusia, sedangkan ANGKA tak boleh lahir dari sini.
   timeline: [
     {
       id: 1,
