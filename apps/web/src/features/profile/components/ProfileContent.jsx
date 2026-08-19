@@ -12,10 +12,13 @@ import ProfileSSOCard from './ProfileSSOCard';
 import ProfileActions from './ProfileActions';
 
 /**
- * Ambil profil sungguhan (GET /auth/me) dan teruskan ke sub-komponen yang
- * sudah ada -- semua sub-komponen sudah menerima prop `user` sejak awal
- * (default ke DUMMY_CURRENT_USER), jadi wiring ini cukup isi prop itu dengan
- * data nyata (INT-16), tanpa mengubah struktur/tampilan sub-komponen sama sekali.
+ * Ambil profil sungguhan (GET /auth/me) dan teruskan ke sub-komponen lewat prop
+ * `user` (INT-16).
+ *
+ * Nilai default `DUMMY_CURRENT_USER` pada sub-komponen sudah DIBUANG beserta
+ * berkas konstantanya (2026-08-19): selama masih ada, prop `user` yang lupa
+ * dikirim akan diam-diam menampilkan identitas palsu alih-alih gagal terlihat --
+ * dan itu benar-benar terjadi di ProfileAvatarDropdown.jsx.
  */
 export default function ProfileContent() {
   const fetchProfile = useCallback(() => getMyProfile(), []);

@@ -10,7 +10,7 @@ const ROLE_TO_FRONTEND = {
 
 /**
  * Terjemahkan MeEntity backend (GET /auth/me) ke bentuk yang dipakai komponen
- * profil (lihat features/profile/constants/dummyCurrentUser.js). Satu tempat
+ * profil. Satu tempat
  * -- perubahan kontrak backend cukup diubah di sini (INT-16).
  *
  * CATATAN GAP BESAR: dummy mengharapkan banyak field identitas yang TIDAK ADA

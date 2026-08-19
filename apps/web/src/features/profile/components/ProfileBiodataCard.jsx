@@ -3,9 +3,8 @@
 import React from 'react';
 import { User, IdCard, Mail, Phone, MapPin, Briefcase } from 'lucide-react';
 import Card from '@/components/ui/Card';
-import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
 
-export default function ProfileBiodataCard({ user = DUMMY_CURRENT_USER }) {
+export default function ProfileBiodataCard({ user }) {
   const biodataItems = [
     {
       label: 'Nama Lengkap',
@@ -46,8 +45,14 @@ export default function ProfileBiodataCard({ user = DUMMY_CURRENT_USER }) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-border pb-4">
         <div>
           <h2 className="text-lg font-bold text-text-primary">Informasi Biodata</h2>
+          {/* Tidak lagi mengklaim "tersinkronisasi dari portal SSO Helpdesk":
+              integrasi SSO belum ada, dan NIK/telepon/alamat memang tak pernah
+              disimpan backend (RespondentProfile sengaja hanya demografis untuk
+              keperluan IKM, lihat catatan gap me.adapter.js) -- karena itu
+              beberapa baris di bawah bernilai '-'. */}
           <p className="text-sm text-text-secondary">
-            Data identitas pribadi yang tersinkronisasi dari portal SSO Helpdesk.
+            Data identitas akun Anda pada sistem SKEMA. Kolom bertanda &quot;-&quot; belum
+            tersedia karena tidak disimpan sistem.
           </p>
         </div>
         <span className="text-xs bg-surface-container px-3 py-1 rounded-full font-medium text-text-secondary border border-border/50">

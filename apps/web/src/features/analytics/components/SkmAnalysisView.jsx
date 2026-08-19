@@ -7,7 +7,7 @@ import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
  * Hasil IKM sungguhan per survei (GET /surveys/:id/results, INT-21) -- props
  * datang dari adaptIkmMetrics/adaptIkmServiceElements (ikm.adapter.js), BUKAN
  * lagi konstanta dummy (skmMetrics/skmServiceElements/skmDistribution/
- * skmYearlyTrend di constants/skmAnalytics.js, kini tak terpakai).
+ * skmYearlyTrend di constants/skmAnalytics.js, berkasnya kini sudah dihapus).
  *
  * CATATAN GAP (lihat komentar ikm.adapter.js): trend IKM, status/trend per
  * unsur, distribusi skor per unsur, dan tren tahunan multi-periode SEMUA

@@ -21,7 +21,7 @@ const CATEGORY_COLORS = [
  *
  * CATATAN GAP: panel "Resolusi SLA per Prioritas" dihapus total — backend
  * TIDAK punya konsep prioritas (High/Medium/Low) pada pengaduan sama sekali.
- * Lihat complaintAnalytics.js lama yang mengarang 98.2%/85.5%/92.0% per
+ * Konstanta dummy lamanya (complaintAnalytics.js, kini sudah dihapus) mengarang 98.2%/85.5%/92.0% per
  * priority tier — angka ini tak punya sumber nyata di mana pun.
  */
 export default function ComplaintAnalysisView({

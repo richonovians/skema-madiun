@@ -1,19 +1,36 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { User, LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
-import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
+import { useAsync } from '@/hooks/useAsync';
+import { getMyProfile } from '../services/profile.api';
 import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
 
-export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
+/**
+ * Menu akun di navbar warga (Navbar.jsx & DashboardNavbar.jsx).
+ *
+ * Profil diambil SENDIRI di sini lewat GET /auth/me. Sebelumnya komponen ini
+ * bergantung pada prop `user` yang default-nya `DUMMY_CURRENT_USER` -- dan KEDUA
+ * pemanggilnya tak pernah mengirim prop itu. Akibatnya setiap warga yang login
+ * melihat identitas orang yang tak ada: "Ahmad Fauzi", "ahmad.fauzi@gmail.com",
+ * "Responden / Masyarakat", di setiap halaman. Bukan sekadar default yang tak
+ * terpakai -- itu satu-satunya nilai yang pernah dirender.
+ *
+ * Aman memanggil /auth/me di sini: kedua pemanggil hanya merender komponen ini
+ * setelah sesi dipastikan ada (Navbar menjaganya dengan isAuthenticated(),
+ * halaman dashboard sendiri sudah di balik proxy.js).
+ */
+export default function ProfileAvatarDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
-  const pathname = usePathname();
+
+  const fetchProfile = useCallback(() => getMyProfile(), []);
+  const { data: user, isLoading } = useAsync(fetchProfile);
 
   // Menutup dropdown jika user mengklik area di luar dropdown
   useEffect(() => {
@@ -48,12 +65,16 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
         aria-haspopup="true"
         title="Menu Akun Saya"
       >
-        <Avatar
-          initials={user.initials}
-          src={user.avatarUrl}
-          size="md"
-          className="shadow-2xs border border-border cursor-pointer"
-        />
+        {isLoading ? (
+          <span className="w-8 h-8 rounded-full bg-surface-container animate-pulse" />
+        ) : (
+          <Avatar
+            initials={user?.initials ?? '?'}
+            src={user?.avatarUrl}
+            size="md"
+            className="shadow-2xs border border-border cursor-pointer"
+          />
+        )}
         <ChevronDown 
           size={14} 
           className={`text-text-secondary transition-transform duration-200 hidden sm:block ${isOpen ? 'rotate-180' : ''}`} 
@@ -66,15 +87,20 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
           {/* User Header Info inside Dropdown */}
           <div className="px-3.5 py-3 border-b border-border/60 mb-1">
             <div className="flex items-center gap-1.5 font-bold text-sm text-text-primary truncate">
-              <span>{user.name}</span>
-              <ShieldCheck size={14} className="text-emerald-500 shrink-0 inline" title="Akun Terverifikasi SSO" />
+              <span>{user?.name ?? 'Memuat...'}</span>
+              {/* Lencana ini menandakan sesi aktif, bukan verifikasi SSO
+                  sungguhan -- SSO Helpdesk belum dibangun (lihat catatan gap
+                  me.adapter.js), jadi tooltipnya tak lagi mengklaim itu. */}
+              <ShieldCheck size={14} className="text-emerald-500 shrink-0 inline" title="Sesi aktif" />
             </div>
             <p className="text-xs text-text-secondary truncate font-mono mt-0.5">
-              {user.email}
+              {user?.email ?? '-'}
             </p>
-            <div className="mt-1.5 inline-block bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider">
-              {user.roleLabel}
-            </div>
+            {user?.roleLabel && (
+              <div className="mt-1.5 inline-block bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider">
+                {user.roleLabel}
+              </div>
+            )}
           </div>
 
           {/* Navigation Items */}
