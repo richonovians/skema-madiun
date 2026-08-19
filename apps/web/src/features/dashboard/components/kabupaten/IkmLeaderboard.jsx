@@ -1,8 +1,16 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import clsx from 'clsx';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
-export default function IkmLeaderboard({ data = [] }) {
+/**
+ * `periode` (opsional) hanya untuk keterangan: isi kartu ini MEMANG mengikuti
+ * penyaring triwulan di navbar (data berasal dari `GET /dashboard/ikm?periode=`),
+ * jadi saat kosong pengguna perlu tahu bahwa yang kosong adalah periode itu --
+ * bukan seluruh sistem.
+ */
+export default function IkmLeaderboard({ data = [], periode }) {
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
@@ -23,13 +31,24 @@ export default function IkmLeaderboard({ data = [] }) {
 
   return (
     <div className="lg:col-span-2 bg-surface p-lg rounded-xl shadow-sm border border-border">
-      <div className="flex justify-between items-center mb-xl">
-        <h4 className="font-headline-md text-headline-md font-bold text-text-primary">
-          Leaderboard Perbandingan Nilai IKM antar-OPD
-        </h4>
-        <button className="text-primary text-xs font-bold hover:underline">
+      <div className="flex justify-between items-center gap-md mb-xl">
+        <div className="min-w-0">
+          <h4 className="font-headline-md text-headline-md font-bold text-text-primary">
+            Leaderboard Perbandingan Nilai IKM antar-OPD
+          </h4>
+          {periode && (
+            <p className="text-xs text-text-secondary mt-0.5">{formatPeriodeLabel(periode)}</p>
+          )}
+        </div>
+        {/* Dulu <button> tanpa handler sama sekali -- diklik tak terjadi apa pun.
+            Diarahkan ke monitoring survei lintas-OPD, satu-satunya halaman yang
+            memang memuat daftar lengkapnya. */}
+        <Link
+          href="/admin-kab/surveys"
+          className="text-primary text-xs font-bold hover:underline shrink-0"
+        >
           Lihat Semua
-        </button>
+        </Link>
       </div>
 
       <div className="space-y-md">
@@ -54,7 +73,9 @@ export default function IkmLeaderboard({ data = [] }) {
 
         {data.length === 0 && (
           <div className="text-center text-text-secondary text-sm py-md">
-            Belum ada data tersedia.
+            {periode
+              ? `Belum ada hasil IKM untuk ${formatPeriodeLabel(periode)}. Coba pilih triwulan lain pada navbar.`
+              : 'Belum ada data tersedia.'}
           </div>
         )}
       </div>
