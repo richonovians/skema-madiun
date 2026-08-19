@@ -29,6 +29,14 @@ export function adaptOpdDashboard(dashboard) {
       avgResponseTime: dashboard.avgResponseHours != null ? `${dashboard.avgResponseHours} Jam` : 'Belum ada data',
       slaTarget: `${dashboard.slaTargetHours} Jam`,
       completionRate: dashboard.completionRate,
+      // Nilai MENTAH ikut diteruskan (bukan cuma versi terformat di atas):
+      // DashboardSummary perlu MEMBANDINGKAN, bukan sekadar mencetak. Sebelum
+      // ini kartu SLA selalu berbunyi "Sesuai target SLA" walau realisasinya
+      // melewati target, dan tren responden selalu diberi warna/ikon positif
+      // walau persentasenya negatif -- keduanya klaim yang tak didukung data.
+      respondentTrendPercent: dashboard.respondentTrendPercent,
+      avgResponseHours: dashboard.avgResponseHours,
+      slaTargetHours: dashboard.slaTargetHours,
     },
     performanceMetrics: dashboard.performanceMetrics.map((m) => ({
       name: m.name,

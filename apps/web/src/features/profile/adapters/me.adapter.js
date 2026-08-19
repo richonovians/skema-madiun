@@ -41,6 +41,11 @@ export function adaptMe(me) {
     occupation: me.respondentProfile?.pekerjaan ?? null,
     role: frontendRole,
     roleLabel: ROLE_LABEL[frontendRole] ?? frontendRole,
+    // OPD tempat akun ini bertugas. Backend cuma mengirim ID-nya (MeEntity tak
+    // memuat nama OPD), jadi pemanggil yang butuh namanya menyandingkan sendiri
+    // lewat GET /opd/:id -- lihat AdminNavbar.jsx. `null` untuk kabupaten &
+    // responden yang memang tak tertaut OPD.
+    opdId: me.opdId ?? null,
     avatarUrl: null, // gap
     status: me.isActive ? 'ACTIVE' : 'INACTIVE',
     joinedAt: formatDateId(me.createdAt),
