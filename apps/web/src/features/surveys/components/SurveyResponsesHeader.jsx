@@ -2,12 +2,18 @@ import React from 'react';
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 
-/** "opd" (dummy hardcode "RSUD Daerah") diganti "period" (periode survei asli) -- admin OPD sudah tahu instansinya sendiri dari navbar. */
-export default function SurveyResponsesHeader({ surveyTitle, period }) {
+/**
+ * "opd" (dummy hardcode "RSUD Daerah") diganti "period" (periode survei asli) -- admin OPD sudah tahu instansinya sendiri dari navbar.
+ *
+ * `listHref` (2026-08-19): '/admin-opd/surveys' sebelumnya tertanam keras, padahal
+ * layar respons kini dipakai Admin Kabupaten juga (lihat SurveyResponsesScreen.jsx)
+ * -- tanpa prop ini tombol kembali akan melempar Admin Kab ke area peran lain.
+ */
+export default function SurveyResponsesHeader({ surveyTitle, period, listHref }) {
   return (
     <div className="mb-lg">
       <div className="flex items-center text-label-md text-on-surface-variant mb-md">
-        <Link href="/admin-opd/surveys" className="hover:text-primary transition-colors">
+        <Link href={listHref} className="hover:text-primary transition-colors">
           Daftar Survei
         </Link>
         <ChevronRight size={16} className="mx-xs" />
@@ -15,7 +21,7 @@ export default function SurveyResponsesHeader({ surveyTitle, period }) {
       </div>
 
       <div className="flex items-center gap-md">
-        <Link href="/admin-opd/surveys">
+        <Link href={listHref}>
           <button className="p-sm hover:bg-surface-container rounded-full transition-colors">
             <ArrowLeft size={24} className="text-on-surface" />
           </button>
