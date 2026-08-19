@@ -12,9 +12,8 @@ const TYPE_VARIANT = {
  * Dirombak total dari visualisasi RadioCard dgn opsi teks karangan (skala
  * dummy py label semu spt "Sangat Cepat/Sangat Baik" yg tak pernah tersimpan
  * di backend) -- backend cuma simpan nilai numerik 1-4 utk tipe skala, teks
- * bebas utk tipe teks, & id opsi terpilih utk tipe pilihan (belum ada UI
- * builder opsi jawaban, lihat gap survey.adapter.js -- kemungkinan besar
- * kosong di data nyata saat ini).
+ * bebas utk tipe teks, & id opsi terpilih utk tipe pilihan (labelnya disandingkan
+ * pemanggil lewat adaptSurveyResponseAnswer).
  */
 export default function SurveyResponseAnswers({ answers }) {
   return (
@@ -50,7 +49,12 @@ export default function SurveyResponseAnswers({ answers }) {
                 </p>
               )}
               {answer.selectedOptionId != null && (
-                <span className="text-on-surface-variant">Opsi terpilih #{answer.selectedOptionId}</span>
+                <span className="inline-block px-md py-sm rounded-lg bg-surface-container text-on-surface font-medium">
+                  {/* Label diambil dari daftar opsi pertanyaan (lihat
+                      adaptSurveyResponseAnswer); id mentah cuma jadi cadangan
+                      bila opsinya sudah terhapus dari pertanyaan. */}
+                  {answer.selectedOptionLabel ?? `Opsi terpilih #${answer.selectedOptionId}`}
+                </span>
               )}
               {answer.nilai == null && answer.teks == null && answer.selectedOptionId == null && (
                 <span className="text-on-surface-variant italic">(tidak diisi)</span>

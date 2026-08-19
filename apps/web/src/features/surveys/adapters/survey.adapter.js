@@ -119,12 +119,10 @@ const QUESTION_TYPE_TO_FRONTEND = {
  * Terjemahkan SurveyFillEntity (GET /surveys/:id/fill) ke bentuk yang dipakai
  * wizard pengisian (lihat features/surveys/store/useSurveyStore.js).
  *
- * CATATAN GAP UI (bukan gap backend): QuestionCard.jsx saat ini HANYA
- * merender tipe 'scale_1_to_4' -- pertanyaan tipe teks/pilihan akan lolos
- * dari adapter ini (diterjemahkan dgn benar) TAPI belum ada tampilan wizard
- * utk keduanya. Tak masalah utk survei 9-unsur baku (semua skala), tapi
- * survei kustom ber-pertanyaan teks/pilihan belum sepenuhnya bisa diisi
- * lewat wizard ini -- perlu perluasan QuestionCard di tiket terpisah.
+ * Ketiga tipe ('scale_1_to_4', 'text', 'multiple_choice') kini punya tampilan
+ * pengisiannya masing-masing di QuestionCard.jsx. Sebelum 2026-08-19 kartu itu
+ * SELALU merender skala 1-4, jadi pertanyaan uraian/pilihan ganda tak benar-benar
+ * dapat diisi walau adapter ini sudah menerjemahkannya dengan benar.
  */
 export function adaptFillQuestion(q) {
   return {
@@ -205,6 +203,9 @@ export function adaptBuilderQuestion(q, customIndex) {
     text: q.teks,
     type: QUESTION_TYPE_TO_BUILDER[q.tipe] ?? q.tipe,
     isRequired: q.tipe !== 'teks',
+    // Hanya tipe `pilihan` yang punya isi; tipe lain selalu array kosong (bukan
+    // undefined) supaya QuestionBlock bisa langsung `.length` tanpa penjagaan.
+    options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label })),
   };
 }
 
@@ -218,13 +219,20 @@ export function adaptBuilderQuestions(questions) {
 
 /**
  * Terjemahkan payload tambah-pertanyaan-kustom (bentuk builder) -> CreateQuestionDto.
- * CATATAN GAP: tipe 'Pilihan Ganda' butuh `options` (wajib >=2 di backend),
- * TAPI builder saat ini TAK PUNYA UI pengaturan opsi sama sekali -- caller
- * (page.jsx) sengaja TIDAK memanggil ini utk tipe pilihan, biar tak coba
- * kirim payload yg pasti 400. Lihat catatan di page.jsx.
+ *
+ * `options` diterima sebagai array label (string) dari QuestionOptionsModal dan
+ * dibungkus jadi QuestionOptionInputDto di sini. Field itu HANYA disertakan utk
+ * tipe pilihan: backend menolak `options` pada tipe lain (400 "Opsi hanya
+ * berlaku untuk tipe pilihan"), dan mewajibkannya (>=2) pada tipe pilihan.
  */
-export function toCreateQuestionPayload({ text, type }) {
-  return { teks: text, tipe: builderTypeToBackendTipe(type), isIkmUnsur: false };
+export function toCreateQuestionPayload({ text, type, options }) {
+  const tipe = builderTypeToBackendTipe(type);
+  return {
+    teks: text,
+    tipe,
+    isIkmUnsur: false,
+    ...(tipe === 'pilihan' ? { options: (options ?? []).map((label) => ({ label })) } : {}),
+  };
 }
 
 // --- Respons masuk (GET /surveys/:id/responses, Admin OPD, INT-38) ---
@@ -242,6 +250,11 @@ export function adaptSurveyResponseAnswer(answer, question) {
     nilai: answer.nilai,
     teks: answer.teks,
     selectedOptionId: answer.selectedOptionId,
+    // AnswerEntity backend cuma mengirim id opsi terpilih (bukan salinan
+    // labelnya) -- labelnya diambil dari daftar opsi pertanyaan yg sudah
+    // di-fetch pemanggil, supaya tampilan tak berhenti di "Opsi #12".
+    selectedOptionLabel:
+      question?.options?.find((o) => o.id === answer.selectedOptionId)?.label ?? null,
   };
 }
 

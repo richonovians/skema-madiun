@@ -6,6 +6,7 @@ import BuilderLayout from './BuilderLayout';
 import BuilderToolbar from './BuilderToolbar';
 import BuilderCanvas from './BuilderCanvas';
 import FloatingStatus from './FloatingStatus';
+import QuestionOptionsModal from './QuestionOptionsModal';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -57,6 +58,11 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [actionError, setActionError] = useState(null);
+  // Tipe "Pilihan Ganda" butuh opsi jawaban lengkap SEBELUM dikirim (lihat
+  // QuestionOptionsModal.jsx) -- errornya ditaruh di state terpisah agar tampil
+  // di dalam modal, bukan di banner yang tertutup modal itu sendiri.
+  const [isOptionsFormOpen, setIsOptionsFormOpen] = useState(false);
+  const [optionsError, setOptionsError] = useState(null);
 
   const fetchExisting = useCallback(async () => {
     if (isNew) return null;
@@ -157,24 +163,50 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...updates } : q)));
   };
 
+  /** Kirim satu pertanyaan kustom & sisipkan ke daftar lokal. Melempar bila gagal. */
+  const createCustom = async ({ text, type, options }) => {
+    assertDraftOrThrow();
+    const id = await ensureSurveyExists();
+    const customCount = questions.filter((q) => !q.isBaku).length;
+    const created = await createCustomQuestion(id, { text, type, options });
+    setQuestions((prev) => [...prev, { ...created, title: `Pertanyaan Kustom #${customCount + 1}` }]);
+  };
+
   const handleAddCustom = async (type = 'Skala Penilaian 1-4') => {
     setActionError(null);
     if (type === 'Pilihan Ganda') {
-      // GAP: builder ini belum punya UI pengaturan opsi jawaban, padahal
-      // backend WAJIB >=2 opsi utk tipe pilihan (CreateQuestionDto). Daripada
-      // kirim payload yg pasti 400, ditolak di sini dgn pesan jelas.
-      setActionError('Tipe "Pilihan Ganda" belum didukung builder ini (pengaturan opsi jawaban belum tersedia).');
+      // Tipe pilihan tak bisa dibuat dgn sekali klik seperti skala/teks: backend
+      // WAJIB menerima >=2 opsi jawaban di permintaan POST yang sama, dan opsi
+      // tak dapat ditambahkan belakangan lewat PATCH. Jadi kumpulkan dulu.
+      try {
+        assertDraftOrThrow();
+      } catch (err) {
+        setActionError(err.message);
+        return;
+      }
+      setOptionsError(null);
+      setIsOptionsFormOpen(true);
       return;
     }
     setIsSaving(true);
     try {
-      assertDraftOrThrow();
-      const id = await ensureSurveyExists();
-      const customCount = questions.filter((q) => !q.isBaku).length;
-      const created = await createCustomQuestion(id, { text: 'Pertanyaan baru', type });
-      setQuestions((prev) => [...prev, { ...created, title: `Pertanyaan Kustom #${customCount + 1}` }]);
+      await createCustom({ text: 'Pertanyaan baru', type });
     } catch (err) {
       setActionError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSubmitPilihan = async ({ text, options }) => {
+    setOptionsError(null);
+    setIsSaving(true);
+    try {
+      await createCustom({ text, type: 'Pilihan Ganda', options });
+      setIsOptionsFormOpen(false);
+    } catch (err) {
+      // Modal dibiarkan terbuka supaya isian tak hilang & bisa diperbaiki.
+      setOptionsError(err.message);
     } finally {
       setIsSaving(false);
     }
@@ -259,6 +291,15 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         periode={periode}
       />
       <FloatingStatus questionCount={questions.length} />
+
+      {isOptionsFormOpen && (
+        <QuestionOptionsModal
+          isSubmitting={isSaving}
+          submitError={optionsError}
+          onSubmit={handleSubmitPilihan}
+          onCancel={() => setIsOptionsFormOpen(false)}
+        />
+      )}
     </BuilderLayout>
   );
 }

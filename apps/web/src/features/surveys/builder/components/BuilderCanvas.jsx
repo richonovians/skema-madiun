@@ -39,7 +39,9 @@ export default function BuilderCanvas({ questions, onDelete, onUpdate, onTextCom
           <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center group-hover:scale-110 transition-transform">
             <Plus size={24} />
           </div>
-          <span className="text-label-md font-label-md">Tarik komponen ke sini untuk menambah pertanyaan</span>
+          {/* Bukan "tarik ke sini": seret-menyeret tak diimplementasikan, klik
+              area ini menambah satu pertanyaan skala (lihat BuilderSidebar.jsx). */}
+          <span className="text-label-md font-label-md">Klik di sini untuk menambah pertanyaan skala 1-4</span>
         </div>
       </div>
     </main>

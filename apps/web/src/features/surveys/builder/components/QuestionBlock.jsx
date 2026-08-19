@@ -1,8 +1,65 @@
 import React from 'react';
-import { Lock, GripVertical, Trash2, Copy, Settings } from 'lucide-react';
+import { Lock, GripVertical, Trash2 } from 'lucide-react';
+
+const SCALE_STEPS = [1, 2, 3, 4];
+
+/**
+ * Pratinjau bentuk jawaban sesuai tipe pertanyaan -- read-only, sekadar
+ * memperlihatkan apa yang akan dilihat responden (lihat QuestionCard.jsx yang
+ * merender versi sungguhannya). Sebelum ini blok pertanyaan hanya menampilkan
+ * nama tipe sebagai teks, sehingga "Pilihan Ganda" & "Uraian" tak terlihat
+ * bedanya sama sekali di kanvas builder.
+ */
+function AnswerPreview({ type, options }) {
+  if (type === 'Isian Teks') {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-surface-container-low px-md py-sm text-xs text-text-secondary italic">
+        Responden mengisi jawaban bebas di sini (tidak wajib).
+      </div>
+    );
+  }
+
+  if (type === 'Pilihan Ganda') {
+    if (options.length === 0) {
+      return (
+        <div className="rounded-lg border border-dashed border-border bg-surface-container-low px-md py-sm text-xs text-text-secondary italic">
+          Opsi jawaban tidak ditemukan.
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-xs">
+        {options.map((option, index) => (
+          <div key={option.id} className="flex items-center gap-sm text-xs text-text-secondary">
+            <span className="w-5 h-5 shrink-0 rounded-full border border-border flex items-center justify-center text-[10px] font-bold">
+              {String.fromCharCode(65 + index)}
+            </span>
+            <span className="truncate">{option.label}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Skala 1-4 (termasuk seluruh unsur baku PermenPANRB 14/2017).
+  return (
+    <div className="flex items-center gap-xs">
+      {SCALE_STEPS.map((step) => (
+        <span
+          key={step}
+          className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-[11px] font-bold text-text-secondary"
+        >
+          {step}
+        </span>
+      ))}
+      <span className="ml-sm text-xs text-text-secondary">1 = terburuk, 4 = terbaik</span>
+    </div>
+  );
+}
 
 export default function QuestionBlock({ question, onDelete, onUpdate, onTextCommit }) {
   const isBaku = question.isBaku;
+  const options = question.options ?? [];
 
   if (isBaku) {
     return (
@@ -20,19 +77,22 @@ export default function QuestionBlock({ question, onDelete, onUpdate, onTextComm
           </span>
         </div>
         <div className="mb-md">
-          <textarea 
-            className="w-full bg-white/50 border border-border rounded-lg p-md text-body-md font-body-md resize-none focus:ring-0" 
+          <textarea
+            className="w-full bg-white/50 border border-border rounded-lg p-md text-body-md font-body-md resize-none focus:ring-0"
             readOnly
             value={question.text}
             rows={2}
           />
         </div>
+        <div className="mb-md">
+          <AnswerPreview type={question.type} options={options} />
+        </div>
         <div className="flex items-center gap-md">
           <div className="flex items-center gap-2">
-            <input 
-              checked 
-              className="rounded border-border text-primary focus:ring-0" 
-              disabled 
+            <input
+              checked
+              className="rounded border-border text-primary focus:ring-0"
+              disabled
               type="checkbox"
             />
             <label className="text-xs font-medium text-text-secondary">Hitung ke perhitungan Nilai IKM</label>
@@ -50,7 +110,7 @@ export default function QuestionBlock({ question, onDelete, onUpdate, onTextComm
         <GripVertical size={16} />
         <span className="text-[10px] font-bold">FOKUS</span>
       </div>
-      
+
       <div className="flex justify-between items-start mb-md">
         <div className="flex-1 mr-xl">
           <label className="block text-xs font-bold text-primary mb-xs uppercase">{question.title}</label>
@@ -72,7 +132,7 @@ export default function QuestionBlock({ question, onDelete, onUpdate, onTextComm
         </button>
       </div>
 
-      <div className="mb-xl">
+      <div className="mb-xl flex flex-col gap-md">
         <div className="flex flex-col gap-xs max-w-[240px]">
           {/* Tipe HANYA bisa dipilih saat menambah (lihat BuilderSidebar.jsx) --
               backend (UpdateQuestionDto) tak dukung ubah tipe pertanyaan yang
@@ -82,24 +142,25 @@ export default function QuestionBlock({ question, onDelete, onUpdate, onTextComm
             {question.type}
           </div>
         </div>
+
+        <AnswerPreview type={question.type} options={options} />
+
+        {question.type === 'Pilihan Ganda' && (
+          <p className="text-[11px] text-text-secondary italic">
+            Opsi jawaban tidak dapat diubah setelah pertanyaan dibuat -- hapus lalu buat ulang bila
+            perlu diperbaiki.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center justify-between pt-md border-t border-border">
         <div className="flex items-center gap-md">
           {/* Wajib-diisi DIDERIVASI dari tipe (skala/pilihan selalu wajib, teks
-              selalu opsional) -- backend tak punya flag terpisah yg bisa
+              selalu opsional) -- backend tak punya flag wajib terpisah yg bisa
               diubah per pertanyaan, jadi read-only, bukan toggle sungguhan. */}
           <span className="text-xs font-medium text-text-secondary">
             {question.isRequired ? '✓ Wajib diisi' : 'Opsional (isian teks)'}
           </span>
-        </div>
-        <div className="flex gap-sm">
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-primary transition-colors">
-            <Copy size={16} />
-          </button>
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-primary transition-colors">
-            <Settings size={16} />
-          </button>
         </div>
       </div>
     </div>
