@@ -8,7 +8,11 @@ export default function ChatMessageBubble({
   attachments = [],
   timestamp,
   senderRole = 'user', // 'user' or 'admin'
-  senderName = 'ADMIN OPD',
+  // "ADMIN OPD" -> "Admin" (2026-08-19): pengirim non-pelapor bisa Admin OPD
+  // MAUPUN Admin Kabupaten, dan backend tak mengirim peran penulis sama sekali
+  // (lihat catatan di complaint.adapter.js). Ini cuma cadangan -- nilai
+  // sungguhannya selalu datang dari adapter lewat ChatMessageList.
+  senderName = 'Admin',
   status = 'Terkirim'
 }) {
   const isUser = senderRole === 'user';
