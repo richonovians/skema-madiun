@@ -6,9 +6,11 @@ export const metadata = {
   description: 'Executive Dashboard untuk Administrator Kabupaten',
 };
 
-// Segmen admin-kab dirender dinamis (navbar & dashboard memakai useSearchParams).
-// Menghindari bailout prerender CSR saat `next build`.
-export const dynamic = 'force-dynamic';
+// `export const dynamic = 'force-dynamic'` DIHAPUS (2026-08-19): satu-satunya
+// alasannya adalah `useSearchParams` di AdminKabNavbar, dan penyaring navbar kini
+// memakai context (AdminKabLayoutProvider) alih-alih query param -- tak ada lagi
+// pembaca useSearchParams di seluruh pohon admin-kab, jadi tak ada bailout
+// prerender CSR yang perlu dihindari.
 
 export default function Layout({ children }) {
   return (
