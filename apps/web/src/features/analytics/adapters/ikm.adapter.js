@@ -3,7 +3,7 @@ import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 /**
  * Terjemahkan IkmResultEntity backend (GET /surveys/:id/results) ke bentuk yang
- * dipakai komponen (lihat features/analytics/constants/skmAnalytics.js). Satu
+ * dipakai komponen. Satu
  * tempat -- perubahan kontrak backend cukup diubah di sini (INT-6).
  *
  * Label mutu (A=Sangat Baik dst, lihat utils/enumLabels.js) BUKAN dikarang --

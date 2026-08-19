@@ -13,7 +13,9 @@ export const aboutContent = {
   hero: {
     title: "Membangun Pelayanan Publik yang Lebih Transparan, Cepat, dan Responsif",
     description: "SKEMA Madiun merupakan Sistem Keluhan, Evaluasi, dan Manajemen Aspirasi yang dirancang untuk memperkuat sinergi antara masyarakat dan Pemerintah Kabupaten Madiun dalam menciptakan pelayanan publik yang prima.",
-    illustration: "/placeholder-hero.svg" // Replace with actual asset when available
+    // `illustration: "/placeholder-hero.svg"` dibuang: berkas itu tak pernah ada
+    // di public/, dan tak satu pun komponen membacanya -- referensi mati yang
+    // hanya menunggu dipakai lalu menghasilkan gambar rusak.
   },
   platform: {
     title: "Tentang Platform",
