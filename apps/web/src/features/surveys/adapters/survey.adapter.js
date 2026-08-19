@@ -37,6 +37,41 @@ export function formatPeriodeLabel(periode) {
   return `Triwulan ${ROMAN_BY_QUARTER[parsed.triwulan]} - ${parsed.tahun}`;
 }
 
+/**
+ * Bucket sebuah tanggal ke periode triwulan kanonik. Cermin persis
+ * `periodeFromDate` backend (surveys/utils/periode.util.ts) -- dipakai untuk
+ * entitas yang TAK punya field `periode` sendiri, khususnya `Complaint`
+ * (cuma punya `createdAt`), supaya penyaringan per triwulan di dashboard
+ * konsisten dengan cara backend membucket tren pengaduannya.
+ */
+export function periodeFromDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return buildPeriode(d.getFullYear(), Math.floor(d.getMonth() / 3) + 1);
+}
+
+/**
+ * Daftar pilihan periode untuk penyaring triwulan (lihat AdminNavbar.jsx).
+ *
+ * Rentangnya SENGAJA berpusat pada triwulan berjalan: `back` triwulan ke
+ * belakang (riwayat yang memang punya data) + `forward` ke depan (survei
+ * periode berikutnya biasa disiapkan lebih awal, lihat rentang tahun
+ * BuilderToolbar). Terurut terbaru dulu supaya triwulan berjalan -- nilai
+ * default penyaring -- selalu berada di dekat puncak daftar.
+ */
+export function buildRecentPeriodeOptions({ back = 7, forward = 1, from = new Date() } = {}) {
+  const base = from instanceof Date ? from : new Date(from);
+  // Indeks triwulan absolut (tahun*4 + triwulan-1) supaya pergeseran melewati
+  // batas tahun tak perlu ditangani sebagai kasus khusus.
+  const baseIndex = base.getFullYear() * 4 + Math.floor(base.getMonth() / 3);
+  const options = [];
+  for (let offset = forward; offset >= -back; offset -= 1) {
+    const index = baseIndex + offset;
+    const periode = buildPeriode(Math.floor(index / 4), (index % 4) + 1);
+    options.push({ value: periode, label: formatPeriodeLabel(periode) });
+  }
+  return options;
+}
+
 export function adaptSurvey(survey) {
   return {
     id: String(survey.id),
