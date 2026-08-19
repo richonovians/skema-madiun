@@ -68,15 +68,28 @@ export async function getQuestions(surveyId) {
 }
 
 /**
- * @param {{text: string, type: string}} payload bentuk builder (lihat BuilderSidebar.jsx).
- * @returns {Promise<{id: number, text: string, type: string, isBaku: false}>} TANPA `title` --
- *   label "Pertanyaan Kustom #N" bergantung posisi di daftar lokal pemanggil,
- *   biar tak dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
+ * @param {{text: string, type: string, options?: string[]}} payload bentuk builder
+ *   (lihat BuilderSidebar.jsx). `options` = daftar label, WAJIB >=2 utk tipe
+ *   'Pilihan Ganda' (dikumpulkan QuestionOptionsModal sebelum pemanggilan ini).
+ * @returns {Promise<object>} bentuk pertanyaan builder TANPA `title` -- label
+ *   "Pertanyaan Kustom #N" bergantung posisi di daftar lokal pemanggil, biar tak
+ *   dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
  */
 export async function createCustomQuestion(surveyId, payload) {
   const response = await api.post(`/surveys/${surveyId}/questions`, toCreateQuestionPayload(payload));
   const q = response.data;
-  return { id: q.id, text: q.teks, type: payload.type, isBaku: false };
+  return {
+    id: q.id,
+    text: q.teks,
+    type: payload.type,
+    isBaku: false,
+    // Diselaraskan dgn adaptBuilderQuestion supaya blok pertanyaan yg baru
+    // ditambah tampil persis sama dgn setelah halaman dimuat ulang. Sebelumnya
+    // `isRequired` tak diisi sama sekali -- pertanyaan skala baru keliru
+    // berlabel "Opsional (isian teks)" sampai builder di-refresh.
+    isRequired: q.tipe !== 'teks',
+    options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label })),
+  };
 }
 
 /** Terapkan template 9 unsur baku -- SATU panggilan backend, bukan disimulasikan lokal (lihat INT-30 -> INT-19). */

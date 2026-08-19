@@ -42,17 +42,17 @@ export default function BuilderSidebar({ onAddBaku, onAddCustom }) {
             <GripVertical className="text-text-secondary group-hover:text-primary" />
             <div className="flex flex-col">
               <span className="font-label-md text-label-md">Pilihan Ganda</span>
-              <span className="text-[10px] text-text-secondary">Multiple Choice</span>
+              <span className="text-[10px] text-text-secondary">Atur sendiri opsi jawabannya</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={() => onAddCustom && onAddCustom('Isian Teks')}
             className="draggable-item group cursor-pointer active:cursor-grabbing bg-white border border-border rounded-lg p-md flex items-center gap-md hover:border-primary hover:shadow-sm transition-all"
           >
             <GripVertical className="text-text-secondary group-hover:text-primary" />
             <div className="flex flex-col">
-              <span className="font-label-md text-label-md">Isian Teks Terbuka</span>
-              <span className="text-[10px] text-text-secondary">Long Answer</span>
+              <span className="font-label-md text-label-md">Uraian</span>
+              <span className="text-[10px] text-text-secondary">Isian teks bebas, tidak wajib</span>
             </div>
           </div>
         </div>
@@ -62,8 +62,12 @@ export default function BuilderSidebar({ onAddBaku, onAddCustom }) {
       <div className="mt-auto p-md bg-surface-container-low rounded-xl border border-border">
         <div className="flex items-start gap-sm">
           <Info className="text-primary shrink-0" size={20} />
+          {/* Teks lama menjanjikan tarik-dan-lepas, padahal seret-menyeret tak
+              pernah diimplementasikan (satu-satunya cara menambah adalah klik)
+              -- petunjuk yang salah membuat komponen ini disangka rusak. */}
           <p className="text-xs text-on-surface-variant leading-relaxed">
-            Tarik dan lepas komponen ke area kerja di sebelah kanan untuk menyusun kuesioner.
+            Klik komponen di atas untuk menambahkannya ke kuesioner. Untuk Pilihan Ganda, opsi
+            jawaban diisi lewat jendela yang muncul.
           </p>
         </div>
       </div>
