@@ -21,6 +21,7 @@ import {
   applyQuestionTemplate,
   deleteQuestion,
   updateQuestionText,
+  reorderQuestions,
 } from '@/features/surveys/services/surveys.api';
 
 /**
@@ -38,6 +39,14 @@ import {
  * backend selalu meloloskan role kabupaten). `listHref` menentukan ke mana
  * tombol kembali & redirect setelah publikasi mengarah, supaya pengguna tak
  * pernah terlempar ke area peran yang bukan miliknya.
+ *
+ * SERET-LEPAS (2026-08-19): urutan pertanyaan bisa diubah dengan menyeret
+ * pegangannya, dan komponen dari bilah sisi bisa dilepas langsung ke posisi yang
+ * diinginkan. Keduanya persisten lewat `PATCH /surveys/:id/questions/reorder`
+ * (backend sudah menyediakannya sejak awal, dan `reorderQuestions` di
+ * surveys.api.js sudah ada tapi belum pernah dipanggil). Hanya berlaku saat
+ * status DRAF -- `assertDraft` backend menolak di luar itu, jadi afordansi
+ * seretnya sekalian dimatikan daripada mengundang gerakan yang pasti gagal.
  */
 export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref }) {
   const isNew = surveyIdParam === 'new';
@@ -63,6 +72,14 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   // di dalam modal, bukan di banner yang tertutup modal itu sendiri.
   const [isOptionsFormOpen, setIsOptionsFormOpen] = useState(false);
   const [optionsError, setOptionsError] = useState(null);
+  // Seret-lepas (2026-08-19). State-nya dipegang di sini, BUKAN di dataTransfer,
+  // karena browser melarang membaca dataTransfer saat `dragover` -- padahal
+  // kanvas perlu tahu apa yang sedang diseret untuk menggambar garis sisipan.
+  // { kind: 'reorder', index } | { kind: 'new', type }
+  const [drag, setDrag] = useState(null);
+  // Slot tujuan saat komponen "Pilihan Ganda" dilepas di tengah daftar --
+  // pembuatannya tertunda sampai opsi jawaban diisi di modal.
+  const [pendingInsertSlot, setPendingInsertSlot] = useState(null);
 
   const fetchExisting = useCallback(async () => {
     if (isNew) return null;
@@ -163,16 +180,84 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...updates } : q)));
   };
 
-  /** Kirim satu pertanyaan kustom & sisipkan ke daftar lokal. Melempar bila gagal. */
-  const createCustom = async ({ text, type, options }) => {
-    assertDraftOrThrow();
-    const id = await ensureSurveyExists();
-    const customCount = questions.filter((q) => !q.isBaku).length;
-    const created = await createCustomQuestion(id, { text, type, options });
-    setQuestions((prev) => [...prev, { ...created, title: `Pertanyaan Kustom #${customCount + 1}` }]);
+  /**
+   * Pindahkan satu pertanyaan ke SLOT SISIPAN baru (0..questions.length; lihat
+   * penjelasan slot di BuilderCanvas.jsx). Optimistik lalu di-rollback bila
+   * backend menolak, pola sama dengan handleDelete.
+   */
+  const moveQuestion = async (fromIndex, toSlot) => {
+    setActionError(null);
+    if (status !== 'DRAF') {
+      setActionError('Survei sudah tidak berstatus draf -- urutan pertanyaan tidak dapat diubah.');
+      return;
+    }
+    if (!surveyId) return;
+    // Slot tepat sebelum atau sesudah dirinya sendiri berarti tidak berpindah.
+    if (toSlot === fromIndex || toSlot === fromIndex + 1) return;
+
+    const previous = questions;
+    const next = [...questions];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toSlot > fromIndex ? toSlot - 1 : toSlot, 0, moved);
+
+    setQuestions(next);
+    setIsSaving(true);
+    try {
+      // ReorderQuestionsDto menuntut SELURUH id pertanyaan survei ini (bukan
+      // hanya yang berpindah) dan mengembalikan daftar final yang sudah terurut.
+      const updated = await reorderQuestions(
+        surveyId,
+        next.map((q) => q.id),
+      );
+      setQuestions(updated);
+    } catch (err) {
+      setQuestions(previous);
+      setActionError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleAddCustom = async (type = 'Skala Penilaian 1-4') => {
+  /** Kirim satu pertanyaan kustom & sisipkan ke daftar lokal. Melempar bila gagal. */
+  const createCustom = async ({ text, type, options, insertSlot = null }) => {
+    assertDraftOrThrow();
+    const id = await ensureSurveyExists();
+    const before = questions;
+    const customCount = before.filter((q) => !q.isBaku).length;
+    const created = await createCustomQuestion(id, { text, type, options });
+    const withTitle = { ...created, title: `Pertanyaan Kustom #${customCount + 1}` };
+    const appended = [...before, withTitle];
+
+    // Backend SELALU menaruh pertanyaan baru di akhir (`nextUrutan`), tak ada
+    // parameter posisi. Jadi kalau pengguna melepasnya di tengah daftar,
+    // posisinya dibetulkan menyusul lewat endpoint reorder -- dua panggilan,
+    // tapi hasil akhirnya persis di tempat ia melepas.
+    if (insertSlot == null || insertSlot >= appended.length - 1) {
+      setQuestions(appended);
+      return;
+    }
+
+    const placed = [...before];
+    placed.splice(insertSlot, 0, withTitle);
+    setQuestions(placed);
+    try {
+      const updated = await reorderQuestions(
+        id,
+        placed.map((q) => q.id),
+      );
+      setQuestions(updated);
+    } catch {
+      // Pertanyaannya SUDAH tersimpan di backend -- yang gagal cuma posisinya,
+      // jadi jangan dilempar sebagai kegagalan pembuatan (nanti pengguna
+      // menyangka harus mengulang dan jadi dobel).
+      setQuestions(appended);
+      setActionError(
+        'Pertanyaan berhasil dibuat, tetapi posisinya gagal disimpan -- untuk sementara diletakkan di akhir daftar.',
+      );
+    }
+  };
+
+  const handleAddCustom = async (type = 'Skala Penilaian 1-4', insertSlot = null) => {
     setActionError(null);
     if (type === 'Pilihan Ganda') {
       // Tipe pilihan tak bisa dibuat dgn sekali klik seperti skala/teks: backend
@@ -185,12 +270,13 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         return;
       }
       setOptionsError(null);
+      setPendingInsertSlot(insertSlot);
       setIsOptionsFormOpen(true);
       return;
     }
     setIsSaving(true);
     try {
-      await createCustom({ text: 'Pertanyaan baru', type });
+      await createCustom({ text: 'Pertanyaan baru', type, insertSlot });
     } catch (err) {
       setActionError(err.message);
     } finally {
@@ -198,12 +284,25 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
+  /** Dilepas di kanvas: pindah urutan, atau tambah pertanyaan baru di slot itu. */
+  const handleDropAt = (slot) => {
+    const current = drag;
+    setDrag(null);
+    if (!current) return;
+    if (current.kind === 'reorder') {
+      moveQuestion(current.index, slot);
+      return;
+    }
+    handleAddCustom(current.type, slot);
+  };
+
   const handleSubmitPilihan = async ({ text, options }) => {
     setOptionsError(null);
     setIsSaving(true);
     try {
-      await createCustom({ text, type: 'Pilihan Ganda', options });
+      await createCustom({ text, type: 'Pilihan Ganda', options, insertSlot: pendingInsertSlot });
       setIsOptionsFormOpen(false);
+      setPendingInsertSlot(null);
     } catch (err) {
       // Modal dibiarkan terbuka supaya isian tak hilang & bisa diperbaiki.
       setOptionsError(err.message);
@@ -263,7 +362,13 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   }
 
   return (
-    <BuilderLayout onAddBaku={handleAddBaku} onAddCustom={handleAddCustom}>
+    <BuilderLayout
+      onAddBaku={handleAddBaku}
+      onAddCustom={handleAddCustom}
+      onDragTypeStart={(type) => setDrag({ kind: 'new', type })}
+      onDragEnd={() => setDrag(null)}
+      canDrag={status === 'DRAF'}
+    >
       <BuilderToolbar
         title={title}
         onTitleChange={setTitle}
@@ -289,6 +394,12 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onAdd={() => handleAddCustom('Skala Penilaian 1-4')}
         title={title}
         periode={periode}
+        drag={drag}
+        canReorder={status === 'DRAF'}
+        onQuestionDragStart={(index) => setDrag({ kind: 'reorder', index })}
+        onDragEnd={() => setDrag(null)}
+        onDropAt={handleDropAt}
+        onMove={moveQuestion}
       />
       <FloatingStatus questionCount={questions.length} />
 
@@ -297,7 +408,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           isSubmitting={isSaving}
           submitError={optionsError}
           onSubmit={handleSubmitPilihan}
-          onCancel={() => setIsOptionsFormOpen(false)}
+          onCancel={() => {
+            setIsOptionsFormOpen(false);
+            setPendingInsertSlot(null);
+          }}
         />
       )}
     </BuilderLayout>
