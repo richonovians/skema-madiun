@@ -3,14 +3,15 @@
 import React, { use } from 'react';
 import SurveyResponseDetailScreen from '@/features/surveys/components/SurveyResponseDetailScreen';
 
-/** Lihat catatan pola di SurveyResponsesScreen.jsx (satu implementasi, dua rute). */
-export default function SurveyResponseDetailPage({ params }) {
+/** Detail satu respons untuk Admin Kabupaten (rute BARU 2026-08-19) -- lihat catatan di ../page.jsx. */
+export default function AdminKabSurveyResponseDetailPage({ params }) {
   const { id, responseId } = use(params);
   return (
     <SurveyResponseDetailScreen
       surveyId={id}
       responseId={responseId}
-      basePath="/admin-opd/surveys"
+      basePath="/admin-kab/surveys"
+      className="p-lg w-full"
     />
   );
 }

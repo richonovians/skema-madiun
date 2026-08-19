@@ -10,8 +10,12 @@ import { Eye } from 'lucide-react';
  * catatan di response.entity.ts & survey.adapter.js). "Nilai" sekarang
  * `averageScore` DIDERIVASI dari jawaban skala respons itu sendiri (bukan
  * field backend).
+ *
+ * `basePath` (2026-08-19): akar area ('/admin-opd/surveys' | '/admin-kab/surveys').
+ * Sebelumnya '/admin-opd' tertanam keras di tautan Detail, sehingga tabel ini tak
+ * bisa dipakai Admin Kabupaten tanpa memindahkannya ke area peran lain.
  */
-export default function SurveyResponsesTable({ surveyId, responses }) {
+export default function SurveyResponsesTable({ surveyId, responses, basePath }) {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', {
@@ -51,7 +55,7 @@ export default function SurveyResponsesTable({ surveyId, responses }) {
                 </span>
               </Td>
               <Td>
-                <Link href={`/admin-opd/surveys/${surveyId}/responses/${response.id}`}>
+                <Link href={`${basePath}/${surveyId}/responses/${response.id}`}>
                   <Button variant="secondary">
                     <Eye size={16} />
                     Detail

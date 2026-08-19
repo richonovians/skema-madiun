@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Badge from '@/components/ui/Badge';
-import { Eye, FileEdit, Pencil, UploadCloud, Lock, Unlock, Trash2 } from 'lucide-react';
+import { Eye, FileEdit, Pencil, UploadCloud, Lock, Unlock, Trash2, ClipboardList } from 'lucide-react';
 import ShareSurveyButton from '@/features/surveys/components/ShareSurveyButton';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
@@ -33,6 +33,9 @@ const ACTION_CLASS =
  *   Aksi "Aktifkan Kembali" ditambahkan 2026-08-19; sebelumnya baris DITUTUP
  *   jadi jalan buntu di tabel ini padahal backend mengizinkan pembukaan kembali
  *   dan Admin OPD sudah bisa melakukannya lewat switch di kartunya.
+ * - "Respons" hanya NON-DRAF (2026-08-19): membuka daftar respons per pengisi di
+ *   area admin-kab sendiri. Backend memang mengizinkan (GET /surveys/:id/responses
+ *   ber-@Roles(kabupaten, opd)); yang tadinya hilang cuma rutenya di frontend.
  * - "Pertanyaan" JUGA hanya DRAF: begitu survei dipublikasikan, pertanyaannya
  *   terkunci (builder sendiri menolak lewat assertDraftOrThrow, dan backend
  *   menolak perubahan pertanyaan di luar status draft) -- menampilkan tombol
@@ -134,6 +137,22 @@ export default function SurveyMonitoringTable({
                       {/* Komponen yang sama dipakai kartu survei Admin OPD --
                           satu implementasi QR/tautan untuk kedua area. */}
                       <ShareSurveyButton survey={survey} className={ACTION_CLASS} iconSize={12} />
+
+                      {/* "Respons" hanya untuk survei terbit: draf belum pernah
+                          dibuka utk diisi, jadi tautannya pasti mendarat di tabel
+                          kosong. Ditambahkan 2026-08-19 -- sebelumnya Admin
+                          Kabupaten tak punya jalan APA PUN ke respons per pengisi
+                          (rutenya cuma ada di /admin-opd/**, sehingga URL sepadan
+                          di area ini 404). */}
+                      {!isDraft && (
+                        <Link
+                          href={`/admin-kab/surveys/${survey.id}/responses`}
+                          className={ACTION_CLASS}
+                        >
+                          <ClipboardList size={12} />
+                          Respons
+                        </Link>
+                      )}
 
                       {isDraft && (
                         <Link href={`/admin-kab/surveys/builder/${survey.id}`} className={ACTION_CLASS}>
