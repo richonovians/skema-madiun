@@ -73,7 +73,7 @@ admin sepenuhnya di tangan Superuser.
 
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
-| GET | `/api/v1/surveys` | ✓ | OPD, Kabupaten | Daftar survei (OPD: milik sendiri; Kabupaten: semua) |
+| GET | `/api/v1/surveys` | ✓ | OPD, Kabupaten | Daftar survei (OPD: milik sendiri; Kabupaten: semua). Filter opsional `opdId` mempersempit ke satu OPD — di-AND-kan dengan penyaring kepemilikan, jadi tak dapat melebarkan akses |
 | POST | `/api/v1/surveys` | ✓ | OPD | Buat paket survei (draft) |
 | GET | `/api/v1/surveys/active` | ✓ | Responden | Daftar survei berstatus aktif (harus dideklarasikan sebelum `:id` — lihat catatan routing Express 5) |
 | GET | `/api/v1/surveys/:id` | ✓ | OPD, Kabupaten | Detail survei |
@@ -104,7 +104,7 @@ admin sepenuhnya di tangan Superuser.
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
 | POST | `/api/v1/complaints` | ✓ | Responden | Ajukan pengaduan (multipart, lampiran opsional maks 5 file @5MB) — dapat nomor tiket |
-| GET | `/api/v1/complaints` | ✓ | Semua¹ | Daftar pengaduan (terfilter kepemilikan) |
+| GET | `/api/v1/complaints` | ✓ | Semua¹ | Daftar pengaduan (terfilter kepemilikan). Filter opsional `opdId` mempersempit ke satu OPD — di-AND-kan dengan penyaring kepemilikan, jadi tak dapat melebarkan akses |
 | GET | `/api/v1/complaints/:ticketNo` | ✓ | Semua¹ | Detail & lacak status via nomor tiket publik |
 | PATCH | `/api/v1/complaints/:id/status` | ✓ | OPD (pemilik) | Ubah status: diterima→diproses→selesai, atau →ditolak (catatan wajib bila ditolak) |
 | GET | `/api/v1/complaints/:id/replies` | ✓ | Semua¹ | Riwayat tanggapan pada tiket |
@@ -180,6 +180,15 @@ disimpan sebagai cookie `area` dan proxy membatasi navigasinya pada area itu saj
 (`kabupaten` → `/admin-kab`, `opd` → `/admin-opd`, `responden` → halaman warga).
 Ini pembatas NAVIGASI, bukan hak akses — backend tetap memperlakukan Superuser
 setara Kabupaten (`hasFullAccess`).
+
+**Memilih OPD (2026-08-20):** memilih area OPD menuntut Superuser memilih SATU OPD
+(daftar dari `GET /opd`). Pilihannya disimpan di localStorage (`acting_opd`, tanpa
+cookie — proxy tak membutuhkannya) lalu dipakai sebagai `?opdId=` pada
+`GET /surveys` & `GET /complaints`, dan sebagai `opdId` saat membuat survei baru
+dari area itu (tanpanya `POST /surveys` menolak "opdId wajib diisi", karena akun
+Superuser tak tertaut OPD mana pun). `/admin-opd/dashboard` TETAP tak tersedia:
+`getOpdDashboard` menuntut `Role.opd` sungguhan, dan memilih OPD di sini tidak
+mengubah peran token.
 
 ## B.4 Pemetaan Route Frontend → Endpoint API (halaman terwiring)
 

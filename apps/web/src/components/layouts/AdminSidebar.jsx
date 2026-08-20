@@ -17,6 +17,7 @@ import {
 import { useAdminLayout } from './AdminLayoutProvider';
 import { useLogout } from '@/hooks/useLogout';
 import { useAsync } from '@/hooks/useAsync';
+import { useActingOpd } from '@/hooks/useActingOpd';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { USER_ROLES } from '@/features/users/constants/userConstants';
 
@@ -35,6 +36,7 @@ export default function AdminSidebar() {
   const fetchProfile = useCallback(() => getMyProfile(), []);
   const { data: profile } = useAsync(fetchProfile);
   const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
+  const actingOpd = useActingOpd();
 
   const getLinkClass = (path) => {
     // Exact match or active section
@@ -59,9 +61,20 @@ export default function AdminSidebar() {
         isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
         <div className="mb-xl px-md flex items-center justify-between">
-          <div>
+          <div className="min-w-0">
             <h1 className="font-headline-md text-headline-md font-bold text-blue-400">Admin OPD</h1>
-            <p className="text-sm opacity-60">Portal Analitik</p>
+            {/* OPD yang diperankan superuser (2026-08-20). Ditampilkan supaya ia
+                selalu tahu data OPD MANA yang sedang dilihatnya -- tanpa ini
+                daftar survei/pengaduan yang tersaring bisa disalahpahami sebagai
+                "OPD ini tidak punya data". Untuk Admin OPD sungguhan tak ada
+                apa pun yang berubah (nilainya null). */}
+            {actingOpd ? (
+              <p className="text-sm opacity-70 truncate" title={actingOpd.nama}>
+                {actingOpd.nama}
+              </p>
+            ) : (
+              <p className="text-sm opacity-60">Portal Analitik</p>
+            )}
           </div>
           <button 
             className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"

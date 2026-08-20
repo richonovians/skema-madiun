@@ -3,7 +3,7 @@
 import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import RoleLoginPicker from '@/features/authentication/components/RoleLoginPicker';
-import { getSuperuserArea } from '@/features/authentication/services/authStorage';
+import { getSuperuserArea, getActingOpd } from '@/features/authentication/services/authStorage';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { useAsync } from '@/hooks/useAsync';
 import { USER_ROLES } from '@/features/users/constants/userConstants';
@@ -75,6 +75,7 @@ export default function PilihPeranPage() {
         context="switch"
         superuserName={profile?.name ?? ''}
         currentArea={currentArea}
+        currentOpd={getActingOpd()}
         // Menutup = tetap di area yang sedang dipakai (bukan membatalkan sesi,
         // beda dari pemilih saat login). Navigasi hard supaya proxy ikut menilai
         // ulang cookie area yang mungkin baru saja berubah di tab lain.

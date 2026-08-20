@@ -20,6 +20,16 @@ const ROLE_KEY = 'role';
 // peramban, dan itu memang tak menaikkan hak siapa pun: hanya superuser yang
 // punya sesi superuser.
 const AREA_KEY = 'area';
+// OPD yang sedang "diperankan" superuser saat memakai area OPD (2026-08-20):
+// `{ id, nama }` sebagai JSON. Hanya localStorage, TANPA cookie -- proxy tak
+// membutuhkannya (kurungan areanya sudah ditentukan cookie `area`), dan yang
+// memakainya hanya halaman area OPD di sisi klien untuk menyaring daftar
+// (`?opdId=`) serta menentukan OPD tujuan saat membuat survei.
+//
+// Sama seperti `area`: ini mempersempit TAMPILAN, bukan hak akses. Backend
+// meng-AND-kan `opdId` dengan penyaring kepemilikan, jadi parameter ini tak
+// pernah bisa melebarkan apa pun.
+const ACTING_OPD_KEY = 'acting_opd';
 
 export function saveSession(token, role) {
   if (typeof window === 'undefined') return;
@@ -37,6 +47,7 @@ export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
   localStorage.removeItem(AREA_KEY);
+  localStorage.removeItem(ACTING_OPD_KEY);
   localStorage.setItem('sso_logged_in', 'false');
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
   document.cookie = `${ROLE_KEY}=; path=/; max-age=0`;
@@ -52,16 +63,48 @@ export function saveSuperuserArea(area) {
   document.cookie = `${AREA_KEY}=${area}; path=/; SameSite=Lax`;
 }
 
+/**
+ * Simpan OPD yang diperankan superuser di area OPD.
+ * @param {{id: number, nama: string}|null} opd null = lupakan (lihat seluruh OPD).
+ */
+export function saveActingOpd(opd) {
+  if (typeof window === 'undefined') return;
+  if (!opd) {
+    localStorage.removeItem(ACTING_OPD_KEY);
+    return;
+  }
+  localStorage.setItem(ACTING_OPD_KEY, JSON.stringify({ id: opd.id, nama: opd.nama }));
+}
+
+/**
+ * OPD yang sedang diperankan; null bila tak ada atau isinya rusak.
+ * @returns {{id: number, nama: string}|null}
+ */
+export function getActingOpd() {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(ACTING_OPD_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    // Dibaca dari localStorage yang bisa disunting/basi -- id yang bukan angka
+    // akan menghasilkan `?opdId=NaN` dan 400 dari backend, jadi ditolak di sini.
+    return typeof parsed?.id === 'number' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Area kerja yang sedang dipakai superuser; null bila belum memilih. */
 export function getSuperuserArea() {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(AREA_KEY);
 }
 
-/** Lupakan pilihan area (dipakai saat superuser ingin memilih ulang). */
+/** Lupakan pilihan area & OPD yang diperankan (saat superuser memilih ulang). */
 export function clearSuperuserArea() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(AREA_KEY);
+  localStorage.removeItem(ACTING_OPD_KEY);
   document.cookie = `${AREA_KEY}=; path=/; max-age=0`;
 }
 

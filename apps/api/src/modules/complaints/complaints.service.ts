@@ -109,10 +109,15 @@ export class ComplaintsService {
     query: ListComplaintQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<ComplaintEntity>> {
-    const { page, limit, status } = query;
+    const { page, limit, status, opdId } = query;
     const where: Prisma.ComplaintWhereInput = { ...this.ownershipWhere(user) };
     if (status) {
       where.status = status;
+    }
+    if (opdId != null) {
+      // AND, bukan menimpa penyaring kepemilikan -- lihat catatan yang sama di
+      // SurveysService.findAll. Filter ini hanya boleh MEMPERSEMPIT.
+      where.AND = [{ opdId }];
     }
 
     const [rows, total] = await this.prisma.$transaction([

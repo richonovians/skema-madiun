@@ -12,6 +12,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
 import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
+import { getActingOpd } from '@/features/authentication/services/authStorage';
 import {
   getSurveyById,
   getQuestions,
@@ -108,7 +109,17 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   /** Buat survei sungguhan bila belum ada -- dipicu aksi pertama yg butuh id nyata. */
   const ensureSurveyExists = useCallback(async () => {
     if (surveyId) return surveyId;
-    const created = await createSurvey({ title: title.trim() || 'Survei Tanpa Judul', period: periode });
+    // `opdId` HANYA terisi bila superuser sedang memerankan satu OPD (2026-08-20).
+    // Tanpa itu backend menolak "opdId wajib diisi" untuk peran berhak penuh --
+    // akun superuser tak tertaut OPD mana pun (resolveOpdId di SurveysService).
+    // Admin OPD sungguhan tak terpengaruh: backend selalu memakai OPD akunnya
+    // sendiri dan mengabaikan field ini.
+    const actingOpd = getActingOpd();
+    const created = await createSurvey({
+      title: title.trim() || 'Survei Tanpa Judul',
+      period: periode,
+      ...(actingOpd ? { opdId: actingOpd.id } : {}),
+    });
     setSurveyId(created.id);
     setStatus(created.status);
     return created.id;
@@ -421,12 +432,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       onDragEnd={() => setDrag(null)}
       canDrag={status === 'DRAF'}
     >
+      {/* Judul & periode TIDAK lagi dikirim ke bilah atas (2026-08-20) --
+          keduanya disunting di kartu putih pada kanvas. State-nya tetap di sini,
+          jadi tak ada kendali yang terduplikasi. */}
       <BuilderToolbar
-        title={title}
-        onTitleChange={setTitle}
-        onTitleBlur={handleTitleBlur}
-        periode={periode}
-        onPeriodeCommit={handlePeriodeCommit}
         status={status}
         isSaving={isSaving}
         onPublish={handlePublish}

@@ -9,6 +9,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
+import { getActingOpd } from '@/features/authentication/services/authStorage';
 import { downloadTablePdf } from '@/utils/pdf';
 
 const ITEMS_PER_PAGE = 5;
@@ -37,7 +38,12 @@ export default function AdminOPDComplaintsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [exportError, setExportError] = useState(null);
 
-  const fetchComplaints = useCallback(() => getComplaints({ limit: FETCH_LIMIT }), []);
+  // Dipersempit ke OPD yang diperankan superuser bila ada -- lihat catatan yang
+  // sama di app/admin-opd/surveys/page.jsx.
+  const fetchComplaints = useCallback(() => {
+    const actingOpd = getActingOpd();
+    return getComplaints({ limit: FETCH_LIMIT, ...(actingOpd ? { opdId: actingOpd.id } : {}) });
+  }, []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchComplaints);
 
   const filteredComplaints = useMemo(() => {
