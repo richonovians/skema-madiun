@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -15,10 +15,26 @@ import {
 } from 'lucide-react';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useLogout } from '@/hooks/useLogout';
+import { useAsync } from '@/hooks/useAsync';
+import { getMyProfile } from '@/features/profile/services/profile.api';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 
+/**
+ * "Audit Logs" hanya untuk SUPERUSER (2026-08-20, atas permintaan user):
+ * Admin Kabupaten biasa tak boleh melihat fitur log aktivitas.
+ *
+ * Perannya dibaca dari `GET /auth/me`, BUKAN dari cookie `role` -- cookie itu
+ * bisa disunting bebas di peramban, jadi tak layak jadi dasar keputusan tampilan
+ * yang seolah-olah hak akses. Batas sesungguhnya tetap di backend
+ * (AuditService.assertSuperuser, 403 walau URL dipaksa); menyembunyikan menu di
+ * sini supaya pengguna tak diarahkan ke halaman yang pasti gagal.
+ */
 export default function AdminKabSidebar() {
   const pathname = usePathname();
   const { logout, isLoggingOut } = useLogout();
+  const fetchProfile = useCallback(() => getMyProfile(), []);
+  const { data: profile } = useAsync(fetchProfile);
+  const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
 
   const getLinkClass = (path) => {
     // Exact match or active section
@@ -80,10 +96,12 @@ export default function AdminKabSidebar() {
             <Users size={20} />
             <span>Manajemen User</span>
           </Link>
-          <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <History size={20} />
-            <span>Audit Logs</span>
-          </Link>
+          {isSuperuser && (
+            <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
+              <History size={20} />
+              <span>Audit Logs</span>
+            </Link>
+          )}
         </nav>
         
         <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">

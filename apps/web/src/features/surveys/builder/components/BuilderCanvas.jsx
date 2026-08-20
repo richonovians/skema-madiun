@@ -41,6 +41,7 @@ export default function BuilderCanvas({
   onDragEnd,
   onDropAt,
   onMove,
+  onEditOptions,
 }) {
   const [overSlot, setOverSlot] = useState(null);
 
@@ -122,6 +123,7 @@ export default function BuilderCanvas({
                 onDelete={onDelete}
                 onUpdate={onUpdate}
                 onTextCommit={onTextCommit}
+                onEditOptions={onEditOptions}
               />
             </div>
           ))}

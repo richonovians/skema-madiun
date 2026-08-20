@@ -1,11 +1,14 @@
 import { formatDateId, getInitials } from '@/utils/format';
 import { ROLE_LABEL } from '@/utils/enumLabels';
 
-// kabupaten = superuser (2026-08-05, role superuser terpisah digabung ke kabupaten).
+// `superuser` dipisah kembali dari `kabupaten` (2026-08-20) -- lihat userConstants.js.
+// Peran INILAH yang menentukan tampil-tidaknya log aktivitas, karena datangnya
+// dari backend (GET /auth/me), bukan dari cookie yang bisa disunting di browser.
 const ROLE_TO_FRONTEND = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
   responden: 'RESPONDENT',
+  superuser: 'SUPERUSER',
 };
 
 /**

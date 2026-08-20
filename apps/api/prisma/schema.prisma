@@ -20,10 +20,18 @@ datasource db {
 // `superuser` terpisah DIHAPUS/digabung ke sini atas permintaan user --
 // sebelumnya ditambah 20260727000000_add_superuser_role, kini dilebur
 // balik). `kabupaten` mewarisi bypass penuh RolesGuard (lihat guard).
+// `superuser` DIKEMBALIKAN (2026-08-20, atas permintaan user) setelah sebelumnya
+// digabung ke `kabupaten` (lihat migrasi 20260805150000_remove_superuser_role_merge_kabupaten,
+// yang juga atas permintaan user). Bedanya sekarang JELAS dan bukan sekadar nama:
+// - superuser: seluruh hak kabupaten, DITAMBAH akses log aktivitas (audit log)
+// - kabupaten: sama seperti sebelumnya, TAPI tanpa akses log aktivitas
+// Perbedaan itu ditegakkan di AuditService (bukan di @Roles) karena RolesGuard
+// memberi kabupaten bypass penuh atas @Roles -- lihat catatan di sana.
 enum Role {
   kabupaten
   opd
   responden
+  superuser
 
   @@map("user_role")
 }

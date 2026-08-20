@@ -35,10 +35,24 @@ import { ROLE_HOME } from '@/constants/roleHome';
 // reload halaman saat ini, admin harus navigasi manual sendiri).
 const RESPONDENT_ONLY_PREFIXES = ['/dashboard', '/complaints', '/surveys', '/profile'];
 
+// SUPERUSER (2026-08-20): peran terpisah yang mewarisi seluruh hak `kabupaten`
+// dan boleh masuk ke SEMUA area (ia memilih sendiri mau ke mana saat login,
+// lihat RoleLoginPicker.jsx). Backend memperlakukannya setara kabupaten
+// (hasFullAccess di role.util.ts), jadi proxy tak boleh lebih ketat dari itu.
+const FULL_ACCESS_ROLES = ['kabupaten', 'superuser'];
+
+// Log aktivitas HANYA superuser -- Admin Kabupaten biasa dipantulkan.
+// Ini penjaga NAVIGASI, bukan pengganti penjaga data: yang sesungguhnya
+// menegakkan larangan ini adalah AuditService.assertSuperuser di backend
+// (403 walau URL-nya dipaksa). Di sini supaya pengguna tak mendarat di halaman
+// yang pasti gagal memuat.
+const SUPERUSER_ONLY_PREFIXES = ['/admin-kab/audit-logs'];
+
 export function proxy(request) {
   const token = request.cookies.get('token')?.value;
   const role = request.cookies.get('role')?.value;
   const { pathname } = request.nextUrl;
+  const hasFullAccess = FULL_ACCESS_ROLES.includes(role);
 
   // Beranda publik (2026-08-06, laporan bug user): "ketika sudah login
   // sebagai admin ... mengakses halaman untuk warga dan halaman sebelum
@@ -48,7 +62,7 @@ export function proxy(request) {
   // relevan buat warga (mis. form pengaduan cepat), cuma admin yg diarahkan
   // ke area kerjanya sendiri.
   if (pathname === '/') {
-    if (token && (role === 'kabupaten' || role === 'opd')) {
+    if (token && (hasFullAccess || role === 'opd')) {
       return NextResponse.redirect(new URL(ROLE_HOME[role], request.url));
     }
     return NextResponse.next();
@@ -65,14 +79,25 @@ export function proxy(request) {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
-  if (isAdminOpd && pathname.startsWith('/admin-opd/dashboard') && role === 'kabupaten') {
-    return NextResponse.redirect(new URL(ROLE_HOME.kabupaten, request.url));
+  // Superuser ikut dipantulkan dari /admin-opd/dashboard: `getOpdDashboard`
+  // menuntut `Role.opd` DENGAN opdId terisi (diperiksa di dalam service, bukan
+  // lewat @Roles), dan superuser tak tertaut OPD mana pun -- jadi ia pun akan 403.
+  if (isAdminOpd && pathname.startsWith('/admin-opd/dashboard') && hasFullAccess) {
+    return NextResponse.redirect(new URL(ROLE_HOME[role], request.url));
+  }
+
+  // Hanya superuser: Admin Kabupaten biasa dipantulkan ke berandanya.
+  if (SUPERUSER_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix)) && role !== 'superuser') {
+    return NextResponse.redirect(new URL(ROLE_HOME[role] ?? '/', request.url));
   }
 
   const forbidden =
-    (isAdminKab && role !== 'kabupaten') ||
-    (isAdminOpd && role !== 'opd' && role !== 'kabupaten') ||
-    (isRespondentArea && role !== 'responden');
+    (isAdminKab && !hasFullAccess) ||
+    (isAdminOpd && role !== 'opd' && !hasFullAccess) ||
+    // Superuser boleh menengok area warga (ia memang bisa memilih masuk sebagai
+    // warga). Catatan penting ada di RoleLoginPicker.jsx: datanya TIDAK disaring
+    // per warga, karena backend memberi superuser cakupan penuh.
+    (isRespondentArea && role !== 'responden' && role !== 'superuser');
   if (forbidden) {
     const home = ROLE_HOME[role] ?? '/';
     return NextResponse.redirect(new URL(home, request.url));

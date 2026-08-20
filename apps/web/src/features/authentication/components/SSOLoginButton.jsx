@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { authApi } from '../services/sso.api';
-import { saveSession } from '../services/authStorage';
+import { saveSession, clearSession } from '../services/authStorage';
 import { ROLE_HOME } from '@/constants/roleHome';
+import RoleLoginPicker from './RoleLoginPicker';
 
 // Sementara: form dev-login (identifier = email/ssoSubject akun seed) menggantikan
 // tombol SSO Helpdesk sungguhan yang menunggu spesifikasi OAuth dari Helpdesk (SSO-1).
@@ -14,6 +15,11 @@ export default function SSOLoginButton() {
   const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // Terisi HANYA bila yang login berperan `superuser` -- memicu pemilih peran.
+  // Peran lain (termasuk Admin Kabupaten) tak pernah melewati jalur ini. Objek
+  // (bukan string) supaya nama yang kosong tak salah dibaca sebagai "tak ada
+  // pemilih".
+  const [rolePicker, setRolePicker] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,6 +29,17 @@ export default function SSOLoginButton() {
       const res = await authApi.devLogin(identifier);
       const role = res.data.user?.role;
       saveSession(res.data.token, role);
+
+      // HANYA `superuser` yang boleh memilih peran (2026-08-20). Admin
+      // Kabupaten TIDAK: ia langsung ke /admin-kab/dashboard lewat ROLE_HOME di
+      // bawah, sama seperti Admin OPD dan Warga. Sesi superuser sendiri yang
+      // terus dipakai -- pemilihnya cuma menentukan area mana yang dibuka, tak
+      // ada login ulang dan tak ada akun lain yang dipinjam.
+      if (role === 'superuser') {
+        setRolePicker({ name: res.data.user?.nama ?? '' });
+        return; // `finally` di bawah tetap mematikan status memuat
+      }
+
       // SEBELUMNYA cuma reload halaman saat ini (biasanya beranda publik) --
       // admin harus navigasi manual sendiri ke /admin-kab atau /admin-opd
       // (2026-08-06, laporan bug user). `window.location.href` (bukan
@@ -36,6 +53,20 @@ export default function SSOLoginButton() {
       setIsLoading(false);
     }
   };
+
+  // Menutup pemilih = MEMBATALKAN login, bukan meninggalkan pengguna dalam
+  // keadaan setengah masuk (sesi tersimpan tapi masih di halaman publik, yang
+  // membuat navbar menampilkan avatar tanpa pernah berpindah area).
+  const handleCancelRolePicker = () => {
+    clearSession();
+    setRolePicker(null);
+    setIdentifier('');
+    setIsFormOpen(false);
+  };
+
+  if (rolePicker) {
+    return <RoleLoginPicker superuserName={rolePicker.name} onCancel={handleCancelRolePicker} />;
+  }
 
   if (!isFormOpen) {
     return (

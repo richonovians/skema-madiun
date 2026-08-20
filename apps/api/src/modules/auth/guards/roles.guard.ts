@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
+import { hasFullAccess } from '../../../common/auth/role.util';
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
 import { ROLES_KEY } from '../../../common/decorators/roles.decorator';
 import type { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -43,8 +44,15 @@ export class RolesGuard implements CanActivate {
     }
     request.user = user;
 
-    // Kabupaten (= Admin Kabupaten sekaligus superuser, 2026-08-05) melampaui seluruh pembatasan @Roles.
-    if (user.role === Role.kabupaten) {
+    // Kabupaten & Superuser melampaui seluruh pembatasan @Roles.
+    //
+    // Bypass ini SENGAJA tetap mencakup `kabupaten` walau `superuser` sudah
+    // dipisah kembali (2026-08-20): banyak endpoint hanya ber-@Roles(opd) dan
+    // area admin-kab mengandalkan bypass ini untuk mencapainya (buat/ubah/hapus
+    // survei, builder pertanyaan). Karena itu pembatasan yang HARUS berlaku
+    // walau bypass aktif ditegakkan di dalam service, bukan lewat @Roles --
+    // lihat AuditService.assertSuperuser & DashboardService.getOpdDashboard.
+    if (hasFullAccess(user.role)) {
       return true;
     }
 

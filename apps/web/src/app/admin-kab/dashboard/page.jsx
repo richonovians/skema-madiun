@@ -16,6 +16,8 @@ import { adaptRecentActivityList } from '@/features/dashboard/adapters/recentAct
 import { Users, FileText, CheckCircle, Clock, Building2, TrendingUp } from 'lucide-react';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
 import { getAuditLogs } from '@/features/audit-logs/services/auditLogs.api';
+import { getMyProfile } from '@/features/profile/services/profile.api';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 import MetricCard from '@/features/statistics/components/MetricCard';
 import TrendChart from '@/features/statistics/components/charts/TrendChart';
 import BarChart from '@/features/statistics/components/charts/BarChart';
@@ -70,11 +72,24 @@ export default function AdminKabDashboardPage() {
   } = useAsync(fetchFiltered);
 
   const fetchGlobal = useCallback(async () => {
+    // Log aktivitas kini HANYA untuk superuser (2026-08-20). Perannya harus
+    // diketahui DULU: kalau `/audit-logs` tetap dipanggil oleh Admin Kabupaten
+    // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
+    // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
+    const profile = await getMyProfile();
+    const isSuperuser = profile.role === USER_ROLES.SUPERUSER;
+
     const [statistics, auditLogs] = await Promise.all([
       getStatistics(),
-      getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }),
+      isSuperuser ? getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }) : Promise.resolve(null),
     ]);
-    return { statistics, activities: adaptRecentActivityList(auditLogs.data) };
+    return {
+      statistics,
+      // `null` (bukan array kosong) supaya seksi aktivitas bisa DISEMBUNYIKAN
+      // sepenuhnya, bukan tampil seolah "belum ada aktivitas" padahal sebenarnya
+      // memang tak boleh dilihat.
+      activities: auditLogs ? adaptRecentActivityList(auditLogs.data) : null,
+    };
   }, []);
   const {
     data: global,
@@ -238,7 +253,8 @@ export default function AdminKabDashboardPage() {
         </div>
       </div>
 
-      <RecentActivities data={activities} />
+      {/* Disembunyikan untuk Admin Kabupaten biasa -- log aktivitas superuser saja. */}
+      {activities && <RecentActivities data={activities} />}
     </div>
   );
 }

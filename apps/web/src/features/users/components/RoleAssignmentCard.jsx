@@ -4,13 +4,19 @@ import Card from '@/components/ui/Card';
 import Dropdown from '@/components/ui/Dropdown';
 import { USER_ROLES } from '../constants/userConstants';
 
+// `Superuser` ikut ditawarkan sejak 2026-08-20: backend menerimanya di
+// ADMIN_ROLES (CreateUserDto/UpdateUserDto), jadi akun superuser tak perlu lagi
+// dibuat lewat seed atau SQL. Peran `responden` TETAP tak ada di sini -- backend
+// menolaknya (akun warga lahir dari SSO).
 const ROLE_OPTIONS = [
   { value: '', label: 'Pilih Hak Akses (Role)' },
+  { value: USER_ROLES.SUPERUSER, label: 'Superuser' },
   { value: USER_ROLES.ADMIN_KABUPATEN, label: 'Admin Kabupaten' },
   { value: USER_ROLES.ADMIN_OPD, label: 'Admin OPD' },
 ];
 
 const ROLE_LABEL = {
+  [USER_ROLES.SUPERUSER]: 'Superuser',
   [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
   [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
 };
@@ -101,7 +107,18 @@ export default function RoleAssignmentCard({
           <div className="flex items-start gap-2 p-sm bg-indigo-50 rounded-lg border border-indigo-100 animate-in fade-in duration-200">
             <ShieldCheck size={15} className="text-indigo-500 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-indigo-700">
-              Admin Kabupaten memiliki akses penuh terhadap seluruh OPD dan fitur sistem.
+              Admin Kabupaten memiliki akses penuh terhadap seluruh OPD, KECUALI log aktivitas
+              (khusus Superuser).
+            </p>
+          </div>
+        )}
+
+        {formData.role === USER_ROLES.SUPERUSER && (
+          <div className="flex items-start gap-2 p-sm bg-violet-50 rounded-lg border border-violet-100 animate-in fade-in duration-200">
+            <ShieldCheck size={15} className="text-violet-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-violet-700">
+              Superuser memiliki seluruh hak Admin Kabupaten DITAMBAH log aktivitas, dan dapat
+              memilih peran mana yang dibuka saat login.
             </p>
           </div>
         )}
