@@ -30,6 +30,13 @@ const AREA_KEY = 'area';
 // meng-AND-kan `opdId` dengan penyaring kepemilikan, jadi parameter ini tak
 // pernah bisa melebarkan apa pun.
 const ACTING_OPD_KEY = 'acting_opd';
+// ...KECUALI satu hal yang memang perlu dibaca proxy: ADA-TIDAKNYA OPD terpilih
+// menentukan boleh-tidaknya superuser membuka /admin-opd/dashboard (2026-08-20).
+// Karena itu ID-nya (bukan seluruh objek) ikut disimpan sebagai cookie -- proxy
+// jalan di edge dan tak bisa menyentuh localStorage. Nama OPD sengaja TIDAK
+// dimasukkan cookie: proxy tak membutuhkannya, dan cookie ikut terkirim pada
+// setiap permintaan.
+const ACTING_OPD_COOKIE = 'opd';
 
 export function saveSession(token, role) {
   if (typeof window === 'undefined') return;
@@ -54,6 +61,7 @@ export function clearSession() {
   // Area ikut dibuang saat keluar -- kalau tidak, login berikutnya (bisa akun
   // lain di peramban yang sama) mewarisi pembatasan area milik sesi lama.
   document.cookie = `${AREA_KEY}=; path=/; max-age=0`;
+  document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
 }
 
 /** Simpan area kerja pilihan superuser (lihat RoleLoginPicker.jsx). */
@@ -71,9 +79,11 @@ export function saveActingOpd(opd) {
   if (typeof window === 'undefined') return;
   if (!opd) {
     localStorage.removeItem(ACTING_OPD_KEY);
+    document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
     return;
   }
   localStorage.setItem(ACTING_OPD_KEY, JSON.stringify({ id: opd.id, nama: opd.nama }));
+  document.cookie = `${ACTING_OPD_COOKIE}=${opd.id}; path=/; SameSite=Lax`;
 }
 
 /**
@@ -106,6 +116,7 @@ export function clearSuperuserArea() {
   localStorage.removeItem(AREA_KEY);
   localStorage.removeItem(ACTING_OPD_KEY);
   document.cookie = `${AREA_KEY}=; path=/; max-age=0`;
+  document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
 }
 
 /**

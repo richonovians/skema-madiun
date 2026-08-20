@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { IkmMutu, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -7,6 +7,8 @@ import type { IkmService } from '../ikm/ikm.service';
 
 const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
 const kabupatenUser = (): CurrentUser => ({ userId: 2, role: Role.kabupaten, opdId: null });
+const superUser = (): CurrentUser => ({ userId: 3, role: Role.superuser, opdId: null });
+const respondenUser = (): CurrentUser => ({ userId: 4, role: Role.responden, opdId: null });
 
 describe('DashboardService', () => {
   const prisma = {
@@ -33,12 +35,50 @@ describe('DashboardService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   describe('getOpdDashboard', () => {
-    it('bukan role opd -> Forbidden', async () => {
+    it('Admin Kabupaten -> Forbidden, bahkan dengan opdId (keputusan user 2026-08-20)', async () => {
       await expect(service.getOpdDashboard(kabupatenUser())).rejects.toThrow(ForbiddenException);
+      await expect(service.getOpdDashboard(kabupatenUser(), { opdId: 5 })).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.survey.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('peran lain (responden) -> Forbidden', async () => {
+      await expect(service.getOpdDashboard(respondenUser(), { opdId: 5 })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('akun opd tanpa opdId -> Forbidden', async () => {
       await expect(service.getOpdDashboard(opdUser(null))).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Superuser tanpa opdId -> BadRequest (tak ada OPD yang bisa disimpulkan)', async () => {
+      await expect(service.getOpdDashboard(superUser())).rejects.toThrow(BadRequestException);
+      expect(prisma.survey.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('Superuser dengan opdId -> memakai OPD ITU untuk seluruh query', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await service.getOpdDashboard(superUser(), { opdId: 7 });
+
+      expect(prisma.survey.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ opdId: 7 }) }),
+      );
+      expect(prisma.surveyResponse.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { survey: { opdId: 7 } } }),
+      );
+    });
+
+    it('Admin OPD: opdId di query DIABAIKAN, tetap OPD akunnya sendiri', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await service.getOpdDashboard(opdUser(5), { opdId: 99 });
+
+      expect(prisma.survey.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ opdId: 5 }) }),
+      );
     });
 
     it('tanpa survei non-draft -> ikmScore/mutu null, performanceMetrics kosong', async () => {

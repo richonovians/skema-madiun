@@ -221,7 +221,7 @@ function AnalyticsPageContent() {
     const [complaintsRes, categories, dashboard] = await Promise.all([
       getComplaints({ limit: 100, ...(actingOpd ? { opdId: actingOpd.id } : {}) }),
       getComplaintCategories(),
-      getOpdDashboard(),
+      getOpdDashboard(actingOpd?.id),
     ]);
     return { complaints: complaintsRes.data, categories, dashboard };
   }, []);

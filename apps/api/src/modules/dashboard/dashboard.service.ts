@@ -1,10 +1,11 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ComplaintStatus, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
 import { periodeFromDate } from '../surveys/utils/periode.util';
+import { OpdDashboardQueryDto } from './dto/opd-dashboard-query.dto';
 import { UpdateInsightDto } from './dto/update-insight.dto';
 import {
   OpdDashboardEntity,
@@ -51,14 +52,17 @@ export class DashboardService {
     private readonly ikmService: IkmService,
   ) {}
 
-  /** `GET /dashboard/opd` (INT-12) -- ringkasan utk Admin OPD, OPD-nya sendiri saja. */
-  async getOpdDashboard(user: CurrentUser): Promise<OpdDashboardEntity> {
-    if (user.role !== Role.opd || user.opdId == null) {
-      throw new ForbiddenException(
-        'Hanya Admin OPD dengan OPD tertaut yang memiliki dashboard ini',
-      );
-    }
-    const opdId = user.opdId;
+  /**
+   * `GET /dashboard/opd` (INT-12) -- ringkasan satu OPD.
+   *
+   * Admin OPD: selalu OPD-nya sendiri. Superuser: OPD yang diminta lewat
+   * `?opdId=` (2026-08-20, permintaan user). Admin Kabupaten: TIDAK boleh.
+   */
+  async getOpdDashboard(
+    user: CurrentUser,
+    query: OpdDashboardQueryDto = {},
+  ): Promise<OpdDashboardEntity> {
+    const opdId = this.resolveDashboardOpdId(user, query.opdId);
 
     const [
       latestSurvey,
@@ -172,6 +176,48 @@ export class DashboardService {
       performanceMetrics,
       recentFeedback,
     });
+  }
+
+  /**
+   * OPD mana yang ditampilkan dashboard ini.
+   *
+   * - `opd` → OPD akunnya sendiri. `requestedOpdId` DIABAIKAN, bukan divalidasi:
+   *   dengan begitu tak ada jalan bagi akun OPD mengintip OPD lain lewat
+   *   parameter, dan tak perlu pesan error yang membocorkan OPD mana yang ada.
+   * - `superuser` → OPD yang diminta. WAJIB dikirim: akun superuser tak tertaut
+   *   OPD mana pun, jadi tak ada yang bisa disimpulkan sendiri.
+   * - `kabupaten` → DITOLAK (2026-08-20, keputusan user: "admin kabupaten tidak
+   *   bisa membuka dashboard opd. hanya superuser yang bisa"). Perhatikan
+   *   pemeriksaan ini SENGAJA di dalam service, bukan lewat `@Roles`: RolesGuard
+   *   memberi kabupaten & superuser bypass penuh atas @Roles sehingga dekorator
+   *   tak dapat membedakan keduanya (pola sama seperti AuditService &
+   *   UsersService.assertSuperuser). Dashboard lintas-OPD milik Admin Kabupaten
+   *   tetap ada di /admin-kab/dashboard, dan ia tetap bisa melihat data per-OPD
+   *   lewat monitoring survei, pengaduan, dan hasil IKM.
+   *
+   * Peran lain (mis. responden) juga ditolak -- fail-safe, bukan daftar putih
+   * yang lupa diperbarui.
+   */
+  private resolveDashboardOpdId(user: CurrentUser, requestedOpdId?: number): number {
+    if (user.role === Role.opd) {
+      if (user.opdId == null) {
+        throw new ForbiddenException(
+          'Hanya Admin OPD dengan OPD tertaut yang memiliki dashboard ini',
+        );
+      }
+      return user.opdId;
+    }
+    if (user.role === Role.superuser) {
+      if (requestedOpdId == null) {
+        throw new BadRequestException(
+          'opdId wajib diisi: pilih OPD terlebih dahulu untuk membuka dashboard OPD',
+        );
+      }
+      return requestedOpdId;
+    }
+    throw new ForbiddenException(
+      'Dashboard OPD hanya untuk Admin OPD (OPD-nya sendiri) dan Superuser',
+    );
   }
 
   /** Persentase perubahan jumlah responden bulan ini vs bulan lalu (kalender). Null bila tak ada pembanding. */

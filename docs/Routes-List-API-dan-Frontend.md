@@ -97,6 +97,7 @@ admin sepenuhnya di tangan Superuser.
 | GET | `/api/v1/surveys/:id/responses` | ✓ | OPD, Kabupaten | Daftar respons masuk (jawaban lengkap per respons, tanpa identitas) |
 | GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil live-compute: NRR per unsur + nilai IKM + mutu |
 | GET | `/api/v1/surveys/:id/results/export?format=` | ✓ | OPD, Kabupaten | Ekspor laporan (`csv`\|`excel`\|`pdf`) — file biner mentah, bukan envelope |
+| GET | `/api/v1/dashboard/opd?opdId=` | ✓ | OPD, **Superuser** | Ringkasan satu OPD (IKM survei terbaru, responden, tiket aktif, SLA, umpan balik). OPD: selalu OPD-nya sendiri, `opdId` diabaikan. Superuser: WAJIB mengirim `opdId`. **Admin Kabupaten 403** (keputusan user 2026-08-20) |
 | GET | `/api/v1/dashboard/ikm` | ✓ | Kabupaten | Agregat & perbandingan IKM seluruh OPD (dari snapshot `ikm_results`, bukan live-compute) |
 
 ## A.6 Pengaduan (`/complaints`)
@@ -121,7 +122,7 @@ admin sepenuhnya di tangan Superuser.
 
 > ¹ **"Semua"** pada modul pengaduan tetap dibatasi kepemilikan data (ditegakkan di service, bukan `@Roles`): Responden hanya melihat pengaduannya sendiri, Admin OPD hanya pengaduan OPD-nya, Admin Kabupaten memantau seluruhnya (read-only — tak bisa ubah status/balas).
 
-**Belum ada di backend** (dicek eksplisit, bukan sekadar belum terdaftar): `GET /dashboard/opd` (ringkasan Admin OPD — blocked D3, keputusan bisnis avgSlaDays/completionRate belum ada), endpoint statistik publik untuk `/statistics` (blocked D2/D6), agregasi tren bulanan (blocked D5), endpoint detail-per-respons survei (sengaja tak dibangun — daftar respons sudah kembalikan jawaban lengkap).
+**Belum ada di backend** (dicek eksplisit, bukan sekadar belum terdaftar): endpoint detail-per-respons survei (sengaja tak dibangun — daftar respons sudah kembalikan jawaban lengkap).
 
 ---
 
@@ -149,7 +150,7 @@ Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata 
 
 | Route | Auth | Halaman | Status wiring |
 |---|:---:|---|---|
-| `/admin-opd/dashboard` | 🔒 OPD | Ringkasan OPD | ❌ dummy (INT-23, DITUNDA — blocked D3/D4) |
+| `/admin-opd/dashboard` | 🔒 OPD + SU | Ringkasan OPD (Superuser: OPD yang dipilihnya) | ✅ (INT-12/INT-23) |
 | `/admin-opd/surveys` | 🔒 OPD | Daftar survei OPD | ✅ (INT-19) |
 | `/admin-opd/surveys/builder/[id]` | 🔒 OPD | Builder pertanyaan (template + kustom) | ✅ (INT-19) |
 | `/admin-opd/surveys/[id]/responses` | 🔒 OPD | Daftar respons masuk (anonim) | ✅ (INT-38) |
@@ -182,13 +183,18 @@ Ini pembatas NAVIGASI, bukan hak akses — backend tetap memperlakukan Superuser
 setara Kabupaten (`hasFullAccess`).
 
 **Memilih OPD (2026-08-20):** memilih area OPD menuntut Superuser memilih SATU OPD
-(daftar dari `GET /opd`). Pilihannya disimpan di localStorage (`acting_opd`, tanpa
-cookie — proxy tak membutuhkannya) lalu dipakai sebagai `?opdId=` pada
-`GET /surveys` & `GET /complaints`, dan sebagai `opdId` saat membuat survei baru
+(daftar dari `GET /opd`). Pilihannya disimpan di localStorage (`acting_opd`) plus
+cookie `opd` berisi id-nya saja — cookie itu ada karena proxy perlu tahu
+ADA-TIDAKNYA OPD terpilih. Dipakai sebagai `?opdId=` pada `GET /dashboard/opd`,
+`GET /surveys`, & `GET /complaints`, dan sebagai `opdId` saat membuat survei baru
 dari area itu (tanpanya `POST /surveys` menolak "opdId wajib diisi", karena akun
-Superuser tak tertaut OPD mana pun). `/admin-opd/dashboard` TETAP tak tersedia:
-`getOpdDashboard` menuntut `Role.opd` sungguhan, dan memilih OPD di sini tidak
-mengubah peran token.
+Superuser tak tertaut OPD mana pun).
+
+`/admin-opd/dashboard` KINI tersedia untuk Superuser yang sudah memilih OPD
+(2026-08-20, keputusan user: "hanya superuser yang bisa membuka dashboard opd").
+Tanpa OPD terpilih ia dipantulkan ke `/admin-opd/surveys` — backend menolak 400
+tanpa `opdId`, jadi halamannya pasti gagal memuat. Admin Kabupaten tetap
+dipantulkan dan tetap 403 di API.
 
 ## B.4 Pemetaan Route Frontend → Endpoint API (halaman terwiring)
 
@@ -206,6 +212,7 @@ mengubah peran token.
 | `/admin-opd/analytics` | `GET /surveys`, `GET /surveys/:id/results`, `GET /surveys/:id/results/export` |
 | `/admin-opd/complaints(/[id])` | `GET /complaints`, `GET /complaints/:ticketNo`, `PATCH /complaints/:id/status`, `GET/POST /complaints/:id/replies` |
 | `/admin-kab/opd` | `GET /opd`, `POST /opd/sync` |
+| `/admin-opd/dashboard` | `GET /dashboard/opd(?opdId=)`, `GET /surveys`, `GET /complaints` |
 | `/admin-kab/users(/create)` | `GET/POST /users`, `GET/PATCH /users/:id`, `PATCH /users/:id/status`, `DELETE /users/:id` |
 | `/pilih-peran` | `GET /auth/me` |
 | `/admin-kab/complaints(/[id])` | `GET /complaints`, `GET /complaints/:ticketNo`, `GET /complaints/:id/replies` |

@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   Check,
 } from 'lucide-react';
-import { SUPERUSER_AREA_HOME } from '@/constants/roleHome';
+import { SUPERUSER_AREA_HOME, SUPERUSER_OPD_ENTRY } from '@/constants/roleHome';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import LoadingState from '@/components/ui/LoadingState';
@@ -44,11 +44,11 @@ import { saveSuperuserArea, saveActingOpd } from '../services/authStorage';
  * SELURUH OPD dan pembuatan survei gagal ("opdId wajib diisi"), karena akun
  * superuser tak tertaut OPD mana pun.
  *
- * Satu batas teknis yang tetap disampaikan apa adanya: area OPD tidak mengarah
- * ke /admin-opd/dashboard. `getOpdDashboard` menuntut `Role.opd` DENGAN opdId
- * terisi (diperiksa di dalam service, jadi keistimewaan superuser tak menolong),
- * dan memilih OPD di sini tidak mengubah peran token-nya. Tujuannya diganti
- * daftar survei, yang berfungsi penuh.
+ * Sejak OPD dapat dipilih, dashboard OPD ikut terbuka untuk superuser (keputusan
+ * user 2026-08-20: "hanya superuser yang bisa membuka dashboard opd") -- backend
+ * menerima `?opdId=` darinya, lihat DashboardService.resolveDashboardOpdId. Itulah
+ * sebabnya pilihan ini mendarat di dashboard, bukan lagi di daftar survei. Admin
+ * Kabupaten tetap TIDAK bisa membukanya.
  */
 const ROLE_CHOICES = [
   {
@@ -65,7 +65,7 @@ const ROLE_CHOICES = [
     label: 'Admin OPD',
     icon: Building2,
     tone: 'border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800',
-    description: 'Area OPD: daftar survei, pertanyaan, respons, dan pengaduan.',
+    description: 'Dashboard OPD, daftar survei, pertanyaan, respons, dan pengaduan.',
     note: 'Berikutnya: pilih OPD yang ingin Anda pakai.',
   },
   {
@@ -156,12 +156,15 @@ export default function RoleLoginPicker({
     // OPD membaca `acting_opd` untuk menyaring daftarnya.
     saveSuperuserArea(roleKey);
     saveActingOpd(roleKey === 'opd' ? opd : null);
+    // Area OPD mendarat di dashboard-nya (kini berfungsi karena OPD sudah
+    // dipilih); area lain memakai berandanya masing-masing.
+    const target = roleKey === 'opd' ? SUPERUSER_OPD_ENTRY : SUPERUSER_AREA_HOME[roleKey];
     // Navigasi HARD (bukan router.push) SENGAJA -- proxy.js membaca cookie lewat
     // full request, jadi cookie yang baru ditulis harus ikut terkirim pada
     // permintaan berikutnya. `location.assign()` dipakai alih-alih menugaskan
     // `location.href`: efeknya sama, tapi ia pemanggilan metode, bukan mutasi
     // properti objek di luar komponen (react-hooks/immutability).
-    window.location.assign(SUPERUSER_AREA_HOME[roleKey]);
+    window.location.assign(target);
   };
 
   return (
@@ -183,7 +186,7 @@ export default function RoleLoginPicker({
           </h3>
           <p className="text-sm text-slate-500 mt-1">
             {step === 'opd'
-              ? 'OPD yang dipilih menentukan survei & pengaduan mana yang tampil, dan menjadi OPD tujuan saat Anda membuat survei baru.'
+              ? 'OPD yang dipilih menentukan dashboard, survei, & pengaduan mana yang tampil, dan menjadi OPD tujuan saat Anda membuat survei baru.'
               : 'Pilih peran yang ingin Anda buka. Hanya superuser yang mendapat pilihan ini.'}
           </p>
         </div>
