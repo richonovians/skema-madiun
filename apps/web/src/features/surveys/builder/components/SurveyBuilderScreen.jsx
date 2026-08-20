@@ -80,6 +80,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   // Slot tujuan saat komponen "Pilihan Ganda" dilepas di tengah daftar --
   // pembuatannya tertunda sampai opsi jawaban diisi di modal.
   const [pendingInsertSlot, setPendingInsertSlot] = useState(null);
+  // Pertanyaan pilihan ganda yang opsinya sedang disunting (null = tak ada).
+  const [editingQuestion, setEditingQuestion] = useState(null);
 
   const fetchExisting = useCallback(async () => {
     if (isNew) return null;
@@ -284,6 +286,93 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
+  /**
+   * Ubah teks & opsi jawaban pertanyaan pilihan ganda yang SUDAH ada.
+   *
+   * Backend tak menyediakan jalan langsung: `UpdateQuestionDto` hanya menerima
+   * teks/isIkmUnsur/kodeUnsur, dan TIDAK ADA endpoint question_options sama
+   * sekali. Jadi penyuntingan dijalankan sebagai buat-baru + hapus-lama +
+   * kembalikan ke posisi semula, seluruhnya lewat endpoint yang sudah ada.
+   *
+   * Aman karena pertanyaan hanya bisa disunting saat survei DRAF (assertDraft),
+   * dan survei draf belum pernah bisa diisi -- jadi tak ada baris `answers` yang
+   * menunjuk ke opsi lama (question_options -> answers ber-cascade di skema).
+   */
+  const replaceQuestionOptions = async ({ questionId, text, options }) => {
+    assertDraftOrThrow();
+    const before = questions;
+    const index = before.findIndex((q) => q.id === questionId);
+    if (index === -1) {
+      throw new Error('Pertanyaan sudah tidak ada di daftar -- muat ulang halaman.');
+    }
+    const old = before[index];
+    const id = await ensureSurveyExists();
+
+    // BUAT DULU, hapus kemudian -- urutan ini disengaja. Kalau dibalik dan
+    // pembuatan gagal setelah penghapusan berhasil, pertanyaan beserta opsinya
+    // hilang tanpa jejak. Dengan urutan ini, kegagalan terburuknya cuma
+    // duplikat, yang masih bisa dibereskan dan diberitahukan ke pengguna.
+    const created = await createCustomQuestion(id, { text, type: 'Pilihan Ganda', options });
+    const replacement = { ...created, title: old.title };
+
+    try {
+      await deleteQuestion(questionId);
+    } catch (err) {
+      setQuestions([...before, replacement]);
+      throw new Error(
+        `Opsi baru tersimpan, tetapi pertanyaan lama gagal dihapus (${err.message}). Hapus pertanyaan lama secara manual.`,
+      );
+    }
+
+    const next = [...before];
+    next.splice(index, 1, replacement);
+    setQuestions(next);
+
+    // Pertanyaan baru selalu masuk di AKHIR urutan backend (nextUrutan) --
+    // kembalikan ke posisi semula supaya kuesioner tak berubah susunannya hanya
+    // karena opsinya disunting.
+    if (index !== next.length - 1) {
+      try {
+        const updated = await reorderQuestions(
+          id,
+          next.map((q) => q.id),
+        );
+        setQuestions(updated);
+      } catch {
+        setQuestions([...before.filter((q) => q.id !== questionId), replacement]);
+        setActionError(
+          'Opsi berhasil diubah, tetapi posisi pertanyaan gagal dikembalikan -- untuk sementara berada di akhir daftar.',
+        );
+      }
+    }
+  };
+
+  const handleEditOptions = (question) => {
+    setActionError(null);
+    try {
+      assertDraftOrThrow();
+    } catch (err) {
+      setActionError(err.message);
+      return;
+    }
+    setOptionsError(null);
+    setEditingQuestion(question);
+  };
+
+  const handleSubmitEditOptions = async ({ text, options }) => {
+    setOptionsError(null);
+    setIsSaving(true);
+    try {
+      await replaceQuestionOptions({ questionId: editingQuestion.id, text, options });
+      setEditingQuestion(null);
+    } catch (err) {
+      // Modal dibiarkan terbuka supaya isian tak hilang & bisa diperbaiki.
+      setOptionsError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   /** Dilepas di kanvas: pindah urutan, atau tambah pertanyaan baru di slot itu. */
   const handleDropAt = (slot) => {
     const current = drag;
@@ -400,8 +489,26 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onDragEnd={() => setDrag(null)}
         onDropAt={handleDropAt}
         onMove={moveQuestion}
+        onEditOptions={handleEditOptions}
       />
       <FloatingStatus questionCount={questions.length} />
+
+      {/* Satu komponen modal, dua mode. Keduanya tak pernah terbuka bersamaan:
+          "Ubah Opsi" cuma bisa diklik dari blok pertanyaan yang sudah ada. */}
+      {editingQuestion && (
+        <QuestionOptionsModal
+          mode="edit"
+          initialText={editingQuestion.text}
+          initialOptions={(editingQuestion.options ?? []).map((o) => o.label)}
+          isSubmitting={isSaving}
+          submitError={optionsError}
+          onSubmit={handleSubmitEditOptions}
+          onCancel={() => {
+            setEditingQuestion(null);
+            setOptionsError(null);
+          }}
+        />
+      )}
 
       {isOptionsFormOpen && (
         <QuestionOptionsModal

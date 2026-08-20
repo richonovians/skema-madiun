@@ -11,31 +11,44 @@ const MAX_OPTIONS = 20;
 const MAX_OPTION_LENGTH = 255;
 
 /**
- * Form tambah pertanyaan "Pilihan Ganda" beserta opsi jawabannya.
+ * Form pertanyaan "Pilihan Ganda" beserta opsi jawabannya -- dipakai untuk
+ * MENAMBAH (`mode: 'create'`) maupun MENGUBAH (`mode: 'edit'`).
  *
  * KENAPA opsi dikumpulkan LEBIH DULU dalam satu modal, bukan diisi belakangan
  * di blok pertanyaan seperti tipe lain: kontrak backend tak memberi pilihan.
  * `POST /surveys/:id/questions` WAJIB menerima >=2 opsi untuk tipe `pilihan`
  * (QuestionsService.assertValidOptionsForType), sementara `PATCH /questions/:id`
- * (UpdateQuestionDto) cuma menerima `teks`/`isIkmUnsur`/`kodeUnsur` -- opsi
- * tidak dapat ditambah atau diubah setelah pertanyaan dibuat. Jadi pertanyaan
- * hanya boleh dikirim setelah opsinya lengkap.
+ * (UpdateQuestionDto) cuma menerima `teks`/`isIkmUnsur`/`kodeUnsur`, dan TIDAK
+ * ADA endpoint opsi sama sekali (tak ada POST/PATCH/DELETE untuk
+ * question_options). Jadi pertanyaan hanya boleh dikirim setelah opsinya lengkap.
  *
- * Sebelum ini tombol "Pilihan Ganda" di BuilderSidebar hanya memunculkan pesan
- * error "belum didukung builder ini" -- tipe itu praktis tak bisa dipakai.
+ * MODE UBAH (2026-08-19, permintaan user "tidak bisa edit pilihan jawaban
+ * setelah pertanyaan ditambahkan"): karena endpoint opsi tak ada, penyuntingan
+ * dijalankan sebagai buat-ulang lalu hapus-yang-lama (lihat
+ * `replaceQuestionOptions` di SurveyBuilderScreen.jsx). Aman karena pertanyaan
+ * hanya bisa disunting saat survei DRAF, dan survei draf belum bisa punya
+ * respons -- tak ada jawaban responden yang ikut terhapus.
  *
  * TAK punya prop `isOpen`: pemanggil merender komponen ini hanya saat modal
  * perlu tampil, sehingga isian selalu segar tanpa reset dari dalam useEffect
  * (pola itu memicu cascading render, lihat react-hooks/set-state-in-effect).
+ * Karena itu `initialText`/`initialOptions` cukup jadi nilai awal useState.
  */
 export default function QuestionOptionsModal({
+  mode = 'create',
+  initialText = '',
+  initialOptions = null,
   isSubmitting = false,
   submitError = null,
   onSubmit,
   onCancel,
 }) {
-  const [text, setText] = useState('');
-  const [options, setOptions] = useState(['', '']); // dua baris kosong = minimum backend
+  const isEdit = mode === 'edit';
+  const [text, setText] = useState(initialText);
+  const [options, setOptions] = useState(() =>
+    // dua baris kosong = minimum backend; saat mengubah, isi dgn opsi yang ada
+    initialOptions && initialOptions.length >= MIN_OPTIONS ? [...initialOptions] : ['', ''],
+  );
   const [validationError, setValidationError] = useState(null);
 
   useEffect(() => {
@@ -109,11 +122,11 @@ export default function QuestionOptionsModal({
           </button>
 
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Pertanyaan Kustom
+            {isEdit ? 'Ubah Pertanyaan' : 'Pertanyaan Kustom'}
           </p>
           <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1 flex items-center gap-2">
             <ListChecks size={18} className="text-primary" />
-            Pilihan Ganda
+            {isEdit ? 'Ubah Opsi Jawaban' : 'Pilihan Ganda'}
           </h3>
           <p className="text-sm text-slate-500 mt-1">
             Responden memilih satu opsi. Pertanyaan ini tidak dihitung ke Nilai IKM (rumus IKM
@@ -186,11 +199,16 @@ export default function QuestionOptionsModal({
             </button>
           </div>
 
+          {/* Konsekuensi teknisnya disebutkan terus terang, bukan disembunyikan:
+              backend tak punya endpoint opsi, jadi menyimpan perubahan berarti
+              membuat pertanyaan baru & menghapus yang lama -- nomor id-nya
+              berganti. Tak berdampak pada responden (survei masih draf). */}
           <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
             <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700 font-medium leading-relaxed">
-              Opsi jawaban tidak dapat diubah setelah pertanyaan dibuat. Untuk mengubahnya, hapus
-              pertanyaan ini lalu buat ulang.
+              {isEdit
+                ? 'Menyimpan perubahan akan membuat ulang pertanyaan ini pada posisi yang sama. Aman dilakukan karena survei masih draf dan belum bisa diisi responden.'
+                : 'Responden memilih satu opsi. Opsi jawaban masih bisa diubah selama survei berstatus draf.'}
             </p>
           </div>
 
@@ -215,7 +233,13 @@ export default function QuestionOptionsModal({
             className="flex-1 py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-            {isSubmitting ? 'Menambahkan...' : 'Tambah Pertanyaan'}
+            {isSubmitting
+              ? isEdit
+                ? 'Menyimpan...'
+                : 'Menambahkan...'
+              : isEdit
+                ? 'Simpan Perubahan'
+                : 'Tambah Pertanyaan'}
           </button>
         </div>
       </div>

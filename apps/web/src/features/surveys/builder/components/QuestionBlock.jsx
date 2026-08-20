@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Lock, GripVertical, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Lock, GripVertical, Trash2, ArrowUp, ArrowDown, ListChecks } from 'lucide-react';
 
 const SCALE_STEPS = [1, 2, 3, 4];
 
@@ -147,6 +147,7 @@ export default function QuestionBlock({
   onDelete,
   onUpdate,
   onTextCommit,
+  onEditOptions,
 }) {
   const cardRef = useRef(null);
   const [isCardDraggable, setIsCardDraggable] = useState(false);
@@ -288,11 +289,21 @@ export default function QuestionBlock({
 
         <AnswerPreview type={question.type} options={options} />
 
-        {question.type === 'Pilihan Ganda' && (
-          <p className="text-[11px] text-text-secondary italic">
-            Opsi jawaban tidak dapat diubah setelah pertanyaan dibuat -- hapus lalu buat ulang bila
-            perlu diperbaiki.
-          </p>
+        {/* "Ubah Opsi" hanya untuk Pilihan Ganda, dan hanya saat masih draf.
+            Tipe skala & teks TIDAK punya opsi sama sekali di basis data
+            (assertValidOptionsForType backend melarangnya untuk non-pilihan),
+            jadi tak ada yang bisa disunting di sana -- skala 1-4 tetap menurut
+            PermenPANRB. Sebelum ini di tempat ini ada keterangan bahwa opsi tak
+            dapat diubah; kini bisa (lihat replaceQuestionOptions). */}
+        {question.type === 'Pilihan Ganda' && canReorder && (
+          <button
+            type="button"
+            onClick={() => onEditOptions?.(question)}
+            className="self-start inline-flex items-center gap-2 min-h-[40px] px-3 rounded-lg border border-border text-label-md font-label-md text-text-secondary hover:text-primary hover:border-primary hover:bg-primary-container/10 transition-colors"
+          >
+            <ListChecks size={16} />
+            Ubah Opsi Jawaban
+          </button>
         )}
       </div>
 
