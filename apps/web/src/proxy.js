@@ -17,11 +17,12 @@ import { ROLE_HOME, SUPERUSER_AREA_HOME } from '@/constants/roleHome';
 //   diblokir total dari /admin-opd -- padahal kabupaten memang berhak lihat
 //   pengaduan/survei per-OPD (lihat opd-scope.util.ts, assertOpdAccess selalu
 //   meloloskan kabupaten). Kini diizinkan, KECUALI /admin-opd/dashboard yang
-//   backend-nya HARUS `Role.opd` murni (`DashboardService.getOpdDashboard`
-//   cek eksplisit `user.role !== Role.opd`, bukan cuma decorator @Roles yg
-//   bisa dilewati bypass) -- kabupaten diarahkan ke dashboard globalnya sendiri
-//   (/admin-kab/dashboard, sudah py agregat lintas-OPD yg setara) drpd
-//   menampilkan 403 mentah dari sub-halaman itu saja.
+//   ditolak backend untuk kabupaten (`DashboardService.resolveDashboardOpdId`,
+//   diperiksa di dalam service karena decorator @Roles bisa dilewati bypass) --
+//   kabupaten diarahkan ke dashboard globalnya sendiri (/admin-kab/dashboard,
+//   sudah py agregat lintas-OPD yg setara) drpd menampilkan 403 mentah dari
+//   sub-halaman itu saja. SUPERUSER kini boleh membukanya (2026-08-20, keputusan
+//   user) selama sudah memilih OPD -- lihat catatan di dalam `proxy()`.
 // - Halaman warga (/dashboard, /complaints, /surveys, /profile) SEBELUMNYA
 //   TIDAK PERNAH dijaga sama sekali (di luar matcher lama) -- Admin OPD/
 //   Kabupaten bisa membuka halaman pengaduan warga & mengirim balasan lewat
@@ -91,6 +92,10 @@ export function proxy(request) {
   const superuserArea =
     role === 'superuser' ? request.cookies.get('area')?.value : undefined;
   const areaPrefixes = superuserArea ? SUPERUSER_AREA_PREFIXES[superuserArea] : undefined;
+  // OPD yang sedang diperankan superuser (cookie `opd`, ditulis authStorage.js).
+  // Proxy hanya butuh tahu ADA atau TIDAK -- yang memakai nilainya adalah
+  // halaman area OPD di sisi klien (`?opdId=`).
+  const actingOpdId = role === 'superuser' ? request.cookies.get('opd')?.value : undefined;
   // Beranda yang dituju saat superuser dipantulkan: beranda AREA-nya, bukan
   // /admin-kab/dashboard -- memantulkannya ke luar area yang sedang dipakai
   // hanya akan dipantulkan lagi oleh aturan area di bawah (lingkaran).
@@ -143,11 +148,26 @@ export function proxy(request) {
   // menuntut `Role.opd` DENGAN opdId terisi (diperiksa di dalam service, bukan
   // lewat @Roles), dan superuser tak tertaut OPD mana pun -- jadi ia pun akan 403.
   if (isAdminOpd && pathname.startsWith('/admin-opd/dashboard') && hasFullAccess) {
-    // Superuser dipantulkan ke beranda AREA-nya, bukan selalu /admin-kab: kalau
-    // ia sedang terkurung di area OPD, memantulkannya ke admin-kab hanya akan
-    // dipantulkan lagi oleh aturan area di bawah.
-    const home = role === 'superuser' ? superuserHome : ROLE_HOME[role];
-    return NextResponse.redirect(new URL(home, request.url));
+    // SUPERUSER kini boleh (2026-08-20, keputusan user: "hanya superuser yang
+    // bisa membuka dashboard opd") ASALKAN sudah memilih OPD -- backend menuntut
+    // `?opdId=` darinya dan menolak 400 tanpa itu, jadi tanpa pilihan OPD
+    // halaman ini pasti gagal memuat dan lebih baik dipantulkan.
+    //
+    // Admin Kabupaten TETAP dipantulkan: `resolveDashboardOpdId` menolaknya 403
+    // dengan atau tanpa parameter. Dashboard lintas-OPD miliknya ada di
+    // /admin-kab/dashboard.
+    const superuserMayOpen = role === 'superuser' && actingOpdId != null;
+    if (!superuserMayOpen) {
+      // Superuser dipantulkan ke beranda AREA-nya, bukan selalu /admin-kab: kalau
+      // ia sedang terkurung di area OPD, memantulkannya ke admin-kab hanya akan
+      // dipantulkan lagi oleh aturan area di bawah.
+      const home = role === 'superuser' ? superuserHome : ROLE_HOME[role];
+      return NextResponse.redirect(new URL(home, request.url));
+    }
+    // Sengaja TIDAK `return next()` di sini: kurungan area & pemeriksaan
+    // `forbidden` di bawah harus tetap berjalan, supaya superuser yang sedang
+    // memakai area kabupaten/warga tak bisa menyelinap ke sini hanya karena
+    // cookie OPD-nya masih tertinggal.
   }
 
   // Hanya superuser: Admin Kabupaten biasa dipantulkan ke berandanya.

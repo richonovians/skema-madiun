@@ -102,7 +102,8 @@ Penyelenggara pelayanan publik wajib mengukur kepuasan masyarakat sebagai dasar 
 |---|:---:|:---:|
 | Log aktivitas (`/audit-logs`) | ✅ | ❌ 403 (`AuditService.assertSuperuser`) |
 | Manajemen akun (`/users`, termasuk ubah role) | ✅ | ❌ 403 (`UsersService.assertSuperuser`) |
-| Dashboard, survei, pertanyaan, pengaduan, OPD, IKM | ✅ | ✅ |
+| Dashboard OPD (`/dashboard/opd`) | ✅ (pilih OPD lebih dulu) | ❌ 403 (`DashboardService.resolveDashboardOpdId`) |
+| Dashboard kabupaten, survei, pertanyaan, pengaduan, OPD, IKM | ✅ | ✅ |
 | Memilih area kerja saat login (`/pilih-peran`) | ✅ | ❌ (langsung ke dashboard kabupaten) |
 
 Area kerja yang dipilih Superuser MENGURUNG navigasinya pada area itu saja (cookie `area` + proxy frontend) — pembatas navigasi, bukan hak akses: token-nya tetap berhak penuh di backend.

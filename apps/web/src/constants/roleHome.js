@@ -17,17 +17,28 @@ export const ROLE_HOME = {
 };
 
 /**
- * Tujuan tiap pilihan pada pemilih peran superuser (2026-08-20).
+ * Beranda AMAN tiap area superuser (2026-08-20) -- dipakai proxy sebagai tujuan
+ * pantulan saat ia menyentuh halaman di luar areanya.
  *
- * Admin OPD SENGAJA tidak diarahkan ke /admin-opd/dashboard: endpoint
- * `GET /dashboard/opd` menolak siapa pun yang bukan `Role.opd` DENGAN opdId
- * terisi (diperiksa di dalam DashboardService, jadi bypass superuser tak
- * menolong), dan superuser tak tertaut OPD mana pun. Mengarahkannya ke sana
- * hanya akan berujung 403 atau terpantul balik oleh proxy. Daftar survei
- * lintas OPD berfungsi penuh untuk superuser, jadi itulah pintu masuknya.
+ * Area OPD di sini SENGAJA daftar survei, bukan dashboard, dan itu bukan sisa
+ * pembatasan lama: nilai ini juga menjadi tujuan pantulan ketika superuser
+ * membuka /admin-opd/dashboard TANPA memilih OPD. Kalau isinya dashboard itu
+ * sendiri, pantulan akan menuju halaman yang memantulkan lagi -- lingkaran
+ * pengalihan tanpa akhir. Pintu masuk setelah memilih OPD memakai
+ * `SUPERUSER_OPD_ENTRY` di bawah.
  */
 export const SUPERUSER_AREA_HOME = {
   kabupaten: '/admin-kab/dashboard',
   opd: '/admin-opd/surveys',
   responden: '/dashboard',
 };
+
+/**
+ * Halaman pertama yang dibuka superuser setelah MEMILIH OPD (2026-08-20,
+ * keputusan user: hanya superuser yang bisa membuka dashboard OPD).
+ *
+ * Dashboard OPD kini berfungsi untuknya karena `GET /dashboard/opd` menerima
+ * `?opdId=` dari peran superuser (lihat DashboardService.resolveDashboardOpdId).
+ * Dipisah dari `SUPERUSER_AREA_HOME.opd` demi alasan di catatan di atas.
+ */
+export const SUPERUSER_OPD_ENTRY = '/admin-opd/dashboard';
