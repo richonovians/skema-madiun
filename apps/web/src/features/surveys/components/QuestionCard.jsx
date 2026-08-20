@@ -4,15 +4,7 @@ import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import RadioCard from '@/components/ui/RadioCard';
 import useSurveyStore from '../store/useSurveyStore';
-
-// Label skala 1-4 SKM (PermenPANRB 14/2017). Murni sisi tampilan: backend hanya
-// menyimpan nilai numeriknya, tak ada label per angka di skema Question.
-const SCALE_OPTIONS = [
-  { value: '1', label: 'Tidak Cepat / Tidak Baik' },
-  { value: '2', label: 'Kurang Cepat / Kurang Baik' },
-  { value: '3', label: 'Cepat / Baik' },
-  { value: '4', label: 'Sangat Cepat / Sangat Baik' },
-];
+import { scaleStepsFromOptions } from '../constants/scaleLabels';
 
 const MAX_TEXT_LENGTH = 1000;
 
@@ -93,16 +85,20 @@ export default function QuestionCard() {
     }
 
     if (currentQuestion.type === 'scale_1_to_4') {
+      // Label per skor berasal dari opsi pertanyaan bila pengelola survei
+      // menyesuaikannya (2026-08-20), selain itu label baku SKM. Yang dikirim
+      // tetap SKOR-nya (1-4), bukan id opsi -- lihat toSubmitAnswers.
+      const steps = scaleStepsFromOptions(currentQuestion.options);
       return (
         <div className="grid grid-cols-1 gap-4">
-          {SCALE_OPTIONS.map((option) => (
+          {steps.map((step) => (
             <RadioCard
-              key={option.value}
+              key={step.value}
               name={radioName}
-              value={option.value}
-              label={option.label}
-              numberIcon={option.value}
-              checked={currentAnswer === option.value}
+              value={step.value}
+              label={step.label}
+              numberIcon={step.value}
+              checked={currentAnswer === step.value}
               onChange={handleChange}
             />
           ))}

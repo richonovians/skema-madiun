@@ -1,33 +1,35 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, Plus, Trash2, Loader2, ListChecks, Info } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, ListChecks, Info, Gauge, Lock } from 'lucide-react';
+import { DEFAULT_SCALE_LABELS, SCALE_OPTION_COUNT } from '@/features/surveys/constants/scaleLabels';
 
-// Batas dari CreateQuestionDto backend: @ArrayMinSize(2) @ArrayMaxSize(20),
-// label @MaxLength(255). Ditegakkan juga di sini supaya penolakan terjadi
-// sebelum permintaan terkirim, bukan sebagai 400 yang membingungkan.
+// Batas dari backend (CreateQuestionDto/UpdateQuestionDto): @ArrayMinSize(2)
+// @ArrayMaxSize(20), label @MaxLength(255). Ditegakkan juga di sini supaya
+// penolakan terjadi sebelum permintaan terkirim, bukan sebagai 400 yang
+// membingungkan.
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 20;
 const MAX_OPTION_LENGTH = 255;
 
 /**
- * Form pertanyaan "Pilihan Ganda" beserta opsi jawabannya -- dipakai untuk
- * MENAMBAH (`mode: 'create'`) maupun MENGUBAH (`mode: 'edit'`).
+ * Form opsi jawaban -- dipakai MENAMBAH pertanyaan pilihan ganda
+ * (`mode: 'create'`) maupun MENGUBAH opsi pertanyaan yang sudah ada
+ * (`mode: 'edit'`), untuk DUA bentuk pertanyaan:
  *
- * KENAPA opsi dikumpulkan LEBIH DULU dalam satu modal, bukan diisi belakangan
- * di blok pertanyaan seperti tipe lain: kontrak backend tak memberi pilihan.
- * `POST /surveys/:id/questions` WAJIB menerima >=2 opsi untuk tipe `pilihan`
- * (QuestionsService.assertValidOptionsForType), sementara `PATCH /questions/:id`
- * (UpdateQuestionDto) cuma menerima `teks`/`isIkmUnsur`/`kodeUnsur`, dan TIDAK
- * ADA endpoint opsi sama sekali (tak ada POST/PATCH/DELETE untuk
- * question_options). Jadi pertanyaan hanya boleh dikirim setelah opsinya lengkap.
+ * - `variant: 'pilihan'` -- daftar opsi bebas, 2..20 baris, bisa ditambah/dihapus.
+ * - `variant: 'skala'` -- TEPAT 4 baris, satu label per skor 1-4, tak bisa
+ *   ditambah/dihapus (2026-08-20, permintaan user "edit opsi jawaban juga dapat
+ *   digunakan pada pertanyaan skala nilai 1-4").
  *
- * MODE UBAH (2026-08-19, permintaan user "tidak bisa edit pilihan jawaban
- * setelah pertanyaan ditambahkan"): karena endpoint opsi tak ada, penyuntingan
- * dijalankan sebagai buat-ulang lalu hapus-yang-lama (lihat
- * `replaceQuestionOptions` di SurveyBuilderScreen.jsx). Aman karena pertanyaan
- * hanya bisa disunting saat survei DRAF, dan survei draf belum bisa punya
- * respons -- tak ada jawaban responden yang ikut terhapus.
+ * KENAPA skala dikunci 4 baris: skala SKM selalu 1-4 (PermenPANRB 14/2017) dan
+ * SKOR-nya adalah dasar rumus IKM. Backend memaksa `nilai` = posisi baris
+ * (QuestionsService.toOptionRows), jadi yang bisa disesuaikan murni KALIMATNYA --
+ * menambah/mengurangi baris akan mengubah dasar hitungan, dan itu tak diizinkan.
+ *
+ * KENAPA pilihan ganda mengumpulkan opsi LEBIH DULU dalam satu modal saat
+ * menambah: `POST /surveys/:id/questions` WAJIB menerima >=2 opsi untuk tipe
+ * `pilihan`, jadi pertanyaannya baru boleh dikirim setelah opsinya lengkap.
  *
  * TAK punya prop `isOpen`: pemanggil merender komponen ini hanya saat modal
  * perlu tampil, sehingga isian selalu segar tanpa reset dari dalam useEffect
@@ -36,19 +38,32 @@ const MAX_OPTION_LENGTH = 255;
  */
 export default function QuestionOptionsModal({
   mode = 'create',
+  variant = 'pilihan',
   initialText = '',
   initialOptions = null,
+  // Unsur baku PermenPANRB terkunci TEKSnya (lihat QuestionBlock) -- labelnya
+  // tetap boleh disesuaikan, jadi modal ini dibuka dengan teks read-only.
+  isTextLocked = false,
   isSubmitting = false,
   submitError = null,
   onSubmit,
   onCancel,
 }) {
   const isEdit = mode === 'edit';
+  const isScale = variant === 'skala';
   const [text, setText] = useState(initialText);
-  const [options, setOptions] = useState(() =>
+  const [options, setOptions] = useState(() => {
+    if (isScale) {
+      // Pertanyaan skala yang belum pernah disesuaikan tak punya opsi tersimpan
+      // -- isian dibuka dengan label BAKU yang memang sedang dilihat responden,
+      // bukan 4 baris kosong (pengelola tinggal menyunting kalimat yang ada).
+      return initialOptions && initialOptions.length === SCALE_OPTION_COUNT
+        ? [...initialOptions]
+        : [...DEFAULT_SCALE_LABELS];
+    }
     // dua baris kosong = minimum backend; saat mengubah, isi dgn opsi yang ada
-    initialOptions && initialOptions.length >= MIN_OPTIONS ? [...initialOptions] : ['', ''],
-  );
+    return initialOptions && initialOptions.length >= MIN_OPTIONS ? [...initialOptions] : ['', ''];
+  });
   const [validationError, setValidationError] = useState(null);
 
   useEffect(() => {
@@ -88,6 +103,23 @@ export default function QuestionOptionsModal({
       return;
     }
 
+    // Skala: setiap skor WAJIB punya label -- baris kosong tak boleh dibuang
+    // seperti pada pilihan ganda, karena posisi baris = skornya.
+    if (isScale) {
+      const labels = options.map((opt) => opt.trim());
+      if (labels.some((label) => !label)) {
+        setValidationError(`Setiap skor 1-${SCALE_OPTION_COUNT} harus punya label.`);
+        return;
+      }
+      if (new Set(labels.map((label) => label.toLowerCase())).size !== labels.length) {
+        setValidationError('Ada label yang sama -- setiap skor harus berbeda.');
+        return;
+      }
+      setValidationError(null);
+      onSubmit({ text: trimmedText, options: labels });
+      return;
+    }
+
     const filledOptions = options.map((opt) => opt.trim()).filter(Boolean);
     if (filledOptions.length < MIN_OPTIONS) {
       setValidationError(`Isi minimal ${MIN_OPTIONS} opsi jawaban.`);
@@ -105,6 +137,8 @@ export default function QuestionOptionsModal({
   };
 
   const error = validationError ?? submitError;
+  const heading = isScale ? 'Ubah Label Skala 1-4' : isEdit ? 'Ubah Opsi Jawaban' : 'Pilihan Ganda';
+  const HeadingIcon = isScale ? Gauge : ListChecks;
 
   return (
     <div
@@ -125,12 +159,13 @@ export default function QuestionOptionsModal({
             {isEdit ? 'Ubah Pertanyaan' : 'Pertanyaan Kustom'}
           </p>
           <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1 flex items-center gap-2">
-            <ListChecks size={18} className="text-primary" />
-            {isEdit ? 'Ubah Opsi Jawaban' : 'Pilihan Ganda'}
+            <HeadingIcon size={18} className="text-primary" />
+            {heading}
           </h3>
           <p className="text-sm text-slate-500 mt-1">
-            Responden memilih satu opsi. Pertanyaan ini tidak dihitung ke Nilai IKM (rumus IKM
-            hanya memakai pertanyaan skala 1-4).
+            {isScale
+              ? 'Responden memilih satu skor 1-4. Yang diubah di sini hanya KALIMAT tiap skor — skornya tetap 1-4 dan Nilai IKM tetap dihitung dari angka itu.'
+              : 'Responden memilih satu opsi. Pertanyaan ini tidak dihitung ke Nilai IKM (rumus IKM hanya memakai pertanyaan skala 1-4).'}
           </p>
         </div>
 
@@ -144,25 +179,37 @@ export default function QuestionOptionsModal({
               rows={2}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isTextLocked}
+              readOnly={isTextLocked}
               placeholder="mis. Dari mana Anda mengetahui layanan ini?"
               className="w-full p-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-body-md resize-none disabled:opacity-60"
             />
+            {isTextLocked && (
+              <p className="flex items-start gap-1.5 text-xs text-slate-500 font-medium">
+                <Lock size={12} className="mt-0.5 shrink-0" />
+                Teks unsur baku PermenPANRB tidak dapat diubah — hanya labelnya.
+              </p>
+            )}
           </div>
 
           <div className="space-y-xs">
             <div className="flex items-center justify-between">
-              <span className="block text-sm font-bold text-text-primary">Opsi Jawaban</span>
+              <span className="block text-sm font-bold text-text-primary">
+                {isScale ? 'Label Tiap Skor' : 'Opsi Jawaban'}
+              </span>
               <span className="text-xs text-slate-400 font-medium">
-                {options.length} / {MAX_OPTIONS}
+                {isScale ? `${SCALE_OPTION_COUNT} skor` : `${options.length} / ${MAX_OPTIONS}`}
               </span>
             </div>
 
             <div className="space-y-2">
               {options.map((option, index) => (
                 <div key={index} className="flex items-center gap-2">
-                  <span className="w-7 h-7 shrink-0 rounded-full border border-outline-variant flex items-center justify-center text-xs font-bold text-text-secondary">
-                    {String.fromCharCode(65 + index)}
+                  <span
+                    className="w-7 h-7 shrink-0 rounded-full border border-outline-variant flex items-center justify-center text-xs font-bold text-text-secondary"
+                    title={isScale ? `Skor ${index + 1}` : `Opsi ${String.fromCharCode(65 + index)}`}
+                  >
+                    {isScale ? index + 1 : String.fromCharCode(65 + index)}
                   </span>
                   <input
                     type="text"
@@ -170,45 +217,49 @@ export default function QuestionOptionsModal({
                     onChange={(e) => handleOptionChange(index, e.target.value)}
                     disabled={isSubmitting}
                     maxLength={MAX_OPTION_LENGTH}
-                    placeholder={`Opsi ${index + 1}`}
+                    placeholder={isScale ? `Label untuk skor ${index + 1}` : `Opsi ${index + 1}`}
                     className="flex-1 min-w-0 min-h-[44px] px-3 border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-body-md disabled:opacity-60"
                   />
-                  <button
-                    onClick={() => handleRemoveOption(index)}
-                    disabled={isSubmitting || options.length <= MIN_OPTIONS}
-                    title={
-                      options.length <= MIN_OPTIONS
-                        ? `Minimal ${MIN_OPTIONS} opsi`
-                        : 'Hapus opsi ini'
-                    }
-                    className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-outline-variant text-text-secondary hover:text-error hover:border-error/40 hover:bg-error-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-secondary disabled:hover:border-outline-variant"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {/* Skala TIDAK punya tombol hapus: jumlah barisnya adalah
+                      skalanya sendiri (1-4), bukan preferensi tampilan. */}
+                  {!isScale && (
+                    <button
+                      onClick={() => handleRemoveOption(index)}
+                      disabled={isSubmitting || options.length <= MIN_OPTIONS}
+                      title={
+                        options.length <= MIN_OPTIONS
+                          ? `Minimal ${MIN_OPTIONS} opsi`
+                          : 'Hapus opsi ini'
+                      }
+                      className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-outline-variant text-text-secondary hover:text-error hover:border-error/40 hover:bg-error-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-text-secondary disabled:hover:border-outline-variant"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
 
-            <button
-              onClick={handleAddOption}
-              disabled={isSubmitting || options.length >= MAX_OPTIONS}
-              className="mt-2 w-full py-2.5 rounded-lg border-2 border-dashed border-outline-variant text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Plus size={16} />
-              Tambah Opsi
-            </button>
+            {!isScale && (
+              <button
+                onClick={handleAddOption}
+                disabled={isSubmitting || options.length >= MAX_OPTIONS}
+                className="mt-2 w-full py-2.5 rounded-lg border-2 border-dashed border-outline-variant text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={16} />
+                Tambah Opsi
+              </button>
+            )}
           </div>
 
-          {/* Konsekuensi teknisnya disebutkan terus terang, bukan disembunyikan:
-              backend tak punya endpoint opsi, jadi menyimpan perubahan berarti
-              membuat pertanyaan baru & menghapus yang lama -- nomor id-nya
-              berganti. Tak berdampak pada responden (survei masih draf). */}
           <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
             <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700 font-medium leading-relaxed">
-              {isEdit
-                ? 'Menyimpan perubahan akan membuat ulang pertanyaan ini pada posisi yang sama. Aman dilakukan karena survei masih draf dan belum bisa diisi responden.'
-                : 'Responden memilih satu opsi. Opsi jawaban masih bisa diubah selama survei berstatus draf.'}
+              {isScale
+                ? 'Skor 1 sampai 4 tetap seperti aslinya — Nilai IKM dihitung dari skor, bukan dari kalimatnya. Masih bisa diubah selama survei berstatus draf.'
+                : isEdit
+                  ? 'Opsi lama diganti seluruhnya dengan daftar di atas. Aman dilakukan karena survei masih draf dan belum bisa diisi responden.'
+                  : 'Responden memilih satu opsi. Opsi jawaban masih bisa diubah selama survei berstatus draf.'}
             </p>
           </div>
 

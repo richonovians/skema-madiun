@@ -11,7 +11,8 @@ import {
   ClipboardList,
   LogOut,
   X,
-  History
+  History,
+  Repeat
 } from 'lucide-react';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useLogout } from '@/hooks/useLogout';
@@ -20,14 +21,21 @@ import { getMyProfile } from '@/features/profile/services/profile.api';
 import { USER_ROLES } from '@/features/users/constants/userConstants';
 
 /**
- * "Audit Logs" hanya untuk SUPERUSER (2026-08-20, atas permintaan user):
- * Admin Kabupaten biasa tak boleh melihat fitur log aktivitas.
+ * "Audit Logs" DAN "Manajemen User" hanya untuk SUPERUSER (2026-08-20, atas
+ * permintaan user): Admin Kabupaten biasa tak boleh melihat log aktivitas maupun
+ * mengelola akun. Konsekuensinya sengaja: pengangkatan/penurunan peran admin kini
+ * sepenuhnya di tangan superuser.
  *
  * Perannya dibaca dari `GET /auth/me`, BUKAN dari cookie `role` -- cookie itu
  * bisa disunting bebas di peramban, jadi tak layak jadi dasar keputusan tampilan
  * yang seolah-olah hak akses. Batas sesungguhnya tetap di backend
- * (AuditService.assertSuperuser, 403 walau URL dipaksa); menyembunyikan menu di
- * sini supaya pengguna tak diarahkan ke halaman yang pasti gagal.
+ * (AuditService.assertSuperuser & UsersService.assertSuperuser, 403 walau URL
+ * dipaksa); menyembunyikan menu di sini supaya pengguna tak diarahkan ke halaman
+ * yang pasti gagal.
+ *
+ * "Ganti Peran" juga khusus superuser: pilihan perannya saat login mengurung
+ * navigasinya ke satu area (lihat proxy.js), dan ini jalan berpindahnya tanpa
+ * harus keluar-masuk lagi.
  */
 export default function AdminKabSidebar() {
   const pathname = usePathname();
@@ -92,19 +100,32 @@ export default function AdminKabSidebar() {
             <MessageSquare size={20} />
             <span>Pengaduan</span>
           </Link>
-          <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <Users size={20} />
-            <span>Manajemen User</span>
-          </Link>
+          {/* Manajemen User & Audit Logs: khusus SUPERUSER (2026-08-20). */}
           {isSuperuser && (
-            <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
-              <History size={20} />
-              <span>Audit Logs</span>
-            </Link>
+            <>
+              <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
+                <Users size={20} />
+                <span>Manajemen User</span>
+              </Link>
+              <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
+                <History size={20} />
+                <span>Audit Logs</span>
+              </Link>
+            </>
           )}
         </nav>
-        
+
         <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">
+          {isSuperuser && (
+            <Link
+              href="/pilih-peran"
+              className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg"
+              onClick={() => setIsMobileSidebarOpen(false)}
+            >
+              <Repeat size={20} />
+              <span>Ganti Peran</span>
+            </Link>
+          )}
           <button
             onClick={logout}
             disabled={isLoggingOut}

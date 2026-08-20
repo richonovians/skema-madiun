@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { authApi } from '../services/sso.api';
-import { saveSession, clearSession } from '../services/authStorage';
+import { saveSession, clearSession, clearSuperuserArea } from '../services/authStorage';
 import { ROLE_HOME } from '@/constants/roleHome';
 import RoleLoginPicker from './RoleLoginPicker';
 
@@ -29,6 +29,9 @@ export default function SSOLoginButton() {
       const res = await authApi.devLogin(identifier);
       const role = res.data.user?.role;
       saveSession(res.data.token, role);
+      // Buang pilihan area sesi SEBELUMNYA (bisa jadi akun lain di peramban yang
+      // sama) -- superuser menuliskannya lagi lewat pemilih peran di bawah.
+      clearSuperuserArea();
 
       // HANYA `superuser` yang boleh memilih peran (2026-08-20). Admin
       // Kabupaten TIDAK: ia langsung ke /admin-kab/dashboard lewat ROLE_HOME di

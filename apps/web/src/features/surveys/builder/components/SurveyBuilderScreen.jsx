@@ -11,6 +11,8 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
+import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
+import { getActingOpd } from '@/features/authentication/services/authStorage';
 import {
   getSurveyById,
   getQuestions,
@@ -21,6 +23,7 @@ import {
   applyQuestionTemplate,
   deleteQuestion,
   updateQuestionText,
+  updateQuestionOptions,
   reorderQuestions,
 } from '@/features/surveys/services/surveys.api';
 
@@ -106,7 +109,17 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   /** Buat survei sungguhan bila belum ada -- dipicu aksi pertama yg butuh id nyata. */
   const ensureSurveyExists = useCallback(async () => {
     if (surveyId) return surveyId;
-    const created = await createSurvey({ title: title.trim() || 'Survei Tanpa Judul', period: periode });
+    // `opdId` HANYA terisi bila superuser sedang memerankan satu OPD (2026-08-20).
+    // Tanpa itu backend menolak "opdId wajib diisi" untuk peran berhak penuh --
+    // akun superuser tak tertaut OPD mana pun (resolveOpdId di SurveysService).
+    // Admin OPD sungguhan tak terpengaruh: backend selalu memakai OPD akunnya
+    // sendiri dan mengabaikan field ini.
+    const actingOpd = getActingOpd();
+    const created = await createSurvey({
+      title: title.trim() || 'Survei Tanpa Judul',
+      period: periode,
+      ...(actingOpd ? { opdId: actingOpd.id } : {}),
+    });
     setSurveyId(created.id);
     setStatus(created.status);
     return created.id;
@@ -286,67 +299,6 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
-  /**
-   * Ubah teks & opsi jawaban pertanyaan pilihan ganda yang SUDAH ada.
-   *
-   * Backend tak menyediakan jalan langsung: `UpdateQuestionDto` hanya menerima
-   * teks/isIkmUnsur/kodeUnsur, dan TIDAK ADA endpoint question_options sama
-   * sekali. Jadi penyuntingan dijalankan sebagai buat-baru + hapus-lama +
-   * kembalikan ke posisi semula, seluruhnya lewat endpoint yang sudah ada.
-   *
-   * Aman karena pertanyaan hanya bisa disunting saat survei DRAF (assertDraft),
-   * dan survei draf belum pernah bisa diisi -- jadi tak ada baris `answers` yang
-   * menunjuk ke opsi lama (question_options -> answers ber-cascade di skema).
-   */
-  const replaceQuestionOptions = async ({ questionId, text, options }) => {
-    assertDraftOrThrow();
-    const before = questions;
-    const index = before.findIndex((q) => q.id === questionId);
-    if (index === -1) {
-      throw new Error('Pertanyaan sudah tidak ada di daftar -- muat ulang halaman.');
-    }
-    const old = before[index];
-    const id = await ensureSurveyExists();
-
-    // BUAT DULU, hapus kemudian -- urutan ini disengaja. Kalau dibalik dan
-    // pembuatan gagal setelah penghapusan berhasil, pertanyaan beserta opsinya
-    // hilang tanpa jejak. Dengan urutan ini, kegagalan terburuknya cuma
-    // duplikat, yang masih bisa dibereskan dan diberitahukan ke pengguna.
-    const created = await createCustomQuestion(id, { text, type: 'Pilihan Ganda', options });
-    const replacement = { ...created, title: old.title };
-
-    try {
-      await deleteQuestion(questionId);
-    } catch (err) {
-      setQuestions([...before, replacement]);
-      throw new Error(
-        `Opsi baru tersimpan, tetapi pertanyaan lama gagal dihapus (${err.message}). Hapus pertanyaan lama secara manual.`,
-      );
-    }
-
-    const next = [...before];
-    next.splice(index, 1, replacement);
-    setQuestions(next);
-
-    // Pertanyaan baru selalu masuk di AKHIR urutan backend (nextUrutan) --
-    // kembalikan ke posisi semula supaya kuesioner tak berubah susunannya hanya
-    // karena opsinya disunting.
-    if (index !== next.length - 1) {
-      try {
-        const updated = await reorderQuestions(
-          id,
-          next.map((q) => q.id),
-        );
-        setQuestions(updated);
-      } catch {
-        setQuestions([...before.filter((q) => q.id !== questionId), replacement]);
-        setActionError(
-          'Opsi berhasil diubah, tetapi posisi pertanyaan gagal dikembalikan -- untuk sementara berada di akhir daftar.',
-        );
-      }
-    }
-  };
-
   const handleEditOptions = (question) => {
     setActionError(null);
     try {
@@ -359,11 +311,33 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     setEditingQuestion(question);
   };
 
+  /**
+   * Simpan penggantian opsi/label pertanyaan yang SUDAH ada.
+   *
+   * Satu panggilan `PATCH /questions/:id` saja (backend menggantinya dalam satu
+   * transaksi, 2026-08-20). SEBELUMNYA jalur ini harus memutar: buat pertanyaan
+   * baru -> hapus yang lama -> kembalikan urutannya, karena DTO backend tak
+   * menerima `options` sama sekali. Cara lama mengganti id pertanyaan dan bisa
+   * meninggalkan duplikat bila gagal separuh jalan; kini tak ada lagi keadaan
+   * setengah jadi yang perlu dijelaskan ke pengguna.
+   */
   const handleSubmitEditOptions = async ({ text, options }) => {
     setOptionsError(null);
     setIsSaving(true);
+    const target = editingQuestion;
     try {
-      await replaceQuestionOptions({ questionId: editingQuestion.id, text, options });
+      assertDraftOrThrow();
+      const updated = await updateQuestionOptions(target.id, {
+        // Unsur baku PermenPANRB: teksnya terkunci di UI, jadi jangan sampai
+        // ikut terkirim -- hanya labelnya yang boleh berubah.
+        text: target.isBaku ? undefined : text,
+        options,
+      });
+      // `title` pertanyaan tak pernah tersimpan di backend (murni kosmetik per
+      // posisi) -- pertahankan yang sedang tampil supaya tak berkedip berubah.
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === target.id ? { ...updated, title: q.title } : q)),
+      );
       setEditingQuestion(null);
     } catch (err) {
       // Modal dibiarkan terbuka supaya isian tak hilang & bisa diperbaiki.
@@ -458,12 +432,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       onDragEnd={() => setDrag(null)}
       canDrag={status === 'DRAF'}
     >
+      {/* Judul & periode TIDAK lagi dikirim ke bilah atas (2026-08-20) --
+          keduanya disunting di kartu putih pada kanvas. State-nya tetap di sini,
+          jadi tak ada kendali yang terduplikasi. */}
       <BuilderToolbar
-        title={title}
-        onTitleChange={setTitle}
-        onTitleBlur={handleTitleBlur}
-        periode={periode}
-        onPeriodeCommit={handlePeriodeCommit}
         status={status}
         isSaving={isSaving}
         onPublish={handlePublish}
@@ -482,7 +454,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onTextCommit={handleTextCommit}
         onAdd={() => handleAddCustom('Skala Penilaian 1-4')}
         title={title}
+        onTitleChange={setTitle}
+        onTitleBlur={handleTitleBlur}
         periode={periode}
+        onPeriodeCommit={handlePeriodeCommit}
         drag={drag}
         canReorder={status === 'DRAF'}
         onQuestionDragStart={(index) => setDrag({ kind: 'reorder', index })}
@@ -493,13 +468,23 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       />
       <FloatingStatus questionCount={questions.length} />
 
-      {/* Satu komponen modal, dua mode. Keduanya tak pernah terbuka bersamaan:
-          "Ubah Opsi" cuma bisa diklik dari blok pertanyaan yang sudah ada. */}
+      {/* Satu komponen modal, dua mode & dua bentuk. Keduanya tak pernah terbuka
+          bersamaan: "Ubah Opsi/Label" cuma bisa diklik dari blok pertanyaan yang
+          sudah ada. Untuk skala, label awalnya diambil lewat scaleStepsFromOptions
+          -- pertanyaan yang belum pernah disesuaikan tak punya opsi tersimpan,
+          jadi yang tampil label BAKU SKM (yang memang sedang dilihat responden),
+          bukan 4 baris kosong. */}
       {editingQuestion && (
         <QuestionOptionsModal
           mode="edit"
+          variant={editingQuestion.type === 'Skala Penilaian 1-4' ? 'skala' : 'pilihan'}
+          isTextLocked={editingQuestion.isBaku === true}
           initialText={editingQuestion.text}
-          initialOptions={(editingQuestion.options ?? []).map((o) => o.label)}
+          initialOptions={
+            editingQuestion.type === 'Skala Penilaian 1-4'
+              ? scaleStepsFromOptions(editingQuestion.options).map((step) => step.label)
+              : (editingQuestion.options ?? []).map((o) => o.label)
+          }
           isSubmitting={isSaving}
           submitError={optionsError}
           onSubmit={handleSubmitEditOptions}

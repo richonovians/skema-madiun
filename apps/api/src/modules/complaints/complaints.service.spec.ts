@@ -231,6 +231,33 @@ describe('ComplaintsService', () => {
       );
     });
 
+    // Filter `opdId` (2026-08-20) untuk Superuser yang memerankan satu OPD.
+    it('filter opdId dari kabupaten → di-AND-kan (bukan menimpa) penyaring kepemilikan', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+      await service.findAll({ page: 1, limit: 20, opdId: 3 }, kabupatenUser());
+      expect(prisma.complaint.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { AND: [{ opdId: 3 }] } }),
+      );
+    });
+
+    it('filter opdId TIDAK melebarkan akses: Admin OPD tetap terikat OPD-nya', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+      await service.findAll({ page: 1, limit: 20, opdId: 99 }, opdUser(5));
+      // where.opdId (kepemilikan) TETAP 5 -- id 99 cuma menambah syarat, sehingga
+      // hasilnya kosong, bukan data OPD 99.
+      expect(prisma.complaint.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { opdId: 5, AND: [{ opdId: 99 }] } }),
+      );
+    });
+
+    it('filter opdId dari Responden tetap terikat userId-nya', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+      await service.findAll({ page: 1, limit: 20, opdId: 3 }, respondenUser(10));
+      expect(prisma.complaint.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 10, AND: [{ opdId: 3 }] } }),
+      );
+    });
+
     it('(INT-11/INT-18) menyertakan include user+opd & menyisipkan reporterNama+opdNama, tanpa membocorkan objek mentah', async () => {
       (prisma.$transaction as jest.Mock).mockResolvedValue([
         [complaintRow({ user: { nama: 'Warga Contoh' }, opd: { nama: 'Dinas Kesehatan' } })],

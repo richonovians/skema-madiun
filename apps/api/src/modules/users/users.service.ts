@@ -19,7 +19,32 @@ import { UserEntity } from './entities/user.entity';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: ListUsersQueryDto): Promise<PaginatedResult<UserEntity>> {
+  /**
+   * Manajemen pengguna HANYA untuk `superuser` (2026-08-20, atas permintaan
+   * user) -- Admin Kabupaten biasa tak lagi boleh membuat/mengubah/menghapus akun
+   * maupun melihat daftarnya.
+   *
+   * Diperiksa DI SINI, bukan dengan mengganti `@Roles(Role.kabupaten)` menjadi
+   * `@Roles(Role.superuser)` di controller: RolesGuard memberi `kabupaten`
+   * BYPASS PENUH atas seluruh @Roles (lihat roles.guard.ts), sehingga dekorator
+   * apa pun akan dilewatinya dan pembatasan ini takkan pernah berlaku. Pola sama
+   * dipakai `AuditService.assertSuperuser` & `DashboardService.getOpdDashboard`.
+   *
+   * Konsekuensi yang disengaja: ini juga menutup pintu terakhir untuk MENGUBAH
+   * peran akun lain (`PATCH /users/:id`), jadi hanya superuser yang dapat
+   * mengangkat/menurunkan admin. Itulah maksud pembatasannya.
+   */
+  private assertSuperuser(actor: CurrentUser): void {
+    if (actor.role !== Role.superuser) {
+      throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Superuser');
+    }
+  }
+
+  async findAll(
+    query: ListUsersQueryDto,
+    actor: CurrentUser,
+  ): Promise<PaginatedResult<UserEntity>> {
+    this.assertSuperuser(actor);
     const { page, limit, role, opdId } = query;
 
     const where: Prisma.UserWhereInput = { deletedAt: null };
@@ -52,11 +77,13 @@ export class UsersService {
     );
   }
 
-  async findOne(id: number): Promise<UserEntity> {
+  async findOne(id: number, actor: CurrentUser): Promise<UserEntity> {
+    this.assertSuperuser(actor);
     return new UserEntity(await this.getActiveOrThrow(id));
   }
 
-  async create(dto: CreateUserDto): Promise<UserEntity> {
+  async create(dto: CreateUserDto, actor: CurrentUser): Promise<UserEntity> {
+    this.assertSuperuser(actor);
     if (dto.role === Role.opd && dto.opdId == null) {
       throw new BadRequestException('opdId wajib diisi untuk role opd');
     }
@@ -87,8 +114,9 @@ export class UsersService {
     return new UserEntity(created);
   }
 
-  /** `role` opsional (2026-08-05): kabupaten boleh mengubah role akun lain. */
+  /** `role` opsional (2026-08-05); sejak 2026-08-20 hanya superuser yang boleh. */
   async update(id: number, dto: UpdateUserDto, actor: CurrentUser): Promise<UserEntity> {
+    this.assertSuperuser(actor);
     const target = await this.getActiveOrThrow(id);
 
     if (dto.role && dto.role !== target.role && id === actor.userId) {
@@ -111,7 +139,12 @@ export class UsersService {
     return new UserEntity(updated);
   }
 
-  async updateStatus(id: number, dto: UpdateUserStatusDto): Promise<UserEntity> {
+  async updateStatus(
+    id: number,
+    dto: UpdateUserStatusDto,
+    actor: CurrentUser,
+  ): Promise<UserEntity> {
+    this.assertSuperuser(actor);
     await this.getActiveOrThrow(id);
 
     const updated = await this.prisma.user.update({
@@ -130,6 +163,7 @@ export class UsersService {
    * Anti-self-lockout sama seperti `update()` role: tak boleh hapus akun sendiri.
    */
   async remove(id: number, actor: CurrentUser): Promise<UserEntity> {
+    this.assertSuperuser(actor);
     await this.getActiveOrThrow(id);
     if (id === actor.userId) {
       throw new ForbiddenException('Tidak bisa menghapus akun sendiri');

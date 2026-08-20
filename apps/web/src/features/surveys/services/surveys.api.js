@@ -1,6 +1,7 @@
 import api from '@/services/api';
 import {
   adaptActiveSurveyCardList,
+  adaptBuilderQuestion,
   adaptBuilderQuestions,
   adaptSurvey,
   adaptSurveyFill,
@@ -9,6 +10,7 @@ import {
   toCreateQuestionPayload,
   toCreateSurveyPayload,
   toSubmitAnswers,
+  toUpdateQuestionOptionsPayload,
   toUpdateSurveyPayload,
 } from '../adapters/survey.adapter';
 
@@ -108,6 +110,29 @@ export async function reorderQuestions(surveyId, orderedIds) {
 export async function updateQuestionText(questionId, text) {
   const response = await api.patch(`/questions/${questionId}`, { teks: text });
   return response.data;
+}
+
+/**
+ * Ganti opsi jawaban (dan opsional teks) satu pertanyaan yang SUDAH ada.
+ *
+ * Backend menggantinya dalam satu transaksi -- id pertanyaan TIDAK berubah, jadi
+ * urutan & tautan jawaban tetap utuh. Sebelum ada `options` di UpdateQuestionDto
+ * (2026-08-20), penyuntingan opsi hanya bisa disimulasikan dengan buat-baru +
+ * hapus-lama yang mengganti id dan bisa meninggalkan duplikat bila gagal separuh.
+ *
+ * @param {number} questionId
+ * @param {{text?: string, options: string[]}} payload `options` = daftar label,
+ *   sudah lengkap & urut (pilihan: minimal 2; skala: tepat 4 label skor 1-4).
+ */
+export async function updateQuestionOptions(questionId, { text, options }) {
+  const response = await api.patch(
+    `/questions/${questionId}`,
+    toUpdateQuestionOptionsPayload({ text, options }),
+  );
+  // customIndex 0: `title` pertanyaan kustom murni kosmetik & diregenerasi per
+  // posisi oleh pemanggil (lihat adaptBuilderQuestion) -- pemanggil di builder
+  // mempertahankan judul yang sudah tampil supaya tak berkedip jadi "#0".
+  return adaptBuilderQuestion(response.data, 0);
 }
 
 export async function deleteQuestion(questionId) {

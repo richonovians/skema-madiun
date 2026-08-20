@@ -54,6 +54,17 @@ describe('SurveysService', () => {
     expect(result.pagination.total).toBe(1);
   });
 
+  // Filter `opdId` (2026-08-20) untuk Superuser yang memerankan satu OPD.
+  it('findAll: filter opdId di-AND-kan, bukan menimpa penyaring kepemilikan', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+    await service.findAll({ page: 1, limit: 20, opdId: 99 } as ListSurveyQueryDto, opdUser(5));
+    // Kepemilikan (opdId 5) TETAP ada; id 99 cuma menambah syarat sehingga
+    // hasilnya kosong -- bukan survei OPD 99.
+    expect(prisma.survey.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { opdId: 5, AND: [{ opdId: 99 }] } }),
+    );
+  });
+
   it('findAll (INT-9) menyisipkan respondentsCount & nilaiIkm dari IkmService.getSummary', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[surveyRow({ id: 7 })], 1]);
     (ikmService.getSummary as jest.Mock).mockResolvedValue({

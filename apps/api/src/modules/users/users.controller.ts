@@ -24,31 +24,44 @@ import { UsersService } from './users.service';
 
 @ApiTags('users')
 @ApiBearerAuth()
-@Roles(Role.kabupaten) // kabupaten = superuser (bypass RolesGuard, lihat guard)
+/**
+ * @Roles TETAP `Role.kabupaten` walau seluruh endpoint di sini kini khusus
+ * superuser. Bukan kelalaian: RolesGuard meloloskan `kabupaten` DAN `superuser`
+ * lewat bypass peran berhak penuh, jadi dekorator ini tak bisa membedakan
+ * keduanya sama sekali. Yang menegakkan batasnya adalah
+ * `UsersService.assertSuperuser` (403) -- lihat catatan panjang di sana.
+ */
+@Roles(Role.kabupaten)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  /** Daftar akun admin (paginated + filter role/OPD). */
+  /** Daftar akun admin (paginated + filter role/OPD). Khusus superuser. */
   @Get()
   @ApiOkResponse({ type: UserEntity, isArray: true })
-  findAll(@Query() query: ListUsersQueryDto): Promise<PaginatedResult<UserEntity>> {
-    return this.usersService.findAll(query);
+  findAll(
+    @Query() query: ListUsersQueryDto,
+    @CurrentUser() actor: CurrentUser,
+  ): Promise<PaginatedResult<UserEntity>> {
+    return this.usersService.findAll(query, actor);
   }
 
-  /** Buat akun admin (OPD/Kabupaten). */
+  /** Buat akun admin (OPD/Kabupaten/Superuser). Khusus superuser. */
   @Post()
   @Audit('user')
   @ApiOkResponse({ type: UserEntity })
-  create(@Body() dto: CreateUserDto): Promise<UserEntity> {
-    return this.usersService.create(dto);
+  create(@Body() dto: CreateUserDto, @CurrentUser() actor: CurrentUser): Promise<UserEntity> {
+    return this.usersService.create(dto, actor);
   }
 
-  /** Detail akun. */
+  /** Detail akun. Khusus superuser. */
   @Get(':id')
   @ApiOkResponse({ type: UserEntity })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<UserEntity> {
-    return this.usersService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() actor: CurrentUser,
+  ): Promise<UserEntity> {
+    return this.usersService.findOne(id, actor);
   }
 
   /** Ubah akun (nama, OPD tautan, role). */
@@ -70,8 +83,9 @@ export class UsersController {
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUserStatusDto,
+    @CurrentUser() actor: CurrentUser,
   ): Promise<UserEntity> {
-    return this.usersService.updateStatus(id, dto);
+    return this.usersService.updateStatus(id, dto, actor);
   }
 
   /**

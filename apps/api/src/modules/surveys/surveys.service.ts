@@ -31,10 +31,17 @@ export class SurveysService {
     query: ListSurveyQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<SurveyEntity>> {
-    const { page, limit, status } = query;
+    const { page, limit, status, opdId } = query;
     const where: Prisma.SurveyWhereInput = { ...opdWhereFilter(user) };
     if (status) {
       where.status = status;
+    }
+    if (opdId != null) {
+      // AND, BUKAN menimpa `where.opdId`. Kalau ditimpa, akun Admin OPD bisa
+      // membaca survei OPD lain hanya dengan menambah parameter -- penyaring
+      // kepemilikan harus tetap berlaku, jadi keduanya digabung (hasilnya
+      // kosong bila id yang diminta bukan OPD-nya).
+      where.AND = [{ opdId }];
     }
 
     const [rows, total] = await this.prisma.$transaction([

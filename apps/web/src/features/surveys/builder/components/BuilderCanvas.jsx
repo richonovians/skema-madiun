@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import QuestionBlock from './QuestionBlock';
+import PeriodeSelect from './PeriodeSelect';
 import { Plus } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
@@ -32,8 +33,14 @@ export default function BuilderCanvas({
   onUpdate,
   onTextCommit,
   onAdd,
+  // Judul & periode: state-nya milik SurveyBuilderScreen, dipakai bersama bilah
+  // atas (BuilderToolbar) -- kartu di kanvas menyunting nilai yang SAMA, bukan
+  // salinan lokal yang bisa menyimpang.
   title,
+  onTitleChange,
+  onTitleBlur,
   periode,
+  onPeriodeCommit,
   // Seret-lepas
   drag = null,
   canReorder = false,
@@ -46,6 +53,10 @@ export default function BuilderCanvas({
   const [overSlot, setOverSlot] = useState(null);
 
   const isDraggingSomething = drag != null;
+  // `canReorder` = survei masih draf (lihat SurveyBuilderScreen) -- syarat yang
+  // sama persis untuk menyunting judul/periode: keduanya ditolak backend di luar
+  // status draf. Dipakai apa adanya, bukan prop baru yang bisa tak sinkron.
+  const isEditable = canReorder && typeof onTitleChange === 'function';
 
   const clearOver = () => setOverSlot(null);
 
@@ -96,14 +107,48 @@ export default function BuilderCanvas({
       onDrop={handleDrop}
     >
       <div className="max-w-4xl mx-auto py-3xl px-lg flex flex-col">
-        {/* Welcome/Header Card */}
-        <div className="bg-white border border-border rounded-xl p-2xl shadow-sm text-center mb-xl">
-          <h2 className="font-headline-lg text-headline-lg mb-xs">
-            {title || 'Kuesioner Kepuasan Layanan'}
-          </h2>
-          <p className="text-text-secondary font-body-md text-body-md">
-            {periode ? `Periode ${formatPeriodeLabel(periode)}` : 'Periode belum diatur'}
-          </p>
+        {/* Kartu judul: kini DAPAT DISUNTING langsung (2026-08-20, permintaan
+            user "judul survei dan periode dapat di edit pada bagian border
+            putih"). Sebelumnya murni pratinjau -- judul & periode hanya bisa
+            diubah di bilah atas, padahal di sinilah keduanya paling terlihat.
+            Handler-nya SAMA dengan bilah atas (satu state di SurveyBuilderScreen),
+            jadi mengetik di sini langsung tercermin di sana dan sebaliknya:
+            judul disimpan saat blur, periode saat dipilih. Di luar status draf
+            keduanya read-only -- `PATCH /surveys/:id` backend menolaknya
+            (assertDraft), jadi jangan mengundang perubahan yang pasti gagal. */}
+        <div className="bg-white border border-border rounded-xl p-2xl shadow-sm mb-xl flex flex-col items-center gap-sm">
+          {isEditable ? (
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => onTitleChange?.(e.target.value)}
+              onBlur={onTitleBlur}
+              placeholder="Kuesioner Kepuasan Layanan"
+              aria-label="Judul survei"
+              title="Klik untuk mengubah judul survei"
+              className="w-full font-headline-lg text-headline-lg text-center bg-transparent rounded-lg border border-transparent hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-sm py-xs"
+            />
+          ) : (
+            <h2 className="font-headline-lg text-headline-lg">
+              {title || 'Kuesioner Kepuasan Layanan'}
+            </h2>
+          )}
+
+          {isEditable ? (
+            <div className="flex flex-wrap items-center justify-center gap-xs text-text-secondary font-body-md text-body-md">
+              <span>Periode</span>
+              <PeriodeSelect
+                periode={periode}
+                onCommit={onPeriodeCommit}
+                className="flex items-center gap-xs"
+                selectClassName="font-body-md text-body-md text-text-secondary bg-transparent rounded-lg border border-transparent hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-xs py-0.5"
+              />
+            </div>
+          ) : (
+            <p className="text-text-secondary font-body-md text-body-md">
+              {periode ? `Periode ${formatPeriodeLabel(periode)}` : 'Periode belum diatur'}
+            </p>
+          )}
         </div>
 
         {/* Questions List */}
