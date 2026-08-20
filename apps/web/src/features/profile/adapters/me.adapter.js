@@ -1,16 +1,19 @@
 import { formatDateId, getInitials } from '@/utils/format';
 import { ROLE_LABEL } from '@/utils/enumLabels';
 
-// kabupaten = superuser (2026-08-05, role superuser terpisah digabung ke kabupaten).
+// `superuser` dipisah kembali dari `kabupaten` (2026-08-20) -- lihat userConstants.js.
+// Peran INILAH yang menentukan tampil-tidaknya log aktivitas, karena datangnya
+// dari backend (GET /auth/me), bukan dari cookie yang bisa disunting di browser.
 const ROLE_TO_FRONTEND = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
   responden: 'RESPONDENT',
+  superuser: 'SUPERUSER',
 };
 
 /**
  * Terjemahkan MeEntity backend (GET /auth/me) ke bentuk yang dipakai komponen
- * profil (lihat features/profile/constants/dummyCurrentUser.js). Satu tempat
+ * profil. Satu tempat
  * -- perubahan kontrak backend cukup diubah di sini (INT-16).
  *
  * CATATAN GAP BESAR: dummy mengharapkan banyak field identitas yang TIDAK ADA
@@ -41,6 +44,11 @@ export function adaptMe(me) {
     occupation: me.respondentProfile?.pekerjaan ?? null,
     role: frontendRole,
     roleLabel: ROLE_LABEL[frontendRole] ?? frontendRole,
+    // OPD tempat akun ini bertugas. Backend cuma mengirim ID-nya (MeEntity tak
+    // memuat nama OPD), jadi pemanggil yang butuh namanya menyandingkan sendiri
+    // lewat GET /opd/:id -- lihat AdminNavbar.jsx. `null` untuk kabupaten &
+    // responden yang memang tak tertaut OPD.
+    opdId: me.opdId ?? null,
     avatarUrl: null, // gap
     status: me.isActive ? 'ACTIVE' : 'INACTIVE',
     joinedAt: formatDateId(me.createdAt),

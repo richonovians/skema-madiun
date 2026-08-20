@@ -1,19 +1,37 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { User, LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList, Repeat } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
-import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
+import { useAsync } from '@/hooks/useAsync';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
+import { getMyProfile } from '../services/profile.api';
 import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
 
-export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
+/**
+ * Menu akun di navbar warga (Navbar.jsx & DashboardNavbar.jsx).
+ *
+ * Profil diambil SENDIRI di sini lewat GET /auth/me. Sebelumnya komponen ini
+ * bergantung pada prop `user` yang default-nya `DUMMY_CURRENT_USER` -- dan KEDUA
+ * pemanggilnya tak pernah mengirim prop itu. Akibatnya setiap warga yang login
+ * melihat identitas orang yang tak ada: "Ahmad Fauzi", "ahmad.fauzi@gmail.com",
+ * "Responden / Masyarakat", di setiap halaman. Bukan sekadar default yang tak
+ * terpakai -- itu satu-satunya nilai yang pernah dirender.
+ *
+ * Aman memanggil /auth/me di sini: kedua pemanggil hanya merender komponen ini
+ * setelah sesi dipastikan ada (Navbar menjaganya dengan isAuthenticated(),
+ * halaman dashboard sendiri sudah di balik proxy.js).
+ */
+export default function ProfileAvatarDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
-  const pathname = usePathname();
+
+  const fetchProfile = useCallback(() => getMyProfile(), []);
+  const { data: user, isLoading } = useAsync(fetchProfile);
 
   // Menutup dropdown jika user mengklik area di luar dropdown
   useEffect(() => {
@@ -48,12 +66,16 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
         aria-haspopup="true"
         title="Menu Akun Saya"
       >
-        <Avatar
-          initials={user.initials}
-          src={user.avatarUrl}
-          size="md"
-          className="shadow-2xs border border-border cursor-pointer"
-        />
+        {isLoading ? (
+          <span className="w-8 h-8 rounded-full bg-surface-container animate-pulse" />
+        ) : (
+          <Avatar
+            initials={user?.initials ?? '?'}
+            src={user?.avatarUrl}
+            size="md"
+            className="shadow-2xs border border-border cursor-pointer"
+          />
+        )}
         <ChevronDown 
           size={14} 
           className={`text-text-secondary transition-transform duration-200 hidden sm:block ${isOpen ? 'rotate-180' : ''}`} 
@@ -66,15 +88,20 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
           {/* User Header Info inside Dropdown */}
           <div className="px-3.5 py-3 border-b border-border/60 mb-1">
             <div className="flex items-center gap-1.5 font-bold text-sm text-text-primary truncate">
-              <span>{user.name}</span>
-              <ShieldCheck size={14} className="text-emerald-500 shrink-0 inline" title="Akun Terverifikasi SSO" />
+              <span>{user?.name ?? 'Memuat...'}</span>
+              {/* Lencana ini menandakan sesi aktif, bukan verifikasi SSO
+                  sungguhan -- SSO Helpdesk belum dibangun (lihat catatan gap
+                  me.adapter.js), jadi tooltipnya tak lagi mengklaim itu. */}
+              <ShieldCheck size={14} className="text-emerald-500 shrink-0 inline" title="Sesi aktif" />
             </div>
             <p className="text-xs text-text-secondary truncate font-mono mt-0.5">
-              {user.email}
+              {user?.email ?? '-'}
             </p>
-            <div className="mt-1.5 inline-block bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider">
-              {user.roleLabel}
-            </div>
+            {user?.roleLabel && (
+              <div className="mt-1.5 inline-block bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider">
+                {user.roleLabel}
+              </div>
+            )}
           </div>
 
           {/* Navigation Items */}
@@ -109,6 +136,19 @@ export default function ProfileAvatarDropdown({ user = DUMMY_CURRENT_USER }) {
           </div>
 
           <div className="border-t border-border/60 my-1 pt-1">
+            {/* Superuser yang sedang memakai area warga terkurung di area itu
+                (lihat proxy.js) -- ini pintu berpindahnya tanpa logout. Peran
+                lain tak punya apa pun untuk dipilih, jadi menunya disembunyikan. */}
+            {user?.role === USER_ROLES.SUPERUSER && (
+              <Link
+                href="/pilih-peran"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
+              >
+                <Repeat size={16} className="text-text-secondary shrink-0" />
+                <span>Ganti Peran</span>
+              </Link>
+            )}
             <button
               type="button"
               onClick={handleLogout}

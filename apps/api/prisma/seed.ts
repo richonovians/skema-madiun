@@ -26,6 +26,24 @@ async function main(): Promise<void> {
     },
   });
 
+  // 1b) Superuser contoh (2026-08-20). Dipisahkan kembali dari Admin Kabupaten:
+  //     ia mewarisi seluruh hak kabupaten DITAMBAH akses log aktivitas (audit
+  //     log), yang justru TIDAK dimiliki Admin Kabupaten biasa. Perlu ada di
+  //     seed supaya basis data baru bisa langsung menguji perbedaan itu -- tanpa
+  //     ini, satu-satunya akun berhak audit harus dibuat manual.
+  const superuser = await prisma.user.upsert({
+    where: { ssoSubject: 'seed-superuser' },
+    update: { role: Role.superuser },
+    create: {
+      ssoSubject: 'seed-superuser',
+      nama: 'Superuser (Contoh)',
+      email: 'superuser@example.go.id',
+      role: Role.superuser,
+      isActive: true,
+      consentAt: new Date(),
+    },
+  });
+
   // 2) Beberapa OPD contoh — mencerminkan data hasil sinkronisasi Helpdesk:
   //    `externalId` selaras dengan fixture StubOpdSource (HD-00x) + `syncedAt` terisi,
   //    sehingga sync pertama (OPD-3) mengenalinya via externalId (bukan adopsi by-kode).
@@ -183,7 +201,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}, = superuser), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
+    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), superuser (id=${superuser.id}, + akses log aktivitas), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
   );
 }
 

@@ -1,0 +1,14 @@
+-- Role `superuser` DIKEMBALIKAN (2026-08-20, atas permintaan user), setelah
+-- sebelumnya digabung ke `kabupaten` oleh
+-- 20260805150000_remove_superuser_role_merge_kabupaten (juga atas permintaan user).
+--
+-- Kini keduanya BERBEDA hak, bukan cuma berbeda nama:
+--   superuser : seluruh hak kabupaten + akses log aktivitas (audit log)
+--   kabupaten : seperti sebelumnya, TANPA akses log aktivitas
+--
+-- Hanya MENAMBAH nilai enum. Tidak ada baris yang dipindahkan di sini: akun
+-- kabupaten yang ada tetap kabupaten, dan promosi ke superuser dilakukan
+-- terpisah (seed untuk basis data baru, atau lewat manajemen pengguna).
+-- Sengaja tidak memakai nilai barunya di migrasi yang sama -- Postgres melarang
+-- nilai enum yang baru ditambah dipakai sebelum transaksinya di-commit.
+ALTER TYPE "user_role" ADD VALUE 'superuser';

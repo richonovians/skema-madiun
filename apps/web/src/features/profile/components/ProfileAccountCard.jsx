@@ -3,9 +3,8 @@
 import React from 'react';
 import { Tag, CalendarDays, History } from 'lucide-react';
 import Card from '@/components/ui/Card';
-import { DUMMY_CURRENT_USER } from '../constants/dummyCurrentUser';
 
-export default function ProfileAccountCard({ user = DUMMY_CURRENT_USER }) {
+export default function ProfileAccountCard({ user }) {
   const accountItems = [
     {
       label: 'ID Responden',

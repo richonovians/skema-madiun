@@ -80,9 +80,9 @@ Penyelenggara pelayanan publik wajib mengukur kepuasan masyarakat sebagai dasar 
 
 ## 6. Peran Pengguna & Hak Akses (RBAC)
 
-> **Catatan asumsi (A-1):** Anda menyebut 2 admin. Namun seseorang tetap harus membuat daftar OPD dan akun Admin OPD. PRD ini mengasumsikan **Admin Kabupaten (Diskominfo)** yang menjalankan fungsi pengelolaan tersebut. Peran teknis terpisah **Superuser** (pengelola sistem, akses penuh) sempat ditambahkan (2026-07-27, *OQ-2*), lalu **DIGABUNG KEMBALI** ke Admin Kabupaten (2026-08-05, atas permintaan user) — lihat *OQ-2*.
+> **Catatan asumsi (A-1):** Anda menyebut 2 admin. Namun seseorang tetap harus membuat daftar OPD dan akun Admin OPD. PRD ini mengasumsikan **Admin Kabupaten (Diskominfo)** yang menjalankan fungsi pengelolaan tersebut. Peran teknis terpisah **Superuser** (pengelola sistem, akses penuh) ditambahkan (2026-07-27, *OQ-2*), sempat **digabung** ke Admin Kabupaten (2026-08-05), lalu **DIPISAH KEMBALI** (2026-08-20) — keduanya atas permintaan user. Sejak dipisah, bedanya jelas: log aktivitas & manajemen akun khusus Superuser (lihat tabel di bawah).
 
-| Kemampuan | Admin Kabupaten (= Superuser) | Admin OPD | Responden |
+| Kemampuan | Admin Kabupaten / Superuser | Admin OPD | Responden |
 |---|:---:|:---:|:---:|
 | Kelola akun Admin Kabupaten & Admin OPD, ubah role akun | ✅ | ❌ | ❌ |
 | Kelola daftar OPD | ✅ (read-only, sinkron dari Helpdesk) | ❌ | ❌ |
@@ -96,7 +96,19 @@ Penyelenggara pelayanan publik wajib mengukur kepuasan masyarakat sebagai dasar 
 | Isi survei | ❌ | ❌ | ✅ |
 | Ajukan pengaduan & pantau statusnya | ❌ | ❌ | ✅ |
 
-**Peran Admin Kabupaten (= Superuser, digabung 2026-08-05):** akses penuh yang **melampaui** seluruh batasan `@Roles` (implementasi: *bypass* pada RolesGuard untuk `role === kabupaten`), termasuk mengelola akun Admin OPD/Admin Kabupaten lain dan mengubah role akun (`PATCH /users/:id`). OPD tetap **read-only** dari Helpdesk — kemampuan CRUD penuh Admin Kabupaten TIDAK mencakup data OPD (keputusan arsitektur terkunci 2026-07-20, tidak diubah oleh penggabungan role ini).
+**Peran Admin Kabupaten & Superuser (dipisah kembali 2026-08-20):** keduanya mendapat akses penuh yang **melampaui** seluruh batasan `@Roles` (implementasi: *bypass* pada RolesGuard untuk peran berhak penuh, lihat `hasFullAccess` di `role.util.ts`). Bedanya BUKAN sekadar nama, dan tak bisa dinyatakan lewat `@Roles` (bypass-nya meloloskan keduanya) sehingga ditegakkan di dalam service:
+
+| Kemampuan | Superuser | Admin Kabupaten |
+|---|:---:|:---:|
+| Log aktivitas (`/audit-logs`) | ✅ | ❌ 403 (`AuditService.assertSuperuser`) |
+| Manajemen akun (`/users`, termasuk ubah role) | ✅ | ❌ 403 (`UsersService.assertSuperuser`) |
+| Dashboard OPD (`/dashboard/opd`) | ✅ (pilih OPD lebih dulu) | ❌ 403 (`DashboardService.resolveDashboardOpdId`) |
+| Dashboard kabupaten, survei, pertanyaan, pengaduan, OPD, IKM | ✅ | ✅ |
+| Memilih area kerja saat login (`/pilih-peran`) | ✅ | ❌ (langsung ke dashboard kabupaten) |
+
+Area kerja yang dipilih Superuser MENGURUNG navigasinya pada area itu saja (cookie `area` + proxy frontend) — pembatas navigasi, bukan hak akses: token-nya tetap berhak penuh di backend.
+
+OPD tetap **read-only** dari Helpdesk — kemampuan CRUD penuh Admin Kabupaten TIDAK mencakup data OPD (keputusan arsitektur terkunci 2026-07-20, tidak diubah oleh penggabungan role ini).
 
 **Prinsip penting:** Admin OPD hanya bisa mengakses data milik OPD-nya sendiri (*data isolation* per OPD). Admin Kabupaten SEBELUM digabung dengan Superuser bersifat **read-only** terhadap hasil survei (memantau, bukan membuat pertanyaan) — sejak digabung (2026-08-05), Admin Kabupaten **teknis bisa** membuat/mengelola survei OPD mana pun via bypass RolesGuard yang sama dengan Superuser lama, meski alur kerja normalnya (UI, dsb.) tetap didesain agar pembuatan survei dilakukan Admin OPD.
 
@@ -273,9 +285,10 @@ Daftar endpoint berikut bersifat **final dan mengikat** sebagai kontrak antara b
 | POST | `/api/v1/opd` | Kabupaten | Tambah OPD |
 | GET | `/api/v1/opd/:id` | Kabupaten/OPD | Detail OPD |
 | PATCH | `/api/v1/opd/:id` | Kabupaten | Ubah OPD |
-| GET | `/api/v1/users` | Kabupaten | Daftar akun admin |
-| POST | `/api/v1/users` | Kabupaten | Buat akun admin OPD |
-| PATCH | `/api/v1/users/:id/status` | Kabupaten | Aktif/nonaktifkan akun |
+| GET | `/api/v1/users` | **Superuser** | Daftar akun admin |
+| POST | `/api/v1/users` | **Superuser** | Buat akun admin OPD |
+| PATCH | `/api/v1/users/:id` | **Superuser** | Ubah akun & role |
+| PATCH | `/api/v1/users/:id/status` | **Superuser** | Aktif/nonaktifkan akun |
 
 **Survei & Pertanyaan (OPD)**
 
@@ -319,7 +332,7 @@ Daftar endpoint berikut bersifat **final dan mengikat** sebagai kontrak antara b
 
 | Method | Endpoint | Peran | Fungsi |
 |---|---|---|---|
-| GET | `/api/v1/audit-logs` | Kabupaten | Log aktivitas admin |
+| GET | `/api/v1/audit-logs` | **Superuser** | Log aktivitas admin |
 
 > *Peran "Semua\*" pada pengaduan tetap dibatasi kepemilikan data: responden hanya melihat pengaduannya sendiri, Admin OPD hanya pengaduan OPD-nya, Admin Kabupaten memantau seluruhnya.*
 

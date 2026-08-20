@@ -115,13 +115,23 @@ export function toCreateComplaintPayload({ opdId, kategori, subKategori, title, 
  * Terjemahkan ComplaintReplyEntity (GET /complaints/:id/replies) -> bentuk
  * pesan chat (lihat ChatMessageBubble.jsx: role/senderName/text/timestamp).
  *
- * CATATAN GAP: backend hanya punya `authorId` (angka), TIDAK ada nama/role
- * pengirim tersimpan langsung -- role DIDERIVASI (bukan dikarang) dengan
- * membandingkan `authorId` terhadap `complaintUserId` (pelapor): satu-satunya
- * 2 pihak yang boleh membalas adalah pelapor & Admin OPD pemilik (lihat
- * ComplaintsService.assertAccess di backend), jadi perbandingan ini valid.
- * `senderName` utk pihak OPD tetap generik "Admin OPD" (nama asli butuh join
- * User yang belum diekspos ComplaintReplyEntity).
+ * CATATAN GAP: backend hanya punya `authorId` (angka) -- `ComplaintReplyEntity`
+ * TIDAK mengekspos nama maupun peran pengirim. Yang bisa diketahui frontend
+ * hanyalah "pelapor atau bukan", dengan membandingkan `authorId` terhadap
+ * `complaintUserId`.
+ *
+ * KOREKSI (2026-08-19, laporan bug user "kirim pesan dari role admin kabupaten
+ * masih menampilkan admin OPD"): catatan lama di sini menyatakan hanya 2 pihak
+ * yang boleh membalas (pelapor & Admin OPD pemilik) -- itu KELIRU.
+ * `ComplaintsService.assertAccess` meloloskan `Role.kabupaten` lebih dulu
+ * (superuser), jadi ada TIGA kemungkinan pengirim. Akibatnya label lama
+ * "Admin OPD" bukan sekadar generik, tapi salah: pada data pengembangan, 4 dari
+ * 10 balasan ditulis akun kabupaten dan semuanya dilabeli Admin OPD.
+ *
+ * `senderName` kini "Admin" untuk SEMUA pengirim non-pelapor -- benar untuk
+ * ketiga peran admin sekaligus. Membedakan "Admin Kabupaten" vs "Admin OPD"
+ * MUSTAHIL di frontend tanpa backend mengekspos peran penulis; menebaknya dari
+ * OPD pengaduan akan salah setiap kali kabupaten yang membalas.
  */
 export function adaptComplaintReplyToChatMessage(reply, complaintUserId) {
   const isReporter = reply.authorId === complaintUserId;
@@ -131,7 +141,7 @@ export function adaptComplaintReplyToChatMessage(reply, complaintUserId) {
   return {
     type: 'chat',
     role: isReporter ? 'user' : 'admin',
-    senderName: isReporter ? undefined : 'Admin OPD',
+    senderName: isReporter ? undefined : 'Admin',
     text: reply.pesan,
     // Lampiran balasan (2026-08-06, laporan bug user) -- URL dibangun sama
     // persis dgn attachments tingkat-pengaduan (adaptComplaintAttachment).

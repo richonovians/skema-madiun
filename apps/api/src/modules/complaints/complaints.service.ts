@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Complaint, ComplaintStatus, Prisma, Role } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
+import { hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -108,10 +109,15 @@ export class ComplaintsService {
     query: ListComplaintQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<ComplaintEntity>> {
-    const { page, limit, status } = query;
+    const { page, limit, status, opdId } = query;
     const where: Prisma.ComplaintWhereInput = { ...this.ownershipWhere(user) };
     if (status) {
       where.status = status;
+    }
+    if (opdId != null) {
+      // AND, bukan menimpa penyaring kepemilikan -- lihat catatan yang sama di
+      // SurveysService.findAll. Filter ini hanya boleh MEMPERSEMPIT.
+      where.AND = [{ opdId }];
     }
 
     const [rows, total] = await this.prisma.$transaction([
@@ -269,7 +275,7 @@ export class ComplaintsService {
 
   /** Fragmen `where` sesuai kepemilikan data (dipakai findAll). */
   private ownershipWhere(user: CurrentUser): Prisma.ComplaintWhereInput {
-    if (user.role === Role.kabupaten) {
+    if (hasFullAccess(user.role)) {
       return {};
     }
     if (user.role === Role.opd) {
@@ -284,9 +290,9 @@ export class ComplaintsService {
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
   }
 
-  /** Akses per-record: kabupaten (=superuser) semua; OPD hanya OPD-nya; Responden hanya miliknya. */
+  /** Akses per-record: kabupaten & superuser semua; OPD hanya OPD-nya; Responden hanya miliknya. */
   private assertAccess(user: CurrentUser, complaint: { userId: number; opdId: number }): void {
-    if (user.role === Role.kabupaten) {
+    if (hasFullAccess(user.role)) {
       return;
     }
     if (user.role === Role.opd) {

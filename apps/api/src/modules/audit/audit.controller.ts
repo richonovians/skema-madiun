@@ -1,31 +1,46 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
 import { AuditService } from './audit.service';
 import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
 
+/**
+ * Log aktivitas -- SUPERUSER saja (2026-08-20). Admin Kabupaten biasa ditolak.
+ *
+ * `@Roles` di sini hanya menyaring peran non-admin; yang MENEGAKKAN batas
+ * superuser adalah `AuditService.assertSuperuser`, karena RolesGuard memberi
+ * `kabupaten` bypass penuh atas @Roles sehingga dekorator saja tak cukup.
+ * Penjelasan lengkapnya ada di service.
+ */
 @ApiTags('audit')
 @ApiBearerAuth()
 @Controller('audit-logs')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  /** Log aktivitas admin (siapa mengubah apa, kapan) — Admin Kabupaten. */
+  /** Log aktivitas admin (siapa mengubah apa, kapan) — Superuser. */
   @Get()
-  @Roles(Role.kabupaten)
+  @Roles(Role.superuser)
   @ApiOkResponse({ type: AuditLogEntity, isArray: true })
-  findAll(@Query() query: ListAuditLogQueryDto): Promise<PaginatedResult<AuditLogEntity>> {
-    return this.auditService.findAll(query);
+  findAll(
+    @Query() query: ListAuditLogQueryDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<PaginatedResult<AuditLogEntity>> {
+    return this.auditService.findAll(query, user);
   }
 
-  /** Detail satu log aktivitas — Admin Kabupaten. */
+  /** Detail satu log aktivitas — Superuser. */
   @Get(':id')
-  @Roles(Role.kabupaten)
+  @Roles(Role.superuser)
   @ApiOkResponse({ type: AuditLogEntity })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<AuditLogEntity> {
-    return this.auditService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<AuditLogEntity> {
+    return this.auditService.findOne(id, user);
   }
 }

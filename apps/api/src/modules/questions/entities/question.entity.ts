@@ -13,6 +13,10 @@ export class QuestionEntity extends BaseEntity<QuestionEntity> {
   urutan: number;
   createdAt: Date;
   updatedAt: Date;
-  /** Terisi hanya untuk tipe `pilihan`, terurut sesuai `urutan`. */
+  /**
+   * Terurut sesuai `urutan`. Tipe `pilihan` selalu terisi (≥2). Tipe `skala`
+   * terisi HANYA bila labelnya pernah disesuaikan (tepat 4, `nilai` = skor
+   * 1-4); kosong berarti label baku SKM yang dipakai. Tipe `teks` selalu kosong.
+   */
   options?: QuestionOptionEntity[];
 }

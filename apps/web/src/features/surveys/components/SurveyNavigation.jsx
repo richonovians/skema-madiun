@@ -23,8 +23,13 @@ export default function SurveyNavigation() {
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === totalQuestions - 1;
 
-  // Disable next/submit if no answer is selected for the current question
-  const isNextDisabled = !answers[currentQuestion.id] || isSubmitting;
+  // Pertanyaan tipe teks/uraian OPSIONAL -- ResponsesService.validateAnswers
+  // hanya mewajibkan tipe skala & pilihan. Sebelumnya tombol "Selanjutnya"
+  // dikunci utk semua tipe, sehingga satu pertanyaan uraian yang dilewati
+  // membuat responden mentok tak bisa menyelesaikan survei.
+  const isOptional = currentQuestion.type === 'text';
+  const hasAnswer = String(answers[currentQuestion.id] ?? '').trim() !== '';
+  const isNextDisabled = isSubmitting || (!isOptional && !hasAnswer);
 
   const handleNextOrSubmit = async () => {
     if (isLastStep) {

@@ -1,6 +1,7 @@
 import api from '@/services/api';
 import {
   adaptActiveSurveyCardList,
+  adaptBuilderQuestion,
   adaptBuilderQuestions,
   adaptSurvey,
   adaptSurveyFill,
@@ -9,6 +10,7 @@ import {
   toCreateQuestionPayload,
   toCreateSurveyPayload,
   toSubmitAnswers,
+  toUpdateQuestionOptionsPayload,
   toUpdateSurveyPayload,
 } from '../adapters/survey.adapter';
 
@@ -68,15 +70,28 @@ export async function getQuestions(surveyId) {
 }
 
 /**
- * @param {{text: string, type: string}} payload bentuk builder (lihat BuilderSidebar.jsx).
- * @returns {Promise<{id: number, text: string, type: string, isBaku: false}>} TANPA `title` --
- *   label "Pertanyaan Kustom #N" bergantung posisi di daftar lokal pemanggil,
- *   biar tak dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
+ * @param {{text: string, type: string, options?: string[]}} payload bentuk builder
+ *   (lihat BuilderSidebar.jsx). `options` = daftar label, WAJIB >=2 utk tipe
+ *   'Pilihan Ganda' (dikumpulkan QuestionOptionsModal sebelum pemanggilan ini).
+ * @returns {Promise<object>} bentuk pertanyaan builder TANPA `title` -- label
+ *   "Pertanyaan Kustom #N" bergantung posisi di daftar lokal pemanggil, biar tak
+ *   dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
  */
 export async function createCustomQuestion(surveyId, payload) {
   const response = await api.post(`/surveys/${surveyId}/questions`, toCreateQuestionPayload(payload));
   const q = response.data;
-  return { id: q.id, text: q.teks, type: payload.type, isBaku: false };
+  return {
+    id: q.id,
+    text: q.teks,
+    type: payload.type,
+    isBaku: false,
+    // Diselaraskan dgn adaptBuilderQuestion supaya blok pertanyaan yg baru
+    // ditambah tampil persis sama dgn setelah halaman dimuat ulang. Sebelumnya
+    // `isRequired` tak diisi sama sekali -- pertanyaan skala baru keliru
+    // berlabel "Opsional (isian teks)" sampai builder di-refresh.
+    isRequired: q.tipe !== 'teks',
+    options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label })),
+  };
 }
 
 /** Terapkan template 9 unsur baku -- SATU panggilan backend, bukan disimulasikan lokal (lihat INT-30 -> INT-19). */
@@ -95,6 +110,29 @@ export async function reorderQuestions(surveyId, orderedIds) {
 export async function updateQuestionText(questionId, text) {
   const response = await api.patch(`/questions/${questionId}`, { teks: text });
   return response.data;
+}
+
+/**
+ * Ganti opsi jawaban (dan opsional teks) satu pertanyaan yang SUDAH ada.
+ *
+ * Backend menggantinya dalam satu transaksi -- id pertanyaan TIDAK berubah, jadi
+ * urutan & tautan jawaban tetap utuh. Sebelum ada `options` di UpdateQuestionDto
+ * (2026-08-20), penyuntingan opsi hanya bisa disimulasikan dengan buat-baru +
+ * hapus-lama yang mengganti id dan bisa meninggalkan duplikat bila gagal separuh.
+ *
+ * @param {number} questionId
+ * @param {{text?: string, options: string[]}} payload `options` = daftar label,
+ *   sudah lengkap & urut (pilihan: minimal 2; skala: tepat 4 label skor 1-4).
+ */
+export async function updateQuestionOptions(questionId, { text, options }) {
+  const response = await api.patch(
+    `/questions/${questionId}`,
+    toUpdateQuestionOptionsPayload({ text, options }),
+  );
+  // customIndex 0: `title` pertanyaan kustom murni kosmetik & diregenerasi per
+  // posisi oleh pemanggil (lihat adaptBuilderQuestion) -- pemanggil di builder
+  // mempertahankan judul yang sudah tampil supaya tak berkedip jadi "#0".
+  return adaptBuilderQuestion(response.data, 0);
 }
 
 export async function deleteQuestion(questionId) {

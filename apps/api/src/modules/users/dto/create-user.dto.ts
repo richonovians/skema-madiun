@@ -2,8 +2,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { IsEmail, IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
-/** Role admin yang dapat dibuat lewat endpoint ini (responden dibuat via SSO). */
-export const ADMIN_ROLES: Role[] = [Role.opd, Role.kabupaten];
+/**
+ * Role admin yang dapat dibuat lewat endpoint ini (responden dibuat via SSO).
+ * `superuser` disertakan 2026-08-20 supaya akun superuser bisa dibuat/diubah
+ * lewat manajemen pengguna, bukan cuma lewat seed.
+ */
+export const ADMIN_ROLES: Role[] = [Role.opd, Role.kabupaten, Role.superuser];
 
 export class CreateUserDto {
   @ApiProperty({ maxLength: 50 })

@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Badge from '@/components/ui/Badge';
-import { Eye, FileEdit, Pencil, UploadCloud, Lock, Trash2 } from 'lucide-react';
+import { Eye, FileEdit, Pencil, UploadCloud, Lock, Unlock, Trash2, ClipboardList } from 'lucide-react';
 import ShareSurveyButton from '@/features/surveys/components/ShareSurveyButton';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
@@ -27,10 +27,15 @@ const ACTION_CLASS =
  * (kabupaten memang melewati seluruh @Roles lewat bypass RolesGuard, tapi
  * SurveysService tetap menegakkan aturan status):
  * - "Ubah" & "Hapus" hanya untuk DRAF (`assertDraft`, selain draf -> 400).
- * - "Publikasikan" hanya DRAF; "Tutup" untuk DRAF/AKTIF (ALLOWED_TRANSITIONS).
- *   CATATAN: sejak 2026-08-18 backend mengizinkan DITUTUP -> AKTIF (survei dapat
- *   dibuka kembali). Aksi "Buka Kembali" itu sudah ada di kartu Admin OPD tapi
- *   BELUM di tabel ini -- perlu tiket sendiri, jangan disangka terlewat.
+ * - "Publikasikan" hanya DRAF; "Tutup" untuk DRAF/AKTIF; "Aktifkan Kembali"
+ *   hanya DITUTUP -- persis mengikuti ALLOWED_TRANSITIONS backend
+ *   (draft -> [aktif, ditutup], aktif -> [ditutup], ditutup -> [aktif]).
+ *   Aksi "Aktifkan Kembali" ditambahkan 2026-08-19; sebelumnya baris DITUTUP
+ *   jadi jalan buntu di tabel ini padahal backend mengizinkan pembukaan kembali
+ *   dan Admin OPD sudah bisa melakukannya lewat switch di kartunya.
+ * - "Respons" hanya NON-DRAF (2026-08-19): membuka daftar respons per pengisi di
+ *   area admin-kab sendiri. Backend memang mengizinkan (GET /surveys/:id/responses
+ *   ber-@Roles(kabupaten, opd)); yang tadinya hilang cuma rutenya di frontend.
  * - "Pertanyaan" JUGA hanya DRAF: begitu survei dipublikasikan, pertanyaannya
  *   terkunci (builder sendiri menolak lewat assertDraftOrThrow, dan backend
  *   menolak perubahan pertanyaan di luar status draft) -- menampilkan tombol
@@ -51,6 +56,7 @@ export default function SurveyMonitoringTable({
   onEdit,
   onPublish,
   onClose,
+  onReopen,
   onDelete,
   busySurveyId = null,
 }) {
@@ -79,6 +85,7 @@ export default function SurveyMonitoringTable({
             surveys.map((survey) => {
               const isDraft = survey.status === 'DRAF';
               const isActive = survey.status === 'AKTIF';
+              const isClosed = survey.status === 'DITUTUP';
               const isBusy = busySurveyId === survey.id;
 
               return (
@@ -131,6 +138,22 @@ export default function SurveyMonitoringTable({
                           satu implementasi QR/tautan untuk kedua area. */}
                       <ShareSurveyButton survey={survey} className={ACTION_CLASS} iconSize={12} />
 
+                      {/* "Respons" hanya untuk survei terbit: draf belum pernah
+                          dibuka utk diisi, jadi tautannya pasti mendarat di tabel
+                          kosong. Ditambahkan 2026-08-19 -- sebelumnya Admin
+                          Kabupaten tak punya jalan APA PUN ke respons per pengisi
+                          (rutenya cuma ada di /admin-opd/**, sehingga URL sepadan
+                          di area ini 404). */}
+                      {!isDraft && (
+                        <Link
+                          href={`/admin-kab/surveys/${survey.id}/responses`}
+                          className={ACTION_CLASS}
+                        >
+                          <ClipboardList size={12} />
+                          Respons
+                        </Link>
+                      )}
+
                       {isDraft && (
                         <Link href={`/admin-kab/surveys/builder/${survey.id}`} className={ACTION_CLASS}>
                           <FileEdit size={12} />
@@ -156,6 +179,20 @@ export default function SurveyMonitoringTable({
                         <button onClick={() => onClose?.(survey)} disabled={isBusy} className={ACTION_CLASS}>
                           <Lock size={12} />
                           Tutup
+                        </button>
+                      )}
+
+                      {/* DITUTUP -> AKTIF. Ditonjolkan (bukan gaya netral seperti
+                          aksi lain) karena ini satu-satunya aksi yang membuat
+                          baris berstatus ditutup kembali bisa diisi responden. */}
+                      {isClosed && (
+                        <button
+                          onClick={() => onReopen?.(survey)}
+                          disabled={isBusy}
+                          className={`${ACTION_CLASS} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+                        >
+                          <Unlock size={12} />
+                          Aktifkan
                         </button>
                       )}
 

@@ -2,18 +2,22 @@
 import React, { useCallback } from 'react';
 import KabDashboardHeader from '@/features/dashboard/components/kabupaten/KabDashboardHeader';
 import KabSummaryMetrics from '@/features/dashboard/components/kabupaten/KabSummaryMetrics';
+import KabFilterScopeNote from '@/features/dashboard/components/kabupaten/KabFilterScopeNote';
 import IkmLeaderboard from '@/features/dashboard/components/kabupaten/IkmLeaderboard';
 import ComplaintStatusDonut from '@/features/dashboard/components/kabupaten/ComplaintStatusDonut';
 import RecentActivities from '@/features/dashboard/components/kabupaten/RecentActivities';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
+import { useAdminKabLayout } from '@/components/layouts/AdminKabLayoutProvider';
 import { getKabupatenDashboard } from '@/features/dashboard/services/dashboard.api';
 import { adaptRecentActivityList } from '@/features/dashboard/adapters/recentActivities.adapter';
 
 import { Users, FileText, CheckCircle, Clock, Building2, TrendingUp } from 'lucide-react';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
 import { getAuditLogs } from '@/features/audit-logs/services/auditLogs.api';
+import { getMyProfile } from '@/features/profile/services/profile.api';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 import MetricCard from '@/features/statistics/components/MetricCard';
 import TrendChart from '@/features/statistics/components/charts/TrendChart';
 import BarChart from '@/features/statistics/components/charts/BarChart';
@@ -34,30 +38,85 @@ const RECENT_ACTIVITIES_LIMIT = 5;
  * - `getAuditLogs({limit:5})` (GET /audit-logs, INT-34) -- pengganti jujur
  *   utk "aktivitas terbaru" (dummy lama karang nama OPD+ikon per-domain
  *   spt RSUD/DLH yang tak py padanan data nyata).
- * `filters` (year/service) DIHAPUS -- tak ada UI apa pun yg pernah mengisi
- * query param ini (KabDashboardHeader cuma tombol ekspor, tanpa dropdown
- * filter), dan endpoint nyata tak dukung filter tahun/layanan bentuk ini.
+ * PENYARING (2026-08-19): `periode` & `jenisLayanan` dari navbar kini
+ * DITERUSKAN ke `GET /dashboard/ikm` -- endpoint itu memang menerima keduanya
+ * (DashboardIkmQueryDto). Sebelumnya navbar cuma menulis `?year=&service=` yang
+ * tak dibaca siapa pun, sehingga catatan lama di sini ("filters DIHAPUS")
+ * menjelaskan separuh cerita saja: query param-nya dibuang di halaman ini, tapi
+ * dropdown-nya dibiarkan hidup di navbar tanpa pernah berefek.
+ *
+ * Sengaja DUA useAsync, bukan satu Promise.all seperti sebelumnya: hanya
+ * `/dashboard/ikm` yang bergantung pada penyaring. `/statistics` (agregat
+ * publik, banyak query) dan `/audit-logs` tak menerima parameter apa pun, jadi
+ * tak perlu diambil ulang tiap kali pengguna berganti triwulan.
+ * Cakupan tiap penyaring dijelaskan ke pengguna lewat KabFilterScopeNote.
  */
 export default function AdminKabDashboardPage() {
-  const fetchDashboard = useCallback(async () => {
-    const [kabDashboard, statistics, auditLogs] = await Promise.all([
-      getKabupatenDashboard(),
-      getStatistics(),
-      getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }),
-    ]);
-    return { kabDashboard, statistics, activities: adaptRecentActivityList(auditLogs.data) };
-  }, []);
-  const { data, isLoading, error, refetch } = useAsync(fetchDashboard);
+  const { periode, jenisLayanan } = useAdminKabLayout();
 
-  if (isLoading) {
+  // Parameter kosong TIDAK dikirim: backend mencocokkan `periode`/`jenisLayanan`
+  // secara persis, jadi mengirim string kosong akan menyaring habis semuanya.
+  const fetchFiltered = useCallback(
+    () =>
+      getKabupatenDashboard({
+        ...(periode ? { periode } : {}),
+        ...(jenisLayanan ? { jenisLayanan } : {}),
+      }),
+    [periode, jenisLayanan],
+  );
+  const {
+    data: kabDashboard,
+    isLoading: isLoadingFiltered,
+    error: errorFiltered,
+    refetch: refetchFiltered,
+  } = useAsync(fetchFiltered);
+
+  const fetchGlobal = useCallback(async () => {
+    // Log aktivitas kini HANYA untuk superuser (2026-08-20). Perannya harus
+    // diketahui DULU: kalau `/audit-logs` tetap dipanggil oleh Admin Kabupaten
+    // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
+    // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
+    const profile = await getMyProfile();
+    const isSuperuser = profile.role === USER_ROLES.SUPERUSER;
+
+    const [statistics, auditLogs] = await Promise.all([
+      getStatistics(),
+      isSuperuser ? getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }) : Promise.resolve(null),
+    ]);
+    return {
+      statistics,
+      // `null` (bukan array kosong) supaya seksi aktivitas bisa DISEMBUNYIKAN
+      // sepenuhnya, bukan tampil seolah "belum ada aktivitas" padahal sebenarnya
+      // memang tak boleh dilihat.
+      activities: auditLogs ? adaptRecentActivityList(auditLogs.data) : null,
+    };
+  }, []);
+  const {
+    data: global,
+    isLoading: isLoadingGlobal,
+    error: errorGlobal,
+    refetch: refetchGlobal,
+  } = useAsync(fetchGlobal);
+
+  if (isLoadingFiltered || isLoadingGlobal) {
     return <LoadingState label="Memuat dashboard..." />;
   }
 
+  const error = errorFiltered ?? errorGlobal;
   if (error) {
-    return <ErrorState title="Gagal memuat dashboard" description={error.message} onRetry={refetch} />;
+    return (
+      <ErrorState
+        title="Gagal memuat dashboard"
+        description={error.message}
+        onRetry={() => {
+          refetchFiltered();
+          refetchGlobal();
+        }}
+      />
+    );
   }
 
-  const { kabDashboard, statistics, activities } = data;
+  const { statistics, activities } = global;
   const { summary } = statistics;
   const leaderboardData = kabDashboard.leaderboard.map((item) => ({
     opdId: item.opdId,
@@ -69,6 +128,8 @@ export default function AdminKabDashboardPage() {
   return (
     <div className="min-h-screen p-lg space-y-lg relative">
       <KabDashboardHeader summary={summary} />
+
+      <KabFilterScopeNote periode={periode} jenisLayanan={jenisLayanan} />
 
       <KabSummaryMetrics data={kabDashboard.summary} />
 
@@ -182,7 +243,7 @@ export default function AdminKabDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg mt-8">
         <div className="lg:col-span-2 w-full overflow-x-auto hide-scrollbar">
           <div className="min-w-[500px]">
-            <IkmLeaderboard data={leaderboardData} />
+            <IkmLeaderboard data={leaderboardData} periode={periode} />
           </div>
         </div>
         <div className="w-full overflow-x-auto hide-scrollbar">
@@ -192,7 +253,8 @@ export default function AdminKabDashboardPage() {
         </div>
       </div>
 
-      <RecentActivities data={activities} />
+      {/* Disembunyikan untuk Admin Kabupaten biasa -- log aktivitas superuser saja. */}
+      {activities && <RecentActivities data={activities} />}
     </div>
   );
 }

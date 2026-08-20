@@ -37,6 +37,41 @@ export function formatPeriodeLabel(periode) {
   return `Triwulan ${ROMAN_BY_QUARTER[parsed.triwulan]} - ${parsed.tahun}`;
 }
 
+/**
+ * Bucket sebuah tanggal ke periode triwulan kanonik. Cermin persis
+ * `periodeFromDate` backend (surveys/utils/periode.util.ts) -- dipakai untuk
+ * entitas yang TAK punya field `periode` sendiri, khususnya `Complaint`
+ * (cuma punya `createdAt`), supaya penyaringan per triwulan di dashboard
+ * konsisten dengan cara backend membucket tren pengaduannya.
+ */
+export function periodeFromDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return buildPeriode(d.getFullYear(), Math.floor(d.getMonth() / 3) + 1);
+}
+
+/**
+ * Daftar pilihan periode untuk penyaring triwulan (lihat AdminNavbar.jsx).
+ *
+ * Rentangnya SENGAJA berpusat pada triwulan berjalan: `back` triwulan ke
+ * belakang (riwayat yang memang punya data) + `forward` ke depan (survei
+ * periode berikutnya biasa disiapkan lebih awal, lihat rentang tahun
+ * BuilderToolbar). Terurut terbaru dulu supaya triwulan berjalan -- nilai
+ * default penyaring -- selalu berada di dekat puncak daftar.
+ */
+export function buildRecentPeriodeOptions({ back = 7, forward = 1, from = new Date() } = {}) {
+  const base = from instanceof Date ? from : new Date(from);
+  // Indeks triwulan absolut (tahun*4 + triwulan-1) supaya pergeseran melewati
+  // batas tahun tak perlu ditangani sebagai kasus khusus.
+  const baseIndex = base.getFullYear() * 4 + Math.floor(base.getMonth() / 3);
+  const options = [];
+  for (let offset = forward; offset >= -back; offset -= 1) {
+    const index = baseIndex + offset;
+    const periode = buildPeriode(Math.floor(index / 4), (index % 4) + 1);
+    options.push({ value: periode, label: formatPeriodeLabel(periode) });
+  }
+  return options;
+}
+
 export function adaptSurvey(survey) {
   return {
     id: String(survey.id),
@@ -119,20 +154,20 @@ const QUESTION_TYPE_TO_FRONTEND = {
  * Terjemahkan SurveyFillEntity (GET /surveys/:id/fill) ke bentuk yang dipakai
  * wizard pengisian (lihat features/surveys/store/useSurveyStore.js).
  *
- * CATATAN GAP UI (bukan gap backend): QuestionCard.jsx saat ini HANYA
- * merender tipe 'scale_1_to_4' -- pertanyaan tipe teks/pilihan akan lolos
- * dari adapter ini (diterjemahkan dgn benar) TAPI belum ada tampilan wizard
- * utk keduanya. Tak masalah utk survei 9-unsur baku (semua skala), tapi
- * survei kustom ber-pertanyaan teks/pilihan belum sepenuhnya bisa diisi
- * lewat wizard ini -- perlu perluasan QuestionCard di tiket terpisah.
+ * Ketiga tipe ('scale_1_to_4', 'text', 'multiple_choice') kini punya tampilan
+ * pengisiannya masing-masing di QuestionCard.jsx. Sebelum 2026-08-19 kartu itu
+ * SELALU merender skala 1-4, jadi pertanyaan uraian/pilihan ganda tak benar-benar
+ * dapat diisi walau adapter ini sudah menerjemahkannya dengan benar.
  */
 export function adaptFillQuestion(q) {
   return {
     id: q.id,
     text: q.teks,
     type: QUESTION_TYPE_TO_FRONTEND[q.tipe] ?? q.tipe,
+    // `nilai` ikut dibawa karena tipe skala memakainya sebagai SKOR jawaban
+    // (1-4), bukan id opsi -- lihat scaleStepsFromOptions & toSubmitAnswers.
     options: q.options?.length
-      ? q.options.map((o) => ({ id: o.id, label: o.label }))
+      ? q.options.map((o) => ({ id: o.id, label: o.label, nilai: o.nilai ?? null }))
       : undefined,
   };
 }
@@ -205,6 +240,11 @@ export function adaptBuilderQuestion(q, customIndex) {
     text: q.teks,
     type: QUESTION_TYPE_TO_BUILDER[q.tipe] ?? q.tipe,
     isRequired: q.tipe !== 'teks',
+    // Tipe `pilihan` selalu berisi; tipe `skala` berisi HANYA bila labelnya
+    // pernah disesuaikan (4 baris, lihat scaleLabels.js); tipe teks selalu
+    // kosong. Selalu array (bukan undefined) supaya pemanggil bisa langsung
+    // `.length` tanpa penjagaan.
+    options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label, nilai: o.nilai ?? null })),
   };
 }
 
@@ -218,13 +258,39 @@ export function adaptBuilderQuestions(questions) {
 
 /**
  * Terjemahkan payload tambah-pertanyaan-kustom (bentuk builder) -> CreateQuestionDto.
- * CATATAN GAP: tipe 'Pilihan Ganda' butuh `options` (wajib >=2 di backend),
- * TAPI builder saat ini TAK PUNYA UI pengaturan opsi sama sekali -- caller
- * (page.jsx) sengaja TIDAK memanggil ini utk tipe pilihan, biar tak coba
- * kirim payload yg pasti 400. Lihat catatan di page.jsx.
+ *
+ * `options` diterima sebagai array label (string) dari QuestionOptionsModal dan
+ * dibungkus jadi QuestionOptionInputDto di sini. Field itu HANYA disertakan utk
+ * tipe pilihan: backend menolak `options` pada tipe lain (400 "Opsi hanya
+ * berlaku untuk tipe pilihan"), dan mewajibkannya (>=2) pada tipe pilihan.
  */
-export function toCreateQuestionPayload({ text, type }) {
-  return { teks: text, tipe: builderTypeToBackendTipe(type), isIkmUnsur: false };
+export function toCreateQuestionPayload({ text, type, options }) {
+  const tipe = builderTypeToBackendTipe(type);
+  return {
+    teks: text,
+    tipe,
+    isIkmUnsur: false,
+    ...(tipe === 'pilihan' ? { options: (options ?? []).map((label) => ({ label })) } : {}),
+  };
+}
+
+/**
+ * Payload PATCH /questions/:id untuk MENGGANTI opsi jawaban (2026-08-20).
+ *
+ * Semantik backend adalah penggantian PENUH: opsi lama dihapus, daftar ini
+ * dibuat urut sesuai posisi array (tipe pilihan minimal 2; tipe skala tepat 4,
+ * satu label per skor). `nilai` sengaja TIDAK dikirim -- untuk skala backend
+ * memaksanya = posisi (1..4) agar label tak bisa menggeser dasar hitungan IKM,
+ * dan untuk pilihan skor opsi memang di luar cakupan rumus IKM.
+ *
+ * `teks` hanya disertakan bila memang diubah: pertanyaan unsur baku terkunci
+ * teksnya di UI, sehingga hanya labelnya yang boleh ikut terkirim.
+ */
+export function toUpdateQuestionOptionsPayload({ text, options }) {
+  return {
+    ...(text != null ? { teks: text } : {}),
+    options: (options ?? []).map((label) => ({ label })),
+  };
 }
 
 // --- Respons masuk (GET /surveys/:id/responses, Admin OPD, INT-38) ---
@@ -242,6 +308,19 @@ export function adaptSurveyResponseAnswer(answer, question) {
     nilai: answer.nilai,
     teks: answer.teks,
     selectedOptionId: answer.selectedOptionId,
+    // AnswerEntity backend cuma mengirim id opsi terpilih (bukan salinan
+    // labelnya) -- labelnya diambil dari daftar opsi pertanyaan yg sudah
+    // di-fetch pemanggil, supaya tampilan tak berhenti di "Opsi #12".
+    selectedOptionLabel:
+      question?.options?.find((o) => o.id === answer.selectedOptionId)?.label ?? null,
+    // Label skor skala bila pertanyaannya memakai label yang disesuaikan
+    // (2026-08-20). null = label baku, dan pemanggil cukup menampilkan angkanya
+    // -- label baku SKM ("Cepat / Baik" dst) tak diulang di sini supaya tabel
+    // respons tak jadi penuh kalimat panjang yang sama untuk setiap jawaban.
+    nilaiLabel:
+      answer.nilai == null
+        ? null
+        : (question?.options?.find((o) => o.nilai === answer.nilai)?.label ?? null),
   };
 }
 

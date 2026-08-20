@@ -11,11 +11,12 @@ import { formatDateId, getInitials } from '@/utils/format';
  * API, lihat UserEntity). Adapter ini hanya map ACTIVE/INACTIVE; komponen yang
  * mengandalkan PENDING perlu disesuaikan, bukan ditebak di sini.
  */
-// kabupaten = superuser (2026-08-05, role superuser terpisah digabung ke kabupaten).
+// `superuser` dipisah kembali dari `kabupaten` (2026-08-20) -- lihat userConstants.js.
 const ROLE_MAP = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
   responden: 'RESPONDENT',
+  superuser: 'SUPERUSER',
 };
 
 export function adaptUser(user) {
@@ -40,6 +41,7 @@ const ROLE_TO_BACKEND = {
   ADMIN_OPD: 'opd',
   ADMIN_KABUPATEN: 'kabupaten',
   RESPONDENT: 'responden',
+  SUPERUSER: 'superuser',
 };
 
 /**

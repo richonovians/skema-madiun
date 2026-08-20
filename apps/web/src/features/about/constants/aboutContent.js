@@ -13,7 +13,9 @@ export const aboutContent = {
   hero: {
     title: "Membangun Pelayanan Publik yang Lebih Transparan, Cepat, dan Responsif",
     description: "SKEMA Madiun merupakan Sistem Keluhan, Evaluasi, dan Manajemen Aspirasi yang dirancang untuk memperkuat sinergi antara masyarakat dan Pemerintah Kabupaten Madiun dalam menciptakan pelayanan publik yang prima.",
-    illustration: "/placeholder-hero.svg" // Replace with actual asset when available
+    // `illustration: "/placeholder-hero.svg"` dibuang: berkas itu tak pernah ada
+    // di public/, dan tak satu pun komponen membacanya -- referensi mati yang
+    // hanya menunggu dipakai lalu menghasilkan gambar rusak.
   },
   platform: {
     title: "Tentang Platform",
@@ -81,12 +83,12 @@ export const aboutContent = {
       icon: HeartHandshake
     }
   ],
-  statistics: {
-    totalOPD: 45,
-    totalResponden: 12500,
-    totalPengaduan: 8430,
-    tingkatPenyelesaian: 98 // percentage
-  },
+  // Blok `statistics` DIHAPUS (2026-08-19). Isinya angka karangan yang dipajang
+  // di halaman publik sebagai capaian sistem -- 45 OPD, 12.500 responden, 8.430
+  // pengaduan, penyelesaian 98% -- padahal data sungguhannya jauh berbeda.
+  // AboutStatistics.jsx & AboutHeroShowcase.jsx kini mengambil GET /statistics.
+  // Berkas ini SENGAJA hanya menyimpan naskah editorial (visi, misi, nilai, FAQ):
+  // teks itu memang ditulis manusia, sedangkan ANGKA tak boleh lahir dari sini.
   timeline: [
     {
       id: 1,
