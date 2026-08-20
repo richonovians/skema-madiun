@@ -3,9 +3,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList, Repeat } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import { useAsync } from '@/hooks/useAsync';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 import { getMyProfile } from '../services/profile.api';
 import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
@@ -135,6 +136,19 @@ export default function ProfileAvatarDropdown() {
           </div>
 
           <div className="border-t border-border/60 my-1 pt-1">
+            {/* Superuser yang sedang memakai area warga terkurung di area itu
+                (lihat proxy.js) -- ini pintu berpindahnya tanpa logout. Peran
+                lain tak punya apa pun untuk dipilih, jadi menunya disembunyikan. */}
+            {user?.role === USER_ROLES.SUPERUSER && (
+              <Link
+                href="/pilih-peran"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
+              >
+                <Repeat size={16} className="text-text-secondary shrink-0" />
+                <span>Ganti Peran</span>
+              </Link>
+            )}
             <button
               type="button"
               onClick={handleLogout}

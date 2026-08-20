@@ -164,8 +164,10 @@ export function adaptFillQuestion(q) {
     id: q.id,
     text: q.teks,
     type: QUESTION_TYPE_TO_FRONTEND[q.tipe] ?? q.tipe,
+    // `nilai` ikut dibawa karena tipe skala memakainya sebagai SKOR jawaban
+    // (1-4), bukan id opsi -- lihat scaleStepsFromOptions & toSubmitAnswers.
     options: q.options?.length
-      ? q.options.map((o) => ({ id: o.id, label: o.label }))
+      ? q.options.map((o) => ({ id: o.id, label: o.label, nilai: o.nilai ?? null }))
       : undefined,
   };
 }
@@ -238,9 +240,11 @@ export function adaptBuilderQuestion(q, customIndex) {
     text: q.teks,
     type: QUESTION_TYPE_TO_BUILDER[q.tipe] ?? q.tipe,
     isRequired: q.tipe !== 'teks',
-    // Hanya tipe `pilihan` yang punya isi; tipe lain selalu array kosong (bukan
-    // undefined) supaya QuestionBlock bisa langsung `.length` tanpa penjagaan.
-    options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label })),
+    // Tipe `pilihan` selalu berisi; tipe `skala` berisi HANYA bila labelnya
+    // pernah disesuaikan (4 baris, lihat scaleLabels.js); tipe teks selalu
+    // kosong. Selalu array (bukan undefined) supaya pemanggil bisa langsung
+    // `.length` tanpa penjagaan.
+    options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label, nilai: o.nilai ?? null })),
   };
 }
 
@@ -270,6 +274,25 @@ export function toCreateQuestionPayload({ text, type, options }) {
   };
 }
 
+/**
+ * Payload PATCH /questions/:id untuk MENGGANTI opsi jawaban (2026-08-20).
+ *
+ * Semantik backend adalah penggantian PENUH: opsi lama dihapus, daftar ini
+ * dibuat urut sesuai posisi array (tipe pilihan minimal 2; tipe skala tepat 4,
+ * satu label per skor). `nilai` sengaja TIDAK dikirim -- untuk skala backend
+ * memaksanya = posisi (1..4) agar label tak bisa menggeser dasar hitungan IKM,
+ * dan untuk pilihan skor opsi memang di luar cakupan rumus IKM.
+ *
+ * `teks` hanya disertakan bila memang diubah: pertanyaan unsur baku terkunci
+ * teksnya di UI, sehingga hanya labelnya yang boleh ikut terkirim.
+ */
+export function toUpdateQuestionOptionsPayload({ text, options }) {
+  return {
+    ...(text != null ? { teks: text } : {}),
+    options: (options ?? []).map((label) => ({ label })),
+  };
+}
+
 // --- Respons masuk (GET /surveys/:id/responses, Admin OPD, INT-38) ---
 
 /**
@@ -290,6 +313,14 @@ export function adaptSurveyResponseAnswer(answer, question) {
     // di-fetch pemanggil, supaya tampilan tak berhenti di "Opsi #12".
     selectedOptionLabel:
       question?.options?.find((o) => o.id === answer.selectedOptionId)?.label ?? null,
+    // Label skor skala bila pertanyaannya memakai label yang disesuaikan
+    // (2026-08-20). null = label baku, dan pemanggil cukup menampilkan angkanya
+    // -- label baku SKM ("Cepat / Baik" dst) tak diulang di sini supaya tabel
+    // respons tak jadi penuh kalimat panjang yang sama untuk setiap jawaban.
+    nilaiLabel:
+      answer.nilai == null
+        ? null
+        : (question?.options?.find((o) => o.nilai === answer.nilai)?.label ?? null),
   };
 }
 

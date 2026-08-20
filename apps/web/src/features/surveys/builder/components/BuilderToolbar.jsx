@@ -3,7 +3,7 @@
 import React from 'react';
 import { ArrowLeft, CheckCircle2, UploadCloud, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { buildPeriode, parsePeriode } from '@/features/surveys/adapters/survey.adapter';
+import PeriodeSelect from './PeriodeSelect';
 
 const STATUS_BADGE = {
   DRAF: { label: 'Draf', className: 'bg-amber-100 text-amber-700' },
@@ -11,15 +11,8 @@ const STATUS_BADGE = {
   DITUTUP: { label: 'Ditutup', className: 'bg-slate-200 text-slate-600' },
 };
 
-const CURRENT_YEAR = new Date().getFullYear();
-// Rentang wajar utk pemilihan tahun survei -- 1 tahun lalu s.d. 2 tahun ke depan.
-const YEAR_OPTIONS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2];
-const QUARTER_OPTIONS = [
-  { value: 1, label: 'Triwulan I' },
-  { value: 2, label: 'Triwulan II' },
-  { value: 3, label: 'Triwulan III' },
-  { value: 4, label: 'Triwulan IV' },
-];
+const PERIODE_SELECT_CLASS =
+  'text-xs md:text-sm font-semibold text-slate-500 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none transition-colors px-1 py-0.5 disabled:opacity-70';
 
 /**
  * Murni presentasional -- seluruh state (title/periode) & orkestrasi API
@@ -31,8 +24,8 @@ const QUARTER_OPTIONS = [
  * Periode (D5+D8, 2026-08-05): SEBELUMNYA input teks bebas ("mis. 2026") --
  * backend kini WAJIB format kanonik triwulan `{tahun}-Q{1-4}` (utk bisa
  * diurutkan/difilter sistematis, lihat periode.util.ts backend). Diganti 2
- * dropdown (Tahun, Triwulan) yang menyusun/membongkar format kanonik itu --
- * pengguna tak pernah mengetik format mentahnya sendiri. Beda dari `title`
+ * dropdown (Tahun, Triwulan) yang kini tinggal di PeriodeSelect.jsx supaya
+ * dipakai bersama kartu judul di kanvas (2026-08-20). Beda dari `title`
  * (persist on-blur, sesuai ketikan kontinu), pilihan dropdown adalah "commit"
  * diskret -- `onPeriodeCommit` langsung update state DAN persist ke backend
  * dalam satu panggilan (bukan pasangan onChange+onBlur terpisah).
@@ -52,19 +45,6 @@ export default function BuilderToolbar({
   backHref = '/admin-opd/surveys',
 }) {
   const badge = STATUS_BADGE[status] ?? STATUS_BADGE.DRAF;
-  const parsed = parsePeriode(periode) ?? { tahun: CURRENT_YEAR, triwulan: 1 };
-  // Survei lama bisa punya tahun di luar rentang wajar (mis. data seed 2025)
-  // -- sisipkan agar <select> tak jatuh ke opsi salah krn tak ketemu match.
-  const yearOptions = YEAR_OPTIONS.includes(parsed.tahun)
-    ? YEAR_OPTIONS
-    : [parsed.tahun, ...YEAR_OPTIONS].sort((a, b) => a - b);
-
-  const handleTahunChange = (e) => {
-    onPeriodeCommit(buildPeriode(Number(e.target.value), parsed.triwulan));
-  };
-  const handleTriwulanChange = (e) => {
-    onPeriodeCommit(buildPeriode(parsed.tahun, Number(e.target.value)));
-  };
 
   return (
     <header className="absolute top-0 left-0 w-full h-16 md:h-[72px] bg-white border-b border-border flex items-center px-4 md:px-lg z-50 justify-between shadow-sm">
@@ -88,30 +68,13 @@ export default function BuilderToolbar({
               className="text-base md:text-xl font-bold text-slate-900 tracking-tight truncate bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none transition-colors px-1 py-0.5 w-full max-w-[300px] disabled:opacity-70"
               placeholder="Judul Survei"
             />
-            <select
-              value={parsed.triwulan}
-              onChange={handleTriwulanChange}
+            <PeriodeSelect
+              periode={periode}
+              onCommit={onPeriodeCommit}
               disabled={status !== 'DRAF'}
-              className="text-xs md:text-sm font-semibold text-slate-500 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none transition-colors px-1 py-0.5 disabled:opacity-70"
-            >
-              {QUARTER_OPTIONS.map((q) => (
-                <option key={q.value} value={q.value}>
-                  {q.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={parsed.tahun}
-              onChange={handleTahunChange}
-              disabled={status !== 'DRAF'}
-              className="text-xs md:text-sm font-semibold text-slate-500 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none transition-colors px-1 py-0.5 disabled:opacity-70"
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+              className="flex items-center gap-2 md:gap-3 shrink-0"
+              selectClassName={PERIODE_SELECT_CLASS}
+            />
             <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] md:text-[11px] font-bold uppercase tracking-wider ${badge.className}`}>
               {badge.label}
             </span>

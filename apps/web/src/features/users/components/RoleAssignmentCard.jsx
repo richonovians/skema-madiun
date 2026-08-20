@@ -107,8 +107,9 @@ export default function RoleAssignmentCard({
           <div className="flex items-start gap-2 p-sm bg-indigo-50 rounded-lg border border-indigo-100 animate-in fade-in duration-200">
             <ShieldCheck size={15} className="text-indigo-500 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-indigo-700">
-              Admin Kabupaten memiliki akses penuh terhadap seluruh OPD, KECUALI log aktivitas
-              (khusus Superuser).
+              Admin Kabupaten memiliki akses penuh terhadap seluruh OPD, KECUALI log aktivitas dan
+              manajemen pengguna (keduanya khusus Superuser) — termasuk tak dapat mengubah role akun
+              lain.
             </p>
           </div>
         )}
@@ -117,8 +118,8 @@ export default function RoleAssignmentCard({
           <div className="flex items-start gap-2 p-sm bg-violet-50 rounded-lg border border-violet-100 animate-in fade-in duration-200">
             <ShieldCheck size={15} className="text-violet-500 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-violet-700">
-              Superuser memiliki seluruh hak Admin Kabupaten DITAMBAH log aktivitas, dan dapat
-              memilih peran mana yang dibuka saat login.
+              Superuser memiliki seluruh hak Admin Kabupaten DITAMBAH log aktivitas dan manajemen
+              pengguna (halaman ini), serta dapat memilih peran mana yang dibuka saat login.
             </p>
           </div>
         )}

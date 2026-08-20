@@ -121,11 +121,21 @@ describe('QuestionsService', () => {
       await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
     });
 
-    it('create skala dengan options terisi → BadRequest (options hanya untuk pilihan)', async () => {
+    it('create skala dengan 2 opsi → BadRequest (skala butuh TEPAT 4 label skor)', async () => {
       (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
       const dto: CreateQuestionDto = {
         teks: 'Q',
         tipe: QuestionType.skala,
+        options: [{ label: 'A' }, { label: 'B' }],
+      };
+      await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
+    });
+
+    it('create teks dengan options → BadRequest (isian teks tak punya opsi)', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      const dto: CreateQuestionDto = {
+        teks: 'Q',
+        tipe: QuestionType.teks,
         options: [{ label: 'A' }, { label: 'B' }],
       };
       await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
@@ -185,6 +195,158 @@ describe('QuestionsService', () => {
       await expect(service.update(5, { isIkmUnsur: true }, opdUser(5))).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  // Opsi jawaban dapat diganti setelah pertanyaan dibuat (2026-08-20, permintaan
+  // user) -- termasuk label skala 1-4. Sebelum ini UpdateQuestionDto tak punya
+  // `options` sama sekali dan frontend memutarinya dengan buat-baru+hapus-lama.
+  describe('ganti opsi lewat update', () => {
+    const draftQuestion = (tipe: QuestionType) => ({
+      id: 5,
+      tipe,
+      survey: { opdId: 5, status: SurveyStatus.draft },
+    });
+
+    const updatedRow = (tipe: QuestionType, options: unknown[]) => ({
+      id: 5,
+      surveyId: 1,
+      teks: 'Q',
+      tipe,
+      isIkmUnsur: tipe === QuestionType.skala,
+      kodeUnsur: null,
+      urutan: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      options,
+    });
+
+    it('skala: 4 label → opsi lama dihapus & nilai DIPAKSA 1..4 (bukan dari input)', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+        draftQuestion(QuestionType.skala),
+      );
+      (prisma.question.update as jest.Mock).mockResolvedValue(
+        updatedRow(QuestionType.skala, [
+          { id: 1, questionId: 5, label: 'Buruk', nilai: 1, urutan: 1 },
+        ]),
+      );
+
+      // `nilai` sengaja dikirim ngawur — harus diabaikan supaya label tak bisa
+      // menggeser dasar hitungan IKM.
+      await service.update(
+        5,
+        {
+          options: [
+            { label: 'Buruk', nilai: 99 },
+            { label: 'Kurang', nilai: 99 },
+            { label: 'Baik', nilai: 99 },
+            { label: 'Sangat Baik', nilai: 99 },
+          ],
+        },
+        opdUser(5),
+      );
+
+      expect(prisma.question.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            options: {
+              deleteMany: {},
+              create: [
+                { label: 'Buruk', nilai: 1, urutan: 1 },
+                { label: 'Kurang', nilai: 2, urutan: 2 },
+                { label: 'Baik', nilai: 3, urutan: 3 },
+                { label: 'Sangat Baik', nilai: 4, urutan: 4 },
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('skala: 3 label → BadRequest (tepat 4)', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+        draftQuestion(QuestionType.skala),
+      );
+      await expect(
+        service.update(
+          5,
+          { options: [{ label: 'A' }, { label: 'B' }, { label: 'C' }] },
+          opdUser(5),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.question.update).not.toHaveBeenCalled();
+    });
+
+    it('pilihan: ≥2 opsi → tersimpan urut, `nilai` dari input dipertahankan', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+        draftQuestion(QuestionType.pilihan),
+      );
+      (prisma.question.update as jest.Mock).mockResolvedValue(
+        updatedRow(QuestionType.pilihan, [
+          { id: 9, questionId: 5, label: 'Baru A', nilai: 7, urutan: 1 },
+        ]),
+      );
+
+      await service.update(
+        5,
+        { teks: 'Pertanyaan baru', options: [{ label: 'Baru A', nilai: 7 }, { label: 'Baru B' }] },
+        opdUser(5),
+      );
+
+      expect(prisma.question.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            teks: 'Pertanyaan baru',
+            options: {
+              deleteMany: {},
+              create: [
+                { label: 'Baru A', nilai: 7, urutan: 1 },
+                { label: 'Baru B', nilai: null, urutan: 2 },
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('teks: kirim opsi → BadRequest (isian teks tak punya opsi)', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue(draftQuestion(QuestionType.teks));
+      await expect(
+        service.update(5, { options: [{ label: 'A' }, { label: 'B' }] }, opdUser(5)),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.question.update).not.toHaveBeenCalled();
+    });
+
+    it('tanpa `options` → blok opsi TIDAK ikut dikirim (perubahan teks saja tak menghapus opsi)', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+        draftQuestion(QuestionType.pilihan),
+      );
+      (prisma.question.update as jest.Mock).mockResolvedValue(updatedRow(QuestionType.pilihan, []));
+
+      await service.update(5, { teks: 'Cuma teks' }, opdUser(5));
+
+      const call = (prisma.question.update as jest.Mock).mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      };
+      expect(call.data.options).toBeUndefined();
+    });
+
+    it('survei non-draft → BadRequest sebelum opsi disentuh', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue({
+        id: 5,
+        tipe: QuestionType.skala,
+        survey: { opdId: 5, status: SurveyStatus.aktif },
+      });
+      await expect(
+        service.update(
+          5,
+          {
+            options: [{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }],
+          },
+          opdUser(5),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.question.update).not.toHaveBeenCalled();
     });
   });
 });

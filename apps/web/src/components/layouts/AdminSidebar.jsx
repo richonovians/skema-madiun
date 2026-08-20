@@ -1,25 +1,40 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   ClipboardList,
   Inbox,
-  TrendingUp, 
-  Settings, 
-  HelpCircle, 
+  TrendingUp,
+  Settings,
+  HelpCircle,
   LogOut,
-  X
+  X,
+  Repeat
 } from 'lucide-react';
 import { useAdminLayout } from './AdminLayoutProvider';
 import { useLogout } from '@/hooks/useLogout';
+import { useAsync } from '@/hooks/useAsync';
+import { getMyProfile } from '@/features/profile/services/profile.api';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 
+/**
+ * "Ganti Peran" hanya tampil untuk SUPERUSER yang sedang memakai area OPD
+ * (2026-08-20). Tanpa pintu ini, superuser yang memilih area OPD terkurung di
+ * sana sampai logout -- proxy.js memantulkan setiap halaman di luar areanya.
+ *
+ * Perannya dibaca dari `GET /auth/me`, bukan cookie `role` (yang bisa disunting
+ * bebas di peramban), mengikuti pola AdminKabSidebar.
+ */
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminLayout();
   const { logout, isLoggingOut } = useLogout();
+  const fetchProfile = useCallback(() => getMyProfile(), []);
+  const { data: profile } = useAsync(fetchProfile);
+  const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
 
   const getLinkClass = (path) => {
     // Exact match or active section
@@ -76,6 +91,16 @@ export default function AdminSidebar() {
       </nav>
       
       <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">
+        {isSuperuser && (
+          <Link
+            href="/pilih-peran"
+            className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Repeat size={20} />
+            <span>Ganti Peran</span>
+          </Link>
+        )}
         <button
           onClick={logout}
           disabled={isLoggingOut}

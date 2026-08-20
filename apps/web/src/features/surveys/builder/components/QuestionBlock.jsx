@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Lock, GripVertical, Trash2, ArrowUp, ArrowDown, ListChecks } from 'lucide-react';
-
-const SCALE_STEPS = [1, 2, 3, 4];
+import { Lock, GripVertical, Trash2, ArrowUp, ArrowDown, ListChecks, Gauge } from 'lucide-react';
+import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
 
 /**
  * Elemen yang gerakan tariknya TIDAK boleh direbut jadi drag kartu.
@@ -49,19 +48,36 @@ function AnswerPreview({ type, options }) {
     );
   }
 
-  // Skala 1-4 (termasuk seluruh unsur baku PermenPANRB 14/2017).
+  // Skala 1-4 (termasuk seluruh unsur baku PermenPANRB 14/2017). Labelnya
+  // memakai opsi tersimpan bila pernah disesuaikan, selain itu label baku SKM --
+  // satu sumber yang sama dengan yang dilihat responden (scaleLabels.js).
+  const steps = scaleStepsFromOptions(options);
   return (
-    <div className="flex items-center gap-xs">
-      {SCALE_STEPS.map((step) => (
-        <span
-          key={step}
-          className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-[11px] font-bold text-text-secondary"
-        >
-          {step}
-        </span>
+    <div className="flex flex-col gap-xs">
+      {steps.map((step) => (
+        <div key={step.value} className="flex items-center gap-sm text-xs text-text-secondary">
+          <span className="w-5 h-5 shrink-0 rounded-full border border-border flex items-center justify-center text-[10px] font-bold">
+            {step.value}
+          </span>
+          <span className="truncate">{step.label}</span>
+        </div>
       ))}
-      <span className="ml-sm text-xs text-text-secondary">1 = terburuk, 4 = terbaik</span>
     </div>
+  );
+}
+
+/** Tombol ubah opsi/label -- dipakai kartu kustom MAUPUN kartu unsur baku. */
+function EditOptionsButton({ isScale, onClick }) {
+  const Icon = isScale ? Gauge : ListChecks;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="self-start inline-flex items-center gap-2 min-h-[40px] px-3 rounded-lg border border-border text-label-md font-label-md text-text-secondary hover:text-primary hover:border-primary hover:bg-primary-container/10 transition-colors"
+    >
+      <Icon size={16} />
+      {isScale ? 'Ubah Label Skala 1-4' : 'Ubah Opsi Jawaban'}
+    </button>
   );
 }
 
@@ -153,6 +169,11 @@ export default function QuestionBlock({
   const [isCardDraggable, setIsCardDraggable] = useState(false);
   const isBaku = question.isBaku;
   const options = question.options ?? [];
+  const isScale = question.type === 'Skala Penilaian 1-4';
+  // Opsi/label dapat disunting untuk skala & pilihan ganda (isian teks tak punya
+  // opsi sama sekali), dan hanya selama survei masih draf -- `assertDraft`
+  // backend menolak di luar itu, jadi tombolnya sekalian disembunyikan.
+  const canEditOptions = canReorder && (isScale || question.type === 'Pilihan Ganda');
 
   const dragCardProps = canReorder
     ? {
@@ -221,8 +242,14 @@ export default function QuestionBlock({
             rows={2}
           />
         </div>
-        <div className="mb-md">
+        {/* Unsur baku terkunci TEKSnya (kalimat resmi PermenPANRB), tapi LABEL
+            skalanya boleh disesuaikan -- yang berubah cuma kalimat tiap skor,
+            sementara skor 1-4 (dasar rumus IKM) dipaksa tetap oleh backend. */}
+        <div className="mb-md flex flex-col gap-md">
           <AnswerPreview type={question.type} options={options} />
+          {canEditOptions && (
+            <EditOptionsButton isScale={isScale} onClick={() => onEditOptions?.(question)} />
+          )}
         </div>
         <div className="flex items-center gap-md">
           <div className="flex items-center gap-2">
@@ -289,21 +316,13 @@ export default function QuestionBlock({
 
         <AnswerPreview type={question.type} options={options} />
 
-        {/* "Ubah Opsi" hanya untuk Pilihan Ganda, dan hanya saat masih draf.
-            Tipe skala & teks TIDAK punya opsi sama sekali di basis data
-            (assertValidOptionsForType backend melarangnya untuk non-pilihan),
-            jadi tak ada yang bisa disunting di sana -- skala 1-4 tetap menurut
-            PermenPANRB. Sebelum ini di tempat ini ada keterangan bahwa opsi tak
-            dapat diubah; kini bisa (lihat replaceQuestionOptions). */}
-        {question.type === 'Pilihan Ganda' && canReorder && (
-          <button
-            type="button"
-            onClick={() => onEditOptions?.(question)}
-            className="self-start inline-flex items-center gap-2 min-h-[40px] px-3 rounded-lg border border-border text-label-md font-label-md text-text-secondary hover:text-primary hover:border-primary hover:bg-primary-container/10 transition-colors"
-          >
-            <ListChecks size={16} />
-            Ubah Opsi Jawaban
-          </button>
+        {/* Berlaku untuk Pilihan Ganda MAUPUN Skala 1-4 (2026-08-20), selama
+            survei masih draf. Pada skala yang disunting adalah label tiap skor,
+            bukan jumlah/skornya: backend memaksa `nilai` = posisi 1..4 sehingga
+            rumus IKM tak bisa tergeser oleh perubahan kalimat. Isian teks tak
+            punya opsi apa pun, jadi tak ada tombolnya di sana. */}
+        {canEditOptions && (
+          <EditOptionsButton isScale={isScale} onClick={() => onEditOptions?.(question)} />
         )}
       </div>
 
