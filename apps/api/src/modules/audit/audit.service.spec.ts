@@ -1,6 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
+import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from './audit.service';
+
+// Log aktivitas HANYA untuk superuser (2026-08-20) -- kabupaten pun ditolak,
+// meski RolesGuard meloloskannya. Karena itu setiap pemanggilan butuh user.
+const SUPERUSER = { userId: 1, role: Role.superuser, opdId: null } as CurrentUser;
+const KABUPATEN = { userId: 2, role: Role.kabupaten, opdId: null } as CurrentUser;
+const OPD = { userId: 3, role: Role.opd, opdId: 7 } as CurrentUser;
 
 describe('AuditService', () => {
   const prisma = {
@@ -48,7 +56,7 @@ describe('AuditService', () => {
         1,
       ]);
 
-      const result = await service.findAll({ page: 1, limit: 20 });
+      const result = await service.findAll({ page: 1, limit: 20 }, SUPERUSER);
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0].actorNama).toBe('Admin OPD');
@@ -57,17 +65,40 @@ describe('AuditService', () => {
 
     it('filter entitas & actorId diteruskan ke where', async () => {
       (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
-      await service.findAll({ page: 1, limit: 20, entitas: 'survey', actorId: 5 });
+      await service.findAll({ page: 1, limit: 20, entitas: 'survey', actorId: 5 }, SUPERUSER);
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { entitas: 'survey', actorId: 5 } }),
       );
     });
   });
 
+  // Inti pemisahan superuser vs kabupaten (2026-08-20). Diperiksa di service,
+  // BUKAN via @Roles, karena RolesGuard memberi kabupaten bypass penuh --
+  // dekorator saja tak akan pernah menahannya.
+  describe('pembatasan superuser', () => {
+    it('kabupaten (bukan superuser) → Forbidden, query TAK dijalankan', async () => {
+      await expect(service.findAll({ page: 1, limit: 20 }, KABUPATEN)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('opd → Forbidden', async () => {
+      await expect(service.findAll({ page: 1, limit: 20 }, OPD)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('findOne oleh kabupaten → Forbidden sebelum menyentuh basis data', async () => {
+      await expect(service.findOne(1, KABUPATEN)).rejects.toThrow(ForbiddenException);
+      expect(prisma.auditLog.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findOne', () => {
     it('tidak ditemukan → NotFound', async () => {
       (prisma.auditLog.findUnique as jest.Mock).mockResolvedValue(null);
-      await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(999, SUPERUSER)).rejects.toThrow(NotFoundException);
     });
 
     it('memetakan baris + nama aktor', async () => {
@@ -81,7 +112,7 @@ describe('AuditService', () => {
         actor: { nama: 'Admin OPD' },
       });
 
-      const result = await service.findOne(1);
+      const result = await service.findOne(1, SUPERUSER);
 
       expect(result.id).toBe(1);
       expect(result.actorNama).toBe('Admin OPD');

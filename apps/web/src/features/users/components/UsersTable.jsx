@@ -19,6 +19,10 @@ import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
 export default function UsersTable({ data, onUpdateStatus, onDelete, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
+      // Warna dibedakan dari Admin Kabupaten: keduanya kini peran berbeda, dan
+      // yang membedakan bukan cuma nama (superuser + akses log aktivitas).
+      case USER_ROLES.SUPERUSER:
+        return { label: 'Superuser', className: 'bg-violet-100 text-violet-800' };
       case USER_ROLES.ADMIN_KABUPATEN:
         return { label: 'Admin Kabupaten', className: 'bg-indigo-100 text-indigo-800' };
       case USER_ROLES.ADMIN_OPD:
@@ -32,6 +36,7 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
 
   const getAvatarVariant = (role) => {
     switch (role) {
+      case USER_ROLES.SUPERUSER:
       case USER_ROLES.ADMIN_KABUPATEN:
         return 'secondary';
       case USER_ROLES.ADMIN_OPD:

@@ -5,6 +5,7 @@ import Badge from '@/components/ui/Badge';
 import { USER_ROLES } from '../constants/userConstants';
 
 const ROLE_LABELS = {
+  [USER_ROLES.SUPERUSER]: 'Superuser',
   [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
   [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
 };

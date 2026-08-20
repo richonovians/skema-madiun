@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../decorators/current-user.decorator';
+import { hasFullAccess } from './role.util';
 
 /**
  * Menegakkan isolasi data per-OPD (PRD Bab 6): Admin OPD hanya data OPD-nya,
@@ -14,7 +15,7 @@ import type { CurrentUser } from '../decorators/current-user.decorator';
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException (fail-safe)
  */
 export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
-  if (user.role === Role.kabupaten) {
+  if (hasFullAccess(user.role)) {
     return {};
   }
   if (user.role === Role.opd) {
@@ -33,7 +34,7 @@ export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException
  */
 export function assertOpdAccess(user: CurrentUser, targetOpdId: number): void {
-  if (user.role === Role.kabupaten) {
+  if (hasFullAccess(user.role)) {
     return;
   }
   if (user.role === Role.opd) {

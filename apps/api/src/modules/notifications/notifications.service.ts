@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Complaint, NotificationType, Role } from '@prisma/client';
+import { FULL_ACCESS_ROLES } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -158,8 +159,14 @@ export class NotificationsService {
     link: string,
   ): Promise<void> {
     try {
+      // Superuser ikut menerima (2026-08-20): ia mewarisi seluruh hak kabupaten,
+      // jadi tak masuk akal kalau justru tak diberi tahu perkara yang sama.
       const kabupatenUsers = await this.prisma.user.findMany({
-        where: { role: Role.kabupaten, isActive: true, id: { not: excludeUserId } },
+        where: {
+          role: { in: [...FULL_ACCESS_ROLES] },
+          isActive: true,
+          id: { not: excludeUserId },
+        },
         select: { id: true },
       });
       await Promise.all(
