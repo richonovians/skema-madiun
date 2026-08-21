@@ -43,13 +43,12 @@ export default function ConfirmActionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onCancel?.()}
     >
-      <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
-        style={{ width: '100%', maxWidth: '420px', margin: '0 16px' }}
-      >
+      {/* Lihat catatan yang sama di ConfirmStatusModal: gaya inline
+          `width:100%` + margin membuat modal terpotong di layar sempit. */}
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]">
         {/* Header */}
         <div className={`px-6 pt-6 pb-4 ${headerBg} border-b relative`}>
           <button
