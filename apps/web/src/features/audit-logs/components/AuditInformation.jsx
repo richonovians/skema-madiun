@@ -30,7 +30,10 @@ export default function AuditInformation({ log }) {
       </div>
 
       <div className="p-lg space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        {/* Satu kolom di ponsel: nilainya berisi tanggal panjang ("20 Agustus
+            2026, 14.30") & nama pengguna, yang di dua kolom sempit terpecah
+            jadi tiga-empat baris dan sulit dibaca. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
               <Clock size={12} /> Waktu

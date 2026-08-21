@@ -69,8 +69,15 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
     }
   };
 
+  // Tinggi 750px TETAP diganti tinggi relatif viewport (2026-08-20): di ponsel
+  // (area pandang ~600px) panel setinggi 750px selalu lebih tinggi dari layar,
+  // sehingga riwayat chat DAN halaman ikut bergulir bersamaan -- kolom balasan di
+  // bawah pun terdorong keluar pandangan. `min-h` menjaga panel tetap layak di
+  // layar sangat pendek, dan pada layar besar tingginya kembali seperti semula.
+  // Wadah `flex flex-col` + `flex-1 overflow-y-auto` pada riwayat sudah menangani
+  // sisanya.
   return (
-    <div className="bg-surface rounded-xl shadow-2xl border border-border flex flex-col h-[750px]">
+    <div className="bg-surface rounded-xl shadow-2xl border border-border flex flex-col h-[70vh] min-h-[420px] lg:h-[750px]">
       
       {/* Chat History */}
       <div ref={scrollRef} className="flex-1 p-lg overflow-y-auto space-y-lg scrollbar-hide bg-slate-50/50">

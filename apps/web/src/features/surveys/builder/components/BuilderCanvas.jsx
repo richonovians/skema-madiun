@@ -106,7 +106,7 @@ export default function BuilderCanvas({
       }}
       onDrop={handleDrop}
     >
-      <div className="max-w-4xl mx-auto py-3xl px-lg flex flex-col">
+      <div className="max-w-4xl mx-auto py-xl md:py-3xl px-md md:px-lg flex flex-col">
         {/* Kartu judul: kini DAPAT DISUNTING langsung (2026-08-20, permintaan
             user "judul survei dan periode dapat di edit pada bagian border
             putih"). Sebelumnya murni pratinjau -- judul & periode hanya bisa
@@ -116,7 +116,7 @@ export default function BuilderCanvas({
             judul disimpan saat blur, periode saat dipilih. Di luar status draf
             keduanya read-only -- `PATCH /surveys/:id` backend menolaknya
             (assertDraft), jadi jangan mengundang perubahan yang pasti gagal. */}
-        <div className="bg-white border border-border rounded-xl p-2xl shadow-sm mb-xl flex flex-col items-center gap-sm">
+        <div className="bg-white border border-border rounded-xl p-lg md:p-2xl shadow-sm mb-xl flex flex-col items-center gap-sm">
           {isEditable ? (
             <input
               type="text"
@@ -181,7 +181,7 @@ export default function BuilderCanvas({
           <DropIndicator active={overSlot === questions.length} />
           <div
             onClick={onAdd}
-            className={`border-2 border-dashed rounded-xl p-2xl flex flex-col items-center justify-center gap-md text-text-secondary transition-all cursor-pointer group mt-md ${
+            className={`border-2 border-dashed rounded-xl p-xl md:p-2xl flex flex-col items-center justify-center gap-md text-text-secondary transition-all cursor-pointer group mt-md ${
               isDraggingSomething
                 ? 'border-primary bg-primary-container/10'
                 : 'border-border hover:border-primary-container hover:bg-primary-container/5'

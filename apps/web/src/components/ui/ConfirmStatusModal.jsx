@@ -97,14 +97,15 @@ export default function ConfirmStatusModal({
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onCancel?.()}
     >
-      <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
-        style={{ width: '100%', maxWidth: '440px', margin: '0 16px' }}
-      >
+      {/* `width:100%` + `margin: 0 16px` (gaya inline sebelumnya) menempati
+          100% + 32px pada flex item -- di layar lebih sempit dari maxWidth (yaitu
+          hampir semua ponsel) sisi kanan modal terpotong. Jarak tepi kini dari
+          `p-4` induk, sehingga `w-full` benar-benar pas di dalamnya. */}
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[440px]">
         {/* Header berwarna sesuai jenis aksi */}
         <div
           className={`px-6 pt-6 pb-4 ${isDangerous ? 'bg-red-50' : 'bg-amber-50'} border-b ${isDangerous ? 'border-red-100' : 'border-amber-100'} relative`}
