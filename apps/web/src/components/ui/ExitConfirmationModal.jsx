@@ -5,11 +5,14 @@ export default function ExitConfirmationModal({ isOpen, onConfirm, onCancel }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div 
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
-        style={{ width: '100%', maxWidth: '380px', margin: '0 16px', minWidth: '320px' }}
-      >
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      {/* `minWidth: 320px` DIBUANG (2026-08-20): dipadu `margin: 0 16px` ia
+          menuntut 352px, sehingga di ponsel 320px (mis. iPhone SE generasi awal)
+          modal melebihi lebar layar dan halaman ikut bisa digeser ke samping.
+          Jarak tepi kini dari `p-4` induknya, jadi lebarnya benar-benar mengikuti
+          layar. Gaya inline diganti kelas Tailwind sekalian -- tak ada alasan
+          nilai ini ditulis inline. */}
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[380px]">
         <div className="p-6 md:p-8 text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
