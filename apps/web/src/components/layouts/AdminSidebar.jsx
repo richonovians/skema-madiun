@@ -18,6 +18,7 @@ import { useAdminLayout } from './AdminLayoutProvider';
 import { useLogout } from '@/hooks/useLogout';
 import { useAsync } from '@/hooks/useAsync';
 import { useActingOpd } from '@/hooks/useActingOpd';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { USER_ROLES } from '@/features/users/constants/userConstants';
 
@@ -37,6 +38,11 @@ export default function AdminSidebar() {
   const { data: profile } = useAsync(fetchProfile);
   const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
   const actingOpd = useActingOpd();
+
+  // Laci mobile: latarnya menutupi layar, tapi tanpa kunci halaman di belakangnya
+  // tetap ikut bergulir saat jari diusap di atas latar itu. `isMobileSidebarOpen`
+  // hanya pernah true di ponsel (di md+ laci ini selalu tampak, tak pernah dibuka).
+  useBodyScrollLock(isMobileSidebarOpen);
 
   const getLinkClass = (path) => {
     // Exact match or active section

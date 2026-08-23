@@ -37,7 +37,17 @@ export default function BuilderSidebar({
 }) {
   const isDraggable = canDrag === true;
   return (
-    <aside className="w-full md:w-80 shrink-0 bg-surface border-b md:border-b-0 md:border-r border-border overflow-y-auto p-4 md:p-lg flex flex-col gap-6 md:gap-xl">
+    // `max-h-[38vh]` di ponsel (2026-08-24, laporan user "ada tampilan yang
+    // tertumpuk/rusak"). BuilderLayout mengunci tinggi builder ke layar (`fixed
+    // inset-0` + `overflow-hidden`), dan di ponsel arah flex-nya KOLOM. Dengan
+    // `shrink-0`, palet ini menolak mengecil sehingga memakan seluruh tinggi
+    // isinya (~700px) -- kanvas di bawahnya cuma kebagian sisa ~90px, terlalu
+    // tipis untuk menyunting apa pun, dan halaman tak bisa digulir keluar dari
+    // keadaan itu karena yang menggulir adalah wadah dalam, bukan body.
+    // `shrink-0` DIPERTAHANKAN (tanpanya palet gepeng saat pertanyaan banyak);
+    // yang dibatasi tingginya, jadi kanvas mendapat ~60% layar. Palet tetap
+    // terjangkau penuh lewat gulirannya sendiri (`overflow-y-auto` di bawah).
+    <aside className="w-full md:w-80 shrink-0 max-h-[38vh] md:max-h-none bg-surface border-b md:border-b-0 md:border-r border-border overflow-y-auto p-4 md:p-lg flex flex-col gap-6 md:gap-xl">
       {/* Section 1: Template */}
       <section>
         <h3 className="text-label-md font-label-md text-text-secondary uppercase tracking-wider mb-md">

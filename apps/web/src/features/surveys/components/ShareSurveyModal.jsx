@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { X, Copy, Check, Download, ExternalLink, Info, AlertTriangle } from 'lucide-react';
 
 const QR_PIXEL_SIZE = 512; // resolusi berkas unduhan; tampilannya dikecilkan lewat CSS
@@ -66,13 +67,8 @@ export default function ShareSurveyModal({ survey, onClose }) {
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
+  // Pola inline lama dipindah ke hooks/useBodyScrollLock.js (2026-08-24).
+  useBodyScrollLock();
 
   const handleCopy = async () => {
     try {

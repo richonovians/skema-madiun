@@ -2,7 +2,11 @@ import React from 'react';
 
 export default function FloatingStatus({ questionCount }) {
   return (
-    <div className="fixed bottom-lg right-lg bg-surface border border-border rounded-full shadow-xl px-lg py-sm flex items-center gap-md" style={{ animation: 'bounce-subtle 4s ease-in-out infinite' }}>
+    // `z-10` (2026-08-24): sebelumnya `fixed` TANPA z-index sama sekali, jadi
+    // urutan tumpuknya bergantung urutan DOM belaka -- kartu pertanyaan mana pun
+    // yang membentuk konteks tumpuk sendiri (mis. saat diseret) bisa muncul di
+    // atasnya. Angkanya sengaja kecil: modal (z-[9999]) tetap harus menutupinya.
+    <div className="fixed bottom-lg right-lg z-10 bg-surface border border-border rounded-full shadow-xl px-lg py-sm flex items-center gap-md" style={{ animation: 'bounce-subtle 4s ease-in-out infinite' }}>
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes bounce-subtle {
             0%, 100% { transform: translateY(0); }

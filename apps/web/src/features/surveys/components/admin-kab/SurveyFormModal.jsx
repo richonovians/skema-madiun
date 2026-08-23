@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { X, Building2, Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
@@ -80,15 +81,10 @@ export default function SurveyFormModal({
   }, [isSubmitting, onCancel]);
 
   // Kunci scroll halaman di belakang modal -- tanpa ini roda mouse di atas
-  // latar ikut menggeser daftar survei di belakangnya. Nilai lama dipulihkan
-  // saat modal ditutup (komponen ini hanya di-mount selagi modal terbuka).
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
+  // latar ikut menggeser daftar survei di belakangnya. Komponen ini hanya
+  // di-mount selagi modal terbuka. Pola inline lama dipindah ke
+  // hooks/useBodyScrollLock.js (2026-08-24).
+  useBodyScrollLock();
 
   // Survei lama bisa bertahun di luar rentang wajar (mis. data seed) -- sisipkan
   // supaya dropdown tak jatuh ke opsi yang salah karena tak ketemu match.
