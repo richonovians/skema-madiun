@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
  * Dialog konfirmasi serbaguna -- pengganti `window.confirm` (dialog bawaan
@@ -37,15 +38,10 @@ export default function ConfirmDialog({
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, isProcessing, onCancel]);
 
-  // Kunci scroll halaman di belakang dialog selagi terbuka.
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen]);
+  // Kunci scroll halaman di belakang dialog selagi terbuka. Pola inline lama
+  // dipindah ke hooks/useBodyScrollLock.js (2026-08-24) -- ia sudah tersalin
+  // identik di empat berkas, dan penghitungnya kini menangani lapisan bertumpuk.
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

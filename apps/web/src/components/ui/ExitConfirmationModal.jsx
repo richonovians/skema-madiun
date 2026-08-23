@@ -1,7 +1,14 @@
+'use client';
 import React from 'react';
 import Button from '@/components/ui/Button';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export default function ExitConfirmationModal({ isOpen, onConfirm, onCancel }) {
+  // Dipanggil SEBELUM `return null` -- hook tak boleh dilewati secara kondisional.
+  // `'use client'` ditambahkan sekalian: berkas ini kini memakai hook, jadi
+  // ketergantungannya pada peramban tak lagi cuma tersirat dari pemanggilnya.
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (

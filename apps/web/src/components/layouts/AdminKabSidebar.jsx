@@ -17,6 +17,7 @@ import {
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useLogout } from '@/hooks/useLogout';
 import { useAsync } from '@/hooks/useAsync';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { USER_ROLES } from '@/features/users/constants/userConstants';
 
@@ -54,6 +55,10 @@ export default function AdminKabSidebar() {
   };
 
   const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminKabLayout();
+
+  // Sama seperti AdminSidebar: latar laci menutupi layar, tapi halaman di
+  // belakangnya tetap bergulir kalau tidak dikunci.
+  useBodyScrollLock(isMobileSidebarOpen);
 
   return (
     <>

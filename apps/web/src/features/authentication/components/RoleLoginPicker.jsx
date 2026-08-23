@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SUPERUSER_AREA_HOME, SUPERUSER_OPD_ENTRY } from '@/constants/roleHome';
 import { useAsync } from '@/hooks/useAsync';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
@@ -149,6 +150,11 @@ export default function RoleLoginPicker({
 }) {
   const isSwitch = context === 'switch';
   const [step, setStep] = useState('role');
+
+  // Komponen ini hanya di-mount selagi pemilih terbuka, jadi tanpa syarat.
+  // Daftar OPD-nya bisa panjang & bergulir di dalam kartu -- justru di situ
+  // guliran latar paling terasa mengganggu.
+  useBodyScrollLock();
 
   const enterAs = (roleKey, opd = null) => {
     // Ditulis SEBELUM navigasi: proxy.js membaca cookie `area` pada permintaan

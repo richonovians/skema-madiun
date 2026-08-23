@@ -5,12 +5,18 @@ import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { X } from 'lucide-react';
 import IconButton from './IconButton';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
  * ImageViewer displays an image thumbnail and opens it in a full-screen modal on click.
  */
 export default function ImageViewer({ src, alt, className }) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Tanpa ini, menggulir di atas gambar layar penuh menggeser halaman di
+  // baliknya -- terasa jelas di halaman detail pengaduan yang panjang, karena
+  // menutup lightbox meninggalkan pengguna jauh dari tempatnya semula.
+  useBodyScrollLock(isOpen);
 
   return (
     <>

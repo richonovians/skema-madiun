@@ -106,7 +106,13 @@ export default function BuilderCanvas({
       }}
       onDrop={handleDrop}
     >
-      <div className="max-w-4xl mx-auto py-xl md:py-3xl px-md md:px-lg flex flex-col">
+      {/* Ruang bawah ekstra (2026-08-24): FloatingStatus ber-`fixed bottom-lg`
+          selebar ~304px menggantung di atas kanvas. Di layar lebar ia duduk di
+          pojok kanan, tak mengganggu -- di ponsel ia menutupi hampir seluruh
+          lebar, sehingga isi paling bawah kanvas tak pernah bisa dilihat penuh
+          sebanyak apa pun digulir. `pb` sebesar tinggi pil + jaraknya membuat
+          gulirannya berakhir DI ATAS pil, bukan di baliknya. */}
+      <div className="max-w-4xl mx-auto pt-xl md:pt-3xl pb-[5.5rem] md:pb-3xl px-md md:px-lg flex flex-col">
         {/* Kartu judul: kini DAPAT DISUNTING langsung (2026-08-20, permintaan
             user "judul survei dan periode dapat di edit pada bagian border
             putih"). Sebelumnya murni pratinjau -- judul & periode hanya bisa
