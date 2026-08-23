@@ -13,6 +13,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { getSurveyFill } from '@/features/surveys/services/surveys.api';
 
 export default function SurveyWizardPage() {
@@ -25,6 +26,11 @@ export default function SurveyWizardPage() {
 
   const [showWarning, setShowWarning] = useState(false);
   const [pendingUrl, setPendingUrl] = useState('');
+
+  // Modal "Tinggalkan Survei?" -- kunci gulir latarnya. Di halaman inilah paling
+  // penting: pertanyaan survei bisa panjang, dan pengguna yang latarnya bergeser
+  // saat modal terbuka bisa kehilangan posisi pertanyaan yang sedang diisinya.
+  useBodyScrollLock(showWarning);
 
   useEffect(() => {
     if (fillData && !fillData.sudahMengisi) {

@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, AlertTriangle, CheckCircle2, XCircle, Clock, X, ShieldAlert } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const STATUS_CONFIG = {
   Diterima: {
@@ -81,6 +82,11 @@ export default function ConfirmStatusModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onCancel]);
+
+  // Komponen ini tetap ter-mount saat tertutup (induknya merender
+  // `<ConfirmStatusModal isOpen={...}/>` terus-menerus), jadi penguncinya
+  // dikendalikan `isOpen` -- bukan dipanggil tanpa syarat.
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

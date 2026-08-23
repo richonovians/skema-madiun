@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { X, Plus, Trash2, Loader2, ListChecks, Info, Gauge, Lock } from 'lucide-react';
 import { DEFAULT_SCALE_LABELS, SCALE_OPTION_COUNT } from '@/features/surveys/constants/scaleLabels';
 
@@ -74,14 +75,9 @@ export default function QuestionOptionsModal({
     return () => window.removeEventListener('keydown', handler);
   }, [isSubmitting, onCancel]);
 
-  // Kunci scroll kanvas builder di belakang modal (pola sama SurveyFormModal).
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
+  // Kunci scroll di belakang modal. Pola inline lama dipindah ke
+  // hooks/useBodyScrollLock.js (2026-08-24).
+  useBodyScrollLock();
 
   const handleOptionChange = (index, value) => {
     setOptions((prev) => prev.map((opt, i) => (i === index ? value : opt)));

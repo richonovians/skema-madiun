@@ -4,6 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useAsync } from '@/hooks/useAsync';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import {
   getNotifications,
   getUnreadNotificationCount,
@@ -35,6 +36,11 @@ export default function NotificationDropdown({ className = '' }) {
     return { notifications, unreadCount };
   }, []);
   const { data, isLoading, refetch } = useAsync(fetchData);
+
+  // Panel ini bergulir sendiri (daftar 10 notifikasi). Tanpa kunci, guliran yang
+  // melewati ujung daftar diteruskan ke halaman di belakangnya, sehingga menutup
+  // panel meninggalkan pengguna di posisi yang berbeda.
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

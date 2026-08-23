@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
  * Modal konfirmasi aksi umum (bukan spesifik status pengaduan).
@@ -30,6 +31,9 @@ export default function ConfirmActionModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onCancel]);
+
+  // Tetap ter-mount saat tertutup -- kunci dikendalikan `isOpen`.
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
