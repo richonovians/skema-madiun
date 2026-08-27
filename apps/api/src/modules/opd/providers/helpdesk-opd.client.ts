@@ -19,18 +19,46 @@ interface HelpdeskTenantsResponse {
 const KODE_MAX_LENGTH = 10;
 
 /**
+ * Tenant `type: "dinas"` yang namanya berawalan "BAGIAN" (2026-08-25, permintaan
+ * user). Diperiksa pada `name` dengan `\b` supaya "BAGIANKU" (bila kelak muncul)
+ * tak ikut tertangkap.
+ */
+const BAGIAN_NAME_PREFIX = /^BAGIAN\b/i;
+
+/**
  * Implementasi NYATA `OpdSource` — Helpdesk `GET /api/tenants` (dikonfirmasi contoh
  * respons 2026-08-05). Struktur data Helpdesk berjenjang (`gov` > `bidang` > `sesi`,
- * plus jenis campuran `dinas` berisi duplikat/tenant granular spt UPT/sekolah/kelurahan
- * hasil sinkron ASN) -- HANYA `type: "gov"` yang jadi baris OPD SKM (level dinas/badan/
- * kecamatan/kelurahan resmi), sesuai arahan eksplisit saat integrasi dibangun.
+ * plus jenis campuran `dinas`).
+ *
+ * YANG DIPAKAI (diverifikasi ulang terhadap respons nyata 2026-08-25 — 117 tenant:
+ * gov 53, dinas 50, bidang 8, sesi 6):
+ *
+ * 1. SELURUH `type: "gov"` (53) — roster OPD resmi: 30 dinas/badan/RSUD/Setda/
+ *    Inspektorat/Satpol PP + 15 kecamatan + 8 kelurahan. Punya `description` berisi
+ *    singkatan baku (DINKES, DLH, DISPERKIM, ...).
+ * 2. `type: "dinas"` yang namanya berawalan "BAGIAN" (9) — permintaan user
+ *    2026-08-25. Ini bagian-bagian Sekretariat Daerah (Hukum, Umum, Organisasi,
+ *    Pemerintahan, Pengadaan Barang/Jasa, Perekonomian & SDA, Protokol & Komunikasi
+ *    Pimpinan, Kesejahteraan Rakyat, Administrasi Pembangunan). SETDA sendiri sudah
+ *    ada sebagai satu baris `gov`, jadi sembilan baris ini MEMPERINCI di bawahnya.
+ *
+ * 41 SISA `type: "dinas"` SENGAJA DIBUANG, dan alasannya diperiksa bukan diwarisi:
+ * ~9 di antaranya entitas yang SAMA dengan baris `gov` tapi bernama ALL-CAPS &
+ * berejaan beda (mis. "DINAS PERUMAHAN DAN KAWASAN PERMUKIMAN" vs `gov` "Dinas
+ * Perumahan dan Kawasan Pemukiman"/DISPERKIM) — memasukkannya berarti dua baris OPD
+ * untuk satu instansi. Sisanya sub-unit hasil sinkron ASN: SDN, SMPN, TK, 13 UPT
+ * Puskesmas, dan kelurahan yang sudah terwakili di `gov`.
  *
  * CATATAN PENTING soal `kode`: skema lokal (`Opd.kode`) WAJIB unik & maks 10 karakter,
  * tapi Helpdesk TIDAK punya field kode/singkatan baku. `description` pada tenant
  * `gov` SERING (bukan selalu) berisi singkatan pendek yg cocok (mis. "DISKOMINFO",
  * "DINKES") -- tapi PALING TIDAK 4 kasus nyata melebihi 10 karakter
  * (KESBANGPOLDAGRI, INSPEKTORAT, "RSUD CARUBAN", "RSUD DOLOPO") dan SELURUH
- * kecamatan/kelurahan py `description` KOSONG. `deriveKode` di bawah menangani
+ * kecamatan/kelurahan py `description` KOSONG. Kesembilan baris "BAGIAN" pun
+ * `description`-nya kosong SEMUA, jadi kodenya selalu hasil derivasi dari nama:
+ * BAGIANHUKU, BAGIANPENG, BAGIANORGA, BAGIANPERE, BAGIANUMUM, BAGIANPEME,
+ * BAGIANPROT, BAGIANKESE, BAGIANADMI -- kesembilannya unik pada 10 karakter
+ * pertama, jadi tak ada yang butuh angka pembeda. `deriveKode` di bawah menangani
  * fallback dari `name` + jaminan unik DALAM SATU PANGGILAN (Set) -- BUKAN dari
  * karangan, murni derivasi deterministik dari data asli yg sudah dikonfirmasi via
  * pengecekan manual seluruh respons nyata (tak ada tabrakan pada data saat ini,
@@ -59,10 +87,17 @@ export class HelpdeskOpdClient implements OpdSource {
       throw new Error(`Helpdesk API gagal: ${body.message}`);
     }
 
+    // `gov` TETAP disertakan. Menyaring HANYA "BAGIAN" akan membuat
+    // `OpdService.syncFromSource` menonaktifkan seluruh 53 OPD `gov` (ia
+    // menonaktifkan setiap baris ber-externalId yang hilang dari source), dan
+    // survei serta pengaduan yang ada merujuk ke baris-baris itu.
     const govTenants = body.data.filter((t) => t.type === 'gov');
+    const bagianTenants = body.data.filter(
+      (t) => t.type === 'dinas' && BAGIAN_NAME_PREFIX.test(t.name.trim()),
+    );
     const usedKodes = new Set<string>();
 
-    const items = govTenants.map((t): HelpdeskOpd => ({
+    const items = [...govTenants, ...bagianTenants].map((t): HelpdeskOpd => ({
       externalId: t.id,
       nama: t.name,
       kode: this.deriveKode(t.name, t.description, usedKodes),
@@ -70,7 +105,8 @@ export class HelpdeskOpdClient implements OpdSource {
     }));
 
     this.logger.log(
-      `Ambil ${body.data.length} tenant Helpdesk, ${items.length} bertipe "gov" dipakai sbg OPD`,
+      `Ambil ${body.data.length} tenant Helpdesk: ${govTenants.length} bertipe "gov" + ` +
+        `${bagianTenants.length} bertipe "dinas" berawalan "BAGIAN" = ${items.length} OPD`,
     );
     return items;
   }

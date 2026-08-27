@@ -26,7 +26,7 @@ describe('HelpdeskOpdClient', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('hanya mengambil tenant bertipe "gov" (bidang/sesi/dinas dilewati)', async () => {
+  it('mengambil tenant "gov" (bidang/sesi & dinas non-BAGIAN dilewati)', async () => {
     mockFetchOnce({
       success: true,
       message: 'ok',
@@ -35,6 +35,13 @@ describe('HelpdeskOpdClient', () => {
         { id: 'b1', name: 'Aptika', type: 'bidang', description: '' },
         { id: 's1', name: 'Aplikasi', type: 'sesi', description: '' },
         { id: 'd1', name: 'UPT PUSKESMAS KARE', type: 'dinas', description: '' },
+        { id: 'd2', name: 'SDN MEJAYAN 01 KEC. MEJAYAN', type: 'dinas', description: '' },
+        {
+          id: 'd3',
+          name: 'DINAS PARIWISATA, PEMUDA DAN OLAH RAGA',
+          type: 'dinas',
+          description: '',
+        },
       ],
     });
 
@@ -44,6 +51,49 @@ describe('HelpdeskOpdClient', () => {
     expect(result).toHaveLength(1);
     expect(result[0].externalId).toBe('g1');
     expect(result[0].nama).toBe('Dinas Kesehatan');
+  });
+
+  // Permintaan user 2026-08-25: tenant `dinas` berawalan "BAGIAN" ikut jadi OPD.
+  describe('tenant "dinas" berawalan BAGIAN (2026-08-25)', () => {
+    it('ikut diambil BERSAMA seluruh gov, kodenya diderivasi dari nama', async () => {
+      mockFetchOnce({
+        success: true,
+        message: 'ok',
+        data: [
+          { id: 'g1', name: 'Sekretariat Daerah', type: 'gov', description: 'SETDA' },
+          { id: 'd1', name: 'BAGIAN HUKUM', type: 'dinas', description: '' },
+          { id: 'd2', name: 'BAGIAN PENGADAAN BARANG/JASA', type: 'dinas', description: '' },
+          { id: 'd3', name: 'UPT PUSKESMAS KARE', type: 'dinas', description: '' },
+        ],
+      });
+
+      const client = new HelpdeskOpdClient(mockConfig());
+      const result = await client.fetchOpdList();
+
+      // gov TIDAK boleh tergusur: menyaring hanya BAGIAN akan membuat
+      // syncFromSource menonaktifkan seluruh OPD gov yang sudah dirujuk data.
+      expect(result.map((r) => r.externalId)).toEqual(['g1', 'd1', 'd2']);
+      expect(result.map((r) => r.kode)).toEqual(['SETDA', 'BAGIANHUKU', 'BAGIANPENG']);
+    });
+
+    it('"BAGIAN" harus kata utuh di awal nama, bukan sekadar awalan huruf', async () => {
+      mockFetchOnce({
+        success: true,
+        message: 'ok',
+        data: [
+          { id: 'd1', name: 'BAGIANKU SENDIRI', type: 'dinas', description: '' },
+          { id: 'd2', name: 'Sub BAGIAN Hukum', type: 'dinas', description: '' },
+          { id: 'd3', name: 'bagian umum', type: 'dinas', description: '' },
+        ],
+      });
+
+      const client = new HelpdeskOpdClient(mockConfig());
+      const result = await client.fetchOpdList();
+
+      // Hanya d3: "BAGIANKU" bukan kata "BAGIAN", dan "Sub BAGIAN" tak di awal.
+      // Huruf kecil tetap diterima -- Helpdesk tak konsisten soal kapitalisasi.
+      expect(result.map((r) => r.externalId)).toEqual(['d3']);
+    });
   });
 
   it('pakai description sbg kode kalau tak kosong & muat (<=10 karakter)', async () => {
