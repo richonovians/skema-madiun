@@ -356,3 +356,27 @@ export function adaptSurveyResponse(response, questionsById) {
 export function adaptSurveyResponseList(responses, questionsById) {
   return responses.map((r) => adaptSurveyResponse(r, questionsById));
 }
+
+/**
+ * Satu baris riwayat "survei yang saya isi" (GET /me/survey-responses) -- untuk
+ * dashboard warga, 2026-08-24.
+ *
+ * Beda dari `adaptSurveyResponse` di atas: yang ini TIDAK memuat jawaban sama
+ * sekali (backend pun tak mengirimkannya), karena riwayat hanya butuh survei apa
+ * & kapan diisi. Judul dan nama OPD sudah dibawa backend, jadi tak perlu satu
+ * permintaan tambahan per baris.
+ */
+export function adaptMySurveyResponse(response) {
+  return {
+    id: response.id,
+    surveyId: response.surveyId,
+    title: response.surveyJudul,
+    period: response.periode,
+    opd: response.opdNama,
+    submittedAt: response.submittedAt,
+  };
+}
+
+export function adaptMySurveyResponseList(responses) {
+  return (responses ?? []).map(adaptMySurveyResponse);
+}

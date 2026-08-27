@@ -1,9 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useState } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import SurveyListHeader from '@/features/surveys/components/SurveyListHeader';
 import SurveyFilter from '@/features/surveys/components/SurveyFilter';
 import SurveyGrid from '@/features/surveys/components/SurveyGrid';
@@ -11,6 +9,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getActiveSurveys } from '@/features/surveys/services/surveys.api';
+import { getOpdList } from '@/features/opd/services/opd.api';
 
 /**
  * `useSearchParams()` (dipakai `SurveysPageContent`) WAJIB dibungkus
@@ -33,16 +32,40 @@ function SurveysPageContent() {
   // sejak INT-45 (GET /surveys/active?opdId=), sebelumnya tak pernah dibaca
   // sama sekali di halaman ini.
   const searchParams = useSearchParams();
+  const router = useRouter();
   const opdId = searchParams.get('opdId');
 
-  const fetchSurveys = useCallback(
-    () => getActiveSurveys(opdId ? { limit: 100, opdId } : { limit: 100 }),
-    [opdId],
-  );
-  const { data: response, isLoading, error, refetch } = useAsync(fetchSurveys);
+  const fetchSurveys = useCallback(async () => {
+    if (!opdId) {
+      const response = await getActiveSurveys({ limit: 100 });
+      return { surveys: response.data ?? [], opdName: null };
+    }
 
-  const surveys = response?.data ?? [];
-  const filterOpdName = opdId ? surveys[0]?.opd : null;
+    // Nama instansi TIDAK boleh diambil dari `surveys[0]` saja (bug sebelumnya):
+    // bila instansi terpilih belum punya survei aktif, daftarnya kosong sehingga
+    // chip filter tak pernah muncul -- warga melihat halaman kosong tanpa tahu
+    // penyaring sedang aktif, dan tanpa tombol untuk melepasnya.
+    //
+    // Namanya diambil dari `GET /opd` (terbuka untuk semua peran terautentikasi),
+    // BUKAN `GET /opd/:id` yang dibatasi @Roles(kabupaten, opd) -- peran responden
+    // akan kena 403 di sana.
+    const [response, opdList] = await Promise.all([
+      getActiveSurveys({ limit: 100, opdId }),
+      getOpdList({ limit: 100 }),
+    ]);
+    const surveys = response.data ?? [];
+    const match = (opdList?.data ?? []).find((opd) => String(opd.id) === String(opdId));
+    return { surveys, opdName: match?.name ?? surveys[0]?.opd ?? null };
+  }, [opdId]);
+
+  const { data, isLoading, error, refetch } = useAsync(fetchSurveys);
+
+  const surveys = data?.surveys ?? [];
+  const filterOpdName = data?.opdName ?? null;
+
+  // Menghapus penyaring = kembali ke /surveys tanpa query. `router.push` (bukan
+  // <Link>) supaya tombol "Semua" dan tombol silang memakai jalan yang sama.
+  const clearOpdFilter = () => router.push('/surveys');
 
   // Kategori (INT-17 GAP): backend tak punya taksonomi kategori survei sama
   // sekali -- filter kategori dihapus dari halaman ini (bukan disembunyikan
@@ -56,24 +79,17 @@ function SurveysPageContent() {
     <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
       <SurveyListHeader />
 
+      {/* `activeCategory` mencerminkan ADA-TIDAKNYA penyaring instansi: selama
+          satu instansi dipilih, "Semua" tampil non-aktif supaya terlihat bahwa
+          menekannya akan mengubah sesuatu. */}
       <SurveyFilter
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        activeCategory="Semua"
-        onCategoryChange={() => {}}
+        activeCategory={opdId ? '' : 'Semua'}
+        onCategoryChange={clearOpdFilter}
+        opdFilterName={filterOpdName}
+        onClearOpdFilter={clearOpdFilter}
       />
-
-      {filterOpdName && (
-        <div className="mb-lg flex items-center gap-2 text-sm">
-          <span className="text-text-secondary">Menampilkan survei aktif untuk:</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-container text-on-primary-container font-semibold">
-            {filterOpdName}
-            <Link href="/surveys" aria-label="Hapus filter instansi" className="hover:opacity-70">
-              <X size={14} />
-            </Link>
-          </span>
-        </div>
-      )}
 
       {isLoading ? (
         <LoadingState label="Memuat daftar survei..." />

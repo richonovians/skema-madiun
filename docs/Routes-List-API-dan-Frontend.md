@@ -93,8 +93,9 @@ admin sepenuhnya di tangan Superuser.
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
 | GET | `/api/v1/surveys/:id/fill` | ✓ | Responden | Ambil struktur kuesioner (survei harus aktif) |
-| POST | `/api/v1/surveys/:id/responses` | ✓ | Responden | Kirim jawaban (anonim — tak menyimpan identitas pengisi; anti-duplikat via `dedupeUserId`) |
-| GET | `/api/v1/surveys/:id/responses` | ✓ | OPD, Kabupaten | Daftar respons masuk (jawaban lengkap per respons, tanpa identitas) |
+| POST | `/api/v1/surveys/:id/responses` | ✓ | Responden | Kirim jawaban. `userId` **disimpan** (kolom wajib) + `dedupeUserId` untuk anti-duplikat; keanoniman SKM ditegakkan di sisi PENYAJIAN — lihat baris di bawah |
+| GET | `/api/v1/surveys/:id/responses` | ✓ | OPD, Kabupaten | Daftar respons masuk (jawaban lengkap per respons). `ResponseEntity` sengaja tak memuat `userId`/`dedupeUserId`: admin tak boleh tahu SIAPA yang mengisi |
+| GET | `/api/v1/me/survey-responses` | ✓ | Responden | Riwayat survei yang diisi **pemanggil sendiri** (judul, periode, nama OPD, waktu kirim). Cakupan selalu `userId` dari token — tak ada parameter pemilik, jadi tak bisa dipakai mengintip riwayat orang lain. Dipakai riwayat aktivitas dashboard warga (2026-08-24) |
 | GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil live-compute: NRR per unsur + nilai IKM + mutu |
 | GET | `/api/v1/surveys/:id/results/export?format=` | ✓ | OPD, Kabupaten | Ekspor laporan (`csv`\|`excel`\|`pdf`) — file biner mentah, bukan envelope |
 | GET | `/api/v1/dashboard/opd?opdId=` | ✓ | OPD, **Superuser** | Ringkasan satu OPD (IKM survei terbaru, responden, tiket aktif, SLA, umpan balik). OPD: selalu OPD-nya sendiri, `opdId` diabaikan. Superuser: WAJIB mengirim `opdId`. **Admin Kabupaten 403** (keputusan user 2026-08-20) |
@@ -137,7 +138,7 @@ Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata 
 | `/` | ✗ | Landing + form login (SSO Helpdesk / dev-login) | ✅ |
 | `/about` | ✗ | Tentang sistem | ✅ (statis) |
 | `/statistics` | ✗ | Statistik publik | ❌ dummy (INT-25, blocked D2/D6/D14) |
-| `/dashboard` | 🔒 | Dashboard Responden | ❌ dummy (belum ada tiket) |
+| `/dashboard` | 🔒 | Dashboard Responden | ✅ — riwayat aktivitas menggabung pengaduan + pengisian survei (2026-08-24) |
 | `/profile` | 🔒 | Profil & data diri | ✅ (INT-16) |
 | `/surveys` | 🔒 | Daftar survei aktif | ✅ (INT-17) |
 | `/surveys/[id]` | 🔒 | Isi kuesioner survei | ✅ (INT-17) |
@@ -202,7 +203,8 @@ dipantulkan dan tetap 403 di API.
 |---|---|
 | `/` | `POST /auth/dev-login`, `GET /auth/me` |
 | `/profile` | `GET /auth/me`, `PATCH /auth/profile` |
-| `/surveys` | `GET /surveys/active` |
+| `/dashboard` | `GET /complaints`, `GET /me/survey-responses` (riwayat aktivitas menggabung keduanya), `GET /surveys/active` |
+| `/surveys` | `GET /surveys/active`, `GET /opd` (hanya bila `?opdId=` — untuk nama pada chip filter) |
 | `/surveys/[id]` | `GET /surveys/:id/fill` → `POST /surveys/:id/responses` |
 | `/complaints/new` | `GET /opd`, `GET /ref/complaint-categories` → `POST /complaints` |
 | `/complaints/[id]` | `GET /complaints/:ticketNo`, `GET/POST /complaints/:id/replies` |

@@ -4,7 +4,6 @@ import React, { useCallback, useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useAsync } from '@/hooks/useAsync';
-import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import {
   getNotifications,
   getUnreadNotificationCount,
@@ -37,10 +36,15 @@ export default function NotificationDropdown({ className = '' }) {
   }, []);
   const { data, isLoading, refetch } = useAsync(fetchData);
 
-  // Panel ini bergulir sendiri (daftar 10 notifikasi). Tanpa kunci, guliran yang
-  // melewati ujung daftar diteruskan ke halaman di belakangnya, sehingga menutup
-  // panel meninggalkan pengguna di posisi yang berbeda.
-  useBodyScrollLock(isOpen);
+  // TIDAK memakai useBodyScrollLock (2026-08-24, permintaan user: "ketika panel
+  // notif muncul masih tetap bisa di scroll backgroundnya"). Kunci gulir halaman
+  // memang keliru di sini: ini dropdown, bukan dialog -- ia tak menutupi halaman
+  // dan tak menuntut keputusan, jadi membekukan halaman di belakangnya membuat
+  // panel terasa seperti modal padahal bukan.
+  //
+  // Masalah yang dulu dituju kunci itu (guliran melewati ujung daftar merembet ke
+  // halaman) tetap ditangani, tapi oleh `overscroll-contain` pada daftar di bawah
+  // -- itu memutus perembetan TANPA menyentuh kemampuan gulir halaman.
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -124,7 +128,7 @@ export default function NotificationDropdown({ className = '' }) {
                 </p>
               </div>
             ) : (
-              <ul className="max-h-96 overflow-y-auto divide-y divide-slate-50">
+              <ul className="max-h-96 overflow-y-auto overscroll-contain divide-y divide-slate-50">
                 {notifications.map((notification) => {
                   const content = (
                     <div

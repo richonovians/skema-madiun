@@ -14,6 +14,7 @@ import { QuestionOptionEntity } from '../questions/entities/question-option.enti
 import { QuestionEntity } from '../questions/entities/question.entity';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { AnswerEntity } from './entities/answer.entity';
+import { MyResponseEntity } from './entities/my-response.entity';
 import { ResponseEntity } from './entities/response.entity';
 import { SurveyFillEntity } from './entities/survey-fill.entity';
 
@@ -136,6 +137,55 @@ export class ResponsesService {
 
     return paginate(
       rows.map((r) => this.toResponseEntity(r, r.answers)),
+      total,
+      page,
+      limit,
+    );
+  }
+
+  /**
+   * Riwayat survei yang diisi pengguna yang sedang login (2026-08-24).
+   *
+   * Disaring `userId`, BUKAN `dedupeUserId`: kolom dedupe sengaja null pada survei
+   * ber-`allowMultipleSubmit`, jadi memakainya akan menyembunyikan justru survei
+   * yang boleh diisi berulang. `userId` selalu terisi (kolom wajib), sehingga
+   * riwayatnya lengkap.
+   */
+  async findMine(
+    query: PaginationQueryDto,
+    user: CurrentUser,
+  ): Promise<PaginatedResult<MyResponseEntity>> {
+    const { page, limit } = query;
+    const where: Prisma.SurveyResponseWhereInput = { userId: user.userId };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.surveyResponse.findMany({
+        where,
+        select: {
+          id: true,
+          surveyId: true,
+          submittedAt: true,
+          survey: { select: { judul: true, periode: true, opd: { select: { nama: true } } } },
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { submittedAt: 'desc' },
+      }),
+      this.prisma.surveyResponse.count({ where }),
+    ]);
+
+    return paginate(
+      rows.map(
+        (r) =>
+          new MyResponseEntity({
+            id: r.id,
+            surveyId: r.surveyId,
+            surveyJudul: r.survey.judul,
+            periode: r.survey.periode,
+            opdNama: r.survey.opd?.nama ?? null,
+            submittedAt: r.submittedAt,
+          }),
+      ),
       total,
       page,
       limit,

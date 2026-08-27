@@ -55,10 +55,34 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
             className="drop-shadow-sm"
           />
 
-          {/* Data Points */}
+          {/* Data Points
+
+              GLITCH SAAT KURSOR DIARAHKAN KE LINGKARAN (2026-08-24, laporan user)
+              -- dua sebab yang saling menguatkan:
+
+              1. `transform-origin` BAWAAN elemen SVG adalah titik asal sistem
+                 koordinat SVG (0,0), BUKAN pusat elemen itu sendiri. Jadi
+                 `scale(1.5)` tidak membesarkan lingkaran di tempatnya, melainkan
+                 ikut MENGGESER pusatnya menjauh dari (0,0) sejauh 50% dari cx/cy
+                 -- makin ke kanan titiknya, makin jauh lompatannya.
+              2. Lompatan itu memindahkan lingkaran keluar dari bawah kursor,
+                 sehingga :hover LEPAS, skala kembali normal, lingkaran balik ke
+                 bawah kursor, :hover aktif lagi -- berdenyut tanpa henti. Inilah
+                 "gerakan aneh" yang terlihat, dan angkanya tetap muncul karena
+                 tooltipnya ikut berkedip cepat.
+
+              `transform-box: fill-box` membuat kotak acuan transform = kotak isi
+              elemen, sehingga `origin-center` benar-benar berarti pusat lingkaran
+              -- membesar di tempat, kursor tak pernah lepas.
+
+              Lingkaran transparan ber-r=14 ditambahkan sebagai SASARAN ARAHAN:
+              target r=5 terlalu kecil untuk ditunjuk dengan nyaman (di viewBox
+              600px yang direntang, 5px hanya ~6px di layar), dan ukurannya TIDAK
+              berubah saat hover sehingga daerah tunjuknya tetap stabil. */}
           {points.map((p, i) => (
             <g key={`point-${i}`} className="group cursor-pointer">
-              <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="2" className="transition-transform group-hover:scale-150" />
+              <circle cx={p.x} cy={p.y} r="14" fill="transparent" />
+              <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="2" className="transition-transform origin-center [transform-box:fill-box] group-hover:scale-150" />
               <text x={p.x} y={p.y - 15} fontSize="12" fill="#0f172a" textAnchor="middle" opacity="0" className="group-hover:opacity-100 font-bold transition-opacity">
                 {p.val}
               </text>
