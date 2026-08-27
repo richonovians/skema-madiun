@@ -3,6 +3,7 @@ import {
   adaptActiveSurveyCardList,
   adaptBuilderQuestion,
   adaptBuilderQuestions,
+  adaptMySurveyResponseList,
   adaptSurvey,
   adaptSurveyFill,
   adaptSurveyList,
@@ -163,4 +164,14 @@ export async function submitSurveyResponse(surveyId, questions, answers) {
 export async function getSurveyResponses(surveyId, params = {}) {
   const response = await api.get(`/surveys/${surveyId}/responses`, { params });
   return { data: response.data, meta: response.meta };
+}
+
+/**
+ * Riwayat survei yang sudah diisi oleh pengguna yang login (dashboard warga).
+ * Cakupannya ditentukan token di backend -- tak ada parameter pemilik.
+ * @param {{page?: number, limit?: number}} params
+ */
+export async function getMySurveyResponses(params = {}) {
+  const response = await api.get('/me/survey-responses', { params });
+  return { data: adaptMySurveyResponseList(response.data), meta: response.meta };
 }

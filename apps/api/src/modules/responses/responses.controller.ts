@@ -7,6 +7,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { SubmitResponseDto } from './dto/submit-response.dto';
+import { MyResponseEntity } from './entities/my-response.entity';
 import { ResponseEntity } from './entities/response.entity';
 import { SurveyFillEntity } from './entities/survey-fill.entity';
 import { ResponsesService } from './responses.service';
@@ -39,6 +40,23 @@ export class ResponsesController {
     @CurrentUser() user: CurrentUser,
   ): Promise<ResponseEntity> {
     return this.responsesService.submit(surveyId, dto, user);
+  }
+
+  /**
+   * Riwayat survei yang SUDAH DIISI pengguna yang login (dashboard warga).
+   *
+   * Tak ada parameter pemilik: cakupannya selalu `user.userId` dari token, jadi
+   * tak ada cara memintanya untuk orang lain — termasuk oleh peran berakses penuh,
+   * yang di sini hanya akan melihat riwayatnya sendiri.
+   */
+  @Get('me/survey-responses')
+  @Roles(Role.responden)
+  @ApiOkResponse({ type: MyResponseEntity, isArray: true })
+  findMine(
+    @Query() query: PaginationQueryDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<PaginatedResult<MyResponseEntity>> {
+    return this.responsesService.findMine(query, user);
   }
 
   /** Daftar respons survei untuk admin (Admin OPD: milik OPD-nya; Kabupaten: semua). */
