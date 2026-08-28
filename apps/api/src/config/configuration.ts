@@ -8,6 +8,37 @@ export default () => ({
     nodeEnv: process.env.NODE_ENV ?? 'development',
     port: parseInt(process.env.API_PORT ?? '3001', 10),
     apiPrefix: 'api/v1',
+    // Tujuan redirect setelah callback SSO selesai. Dipisah dari `cors.origin`
+    // (yang boleh berisi banyak origin) karena redirect hanya boleh ke SATU
+    // alamat pasti -- membiarkannya dipilih dari daftar berarti membuka celah
+    // pengalihan terbuka bila daftar itu kelak berisi origin pihak lain.
+    webUrl: process.env.WEB_APP_URL ?? 'http://localhost:3000',
+    // Banyaknya reverse proxy tepercaya di depan API (2026-08-28).
+    //
+    // KENAPA ADA: sejak frontend & backend disajikan lewat satu origin oleh
+    // nginx (infra/nginx/dev.conf), setiap permintaan tiba dari soket nginx.
+    // Express secara baku TIDAK mempercayai `X-Forwarded-For`, sehingga `req.ip`
+    // bernilai IP nginx untuk SELURUH pengguna -- dan ThrottlerGuard memakai
+    // `req.ip` sebagai kuncinya. Akibatnya seluruh populasi berbagi SATU ember
+    // 100/menit: trafik gabungan yang melewatinya menjatuhkan 429 kepada orang
+    // yang tak melakukan apa-apa, sementara sebagai pagar brute-force ia tak
+    // berguna karena satu penyerang tak bisa dipisahkan dari yang lain.
+    // Terbukti lewat proxy sungguhan: dua X-Forwarded-For berbeda menghasilkan
+    // sisa kuota 99, 98, 97, 96 -- satu ember.
+    //
+    // KENAPA ANGKA, BUKAN `true`: `true` mempercayai SELURUH rantai, sehingga
+    // siapa pun boleh mengarang `X-Forwarded-For` dan memakai ember baru setiap
+    // permintaan -- throttle-nya hilang sama sekali. Dengan angka `n`, Express
+    // hanya melangkah `n` hop dari soket, dan karena nginx MENAMBAHKAN IP asli
+    // di ujung kanan (`$proxy_add_x_forwarded_for`), nilai karangan klien
+    // terlewati dengan sendirinya.
+    //
+    // NILAINYA HARUS COCOK DENGAN TOPOLOGI: satu nginx = 1. Bila kelak ada
+    // proxy lain di depannya (mis. load balancer pemkab), nilainya harus 2 --
+    // kalau tidak, `req.ip` menjadi IP proxy terluar dan bug satu-ember di atas
+    // kembali TANPA gejala yang terlihat. Setel 0 bila API diekspos langsung
+    // tanpa proxy, karena di sana XFF sepenuhnya karangan klien.
+    trustProxyHops: parseInt(process.env.TRUST_PROXY_HOPS ?? '1', 10),
   },
   database: {
     url: process.env.DATABASE_URL,
@@ -35,6 +66,15 @@ export default () => ({
   session: {
     jwtSecret: process.env.SESSION_JWT_SECRET,
     ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '24', 10),
+    // Domain cookie sesi (2026-08-27). KOSONG di dev dan itu benar: cookie
+    // mengabaikan nomor port, jadi cookie milik host `localhost` yang disetel
+    // API di :3001 sudah ikut terkirim ke frontend di :3000 dengan sendirinya.
+    //
+    // WAJIB DIISI di produksi, mis. `.madiunkab.go.id`. Tanpa itu cookie yang
+    // disetel `api.madiunkab.go.id` menjadi host-only dan TIDAK pernah sampai ke
+    // `skm.madiunkab.go.id` -- proxy.js (Next.js, sisi server) lalu tak melihat
+    // sesi apa pun dan memantulkan pengguna yang sebenarnya sudah masuk.
+    cookieDomain: process.env.SESSION_COOKIE_DOMAIN,
   },
   helpdesk: {
     // Endpoint tenants Helpdesk (sumber master data OPD) + token Bearer.
@@ -43,5 +83,30 @@ export default () => ({
     // API secara normal, cuma POST /opd/sync yang akan gagal jelas.
     opdApiUrl: process.env.HELPDESK_OPD_API_URL,
     opdApiToken: process.env.HELPDESK_OPD_API_TOKEN,
+
+    // --- SSO OAuth2 (2026-08-27) ---
+    // Hanya ISSUER yang dikonfigurasi, bukan tiga endpoint satu per satu:
+    // Helpdesk menyediakan dokumen penemuan OIDC di
+    // `<issuer>/.well-known/openid-configuration`, dan mengambil endpoint dari
+    // sana berarti perubahan di sisi Helpdesk tak menuntut deploy ulang.
+    ssoIssuer: process.env.HELPDESK_SSO_ISSUER,
+    ssoClientId: process.env.HELPDESK_SSO_CLIENT_ID,
+    ssoClientSecret: process.env.HELPDESK_SSO_CLIENT_SECRET,
+    // WAJIB sama PERSIS dengan yang didaftarkan di Helpdesk -- termasuk skema,
+    // port, dan ada-tidaknya garis miring di akhir.
+    ssoRedirectUri: process.env.HELPDESK_SSO_REDIRECT_URI,
+    // Dokumen penemuan Helpdesk mencantumkan `scopes_supported`:
+    // openid, profile, email. `profile` diminta karena klaim `groups` & `role`
+    // diduga dibawanya (belum dikonfirmasi Helpdesk -- lihat SsoService).
+    ssoScopes: process.env.HELPDESK_SSO_SCOPES ?? 'openid profile email',
+    // Pemetaan nilai klaim Helpdesk -> peran SKM, format `nilai:peran` dipisah
+    // koma (mis. `admin-kab:kabupaten,admin-opd:opd`). KOSONG = tak ada akun baru
+    // yang dinaikkan perannya; semuanya jadi `responden` seperti sebelumnya.
+    //
+    // Ada di env, bukan di kode, justru KARENA bentuk klaim `groups`/`role`
+    // Helpdesk belum dikonfirmasi: begitu jawabannya datang, yang berubah cuma
+    // satu baris env. Lihat sso-role.mapper.ts untuk aturan penguraiannya --
+    // termasuk kenapa `superuser` tak pernah bisa dipetakan dari sini.
+    ssoRoleMap: process.env.HELPDESK_SSO_ROLE_MAP,
   },
 });

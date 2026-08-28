@@ -50,12 +50,15 @@ describe('Notifications (e2e)', () => {
 
     const responden = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-notif-resp' },
-      update: {},
+      // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+      // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+      update: { consentAt: new Date() },
       create: {
         ssoSubject: 'e2e-notif-resp',
         nama: 'Responden Notifikasi',
         email: 'e2e-notif-resp@example.go.id',
         role: Role.responden,
+        consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
     respondenId = responden.id;

@@ -3,23 +3,55 @@
 import React, { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { authApi } from '../services/sso.api';
+import { authApi, getSsoLoginUrl } from '../services/sso.api';
 import { saveSession, clearSession, clearSuperuserArea } from '../services/authStorage';
 import { ROLE_HOME } from '@/constants/roleHome';
 import RoleLoginPicker from './RoleLoginPicker';
 
-// Sementara: form dev-login (identifier = email/ssoSubject akun seed) menggantikan
-// tombol SSO Helpdesk sungguhan yang menunggu spesifikasi OAuth dari Helpdesk (SSO-1).
+/**
+ * Tombol masuk. Sejak 2026-08-27 ada DUA jalur, dan keduanya memang perlu ada:
+ *
+ * - **SSO Helpdesk (utama).** Navigasi tingkat atas ke `GET /auth/sso/login`,
+ *   yang menyetel cookie `state` lalu mengalihkan ke halaman login Helpdesk.
+ *   Pengguna kembali ke `/sso/callback` (lihat AuthCallbackLoader.jsx). Tak ada
+ *   token yang pernah disentuh JavaScript di jalur ini — backend
+ *   menitipkannya sebagai cookie HttpOnly.
+ * - **dev-login (cadangan, hanya di lingkungan pengembangan).** Tetap
+ *   dipertahankan karena SSO Helpdesk menuntut `client_id`/`client_secret` yang
+ *   diberikan tim Helpdesk; tanpa itu `GET /auth/sso/login` menjawab 503 dan
+ *   aplikasi ini tak dapat diuji sama sekali. Backend memagarinya dengan
+ *   NonProductionGuard (404 di produksi), jadi jalur ini tak mungkin dipakai
+ *   dari lingkungan sungguhan — pemeriksaan di bawah hanya menyembunyikan
+ *   kolomnya supaya tak menimbulkan salah paham di layar publik.
+ */
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
 export default function SSOLoginButton() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // Navigasi ke Helpdesk memakan waktu yang terlihat (permintaan ke luar +
+  // dokumen penemuan OIDC di sisi backend). Tanpa penanda ini tombolnya tampak
+  // tak merespons dan mudah diklik berkali-kali.
+  const [isRedirecting, setIsRedirecting] = useState(false);
   // Terisi HANYA bila yang login berperan `superuser` -- memicu pemilih peran.
   // Peran lain (termasuk Admin Kabupaten) tak pernah melewati jalur ini. Objek
   // (bukan string) supaya nama yang kosong tak salah dibaca sebagai "tak ada
   // pemilih".
   const [rolePicker, setRolePicker] = useState(null);
+
+  // Sesi lokal sisa (mis. dev-login yang belum di-logout) dibuang SEBELUM
+  // berpindah: kalau tidak, cookie `role` lama masih menempel saat pengguna
+  // kembali dari Helpdesk, dan proxy.js bisa mengurungnya di area yang salah
+  // pada beberapa permintaan pertama.
+  const handleSsoLogin = () => {
+    setIsRedirecting(true);
+    clearSession();
+    clearSuperuserArea();
+    // `location.assign` (bukan router.push): tujuannya di luar aplikasi ini.
+    window.location.assign(getSsoLoginUrl());
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +60,7 @@ export default function SSOLoginButton() {
     try {
       const res = await authApi.devLogin(identifier);
       const role = res.data.user?.role;
-      saveSession(res.data.token, role);
+      saveSession(res.data.token, role, res.data.user?.consentRequired);
       // Buang pilihan area sesi SEBELUMNYA (bisa jadi akun lain di peramban yang
       // sama) -- superuser menuliskannya lagi lewat pemilih peran di bawah.
       clearSuperuserArea();
@@ -49,6 +81,10 @@ export default function SSOLoginButton() {
       // router.push) SENGAJA -- proxy.js baca cookie via full request,
       // butuh navigasi hard agar cookie `role` yang baru saja ditulis
       // langsung terbaca proxy pada request berikutnya.
+      //
+      // Tujuannya tetap ROLE_HOME walau warga belum menyetujui PDP: proxy yang
+      // memantulkannya ke /persetujuan. Menyalin keputusan itu ke sini berarti
+      // dua tempat harus mengingat aturan yang sama.
       window.location.href = ROLE_HOME[role] ?? '/';
     } catch (err) {
       setError(err.message || 'Login gagal');
@@ -73,14 +109,26 @@ export default function SSOLoginButton() {
 
   if (!isFormOpen) {
     return (
-      <Button variant="navLogin" onClick={() => setIsFormOpen(true)}>
-        Masuk via SSO Helpdesk
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button variant="navLogin" onClick={handleSsoLogin} disabled={isRedirecting}>
+          {isRedirecting ? 'Mengalihkan...' : 'Masuk via SSO Helpdesk'}
+        </Button>
+        {IS_DEV && (
+          <button
+            type="button"
+            onClick={() => setIsFormOpen(true)}
+            className="text-xs font-semibold text-slate-400 hover:text-slate-600 underline underline-offset-2 whitespace-nowrap"
+            title="Masuk dengan akun seed tanpa Helpdesk — hanya tersedia di lingkungan pengembangan"
+          >
+            akun dev
+          </button>
+        )}
+      </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
       <Input
         type="text"
         placeholder="Email akun (dev-login)"
@@ -92,6 +140,16 @@ export default function SSOLoginButton() {
       <Button type="submit" variant="navLogin" disabled={isLoading}>
         {isLoading ? 'Memproses...' : 'Masuk'}
       </Button>
+      <button
+        type="button"
+        onClick={() => {
+          setIsFormOpen(false);
+          setError('');
+        }}
+        className="text-xs font-semibold text-slate-400 hover:text-slate-600 underline underline-offset-2 whitespace-nowrap"
+      >
+        pakai SSO
+      </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </form>
   );

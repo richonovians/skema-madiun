@@ -38,6 +38,13 @@ describe('Auth me/profile (e2e)', () => {
 
   afterAll(async () => {
     await prisma.respondentProfile.deleteMany({ where: { userId } });
+    // WAJIB sebelum menghapus penggunanya (2026-08-27): sejak `dev-login` &
+    // callback SSO mencatat aksi `login` ke audit log, baris itu ada dan
+    // `audit_logs.actor_id` ber-RESTRICT. Itu bukan cacat melainkan justru
+    // gunanya jejak audit -- ia harus bertahan lebih lama daripada penggunanya.
+    // Produksi memakai SOFT delete sehingga tak pernah menabrak ini; hanya
+    // pembersihan e2e yang benar-benar menghapus baris.
+    await prisma.auditLog.deleteMany({ where: { actorId: userId } });
     await prisma.user.deleteMany({ where: { ssoSubject: 'e2e-responden' } });
     await app.close();
   }, 30000);
@@ -130,6 +137,9 @@ describe('Auth me/profile (e2e)', () => {
         .send({ identifier: 'nonaktif@auth.e2e.test' });
       expect(res.status).toBe(403);
 
+      // Akun nonaktif ditolak SEBELUM audit dicatat, jadi tak ada baris audit
+      // untuk dibersihkan di sini -- dan itu memang yang diuji di unit test
+      // ("akun nonaktif ditolak tanpa dicatat sebagai login").
       await prisma.user.delete({ where: { id: inactive.id } });
     });
 

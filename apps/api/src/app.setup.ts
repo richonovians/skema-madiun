@@ -10,6 +10,23 @@ import helmet from 'helmet';
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
 
+  // IP klien di belakang reverse proxy (2026-08-28). HARUS diset sebelum apa pun
+  // yang membaca `req.ip` -- yaitu ThrottlerGuard, yang memakainya sebagai kunci
+  // penghitung. Tanpa ini seluruh pengguna terhitung sebagai satu IP (IP nginx)
+  // dan batas laju per-IP berhenti menjadi per-IP; alasan lengkap, bukti, serta
+  // bahaya menyetelnya `true` ada di configuration.ts (`app.trustProxyHops`).
+  //
+  // Lewat `getHttpAdapter().getInstance()`, bukan `app.set()`: tanda tangan
+  // fungsi ini `INestApplication` supaya dapat dipakai bersama seluruh e2e
+  // (17 berkas) yang membuat aplikasinya lewat `createNestApplication()`.
+  // Menyempitkannya ke `NestExpressApplication` hanya demi satu pemanggil akan
+  // memaksa ke-17 berkas itu ikut berubah.
+  const hops = config.get<number>('app.trustProxyHops') ?? 1;
+  (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+    'trust proxy',
+    hops,
+  );
+
   // Header keamanan baku (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, dst.) — OWASP baseline.
   app.use(helmet());
 

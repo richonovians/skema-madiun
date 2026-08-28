@@ -24,11 +24,13 @@ const ROLE_TO_FRONTEND = {
  * PDP/privasi (survei memang didesain anonim, lihat keputusan arsitektur):
  *   - nik/nikMasked, phone, address -- TIDAK ADA di skema manapun.
  *   - avatarUrl -- tak ada konsep foto profil di backend.
- *   - sso.providerName/lastSynced/portalUrl -- SSO Helpdesk NYATA belum ada
- *     (SSO-1 masih terblokir spec Helpdesk); `accountId` bisa dipetakan dari
- *     `ssoSubject` TAPI isinya cuma placeholder ("pending:<email>" atau nilai
- *     seed) selama dev-login masih dipakai, BUKAN identitas SSO sungguhan.
  * Field-field ini SENGAJA null di sini, bukan dikarang.
+ *
+ * SSO (diperbarui 2026-08-27, celah 5): modul SSO Helpdesk SUDAH dibangun, jadi
+ * `providerName` tak lagi selalu null. Yang menentukan bukan tebakan pola string
+ * di sini melainkan `me.ssoLinked` dari BACKEND -- ia tahu mana `ssoSubject` yang
+ * sub asli Helpdesk dan mana yang masih penampung (`seed-*`, `pending:...`).
+ * Menyalin aturan itu ke sini berarti dua tempat harus mengingat hal yang sama.
  */
 export function adaptMe(me) {
   const frontendRole = ROLE_TO_FRONTEND[me.role] ?? me.role;
@@ -55,10 +57,17 @@ export function adaptMe(me) {
     lastLogin: me.lastLoginAt ? formatDateId(me.lastLoginAt) : null,
     sso: {
       isConnected: true, // bisa lihat halaman ini berarti sesi sudah aktif
-      providerName: null, // gap: SSO-1 belum ada
-      accountId: me.ssoSubject, // catatan: placeholder selama dev-login (SSO-1)
-      lastSynced: null, // gap
-      portalUrl: null, // gap
+      // Terisi HANYA bila akun benar-benar tertaut SSO. Selama masih memakai
+      // dev-login, `ssoLinked` false dan kartunya jujur berbunyi "belum
+      // tersambung" -- bukan mengarang nama penyedia yang tak pernah dipakai.
+      providerName: me.ssoLinked ? 'SSO Helpdesk Kabupaten Madiun' : null,
+      accountId: me.ssoSubject,
+      // `lastLoginAt`, bukan waktu sinkronisasi tersendiri: itulah saat terakhir
+      // profil ini benar-benar diperbarui dari Helpdesk (SsoService.acceptLogin
+      // menyegarkan nama & waktu login pada setiap login SSO). Null bila belum
+      // pernah tertaut, supaya tak terbaca sebagai sinkronisasi yang tak terjadi.
+      lastSynced: me.ssoLinked && me.lastLoginAt ? formatDateId(me.lastLoginAt) : null,
+      portalUrl: me.ssoLinked ? 'https://helpdesk.madiunkab.go.id' : null,
     },
   };
 }
