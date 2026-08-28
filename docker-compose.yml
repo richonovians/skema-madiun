@@ -33,6 +33,33 @@ services:
       retries: 5
       start_period: 10s
 
+  # Reverse proxy pengembangan — menyatukan frontend (:3000) & backend (:3001)
+  # di SATU origin `http://skema.local`, sehingga bentuknya sama dengan produksi
+  # dan `redirect_uri` SSO Helpdesk tetap satu alamat. Alasan lengkap + aturan
+  # rute ada di infra/nginx/dev.conf.
+  #
+  # Butuh satu langkah manual sekali saja (berkas hosts):
+  #   127.0.0.1 skema.local
+  # Windows: C:\Windows\System32\drivers\etc\hosts (WAJIB run-as-administrator)
+  proxy:
+    image: nginx:1.29-alpine
+    container_name: skm-proxy
+    restart: unless-stopped
+    ports:
+      - '${PROXY_PORT:-80}:80'
+    volumes:
+      - ./infra/nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    # `api` & `web` berjalan di HOST (pnpm dev), bukan sebagai container, jadi
+    # nginx menunjuk ke `host.docker.internal` yang sudah disediakan Docker
+    # Desktop.
+    #
+    # SENGAJA TANPA `extra_hosts` -- lihat peringatan panjang di
+    # infra/nginx/dev.conf. Menambahkan `host.docker.internal:host-gateway` di
+    # sini justru mematikan HMR & hidrasi React di Docker Desktop. Baris itu
+    # hanya diperlukan pada Docker Engine Linux.
+    networks:
+      - skm-network
+
   # ---------------------------------------------------------------------------
   # PLACEHOLDER — belum aktif (sengaja dikomentari).
   # Ditambahkan pada langkah scaffolding NestJS/Next.js. Struktur network,
