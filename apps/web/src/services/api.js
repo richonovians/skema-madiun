@@ -13,6 +13,15 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 10000,
+  // WAJIB untuk sesi SSO (2026-08-27): tokennya kini dititipkan backend sebagai
+  // cookie `session` HttpOnly, dan axios TIDAK mengirim cookie pada permintaan
+  // lintas-origin kecuali diminta -- frontend :3000 memanggil API :3001, jadi
+  // tanpa ini setiap panggilan setelah login SSO akan 401 padahal cookie-nya ada.
+  //
+  // Sisi backend sudah menyiapkannya sejak awal: `credentials: true` di
+  // app.setup.ts dengan origin EKSPLISIT (bukan '*', yang justru dilarang
+  // dipasangkan dengan credentials oleh peramban).
+  withCredentials: true,
 });
 
 // Interceptor Request: Menyematkan token JWT jika ada

@@ -89,12 +89,15 @@ describe('IKM (e2e)', () => {
       ['e2e-ikm-resp-1', 'e2e-ikm-resp-2'].map((ssoSubject, i) =>
         prisma.user.upsert({
           where: { ssoSubject },
-          update: {},
+          // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+          // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+          update: { consentAt: new Date() },
           create: {
             ssoSubject,
             nama: `Responden IKM ${i + 1}`,
             email: `${ssoSubject}@example.go.id`,
             role: Role.responden,
+            consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
           },
         }),
       ),
@@ -126,12 +129,15 @@ describe('IKM (e2e)', () => {
 
     const r3 = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-ikm-resp-3' },
-      update: {},
+      // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+      // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+      update: { consentAt: new Date() },
       create: {
         ssoSubject: 'e2e-ikm-resp-3',
         nama: 'Responden IKM 3',
         email: 'e2e-ikm-resp-3@example.go.id',
         role: Role.responden,
+        consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
     respondenId3 = r3.id;

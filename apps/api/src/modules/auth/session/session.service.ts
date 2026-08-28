@@ -25,9 +25,23 @@ export class SessionService {
     return this.jwtService.sign({ sub: userId });
   }
 
+  /**
+   * `sub` WAJIB berupa angka (2026-08-27). Sejak SsoStateService ikut
+   * menandatangani token dengan kunci yang SAMA, ada JWT sah-tanda-tangan yang
+   * BUKAN token sesi (token `state` berpayload `{ typ: 'sso_state', n }`).
+   * Tanpa pemeriksaan ini, token semacam itu lolos verifikasi lalu diteruskan
+   * ke `prisma.user.findUnique({ where: { id: undefined } })` dan meledak jadi
+   * 500 -- bukan celah akses, tapi galat yang menyesatkan. Ditolak di sini
+   * supaya jawabannya 401 yang jujur.
+   */
   verify(token: string): SessionPayload | null {
     try {
-      return this.jwtService.verify<SessionPayload>(token);
+      const payload = this.jwtService.verify<Partial<SessionPayload>>(token);
+      if (typeof payload?.sub !== 'number') {
+        this.logger.debug('Token bertanda-tangan sah tapi bukan token sesi (sub bukan angka)');
+        return null;
+      }
+      return { sub: payload.sub };
     } catch (err) {
       this.logger.debug(`Token sesi tidak valid/kedaluwarsa: ${String(err)}`);
       return null;

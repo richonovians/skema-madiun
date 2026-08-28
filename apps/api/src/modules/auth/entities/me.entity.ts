@@ -24,6 +24,27 @@ export class MeEntity extends BaseEntity<MeEntity> {
   updatedAt: Date;
   respondentProfile: RespondentProfileView | null;
 
+  /**
+   * Apakah pengguna ini masih harus memberikan persetujuan PDP (celah 2,
+   * 2026-08-27). Diisi AuthService.getMe lewat ConsentService.isRequired.
+   *
+   * BOOLEAN, bukan `consentAt`-nya: yang dibutuhkan antarmuka cuma "sudah atau
+   * belum", sementara tanggal persetujuan adalah data pribadi yang tak ada
+   * gunanya dikirim ke klien. Itu sebabnya `consentAt` di bawah tetap @Exclude().
+   */
+  consentRequired: boolean;
+
+  /**
+   * Apakah akun ini benar-benar sudah tertaut ke SSO Helpdesk (celah 5,
+   * 2026-08-27), yaitu `ssoSubject`-nya sub asli — bukan nilai PENAMPUNG dari
+   * masa sebelum SSO (`seed-*`, `pending:...`).
+   *
+   * Ditentukan di sini, bukan ditebak frontend dari pola string: bentuk
+   * penampung itu detail internal basis data, dan menyalinnya ke adapter
+   * frontend berarti dua tempat harus mengingat aturan yang sama.
+   */
+  ssoLinked: boolean;
+
   @Exclude()
   @ApiHideProperty()
   consentAt: Date | null;

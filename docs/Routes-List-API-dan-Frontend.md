@@ -4,15 +4,15 @@
 | | |
 |---|---|
 | **Dokumen pendamping** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md, Rencana-Integrasi-Frontend-Backend.md |
-| **Versi** | 2.0 — disinkronkan dengan kode sungguhan (INT-26) |
-| **Tanggal** | 5 Agustus 2026 (v1.0: 13 Juli 2026) |
+| **Versi** | 2.2 — batas laju endpoint masuk & IP klien di belakang reverse proxy |
+| **Tanggal** | 28 Agustus 2026 (v2.1: 27 Agustus 2026; v2.0: 5 Agustus 2026; v1.0: 13 Juli 2026) |
 | **Cakupan** | Kontrak routes REST API (Nest.js) & routes halaman frontend (Next.js) sesuai implementasi saat ini |
 
 Dokumen ini adalah **rujukan resmi** daftar routes. Versi 1.0 ditulis di awal perencanaan dan sejak itu **arsitektur berubah signifikan** (autentikasi lokal digantikan SSO Helpdesk, OPD jadi cache read-only) — versi ini menggantikannya dengan apa yang sungguhan berjalan di kode. Swagger (`/api/docs`) tetap kontrak paling hidup untuk detail request/response; dokumen ini untuk peta cepat.
 
 **Konvensi umum:**
 - Prefiks API: `/api/v1`
-- Autentikasi: sesi lokal berbasis JWT (`Authorization: Bearer <token>`), diterbitkan sistem sendiri setelah login SSO Helpdesk (OAuth2) — **bukan** JWT dari Helpdesk langsung. Di lingkungan non-produksi, `POST /auth/dev-login` menerbitkan token yang sama tanpa alur SSO sungguhan (404 di produksi).
+- Autentikasi: sesi lokal berbasis JWT, diterbitkan sistem sendiri setelah login SSO Helpdesk (OAuth2) — **bukan** JWT dari Helpdesk langsung. Dua cara penyerahan, keduanya berlaku: cookie **`session` HttpOnly** (jalur SSO, lihat A.1) atau header `Authorization: Bearer <token>` (jalur `dev-login`, non-produksi, 404 di produksi). Bila keduanya ada, header didahulukan.
 - Format data: `application/json` (kecuali unggah lampiran pengaduan: `multipart/form-data`; unduhan ekspor hasil IKM: file biner mentah)
 - **Envelope respons sukses baku**: `{ success, statusCode, message, data, meta }`. Endpoint list menyisipkan `meta.pagination = { total, page, limit, totalPages }`. Endpoint unduhan (`/results/export`) mengembalikan file mentah, bukan envelope.
 - Kode status: `200` OK, `201` Created, `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict
@@ -32,14 +32,60 @@ Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menand
 
 ## A.1 Autentikasi & Akun (`/auth`)
 
-**TIDAK ADA autentikasi lokal** (password/register/verify/forgot-reset-password) — login sepenuhnya lewat SSO Helpdesk (OAuth2 Authorization Code + PKCE). Modul SSO sungguhan (redirect ke Helpdesk, tukar code→token) belum diimplementasikan (menunggu kredensial Helpdesk); `dev-login` adalah pengganti sementara non-produksi yang menerbitkan sesi lokal yang SAMA persis dengan yang nanti diterbitkan setelah SSO sungguhan aktif.
+**TIDAK ADA autentikasi lokal** (password/register/verify/forgot-reset-password) — login sepenuhnya lewat SSO Helpdesk (OAuth2 Authorization Code).
+
+**Status per 2026-08-28:** modul SSO **sudah diimplementasikan** (redirect ke Helpdesk, verifikasi `state`, tukar code→token, pencocokan/pembuatan akun, penerbitan sesi). Yang masih menghalangi pemakaian sungguhan hanya `client_id`/`client_secret` dari tim Helpdesk — tanpanya menekan tombol "Masuk via SSO Helpdesk" mendarat di halaman galat `/sso/callback` yang menyebutkan kunci mana yang kosong. `dev-login` tetap ada sebagai jalur non-produksi dan menerbitkan sesi lokal yang SAMA persis.
+
+**Kedua endpoint SSO gagal dengan redirect, bukan JSON.** Aturan ini berlaku untuk `sso/login` **dan** `sso/callback`, dan alasannya sama: yang membuka kedua alamat itu adalah peramban pengguna lewat navigasi, bukan axios — galat mentah berarti warga menatap `{"success":false,...}` di tab kosong. Pada `sso/callback` aturan itu ada sejak awal; pada `sso/login` baru diterapkan 28 Agu 2026, dan sampai saat itu tombol utama aplikasi memang menampilkan JSON kepada pengguna. Bedanya satu: kegagalan `sso/login` **tidak** membuang cookie `sso_state`, karena membuangnya akan mematikan percobaan masuk yang sedang berjalan di tab lain.
+
+Dua catatan penting tentang protokol Helpdesk, karena keduanya menyimpang dari bawaan OIDC:
+- **Tanpa PKCE.** Dokumen penemuan (`<issuer>/.well-known/openid-configuration`) tak mencantumkan `code_challenge_methods_supported`. Akibatnya parameter `state` bukan lapisan kedua melainkan **satu-satunya** pertahanan CSRF — karena itu ia bertanda tangan, sekali pakai, berumur 10 menit, dan diikat ke cookie `sso_state` (HttpOnly, `Path=/api/v1/auth/sso`).
+- **Tanpa `end_session_endpoint`.** Tak ada RP-initiated logout: `POST /auth/logout` hanya mengakhiri sesi SKM, tidak sesi Helpdesk-nya.
+
+**Penyerahan sesi (2026-08-27):** token sesi diserahkan sebagai cookie **`session` HttpOnly** (`Path=/`, `SameSite=Lax`, `Secure` di produksi, `Max-Age` = `exp` token). Alamat callback ke frontend TIDAK memuat token sama sekali — hanya `#expires=` (detik epoch), yang bukan rahasia. Konsekuensinya: (a) frontend memakai `withCredentials: true`; (b) `POST /auth/logout` kini **wajib** dipanggil karena hanya server yang dapat menghapus cookie HttpOnly; (c) di produksi `SESSION_COOKIE_DOMAIN` praktis wajib (mis. `.madiunkab.go.id`) agar cookie dari `api.*` ikut terbaca `skm.*`. Header `Authorization: Bearer` tetap didahulukan bila ada — itu jalur `dev-login`.
 
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
-| POST | `/api/v1/auth/dev-login` | ✗ | Publik (404 di produksi) | **Non-produksi saja.** Terbitkan sesi lokal by `identifier` (email/ssoSubject) tanpa alur SSO sungguhan |
-| POST | `/api/v1/auth/logout` | ✓ | Semua | Cabut sesi (stateless — hapus token sisi klien) |
-| GET | `/api/v1/auth/me` | ✓ | Semua | Ambil data pengguna aktif |
+| GET | `/api/v1/auth/sso/login` | ✗ | Publik | **Redirect 302** ke halaman login Helpdesk + set cookie `sso_state`. Dibuka lewat navigasi peramban, bukan XHR. Gagal **juga** 302 (ke `WEB_APP_URL/sso/callback#error=`), tak pernah JSON mentah. **60/menit per IP** |
+| GET | `/api/v1/auth/sso/callback` | ✗ | Publik | Tujuan balik dari Helpdesk. Verifikasi `state` → tukar `code` → cocokkan akun → set cookie `session`. **Selalu** membalas 302 ke `WEB_APP_URL/sso/callback` (`#expires=` bila berhasil, `#error=` bila gagal), tak pernah galat mentah. **60/menit per IP** |
+| POST | `/api/v1/auth/dev-login` | ✗ | Publik (404 di produksi) | **Non-produksi saja.** Terbitkan sesi lokal by `identifier` (email/ssoSubject) tanpa alur SSO sungguhan. **30/menit per IP** |
+| POST | `/api/v1/auth/logout` | ✓ | Semua | Akhiri sesi + **hapus cookie `session`**. Sesi Helpdesk tidak ikut berakhir (tak ada `end_session_endpoint`) |
+| POST | `/api/v1/auth/consent` | ✓ | Semua | Catat persetujuan UU PDP (`users.consent_at`). **Idempoten** — pemanggilan ulang mengembalikan waktu yang sudah ada tanpa menggesernya |
+| GET | `/api/v1/auth/me` | ✓ | Semua | Ambil data pengguna aktif. Dipakai `/sso/callback` & `/persetujuan`. Memuat `consentRequired` & `ssoLinked` (boolean turunan; `consentAt` sendiri tidak diekspos) |
 | PATCH | `/api/v1/auth/profile` | ✓ | Semua | Ubah profil / data diri |
+
+**Dua domain yang didaftarkan di Helpdesk.** Hanya callback **backend** yang didaftarkan — alamat frontend tidak, dan Helpdesk tak perlu tahu. Callback wajib mendarat di backend karena penukaran `code` memerlukan `client_secret`; kalau mendarat di frontend, secret itu harus ada di peramban dan berhenti menjadi secret.
+
+| Lingkungan | Origin aplikasi | `redirect_uri` yang didaftarkan |
+|---|---|---|
+| Pengembangan | `http://skema.local` | `http://skema.local/api/v1/auth/sso/callback` |
+| Produksi | `https://skema.madiunkab.go.id` | `https://skema.madiunkab.go.id/api/v1/auth/sso/callback` |
+
+**Batas laju & IP klien di belakang proxy (2026-08-28).** Batas global adalah `THROTTLE_LIMIT` (100/menit per IP); tiga endpoint masuk di tabel atas dibatasi lebih ketat langsung di `AuthController`. Angka SSO sengaja tetap longgar (60/menit): di jaringan seluler Indonesia sangat banyak warga berbagi satu IP publik (CGNAT), dan batas yang "aman" di atas kertas justru menolak orang yang benar-benar ingin masuk. `dev-login` lebih ketat lagi (30/menit) bukan karena bebannya, melainkan karena ia menerbitkan sesi untuk **email mana pun yang ada, tanpa kata sandi**. Angkanya semula 10 dan dinaikkan setelah dicoba: pengujian berganti-ganti peran rutin melakukan belasan login dalam satu menit, sehingga 10/menit menjatuhkan `429` pada pemakaian yang sah — dan batas yang menghalangi alat uji proyeknya sendiri tak akan bertahan. Yang sesungguhnya menjaga endpoint ini adalah `NonProductionGuard` (404 di produksi); throttle-nya polisi tidur, bukan pintu.
+
+Batas itu semula tidak bekerja per-IP sama sekali. Express secara baku tak mempercayai `X-Forwarded-For`, sehingga di belakang nginx `req.ip` — kunci yang dipakai `ThrottlerGuard` — bernilai IP nginx untuk **seluruh** pengguna: satu ember bersama, sehingga `429` menimpa orang yang tak melakukan apa-apa sementara satu penyerang tak dapat dipisahkan dari yang lain. Diperbaiki lewat `TRUST_PROXY_HOPS` (baku `1`), disetel di `app.setup.ts` agar runtime **dan** e2e memakai jalur yang sama. Nilainya **harus cocok dengan topologi**: satu nginx = `1`, ada load balancer lagi di depannya = `2`, API terekspos langsung = `0`. Berupa angka dan bukan `true` dengan sengaja — `true` mempercayai seluruh rantai, sehingga klien bisa mengarang `X-Forwarded-For` dan memakai ember baru setiap permintaan. Karena nginx **menambahkan** IP asli di ujung kanan (`$proxy_add_x_forwarded_for`), nilai karangan klien terlewati dengan sendirinya.
+
+Satu domain per lingkungan, bukan dua: frontend & backend disajikan pada **satu origin** lewat reverse proxy (`infra/nginx/dev.conf` untuk dev, `infra/nginx/prod.conf` untuk produksi), dengan `/api/v1/*` dan `/uploads/*` diteruskan ke backend dan sisanya ke Next.js. Akibatnya cookie sesi jadi **host-only**, CORS tak pernah terpakai, `SESSION_COOKIE_DOMAIN` tetap kosong, dan bentuk konfigurasi dev identik dengan produksi — jalur cookie yang dipakai produksi benar-benar teruji, bukan cabang kode yang mati di dev.
+
+**TLS di produksi bukan pilihan.** `SessionCookieService` memasang atribut `Secure` begitu `NODE_ENV=production`, dan peramban **membuang** cookie `Secure` yang datang lewat `http://` tanpa pesan apa pun: backend melaporkan login sukses sementara pengguna tetap dianggap belum masuk, dan gejalanya tak menunjuk ke mana pun. Karena itu `prod.conf` melayani aplikasi **hanya** di `443` dan menjadikan `80` semata pengantar `301` (kecuali jalur `/.well-known/acme-challenge/`, yang harus tetap lewat agar pembaruan sertifikat tak gagal). Dua perbedaan lain dari dev: upstream menunjuk nama service compose (`api`, `web`) bukan `host.docker.internal`, dan **`/api/docs` ditutup `404`** — di dev ia ikut lolos lewat `location /api/`, dan di produksi itu berarti seluruh permukaan API terpampang tanpa autentikasi. Swagger ditutup di dua lapis: `location` tersebut (ikut mencakup `/api/docs-json`) dan `SWAGGER_ENABLED=false`. Keduanya sudah diuji `nginx -t` dan diverifikasi berjalan: `80 → 301` dengan path utuh, `/api/docs` & `/api/docs-json → 404`, sedangkan `/api/v1/*`, `/uploads/*`, dan `/` tetap diteruskan.
+
+Pencocokan di sisi Helpdesk bersifat **persis**: skema, host, port, path, dan ada-tidaknya garis miring akhir (`.../callback` ≠ `.../callback/`). Yang masih perlu dikonfirmasi ke tim Helpdesk: bolehkah satu client punya dua `redirect_uri`? Bila hanya satu, minta **dua client terpisah** (dev & prod) — lebih baik, karena secret produksi tak perlu beredar di laptop.
+
+Dua jebakan yang sudah ditemukan & ditangani saat menyiapkan ini (2026-08-27), keduanya bergejala menyesatkan karena halaman tetap membalas `200`:
+- **`allowedDevOrigins` di `apps/web/next.config.js`** wajib memuat `skema.local`. Next.js 16 menolak permintaan dev ber-`Origin` asing, dan yang gagal adalah WebSocket HMR — React lalu **tak pernah terhidrasi**, sehingga `/sso/callback` menggantung selamanya di "Menyelesaikan proses masuk..." tanpa satu pun galat di halaman.
+- **Jangan tambahkan `extra_hosts: host.docker.internal:host-gateway`** pada service `proxy`. Docker Desktop sudah menyediakan nama itu (IPv4); baris tersebut menumpuk entri IPv6 yang tak terjangkau, nginx bergilir ke sana, dan jabat-tangan WebSocket gagal dengan `upstream sent no valid HTTP/1.0 header`. Baris itu hanya perlu di Docker Engine Linux.
+
+**Pencocokan akun saat callback** (`SsoService.provision`, urutannya menentukan): (1) `sso_subject == sub` → pengguna yang sudah pernah masuk; (2) `email == email` → akun lama, `sso_subject` **dinaikkan** ke `sub` asli. Langkah 2 bukan kemewahan: seluruh `sso_subject` yang ada sekarang masih penampung pra-SSO (`seed-superuser`, `pending:...`) dan tanpanya setiap akun lama — termasuk Admin Kabupaten — akan dibuatkan akun baru berperan `responden` sementara riwayatnya menjadi yatim; (3) tak keduanya → akun baru, perannya diturunkan dari klaim (lihat di bawah).
+
+**Peran & OPD dari klaim** (`sso-role.mapper.ts`, sejak 2026-08-27). Diatur env `HELPDESK_SSO_ROLE_MAP` berformat `nilaiKlaim:peran` dipisah koma; kosong = semua akun baru jadi `responden` seperti sebelumnya. Empat aturan yang menentukan:
+- **Hanya saat akun DIBUAT.** SSO tak pernah bisa menurunkan peran akun yang sudah ada — kalau tidak, Helpdesk yang berhenti mengirim klaim akan diam-diam menurunkan setiap Admin Kabupaten menjadi warga, dan kegagalan itu senyap.
+- **`superuser` tak dapat dipetakan** dan diabaikan bila dicoba. Peran itu memegang log aktivitas & manajemen pengguna; penetapannya tak diserahkan ke sistem di luar kendali kita.
+- **Parser sengaja pemaaf** terhadap bentuk klaim (string tunggal, daftar berkoma/spasi, array string, array objek `{name}`/`{slug}`/`{id}`, objek tunggal) dan mengembalikan daftar kosong — bukan galat — untuk bentuk tak dikenal. Bentuknya belum dikonfirmasi Helpdesk, dan galat di sini berarti login gagal total hanya karena bentuk di luar dugaan.
+- **Peran `opd` menuntut OPD nyata**: nilai klaim dicocokkan ke `opd.external_id` atau `opd.kode` (case-insensitive, karena `kode` tersimpan huruf besar sementara klaim dinormalkan huruf kecil). Tak ada yang cocok → akun dibuat `responden`, sebab peran `opd` tanpa `opdId` membuat dashboard OPD-nya pasti gagal.
+
+**Persetujuan UU PDP** (`ConsentService`). Kolom `users.consent_at` sudah ada sejak awal tapi **tak punya jalur tulis** sampai 2026-08-27 — callback SSO pun sengaja membiarkannya kosong, karena mengisinya otomatis berarti mencatat persetujuan yang belum pernah diberikan. Yang dimintai hanya `responden`; admin bertindak dalam kapasitas jabatan, bukan sebagai subjek data. Penegakannya **dua lapis**: penjaga navigasi di frontend (`/persetujuan` + cookie `consent` yang dibaca proxy.js) dan — yang sesungguhnya — penolakan `403` di dua titik pengumpulan data, `POST /complaints` dan `POST /surveys/:id/responses`. Tanpa lapis kedua persetujuan ini cuma kosmetik, sebab cookie dapat disunting pemiliknya.
+
+**Audit login.** `login`, `logout`, dan `consent` dicatat ke `audit_logs` dengan `entitas = 'auth'`. Dipanggil LANGSUNG, bukan lewat dekorator `@Audit`: interceptor-nya mengambil aktor dari request, dan callback SSO `@Public()` belum punya pengguna saat ia berjalan. Login **gagal** tidak dicatat — `audit_logs.actor_id` NOT NULL dan pada kegagalan tak ada aktor untuk ditunjuk; kegagalan tetap masuk log aplikasi. Konsekuensi yang perlu diketahui: `actor_id` ber-RESTRICT, sehingga pengguna yang pernah masuk **tak dapat di-hard-delete** — produksi memakai soft delete sehingga tak pernah menabraknya, tapi pembersihan e2e harus membuang baris auditnya lebih dulu.
 
 ## A.2 Manajemen OPD (`/opd`) — READ-ONLY, cache dari Helpdesk
 
@@ -135,7 +181,9 @@ Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata 
 
 | Route | Auth | Halaman | Status wiring |
 |---|:---:|---|---|
-| `/` | ✗ | Landing + form login (SSO Helpdesk / dev-login) | ✅ |
+| `/` | ✗ | Landing + tombol masuk (SSO Helpdesk; tautan "akun dev" hanya di lingkungan pengembangan) | ✅ |
+| `/sso/callback` | ✗ | Pendaratan setelah callback SSO: baca fragment `#expires=`/`#error=`, panggil `GET /auth/me`, simpan `role` + waktu kedaluwarsa, antar ke beranda peran. Superuser mendapat pemilih area di sini. **Sengaja di luar matcher proxy.js** — cookie `role` belum ada saat halaman ini dibuka | ✅ (2026-08-27) |
+| `/persetujuan` | 🔒 Warga | Gerbang persetujuan UU PDP. Warga tak dapat memakai fitur sebelum menyetujui; yang sudah menyetujui & non-warga dipantulkan keluar. Sengaja **di luar** grup `(respondent)` — kerangka warga lengkap akan menawarkan jalan keluar dari gerbang yang tak boleh dilewati. Keperluannya diperiksa dari `GET /auth/me`, bukan dari cookie | ✅ (2026-08-27) |
 | `/about` | ✗ | Tentang sistem | ✅ (statis) |
 | `/statistics` | ✗ | Statistik publik | ❌ dummy (INT-25, blocked D2/D6/D14) |
 | `/dashboard` | 🔒 | Dashboard Responden | ✅ — riwayat aktivitas menggabung pengaduan + pengisian survei (2026-08-24) |
@@ -201,7 +249,9 @@ dipantulkan dan tetap 403 di API.
 
 | Route Frontend | Endpoint API yang dipanggil |
 |---|---|
-| `/` | `POST /auth/dev-login`, `GET /auth/me` |
+| `/` | `GET /auth/sso/login` (navigasi, bukan XHR), `POST /auth/dev-login`, `GET /auth/me` |
+| `/sso/callback` | `GET /auth/me`; `POST /auth/logout` bila superuser membatalkan di pemilih peran |
+| `/persetujuan` | `GET /auth/me` → `POST /auth/consent`; `POST /auth/logout` bila menolak |
 | `/profile` | `GET /auth/me`, `PATCH /auth/profile` |
 | `/dashboard` | `GET /complaints`, `GET /me/survey-responses` (riwayat aktivitas menggabung keduanya), `GET /surveys/active` |
 | `/surveys` | `GET /surveys/active`, `GET /opd` (hanya bila `?opdId=` — untuk nama pada chip filter) |
@@ -224,7 +274,7 @@ dipantulkan dan tetap 403 di API.
 
 ## Catatan Implementasi
 
-- **Proteksi route frontend**: `apps/web/src/proxy.js` (Next.js 16, bukan lagi `middleware.js`) cek cookie `token` untuk `/admin-kab/*` dan `/admin-opd/*` saja. Halaman Responden mengandalkan proteksi di level komponen/service (401 dari API), bukan proxy.
+- **Proteksi route frontend**: `apps/web/src/proxy.js` (Next.js 16, bukan lagi `middleware.js`) cek cookie sesi — `token` (jalur dev-login, ditulis JavaScript) **atau** `session` (jalur SSO, ditulis backend sebagai HttpOnly; proxy berjalan di edge/server sehingga HttpOnly tak menghalanginya) — plus cookie `role`/`area`/`opd` untuk menentukan area yang boleh dibuka. Sifatnya penjaga **navigasi**, bukan penjaga data: yang menegakkan hak akses tetap `RolesGuard` + pemeriksaan di dalam service.
 - **Konsistensi penamaan:** route API memakai bahasa Inggris (konvensi REST), sedangkan route frontend memakai Bahasa Indonesia untuk *label halaman* tapi path URL bahasa Inggris (`/complaints`, `/surveys`, bukan `/pengaduan`, `/survei` seperti draf v1.0) — frontend memanggil API lewat *service layer* (`features/*/services/*.api.js`), bukan pemetaan 1:1 URL.
 - **`ticketNo` vs `id`:** pengaduan pakai `ticketNo` (format `PGD{YYYYMMDD}{4 acak}`) sebagai identifier di route/URL publik; `id` numerik tetap primary key internal, dipakai untuk aksi admin (`PATCH .../:id/status`, `POST .../:id/replies`).
 - **Dokumentasi hidup:** implementasi API dilengkapi Swagger di `/api/docs` sebagai kontrak yang selalu sinkron dengan kode — rujuk ke sana untuk skema request/response detail per endpoint (DTO, entity, enum).

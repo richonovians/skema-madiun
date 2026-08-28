@@ -10,6 +10,7 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConsentService } from '../auth/consent.service';
 import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
 import { SubmitResponseDto } from './dto/submit-response.dto';
@@ -20,7 +21,10 @@ import { SurveyFillEntity } from './entities/survey-fill.entity';
 
 @Injectable()
 export class ResponsesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly consent: ConsentService,
+  ) {}
 
   /** Ambil survei aktif beserta pertanyaannya untuk diisi responden (BE-22). */
   async getFill(surveyId: number, user: CurrentUser): Promise<SurveyFillEntity> {
@@ -68,6 +72,12 @@ export class ResponsesService {
     dto: SubmitResponseDto,
     user: CurrentUser,
   ): Promise<ResponseEntity> {
+    // PALING AWAL, sebelum satu kueri pun (celah 2, 2026-08-27). Mengirim
+    // jawaban survei adalah pengumpulan data pribadi, jadi tanpa persetujuan
+    // PDP permintaan ini ditolak — dan ditolak di sini supaya pesan galatnya
+    // soal persetujuan, bukan soal survei yang tak ditemukan.
+    await this.consent.assertConsented(user);
+
     const survey = await this.prisma.survey.findUnique({
       where: { id: surveyId },
       include: { questions: { include: { options: true } } },

@@ -6,7 +6,14 @@ export default function Button({
   className = '', 
   ...props 
 }) {
-  const baseClasses = "transition-all active:scale-[0.98] flex items-center gap-xs";
+  // Gaya nonaktif (2026-08-27): sebelumnya tombol `disabled` tampak PERSIS sama
+  // dengan yang aktif -- masih meninggi & berbayang saat disorot, padahal tak
+  // bisa diklik. Semua utilitas di bawah hanya berlaku saat `disabled`, jadi
+  // penampilan tombol normal tak berubah sedikit pun.
+  const baseClasses =
+    'transition-all active:scale-[0.98] flex items-center gap-xs ' +
+    'disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ' +
+    'disabled:hover:translate-y-0 disabled:active:scale-100';
   
   const variants = {
     primary: "bg-primary hover:bg-primary-hover text-on-primary py-md px-lg rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 shadow-primary/30 transition-all duration-300 font-bold text-lg justify-center",

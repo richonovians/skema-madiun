@@ -33,23 +33,29 @@ describe('Complaints (e2e)', () => {
 
     const r1 = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-cmp-resp-1' },
-      update: {},
+      // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+      // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+      update: { consentAt: new Date() },
       create: {
         ssoSubject: 'e2e-cmp-resp-1',
         nama: 'Responden CMP 1',
         email: 'e2e-cmp-resp-1@example.go.id',
         role: Role.responden,
+        consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
     respondenId = r1.id;
     const r2 = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-cmp-resp-2' },
-      update: {},
+      // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+      // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+      update: { consentAt: new Date() },
       create: {
         ssoSubject: 'e2e-cmp-resp-2',
         nama: 'Responden CMP 2',
         email: 'e2e-cmp-resp-2@example.go.id',
         role: Role.responden,
+        consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
     respondenId2 = r2.id;

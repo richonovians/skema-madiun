@@ -37,8 +37,38 @@ const ACTING_OPD_KEY = 'acting_opd';
 // dimasukkan cookie: proxy tak membutuhkannya, dan cookie ikut terkirim pada
 // setiap permintaan.
 const ACTING_OPD_COOKIE = 'opd';
+// Waktu kedaluwarsa sesi SSO (2026-08-27), detik epoch. HANYA untuk jalur SSO.
+//
+// Kenapa perlu disimpan sendiri: pada jalur SSO tokennya ada di cookie `session`
+// HttpOnly milik backend, sehingga JavaScript TAK BISA membacanya -- termasuk tak
+// bisa mendekode klaim `exp`-nya seperti yang dilakukan `isTokenExpired()` di
+// bawah untuk jalur dev-login. Tanpa nilai ini, antarmuka akan menampilkan
+// keadaan "sudah masuk" tanpa batas waktu sampai panggilan API pertama gagal 401
+// -- tepat keluhan 18 Agu 2026 ("baru akses localhost sudah terlihat login").
+//
+// Nilainya diberikan backend lewat fragment `#expires=` pada alamat callback. Itu
+// bukan rahasia: hanya sebuah waktu, tak memberi kemampuan apa pun. Yang rahasia
+// (tokennya) justru tidak pernah lagi melewati URL.
+const SSO_EXPIRES_KEY = 'sso_expires_at';
+// Persetujuan UU PDP (2026-08-27): '1' = sudah, '0' = belum. Cookie, bukan
+// localStorage, karena yang membacanya proxy.js di edge/server untuk memantulkan
+// warga yang belum menyetujui ke /persetujuan.
+//
+// Sifatnya perlu dinyatakan terus terang, sama seperti `role` & `area`: ini
+// pembatas NAVIGASI. Nilainya bisa disunting pemiliknya sendiri di peramban, dan
+// itu tak melewati apa pun -- backend menolak 403 di titik pengumpulan datanya
+// sendiri (ConsentService.assertConsented pada POST /complaints &
+// POST /surveys/:id/responses), jadi menyunting cookie ini hanya menghasilkan
+// halaman yang gagal mengirim, bukan pengiriman tanpa persetujuan.
+const CONSENT_KEY = 'consent';
 
-export function saveSession(token, role) {
+/**
+ * @param {string} token token sesi (jalur dev-login)
+ * @param {string} role peran backend
+ * @param {boolean} [consentRequired] dari `user.consentRequired` respons login;
+ *   dibiarkan undefined = anggap sudah menyetujui (peran non-warga selalu begitu)
+ */
+export function saveSession(token, role, consentRequired) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem('sso_logged_in', 'true');
@@ -47,14 +77,64 @@ export function saveSession(token, role) {
     localStorage.setItem(ROLE_KEY, role);
     document.cookie = `${ROLE_KEY}=${role}; path=/; SameSite=Lax`;
   }
+  saveConsentFlag(!consentRequired);
 }
 
+/** Tulis penanda persetujuan yang dibaca proxy.js. */
+export function saveConsentFlag(sudahMenyetujui) {
+  if (typeof window === 'undefined') return;
+  document.cookie = `${CONSENT_KEY}=${sudahMenyetujui ? '1' : '0'}; path=/; SameSite=Lax`;
+}
+
+/**
+ * Simpan sesi hasil login SSO Helpdesk (2026-08-27).
+ *
+ * Beda dari `saveSession()` di atas dalam satu hal yang menentukan: TIDAK ADA
+ * token untuk disimpan. Backend sudah menitipkannya sebagai cookie `session`
+ * HttpOnly, jadi yang disimpan di sini hanyalah keterangan pendamping yang
+ * dibutuhkan antarmuka & proxy:
+ * - `role`  : cookie, dibaca proxy.js untuk menentukan area yang boleh dibuka.
+ * - `expiresAt`: localStorage, supaya UI tahu kapan berhenti menampilkan
+ *   keadaan "sudah masuk" (lihat catatan pada SSO_EXPIRES_KEY).
+ *
+ * Cookie `session` sendiri TIDAK disentuh dari sini dan memang tak bisa.
+ *
+ * @param {string} role peran backend ('kabupaten'|'opd'|'responden'|'superuser')
+ * @param {number} expiresAt detik epoch; 0/NaN diabaikan
+ * @param {boolean} [consentRequired] dari `GET /auth/me`
+ */
+export function saveSsoSession(role, expiresAt, consentRequired) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('sso_logged_in', 'true');
+  if (Number.isFinite(expiresAt) && expiresAt > 0) {
+    localStorage.setItem(SSO_EXPIRES_KEY, String(expiresAt));
+  }
+  if (role) {
+    localStorage.setItem(ROLE_KEY, role);
+    document.cookie = `${ROLE_KEY}=${role}; path=/; SameSite=Lax`;
+  }
+  saveConsentFlag(!consentRequired);
+}
+
+/**
+ * Buang seluruh artefak sesi SISI KLIEN.
+ *
+ * BATASAN YANG PERLU DINYATAKAN TERUS TERANG (2026-08-27): cookie `session`
+ * HttpOnly dari jalur SSO TIDAK dapat dihapus dari sini -- hanya server yang
+ * boleh menghapus cookie yang ia setel HttpOnly, dan justru itu gunanya. Yang
+ * membuangnya adalah `POST /auth/logout`, dan karena itu ketiga pemanggil
+ * (useLogout, ProfileActions, ProfileAvatarDropdown) selalu memanggil endpoint
+ * itu LEBIH DULU. Cookie sesi juga memikul `Max-Age` sesuai masa berlaku
+ * tokennya, jadi peramban menghapusnya sendiri saat kedaluwarsa -- tak ada sisa
+ * yang menumpuk bila logout gagal.
+ */
 export function clearSession() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
   localStorage.removeItem(AREA_KEY);
   localStorage.removeItem(ACTING_OPD_KEY);
+  localStorage.removeItem(SSO_EXPIRES_KEY);
   localStorage.setItem('sso_logged_in', 'false');
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
   document.cookie = `${ROLE_KEY}=; path=/; max-age=0`;
@@ -62,6 +142,9 @@ export function clearSession() {
   // lain di peramban yang sama) mewarisi pembatasan area milik sesi lama.
   document.cookie = `${AREA_KEY}=; path=/; max-age=0`;
   document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
+  // Alasan yang sama untuk persetujuan: membiarkannya berarti warga BERIKUTNYA
+  // di peramban ini melewati gerbang persetujuan atas nama persetujuan orang lain.
+  document.cookie = `${CONSENT_KEY}=; path=/; max-age=0`;
 }
 
 /** Simpan area kerja pilihan superuser (lihat RoleLoginPicker.jsx). */
@@ -177,14 +260,27 @@ function isTokenExpired(token) {
  */
 export function isAuthenticated() {
   if (typeof window === 'undefined') return false;
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return false;
 
-  if (isTokenExpired(token)) {
-    // Wajib clearSession(), bukan sekadar `return false`: kalau cookie `token`
-    // & `role` dibiarkan, proxy.js masih menganggap sesi hidup sehingga halaman
-    // /admin-* tetap terbuka walau seluruh API-nya 401 -- keadaan setengah
-    // login yang justru lebih membingungkan.
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    if (isTokenExpired(token)) {
+      // Wajib clearSession(), bukan sekadar `return false`: kalau cookie `token`
+      // & `role` dibiarkan, proxy.js masih menganggap sesi hidup sehingga halaman
+      // /admin-* tetap terbuka walau seluruh API-nya 401 -- keadaan setengah
+      // login yang justru lebih membingungkan.
+      clearSession();
+      return false;
+    }
+    return true;
+  }
+
+  // Jalur SSO (2026-08-27): tak ada token yang bisa dibaca -- ia HttpOnly di
+  // cookie `session`. Yang dipakai adalah waktu kedaluwarsa yang dititipkan
+  // backend saat callback. Pemeriksaannya sengaja sama ketat: sesi yang sudah
+  // lewat waktunya ikut dibersihkan, bukan cuma dilaporkan `false`.
+  const expiresAt = Number(localStorage.getItem(SSO_EXPIRES_KEY));
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) return false;
+  if (expiresAt * 1000 <= Date.now()) {
     clearSession();
     return false;
   }
