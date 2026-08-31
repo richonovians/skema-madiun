@@ -5,8 +5,11 @@ import { Menu, CalendarRange, Layers } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import Dropdown from '@/components/ui/Dropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
+import ProfileErrorAvatar from '@/components/ui/ProfileErrorAvatar';
+import ProfileLoadError from '@/components/ui/ProfileLoadError';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useAsync } from '@/hooks/useAsync';
+import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
@@ -76,7 +79,13 @@ export default function AdminKabNavbar() {
   const isDashboard = pathname?.startsWith('/admin-kab/dashboard');
 
   const fetchProfile = useCallback(() => getMyProfile(), []);
-  const { data: user, isLoading } = useAsync(fetchProfile);
+  const { data: user, isLoading, error, refetch } = useAsync(fetchProfile);
+
+  // `error` dulu tak pernah diambil, sehingga kegagalan memuat profil tampil
+  // sebagai data: "Pengguna" / "-" / "?" (2026-08-28). Lihat alasan lengkap &
+  // pembedaan 401-vs-jaringan di ProfileLoadError.jsx dan api.js.
+  const gagalProfil = error != null;
+  const alasanGagal = isUnauthorizedError(error) ? 'expired' : 'offline';
 
   const fetchServiceOptions = useCallback(async () => {
     if (!isDashboard) return [];
@@ -106,6 +115,12 @@ export default function AdminKabNavbar() {
         {/* Avatar mobile */}
         {isLoading ? (
           <div className="md:hidden w-8 h-8 rounded-full bg-surface-container animate-pulse shrink-0" />
+        ) : gagalProfil ? (
+          /* Di ponsel hanya avatarnya yang muat -- keterangannya dibawa
+             `aria-label`/`title` milik ProfileErrorAvatar, dan pemulihannya
+             adalah memuat ulang halaman (tombol "Coba lagi" hidup di kelompok
+             profil desktop di bawah). */
+          <ProfileErrorAvatar reason={alasanGagal} size="md" className="md:hidden" />
         ) : (
           <Avatar
             initials={user?.initials ?? '?'}
@@ -161,6 +176,8 @@ export default function AdminKabNavbar() {
               </div>
               <div className="w-10 h-10 rounded-full bg-surface-container animate-pulse" />
             </>
+          ) : gagalProfil ? (
+            <ProfileLoadError reason={alasanGagal} onRetry={refetch} />
           ) : (
             <>
               <div className="text-right">

@@ -61,6 +61,20 @@ const SSO_EXPIRES_KEY = 'sso_expires_at';
 // POST /surveys/:id/responses), jadi menyunting cookie ini hanya menghasilkan
 // halaman yang gagal mengirim, bukan pengiriman tanpa persetujuan.
 const CONSENT_KEY = 'consent';
+// Event yang ditembakkan clearSession() (2026-08-28).
+//
+// Sebelum ini TAK ADA satu pun jalur yang memberi tahu antarmuka bahwa sesinya
+// baru saja dinyatakan tak sah. Navbar menghitung `isLoggedIn` sekali saat mount
+// lewat isAuthenticated(), lalu tak pernah menghitungnya lagi. Ketika
+// interceptor 401 di api.js membuang seluruh artefak sesi, navbar tetap
+// menampilkan menu akun -- dan karena profilnya juga gagal dimuat, isinya cuma
+// "?" yang kembali di SETIAP refresh. Satu-satunya cara membersihkannya adalah
+// menekan Logout sendiri (keluhan pengguna 28 Agustus 2026).
+//
+// Event DOM biasa, bukan store: tak ada keadaan baru yang perlu disimpan --
+// sumber kebenarannya tetap isAuthenticated(). Yang dibutuhkan hanyalah aba-aba
+// "hitung ulang" bagi komponen yang sedang terpasang.
+export const SESSION_CHANGED_EVENT = 'skema:sesi-berubah';
 
 /**
  * @param {string} token token sesi (jalur dev-login)
@@ -145,6 +159,12 @@ export function clearSession() {
   // Alasan yang sama untuk persetujuan: membiarkannya berarti warga BERIKUTNYA
   // di peramban ini melewati gerbang persetujuan atas nama persetujuan orang lain.
   document.cookie = `${CONSENT_KEY}=; path=/; max-age=0`;
+  // Ditembakkan PALING AKHIR, setelah semua artefak benar-benar hilang, supaya
+  // pendengar yang memanggil isAuthenticated() membaca keadaan yang sudah bersih.
+  // Tak ada risiko berulang tanpa henti: satu-satunya pemanggil internal
+  // clearSession() adalah isAuthenticated() saat token basi, dan token itu sudah
+  // dibuang sebelum baris ini -- panggilan berikutnya tak lagi masuk cabang itu.
+  window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
 }
 
 /** Simpan area kerja pilihan superuser (lihat RoleLoginPicker.jsx). */
