@@ -11,7 +11,31 @@ const nextConfig = {
   // "Menyelesaikan proses masuk..." karena efeknya tak pernah dijalankan.
   //
   // Hanya berpengaruh di `next dev`; build produksi tak memakainya.
-  allowedDevOrigins: ['skema.local'],
+  //
+  // Rentang alamat privat ditambahkan (29 Agustus 2026) supaya aplikasi bisa
+  // DIPAKAI dari perangkat lain di Wi-Fi yang sama -- terutama ponsel, yang tak
+  // punya berkas hosts sehingga tak bisa memakai `skema.local` dan harus
+  // mengetik alamat IP laptop pengembang.
+  //
+  // Tanpa entri ini gejalanya persis seperti yang diperingatkan di atas, dan
+  // sangat menyesatkan: halaman terbuka, CSS-nya termuat, tampilannya normal --
+  // tapi jabat tangan WebSocket HMR ditolak ("Invalid status line") sehingga
+  // React tak pernah terhidrasi dan TAK SATU PUN tombol berfungsi.
+  //
+  // Sengaja POLA, bukan alamat tertentu. Menuliskan IP satu laptop berarti
+  // menitipkan alamat jaringan seorang pengembang ke dalam riwayat git, dan
+  // tetap saja rusak begitu DHCP memberi alamat baru atau pengembang lain
+  // mencoba hal yang sama. Pola ini tak perlu disunting siapa pun.
+  //
+  // Cakupannya tetap sempit dan tak menambah risiko yang berarti: hanya rentang
+  // privat RFC 1918 (mustahil dirutekan dari internet), hanya berlaku di
+  // `next dev`, dan tak pernah ikut ke build produksi.
+  //
+  // Kalau jaringan Anda memakai rentang privat ketiga (172.16-31.x.x, mis.
+  // sebagian hotspot ponsel), tambahkan polanya di sini -- glob-nya tak bisa
+  // menyatakan rentang 16-31, jadi sengaja tak dipukul rata `172.*.*.*` yang
+  // ikut mencakup alamat publik.
+  allowedDevOrigins: ['skema.local', '192.168.*.*', '10.*.*.*'],
 
   images: {
     remotePatterns: [
