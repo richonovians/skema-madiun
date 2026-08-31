@@ -150,18 +150,28 @@ export class IkmService {
       where,
       include: { survey: { include: { opd: true } } },
     });
-    const closedItems = closedRows.map((row) => ({
-      opdId: row.survey.opdId,
-      opdNama: row.survey.opd.nama,
-      jenisLayanan: row.survey.opd.jenisLayanan,
-      surveyId: row.surveyId,
-      judul: row.survey.judul,
-      periode: row.periode,
-      nilaiIkm: Number(row.nilaiIkm),
-      mutu: row.mutu,
-      jumlahResponden: row.jumlahResponden,
-      status: SurveyStatus.ditutup,
-    }));
+    const closedItems = closedRows
+      // Survei yang DIBUKA KEMBALI (31 Agustus 2026) tetap menyimpan snapshot
+      // dari saat ia ditutup -- dan memang harus, itu catatan resmi periode
+      // tersebut. Tapi ia kini juga ikut `activeSurveys` di bawah, sehingga
+      // tanpa saringan ini survei yang sama masuk DUA KALI: sekali dilabeli
+      // `ditutup` dari snapshot, sekali `aktif` dari live-compute. Yang rusak
+      // bukan cuma daftarnya -- `rataRataIkm` & `totalResponden` menghitung
+      // ganda. Selama survei masih aktif, angkanya adalah hasil live; itu
+      // aturan yang sama dengan `getResults`, yang tak pernah membaca snapshot.
+      .filter((row) => row.survey.status !== SurveyStatus.aktif)
+      .map((row) => ({
+        opdId: row.survey.opdId,
+        opdNama: row.survey.opd.nama,
+        jenisLayanan: row.survey.opd.jenisLayanan,
+        surveyId: row.surveyId,
+        judul: row.survey.judul,
+        periode: row.periode,
+        nilaiIkm: Number(row.nilaiIkm),
+        mutu: row.mutu,
+        jumlahResponden: row.jumlahResponden,
+        status: SurveyStatus.ditutup,
+      }));
 
     const activeSurveyWhere: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
     if (query.periode) {

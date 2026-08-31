@@ -118,7 +118,14 @@ export default function AdminKabDashboardPage() {
 
   const { statistics, activities } = global;
   const { summary } = statistics;
+  // `surveyId` DIIKUTKAN (31 Agustus 2026) walau tak ditampilkan: itulah
+  // identitas satu baris leaderboard, dan IkmLeaderboard memakainya sebagai
+  // React key. Sebelumnya proyeksi ini membuangnya sehingga key jatuh ke
+  // `opdId` -- yang bukan identitas baris, sebab satu OPD boleh punya beberapa
+  // survei. Kalau ditanggalkan lagi, key-nya menjadi undefined dan React
+  // memperingatkan "should have a unique key".
   const leaderboardData = kabDashboard.leaderboard.map((item) => ({
+    surveyId: item.surveyId,
     opdId: item.opdId,
     opdName: item.opdName,
     ikmScore: item.ikmScore,

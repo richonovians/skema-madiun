@@ -260,7 +260,9 @@ export class DashboardService {
           nilaiIkm: true,
           periode: true,
           nrrPerUnsur: true,
-          survey: { select: { opdId: true, opd: { select: { nama: true } } } },
+          // `status` diikutkan (31 Agustus 2026) semata untuk menyaring survei
+          // yang sudah DIBUKA KEMBALI -- lihat penyaring di bawah.
+          survey: { select: { opdId: true, status: true, opd: { select: { nama: true } } } },
         },
       }),
       this.prisma.surveyResponse.count(),
@@ -304,7 +306,17 @@ export class DashboardService {
         nrrPerUnsur: result.nrrPerUnsur,
         survey: { opdId: survey.opdId, opd: { nama: survey.opd.nama } },
       }));
-    const ikmResults = [...closedIkmRows, ...activeIkmRows];
+    // Snapshot milik survei yang SUDAH DIBUKA KEMBALI dibuang (31 Agustus 2026):
+    // survei itu ikut `activeIkmRows` di atas, jadi tanpa saringan ini ia
+    // terhitung dua kali dan nilai IKM kabupaten yang dipampang ke publik
+    // salah -- terpantau 80,56 menjadi 79,63 hanya karena satu survei dibuka
+    // kembali. Snapshotnya sendiri TIDAK dihapus: begitu survei ditutup lagi,
+    // ia langsung terpakai kembali. Aturan yang sama diterapkan di
+    // `IkmService.getDashboard`.
+    const ikmResults = [
+      ...closedIkmRows.filter((row) => row.survey.status !== SurveyStatus.aktif),
+      ...activeIkmRows,
+    ];
 
     const ikm =
       ikmResults.length > 0

@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { IkmMutu, Role } from '@prisma/client';
+import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardService } from './dashboard.service';
@@ -284,6 +284,68 @@ describe('DashboardService', () => {
       const result = await service.getStatistics();
 
       expect(result.serviceElements).toEqual([{ code: 'U1', name: 'Persyaratan', avgNrr: 3.7 }]);
+    });
+
+    /**
+     * Cacat yang SAMA seperti `IkmService.getDashboard` (31 Agustus 2026), dan
+     * di sini akibatnya paling terasa: halaman /statistics itu PUBLIK. Sebuah
+     * survei yang dibuka kembali masih menyimpan snapshot `ikm_results`-nya,
+     * sehingga ikut terhitung dua kali -- sekali dari snapshot, sekali dari
+     * live-compute -- dan angka IKM kabupaten yang dipamerkan ke masyarakat
+     * jadi salah. Terpantau nyata: 80,56 berubah menjadi 79,63 hanya karena
+     * satu survei dibuka kembali.
+     *
+     * `topOpd` kebetulan lolos (ia mengelompokkan per OPD lalu merata-rata),
+     * tapi `summary.ikm`, `ikmTrend`, dan `serviceElements` tidak.
+     */
+    it('(2026-08-31) survei DIBUKA KEMBALI tidak dihitung dua kali pada statistik publik', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValueOnce([
+        {
+          nilaiIkm: 77.78,
+          periode: '2025-Q1',
+          nrrPerUnsur: [{ kodeUnsur: 'U1', teks: 'Persyaratan', nrr: 3.11 }],
+          survey: {
+            opdId: 40,
+            status: SurveyStatus.aktif, // <- sudah dibuka kembali
+            opd: { nama: 'Satuan Polisi Pamong Praja' },
+          },
+        },
+      ]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([
+        { id: 22, opdId: 40, periode: '2025-Q1', opd: { nama: 'Satuan Polisi Pamong Praja' } },
+      ]);
+      (ikmService.computeResult as jest.Mock).mockResolvedValue({
+        nilaiIkm: 75,
+        nrrPerUnsur: [{ kodeUnsur: 'U1', teks: 'Persyaratan', nrr: 3 }],
+      });
+
+      const result = await service.getStatistics();
+
+      // Bukan (77,78 + 75) / 2 = 76,39.
+      expect(result.summary.ikm).toBe(75);
+      expect(result.ikmTrend).toEqual([{ periode: '2025-Q1', value: 75 }]);
+      expect(result.serviceElements).toEqual([{ code: 'U1', name: 'Persyaratan', avgNrr: 3 }]);
+    });
+
+    /** Penjaga arah sebaliknya: snapshot survei yang masih ditutup tetap dihitung. */
+    it('snapshot survei yang masih ditutup TETAP dihitung pada statistik publik', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValueOnce([
+        {
+          nilaiIkm: 77.78,
+          periode: '2025-Q1',
+          nrrPerUnsur: [{ kodeUnsur: 'U1', teks: 'Persyaratan', nrr: 3.11 }],
+          survey: {
+            opdId: 40,
+            status: SurveyStatus.ditutup,
+            opd: { nama: 'Satuan Polisi Pamong Praja' },
+          },
+        },
+      ]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.getStatistics();
+
+      expect(result.summary.ikm).toBe(77.78);
     });
 
     it('(INT-14) topOpd = rata-rata IKM per OPD, top 5 desc, dgn peringkat', async () => {
