@@ -65,8 +65,62 @@
   --text-headline-md--font-weight: 600;
   --text-body-md: 1rem;
   --text-body-md--line-height: 1.5;
+  /* `text-h2-sm` & `text-body-lg` DIPAKAI di 11 tempat -- ServiceFlow (dirender
+     di beranda) dan seluruh halaman /about -- tetapi tak satu pun pernah
+     didefinisikan, sehingga Tailwind membuangnya diam-diam (ditemukan
+     29 Agustus 2026).
+     Akibat nyatanya di layar ponsel: `font-h2 text-h2-sm md:text-h2` membuat
+     judul bagian TAK PUNYA ukuran sama sekali, jadi "Panduan Penggunaan" tampil
+     16px -- sama besar dengan paragraf di bawahnya, tanpa hierarki -- dan setiap
+     `text-body-lg` juga sama besar dengan teks biasa.
+     Diperbaiki dengan mendefinisikan tokennya, BUKAN menyunting 11 komponen:
+     nilainya mengikuti pola penamaan yang sudah ada (h2 = 2rem untuk md ke atas,
+     body-md = 1rem). */
+  --text-h2-sm: 1.5rem;
+  --text-h2-sm--line-height: 1.25;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.6;
   --text-label-md: 0.875rem;
   --text-label-md--line-height: 1.2;
+
+  /* `animate-fade-in-up` dipakai di 10+ tempat (HeroSection, ServiceFlow, dan
+     seluruh /about) LENGKAP dengan `animationDelay` bertingkat (100ms, 200ms,
+     index*100ms) -- tapi keyframes-nya tak pernah ada di mana pun, dan
+     Tailwind v4 tak membawakan animasi bernama itu. Jadi selama ini seluruh
+     kelas tersebut TIDAK melakukan apa pun: animasi masuk yang sudah dirancang
+     memang tak pernah berjalan.
+     Yang ditambahkan di sini adalah keyframes yang SUDAH DIMINTA markup-nya,
+     bukan gerakan baru yang saya karang. Nilainya sengaja di ujung halus --
+     12px, 350ms, ease-out: halaman layanan publik dibuka untuk menyelesaikan
+     urusan, bukan untuk ditonton. */
+  --animate-fade-in-up: fade-in-up 350ms ease-out both;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pendamping WAJIB bagi keyframes di atas. Sebelum ini proyek tak punya blok
+   ini sama sekali, dan itu tak terasa selama animasinya mati. Begitu animasinya
+   hidup, menghidupkannya TANPA blok ini berarti memaksa gerakan pada pengguna
+   yang setelan sistemnya meminta gerakan dikurangi. Keadaan akhir ditampilkan
+   langsung, bukan animasinya dipercepat. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 :root {
