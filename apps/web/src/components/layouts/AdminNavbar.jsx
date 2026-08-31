@@ -6,8 +6,10 @@ import { Menu, CalendarRange } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import Dropdown from '@/components/ui/Dropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
+import ProfileLoadError from '@/components/ui/ProfileLoadError';
 import { useAdminLayout } from './AdminLayoutProvider';
 import { useAsync } from '@/hooks/useAsync';
+import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { getOpdById } from '@/features/opd/services/opd.api';
 import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
@@ -48,9 +50,15 @@ export default function AdminNavbar() {
     return { user, opd };
   }, []);
 
-  const { data: identity, isLoading } = useAsync(fetchIdentity);
+  const { data: identity, isLoading, error, refetch } = useAsync(fetchIdentity);
   const user = identity?.user;
   const opd = identity?.opd;
+
+  // `error` dulu tak pernah diambil, sehingga kegagalan memuat identitas tampil
+  // sebagai data: "Pengguna" / "-" / "?" (2026-08-28). Lihat alasan lengkap &
+  // pembedaan 401-vs-jaringan di ProfileLoadError.jsx dan api.js.
+  const gagalIdentitas = error != null;
+  const alasanGagal = isUnauthorizedError(error) ? 'expired' : 'offline';
 
   const titleText = opd?.name ?? (user?.role === 'ADMIN_KABUPATEN' ? 'Lintas OPD' : 'Panel Admin OPD');
 
@@ -106,6 +114,12 @@ export default function AdminNavbar() {
               </div>
               <div className="w-10 h-10 rounded-full bg-surface-container animate-pulse" />
             </>
+          ) : gagalIdentitas ? (
+            <ProfileLoadError
+              reason={alasanGagal}
+              onRetry={refetch}
+              textClassName="hidden sm:block"
+            />
           ) : (
             <>
               <div className="text-right hidden sm:block">

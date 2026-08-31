@@ -9,7 +9,7 @@ import { Menu, X } from 'lucide-react';
 import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
-import { isAuthenticated } from '@/features/authentication/services/authStorage';
+import { isAuthenticated, SESSION_CHANGED_EVENT } from '@/features/authentication/services/authStorage';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -17,7 +17,16 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    setIsLoggedIn(isAuthenticated());
+    const hitungUlang = () => setIsLoggedIn(isAuthenticated());
+    hitungUlang();
+    // Sesi bisa dinyatakan tak sah KAPAN SAJA setelah mount: interceptor 401 di
+    // api.js membuang artefaknya begitu ada panggilan yang ditolak. Tanpa
+    // langganan ini navbar terus memercayai keputusan yang diambilnya sekali di
+    // awal, sehingga menu akun tetap terpasang untuk sesi yang sudah mati --
+    // berisi "?" karena profilnya jelas gagal dimuat, dan tak hilang walau
+    // halaman dimuat ulang (keluhan 28 Agustus 2026).
+    window.addEventListener(SESSION_CHANGED_EVENT, hitungUlang);
+    return () => window.removeEventListener(SESSION_CHANGED_EVENT, hitungUlang);
   }, []);
 
   return (

@@ -52,8 +52,15 @@ export default function IkmLeaderboard({ data = [], periode }) {
       </div>
 
       <div className="space-y-md">
+        {/* Di-key dgn `surveyId`, BUKAN `opdId` (31 Agustus 2026): tiap baris di
+            sini adalah satu SURVEI, dan satu OPD boleh punya beberapa survei --
+            jadi `opdId` memang bukan identitas baris ini dan pernah memicu
+            peringatan React "two children with the same key". Akar masalahnya
+            sendiri (survei dibuka kembali terhitung dua kali) sudah diperbaiki
+            di IkmService.getDashboard; key ini lapis kedua, dan tetap benar
+            kalau kelak daftarnya sengaja memuat beberapa survei per OPD. */}
         {data.map((item, index) => (
-          <div key={item.opdId} className="space-y-xs">
+          <div key={item.surveyId} className="space-y-xs">
             <div className="flex justify-between text-xs font-semibold">
               <span>{item.opdName}</span>
               <span className="text-primary">{item.ikmScore.toFixed(1)}</span>

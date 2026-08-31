@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { IkmMutu, Role } from '@prisma/client';
+import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { IkmExportService } from './ikm-export.service';
@@ -341,6 +341,92 @@ describe('IkmService', () => {
       const result = await service.getDashboard({});
 
       expect(result.items).toEqual([]);
+    });
+
+    /**
+     * Regresi nyata (31 Agustus 2026). Sejak commit 23a189c mengizinkan
+     * `ditutup -> aktif` ("survei dapat dibuka kembali"), sebuah survei bisa
+     * BERSTATUS AKTIF SEKALIGUS MASIH MEMILIKI snapshot `ikm_results` dari
+     * ketika ia ditutup -- snapshot tidak dihapus saat dibuka kembali, dan
+     * memang tidak boleh dihapus: ia catatan resmi periode itu.
+     *
+     * Akibatnya survei yang sama masuk DUA KALI ke `items`: sekali dari
+     * `closedItems` (dilabeli `ditutup`) dan sekali dari `activeItems`. Yang
+     * rusak bukan cuma tampilan -- `rataRataIkm` dan `totalResponden`
+     * menghitungnya ganda, jadi angka utama dashboard Admin Kabupaten salah.
+     * Gejala yang terlihat lebih dulu justru peringatan React "two children
+     * with the same key" di IkmLeaderboard, yang mem-key baris dgn `opdId`.
+     *
+     * Yang benar: selama survei masih aktif, angkanya adalah hasil LIVE --
+     * konsisten dgn `getResults`, yang selalu menghitung ulang dan tak pernah
+     * membaca snapshot.
+     */
+    it('(2026-08-31) survei DIBUKA KEMBALI tidak muncul ganda -- snapshot lama diabaikan, angka live yang dipakai', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([
+        dashboardRow({
+          surveyId: 22,
+          nilaiIkm: 77.78,
+          jumlahResponden: 1,
+          survey: {
+            id: 22,
+            opdId: 40,
+            judul: 'Survei Satpol PP',
+            status: SurveyStatus.aktif, // <- sudah dibuka kembali
+            opd: { id: 40, nama: 'Satuan Polisi Pamong Praja', jenisLayanan: null },
+          },
+        }),
+      ]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 22,
+          opdId: 40,
+          periode: '2026',
+          judul: 'Survei Satpol PP',
+          opd: { nama: 'Satuan Polisi Pamong Praja' },
+        },
+      ]);
+      // 9 unsur, satu responden menilai 3 di semuanya -> IKM 3*25 = 75.
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions(Array(9).fill([3])));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(1);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].surveyId).toBe(22);
+      expect(result.items[0].status).toBe(SurveyStatus.aktif);
+      expect(result.items[0].nilaiIkm).toBe(75);
+      // Bukan (77,78 + 75) / 2 = 76,39, dan responden bukan 2.
+      expect(result.rataRataIkm).toBe(75);
+      expect(result.totalResponden).toBe(1);
+    });
+
+    /**
+     * Sisi lain aturan yang sama: snapshot survei yang MASIH ditutup tetap
+     * dipakai. Tanpa penjaga ini, "abaikan snapshot" bisa disalahterapkan
+     * menjadi "abaikan semua snapshot" dan seluruh riwayat IKM hilang.
+     */
+    it('snapshot survei yang masih ditutup TETAP ditampilkan', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([
+        dashboardRow({
+          surveyId: 22,
+          nilaiIkm: 77.78,
+          jumlahResponden: 1,
+          survey: {
+            id: 22,
+            opdId: 40,
+            judul: 'Survei Satpol PP',
+            status: SurveyStatus.ditutup,
+            opd: { id: 40, nama: 'Satuan Polisi Pamong Praja', jenisLayanan: null },
+          },
+        }),
+      ]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.getDashboard({});
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].status).toBe(SurveyStatus.ditutup);
+      expect(result.items[0].nilaiIkm).toBe(77.78);
     });
 
     it('filter periode diteruskan ke where', async () => {
