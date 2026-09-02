@@ -6,8 +6,8 @@
 | ---------------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan**      | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Dokumen Pendamping** | TEST_PLAN.md                                                                           |
-| **Versi**              | 1.2                                                                                    |
-| **Tanggal**            | 11 Agustus 2026 (Modul Y + status eksekusi; v1.1 — 10 Agu; v1.0 — 29 Jul 2026)         |
+| **Versi**              | 1.3                                                                                    |
+| **Tanggal**            | 2 September 2026 (penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
 
 **Konvensi:**
 
@@ -120,9 +120,9 @@ Referensi: PRD §8.1, Routes §A.1, kode `apps/api/src/modules/auth/**`
 
 ### A.5 Frontend — Login & Proteksi Route
 
-> Sisi klien: form dev-login ([SSOLoginButton.jsx](apps/web/src/features/authentication/components/SSOLoginButton.jsx)),
-> penyimpanan sesi ([authStorage.js](apps/web/src/features/authentication/services/authStorage.js)),
-> dan penjaga route ([proxy.js](apps/web/src/proxy.js)).
+> Sisi klien: form dev-login ([SSOLoginButton.jsx](../apps/web/src/features/authentication/components/SSOLoginButton.jsx)),
+> penyimpanan sesi ([authStorage.js](../apps/web/src/features/authentication/services/authStorage.js)),
+> dan penjaga route ([proxy.js](../apps/web/src/proxy.js)).
 > Tombol masih berlabel "Masuk via SSO Helpdesk" tetapi membuka **form dev-login**, bukan
 > mengalihkan ke portal SSO eksternal — ini yang membuat TC-FE-002 versi 1.0 keliru.
 
@@ -499,7 +499,7 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | ID        | Skenario                                                | Langkah                                                                                                                    | Expected Result                                                                                                                                                                                                                                                                                                                                                                                                           | Prioritas |   Tipe    | Status |
 | --------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------: | :-------: | :----: |
 | TC-FE-002 | **Proteksi Halaman (Routing)**                          | Buka `/dashboard` tanpa cookie `token` → lalu ulangi tiap route pada matriks A.5.1                                         | Dialihkan ke beranda `/` (**bukan** portal SSO eksternal — belum ada). Detail lengkap per peran: lihat **TC-AUTH-055**                                                                                                                                                                                                                                                                                                    |    P0     |    E2E    |   ⬜   |
-| TC-FE-003 | **Validasi Pengisian SKM (Nilai 1-4)**                  | Di form survei, coba masukkan nilai 5 atau -1 (jika berupa radio button, pastikan tidak bisa edit DOM untuk kirim nilai 5) | Input ditolak oleh antarmuka (menampilkan pesan error seketika). **Tercakup sebagian:** otomatisasi memastikan tepat 4 radio bernilai 1–4 dirender, sehingga nilai lain tak bisa dipilih lewat UI. Manipulasi DOM belum diuji — pertahanan sesungguhnya ada di TC-FILL-011 s/d TC-FILL-015 (backend)                                                                                                                      |    P0     | Component |   🟡   |
+| TC-FE-003 | **Validasi Pengisian SKM (Nilai 1-4)**                  | Di form survei, coba masukkan nilai 5 atau -1 (jika berupa radio button, pastikan tidak bisa edit DOM untuk kirim nilai 5) | Input ditolak oleh antarmuka (menampilkan pesan error seketika). **Tercakup sebagian:** otomatisasi memastikan tepat 4 radio bernilai 1–4 dirender, sehingga nilai lain tak bisa dipilih lewat UI. Manipulasi DOM belum diuji — pertahanan sesungguhnya ada di TC-FILL-011 s/d TC-FILL-015 (backend). **Diperluas 2 Sep 2026:** kartu kini bercabang menurut tipe pertanyaan, jadi cakupannya bertambah — label skala tersuai tetap mengirim SKOR 1–4 (bukan id opsi), dan tipe tak dikenal memunculkan peringatan, bukan layar kosong                                                                                                                      |    P0     | Component |   🟡   |
 | TC-FE-004 | **Validasi Field Wajib Unsur IKM**                      | Pada form pengisian survei, kosongi satu unsur IKM lalu klik Submit                                                        | Tombol Submit di-disable atau muncul peringatan "Pertanyaan wajib diisi", request API dicegah. **Lulus manual (sesi C-01, 11 Agu 2026):** tombol "Kirim Survei" nonaktif selama responden belum menjawab, jadi jalur cabang "tombol di-disable" yang terjadi. **Otomatisasi belum ada.** Test lama yang berlabel TC-FE-004 ternyata menguji formulir pemilihan OPD, bukan pengisian unsur IKM — dipindah ke **TC-FE-016** |    P0     | Component |   ✅   |
 | TC-FE-005 | **Navigasi Berdasarkan Role**                           | Akses aplikasi dengan token SSO Responden                                                                                  | Menu sidebar "Manajemen OPD", "User", dan "Survei Admin" disembunyikan                                                                                                                                                                                                                                                                                                                                                    |    P1     | Component |   ⬜   |
 | TC-FE-006 | **Notifikasi Toast**                                    | Lakukan aksi sukses (misal isi profil)                                                                                     | Muncul notifikasi toast hijau (Success) di layar                                                                                                                                                                                                                                                                                                                                                                          |    P2     | Component |   ⬜   |
@@ -511,11 +511,11 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-FE-012 | **UI Interaktif (Chart Dashboard IKM)**                 | Buka Dashboard IKM, arahkan kursor ke grafik batang/pie                                                                    | Tooltip berisi detail nilai NRR dan nama OPD muncul dan posisinya tidak terpotong layar                                                                                                                                                                                                                                                                                                                                   |    P1     | Component |   ⬜   |
 | TC-FE-013 | **Tabel & Paginasi (Manajemen OPD)**                    | Buka halaman Manajemen OPD dengan data > 10, klik halaman 2                                                                | Tabel memuat data halaman berikutnya, indikator halaman aktif ter-highlight. Catatan: paginasi dilakukan di sisi klien (`useMemo` + `slice`), dan test memakai `jest.mock` pada service sehingga tidak memverifikasi kontrak API                                                                                                                                                                                          |    P1     | Component |   ✅   |
 | TC-FE-014 | **Tabel & Filter/Search UI**                            | Ketik "kesehatan" di input pencarian tabel OPD                                                                             | Hanya baris yang cocok dirender ulang. **Ketidakcocokan dokumen vs implementasi:** ekspektasi versi 1.0 menyebut _debounced request_ ke server, padahal penyaringan dilakukan sepenuhnya di klien tanpa request sama sekali. Perlu diputuskan mana yang benar sebelum ditutup                                                                                                                                             |    P1     | Component |   🟡   |
-| TC-FE-015 | **Keamanan Penyimpanan Token JWT**                      | Login, buka DevTools (Application > Storage)                                                                               | Token ada di localStorage **dan** cookie non-HttpOnly — keduanya terbaca JavaScript. Cookie non-HttpOnly disengaja (dibaca `proxy.js`). Ekspektasi "HttpOnly" versi 1.0 **tidak dapat dipenuhi desain saat ini**; konfirmasi mitigasi XSS ke tim. Rinci: **TC-AUTH-056**                                                                                                                                                  |    P0     |  Manual   |   🟡   |
+| TC-FE-015 | **Keamanan Penyimpanan Token JWT**                      | Login, buka DevTools (Application > Storage)                                                                               | To**DITULIS ULANG 2 Sep 2026 — SSO Helpdesk mengubah jawabannya.** Lewat SSO: TIDAK ADA token di sisi klien; sesi dipegang cookie `session` **HttpOnly** terbitan backend, dan yang tersimpan hanya `role` (cookie, dibaca `proxy.js`), `expiresAt` + penanda masuk (localStorage). Ekspektasi "HttpOnly" versi 1.0 kini **terpenuhi**. Lewat `dev-login` token masih di localStorage + cookie non-HttpOnly — wajar untuk pengembangan, dijaga `NonProductionGuard`. **Yang diperiksa sekarang:** login lewat SSO, pastikan tak ada token di Application > Storage, dan pastikan penjaga produksi benar-benar aktif. Rinci: **TC-AUTH-056**                                                                                                                                                  |    P0     |  Manual   |   🟡   |
 | TC-FE-016 | **Validasi Wajib Pilih OPD (Form Pemilihan Survei)**    | Di beranda, klik "Lihat Survei Tersedia" tanpa memilih instansi                                                            | Muncul pesan "Silakan pilih Instansi / OPD ...", navigasi dicegah, dan pesan hilang begitu OPD dipilih. Daftar OPD dimuat asinkron dari `GET /opd`                                                                                                                                                                                                                                                                        |    P0     | Component |   ✅   |
 | TC-FE-017 | **Notifikasi In-App — Lencana & Daftar**                | Buka navbar dengan notifikasi belum dibaca, klik ikon lonceng                                                              | Lencana tampil hanya bila ada yang belum dibaca; panel memuat judul, pesan, dan label waktu relatif dari API; keadaan kosong tampil bila tidak ada notifikasi                                                                                                                                                                                                                                                             |    P1     | Component |   ✅   |
 | TC-FE-018 | **Notifikasi In-App — Tandai Dibaca**                   | Klik satu notifikasi belum dibaca, lalu klik "Tandai semua dibaca"                                                         | `PATCH /notifications/:id/read` dan `/read-all` terpanggil, daftar dimuat ulang, panel tertutup. Notifikasi yang sudah dibaca tidak memicu API. Kegagalan server tidak menghalangi navigasi                                                                                                                                                                                                                               |    P1     | Component |   ✅   |
-| TC-FE-019 | **Aksesibilitas Lencana Notifikasi**                    | Periksa lencana belum dibaca memakai pembaca layar atau kueri berbasis peran/label                                         | Lencana seharusnya punya teks alternatif agar terbaca pembaca layar. **Temuan: gagal** — lencana hanya `<span>` berwarna tanpa teks, sehingga pengguna pembaca layar tidak pernah tahu ada notifikasi baru                                                                                                                                                                                                                |    P2     | Component |   ❌   |
+| TC-FE-019 | **Aksesibilitas Lencana Notifikasi**                    | Periksa lencana belum dibaca memakai pembaca layar atau kueri berbasis peran/label                                         | Lencana seharusnya punya teks alternatif agar terbaca pembaca layar. **LULUS sejak 2 Sep 2026** (BUG-002 ditutup): tombol lonceng kini bernama `Notifikasi, N belum dibaca` saat ada yang belum dibaca, dan `Notifikasi` saat tidak. Terkunci otomatisasi — dua kasus di `NotificationDropdown.test.jsx` menegaskan nama itu, jadi menghapus `aria-label` langsung memerahkan suite                                                                                                                                                                                                                |    P2     | Component |   ✅   |
 | TC-FE-020 | **Statistik Publik — Render Data**                      | Buka `/statistics`                                                                                                         | Narasi insight, kategori pengaduan terbanyak, dan peringkat OPD beserta medali tampil dari API; narasi cadangan dipakai bila backend mengirim `null`; keadaan kosong tampil bila belum ada data                                                                                                                                                                                                                           |    P1     | Component |   ✅   |
 | TC-FE-021 | **Statistik Publik — Kegagalan API**                    | Buat `GET /statistics` membalas 500, lalu klik "Coba Lagi"                                                                 | ErrorState tampil alih-alih layar putih, dan tombol benar-benar memicu pengambilan ulang hingga data tampil                                                                                                                                                                                                                                                                                                               |    P1     | Component |   ✅   |
 | TC-FE-022 | **Audit Log — Daftar & Penerjemahan**                   | Buka `/admin-kab/audit-logs`                                                                                               | Nama aktor diambil dari `actorNama`; kolom Modul dan Aktivitas diderivasi dari `entitas` + `aksi` (mis. `update_status` + `complaint` → "UPDATE STATUS Pengaduan"); tiap baris menaut ke halaman detailnya                                                                                                                                                                                                                |    P2     | Component |   ✅   |
@@ -524,23 +524,38 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-FE-025 | **Builder Survei — Template & Pertanyaan Kustom**       | Buka builder survei berstatus draft, klik "Tambah 9 Unsur Baku", lalu "Skala Nilai 1-4"                                    | Template mengganti seluruh isi kanvas dengan 9 unsur (U1–U9); pertanyaan kustom bertambah dengan penomoran berurutan dan payload memakai `teks`/`tipe` sesuai `CreateQuestionDto`                                                                                                                                                                                                                                         |    P1     | Component |   ✅   |
 | TC-FE-026 | **Manajemen Survei — Daftar, Duplikasi, Tutup Periode** | Buka daftar survei Admin OPD, klik "Duplikasi" lalu "Tutup Periode"                                                        | Daftar dirender dari API; kedua aksi memanggil endpoint yang benar dan memuat ulang data                                                                                                                                                                                                                                                                                                                                  |    P1     | Component |   ✅   |
 | TC-FE-027 | **Komponen Button**                                     | Render Button dengan beberapa variant dan handler klik                                                                     | Teks dan kelas variant sesuai; `onClick` terpanggil saat diklik; variant tak dikenal jatuh ke `primary`                                                                                                                                                                                                                                                                                                                   |    P3     | Component |   ✅   |
+| TC-FE-028 | **Identitas Navbar Admin dari API**                     | Render `AdminNavbar` & `AdminKabNavbar` dengan MSW membalas `GET /auth/me` bernama "Budi Santoso"                           | Nama itu muncul, dan tak satu pun nilai karangan lama ("Dr. Handoko", "Kepala Dinas", inisial "AK") ada di dokumen. **Mengunci BUG-001 yang sudah diperbaiki** (`efb7b9f`, `4e3e0c9`) — tanpa ini perbaikannya bisa diam-diam kembali                                                                                                                                                                                       |    P1     | Component |   ⬜   |
+| TC-FE-029 | **Pertanyaan Tipe Uraian**                              | Render `QuestionCard` untuk pertanyaan bertipe `text`                                                                      | Merender textarea (bukan skala), menyatakan jawabannya tidak wajib, membatasi 1000 karakter dan menghitung yang sudah diketik, serta meneruskan teks ke store                                                                                                                                                                                                                                                             |    P1     | Component |   ✅   |
+| TC-FE-030 | **Pertanyaan Tipe Pilihan Ganda**                       | Render `QuestionCard` untuk pertanyaan bertipe `multiple_choice`, termasuk keadaan opsi kosong                              | Satu opsi per pilihan berlabel huruf A/B/C; nilai yang dikirim adalah **ID opsi**, bukan nomor urut (inilah yang dulu ditolak backend); bila opsinya kosong tampil peringatan jujur, bukan skala yang salah                                                                                                                                                                                                                |    P1     | Component |   ✅   |
+| TC-FE-031 | **Salinan Survei Mempertahankan Opsi Jawaban**          | Duplikat survei berisi pertanyaan Pilihan Ganda dan Skala berlabel tersuai, lalu buka salinannya sebagai responden          | Opsi pilihan ganda tersalin lengkap dan label skala tersuai tidak berganti ke label baku. **Temuan: gagal — [BUG-005](BUG_REPORTS.md#bug-005)** (High): `duplicate()` tidak menyalin relasi opsi, dan jalur itu melewati `CreateQuestionDto` yang biasanya mewajibkan minimal 2 opsi                                                                                                                                        |    P0     |   Integ   |   ❌   |
 
-### Y.1 Peta Otomatisasi (per 11 Agustus 2026)
+### Y.1 Peta Otomatisasi (per 2 September 2026)
 
-| Berkas uji                                                              | Jumlah test | Kasus uji                       |
-| ----------------------------------------------------------------------- | :---------: | ------------------------------- |
-| `components/ui/__tests__/Button.test.jsx`                               |      4      | TC-FE-027                       |
-| `components/ui/__tests__/ErrorState.test.jsx`                           |      3      | TC-FE-011                       |
-| `components/ui/__tests__/NotificationDropdown.test.jsx`                 |     10      | TC-FE-017, TC-FE-018            |
-| `features/statistics/components/__tests__/StatisticsDashboard.test.jsx` |      7      | TC-FE-020, TC-FE-021            |
-| `features/surveys/components/__tests__/QuestionCard.test.jsx`           |      1      | TC-FE-003 (sebagian)            |
-| `features/surveys/components/__tests__/SurveyForm.test.jsx`             |      4      | TC-FE-016                       |
-| `features/surveys/components/__tests__/SurveyNavigation.test.jsx`       |      2      | TC-FE-008 (sebagian)            |
-| `features/surveys/builder/.../SurveyBuilder.integration.test.jsx`       |      3      | TC-FE-025                       |
-| `features/surveys/components/.../SurveyManagement.integration.test.jsx` |      3      | TC-FE-026                       |
-| `app/admin-kab/opd/__tests__/page.test.jsx`                             |      2      | TC-FE-013, TC-FE-014 (sebagian) |
-| `app/admin-kab/audit-logs/__tests__/page.test.jsx`                      |      7      | TC-FE-022, TC-FE-023, TC-FE-024 |
-| **Total**                                                               |   **46**    |                                 |
+| Berkas uji                                                              | Jumlah test | Kasus uji                                   |
+| ----------------------------------------------------------------------- | :---------: | ------------------------------------------- |
+| `components/ui/__tests__/Button.test.jsx`                               |      4      | TC-FE-027                                   |
+| `components/ui/__tests__/ErrorState.test.jsx`                           |      3      | TC-FE-011                                   |
+| `components/ui/__tests__/NotificationDropdown.test.jsx`                 |     10      | TC-FE-017, TC-FE-018, **TC-FE-019**         |
+| `features/statistics/components/__tests__/StatisticsDashboard.test.jsx` |      7      | TC-FE-020, TC-FE-021                        |
+| `features/surveys/components/__tests__/QuestionCard.test.jsx`           |   **12**    | TC-FE-003, **TC-FE-029**, **TC-FE-030**     |
+| `features/surveys/components/__tests__/SurveyForm.test.jsx`             |      4      | TC-FE-016                                   |
+| `features/surveys/components/__tests__/SurveyNavigation.test.jsx`       |      2      | TC-FE-008 (sebagian)                        |
+| `features/surveys/builder/.../SurveyBuilder.integration.test.jsx`       |      3      | TC-FE-025                                   |
+| `features/surveys/components/.../SurveyManagement.integration.test.jsx` |      3      | TC-FE-026                                   |
+| `app/admin-kab/opd/__tests__/page.test.jsx`                             |      2      | TC-FE-013, TC-FE-014 (sebagian)             |
+| `app/admin-kab/audit-logs/__tests__/page.test.jsx`                      |      7      | TC-FE-022, TC-FE-023, TC-FE-024             |
+| **Total**                                                               |   **57**    |                                             |
+
+**Perubahan 2 September 2026 (setelah 81 commit):** dua suite pecah dan sudah
+diperbaiki, keduanya karena produknya membaik — bukan karena produknya rusak.
+
+| Suite                     | Yang terjadi                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NotificationDropdown`    | 9 kasus gagal serentak begitu BUG-002 diperbaiki. Semuanya bergantung pada helper `getByRole('button', { name: '' })` — kueri yang dulu berbunyi begitu justru karena tombolnya tak bernama |
+| `QuestionCard`            | 1 kasus gagal karena kartu kini bercabang menurut `question.type`; fixture lama tanpa `type` jatuh ke cabang "tipe belum dapat ditampilkan" sehingga tak ada radio yang dirender      |
+
+`QuestionCard.test.jsx` ditulis ulang dari 1 menjadi 12 kasus, mencakup ketiga
+tipe pertanyaan beserta dua cabang penjagaannya.
 
 > **Cara memverifikasi ulang** sebelum sesi pengujian berikutnya:
 > `cd apps/web && npx jest --ci --forceExit`
@@ -564,23 +579,31 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | H — Pengaduan            |    27     |   10   |   12   |   3    |   2    |
 | I — Audit Log            |     7     |   0    |   0    |   7    |   0    |
 | X — RBAC & Isolasi       |    25     |   15   |   5    |   3    |   2    |
-| Y — Frontend & E2E       |    26     |   7    |   12   |   6    |   1    |
-| **TOTAL**                |  **223**  | **80** | **89** | **43** | **11** |
+| Y — Frontend & E2E       |    30     |   8    |   15   |   6    |   1    |
+| **TOTAL**                |  **227**  | **81** | **92** | **43** | **11** |
 
 > **80 test cases (P0)** harus lulus 100% sebelum rilis. Fokus utama: isolasi data OPD (11 TC API), keamanan sisi klien & nilai IKM 1–4, E2E alur kritis responden, nomor tiket unik, dan RBAC.
 >
-> **Status eksekusi per 11 Agustus 2026** — baru Modul Y yang dieksekusi (frontend,
-> lingkup tester). Dari 26 kasus uji Modul Y: **13 ✅ lulus**, **4 🟡 tercakup sebagian**,
-> **1 ❌ gagal** (TC-FE-019, aksesibilitas lencana notifikasi), **8 ⬜ belum dikerjakan**
-> (3 di antaranya E2E, menunggu `apps/web/e2e/` dibuat). Modul A–X bertipe `Integ`/`Unit`
-> adalah ranah backend dan belum dieksekusi dari sisi ini.
+> **Status eksekusi per 2 September 2026** — baru Modul Y yang dieksekusi (frontend,
+> lingkup tester). Dari 30 kasus uji Modul Y: **16 ✅ lulus**, **4 🟡 tercakup sebagian**,
+> **1 ❌ gagal** (TC-FE-031, salinan survei kehilangan opsi jawaban — [BUG-005](BUG_REPORTS.md#bug-005)),
+> **9 ⬜ belum dikerjakan** (3 di antaranya E2E, menunggu `apps/web/e2e/` dibuat).
+> Modul A–X bertipe `Integ`/`Unit` adalah ranah backend dan belum dieksekusi dari sisi ini.
 >
-> ⚠️ **Belum direvisi — masih memakai peran `superuser` yang sudah dihapus (digabung ke
-> `kabupaten`, 5 Agustus 2026; enum `Role` kini hanya `kabupaten | opd | responden`):**
+> Suite otomatis: **57 uji di 11 berkas, seluruhnya lulus** (diverifikasi 2 September 2026,
+> dua kali jalan). Naik dari 46 karena `QuestionCard.test.jsx` ditulis ulang dari 1 menjadi
+> 12 kasus.
 >
-> - **Modul C** — TC-USR-005, TC-USR-007, TC-USR-008, TC-USR-012
-> - **Modul D** — TC-SVY-003
-> - **Modul X** — kolom "Superuser" pada seluruh matriks TC-RBAC-001 s/d TC-RBAC-014, dan TC-ISO-009
-> - **TEST_PLAN.md §4.5** — baris "Superuser bypass" dan "Privilege escalation prevention"
+> ✅ **Peringatan `superuser` versi 1.2 DICABUT.** Versi lalu menandai belasan kasus uji
+> sebagai "belum direvisi karena memakai peran `superuser` yang sudah dihapus". Peran itu
+> **dikembalikan** pada 26 Agustus 2026 (`e1eb8b1 feat: peran superuser terpisah + pemilih
+> peran saat login + log aktivitas khusus superuser`), sehingga enum `Role` kini berisi
+> empat peran lagi: `kabupaten | opd | responden | superuser`.
 >
-> Jumlah TC pada tabel di atas untuk modul-modul tersebut belum disesuaikan.
+> Artinya kasus-kasus uji itu **kembali sahih tanpa perlu diubah sama sekali** — Modul C
+> (TC-USR-005, 007, 008, 012), Modul D (TC-SVY-003), Modul X (kolom "Superuser" pada
+> TC-RBAC-001 s/d TC-RBAC-014 dan TC-ISO-009), serta TEST_PLAN.md §4.5. Pekerjaan
+> pembersihan yang tertunda sejak 11 Agustus dengan sendirinya gugur.
+>
+> Pelajarannya layak dicatat: menunda revisi dokumen atas dasar keputusan desain yang masih
+> bergerak ternyata lebih murah daripada mengerjakannya dua kali.

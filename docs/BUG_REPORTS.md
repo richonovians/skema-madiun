@@ -2,8 +2,8 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 1.1                                                                                                        |
-| **Tanggal**         | 12 Agustus 2026                                                                                            |
+| **Versi**           | 2.0                                                                                                        |
+| **Tanggal**         | 2 September 2026                                                                                           |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
 | **Dokumen terkait** | [TEST_PLAN.md](TEST_PLAN.md) · [TEST_CASES.md](TEST_CASES.md) · [TEST_EXPLORATORY.md](TEST_EXPLORATORY.md) |
@@ -55,17 +55,23 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 
 ## 2. Ringkasan temuan
 
-| ID                  | Judul                                                          | Severity | Verifikasi    | Status | Charter |
-| ------------------- | -------------------------------------------------------------- | -------- | ------------- | ------ | ------- |
-| [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | Baru   | —       |
-| [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | Baru   | —       |
-| [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | Baru   | —       |
-| [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | Baru   | C-01    |
+| ID                  | Judul                                                          | Severity | Verifikasi    | Status     | Charter |
+| ------------------- | -------------------------------------------------------------- | -------- | ------------- | ---------- | ------- |
+| [BUG-005](#bug-005) | Duplikasi survei membuang seluruh opsi jawaban                 | High     | Bukti statis  | Baru       | —       |
+| [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | Baru       | —       |
+| [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | **Ditutup** | —       |
+| [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | **Ditutup** | —       |
+| [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | **Ditutup** | C-01    |
 
-**Rekap** — 4 temuan: 0 Critical · 1 High · 0 Medium · 3 Low
+**Rekap** — 5 temuan: 3 ditutup, 2 terbuka (1 High, 1 Low)
 
-BUG-001 s.d. BUG-003 muncul dari penelaahan kode dan penulisan uji otomatis,
-lalu dikonfirmasi di peramban. BUG-004 berasal dari sesi eksploratori C-01.
+Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
+2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
+
+**BUG-005 adalah CAT-004 yang menjadi kenyataan.** Pada 12 Agustus ia dicatat
+sebagai peringatan yang "belum berdampak karena tipe pilihan memang belum bisa
+dibuat". Tipe pilihan kini bisa dibuat, dan `duplicate()` masih tidak menyalin
+opsi — jadi peringatannya berubah menjadi cacat.
 
 ---
 
@@ -104,10 +110,10 @@ siapa pun yang login:
 
 | Lokasi                                                                                   | Yang ditampilkan                                     |
 | ---------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| [AdminNavbar.jsx:29-31](apps/web/src/components/layouts/AdminNavbar.jsx#L29-L31)         | Instansi selalu tertulis "Dinas Kesehatan"           |
-| [AdminNavbar.jsx:51-52](apps/web/src/components/layouts/AdminNavbar.jsx#L51-L52)         | Nama "Dr. Handoko", jabatan "Kepala Dinas"           |
-| [AdminNavbar.jsx:54-58](apps/web/src/components/layouts/AdminNavbar.jsx#L54-L58)         | Foto profil ditarik dari `lh3.googleusercontent.com` |
-| [AdminKabNavbar.jsx:94-100](apps/web/src/components/layouts/AdminKabNavbar.jsx#L94-L100) | Nama generik "Admin Kabupaten", inisial "AK"         |
+| [AdminNavbar.jsx:29-31](../apps/web/src/components/layouts/AdminNavbar.jsx#L29-L31)         | Instansi selalu tertulis "Dinas Kesehatan"           |
+| [AdminNavbar.jsx:51-52](../apps/web/src/components/layouts/AdminNavbar.jsx#L51-L52)         | Nama "Dr. Handoko", jabatan "Kepala Dinas"           |
+| [AdminNavbar.jsx:54-58](../apps/web/src/components/layouts/AdminNavbar.jsx#L54-L58)         | Foto profil ditarik dari `lh3.googleusercontent.com` |
+| [AdminKabNavbar.jsx:94-100](../apps/web/src/components/layouts/AdminKabNavbar.jsx#L94-L100) | Nama generik "Admin Kabupaten", inisial "AK"         |
 
 **Bukti**
 
@@ -117,10 +123,10 @@ jadi tidak mungkin berubah mengikuti sesi.
 
 Data yang dibutuhkan sebenarnya sudah tersedia: `GET /auth/me` mengembalikan
 `nama`, dan adapternya sudah ditulis di
-[me.adapter.js:34-35](apps/web/src/features/profile/adapters/me.adapter.js#L34-L35).
+[me.adapter.js:34-35](../apps/web/src/features/profile/adapters/me.adapter.js#L34-L35).
 Endpoint itu sudah dipakai di dua tempat lain
-([ProfileContent.jsx](apps/web/src/features/profile/components/ProfileContent.jsx),
-[WelcomeHeader.jsx](apps/web/src/features/dashboards/components/WelcomeHeader.jsx))
+([ProfileContent.jsx](../apps/web/src/features/profile/components/ProfileContent.jsx),
+[WelcomeHeader.jsx](../apps/web/src/features/dashboards/components/WelcomeHeader.jsx))
 — jadi ini bukan fitur yang belum ada, melainkan yang belum dipasang di navbar.
 
 **Catatan**
@@ -154,6 +160,23 @@ Kunci perbaikannya dengan uji otomatis, supaya tidak diam-diam kembali:
 > **TC-FE-028** — Navbar admin menampilkan nama dari `GET /auth/me`
 > Render `AdminNavbar` dengan MSW membalas `nama: "Budi Santoso"`; pastikan
 > teks itu muncul dan `"Dr. Handoko"` tidak ada di dokumen.
+
+**Penyelesaian — 2 September 2026, `Ditutup`**
+
+Diperbaiki tim dev pada dua commit terpisah: `efb7b9f` untuk navbar Admin OPD
+dan `4e3e0c9` untuk Admin Kabupaten. Kedua navbar kini memanggil
+`GET /auth/me` (ditambah `GET /opd/:id` untuk nama instansi) lewat `useEffect`,
+dan seluruh nilai karangan sudah hilang — termasuk foto `googleusercontent`.
+
+Catatan cara mereka menyelesaikannya, karena berbeda dari usulan saya: baris
+kedua diisi **label peran** ("Admin OPD"), bukan jabatan. Itu keputusan yang
+lebih jujur daripada usulan awal saya, sebab `MeEntity` memang tidak punya
+kolom jabatan sama sekali — mengarangnya berarti mengulang cacat yang sama
+dalam bentuk lain.
+
+**Masih terbuka:** TC-FE-028 belum ditulis, jadi perbaikan ini **belum
+terkunci uji otomatis**. Kalau navbar dirombak lagi, tidak ada yang menahannya
+kembali ke identitas mati. Bandingkan dengan BUG-002 yang sudah terkunci.
 
 ---
 
@@ -198,7 +221,7 @@ baru. Informasinya disampaikan murni lewat warna.
 **Bukti**
 
 Terbukti dari sisi pengujian: pada
-[NotificationDropdown.test.jsx:69](apps/web/src/components/ui/__tests__/NotificationDropdown.test.jsx#L69)
+[NotificationDropdown.test.jsx:69](../apps/web/src/components/ui/__tests__/NotificationDropdown.test.jsx#L69)
 tombol lonceng hanya bisa dijangkau dengan `getByRole('button', { name: '' })`
 — namanya benar-benar kosong. Lencananya sendiri terpaksa dikueri lewat kelas
 CSS `.bg-error` karena tidak ada teks yang bisa dicari.
@@ -212,6 +235,28 @@ Meski begitu, aksesibilitas pada layanan publik pemerintah umumnya termasuk
 persyaratan, bukan penyempurnaan — ada baiknya dipastikan ke pemilik produk
 apakah ini terikat aturan tertentu. Perbaikannya sendiri ringan: tambahkan
 `aria-label` pada tombol dan `<span className="sr-only">` berisi jumlah.
+
+**Penyelesaian — 2 September 2026, `Ditutup`**
+
+Tombol lonceng kini punya
+[`aria-label` yang menyebutkan jumlahnya](../apps/web/src/components/ui/NotificationDropdown.jsx#L105):
+
+```jsx
+aria-label={hasIndicator ? `Notifikasi, ${unreadCount} belum dibaca` : 'Notifikasi'}
+```
+
+Perbaikan ini **mengumumkan dirinya sendiri lewat uji**. Sembilan kasus di
+`NotificationDropdown.test.jsx` gagal serentak begitu `aria-label` dipasang,
+karena semuanya bergantung pada helper `getByRole('button', { name: '' })` —
+kueri yang dulu terpaksa berbunyi begitu justru karena tombolnya tidak punya
+nama. Kueri itulah sidik jari cacatnya, jadi kegagalan itu tepat seperti yang
+diharapkan dari uji yang merekam sebuah cacat.
+
+Berkas ujinya sudah ditulis ulang: helper memakai `{ name: /notifikasi/i }`,
+dan dua kasus lencana kini menegaskan **jumlahnya terbaca**
+(`{ name: 'Notifikasi, 1 belum dibaca' }`), bukan lagi memeriksa kelas CSS
+`.bg-error`. Dengan begitu perbaikannya terkunci: menghapus `aria-label` akan
+langsung memerahkan suite.
 
 ---
 
@@ -240,7 +285,7 @@ memang direncanakan dipakai, ada catatan yang menerangkannya.
 
 **Hasil sebenarnya**
 
-[MapSection.jsx](apps/web/src/components/sections/MapSection.jsx) tidak diimpor
+[MapSection.jsx](../apps/web/src/components/sections/MapSection.jsx) tidak diimpor
 oleh berkas mana pun. Penelusuran seluruh `apps/web/src` hanya menemukan satu
 kemunculan, yaitu barisan definisinya sendiri.
 
@@ -300,11 +345,11 @@ diklik, muncul pesan bahwa tipe itu belum didukung.
 **Bukti**
 
 Ketiganya memakai kelas dan struktur yang identik di
-[BuilderSidebar.jsx:28-57](apps/web/src/features/surveys/builder/components/BuilderSidebar.jsx#L28-L57);
+[BuilderSidebar.jsx:28-57](../apps/web/src/features/surveys/builder/components/BuilderSidebar.jsx#L28-L57);
 tidak ada percabangan `disabled` untuk "Pilihan Ganda".
 
 Penolakannya sendiri **sudah ditangani dengan baik dan disengaja** —
-[page.jsx:155-163](<apps/web/src/app/admin-opd/(builder)/surveys/builder/[id]/page.jsx#L155-L163>):
+[page.jsx:155-163](<../apps/web/src/app/admin-opd/(builder)/surveys/builder/[id]/page.jsx#L155-L163>):
 
 ```js
 if (type === 'Pilihan Ganda') {
@@ -338,6 +383,109 @@ Satu hal yang perlu dipastikan ke tim: pesan galat muncul sebagai spanduk di
 kanvas sedang tergulir ke bawah, ada kemungkinan admin mengklik dan merasa
 tidak terjadi apa-apa. Belum sempat saya uji pada survei berpertanyaan banyak.
 
+**Penyelesaian — 2 September 2026, `Ditutup`**
+
+Diselesaikan bukan dengan menonaktifkan tombolnya, melainkan dengan
+**mengerjakan fiturnya**: `95cb251 feat(web): pertanyaan uraian & pilihan ganda
+bisa dipakai sungguhan`, disusul `4a3df9c` yang membuat opsi jawaban dapat
+diubah setelah pertanyaan dibuat. Penghadang `if (type === 'Pilihan Ganda')` di
+`page.jsx` sudah tidak ada, dan sidebar yang menawarkan ketiga tipe kini jujur.
+
+Pertanyaan terbuka soal spanduk galat yang tergulir menjadi tidak relevan,
+karena jalur yang memunculkannya sudah hilang.
+
+Perhatian pindah ke akibat lanjutannya: tipe Pilihan Ganda yang kini nyata
+membuat [BUG-005](#bug-005) — yang selama ini tertidur sebagai CAT-004 —
+menjadi cacat sungguhan.
+
+---
+
+<a id="bug-005"></a>
+
+### BUG-005 — Duplikasi survei membuang seluruh opsi jawaban
+
+|                       |                                                                   |
+| --------------------- | ----------------------------------------------------------------- |
+| **Charter**           | — (ditemukan saat menyesuaikan pengujian, 2 September 2026)        |
+| **Tanggal**           | 2 September 2026                                                  |
+| **Peran**             | Admin OPD, Admin Kabupaten, Superuser                             |
+| **Halaman**           | `/admin-opd/surveys` → tombol Duplikat, lalu wizard pengisian     |
+| **Severity**          | High                                                              |
+| **Verifikasi**        | Bukti statis — rantai penyebabnya utuh, belum dijalankan di peramban |
+| **Kasus uji terkait** | Usulan TC-FE-031 di bawah                                          |
+| **Riwayat**           | Diperingatkan sebagai CAT-004 pada 12 Agustus 2026                 |
+
+**Langkah reproduksi**
+
+1. Buat survei berisi satu pertanyaan **Pilihan Ganda** (misal 3 opsi), dan
+   satu pertanyaan **Skala 1-4** yang labelnya disesuaikan (bukan label baku)
+2. Kembali ke daftar survei, klik **Duplikat** pada survei itu
+3. Buka salinannya di builder, lalu terbitkan
+4. Buka salinan itu sebagai responden dan mulai mengisi
+
+**Hasil yang diharapkan**
+
+Salinan identik dengan aslinya, termasuk opsi jawaban dan label skala tersuai.
+
+**Hasil sebenarnya**
+
+Dua kerugian sekaligus, keduanya tanpa peringatan apa pun:
+
+| Tipe pertanyaan             | Akibat pada salinan                                                     |
+| --------------------------- | ------------------------------------------------------------------------ |
+| Pilihan Ganda               | Kehilangan seluruh opsi → pertanyaan **tidak dapat dijawab**              |
+| Skala 1-4 berlabel tersuai  | Label kembali diam-diam ke label baku PermenPANRB                        |
+
+**Bukti**
+
+Rantainya utuh dan dapat ditelusuri dari kode:
+
+1. [`duplicate()`](../apps/api/src/modules/surveys/surveys.service.ts#L178-L186)
+   menyalin `teks`, `tipe`, `isIkmUnsur`, `kodeUnsur`, dan `urutan` — relasi
+   opsi jawaban tidak ikut disalin.
+2. Salinan dibuat langsung lewat `prisma.survey.create` dengan `questions.create`
+   bersarang, sehingga **melewati `CreateQuestionDto`** yang biasanya mewajibkan
+   minimal 2 opsi untuk tipe `pilihan`. Penjaga itu tidak pernah berjalan di
+   jalur ini.
+3. `GET /surveys/:id/fill` mengembalikan pertanyaan tanpa opsi, dan
+   [`adaptFillQuestion`](../apps/web/src/features/surveys/adapters/survey.adapter.js)
+   menerjemahkannya jadi `options: undefined`.
+4. Di [QuestionCard.jsx:56-69](../apps/web/src/features/surveys/components/QuestionCard.jsx#L56-L69),
+   cabang pilihan ganda dengan opsi kosong menampilkan
+   _"Opsi jawaban pertanyaan ini belum tersedia. Silakan hubungi pengelola survei."_
+5. Untuk skala, [`scaleStepsFromOptions`](../apps/web/src/features/surveys/constants/scaleLabels.js)
+   kembali ke `DEFAULT_SCALE_LABELS` bila opsinya tidak berjumlah tepat 4 —
+   tanpa memberi tanda bahwa label tersuai hilang.
+
+**Catatan**
+
+Dinilai **High** karena tiga hal:
+
+1. **Duplikasi adalah alur yang dianjurkan**, bukan jalur pinggir. Fitur ini
+   ada justru supaya survei triwulan berikutnya tidak dibuat dari nol.
+2. **Tidak ada jalan memutar selain membuat ulang opsinya satu per satu**, dan
+   admin baru mengetahui masalahnya setelah survei terbit.
+3. **Kerugian label skala berlangsung diam-diam.** Pertanyaan pilihan ganda
+   setidaknya memunculkan kotak peringatan; label skala hanya berganti, dan
+   survei tetap tampak normal. Hasil IKM-nya pun tetap terhitung, hanya saja
+   respondennya membaca kalimat yang berbeda dari yang dirancang.
+
+Perbaikannya di ranah backend (menyertakan `options` pada `duplicate()`), jadi
+di luar lingkup pengujian saya. Yang dilaporkan di sini adalah gejalanya, yang
+seluruhnya terlihat di frontend.
+
+**Usulan kasus uji setelah diperbaiki**
+
+> **TC-FE-031** — Salinan survei mempertahankan opsi jawaban
+> Sesudah `POST /surveys/:id/duplicate`, buka wizard pengisian salinan dan
+> pastikan pertanyaan pilihan ganda merender opsi yang sama banyaknya dengan
+> aslinya, serta label skala tersuai tidak berganti ke label baku.
+
+Perlu dicatat: perilaku frontend saat opsi kosong **sudah terkunci uji**
+(`QuestionCard.test.jsx`, kasus "berterus terang ketika opsi jawabannya
+kosong"). Yang belum terkunci adalah duplikasinya sendiri, dan itu memang
+harus diuji dari sisi backend.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -364,7 +512,7 @@ Dua di antaranya layak dicatat alasannya, bukan cuma hasilnya:
 - **Duplikasi survei** adalah tempat yang wajar bagi kebocoran data, karena
   salinan bisa saja ikut membawa status terbit. Ternyata tidak: backend
   memaksa `status: draft` pada setiap salinan
-  ([surveys.service.ts:171-188](apps/api/src/modules/surveys/surveys.service.ts#L171-L188)),
+  ([surveys.service.ts:171-188](../apps/api/src/modules/surveys/surveys.service.ts#L171-L188)),
   sehingga salinan tidak pernah langsung tampil ke warga. Risiko yang
   dikhawatirkan memang tidak ada.
 - **Tombol kirim nonaktif** menjawab TC-FE-004, yang ekspektasinya memang
@@ -390,27 +538,39 @@ sehingga tidak diberi nomor `BUG`, tetapi tetap perlu diketahui tim.
 untuk backend, serta `web:lint` dan `web:build` untuk frontend — tetapi
 **tidak ada job yang menjalankan `pnpm --filter @skm-spm/web test`**.
 
-Akibatnya 46 uji frontend yang sudah ada hanya berjalan bila seseorang
-mengetiknya sendiri di komputernya. Perlindungannya terhadap regresi jadi
-bergantung pada kebiasaan, bukan pada proses.
+**Diperiksa ulang 2 September 2026: masih belum ada.** Jumlah ujinya kini 57
+(bukan 46 lagi), dan tetap tidak satu pun dijalankan oleh CI. Perlindungannya
+terhadap regresi masih bergantung pada kebiasaan, bukan pada proses.
+
+Ini menjadi lebih penting daripada bulan lalu. Dua dari sepuluh kegagalan yang
+ditemukan hari ini baru ketahuan setelah 81 commit menumpuk — kalau CI
+menjalankannya, keduanya akan ketahuan di commit yang menyebabkannya.
 
 Perbaikannya sekitar lima baris di `.gitlab-ci.yml`, mengikuti pola job
 `web:lint` yang sudah ada.
 
-### CAT-002 — Pertanyaan desain yang menunggu jawaban tim
+### CAT-002 — Pertanyaan desain keamanan — **sebagian besar sudah terjawab**
 
-Ketiga hal berikut mungkin memang disengaja. Dicatat sebagai **pertanyaan**,
-bukan tuduhan, dan menunggu konfirmasi sebelum dinaikkan jadi temuan:
+Ketiga pertanyaan berikut diajukan pada 12 Agustus 2026, saat SSO Helpdesk
+belum ada. SSO kini terpasang (`d8d8ada`, 27 Agustus 2026), dan jawabannya
+datang dengan sendirinya:
 
-| Hal                              | Yang perlu dipastikan                                                                                             |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Logout tidak menggugurkan token  | Token lama tetap sah sampai kedaluwarsa sendiri. Disengaja karena SSO Helpdesk akan menangani, atau memang celah? |
-| Token disimpan di `localStorage` | Terbaca oleh skrip mana pun di halaman. Apakah rencananya pindah ke cookie `HttpOnly` saat SSO dipasang?          |
-| Cookie sesi bukan `HttpOnly`     | Pertanyaan yang sama dengan di atas                                                                               |
+| Pertanyaan 12 Agustus            | Keadaan 2 September 2026                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Logout tidak menggugurkan token  | **Terjawab.** `POST /auth/logout` kini nyata — menghapus cookie `session` HttpOnly yang diterbitkannya, dan mencatat aksinya ke audit         |
+| Token disimpan di `localStorage` | **Terjawab untuk jalur SSO.** Lewat SSO tidak ada token di sisi klien sama sekali; yang tersimpan hanya `role`, `expiresAt`, dan penanda masuk |
+| Cookie sesi bukan `HttpOnly`     | **Terjawab.** Cookie `session` terbitan SSO bersifat HttpOnly dan tak dapat disentuh JavaScript                                              |
 
-Ketiganya berada di wilayah backend/keamanan, di luar lingkup pengujian
-frontend saya. Yang saya lakukan hanya menandainya agar tidak lolos tanpa
-seorang pun sempat memutuskan.
+Yang **masih tersisa**: jalur `POST /auth/dev-login` tetap ada dan masih
+menyimpan token di `localStorage` serta cookie non-HttpOnly
+([authStorage.js](../apps/web/src/features/authentication/services/authStorage.js)).
+Itu wajar untuk pengembangan, dan endpoint-nya dijaga `NonProductionGuard`.
+Yang perlu dipastikan ke tim hanya satu: **penjaga itu benar-benar aktif di
+produksi**, sehingga jalur token-di-localStorage tidak pernah bisa dipakai
+pengguna sungguhan. Ini pemeriksaan konfigurasi, bukan cacat.
+
+Perlu dicatat juga bahwa TC-FE-015 di TEST_CASES.md ditulis untuk keadaan lama
+dan sudah disesuaikan pada revisi hari ini.
 
 ### CAT-003 — Galat `jw is not defined` di Console
 
@@ -431,7 +591,7 @@ di luar lingkup pengujian frontend saya. Dicatat semata sebagai pengingat
 supaya tidak terlewat nanti.
 
 `duplicate()` di
-[surveys.service.ts:178-186](apps/api/src/modules/surveys/surveys.service.ts#L178-L186)
+[surveys.service.ts:178-186](../apps/api/src/modules/surveys/surveys.service.ts#L178-L186)
 menyalin `teks`, `tipe`, `isIkmUnsur`, `kodeUnsur`, dan `urutan`, tetapi tidak
 menyalin relasi opsi jawaban.
 
@@ -441,11 +601,17 @@ survei berpertanyaan Pilihan Ganda akan menghasilkan pertanyaan tanpa satu pun
 opsi — dan backend sendiri mensyaratkan minimal dua. Lebih murah diketahui
 sekarang daripada ditemukan setelah fiturnya rilis.
 
+> **Naik status menjadi [BUG-005](#bug-005) pada 2 September 2026.** "Fase 3"
+> sudah tiba: tipe Pilihan Ganda bisa dipakai, label skala tersuai juga
+> disimpan sebagai opsi, dan `duplicate()` masih belum menyalinnya. Catatan ini
+> ditinggalkan apa adanya sebagai jejak, bukan dihapus.
+
 ---
 
 ## 6. Riwayat revisi
 
-| Versi | Tanggal         | Perubahan                                                                                                                                        |
-| ----- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1.0   | 12 Agustus 2026 | Berkas dibuat. BUG-001 s.d. BUG-003 dan CAT-001 s.d. CAT-003 dari penelaahan kode dan penulisan uji otomatis, sebelum sesi eksploratori dimulai. |
-| 1.1   | 12 Agustus 2026 | Hasil sesi eksploratori C-01: tambah BUG-004, ringkasan sesi (§4), dan CAT-004. TC-FE-004 ditutup lulus di TEST_CASES.md.                        |
+| Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
+| ----- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0   | 12 Agustus 2026    | Berkas dibuat. BUG-001 s.d. BUG-003 dan CAT-001 s.d. CAT-003 dari penelaahan kode dan penulisan uji otomatis, sebelum sesi eksploratori dimulai.                                                |
+| 1.1   | 12 Agustus 2026    | Hasil sesi eksploratori C-01: tambah BUG-004, ringkasan sesi (§4), dan CAT-004. TC-FE-004 ditutup lulus di TEST_CASES.md.                                                                       |
+| 2.0   | 2 September 2026   | Penyesuaian menyeluruh setelah 81 commit. BUG-001, BUG-002, BUG-004 ditutup (diverifikasi ulang). CAT-004 naik jadi BUG-005 (High). CAT-002 sebagian terjawab oleh SSO Helpdesk. CAT-001 masih terbuka. |

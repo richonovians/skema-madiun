@@ -5,8 +5,8 @@
 |                   |                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
-| **Versi Dokumen** | 1.1                                                                                    |
-| **Tanggal**       | 10 Agustus 2026 (revisi §1.1, §3.2, §3.3, §4.1; v1.0 — 29 Juli 2026)                   |
+| **Versi Dokumen** | 1.2                                                                                    |
+| **Tanggal**       | 2 September 2026 (revisi §1.1, §3.2, §3.3, §4.1 — SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
 | **Stack**         | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Prisma (ORM) · Docker |
 | **Cakupan Uji**   | Backend REST API · Frontend UI · Integrasi End-to-End                                  |
 
@@ -20,7 +20,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 
 1. Seluruh kebutuhan fungsional (FR) dalam PRD terimplementasi dan berfungsi sesuai spesifikasi.
 2. Aturan bisnis kritis — terutama **isolasi data OPD**, **batasan nilai IKM skala 1–4**, dan **pembuatan nomor tiket unik pengaduan** — berjalan benar.
-3. Hak akses berbasis peran (RBAC) untuk tiga peran (Admin Kabupaten — merangkap superuser, Admin OPD, Responden) ditegakkan secara konsisten.
+3. Hak akses berbasis peran (RBAC) untuk **empat peran** (Superuser, Admin Kabupaten, Admin OPD, Responden) ditegakkan secara konsisten. _Direvisi 2 Sep 2026: `superuser` sempat digabung ke `kabupaten` pada 5 Agustus, lalu dipisahkan kembali pada 26 Agustus (`e1eb8b1`)._
 4. Perhitungan IKM sesuai metodologi PermenPANRB No. 14 Tahun 2017.
 5. Kebutuhan non-fungsional (keamanan, performa, privasi data) terpenuhi.
 
@@ -101,26 +101,41 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 
 | Kategori          | Deskripsi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Seed Data**     | `apps/api/prisma/seed.ts` — idempoten, aman dijalankan berulang. Isi: **3 akun** (lihat §3.3), **3 OPD** (`DINKES` Dinas Kesehatan · `DISDIK` Dinas Pendidikan · `DUKCAPIL` Disdukcapil, ber-`externalId` HD-001…HD-003 seolah hasil sinkronisasi Helpdesk), **2 survei** berisi template 9 unsur (satu `draft` di Dinkes periode `2026-Q1`; satu `aktif` di Disdik periode `2026-Q3`, sengaja dibiarkan **tanpa respons** agar alur pengisian bisa dicoba sendiri), dan **1 pengaduan** `PGD-SEED-0001` (warga → Disdukcapil, status `diterima`) |
+| **Seed Data**     | `apps/api/prisma/seed.ts` — idempoten, aman dijalankan berulang. **Diperiksa ulang 2 Sep 2026.** Isi: **4 akun** (lihat §3.3), **3 OPD** (`DINKES` Dinas Kesehatan · `DINDIK` Dinas Pendidikan dan Kebudayaan · `DUKCAPIL` Disdukcapil) yang kini ber-`externalId` **UUID asli dari Helpdesk**, bukan lagi HD-001…HD-003 karangan — diubah agar e2e tidak merusak data nyata (`c001590`). **2 survei** berisi template 9 unsur: "Survei Kepuasan Masyarakat Layanan Puskesmas" (`draft`, Dinkes, `2026-Q1`) dan "Survei Kepuasan Masyarakat Layanan Pendidikan Dasar" (`aktif`, Dindik, `2026-Q3`, sengaja **tanpa respons** agar alur pengisian bisa dicoba sendiri). **1 pengaduan** bernomor **`PGD20260811KT4E`** (warga → Disdukcapil, status `diterima`) — penanda `[SEED]` dan format `PGD-SEED-0001` sudah **tidak dipakai lagi** (`ecb8640`) |
 | **Test Fixtures** | Helper pembuatan entitas secara programatik di `apps/api/test/helpers/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Cleanup**       | Setiap suite test membersihkan data setelah selesai (transactional rollback atau truncate)                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### 3.3 Akun Uji
 
-> **Direvisi 10 Agustus 2026.** Versi 1.0 mencantumkan lima akun `@test.local` yang **tidak
-> pernah ada di seed**, termasuk satu akun **Superuser** — peran itu sudah dihapus (digabung
-> ke `kabupaten`, 5 Agustus 2026). Daftar di bawah adalah akun yang benar-benar dibuat oleh
-> `prisma/seed.ts`.
+> **Direvisi 2 September 2026.** Dua perubahan besar sejak revisi 10 Agustus:
 >
-> **Cara login:** `POST /api/v1/auth/dev-login` dengan body `{ identifier }` berisi **email
-> atau `ssoSubject`** di bawah — **tidak ada password sama sekali**. Lewat UI: tombol
-> "Masuk via SSO Helpdesk" di beranda, yang membuka form dev-login.
+> 1. **Peran `superuser` dikembalikan** (`e1eb8b1`, 26 Agu 2026) setelah sempat digabung ke
+>    `kabupaten` pada 5 Agustus. Enum `Role` kini berisi empat peran lagi, dan seed
+>    menyediakan akunnya sendiri. Revisi 10 Agustus yang menghapus akun Superuser dari
+>    daftar ini **dibatalkan**.
+> 2. **SSO Helpdesk sudah terpasang** (`d8d8ada`, 27 Agu 2026), jadi ada dua jalur masuk.
+>
+> **Cara login — jalur pengembangan (yang dipakai untuk pengujian):**
+> `POST /api/v1/auth/dev-login` dengan body `{ identifier }` berisi **email atau
+> `ssoSubject`** di bawah — **tidak ada password sama sekali**. Dijaga `NonProductionGuard`
+> (membalas 404, bukan 403, di produksi) dan kini dibatasi laju per-IP.
+>
+> **Cara login — jalur sungguhan:** `GET /api/v1/auth/sso/login` mengalihkan ke Helpdesk,
+> lalu kembali ke `/sso/callback`. Sesi dipegang cookie `session` **HttpOnly** — tidak ada
+> token yang bisa dibaca JavaScript. Responden baru akan diminta **persetujuan PDP**
+> (`POST /auth/consent`) sebelum bisa lanjut.
 
-| Peran               | Email (`identifier`)            | `ssoSubject`           | Keterangan                                                                   |
-| ------------------- | ------------------------------- | ---------------------- | ---------------------------------------------------------------------------- |
-| **Admin Kabupaten** | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | Merangkap **superuser** — mem-bypass `RolesGuard`, berakses penuh lintas-OPD |
-| **Admin OPD**       | `admin.opd@example.go.id`       | `seed-admin-opd`       | Terikat ke OPD **Dinas Kesehatan** (`DINKES`)                                |
-| **Responden**       | `warga@example.go.id`           | `seed-responden`       | Sudah punya profil demografis (perempuan · 26-35 · S1 · Wiraswasta)          |
+| Peran               | Email (`identifier`)            | `ssoSubject`           | Keterangan                                                                     |
+| ------------------- | ------------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
+| **Superuser**       | `superuser@example.go.id`       | `seed-superuser`       | **Baru sejak 26 Agu 2026.** Area terkurung tersendiri, manajemen user & log aktivitas khusus; dapat membuka dashboard OPD dengan memilih OPD-nya |
+| **Admin Kabupaten** | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | Mem-bypass seluruh `@Roles` lewat `RolesGuard`, berakses penuh lintas-OPD      |
+| **Admin OPD**       | `admin.opd@example.go.id`       | `seed-admin-opd`       | Terikat ke OPD **Dinas Kesehatan** (`DINKES`)                                  |
+| **Responden**       | `warga@example.go.id`           | `seed-responden`       | Sudah punya profil demografis (perempuan · 26-35 · S1 · Wiraswasta)            |
+
+> **Alamat pengujian:** sejak reverse proxy satu origin dipasang (`83d4230`), aplikasi
+> diakses lewat **`http://skema.local`** (port 80), bukan `localhost:3000`. Frontend dan
+> backend berbagi origin yang sama, dan `NEXT_PUBLIC_API_URL` kini bernilai relatif
+> `/api/v1`. Membuka `localhost:3000` langsung akan menghasilkan 404.
 
 > ⚠️ **Dua keterbatasan seed yang perlu disiasati sebelum eksekusi:**
 >
@@ -164,7 +179,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 | ---------- | ------------------------------------------------------------ | --------------------------- | ---------------------- |
 | FR-AUTH-01 | Registrasi responden mandiri                                 | ❌ Dibatalkan — via SSO     | —                      |
 | FR-AUTH-02 | Verifikasi akun (OTP/email)                                  | ❌ Dibatalkan — via SSO     | —                      |
-| FR-AUTH-03 | Login & penerbitan sesi untuk semua peran                    | ⚠️ Sementara `dev-login`    | Integration, Component |
+| FR-AUTH-03 | Login & penerbitan sesi untuk semua peran                    | ✅ **SSO Helpdesk aktif** (`d8d8ada`, 27 Agu 2026) — cookie sesi HttpOnly, peran dari klaim, persetujuan PDP, audit masuk. `dev-login` tetap ada untuk pengembangan, dijaga `NonProductionGuard` | Integration, Component, E2E |
 | FR-AUTH-04 | Reset & ubah kata sandi                                      | ❌ Dibatalkan — tanpa sandi | —                      |
 | FR-AUTH-05 | Data profil dipakai ulang otomatis                           | ✅ Ada                      | Integration, E2E       |
 | FR-AUTH-06 | Akun admin dibuat oleh Admin Kabupaten (bukan self-register) | ✅ Ada (`POST /users`)      | Integration            |

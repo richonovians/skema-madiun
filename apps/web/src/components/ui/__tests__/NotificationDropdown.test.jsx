@@ -66,26 +66,38 @@ describe('NotificationDropdown', () => {
     nowSpy.mockRestore();
   });
 
-  const lonceng = () => screen.getByRole('button', { name: '' });
+  /**
+   * Lonceng dikueri lewat nama yang bisa diakses. Sampai 2 September 2026 helper
+   * ini terpaksa berbunyi `{ name: '' }` karena tombolnya memang TIDAK punya nama
+   * sama sekali (BUG-002) -- kueri itulah sidik jari cacatnya. Setelah
+   * `aria-label` dipasang, sembilan kasus di berkas ini gagal serentak, persis
+   * seperti yang diharapkan dari uji yang merekam sebuah cacat.
+   */
+  const lonceng = () => screen.getByRole('button', { name: /notifikasi/i });
 
   describe('Lencana belum dibaca', () => {
-    it('menampilkan lencana ketika masih ada notifikasi belum dibaca', async () => {
+    it('menyebutkan jumlah belum dibaca pada nama tombol, bukan hanya titik merah', async () => {
       givenNotifications([BELUM_DIBACA, SUDAH_DIBACA], 1);
       const { container } = render(<NotificationDropdown />);
 
-      // CATATAN AKSESIBILITAS: lencana murni visual (span berwarna) tanpa teks
-      // alternatif, sehingga tidak terbaca pembaca layar dan tidak bisa dikueri
-      // lewat peran/label. Dilaporkan sebagai temuan, bukan dibiarkan diam-diam.
-      await waitFor(() => expect(container.querySelector('.bg-error')).toBeInTheDocument());
+      // Inti perbaikan BUG-002: jumlahnya kini terbaca pembaca layar. Titik
+      // merahnya semata-mata visual, jadi tanpa ini pengguna yang tak melihatnya
+      // tidak punya cara apa pun mengetahui ada notifikasi baru.
+      expect(
+        await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' }),
+      ).toBeInTheDocument();
+      // Penanda visualnya tetap ada berdampingan dengan teks alternatifnya.
+      expect(container.querySelector('.bg-error')).toBeInTheDocument();
     });
 
-    it('tidak menampilkan lencana ketika semua sudah dibaca', async () => {
+    it('tidak menampilkan lencana maupun menyebut jumlah ketika semua sudah dibaca', async () => {
       givenNotifications([SUDAH_DIBACA], 0);
       const { container } = render(<NotificationDropdown />);
 
       // Tunggu pemuatan selesai lewat sinyal semantik, baru periksa lencana.
       fireEvent.click(lonceng());
       expect(await screen.findByText('Survei Baru Dipublikasikan')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Notifikasi' })).toBeInTheDocument();
       expect(container.querySelector('.bg-error')).not.toBeInTheDocument();
     });
   });

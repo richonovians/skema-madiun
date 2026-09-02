@@ -211,11 +211,16 @@ export const handlers = [
     if (identifier.includes('tidak-ada'))
       return fail(404, `Pengguna dengan email/ssoSubject "${identifier}" tidak ditemukan`);
 
-    const role = identifier.includes('kabupaten')
-      ? 'kabupaten'
-      : identifier.includes('opd')
-        ? 'opd'
-        : 'responden';
+    // `superuser` diperiksa PALING DULU: peran itu dikembalikan sebagai peran
+    // tersendiri pada 2026-08-26, dan alamat seed-nya tak memuat kata lain yang
+    // bisa keliru tertangkap cabang di bawahnya.
+    const role = identifier.includes('superuser')
+      ? 'superuser'
+      : identifier.includes('kabupaten')
+        ? 'kabupaten'
+        : identifier.includes('opd')
+          ? 'opd'
+          : 'responden';
 
     return created(
       {
@@ -232,6 +237,12 @@ export const handlers = [
   }),
 
   http.post(`${API_BASE}/auth/logout`, () => ok({ success: true }, '/auth/logout')),
+
+  // [TURUN] persetujuan PDP (SSO Helpdesk, 2026-08-27). Dipanggil sekali oleh
+  // responden baru; membalas HANYA stempel waktunya, bukan seluruh profil.
+  http.post(`${API_BASE}/auth/consent`, () =>
+    created({ consentAt: '2026-09-02T02:00:00.000Z' }, '/auth/consent'),
+  ),
 
   // [REKAM] responden menyertakan respondentProfile; admin bernilai null.
   http.get(`${API_BASE}/auth/me`, () =>
@@ -304,6 +315,35 @@ export const handlers = [
 
   http.get(`${API_BASE}/surveys/active`, () =>
     paginated([SURVEY_LIST[1]], '/surveys/active', { total: 1 }),
+  ),
+
+  // [TURUN] riwayat pengisian survei milik pengguna yang login (dashboard warga).
+  // Cakupannya ditentukan token di backend -- TAK ADA parameter pemilik, jadi
+  // handler ini pun sengaja mengabaikan siapa pemanggilnya.
+  http.get(`${API_BASE}/me/survey-responses`, () =>
+    paginated(
+      [
+        {
+          id: 501,
+          surveyId: 2,
+          surveyJudul: 'Survei Kepuasan Masyarakat Layanan Pendidikan Dasar',
+          periode: '2026-Q3',
+          opdNama: 'Dinas Pendidikan dan Kebudayaan',
+          submittedAt: '2026-08-30T03:12:44.000Z',
+        },
+        {
+          id: 488,
+          surveyId: 1,
+          surveyJudul: 'Survei Kepuasan Masyarakat Layanan Puskesmas',
+          periode: '2026-Q1',
+          // Nullable di MyResponseEntity -- disertakan supaya adapter benar-benar
+          // teruji terhadap OPD yang sudah tak tertaut, bukan hanya jalur bahagia.
+          opdNama: null,
+          submittedAt: '2026-07-14T08:41:02.000Z',
+        },
+      ],
+      '/me/survey-responses',
+    ),
   ),
 
   // [TURUN] form pengisian untuk responden.
