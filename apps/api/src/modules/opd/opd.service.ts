@@ -65,9 +65,7 @@ export class OpdService {
   }
 
   /** Hitung survei aktif & pengaduan belum tuntas per OPD dalam satu putaran (INT-10). */
-  private async countsByOpd(
-    opdIds: number[],
-  ): Promise<{
+  private async countsByOpd(opdIds: number[]): Promise<{
     activeSurveysByOpd: Map<number, number>;
     openComplaintsByOpd: Map<number, number>;
   }> {

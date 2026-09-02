@@ -77,6 +77,101 @@ const CONSENT_KEY = 'consent';
 export const SESSION_CHANGED_EVENT = 'skema:sesi-berubah';
 
 /**
+ * UMUR COOKIE NAVIGASI -- SENGAJA DITULIS EKSPLISIT (2 September 2026).
+ *
+ * Laporan pengguna: "baru pertama kali mengakses skema.local sudah terlihat
+ * login tetapi tombol tidak bisa digunakan, dan anehnya data OPD muncul semua
+ * pada dropdown". Ketiga gejala itu satu sebab.
+ *
+ * Artefak sesi disimpan di DUA tempat dengan MASA HIDUP BERBEDA:
+ *   - localStorage : abadi sampai dihapus tangan;
+ *   - cookie       : dulu ditulis TANPA `Max-Age` sama sekali, sehingga ia
+ *     COOKIE SESI -- peramban membuangnya begitu jendela ditutup seluruhnya.
+ *
+ * Akibatnya, sesudah peramban ditutup lalu dibuka lagi:
+ *   - UI bilang "sudah masuk" (isAuthenticated membaca localStorage) dan avatar
+ *     berinisial pengguna muncul di navbar;
+ *   - setiap panggilan API tetap 200 karena header Authorization diambil dari
+ *     localStorage, BUKAN dari cookie -- itulah sebab daftar OPD tetap terisi
+ *     penuh di dropdown "Pilih Instansi";
+ *   - tapi proxy.js membaca COOKIE, dan cookienya sudah tidak ada. Jadi setiap
+ *     halaman terlindung dipantulkan ke '/'. Karena pengguna memang sudah
+ *     berada di '/', menekan "Layanan Pengaduan" atau "Survei Kepuasan"
+ *     tampak seperti tombol yang mati -- terukur: '/' -> '/', tak bergerak.
+ *
+ * Yang diperbaiki adalah cookienya, bukan sebaliknya, supaya jalur dev-login
+ * SAMA dengan jalur SSO: cookie `session` milik backend sudah memikul `Max-Age`
+ * sesuai masa berlaku tokennya (lihat catatan di clearSession), jadi jalur
+ * dev-login-lah yang menyimpang.
+ *
+ * Tak ada hak baru yang diberikan: tokennya sendiri sudah bertahan 24 jam di
+ * localStorage: cookie ini cuma salinan penanda supaya proxy sepakat dengan UI.
+ */
+const UMUR_CADANGAN_DETIK = 24 * 60 * 60;
+
+/** Sisa detik menuju `epochDetik`; jatuh ke cadangan bila nilainya tak masuk akal. */
+function umurDariEpoch(epochDetik) {
+  if (!Number.isFinite(epochDetik) || epochDetik <= 0) return UMUR_CADANGAN_DETIK;
+  const sisa = Math.floor(epochDetik - Date.now() / 1000);
+  return sisa > 0 ? sisa : 0;
+}
+
+function tulisCookieSesi(nama, nilai, umurDetik) {
+  document.cookie = `${nama}=${nilai}; path=/; SameSite=Lax; max-age=${umurDetik}`;
+}
+
+function adaCookie(nama) {
+  return document.cookie.split('; ').some((bagian) => bagian.startsWith(`${nama}=`));
+}
+
+/**
+ * Sisa umur sesi yang sedang berjalan, dibaca dari localStorage. Dipakai cookie
+ * yang ditulis SESUDAH login (area kerja, OPD yang diperankan, persetujuan)
+ * supaya semuanya kedaluwarsa bersamaan dengan tokennya -- kalau umurnya
+ * berbeda-beda, kita hanya menukar satu keadaan setengah login dengan yang lain
+ * (mis. cookie token hidup tapi cookie `role` mati: proxy melihat sesi tanpa
+ * peran, lalu memantulkan admin dari areanya sendiri).
+ */
+function sisaUmurSesi() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) return umurDariEpoch(decodeJwtPayload(token)?.exp);
+  return umurDariEpoch(Number(localStorage.getItem(SSO_EXPIRES_KEY)));
+}
+
+/**
+ * Tulis ulang SELURUH cookie navigasi dari localStorage.
+ *
+ * Perlu ada supaya peramban yang SUDAH terjebak keadaan setengah login sembuh
+ * sendiri begitu halaman dibuka -- tanpa ini pengguna harus menghapus data
+ * situs atau logout-login manual, padahal tak ada tanda apa pun yang
+ * memberitahunya. Tidak menaikkan hak siapa pun: sumbernya localStorage milik
+ * origin ini, dan tokennya memang sudah dipakai untuk setiap panggilan API.
+ *
+ * Cookie `session` (jalur SSO) TIDAK bisa ditulis dari sini -- ia HttpOnly milik
+ * backend. Itu memang tak perlu: cookie itu sudah memikul Max-Age sendiri.
+ */
+export function selaraskanCookieSesi() {
+  if (typeof window === 'undefined') return;
+  const umur = sisaUmurSesi();
+  if (umur <= 0) return;
+
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) tulisCookieSesi(TOKEN_KEY, token, umur);
+
+  const role = localStorage.getItem(ROLE_KEY);
+  if (role) tulisCookieSesi(ROLE_KEY, role, umur);
+
+  const area = localStorage.getItem(AREA_KEY);
+  if (area) tulisCookieSesi(AREA_KEY, area, umur);
+
+  const opd = getActingOpd();
+  if (opd) tulisCookieSesi(ACTING_OPD_COOKIE, opd.id, umur);
+
+  const consent = localStorage.getItem(CONSENT_KEY);
+  if (consent) tulisCookieSesi(CONSENT_KEY, consent, umur);
+}
+
+/**
  * @param {string} token token sesi (jalur dev-login)
  * @param {string} role peran backend
  * @param {boolean} [consentRequired] dari `user.consentRequired` respons login;
@@ -86,18 +181,32 @@ export function saveSession(token, role, consentRequired) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem('sso_logged_in', 'true');
-  document.cookie = `${TOKEN_KEY}=${token}; path=/; SameSite=Lax`;
+  // Umur cookie diambil dari `exp` token itu sendiri, bukan angka tetap: kalau
+  // cookienya hidup lebih lama daripada tokennya, proxy membukakan halaman yang
+  // seluruh API-nya sudah pasti 401.
+  const umur = umurDariEpoch(decodeJwtPayload(token)?.exp);
+  tulisCookieSesi(TOKEN_KEY, token, umur);
   if (role) {
     localStorage.setItem(ROLE_KEY, role);
-    document.cookie = `${ROLE_KEY}=${role}; path=/; SameSite=Lax`;
+    tulisCookieSesi(ROLE_KEY, role, umur);
   }
   saveConsentFlag(!consentRequired);
 }
 
-/** Tulis penanda persetujuan yang dibaca proxy.js. */
+/**
+ * Tulis penanda persetujuan yang dibaca proxy.js.
+ *
+ * Ikut disimpan di localStorage (2 September 2026) supaya `selaraskanCookieSesi`
+ * bisa memulihkannya. Tanpa cerminan itu, peramban yang cookie-nya sudah hilang
+ * akan memantulkan warga ke /persetujuan meski ia sudah menyetujui -- halaman
+ * itu memang memeriksa ulang lewat GET /auth/me dan memantulkannya kembali,
+ * tapi berarti satu putaran alihan yang tak perlu.
+ */
 export function saveConsentFlag(sudahMenyetujui) {
   if (typeof window === 'undefined') return;
-  document.cookie = `${CONSENT_KEY}=${sudahMenyetujui ? '1' : '0'}; path=/; SameSite=Lax`;
+  const nilai = sudahMenyetujui ? '1' : '0';
+  localStorage.setItem(CONSENT_KEY, nilai);
+  tulisCookieSesi(CONSENT_KEY, nilai, sisaUmurSesi());
 }
 
 /**
@@ -120,12 +229,20 @@ export function saveConsentFlag(sudahMenyetujui) {
 export function saveSsoSession(role, expiresAt, consentRequired) {
   if (typeof window === 'undefined') return;
   localStorage.setItem('sso_logged_in', 'true');
+  // Ditulis PALING AWAL karena `sisaUmurSesi()` di bawah membacanya -- pada
+  // jalur SSO tak ada token yang bisa didekode, jadi ini satu-satunya sumber
+  // masa berlaku yang dimiliki sisi klien.
   if (Number.isFinite(expiresAt) && expiresAt > 0) {
     localStorage.setItem(SSO_EXPIRES_KEY, String(expiresAt));
   }
   if (role) {
     localStorage.setItem(ROLE_KEY, role);
-    document.cookie = `${ROLE_KEY}=${role}; path=/; SameSite=Lax`;
+    // Jalur SSO pun kena masalah yang sama, dan di sini akibatnya justru lebih
+    // membingungkan: cookie `session` milik backend BERTAHAN (ia punya Max-Age),
+    // sementara cookie `role` yang ditulis di sini dulu mati saat peramban
+    // ditutup. Proxy lalu melihat sesi hidup TANPA peran, sehingga
+    // `hasFullAccess` false dan admin dipantulkan dari areanya sendiri ke '/'.
+    tulisCookieSesi(ROLE_KEY, role, umurDariEpoch(expiresAt));
   }
   saveConsentFlag(!consentRequired);
 }
@@ -149,6 +266,10 @@ export function clearSession() {
   localStorage.removeItem(AREA_KEY);
   localStorage.removeItem(ACTING_OPD_KEY);
   localStorage.removeItem(SSO_EXPIRES_KEY);
+  // Cerminan penanda persetujuan ikut dibuang -- alasannya sama dengan
+  // cookienya di bawah: membiarkannya berarti warga BERIKUTNYA di peramban ini
+  // memulihkan persetujuan orang lain lewat selaraskanCookieSesi().
+  localStorage.removeItem(CONSENT_KEY);
   localStorage.setItem('sso_logged_in', 'false');
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
   document.cookie = `${ROLE_KEY}=; path=/; max-age=0`;
@@ -171,7 +292,7 @@ export function clearSession() {
 export function saveSuperuserArea(area) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(AREA_KEY, area);
-  document.cookie = `${AREA_KEY}=${area}; path=/; SameSite=Lax`;
+  tulisCookieSesi(AREA_KEY, area, sisaUmurSesi());
 }
 
 /**
@@ -186,7 +307,7 @@ export function saveActingOpd(opd) {
     return;
   }
   localStorage.setItem(ACTING_OPD_KEY, JSON.stringify({ id: opd.id, nama: opd.nama }));
-  document.cookie = `${ACTING_OPD_COOKIE}=${opd.id}; path=/; SameSite=Lax`;
+  tulisCookieSesi(ACTING_OPD_COOKIE, opd.id, sisaUmurSesi());
 }
 
 /**
@@ -291,6 +412,14 @@ export function isAuthenticated() {
       clearSession();
       return false;
     }
+    // KEADAAN SETENGAH LOGIN YANG BERLAWANAN ARAH (2 September 2026): token di
+    // localStorage masih sah, tapi cookienya sudah tidak ada. Dulu tak mungkin
+    // dihindari -- cookienya cookie sesi, jadi tiap kali peramban ditutup
+    // keadaan ini pasti terjadi. Sekarang cookienya bermasa hidup, tapi
+    // peramban yang SUDAH terjebak (termasuk yang cookienya dihapus tangan)
+    // tetap perlu jalan sembuh: tanpa ini, UI bilang sudah masuk sementara
+    // proxy memantulkan setiap halaman terlindung ke '/'.
+    if (!adaCookie(TOKEN_KEY)) selaraskanCookieSesi();
     return true;
   }
 
@@ -304,6 +433,12 @@ export function isAuthenticated() {
     clearSession();
     return false;
   }
+  // Sama seperti jalur dev-login di atas, tapi yang diperiksa cookie `role`:
+  // di jalur SSO cookie tokennya (`session`) HttpOnly milik backend dan sudah
+  // bermasa hidup sendiri, sedangkan `role`/`area`/`consent` ditulis dari sini.
+  // Kalau `role` hilang, proxy melihat sesi hidup tanpa peran dan memantulkan
+  // admin dari areanya sendiri.
+  if (!adaCookie(ROLE_KEY)) selaraskanCookieSesi();
   return true;
 }
 
