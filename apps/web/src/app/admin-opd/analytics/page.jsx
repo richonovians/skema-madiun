@@ -11,6 +11,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getSurveyResults, exportSurveyResults } from '@/features/analytics/services/ikm.api';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
@@ -53,6 +54,11 @@ function AnalyticsPageContent() {
   const [exportError, setExportError] = useState(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef(null);
+
+  // Pada lanskap ponsel menu ini terukur `bawah=467` dari layar 390px tinggi --
+  // pilihan terakhir di luar jangkauan. Lihat useKeepInViewport.
+  const exportPanelRef = useRef(null);
+  useKeepInViewport(exportPanelRef, isExportOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -154,8 +160,14 @@ function AnalyticsPageContent() {
 
   // Toolbar sejajar tab: dropdown survei + dropdown export
   const tabRightSlot = activeTab === 'skm' && eligibleSurveys.length > 0 ? (
-    <div className="flex items-center gap-md">
+    // `min-w-0` + `flex-1` (31 Agustus 2026): tanpa keduanya, judul survei yang
+    // panjang membuat baris ini tak bisa menyusut sama sekali dan seluruh
+    // halaman melebar. `Dropdown` sudah punya `truncate`, tapi ia baru bekerja
+    // kalau leluhurnya diizinkan lebih sempit dari isinya -- lihat catatan
+    // lengkap di AnalyticsTabs.jsx.
+    <div className="flex items-center gap-md min-w-0 w-full sm:w-auto">
       <Dropdown
+        className="min-w-0 flex-1 sm:flex-none sm:w-64"
         options={surveyOptions}
         value={activeSurveyId}
         onChange={(val) => setSelectedSurveyId(val)}
@@ -179,7 +191,10 @@ function AnalyticsPageContent() {
           />
         </button>
         {isExportOpen && (
-          <div className="absolute top-full right-0 mt-2 w-full min-w-[140px] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div
+            ref={exportPanelRef}
+            className="absolute top-full right-0 mt-2 w-full min-w-[140px] max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+          >
             <ul className="py-1">
               <li>
                 <button

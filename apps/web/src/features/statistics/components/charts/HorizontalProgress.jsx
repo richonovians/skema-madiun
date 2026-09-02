@@ -9,7 +9,15 @@ export default function HorizontalProgress({ data, title }) {
         {data.map((item, index) => (
           <div key={index} className="flex flex-col gap-2">
             <div className="flex justify-between items-center text-sm">
-              <span className="font-medium text-text-secondary truncate pr-2">{item.name}</span>
+              {/* `min-w-0` WAJIB berpasangan dengan `truncate` di sini: item flex
+                  bawaannya `min-width: auto`, yang berarti "jangan pernah lebih
+                  sempit dari isimu" -- sehingga `truncate` tak pernah aktif dan
+                  label panjang seperti "Penanganan Pengaduan, Saran, dan
+                  Masukan" mendorong barisnya melebar. Dulu tak terasa karena
+                  pembungkusnya dipaksa 600px; sejak lebar itu dilepas di ponsel
+                  (lihat admin-kab/dashboard/page.jsx), tanpa `min-w-0` label ini
+                  akan meluapkan kartunya. */}
+              <span className="min-w-0 font-medium text-text-secondary truncate pr-2">{item.name}</span>
               <span className="font-bold text-text-primary shrink-0">{item.score}</span>
             </div>
             

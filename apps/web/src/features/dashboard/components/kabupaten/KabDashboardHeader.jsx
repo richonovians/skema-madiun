@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, FileText } from 'lucide-react';
 import { downloadTablePdf } from '@/utils/pdf';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 /**
  * INT-24 (2026-08-05): ekspor SEBELUMNYA berisi 4 angka hardcode (85.5/15200/
@@ -16,6 +17,10 @@ export default function KabDashboardHeader({ summary }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportError, setExportError] = useState(null);
   const exportRef = useRef(null);
+
+  // Menu "Ekspor Laporan Tahunan". Lihat useKeepInViewport.
+  const exportPanelRef = useRef(null);
+  useKeepInViewport(exportPanelRef, isExportOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -86,7 +91,10 @@ export default function KabDashboardHeader({ summary }) {
         </button>
 
         {isExportOpen && (
-          <div className="absolute right-0 top-full mt-2 w-full bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div
+            ref={exportPanelRef}
+            className="absolute right-0 top-full mt-2 w-full min-w-[150px] max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+          >
             <ul className="py-1 max-h-60 overflow-y-auto">
               <li>
                 <button 

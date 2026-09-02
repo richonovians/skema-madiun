@@ -199,10 +199,31 @@ export default function AdminKabDashboardPage() {
           <p className="text-text-secondary">Analisis tren dan distribusi penilaian layanan publik berdasarkan PermenPAN RB.</p>
         </div>
 
+        {/* LEBAR MINIMUM DIBATASI KE `md` KE ATAS (1 September 2026).
+            Sebelumnya kelima pembungkus di bawah memaksa `min-w-[300..600px]`
+            pada SEMUA ukuran. Di Android 360px itu berarti kartu selebar 600px
+            di dalam layar 360px, dan yang terpotong bukan bagan melainkan
+            TEKSNYA: "Tren Indeks Kepuasan Masyar", "Penilaian 9 Unsur
+            Pelayanan (P", "Penanganan Pengaduan, Saran, dan Ma" -- terpotong di
+            tengah kata tanpa elipsis, plus tautan "Lihat Semua" pada
+            leaderboard yang seluruhnya di luar layar.
+
+            Pemaksaan itu tak pernah diperlukan, sebab setiap komponen di
+            dalamnya SUDAH luwes: TrendChart memakai `viewBox` +
+            `preserveAspectRatio="none"` sehingga menyesuaikan lebar apa pun,
+            BarChart & HorizontalProgress memakai bilah CSS `w-full`, dan
+            ComplaintStatusDonut hanya 192px. Lebar minimum itu semata penjaga
+            agar bagan tak menjadi kurus di dalam grid 3 kolom -- keadaan yang
+            hanya ada dari `md` ke atas.
+
+            Kenapa audit geometri tak menemukannya: isi di dalam wadah
+            `overflow-x-auto` memang SENGAJA diabaikan detektor (kalau tidak,
+            setiap tabel yang bisa digulir ikut terlaporkan). Cacat ini hanya
+            terlihat dengan MELIHAT potretnya. */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Tren IKM */}
           <div className="lg:col-span-2 w-full overflow-x-auto hide-scrollbar">
-            <div className="min-w-[600px]">
+            <div className="min-w-0 md:min-w-[600px]">
               {statistics.ikmTrend.length > 0 ? (
                 <TrendChart
                   title="Tren Indeks Kepuasan Masyarakat per Triwulan"
@@ -221,7 +242,7 @@ export default function AdminKabDashboardPage() {
 
           {/* Distribusi Nilai */}
           <div className="w-full overflow-x-auto hide-scrollbar">
-            <div className="min-w-[300px]">
+            <div className="min-w-0 md:min-w-[300px]">
               {statistics.valueDistribution.length > 0 ? (
                 <BarChart title="Distribusi Nilai Penilaian" data={statistics.valueDistribution} />
               ) : (
@@ -234,7 +255,7 @@ export default function AdminKabDashboardPage() {
 
           {/* 9 Unsur Pelayanan */}
           <div className="lg:col-span-3 w-full overflow-x-auto hide-scrollbar">
-            <div className="min-w-[600px]">
+            <div className="min-w-0 md:min-w-[600px]">
               {statistics.serviceElements.length > 0 ? (
                 <HorizontalProgress title="Penilaian 9 Unsur Pelayanan (PermenPAN RB)" data={statistics.serviceElements} />
               ) : (
@@ -249,12 +270,12 @@ export default function AdminKabDashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg mt-8">
         <div className="lg:col-span-2 w-full overflow-x-auto hide-scrollbar">
-          <div className="min-w-[500px]">
+          <div className="min-w-0 md:min-w-[500px]">
             <IkmLeaderboard data={leaderboardData} periode={periode} />
           </div>
         </div>
         <div className="w-full overflow-x-auto hide-scrollbar">
-          <div className="min-w-[300px]">
+          <div className="min-w-0 md:min-w-[300px]">
             <ComplaintStatusDonut data={statistics.complaintStatus} />
           </div>
         </div>
