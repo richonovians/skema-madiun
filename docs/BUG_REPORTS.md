@@ -62,11 +62,17 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | **Ditutup** | C-01    |
+| [BUG-006](#bug-006) | Sesi hantu: tampak sudah login, tombol mati, data tetap terisi | High     | Terkonfirmasi | **Ditutup** | —       |
 
-**Rekap** — 5 temuan: 3 ditutup, 2 terbuka (1 High, 1 Low)
+**Rekap** — 6 temuan: 4 ditutup, 2 terbuka (1 High, 1 Low)
 
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
+
+BUG-006 dilaporkan **dan** diperbaiki pada 2 September 2026. Ia bersaudara
+dekat dengan keluhan 18 Agustus ("baru akses localhost sudah terlihat login"):
+gejalanya mirip, tetapi sebabnya berlawanan arah — waktu itu sesi mati yang
+tampak hidup, kali ini sesi hidup yang cookienya sudah mati.
 
 **BUG-005 adalah CAT-004 yang menjadi kenyataan.** Pada 12 Agustus ia dicatat
 sebagai peringatan yang "belum berdampak karena tipe pilihan memang belum bisa
@@ -485,6 +491,127 @@ Perlu dicatat: perilaku frontend saat opsi kosong **sudah terkunci uji**
 (`QuestionCard.test.jsx`, kasus "berterus terang ketika opsi jawabannya
 kosong"). Yang belum terkunci adalah duplikasinya sendiri, dan itu memang
 harus diuji dari sisi backend.
+
+---
+
+<a id="bug-006"></a>
+
+### BUG-006 — Sesi hantu: tampak sudah login, tombol mati, tetapi data tetap terisi
+
+|                       |                                                              |
+| --------------------- | ------------------------------------------------------------ |
+| **Charter**           | — (dilaporkan pengguna saat memakai aplikasi)                |
+| **Tanggal**           | 2 September 2026                                             |
+| **Peran**             | Semua peran (diuji sebagai Superuser)                        |
+| **Halaman**           | `/` dan seluruh halaman terlindung                           |
+| **Severity**          | High                                                         |
+| **Verifikasi**        | Terkonfirmasi — direproduksi & diukur di peramban            |
+| **Kasus uji terkait** | Usulan TC-FE-032 di bawah                                    |
+| **Riwayat**           | Berlawanan arah dengan keluhan 18 Agustus 2026               |
+
+**Langkah reproduksi**
+
+1. Login (jalur dev-login maupun SSO)
+2. **Tutup peramban seluruhnya** — bukan cuma tabnya
+3. Buka peramban lagi, akses `http://skema.local`
+4. Perhatikan navbar, lalu coba buka halaman mana pun yang terlindung
+
+**Hasil yang diharapkan**
+
+Salah satu dari dua keadaan yang jelas: masih masuk seluruhnya, atau sudah
+keluar seluruhnya. Bukan campuran keduanya.
+
+**Hasil sebenarnya**
+
+Tiga gejala sekaligus, dan gejala ketiga itulah yang membuatnya membingungkan:
+
+| Gejala                                       | Sumbernya                                       |
+| -------------------------------------------- | ----------------------------------------------- |
+| Navbar menampilkan avatar berinisial pengguna | `isAuthenticated()` membaca **localStorage**    |
+| Setiap halaman terlindung dipantulkan ke `/`  | `proxy.js` membaca **cookie**                   |
+| Dropdown "Pilih Instansi" terisi 62 OPD       | header `Authorization` diambil dari localStorage |
+
+Karena pengguna sudah berada di `/`, pantulan itu tak terlihat sebagai
+pantulan — tombol dan tautan menuju halaman terlindung sekadar tampak mati.
+
+**Bukti**
+
+Sebab akarnya satu: artefak sesi disimpan di dua tempat dengan **masa hidup
+berbeda**. Terukur di peramban:
+
+```
+cookie token    expires=-1  -> COOKIE SESI (hilang saat peramban ditutup)
+cookie role     expires=-1  -> COOKIE SESI
+cookie consent  expires=-1  -> COOKIE SESI
+localStorage token          -> masih sah 24 jam (klaim exp JWT)
+
+diminta : /admin-kab/dashboard
+mendarat: /                       <- dipantulkan proxy.js
+GET /api/v1/opd -> 200, jumlah OPD=62
+```
+
+`saveSession()` menulis cookienya tanpa `Max-Age` sama sekali, sehingga
+peramban memperlakukannya sebagai cookie sesi. localStorage tak punya batas
+seperti itu.
+
+Jalur SSO kena hal yang sama dengan akibat yang lebih halus: cookie `session`
+milik backend **bertahan** (ia memikul `Max-Age`), sedangkan cookie `role` yang
+ditulis klien mati. Proxy lalu melihat sesi hidup tanpa peran, `hasFullAccess`
+menjadi `false`, dan admin dipantulkan dari areanya sendiri.
+
+**Catatan**
+
+Dinilai **High**: alur inti buntu total tanpa jalan memutar yang bisa ditemukan
+sendiri oleh pengguna. Satu-satunya jalan keluar sebelum perbaikan adalah
+menghapus data situs atau logout–login manual — dan tak ada apa pun di
+antarmuka yang menunjukkan hal itu, karena antarmuka justru menyatakan
+pengguna sudah masuk.
+
+**Penyelesaian — 2 September 2026, `Ditutup`**
+
+Yang diperbaiki adalah **cookienya**, bukan sebaliknya, supaya jalur dev-login
+sama dengan jalur SSO yang memang sudah benar:
+
+1. Semua cookie navigasi (`token`, `role`, `area`, `opd`, `consent`) kini
+   memikul `max-age` yang **diambil dari klaim `exp` tokennya sendiri**, bukan
+   angka tetap — cookie yang hidup lebih lama daripada tokennya hanya akan
+   membukakan halaman yang seluruh API-nya sudah pasti 401.
+2. `selaraskanCookieSesi()` menulis ulang cookie itu dari localStorage bila
+   ternyata hilang, supaya peramban yang **sudah** terjebak sembuh sendiri
+   tanpa menuntut pengguna menghapus data situs.
+3. Penanda persetujuan ikut dicerminkan di localStorage agar bisa dipulihkan,
+   dan ikut dibuang saat `clearSession()` — kalau tidak, warga berikutnya di
+   peramban yang sama akan memulihkan persetujuan milik orang lain.
+
+Tidak ada hak baru yang diberikan: tokennya sendiri sudah bertahan 24 jam di
+localStorage dan sudah dipakai pada setiap panggilan API. Cookie ini hanya
+salinan penanda supaya proxy sepakat dengan antarmuka.
+
+**Batas yang perlu dinyatakan jujur:** pada peramban yang sudah terjebak,
+percobaan **pertama** membuka halaman terlindung tetap dipantulkan. `proxy.js`
+berjalan di server sebelum satu baris JavaScript pun jalan, jadi ia tak bisa
+membaca localStorage; pemulihan baru terjadi setelah halaman `/` termuat.
+Percobaan berikutnya berhasil. Login baru tidak pernah masuk keadaan ini.
+
+Terverifikasi **9/9** di peramban, mencakup empat keadaan:
+
+| Keadaan diuji                                        | Hasil                                          |
+| ---------------------------------------------------- | ---------------------------------------------- |
+| Cookie sesudah login                                 | `expires` = exp token (selisih 1 detik)        |
+| Peramban dibuka ulang dengan cookie utuh             | `/admin-kab/dashboard` terbuka, tak dipantulkan |
+| Peramban yang sudah terjebak (localStorage saja)      | cookie ditulis ulang, halaman terlindung terbuka |
+| Token benar-benar kedaluwarsa                        | tetap dibuang; halaman terlindung tetap tertutup |
+
+Keadaan keempat sengaja diuji supaya pemulihan cookie tidak menjadi lubang yang
+menghidupkan sesi mati — yaitu cacat yang justru diperbaiki 18 Agustus lalu.
+
+**Usulan kasus uji**
+
+> **TC-FE-032** — Cookie sesi bertahan sesudah peramban ditutup
+> Sesudah login, pastikan cookie `token`/`role` memikul `max-age` yang sama
+> dengan klaim `exp` token, dan bahwa membuka ulang peramban tidak memantulkan
+> halaman terlindung. Uji juga arah sebaliknya: token kedaluwarsa di
+> localStorage harus dibuang, bukan dipulihkan menjadi cookie.
 
 ---
 
