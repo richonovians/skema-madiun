@@ -35,7 +35,13 @@ const nextConfig = {
   // sebagian hotspot ponsel), tambahkan polanya di sini -- glob-nya tak bisa
   // menyatakan rentang 16-31, jadi sengaja tak dipukul rata `172.*.*.*` yang
   // ikut mencakup alamat publik.
-  allowedDevOrigins: ['skema.local', '192.168.*.*', '10.*.*.*'],
+  //
+  // `172.24.*.*` ditambahkan 31 Agustus 2026: jaringan kantor Dinas Kominfo
+  // memberi alamat 172.24.200.x, tepat pada rentang ketiga yang diperingatkan di
+  // atas. Tanpa entri ini menguji tampilan dari ponsel di Wi-Fi kantor gagal
+  // dengan gejala yang persis seperti dijelaskan -- halaman terbuka dan rapi,
+  // tapi tak satu pun tombol berfungsi.
+  allowedDevOrigins: ['skema.local', '192.168.*.*', '10.*.*.*', '172.24.*.*'],
 
   images: {
     remotePatterns: [
