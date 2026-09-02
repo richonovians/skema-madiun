@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
+import ResetFilterButton from '@/components/ui/ResetFilterButton';
 
 /**
  * `serviceOptions` datang dari page.jsx, DIDERIVASI dari nilai `jenisLayanan`
@@ -19,6 +20,7 @@ export default function OPDFilterBar({
   selectedService,
   setSelectedService,
   serviceOptions,
+  onReset,
 }) {
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border mb-lg p-md flex flex-wrap items-center gap-4">
@@ -32,13 +34,18 @@ export default function OPDFilterBar({
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+      {/* `flex-wrap` + `min-w-0`: dua kendali ini berjajar dengan kotak
+          pencarian di atas, dan tanpa keduanya baris ini bisa melebihi
+          kotaknya di layar ponsel -- cacat yang sama seperti bilah aksi
+          halaman survei & pengaduan (lihat SurveyFilterBar). */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto min-w-0 justify-end">
         <Dropdown
           options={serviceOptions}
           value={selectedService}
           onChange={setSelectedService}
           variant="default"
         />
+        <ResetFilterButton onReset={onReset} />
       </div>
     </div>
   );
