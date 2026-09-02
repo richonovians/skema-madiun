@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 export default function Dropdown({ 
   label,
@@ -22,6 +23,16 @@ export default function Dropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Panel ini selebar pemicunya (`w-full left-0`), jadi sumbu horizontalnya
+  // aman -- yang berisiko adalah sumbu VERTIKAL. `menuMaxHeight` bernilai
+  // TETAP (mis. 240px), sementara lanskap ponsel hanya setinggi ~390px: menu
+  // yang terbuka dari pemicu di tengah halaman akan melewati bawah layar dan
+  // pilihan terakhirnya tak bisa ditekan. Kait ini membatasi tingginya pada
+  // ruang yang benar-benar tersedia. Dipasang di sini, bukan di tiap pemakai,
+  // karena Dropdown adalah komponen bersama yang dipakai di seluruh aplikasi.
+  const panelRef = useRef(null);
+  useKeepInViewport(panelRef, isOpen);
 
   // Menutup dropdown jika user mengklik area luar
   useEffect(() => {
@@ -89,7 +100,10 @@ export default function Dropdown({
       )}
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+        <div
+          ref={panelRef}
+          className="absolute top-full left-0 mt-2 w-full max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+        >
           <ul className={`py-1 overflow-y-auto ${menuMaxHeight}`}>
             {options.map((option) => (
               <li key={option.value}>
