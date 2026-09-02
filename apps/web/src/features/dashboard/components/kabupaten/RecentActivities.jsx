@@ -49,17 +49,27 @@ export default function RecentActivities({ data = [] }) {
         </Link>
       </div>
 
+      {/* `min-w-[500px]` dulu berlaku di semua ukuran, sehingga di Android
+          360px seluruh kolom kanan baris ini -- cap waktu DAN tautan "Buka
+          Detail" -- berada di luar layar. Tautan itu satu-satunya jalan ke
+          detail aktivitas, dan tak ada apa pun yang memberi tahu pengguna
+          bahwa daftarnya bisa digeser ke samping.
+          Sekarang lebar minimum hanya berlaku dari `md` ke atas, dan barisnya
+          diizinkan MEMBUNGKUS di ponsel (`flex-wrap`) sehingga kolom kanan
+          turun ke bawah alih-alih terdorong keluar. */}
       <div className="w-full overflow-x-auto">
-        <div className="divide-y divide-border min-w-[500px]">
+        <div className="divide-y divide-border min-w-0 md:min-w-[500px]">
         {data.map((item) => (
-          <div key={item.id} className="p-lg hover:bg-background transition-colors flex items-center justify-between group">
-            <div className="flex items-center gap-lg">
+          <div key={item.id} className="p-lg hover:bg-background transition-colors flex flex-wrap gap-y-3 items-center justify-between group">
+            <div className="flex min-w-0 items-center gap-lg">
               <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                 <IconMapper iconName={item.icon} />
               </div>
-              <div>
-                <p className="font-bold text-text-primary">{item.title}</p>
-                <p className="text-sm text-text-secondary">
+              <div className="min-w-0">
+                <p className="truncate font-bold text-text-primary" title={item.title}>
+                  {item.title}
+                </p>
+                <p className="truncate text-sm text-text-secondary">
                   Oleh <span className="font-semibold text-text-primary">{item.publisher}</span>
                 </p>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -8,19 +8,12 @@ import {
   ClipboardList,
   Inbox,
   TrendingUp,
-  Settings,
-  HelpCircle,
-  LogOut,
-  X,
-  Repeat
+  X
 } from 'lucide-react';
+import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminLayout } from './AdminLayoutProvider';
-import { useLogout } from '@/hooks/useLogout';
-import { useAsync } from '@/hooks/useAsync';
 import { useActingOpd } from '@/hooks/useActingOpd';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { getMyProfile } from '@/features/profile/services/profile.api';
-import { USER_ROLES } from '@/features/users/constants/userConstants';
 
 /**
  * "Ganti Peran" hanya tampil untuk SUPERUSER yang sedang memakai area OPD
@@ -33,10 +26,6 @@ import { USER_ROLES } from '@/features/users/constants/userConstants';
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminLayout();
-  const { logout, isLoggingOut } = useLogout();
-  const fetchProfile = useCallback(() => getMyProfile(), []);
-  const { data: profile } = useAsync(fetchProfile);
-  const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
   const actingOpd = useActingOpd();
 
   // Laci mobile: latarnya menutupi layar, tapi tanpa kunci halaman di belakangnya
@@ -63,7 +52,7 @@ export default function AdminSidebar() {
         />
       )}
 
-      <aside className={`bg-slate-900 text-slate-300 font-body-md text-body-md h-screen w-64 fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50 transition-transform duration-300 ease-in-out ${
+      <aside className={`bg-slate-900 text-slate-300 font-body-md text-body-md h-screen w-64 fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50 overflow-y-auto overscroll-contain transition-transform duration-300 ease-in-out ${
         isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
         <div className="mb-xl px-md flex items-center justify-between">
@@ -109,26 +98,12 @@ export default function AdminSidebar() {
         </Link>
       </nav>
       
-      <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">
-        {isSuperuser && (
-          <Link
-            href="/pilih-peran"
-            className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          >
-            <Repeat size={20} />
-            <span>Ganti Peran</span>
-          </Link>
-        )}
-        <button
-          onClick={logout}
-          disabled={isLoggingOut}
-          className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg w-full text-left disabled:opacity-50"
-        >
-          <LogOut size={20} />
-          <span>{isLoggingOut ? 'Keluar...' : 'Keluar'}</span>
-        </button>
-      </div>
+      {/* "Keluar" kembali ke sini atas permintaan pengguna (1 September 2026),
+          kini aman karena `<aside>` di atas sudah `overflow-y-auto` -- lihat
+          AdminSidebarLogout untuk sebab lengkapnya. "Ganti Peran" TETAP hanya
+          di ikon profil: yang diminta kembali cuma tombol keluar, dan
+          menggandakan pintu ganti peran ke dua tempat tak menambah apa pun. */}
+      <AdminSidebarLogout />
     </aside>
     </>
   );

@@ -9,15 +9,37 @@ export default function AdminSurveyCardActions({ isDraft, surveyId, survey, onDu
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const actionButtonClass = "px-md py-sm border border-outline rounded-lg text-label-md font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors";
 
+  /**
+   * Tombol "Salin" = MENGGANDAKAN survei (POST duplicate), bukan menyalin ke
+   * papan klip. Label & umpan baliknya memang "Salin"/"Tersalin!", dan itu
+   * merujuk pada survei yang tersalin di daftar.
+   *
+   * PENULISAN KE PAPAN KLIP DIHAPUS (2 September 2026), bukan diberi jalan
+   * cadangan. Dua sebab, dan keduanya berdiri sendiri:
+   *
+   * 1. Ia MELEMPAR di lingkungan pengujian proyek ini.
+   *    `navigator.clipboard` hanya ada di secure context (HTTPS/localhost),
+   *    sementara semuanya diakses lewat `http://skema.local`. Di sana objek
+   *    itu `undefined`, jadi `navigator.clipboard.writeText(...)` melempar
+   *    "Cannot read properties of undefined (reading 'writeText')" tepat di
+   *    tengah handler -- sesudah permintaan duplikat terkirim, tapi SEBELUM
+   *    `setCopied(true)`. Akibatnya survei benar-benar tergandakan namun
+   *    tombolnya tak pernah memberi tanda apa pun, dan konsol dipenuhi galat
+   *    yang tampak seperti kerusakan lebih besar daripada yang sesungguhnya.
+   *
+   * 2. Yang disalinnya tak berguna bagi siapa pun. Isinya `SRV-${id}` --
+   *    format yang TIDAK ADA di mana pun selain baris itu sendiri (dicari di
+   *    seluruh src/: satu kecocokan, yaitu dirinya). Backend memakai id angka
+   *    dan nomor tiket berformat lain. Jadi memberinya jalan cadangan hanya
+   *    akan melestarikan penyalinan kode karangan, bukan memperbaiki apa pun.
+   *
+   * Yang memang perlu menyalin -- tautan pengisian survei -- ada di
+   * ShareSurveyModal, dan kini memakai utils/clipboard.js yang aman di HTTP.
+   */
   const handleCopy = () => {
-    // Memanggil prop onDuplicate untuk membuat salinan form di list
     if (onDuplicate) {
       onDuplicate(surveyId);
     }
-
-    // Opsional: masih menyalin ID ke clipboard
-    const codeToCopy = `SRV-${surveyId || '001'}`;
-    navigator.clipboard.writeText(codeToCopy);
 
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -55,7 +77,7 @@ export default function AdminSurveyCardActions({ isDraft, surveyId, survey, onDu
           danger
           onConfirm={() => {
             setShowDeleteModal(false);
-            onDelete && onDelete(surveyId);
+            onDelete?.(surveyId);
           }}
           onCancel={() => setShowDeleteModal(false)}
         />

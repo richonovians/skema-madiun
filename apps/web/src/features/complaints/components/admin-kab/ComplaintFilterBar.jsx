@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
-import { Search, Download, FileText, ChevronDown, RotateCcw, Filter } from 'lucide-react';
+import { Search, Download, FileText, ChevronDown, Filter } from 'lucide-react';
+import ResetFilterButton from '@/components/ui/ResetFilterButton';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 /**
  * Filter "Prioritas" & "Kecamatan" DIHAPUS -- tak ada field ini di backend
@@ -22,6 +24,12 @@ export default function ComplaintFilterBar({
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const exportRef = useRef(null);
+
+  // Menu ekspor 192px bertambat `right-0` ke tombolnya, bukan ke tepi layar.
+  // Lihat useKeepInViewport -- di layar sempit tambatan itu menjorokkan menu
+  // keluar tepi kiri.
+  const exportPanelRef = useRef(null);
+  useKeepInViewport(exportPanelRef, isExportOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -60,23 +68,29 @@ export default function ComplaintFilterBar({
           />
         </div>
 
-        <div className="flex items-center gap-md w-full md:w-auto justify-between md:justify-end">
+        {/* Sama seperti SurveyFilterBar: barisnya dibiarkan membungkus supaya
+            tombol Ekspor tak pernah terdorong keluar layar ponsel. Alasan &
+            angkanya ada di komentar SurveyFilterBar.jsx -- halaman ini
+            memakai pola tata letak yang sama, jadi cacatnya juga sama.
+
+            `variant="outline"` DIGANTI "secondary": varian "outline" tak
+            pernah ada di Button.jsx, dan varian tak dikenal jatuh ke
+            `variants.primary` -- pil terbesar di sistem desain (py-md px-lg
+            text-lg) untuk sebuah tombol penyaring. Itu bukan pilihan desain,
+            cuma nama varian yang salah tulis, dan ia ikut menyumbang ~125px
+            ke baris yang sedang kehabisan ruang. "secondary" = tombol yang
+            sama dengan tombol Filter di halaman Monitoring Survei. */}
+        <div className="flex flex-wrap items-center gap-2 md:gap-md w-full md:w-auto min-w-0 justify-end">
           <Button
-            variant="outline"
-            className="md:hidden flex items-center gap-2"
+            variant="secondary"
+            className="md:hidden flex items-center gap-2 min-h-[44px]"
             onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
           >
             <Filter size={18} />
             <span>Filter</span>
           </Button>
 
-          <button
-            onClick={onResetFilters}
-            className="flex items-center gap-2 min-h-[44px] px-md rounded-lg text-white bg-slate-700 hover:bg-slate-800 hover:text-white transition-colors font-medium text-xs sm:text-body-md"
-          >
-            <RotateCcw size={16} />
-            <span className="hidden sm:inline">Reset Filter</span>
-          </button>
+          <ResetFilterButton onReset={onResetFilters} />
 
           <div className="relative group space-y-1" ref={exportRef}>
             <button
@@ -94,7 +108,10 @@ export default function ComplaintFilterBar({
             </button>
 
             {isExportOpen && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+              <div
+                ref={exportPanelRef}
+                className="absolute right-0 top-full mt-2 w-48 max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+              >
                 <ul className="py-1">
                   <li>
                     <button

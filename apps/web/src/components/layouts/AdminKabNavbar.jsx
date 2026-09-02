@@ -1,11 +1,13 @@
 'use client';
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { Menu, CalendarRange, Layers } from 'lucide-react';
-import Avatar from '@/components/ui/Avatar';
 import Dropdown from '@/components/ui/Dropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
-import ProfileErrorAvatar from '@/components/ui/ProfileErrorAvatar';
+import AdminAccountMenu from './AdminAccountMenu';
+// ProfileErrorAvatar tak lagi diimpor langsung: jalur ponsel yang dulu
+// memakainya sendiri sudah menyatu dengan jalur desktop, dan ProfileLoadError
+// sudah membawa avatar galat itu di dalamnya.
 import ProfileLoadError from '@/components/ui/ProfileLoadError';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useAsync } from '@/hooks/useAsync';
@@ -97,101 +99,207 @@ export default function AdminKabNavbar() {
 
   const hasServiceFilter = (serviceOptions?.length ?? 0) > 0;
 
+  /**
+   * Melaporkan tinggi nyata bilah ini ke `--tinggi-navbar-kab`, yang dipakai
+   * `<main>` di AdminKabLayout sebagai padding-top.
+   *
+   * Perlu diukur, tidak boleh dipatok (31 Agustus 2026). Bilah ini `fixed`,
+   * jadi keluar dari alur tata letak dan `<main>` harus menyisakan ruang
+   * sendiri. Sebelumnya ruang itu berupa angka tetap `pt-[110px] md:pt-20`,
+   * dan angka apa pun salah karena tingginya berubah oleh empat sebab
+   * sekaligus:
+   *   - `flex-col` di bawah md membungkus isinya menjadi beberapa baris;
+   *   - penyaring periode hanya ada di halaman dashboard;
+   *   - `hasServiceFilter` di atas baru diketahui SETELAH GET /opd selesai,
+   *     jadi tingginya bahkan berubah di tengah hidup halaman;
+   *   - judul halaman yang panjang ikut membungkus pada layar sempit.
+   * Terukur empat tinggi berbeda -- 177, 121, 101, dan 80 px -- sementara
+   * offsetnya cuma 110/80, sehingga isi halaman tertutup di 27 dari 42
+   * kombinasi rute x lebar yang diuji.
+   *
+   * Nilai awalnya ada di globals.css (`:root`), dipakai sebelum JS jalan;
+   * yang di sini menimpanya karena inline style pada elemen yang sama
+   * mengalahkan aturan stylesheet.
+   */
+  const headerRef = useRef(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const tinggi = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+      document.documentElement.style.setProperty('--tinggi-navbar-kab', `${Math.ceil(tinggi)}px`);
+    });
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      // Dibersihkan saat keluar dari area admin-kab: nilainya milik bilah ini,
+      // dan meninggalkannya membuat tata letak lain mewarisi angka asing.
+      document.documentElement.style.removeProperty('--tinggi-navbar-kab');
+    };
+  }, []);
+
+  /**
+   * SATU BARIS BARU DARI `xl` (1280px), BUKAN `md` (2 September 2026).
+   *
+   * Sebelumnya tata letak "semua dalam satu baris" menyala di `md` (768px) --
+   * padahal `md` juga titik di mana SIDEBAR muncul dan mengambil 256px. Jadi
+   * tepat di 768px bilah ini cuma punya 464px ruang dalam untuk judul + dua
+   * penyaring + lonceng + nama pengguna + avatar. Terukur: ikon akun terdorong
+   * 55px KELUAR tepi header pada dashboard, dan judul di lima halaman lain
+   * menyusut ke 134px sehingga "Manajemen OPD" pun berakhir elipsis.
+   *
+   * Ambangnya `xl`, bukan `lg`, karena `lg` (1024px) pun masih belum cukup:
+   * di situ judul dashboard tinggal 153px dan tetap terpotong. Terukur setelah
+   * perbaikan -- judul "Dashboard Eksekutif" utuh di 320, 360, 412, 768, 900,
+   * 1024, 1280, dan 1440.
+   *
+   * Di bawah `xl` polanya sama dengan ponsel: penyaring turun ke barisnya
+   * sendiri selebar bilah. Tingginya tak perlu disesuaikan tangan -- diukur
+   * ResizeObserver di atas dan dilaporkan ke `--tinggi-navbar-kab`.
+   */
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 min-h-[80px] bg-surface border-b border-outline-variant flex flex-col md:flex-row justify-center md:justify-between px-4 py-3 md:px-lg md:py-0 z-30 gap-3 md:gap-0 transition-all">
-      <div className="flex items-center justify-between md:justify-start gap-4 w-full md:w-auto">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            className="md:hidden p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"
-            onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-          >
-            <Menu size={24} />
-          </button>
-          <h2 className="font-headline-md text-base md:text-headline-md font-extrabold text-primary truncate max-w-[200px] md:max-w-none">
-            {pageTitle}
-          </h2>
-        </div>
+    <header
+      ref={headerRef}
+      className="fixed top-0 right-0 left-0 md:left-64 min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-30 gap-x-2 gap-y-2 xl:gap-lg transition-all"
+    >
+      <button
+        className="md:hidden -ml-1 p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+        onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+        aria-label="Buka menu navigasi"
+      >
+        <Menu size={24} />
+      </button>
 
-        {/* Avatar mobile */}
-        {isLoading ? (
-          <div className="md:hidden w-8 h-8 rounded-full bg-surface-container animate-pulse shrink-0" />
-        ) : gagalProfil ? (
-          /* Di ponsel hanya avatarnya yang muat -- keterangannya dibawa
-             `aria-label`/`title` milik ProfileErrorAvatar, dan pemulihannya
-             adalah memuat ulang halaman (tombol "Coba lagi" hidup di kelompok
-             profil desktop di bawah). */
-          <ProfileErrorAvatar reason={alasanGagal} size="md" className="md:hidden" />
-        ) : (
-          <Avatar
-            initials={user?.initials ?? '?'}
-            size="md"
-            variant="outline"
-            className="md:hidden bg-primary-container text-on-primary-container border-2 border-primary/20"
-          />
-        )}
-      </div>
+      {/* `flex-1` DI SEMUA LEBAR -- dan justru itulah yang menahan lonceng &
+          ikon akun tetap di ujung kanan.
 
-      <div className="flex items-center flex-wrap gap-2 md:gap-md w-full md:w-auto justify-between md:justify-end">
-        {isDashboard && (
-          <div className="flex items-center gap-2 w-full md:w-auto pb-1 md:pb-0">
+          Di ponsel alasannya: dengan `flex-wrap`, peramban lebih memilih
+          MEMBUNGKUS daripada memampatkan, jadi selama lebar dasar judul masih
+          `max-content` ia sendiri yang mendorong kelompok lonceng+akun turun ke
+          baris berikutnya. Lebar dasar 0 membuat judul tak pernah lagi menjadi
+          sebab pembungkusan.
+
+          Di desktop dulu `md:flex-initial`, dan di situlah cacatnya (dilaporkan
+          pengguna 2 September 2026, tangkapan layar halaman Manajemen OPD):
+          judul selebar isinya, sementara satu-satunya yang menyerap ruang
+          kosong adalah `md:ml-auto` pada baris PENYARING -- yang hanya ada di
+          halaman dashboard. Di LIMA halaman admin-kab lainnya tak ada penyaring,
+          jadi tak ada apa pun yang mendorong ke kanan dan lonceng+akun menempel
+          rapat di sebelah judul dengan ruang kosong lebar di kanannya.
+
+          `flex-1` menjadikan judul sendiri penyerap ruang kosong itu, sehingga
+          lonceng & ikon akun tergeser ke kanan di SEMUA halaman -- ada penyaring
+          maupun tidak. `min-w-0` + `md:truncate` menjaga judul panjang tetap
+          menyusut dengan elipsis, bukan menjebol tepi. */}
+      <h2 className="min-w-0 flex-1 font-headline-md text-base md:text-headline-md font-extrabold leading-tight text-primary line-clamp-2 xl:line-clamp-none xl:truncate">
+        {pageTitle}
+      </h2>
+
+      {/* Penyaring: baris sendiri selebar layar di ponsel (`order-last w-full`),
+          kembali ke tempat semula di md+ lewat `md:order-3 md:w-auto`.
+
+          `md:ml-auto` DIHAPUS (2 September 2026). Ruang kosong desktop kini
+          diserap judul (`flex-1`, lihat catatan di atas), jadi penyaring tetap
+          berkumpul di ujung kanan bersama lonceng & akun -- tanpa lagi menjadi
+          SATU-SATUNYA yang mendorong ke kanan, yang membuat lima halaman
+          tanpa penyaring tertinggal rata kiri. */}
+      {isDashboard && (
+        <div className="order-last flex w-full items-center gap-2 pb-1 xl:order-3 xl:w-auto xl:shrink-0 xl:pb-0">
+          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+            <CalendarRange size={18} className="hidden lg:block text-secondary shrink-0" />
+            <Dropdown
+              id="filter-kab-periode"
+              options={PERIODE_OPTIONS}
+              value={periode}
+              onChange={setPeriode}
+              variant="primary"
+              className="w-full"
+            />
+          </div>
+          {hasServiceFilter && (
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <CalendarRange size={18} className="hidden lg:block text-secondary shrink-0" />
+              <Layers size={18} className="hidden lg:block text-secondary shrink-0" />
               <Dropdown
-                id="filter-kab-periode"
-                options={PERIODE_OPTIONS}
-                value={periode}
-                onChange={setPeriode}
+                id="filter-kab-layanan"
+                options={[ALL_SERVICES, ...serviceOptions]}
+                value={jenisLayanan}
+                onChange={setJenisLayanan}
                 variant="primary"
                 className="w-full"
               />
             </div>
-            {hasServiceFilter && (
-              <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                <Layers size={18} className="hidden lg:block text-secondary shrink-0" />
-                <Dropdown
-                  id="filter-kab-layanan"
-                  options={[ALL_SERVICES, ...serviceOptions]}
-                  value={jenisLayanan}
-                  onChange={setJenisLayanan}
-                  variant="primary"
-                  className="w-full"
-                />
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* Notifikasi (2026-08-05) -- SEBELUMNYA tak terpasang sama sekali di
-            navbar ini (temuan audit), padahal AdminNavbar (Admin OPD) sudah
-            punya lebih dulu. */}
+      {/* LONCENG & IKON AKUN JADI SATU KELOMPOK (1 September 2026, permintaan
+          pengguna: "tombol notifikasi di samping kiri ikon akun profil", agar
+          sama dengan navbar Admin OPD).
+
+          Sebelumnya lonceng duduk di kelompok kanan BERSAMA penyaring,
+          sementara ikon akun punya salinan sendiri khusus ponsel di baris
+          pertama. Karena penyaringnya `w-full`, di ponsel urutannya menjadi
+          tiga baris: [judul + avatar] / [penyaring] / [lonceng sendirian] --
+          lonceng terlempar ke baris ketiga, jauh dari ikon akun.
+
+          Sekarang keduanya satu simpul yang dipakai KEDUA lebar layar, jadi
+          lonceng selalu tepat di kiri ikon akun. Ini juga menghapus salinan
+          menu akun versi ponsel: satu-satunya `AdminAccountMenu` yang tersisa
+          berlaku di semua lebar, sehingga tak mungkin lagi dua versi itu
+          berbeda perilaku. `NotificationDropdown` tetap satu instance -- dua
+          instance berarti dua permintaan notifikasi tiap muat halaman.
+
+          Yang khusus desktop kini hanya TEKS identitasnya (`hidden lg:block`)
+          plus pemisah `lg:border-l`, sama seperti AdminNavbar. Ambangnya
+          dinaikkan dari `md` ke `lg`: di 768-1023 sidebar sudah memakan 256px,
+          dan nama pengguna (maks 180px) + pemisahnya adalah 204px yang membuat
+          judul menyusut jadi elipsis serta ikon akun terdorong keluar tepi.
+          Nama lengkapnya tetap bisa dilihat di dalam menu akun.
+          (Ambang `lg` di sini sengaja BEDA dari ambang satu-baris `xl` di atas:
+          teks identitas cuma perlu ruang mendatar di barisnya sendiri, sedangkan
+          penyaring perlu seluruh baris.)
+
+          `ml-auto` berlaku di SEMUA lebar (dulu dibatalkan `md:ml-0`) sebagai
+          jaminan kedua bahwa kelompok ini rapat ke tepi kanan, bahkan bila
+          judulnya kelak tak lagi `flex-1`. Polanya kini identik AdminNavbar. */}
+      <div className="ml-auto flex shrink-0 items-center gap-2 xl:order-4 lg:gap-md">
         <NotificationDropdown />
 
-        {/* Profil desktop */}
-        <div className="hidden md:flex items-center gap-md pl-lg border-l border-border">
+        <div className="flex items-center gap-2 lg:gap-md lg:border-l lg:border-border lg:pl-lg">
           {isLoading ? (
             <>
-              <div className="text-right space-y-1">
+              <div className="hidden lg:block text-right space-y-1">
                 <div className="h-4 w-28 rounded bg-surface-container animate-pulse" />
                 <div className="h-3 w-20 rounded bg-surface-container animate-pulse ml-auto" />
               </div>
-              <div className="w-10 h-10 rounded-full bg-surface-container animate-pulse" />
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-surface-container animate-pulse" />
             </>
           ) : gagalProfil ? (
-            <ProfileLoadError reason={alasanGagal} onRetry={refetch} />
+            /* Menu akun tetap ikut dirender walau profil gagal dimuat -- sejak
+               "Keluar" pindah ke ikon profil, cabang gagal yang tanpa menu
+               berarti pengguna terkurung tanpa jalan keluar. Keterangan
+               teksnya disembunyikan di ponsel (`textClassName`), tapi avatar
+               galat berlabel milik ProfileLoadError tetap tampil sebagai
+               penanda keadaan. */
+            <>
+              <ProfileLoadError
+                reason={alasanGagal}
+                onRetry={refetch}
+                textClassName="hidden lg:block"
+              />
+              <AdminAccountMenu />
+            </>
           ) : (
             <>
-              <div className="text-right">
+              <div className="hidden lg:block text-right">
                 <p className="text-label-md font-bold text-primary truncate max-w-[180px]">
                   {user?.name ?? 'Pengguna'}
                 </p>
                 <p className="text-xs text-secondary">{user?.roleLabel ?? '-'}</p>
               </div>
-              <Avatar
-                initials={user?.initials ?? '?'}
-                size="lg"
-                variant="outline"
-                className="w-10 h-10 text-xs bg-primary-container text-on-primary-container border-2 border-primary/20"
-              />
+              <AdminAccountMenu user={user} />
             </>
           )}
         </div>

@@ -76,6 +76,18 @@ export default function AdminOPDComplaintsPage() {
     setCurrentPage(1);
   };
 
+  /**
+   * Setel ulang penyaring tabel pengaduan (2 September 2026). 'Semua Status'
+   * -- bukan '' -- karena itulah nilai netral yang dipakai penyaringnya
+   * (lihat filteredComplaints & statusOptions di ComplaintListFilter);
+   * mengisinya dengan string kosong akan menyaring habis seluruh baris.
+   */
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('Semua Status');
+    setCurrentPage(1);
+  };
+
   const handleExportExcel = () => {
     const header = 'ID Pengaduan,Judul,Pelapor,Status,Tanggal';
     const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -150,6 +162,7 @@ export default function AdminOPDComplaintsPage() {
           onStatusChange={handleStatusChange}
           onExportExcel={handleExportExcel}
           onExportPDF={handleExportPDF}
+          onResetFilters={handleResetFilters}
         />
 
         <AdminComplaintTable complaints={paginatedComplaints} />

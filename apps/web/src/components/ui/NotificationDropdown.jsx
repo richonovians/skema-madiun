@@ -4,6 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useAsync } from '@/hooks/useAsync';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 import {
   getNotifications,
   getUnreadNotificationCount,
@@ -26,6 +27,14 @@ const LIST_LIMIT = 10;
 export default function NotificationDropdown({ className = '' }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Panel dijaga tetap di dalam layar. Bel BUKAN elemen paling kanan pada
+  // navbar (avatar profil ada di kanannya), jadi `right-0` menyejajarkannya
+  // ~44px dari tepi layar; pada Android 360px terukur `kiri=-60`, artinya 60px
+  // sisi kiri panel -- termasuk titik penanda "belum dibaca" -- keluar layar
+  // dan tak terjangkau. Lihat useKeepInViewport untuk sebab lengkapnya.
+  const panelRef = useRef(null);
+  useKeepInViewport(panelRef, isOpen);
 
   const fetchData = useCallback(async () => {
     const [{ data: notifications }, unreadCount] = await Promise.all([
@@ -84,9 +93,17 @@ export default function NotificationDropdown({ className = '' }) {
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
+      {/* Tombol ini HANYA ikon, jadi tanpa `aria-label` ia tak punya nama yang
+          bisa dibacakan sama sekali -- pembaca layar cuma menyebut "tombol"
+          (ditemukan saat memeriksa navbar, 2 September 2026). Jumlah yang belum
+          dibaca ikut disebutkan karena titik merahnya semata-mata visual: itu
+          satu-satunya penanda ada notifikasi baru, dan tak seorang pun yang
+          tak melihatnya bisa mengetahuinya. */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={hasIndicator ? `Notifikasi, ${unreadCount} belum dibaca` : 'Notifikasi'}
+        aria-expanded={isOpen}
         className={`p-2 hover:bg-surface-container-low rounded-full transition-all flex items-center justify-center min-w-[44px] min-h-[44px] relative ${isOpen ? 'bg-surface-container-low text-primary' : 'text-outline'}`}
       >
         <Bell size={20} className={isOpen ? 'text-primary' : 'text-on-surface'} />
@@ -99,14 +116,29 @@ export default function NotificationDropdown({ className = '' }) {
         <>
           <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setIsOpen(false)} />
 
-          <div className="absolute right-0 mt-3 w-[300px] sm:w-[360px] bg-white/95 backdrop-blur-md rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 origin-top-right transition-all duration-200">
+          {/* Lebar dibatasi layar (`min(...)`) supaya panel tak pernah lebih
+              lebar dari perangkatnya -- di 320px, 300px tetap menyisakan
+              hanya 20px. Pergeserannya sendiri ditangani useKeepInViewport;
+              batas lebar ini yang membuat pergeseran itu selalu punya ruang
+              untuk mendarat. */}
+          <div
+            ref={panelRef}
+            className="absolute right-0 mt-3 w-[min(300px,calc(100vw-1.5rem))] sm:w-[360px] bg-white/95 backdrop-blur-md rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 origin-top-right transition-all duration-200"
+          >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <span className="text-sm font-bold text-slate-700">Notifikasi</span>
+              {/* Bidang sentuh tombol di bawah diperbesar TANPA mengubah tinggi
+                  baris judul: `py-3 -my-3` menumbuhkan area tekan dari 17px
+                  menjadi ~41px, lalu margin negatif menariknya kembali sehingga
+                  tata letak di sekitarnya tidak bergeser sedikit pun. Terukur
+                  139x17 -- ukuran yang praktis mustahil ditekan dengan jempol,
+                  dan ini satu-satunya kendali sejati seukuran itu di seluruh
+                  aplikasi. */}
               {unreadCount > 0 && (
                 <button
                   type="button"
                   onClick={handleMarkAllRead}
-                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 py-3 -my-3 px-2 -mr-2"
                 >
                   <Check size={12} /> Tandai semua dibaca
                 </button>

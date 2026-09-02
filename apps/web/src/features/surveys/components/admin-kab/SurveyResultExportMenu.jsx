@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Download, FileText } from 'lucide-react';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 const FORMATS = [
   { value: 'csv', label: 'CSV', icon: Download },
@@ -20,6 +21,12 @@ const FORMATS = [
 export default function SurveyResultExportMenu({ onExport, exportingFormat = null }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+
+  // Pada lanskap ponsel (tinggi hanya ~390px) menu ini terukur `bawah=397`:
+  // pilihan terakhir "PDF" berada di luar layar dan tak bisa ditekan, sebab
+  // panel melayang tak ikut tergulir bersama halaman. Lihat useKeepInViewport.
+  const panelRef = useRef(null);
+  useKeepInViewport(panelRef, isOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -51,7 +58,10 @@ export default function SurveyResultExportMenu({ onExport, exportingFormat = nul
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 w-full min-w-[150px] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+        <div
+          ref={panelRef}
+          className="absolute top-full right-0 mt-2 w-full min-w-[150px] max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+        >
           <ul className="py-1">
             {FORMATS.map(({ value, label, icon: Icon }) => (
               <li key={value}>

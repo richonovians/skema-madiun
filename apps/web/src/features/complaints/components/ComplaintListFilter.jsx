@@ -2,17 +2,29 @@ import React, { useState, useRef, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import { Search, Download, FileText, ChevronDown } from 'lucide-react';
+import ResetFilterButton from '@/components/ui/ResetFilterButton';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
-export default function ComplaintListFilter({ 
-  searchQuery, 
-  onSearchChange, 
-  statusFilter, 
+export default function ComplaintListFilter({
+  searchQuery,
+  onSearchChange,
+  statusFilter,
   onStatusChange,
   onExportExcel,
-  onExportPDF
+  onExportPDF,
+  onResetFilters,
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef(null);
+
+  // Komponen ini dipakai /admin-opd/complaints (dan bukan varian admin-kab yang
+  // sudah diperbaiki lebih dulu), jadi menu ekspornya masih tertutup di
+  // beberapa ukuran ponsel -- dilaporkan pengguna, 1 September 2026.
+  // Bedanya dengan varian admin-kab: panel ini bertambat `left-0`, bukan
+  // `right-0`, sehingga yang jebol adalah tepi KANAN. Kaitnya menangani kedua
+  // arah, jadi penanganannya sama.
+  const exportPanelRef = useRef(null);
+  useKeepInViewport(exportPanelRef, isExportOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -43,12 +55,18 @@ export default function ComplaintListFilter({
           className="w-full"
         />
       </div>
-      <div className="flex items-center gap-md z-10 relative">
-        <Dropdown 
+      {/* `flex-wrap` + `min-w-0`: sejak tombol reset ikut di baris ini, tiga
+          kendali harus muat di layar ponsel. Membungkus lebih baik daripada
+          mendorong tombol terakhir keluar tepi -- cacat yang persis dilaporkan
+          pengguna pada tombol ekspor (lihat SurveyFilterBar). */}
+      <div className="flex flex-wrap items-center gap-2 md:gap-md min-w-0 justify-end z-10 relative">
+        <Dropdown
           options={statusOptions}
           value={statusFilter}
           onChange={onStatusChange}
         />
+
+        <ResetFilterButton onReset={onResetFilters} />
         <div className="relative group space-y-1" ref={exportRef}>
           <button 
             onClick={() => setIsExportOpen(!isExportOpen)}
@@ -62,7 +80,10 @@ export default function ComplaintListFilter({
           </button>
           
           {isExportOpen && (
-            <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+            <div
+              ref={exportPanelRef}
+              className="absolute top-full left-0 mt-2 w-full min-w-[150px] max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+            >
               <ul className="py-1 max-h-60 overflow-y-auto">
                 <li>
                   <button 

@@ -4,7 +4,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
-import { Search, Download, FileText, ChevronDown, RotateCcw, Filter, Plus } from 'lucide-react';
+import { Search, Download, FileText, ChevronDown, Filter, Plus } from 'lucide-react';
+import ResetFilterButton from '@/components/ui/ResetFilterButton';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 /**
  * Filter daftar survei untuk Admin Kabupaten -- pola tata letak sama dgn
@@ -28,6 +30,11 @@ export default function SurveyFilterBar({
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const exportRef = useRef(null);
+
+  // Sama seperti ComplaintFilterBar: menu 192px bertambat ke tombolnya, bukan
+  // ke tepi layar. Lihat useKeepInViewport.
+  const exportPanelRef = useRef(null);
+  useKeepInViewport(exportPanelRef, isExportOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -66,23 +73,33 @@ export default function SurveyFilterBar({
           />
         </div>
 
-        <div className="flex items-center gap-md w-full md:w-auto justify-between md:justify-end">
+        {/* TOMBOL BOLEH MEMBUNGKUS (1 September 2026, laporan pengguna "tombol
+            ekspor masih terlihat tertutup di tampilan hp").
+            Empat tombol di sini butuh 314px berjajar, sementara ruang yang
+            tersedia di layar 320px hanya 222px dan di 360px hanya 262px.
+            Barisnya dulu `flex` tanpa `flex-wrap`, jadi kelebihannya tak
+            hilang ke mana-mana: tombol terakhir -- Ekspor -- terdorong sampai
+            x=363, yaitu 43px DI LUAR layar 320px dan 3px di luar layar 360px.
+            Itulah yang terlihat sebagai "tertutup"; panelnya sendiri sudah
+            benar sejak useKeepInViewport dipasang.
+            Dua perubahan kecil menghapusnya sama sekali: `flex-wrap` membuat
+            tombol yang tak muat turun ke baris berikutnya (isi baris tak
+            mungkin lagi melebihi kotaknya), dan `gap-2` di ponsel menghemat
+            24px sehingga di 390px keempatnya tetap satu baris seperti semula.
+            `justify-end` menggantikan `justify-between`: pada baris terakhir
+            yang cuma berisi satu tombol, `justify-between` akan
+            melemparkannya ke kiri, jauh dari tombol saudaranya. */}
+        <div className="flex flex-wrap items-center gap-2 md:gap-md w-full md:w-auto min-w-0 justify-end">
           <Button
             variant="secondary"
-            className="md:hidden flex items-center gap-2"
+            className="md:hidden flex items-center gap-2 min-h-[44px]"
             onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
           >
             <Filter size={18} />
             <span>Filter</span>
           </Button>
 
-          <button
-            onClick={onResetFilters}
-            className="flex items-center gap-2 min-h-[44px] px-md rounded-lg text-white bg-slate-700 hover:bg-slate-800 hover:text-white transition-colors font-medium text-xs sm:text-body-md"
-          >
-            <RotateCcw size={16} />
-            <span className="hidden sm:inline">Reset Filter</span>
-          </button>
+          <ResetFilterButton onReset={onResetFilters} />
 
           <button
             onClick={onCreateSurvey}
@@ -108,7 +125,10 @@ export default function SurveyFilterBar({
             </button>
 
             {isExportOpen && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+              <div
+                ref={exportPanelRef}
+                className="absolute right-0 top-full mt-2 w-48 max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+              >
                 <ul className="py-1">
                   <li>
                     <button

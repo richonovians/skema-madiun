@@ -64,14 +64,49 @@ export default function OPDTable({ data, pagination }) {
                 {item.serviceType}
               </Td>
               <Td>
-                <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-                  <span className={`flex items-center gap-1 font-semibold ${item.activeSurveys > 0 ? 'text-primary' : 'text-outline'}`}>
-                    <span className={`w-2 h-2 rounded-full ${item.activeSurveys > 0 ? 'bg-primary' : 'bg-outline'}`}></span>
-                    {item.activeSurveys} Survei Aktif
+                {/* PENGHITUNG DIBACA ULANG (1 September 2026, laporan pengguna:
+                    "bingung melihatnya pada tampilan hp").
+
+                    Bentuk lamanya: satu baris flex tanpa pembungkus, dua
+                    penghitung dipisah garis tegak `|`, dan angka serta labelnya
+                    memakai bobot & warna yang SAMA -- "2 Survei Aktif | 5
+                    Pengaduan Terbuka" terbaca sebagai satu kalimat panjang.
+                    Di sel tabel yang sempit pada ponsel, mata tak punya
+                    pegangan untuk memisahkan mana nilai dan mana yang dihitung.
+
+                    Empat perubahan, masing-masing menjawab satu sebab:
+                    - Angka dipisahkan dari labelnya lewat bobot & warna, jadi
+                      terbaca "nilai lalu keterangannya", bukan satu frasa.
+                    - Menumpuk di ponsel, berdampingan dari `sm` ke atas --
+                      tak ada lagi dua penghitung berdesakan dalam satu baris.
+                    - Titik status kini ada di KEDUANYA; sebelumnya hanya
+                      survei yang punya, sehingga penandaannya tidak konsisten.
+                    - `tabular-nums` supaya angka sejajar antar-baris tabel,
+                      dan `|` dibuang karena pemisahnya kini jarak, bukan glif. */}
+                <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-4">
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.activeSurveys > 0 ? 'bg-primary' : 'bg-outline'}`}
+                      aria-hidden="true"
+                    ></span>
+                    <span
+                      className={`font-bold tabular-nums ${item.activeSurveys > 0 ? 'text-primary' : 'text-outline'}`}
+                    >
+                      {item.activeSurveys}
+                    </span>
+                    <span className="font-medium text-on-surface-variant">Survei Aktif</span>
                   </span>
-                  <span className="text-border">|</span>
-                  <span className={`flex items-center gap-1 font-semibold ${item.openComplaints > 0 ? 'text-tertiary' : 'text-outline'}`}>
-                    {item.openComplaints} Pengaduan Terbuka
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.openComplaints > 0 ? 'bg-tertiary' : 'bg-outline'}`}
+                      aria-hidden="true"
+                    ></span>
+                    <span
+                      className={`font-bold tabular-nums ${item.openComplaints > 0 ? 'text-tertiary' : 'text-outline'}`}
+                    >
+                      {item.openComplaints}
+                    </span>
+                    <span className="font-medium text-on-surface-variant">Pengaduan Terbuka</span>
                   </span>
                 </div>
               </Td>

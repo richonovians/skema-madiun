@@ -61,9 +61,13 @@ export default function IkmLeaderboard({ data = [], periode }) {
             kalau kelak daftarnya sengaja memuat beberapa survei per OPD. */}
         {data.map((item, index) => (
           <div key={item.surveyId} className="space-y-xs">
-            <div className="flex justify-between text-xs font-semibold">
-              <span>{item.opdName}</span>
-              <span className="text-primary">{item.ikmScore.toFixed(1)}</span>
+            <div className="flex justify-between gap-2 text-xs font-semibold">
+              {/* Nama OPD bisa sangat panjang ("Dinas Pemberdayaan Perempuan dan
+                  Perlindungan Anak"). `min-w-0 truncate` menjaganya menyusut
+                  dengan elipsis alih-alih mendorong nilai IKM keluar layar --
+                  perlu sejak pembungkusnya tak lagi dipaksa 500px di ponsel. */}
+              <span className="min-w-0 truncate" title={item.opdName}>{item.opdName}</span>
+              <span className="shrink-0 text-primary">{item.ikmScore.toFixed(1)}</span>
             </div>
             <div className="h-3 w-full bg-surface-container-low rounded-full overflow-hidden">
               <div 
