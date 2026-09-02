@@ -1,5 +1,8 @@
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { SESSION_COOKIE } from '../session/session-cookie.service';
+import type { SessionCookieService } from '../session/session-cookie.service';
+import { readCookie } from '../session/cookie.util';
 import type { SessionService } from '../session/session.service';
 import { SessionAuthProvider } from './session-auth.provider';
 
@@ -18,7 +21,12 @@ const userRow = (over: Record<string, unknown> = {}) => ({
 describe('SessionAuthProvider', () => {
   const prisma = { user: { findUnique: jest.fn() } } as unknown as PrismaService;
   const sessionService = { verify: jest.fn() } as unknown as SessionService;
-  const provider = new SessionAuthProvider(prisma, sessionService);
+  // Pembacaan cookie-nya nyata (bukan mock) -- yang diuji di sini justru jalur
+  // mana yang dipilih, dan itu tak terlihat kalau pembacanya dipalsukan.
+  const sessionCookie = {
+    read: (header?: string) => readCookie(header, SESSION_COOKIE),
+  } as unknown as SessionCookieService;
+  const provider = new SessionAuthProvider(prisma, sessionService, sessionCookie);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -75,5 +83,59 @@ describe('SessionAuthProvider', () => {
 
     expect(result).not.toBeNull();
     expect(sessionService.verify).toHaveBeenCalledWith('valid-token');
+  });
+
+  /**
+   * Jalur cookie `session` HttpOnly (2026-08-27) — cara sesi SSO diserahkan.
+   * Lihat SessionCookieService untuk alasan cookie dipilih atas fragment URL.
+   */
+  describe('cookie session (jalur SSO)', () => {
+    it('tanpa header Authorization tapi ADA cookie session → dipakai', async () => {
+      (sessionService.verify as jest.Mock).mockReturnValue({ sub: 42 });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(userRow());
+
+      const result = await provider.resolveUser({
+        headers: { cookie: `role=opd; ${SESSION_COOKIE}=jwt-dari-sso; area=opd` },
+      });
+
+      expect(result).not.toBeNull();
+      expect(sessionService.verify).toHaveBeenCalledWith('jwt-dari-sso');
+    });
+
+    it('cookie session tetap melewati pemeriksaan DB — akun nonaktif → null', async () => {
+      (sessionService.verify as jest.Mock).mockReturnValue({ sub: 42 });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(userRow({ isActive: false }));
+
+      expect(
+        await provider.resolveUser({ headers: { cookie: `${SESSION_COOKIE}=jwt` } }),
+      ).toBeNull();
+    });
+
+    it('cookie LAIN tanpa cookie session → null', async () => {
+      expect(await provider.resolveUser({ headers: { cookie: 'token=abc; role=opd' } })).toBeNull();
+      expect(sessionService.verify).not.toHaveBeenCalled();
+    });
+
+    it('header Authorization DIDAHULUKAN atas cookie', async () => {
+      (sessionService.verify as jest.Mock).mockReturnValue({ sub: 42 });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(userRow());
+
+      await provider.resolveUser({
+        headers: { authorization: 'Bearer dari-header', cookie: `${SESSION_COOKIE}=dari-cookie` },
+      });
+
+      // Kalau cookie yang menang, galat "token saya salah" akan tampak berhasil.
+      expect(sessionService.verify).toHaveBeenCalledWith('dari-header');
+      expect(sessionService.verify).not.toHaveBeenCalledWith('dari-cookie');
+    });
+
+    it('header "Bearer " kosong tidak jatuh ke cookie — null, bukan sesi orang lain', async () => {
+      expect(
+        await provider.resolveUser({
+          headers: { authorization: 'Bearer ', cookie: `${SESSION_COOKIE}=dari-cookie` },
+        }),
+      ).toBeNull();
+      expect(sessionService.verify).not.toHaveBeenCalled();
+    });
   });
 });

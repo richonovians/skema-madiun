@@ -13,6 +13,15 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 10000,
+  // WAJIB untuk sesi SSO (2026-08-27): tokennya kini dititipkan backend sebagai
+  // cookie `session` HttpOnly, dan axios TIDAK mengirim cookie pada permintaan
+  // lintas-origin kecuali diminta -- frontend :3000 memanggil API :3001, jadi
+  // tanpa ini setiap panggilan setelah login SSO akan 401 padahal cookie-nya ada.
+  //
+  // Sisi backend sudah menyiapkannya sejak awal: `credentials: true` di
+  // app.setup.ts dengan origin EKSPLISIT (bukan '*', yang justru dilarang
+  // dipasangkan dengan credentials oleh peramban).
+  withCredentials: true,
 });
 
 // Interceptor Request: Menyematkan token JWT jika ada
@@ -71,5 +80,28 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Apakah galat ini penolakan autentikasi (sesi tak sah)?
+ *
+ * Tinggal di layer service, BUKAN di komponen: `error.response.status` adalah
+ * bentuk respons backend, dan AGENTS.md melarang komponen menyentuh backend
+ * langsung. Komponen cukup bertanya "sesi saya masih sah?" tanpa tahu HTTP.
+ *
+ * Pembedaannya menentukan perilaku, bukan sekadar pesan (2026-08-28):
+ * - 401 -> sesi memang habis. Interceptor di atas sudah membuang artefaknya,
+ *   jadi antarmuka harus berhenti berpura-pura ada sesi.
+ * - galat TANPA `response` sama sekali (jaringan mati, API sedang restart, nginx
+ *   menjawab 502, timeout) -> sesi bisa jadi masih baik-baik saja. Pengguna TAK
+ *   BOLEH dikeluarkan karena servernya sedang tak terjangkau; yang benar adalah
+ *   mengatakan apa yang gagal dan menawarkan mencoba lagi.
+ *
+ * Aman memakai 401 sebagai penanda tunggal: backend memakainya KHUSUS untuk
+ * "Autentikasi diperlukan", sedangkan penolakan karena peran/kepemilikan selalu
+ * 403 (lihat RolesGuard & opd-scope.util.ts).
+ */
+export function isUnauthorizedError(error) {
+  return error?.response?.status === 401;
+}
 
 export default api;

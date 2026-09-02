@@ -52,11 +52,22 @@ export default function IkmLeaderboard({ data = [], periode }) {
       </div>
 
       <div className="space-y-md">
+        {/* Di-key dgn `surveyId`, BUKAN `opdId` (31 Agustus 2026): tiap baris di
+            sini adalah satu SURVEI, dan satu OPD boleh punya beberapa survei --
+            jadi `opdId` memang bukan identitas baris ini dan pernah memicu
+            peringatan React "two children with the same key". Akar masalahnya
+            sendiri (survei dibuka kembali terhitung dua kali) sudah diperbaiki
+            di IkmService.getDashboard; key ini lapis kedua, dan tetap benar
+            kalau kelak daftarnya sengaja memuat beberapa survei per OPD. */}
         {data.map((item, index) => (
-          <div key={item.opdId} className="space-y-xs">
-            <div className="flex justify-between text-xs font-semibold">
-              <span>{item.opdName}</span>
-              <span className="text-primary">{item.ikmScore.toFixed(1)}</span>
+          <div key={item.surveyId} className="space-y-xs">
+            <div className="flex justify-between gap-2 text-xs font-semibold">
+              {/* Nama OPD bisa sangat panjang ("Dinas Pemberdayaan Perempuan dan
+                  Perlindungan Anak"). `min-w-0 truncate` menjaganya menyusut
+                  dengan elipsis alih-alih mendorong nilai IKM keluar layar --
+                  perlu sejak pembungkusnya tak lagi dipaksa 500px di ponsel. */}
+              <span className="min-w-0 truncate" title={item.opdName}>{item.opdName}</span>
+              <span className="shrink-0 text-primary">{item.ikmScore.toFixed(1)}</span>
             </div>
             <div className="h-3 w-full bg-surface-container-low rounded-full overflow-hidden">
               <div 

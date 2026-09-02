@@ -73,24 +73,30 @@ describe('Alur End-to-End per Peran (e2e)', () => {
 
     const r1 = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-jrn-r1' },
-      update: {},
+      // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+      // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+      update: { consentAt: new Date() },
       create: {
         ssoSubject: 'e2e-jrn-r1',
         nama: 'Responden Satu E2E',
         email: 'e2e-jrn-r1@example.go.id',
         role: Role.responden,
+        consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
     responden1Id = r1.id;
 
     const r2 = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-jrn-r2' },
-      update: {},
+      // consentAt juga di `update` supaya baris SISA dari run sebelumnya
+      // (yang dibuat sebelum penegakan PDP ada) ikut diperbaiki.
+      update: { consentAt: new Date() },
       create: {
         ssoSubject: 'e2e-jrn-r2',
         nama: 'Responden Dua E2E',
         email: 'e2e-jrn-r2@example.go.id',
         role: Role.responden,
+        consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
     responden2Id = r2.id;

@@ -7,6 +7,8 @@ import {
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { ConsentService } from './consent.service';
 import { DevLoginDto } from './dto/dev-login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
@@ -18,6 +20,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -46,9 +49,16 @@ export class AuthService {
     }
 
     await this.prisma.user.update({ where: { id: row.id }, data: { lastLoginAt: new Date() } });
+    // Dicatat SETELAH kedua penolakan di atas: login gagal tak punya aktor untuk
+    // ditunjuk (`audit_logs.actor_id` NOT NULL), jadi kegagalan tetap hanya masuk
+    // log aplikasi. Lihat catatan di AuthController.logout.
+    await this.audit.record(row.id, 'login', 'auth', { via: 'dev-login' });
 
     const token = this.sessionService.issue(row.id);
-    return new SessionEntity({ token, user: new MeEntity(row) });
+    // Lewat helper yang SAMA dengan getMe: sebelumnya `new MeEntity(row)`
+    // langsung, sehingga `consentRequired` & `ssoLinked` tak pernah terisi di
+    // jalur dev-login dan frontend tak tahu harus mengarahkan ke persetujuan.
+    return new SessionEntity({ token, user: toMeEntity(row) });
   }
 
   /**
@@ -70,7 +80,7 @@ export class AuthService {
     if (!row) {
       throw new NotFoundException('Pengguna tidak ditemukan');
     }
-    return new MeEntity(row);
+    return toMeEntity(row);
   }
 
   /** Ubah nama (semua peran) + demografis (khusus responden). Data dipakai ulang antar survei. */
@@ -127,4 +137,41 @@ export class AuthService {
       },
     });
   }
+}
+
+/**
+ * Pola nilai PENAMPUNG `sso_subject` dari masa sebelum SSO. `seed-*` dibuat
+ * skrip seeder, `pending:<email>` dibuat saat admin membuat akun lewat
+ * Manajemen User sebelum penggunanya pernah masuk lewat Helpdesk.
+ *
+ * Keduanya diganti `sub` asli pada login SSO pertama — lihat langkah 2
+ * pencocokan di SsoService.provision.
+ */
+const SSO_PLACEHOLDER = /^(seed-|pending:)/;
+
+function isSsoLinked(ssoSubject: string | null): boolean {
+  return Boolean(ssoSubject) && !SSO_PLACEHOLDER.test(ssoSubject as string);
+}
+
+/** Baris Prisma yang dibutuhkan toMeEntity — sengaja minimal, bukan `User` utuh. */
+type MeRow = {
+  role: Role;
+  consentAt: Date | null;
+  ssoSubject: string;
+  [key: string]: unknown;
+};
+
+/**
+ * Satu-satunya tempat MeEntity dibangun (2026-08-27), dipakai `getMe` MAUPUN
+ * `devLogin`. Dua field turunannya dihitung DI SINI, bukan sebagai getter di
+ * MeEntity: menyandarkannya pada perilaku class-transformer terhadap accessor
+ * berarti keduanya bisa diam-diam hilang dari respons kalau strategi
+ * serialisasi berubah.
+ */
+function toMeEntity(row: MeRow): MeEntity {
+  return new MeEntity({
+    ...row,
+    consentRequired: ConsentService.isRequired(row.role, row.consentAt),
+    ssoLinked: isSsoLinked(row.ssoSubject),
+  } as Partial<MeEntity>);
 }

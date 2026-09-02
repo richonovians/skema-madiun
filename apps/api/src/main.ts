@@ -62,6 +62,20 @@ async function bootstrap(): Promise<void> {
   if (swaggerEnabled) {
     logger.log(`Swagger tersedia di http://localhost:${port}/api/docs`);
   }
+
+  // Alamat BAKU sejak reverse proxy dev aktif (2026-08-27). Dicetak terpisah
+  // karena berbeda dari port di atas dan justru inilah yang harus dipakai:
+  // hanya lewat origin tunggal ini cookie sesi terbaca frontend MAUPUN backend,
+  // dan hanya alamat inilah yang cocok dengan `redirect_uri` terdaftar di SSO
+  // Helpdesk. Membuka :3000/:3001 langsung tetap bisa, tapi alur SSO tidak.
+  const webUrl = config.get<string>('app.webUrl');
+  const redirectUri = config.get<string>('helpdesk.ssoRedirectUri');
+  if (webUrl) {
+    logger.log(`Origin aplikasi (pakai ini): ${webUrl}`);
+  }
+  if (redirectUri) {
+    logger.log(`redirect_uri SSO terdaftar: ${redirectUri}`);
+  }
 }
 
 void bootstrap();

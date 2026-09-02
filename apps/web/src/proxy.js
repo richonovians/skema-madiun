@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { ROLE_HOME, SUPERUSER_AREA_HOME } from '@/constants/roleHome';
 
 // Proxy (dulu "middleware") jalan di edge/server — tidak bisa akses localStorage,
-// makanya cek token dari cookie (ditulis oleh authStorage.js saat login/logout,
-// lihat src/features/authentication/services/authStorage.js).
+// makanya cek sesi dari cookie: `token` (jalur dev-login, ditulis authStorage.js)
+// atau `session` (jalur SSO, ditulis backend sebagai HttpOnly). Lihat catatan di
+// dalam `proxy()` dan src/features/authentication/services/authStorage.js.
 //
 // Role-guard (2026-08-05): SEBELUMNYA hanya memeriksa ADA-TIDAKNYA token --
 // siapa pun yang login (termasuk Responden) bisa membuka /admin-kab &
@@ -58,6 +59,20 @@ const SUPERUSER_ONLY_PREFIXES = ['/admin-kab/audit-logs', '/admin-kab/users'];
 const ROLE_PICKER_PATH = '/pilih-peran';
 
 /**
+ * Gerbang persetujuan UU PDP (2026-08-27). Hanya relevan bagi `responden` yang
+ * belum menyetujui, dan HARUS tetap terbuka bagi mereka — ia satu-satunya jalan
+ * keluar dari kurungan di bawah.
+ *
+ * Sifatnya perlu dinyatakan terus terang, sama seperti cookie `area`: ini
+ * pembatas NAVIGASI, bukan pembatas hak. Cookie `consent` bisa disunting
+ * pemiliknya sendiri, dan itu tak melewati apa pun — backend menolak 403 di
+ * titik pengumpulan datanya sendiri (ConsentService.assertConsented pada
+ * POST /complaints & POST /surveys/:id/responses). Menyunting cookie ini hanya
+ * menghasilkan halaman yang gagal mengirim, bukan pengiriman tanpa persetujuan.
+ */
+const CONSENT_PATH = '/persetujuan';
+
+/**
  * Prefiks yang boleh dibuka superuser per area kerja pilihannya (cookie `area`,
  * ditulis RoleLoginPicker.jsx) -- 2026-08-20, permintaan user: "jika superuser
  * login sebagai warga hanya dapat mengakses semua halaman warga, jika login
@@ -82,7 +97,16 @@ function isUnder(pathname, prefix) {
 }
 
 export function proxy(request) {
-  const token = request.cookies.get('token')?.value;
+  // DUA nama cookie, dua jalur login (2026-08-27):
+  // - `token`   : jalur dev-login, ditulis JavaScript (authStorage.saveSession).
+  // - `session` : jalur SSO Helpdesk, ditulis BACKEND sebagai HttpOnly. Tak dapat
+  //   dibaca JavaScript -- tapi proxy ini berjalan di edge/server, dan di sana
+  //   HttpOnly tak menghalangi apa pun. Justru itu sebabnya jalur SSO tetap bisa
+  //   dijaga proxy tanpa menyalin token ke cookie kedua yang terbaca skrip.
+  //
+  // Proxy hanya butuh tahu ADA atau TIDAK; keabsahan tokennya ditegakkan backend
+  // pada setiap panggilan API (SessionAuthProvider), bukan di sini.
+  const token = request.cookies.get('token')?.value ?? request.cookies.get('session')?.value;
   const role = request.cookies.get('role')?.value;
   const { pathname } = request.nextUrl;
   const hasFullAccess = FULL_ACCESS_ROLES.includes(role);
@@ -127,6 +151,22 @@ export function proxy(request) {
   if (!token) {
     const loginUrl = new URL('/', request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Gerbang persetujuan PDP. Diperiksa SEBELUM kurungan area & pemeriksaan
+  // `forbidden` di bawah, karena warga yang belum menyetujui memang tak boleh
+  // sampai ke sana -- dan halaman ini sendiri harus tetap terbuka untuknya.
+  const perluPersetujuan = role === 'responden' && request.cookies.get('consent')?.value !== '1';
+  if (isUnder(pathname, CONSENT_PATH)) {
+    // Yang tak berkepentingan (sudah menyetujui, atau bukan warga) dipantulkan
+    // ke berandanya. Halaman itu sendiri memeriksa ulang lewat GET /auth/me,
+    // jadi cookie basi tak bisa membuka gerbang maupun mengurung selamanya.
+    return perluPersetujuan
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL(ROLE_HOME[role] ?? '/', request.url));
+  }
+  if (perluPersetujuan) {
+    return NextResponse.redirect(new URL(CONSENT_PATH, request.url));
   }
 
   // Pemilih peran: satu-satunya jalan superuser berpindah area tanpa logout,
@@ -201,6 +241,7 @@ export const config = {
   matcher: [
     '/',
     '/pilih-peran',
+    '/persetujuan',
     '/admin-kab/:path*',
     '/admin-opd/:path*',
     '/dashboard',

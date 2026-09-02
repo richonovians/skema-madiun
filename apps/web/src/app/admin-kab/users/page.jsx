@@ -90,6 +90,10 @@ export default function ManajemenUsersPage() {
       */}
 
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-4">
+        {/* TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
+            Penyaring di halaman ini berupa tab peran yang salah satunya selalu
+            aktif dan "Semua Pengguna" ada di paling kiri, jadi menetralkannya
+            sudah satu ketukan; tombol reset hanya menduplikasi tab itu. */}
         <UsersRoleFilter
           activeRoleFilter={activeRoleFilter}
           setActiveRoleFilter={handleRoleFilterChange}

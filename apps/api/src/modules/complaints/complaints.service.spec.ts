@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ComplaintStatus, Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { ConsentService } from '../auth/consent.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import { ComplaintsService } from './complaints.service';
 
@@ -55,7 +56,35 @@ describe('ComplaintsService', () => {
     notifyComplaintStatusChanged: jest.fn(),
     notifyComplaintReply: jest.fn(),
   } as unknown as NotificationsService;
-  const service = new ComplaintsService(prisma, notificationsService, config);
+  const consent = {
+    assertConsented: jest.fn().mockResolvedValue(undefined),
+  } as unknown as ConsentService;
+  const service = new ComplaintsService(prisma, notificationsService, config, consent);
+
+  /**
+   * Penegakan persetujuan PDP (celah 2, 2026-08-27) — pasangan pemeriksaan yang
+   * sama di ResponsesService. Pengaduan memuat data pribadi (identitas pelapor,
+   * isi keluhan, lampiran), jadi ia titik pengumpulan data yang sesungguhnya.
+   */
+  describe('penegakan persetujuan PDP', () => {
+    it('menolak SEBELUM lampiran ditulis ke disk', async () => {
+      (consent.assertConsented as jest.Mock).mockRejectedValueOnce(
+        new ForbiddenException('Anda perlu memberikan persetujuan'),
+      );
+
+      await expect(
+        service.create(
+          { opdId: 1, kategori: 'infrastruktur', judul: 'x', deskripsi: 'y' } as never,
+          undefined,
+          { userId: 10, role: Role.responden, opdId: null },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Urutan penting: menulis lampiran lalu menolak berarti meninggalkan
+      // berkas yatim di disk untuk pengaduan yang tak pernah ada.
+      expect(prisma.opd.findUnique).not.toHaveBeenCalled();
+    });
+  });
 
   beforeEach(() => jest.clearAllMocks());
 

@@ -158,12 +158,36 @@ describe('SurveysService', () => {
     expect(result.status).toBe(SurveyStatus.aktif);
   });
 
-  it('updateStatus ditutup → aktif ditolak (BadRequest)', async () => {
+  // Tes ini SEBELUMNYA menuntut `ditutup → aktif` DITOLAK, dan sejak itu selalu
+  // merah -- satu-satunya tes merah di seluruh suite unit. Yang usang adalah
+  // TESNYA, bukan kodenya: commit 23a189c (18 Agustus 2026) sengaja mengubah
+  // ALLOWED_TRANSITIONS dari `[ditutup]: []` menjadi `[ditutup]: [aktif]`
+  // dengan komentar "survei dapat dibuka kembali", tetapi berkas ini tak ikut
+  // diperbarui. Dibiarkan merah, ia menutupi kegagalan lain yang mungkin muncul
+  // belakangan -- justru kebalikan dari gunanya.
+  it('updateStatus ditutup → aktif berhasil (survei dapat dibuka kembali)', async () => {
     (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
       surveyRow({ status: SurveyStatus.ditutup }),
     );
+    (prisma.survey.update as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.aktif }),
+    );
+
+    const result = await service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
+
+    expect(result.status).toBe(SurveyStatus.aktif);
+  });
+
+  // Penjaga arah sebaliknya: membuka kembali BUKAN berarti semua transisi bebas.
+  // `aktif → draft` tetap harus ditolak, kalau tidak survei yang sudah menerima
+  // jawaban bisa dikembalikan ke draft lalu pertanyaannya disunting.
+  it('updateStatus aktif → draft tetap ditolak (BadRequest)', async () => {
+    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.aktif }),
+    );
+
     await expect(
-      service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5)),
+      service.updateStatus(1, { status: SurveyStatus.draft }, opdUser(5)),
     ).rejects.toThrow(BadRequestException);
   });
 

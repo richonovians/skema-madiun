@@ -1,7 +1,13 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { ConsentService } from '../auth/consent.service';
 import { ResponsesService } from './responses.service';
 
 const responden = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
@@ -41,7 +47,55 @@ describe('ResponsesService', () => {
     },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
-  const service = new ResponsesService(prisma);
+  const consent = {
+    assertConsented: jest.fn().mockResolvedValue(undefined),
+  } as unknown as ConsentService;
+  const service = new ResponsesService(prisma, consent);
+
+  /**
+   * Penegakan persetujuan PDP (celah 2, 2026-08-27). Penjaga navigasi di
+   * frontend saja tak cukup — cookie `consent` dapat disunting pemiliknya,
+   * jadi titik pengumpulan datanya sendiri yang harus menolak.
+   */
+  describe('penegakan persetujuan PDP', () => {
+    it('menolak SEBELUM survei dibaca, bukan setelah jawaban tervalidasi', async () => {
+      (consent.assertConsented as jest.Mock).mockRejectedValueOnce(
+        new ForbiddenException('Anda perlu memberikan persetujuan'),
+      );
+
+      await expect(
+        service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden()),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Menolak lebih awal berarti tak ada kueri yang terbuang, dan pesan
+      // galatnya soal persetujuan — bukan soal survei tak ditemukan.
+      expect(prisma.survey.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('sudah menyetujui -> submit berjalan seperti biasa', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+        id: 1,
+        surveyId: 1,
+        submittedAt: new Date(),
+        answers: [],
+      });
+
+      await service.submit(
+        1,
+        {
+          answers: [
+            { questionId: 101, nilai: 4 },
+            { questionId: 102, teks: 'ok' },
+          ],
+        },
+        responden(),
+      );
+
+      expect(consent.assertConsented).toHaveBeenCalledWith(responden());
+    });
+  });
 
   beforeEach(() => jest.clearAllMocks());
 

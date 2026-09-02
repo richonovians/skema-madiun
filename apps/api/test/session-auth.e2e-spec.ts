@@ -47,6 +47,9 @@ describe('Session Auth end-to-end — SessionAuthProvider aktif (e2e)', () => {
   }, 60000);
 
   afterAll(async () => {
+    // Sejak `dev-login` mencatat aksi `login` (2026-08-27), baris audit menahan
+    // penghapusan penggunanya lewat RESTRICT -- lihat catatan di auth.e2e-spec.ts.
+    await prisma.auditLog.deleteMany({ where: { actorId: userId } });
     await prisma.user.deleteMany({ where: { ssoSubject: 'e2e-session-auth' } });
     await app.close();
     process.env.NODE_ENV = originalNodeEnv;

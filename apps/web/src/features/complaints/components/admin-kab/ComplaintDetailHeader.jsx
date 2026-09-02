@@ -2,11 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, FileText, Printer, Download, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 /** Badge Prioritas & SLA DIHAPUS -- tak ada field ini di backend (lihat gap complaint.adapter.js). */
 export default function ComplaintDetailHeader({ complaint }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef(null);
+
+  // Kepala halaman ini MEMBUNGKUS di layar sempit, sehingga tombol ekspornya
+  // turun ke sisi kiri. `right-0` lalu menarik menu 192px itu keluar tepi kiri
+  // -- terukur `kiri=-92` pada 320px maupun 390px, alias hampir separuh menu
+  // hilang. Digeser kembali ke dalam layar oleh kait di bawah.
+  const exportPanelRef = useRef(null);
+  useKeepInViewport(exportPanelRef, isExportOpen);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -52,7 +60,10 @@ export default function ComplaintDetailHeader({ complaint }) {
           </button>
           
           {isExportOpen && (
-            <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+            <div
+              ref={exportPanelRef}
+              className="absolute right-0 top-full mt-2 w-48 max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+            >
               <ul className="py-1">
                 <li>
                   <button 

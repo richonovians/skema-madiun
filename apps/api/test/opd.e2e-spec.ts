@@ -150,7 +150,12 @@ describe('OPD (e2e)', () => {
   it('OPD hasil sync memiliki externalId & syncedAt', async () => {
     const dinkes = await prisma.opd.findUnique({ where: { kode: 'DINKES' } });
 
-    expect(dinkes?.externalId).toBe('HD-001');
+    // Nilai ASLI Helpdesk, bukan lagi penampung `HD-001` (2026-08-28). Berkas
+    // ini memakai basis data yang SAMA dengan dev, dan sync mengadopsi baris
+    // ber-kode sama -- selama fixture stub memakai penampung, setiap kali suite
+    // ini jalan ia menimpa `external_id` OPD sungguhan dan pemetaan peran SSO
+    // berhenti mengenali OPD-nya. Lihat catatan panjang di StubOpdSource.
+    expect(dinkes?.externalId).toBe('e3152173-1ad7-424c-aed8-2cdf606a25c6');
     expect(dinkes?.syncedAt).not.toBeNull();
   });
 

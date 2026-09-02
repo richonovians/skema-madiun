@@ -128,9 +128,29 @@ export default function SurveyFormModal({
           di bawah field agar tetap terkurung di dalam kartu -- dan dengan
           tinggi tetap, membuka/menutup dropdown tak mengubah ukuran kartu
           maupun kolom Triwulan/Tahun sama sekali. Header & footer `shrink-0`
-          sehingga tombol "Buat Survei" selalu di tempatnya. */}
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[520px] h-[820px] max-h-[90vh] flex flex-col">
-        <div className="px-6 pt-6 pb-4 border-b border-slate-100 relative shrink-0">
+          sehingga tombol "Buat Survei" selalu di tempatnya.
+
+          TOMBOL "BATAL" BERTABRAKAN DENGAN ISIAN (1 September 2026, laporan
+          pengguna). Sebabnya bukan tata letak footer, melainkan kartu yang
+          KEHABISAN TINGGI: badan modal sengaja tanpa `overflow-y-auto` (lihat
+          catatannya di bawah -- daftar dropdown harus boleh mengapung
+          melewatinya), jadi begitu isinya lebih tinggi daripada ruang yang
+          tersisa, isian terakhir MELUAP ke atas footer, bukan tergulir.
+          Terukur pada 320x568: yang tersedia 511px (`max-h-[90vh]`) sementara
+          isinya menuntut ~612px -- 100px meluap tepat ke tombol Batal.
+
+          Yang bikin isinya jadi setinggi itu di ponsel bukan satu hal besar,
+          tapi tiga hal kecil yang menumpuk: Triwulan & Tahun jatuh menjadi
+          DUA baris (`grid-cols-1` di bawah sm) yang menambah ~80px, semua
+          bantalan memakai ukuran desktop, dan `max-h-[90vh]` menyisakan 25px
+          layar yang justru sudah dipakai `p-4` milik latar. Ketiganya
+          dirapikan: kolom Triwulan/Tahun tetap berdampingan di lebar apa pun,
+          bantalan mengecil khusus ponsel, dan batas tinggi memakai
+          `max-h-full` yang berarti "seluruh ruang di dalam p-4 itu".
+          Sesudahnya isinya ~510px pada ruang 536px -- tak ada lagi luapan,
+          sehingga tak ada lagi yang menabrak footer. */}
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[520px] h-[820px] max-h-full sm:max-h-[90vh] flex flex-col">
+        <div className="px-6 pt-5 pb-3 sm:pt-6 sm:pb-4 border-b border-slate-100 relative shrink-0">
           <button
             onClick={onCancel}
             disabled={isSubmitting}
@@ -155,7 +175,7 @@ export default function SurveyFormModal({
         {/* TANPA `overflow-y-auto`: badan ini justru harus membiarkan daftar
             dropdown mengapung melewati batasnya (ke ruang kosong di bawah).
             Isinya cuma 3 field dengan tinggi tetap, jadi tak akan meluap. */}
-        <div className="px-6 py-5 space-y-4 flex-1 min-h-0">
+        <div className="px-6 py-4 sm:py-5 space-y-3 sm:space-y-4 flex-1 min-h-0">
           <Input
             id="survey-title"
             label="Judul Survei"
@@ -189,8 +209,15 @@ export default function SurveyFormModal({
           )}
 
           {/* `items-start`: tinggi kedua kolom ditentukan tombolnya saja, tak
-              ikut memanjang saat daftar pilihan (yang mengapung) terbuka. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+              ikut memanjang saat daftar pilihan (yang mengapung) terbuka.
+
+              `grid-cols-2` di SEMUA lebar, bukan `grid-cols-1 sm:grid-cols-2`.
+              Menumpuknya di ponsel menambah satu baris penuh (~80px) pada
+              modal yang justru sedang kehabisan tinggi, dan isinya memang
+              tak butuh ruang selebar itu: keduanya cuma "Triwulan III" dan
+              "2026". Pada 320px tiap kolom masih 112px, sementara label
+              terpanjang menuntut ~66px. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 items-start">
             <Dropdown
               id="survey-triwulan"
               label="Triwulan"
@@ -216,7 +243,7 @@ export default function SurveyFormModal({
           )}
         </div>
 
-        <div className="px-6 pb-6 pt-4 flex flex-col sm:flex-row gap-2 sm:gap-3 shrink-0 border-t border-slate-100">
+        <div className="px-6 pb-4 pt-3 sm:pb-6 sm:pt-4 flex flex-col sm:flex-row gap-2 sm:gap-3 shrink-0 border-t border-slate-100">
           <button
             onClick={onCancel}
             disabled={isSubmitting}

@@ -7,15 +7,18 @@ import Card from '@/components/ui/Card';
 /**
  * Kartu koneksi SSO.
  *
- * Isinya DITURUNKAN dari `sso` hasil adapter, tak lagi mengarang: sebelumnya
- * `providerName` yang null diganti teks "SSO Helpdesk Kabupaten Madiun" di sini
- * -- persis fiksi yang sudah sengaja ditolak me.adapter.js, karena SSO Helpdesk
- * memang BELUM dibangun (SSO-1 masih menunggu spec, login dev-login). Kini bila
- * penyedianya belum ada, dikatakan belum tersambung.
+ * Isinya DITURUNKAN dari `sso` hasil adapter, tak pernah mengarang: dulu
+ * `providerName` yang null diganti teks penyedia di sini -- fiksi yang sudah
+ * sengaja ditolak me.adapter.js.
  *
- * `accountId` (dari `ssoSubject`) ikut ditampilkan karena itu satu-satunya field
- * SSO yang benar-benar terisi, lengkap dengan keterangan bahwa nilainya masih
- * placeholder selama dev-login dipakai.
+ * Sejak 2026-08-27 modul SSO Helpdesk sudah ada, dan yang menentukan tersambung
+ * atau tidak adalah `me.ssoLinked` dari backend (lihat me.adapter.js). Jadi
+ * kartu ini kini menampilkan keadaan SEBENARNYA pada kedua arah: nama penyedia
+ * & tautan portal untuk akun yang sungguh lewat Helpdesk, "belum tersambung"
+ * untuk yang masih memakai dev-login.
+ *
+ * `accountId` (dari `ssoSubject`) selalu ditampilkan karena selalu terisi --
+ * berisi `sub` asli Helpdesk bila tertaut, atau nilai penampung bila belum.
  */
 export default function ProfileSSOCard({ user }) {
   const sso = user?.sso;
@@ -44,10 +47,14 @@ export default function ProfileSSOCard({ user }) {
           <p className="font-semibold text-blue-950 dark:text-blue-100">
             Manajemen Identitas Terpadu
           </p>
+          {/* Teks "belum tersambung" diperbaiki 2026-08-27: dulu berbunyi
+              "integrasi ... belum aktif", dan itu tak lagi benar — modulnya sudah
+              ada. Yang belum tertaut adalah AKUN INI, dan itu keadaan yang
+              berbeda serta punya jalan keluar yang jelas. */}
           <p className="leading-relaxed text-blue-800/90 dark:text-blue-200/90">
             {isSsoConnected
               ? 'Informasi akun pada halaman ini dikelola melalui penyedia SSO di atas. Untuk mengubah biodata, gunakan portal SSO resmi.'
-              : 'Integrasi SSO Helpdesk Kabupaten Madiun belum aktif, sehingga biodata belum dapat disinkronkan maupun diubah dari portal SSO. Data yang tampil berasal dari akun yang terdaftar pada sistem SKEMA.'}
+              : 'Akun ini belum tertaut ke akun Helpdesk Anda, sehingga biodata belum dapat disinkronkan dari portal SSO. Penautan terjadi otomatis saat Anda pertama kali masuk lewat tombol "Masuk via SSO Helpdesk". Data yang tampil sekarang berasal dari akun yang terdaftar pada sistem SKEMA.'}
           </p>
           {sso?.portalUrl && (
             <div className="pt-1">

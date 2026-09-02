@@ -65,17 +65,285 @@
   --text-headline-md--font-weight: 600;
   --text-body-md: 1rem;
   --text-body-md--line-height: 1.5;
+  /* `text-h2-sm` & `text-body-lg` DIPAKAI di 11 tempat -- ServiceFlow (dirender
+     di beranda) dan seluruh halaman /about -- tetapi tak satu pun pernah
+     didefinisikan, sehingga Tailwind membuangnya diam-diam (ditemukan
+     29 Agustus 2026).
+     Akibat nyatanya di layar ponsel: `font-h2 text-h2-sm md:text-h2` membuat
+     judul bagian TAK PUNYA ukuran sama sekali, jadi "Panduan Penggunaan" tampil
+     16px -- sama besar dengan paragraf di bawahnya, tanpa hierarki -- dan setiap
+     `text-body-lg` juga sama besar dengan teks biasa.
+     Diperbaiki dengan mendefinisikan tokennya, BUKAN menyunting 11 komponen:
+     nilainya mengikuti pola penamaan yang sudah ada (h2 = 2rem untuk md ke atas,
+     body-md = 1rem). */
+  --text-h2-sm: 1.5rem;
+  --text-h2-sm--line-height: 1.25;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.6;
   --text-label-md: 0.875rem;
   --text-label-md--line-height: 1.2;
+
+  /* SISA TOKEN YANG DIPAKAI TAPI TAK PERNAH ADA (1 September 2026).
+     Perbaikan 29 Agustus di atas hanya menambal dua token yang saat itu
+     ketahuan (`text-h2-sm` & `text-body-lg`); penyisiran menyeluruh hari ini --
+     memeriksa SETIAP kelas token yang benar-benar dipakai di src/ terhadap
+     daftar token di blok ini -- menemukan delapan lagi. Semuanya gejala yang
+     sama: Tailwind v4 membuang kelas yang tokennya tak dikenal tanpa satu pun
+     peringatan, jadi elemennya diam-diam mewarisi 16px dari <body>.
+
+     Akibat yang bisa dilihat, dan yang membuat ini dilaporkan sebagai
+     "/about terlihat berbeda dari aslinya di ponsel":
+       `text-h1-sm`      judul hero /about -> 16px di ponsel, 48px di md+
+                         (`text-h1-sm md:text-h1`). Satu-satunya H1 halaman
+                         itu tampil sebesar teks biasa persis di lebar ponsel.
+       `text-h4`         judul misi & pertanyaan FAQ -> sama besar dgn isinya
+       `text-body-sm`    label angka statistik /about
+       `text-body`       8 paragraf /about (nilainya memang 1rem, jadi ini
+                         tak mengubah tampilan -- didefinisikan supaya kelasnya
+                         tak lagi menipu pembaca kode)
+       `text-title-md`   judul kartu detail pengaduan & audit (7 tempat)
+       `text-headline-lg` angka IKM analitik, judul survei di builder, judul
+                         halaman Manajemen Pengguna (5 tempat)
+       `text-headline-sm` H1 halaman detail pengaduan & detail audit
+       `text-label-sm`   label ringkasan respons survei (huruf kapital kecil)
+
+     Nilainya MENGIKUTI TANGGA YANG SUDAH ADA, bukan angka baru: -sm selalu
+     satu tingkat di bawah pasangan tanpa akhiran (h2 2rem -> h2-sm 1.5rem,
+     jadi h1 3rem -> h1-sm 2rem), dan headline-lg diletakkan di antara
+     headline-md (1.25rem) dan headline-xl (3rem). */
+  --text-h1-sm: 2rem;
+  --text-h1-sm--line-height: 1.2;
+  --text-h4: 1.125rem;
+  --text-h4--line-height: 1.4;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.5;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.4;
+  --text-headline-lg: 1.75rem;
+  --text-headline-lg--line-height: 1.2;
+  --text-headline-sm: 1.125rem;
+  --text-headline-sm--line-height: 1.3;
+  --text-label-sm: 0.75rem;
+  --text-label-sm--line-height: 1.3;
+
+  /* Keluarga huruf yang juga dipakai tanpa pernah didefinisikan:
+     `font-body-md` (27x), `font-label-md` (38x), `font-headline-md` (24x),
+     `font-headline-lg` (5x), `font-h4` (3x).
+     Berbeda dari token UKURAN di atas, kelima ini TIDAK PERNAH mengubah
+     tampilan apa pun: <body> sudah ber-`font-family: var(--font-poppins)` dan
+     seluruh keluarga di proyek ini menunjuk ke Poppins, jadi elemennya
+     mewarisi huruf yang sama saja. Didefinisikan hanya supaya kelas yang
+     tertulis di 97 tempat itu benar-benar ada -- bukan karena ada yang rusak. */
+  --font-h4: "Poppins", sans-serif;
+  --font-body-md: "Poppins", sans-serif;
+  --font-label-md: "Poppins", sans-serif;
+  --font-headline-md: "Poppins", sans-serif;
+  --font-headline-lg: "Poppins", sans-serif;
+
+  /* `animate-fade-in-up` dipakai di 10+ tempat (HeroSection, ServiceFlow, dan
+     seluruh /about) LENGKAP dengan `animationDelay` bertingkat (100ms, 200ms,
+     index*100ms) -- tapi keyframes-nya tak pernah ada di mana pun, dan
+     Tailwind v4 tak membawakan animasi bernama itu. Jadi selama ini seluruh
+     kelas tersebut TIDAK melakukan apa pun: animasi masuk yang sudah dirancang
+     memang tak pernah berjalan.
+     Yang ditambahkan di sini adalah keyframes yang SUDAH DIMINTA markup-nya,
+     bukan gerakan baru yang saya karang. Nilainya sengaja di ujung halus --
+     12px, 350ms, ease-out: halaman layanan publik dibuka untuk menyelesaikan
+     urusan, bukan untuk ditonton. */
+  --animate-fade-in-up: fade-in-up 350ms ease-out both;
+
+  /* Satu putaran penuh untuk tombol "Reset Filter" (2 September 2026,
+     permintaan pengguna). BUKAN `animate-spin` bawaan Tailwind: yang itu
+     `infinite`, jadi ikonnya berputar tanpa henti -- itu bahasa "sedang
+     memuat", bukan "sudah dikerjakan". Di sini penyaringnya disetel ulang
+     seketika di klien, jadi yang jujur adalah gerakan SEKALI selesai.
+     Arahnya berlawanan jarum jam supaya sejalan dengan ikonnya (RotateCcw)
+     dan dengan makna "kembali ke awal". */
+  --animate-spin-once: spin-once 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Memakai properti mandiri `rotate`, bukan `transform`: keduanya bertumpuk,
+   sehingga putaran ini tak akan saling menimpa dengan animasi masuk berbasis
+   `transform` (lihat lapisan gerak di bawah) bila keduanya kebetulan mengenai
+   elemen yang sama. */
+@keyframes spin-once {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: -360deg;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pendamping WAJIB bagi keyframes di atas. Sebelum ini proyek tak punya blok
+   ini sama sekali, dan itu tak terasa selama animasinya mati. Begitu animasinya
+   hidup, menghidupkannya TANPA blok ini berarti memaksa gerakan pada pengguna
+   yang setelan sistemnya meminta gerakan dikurangi. Keadaan akhir ditampilkan
+   langsung, bukan animasinya dipercepat. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 :root {
   --background: #F8FAFC;
   --foreground: #0F172A;
+
+  /* Tinggi bilah atas Admin Kabupaten, dipakai <main> di AdminKabLayout untuk
+     menyisakan ruang -- bilah itu `fixed`, jadi keluar dari alur tata letak.
+     Nilai di sini hanya PEMBUKA, dipakai pada render pertama sebelum JS
+     jalan; AdminKabNavbar segera menimpanya dengan tinggi yang benar-benar
+     terukur (ResizeObserver), sebab tingginya berubah menurut halaman, lebar
+     layar, dan data yang baru tiba. 110px dipilih karena itu nilai lama
+     `pt-[110px]` -- cukup dekat sehingga pergeseran satu bingkai pertama
+     nyaris tak terlihat. */
+  --tinggi-navbar-kab: 110px;
+
+  /* Padanannya untuk Admin OPD (1 September 2026). Bilah itu kini dua baris di
+     ponsel -- identitas di atas, penyaring triwulan di bawah -- supaya nama
+     OPD tak lagi tergerus jadi satu huruf. Karena tingginya jadi berubah
+     menurut halaman (baris penyaring hanya ada di dashboard), `pt-20 md:pt-24`
+     yang lama tak bisa lagi dipatok; lihat AdminNavbar.jsx.
+     112px = kasus tertinggi (dashboard di ponsel), dipakai satu bingkai
+     pertama saja sebelum ResizeObserver melaporkan angka sebenarnya. Sengaja
+     memilih yang tertinggi: kelebihan ruang sesaat hanya terlihat sebagai
+     jarak, sementara kekurangan ruang menyembunyikan isi di balik bilah. */
+  --tinggi-navbar-opd: 112px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-poppins);
+}
+
+/* Dipakai di 7 tempat sebagai pasangan `overflow-x-auto` (bagan dashboard
+   kabupaten, penyaring peran, deretan tab analitik) tetapi TAK PERNAH
+   didefinisikan -- sekelas dengan `animate-fade-in-up`, `text-h2-sm`, dan
+   `text-body-lg` yang diperbaiki hari ini: Tailwind v4 membuang kelas yang
+   tak dikenalnya tanpa memberi tahu, jadi bilah gulirnya selalu terlihat dan
+   memakan ruang di layar sempit.
+
+   Yang disembunyikan HANYA bilahnya. Menggulir tetap bisa lewat sentuh, roda,
+   dan tombol panah, dan wadahnya tetap dapat difokus keyboard -- kalau tidak,
+   isi yang melebar justru jadi tak terjangkau. */
+.hide-scrollbar {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* Edge lama */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;              /* Chrome, Safari, Edge */
+}
+
+/* ==========================================================================
+   LAPISAN GERAK (1 September 2026)
+
+   Animasinya SUDAH ditulis di markup sejak lama -- yang tak ada adalah
+   definisinya. Inventarisnya: `animate-in` dipakai 40 kali di 29 berkas,
+   `fade-in` 30 kali, `zoom-in-95` 18 kali, `slide-in-from-*` 9 kali, dan
+   `animate-shake` sekali di ConfirmStatusModal (lengkap dengan state `shake`
+   yang mengendalikannya). Semuanya milik pustaka `tailwindcss-animate`, dan
+   pustaka itu TIDAK ADA di package.json.
+
+   Tailwind v4 membuang kelas yang tak dikenalnya tanpa sepatah kata, jadi
+   selama ini SETIAP dropdown, menu, panel, dan modal muncul mendadak tanpa
+   transisi apa pun -- dan itulah rasa "kaku" yang dikeluhkan. Yang dikerjakan
+   di sini bukan mengarang gerakan baru, melainkan MENGHIDUPKAN gerakan yang
+   memang sudah diminta markup-nya. Nol perubahan pada komponen.
+
+   SATU KEYFRAME UNTUK SEMUANYA, dikemudikan custom property. Ini bukan
+   kerumitan yang dicari-cari: kalau tiap kelas punya `@keyframes` sendiri,
+   `animate-in fade-in zoom-in-95 slide-in-from-top-2` akan memperebutkan
+   properti `animation` yang sama dan hanya deklarasi terakhir yang menang --
+   sehingga tiga dari empat kelas itu jadi sia-sia lagi, kali ini secara diam
+   diam pula. Dengan pola ini keempatnya BERGABUNG menjadi satu gerakan.
+   ========================================================================== */
+@keyframes masuk {
+  from {
+    opacity: var(--gerak-opasitas, 1);
+    transform: translate3d(var(--gerak-x, 0), var(--gerak-y, 0), 0)
+      scale3d(var(--gerak-skala, 1), var(--gerak-skala, 1), 1);
+  }
+}
+
+.animate-in {
+  /* `initial` mengembalikan tiap variabel ke nilai bawaan di dalam
+     `var(..., fallback)` di atas, sehingga elemen yang hanya memakai
+     `animate-in fade-in` tidak ikut kena skala atau geseran. */
+  --gerak-opasitas: initial;
+  --gerak-x: initial;
+  --gerak-y: initial;
+  --gerak-skala: initial;
+
+  animation-name: masuk;
+  animation-duration: 200ms;
+  /* Sedikit melampaui lalu mengendap (nilai akhir 1.28 > 1). Panel yang
+     berhenti tepat di angka tujuannya terasa mekanis; lonjakan kecil ini yang
+     membuatnya terasa "hidup" tanpa menjadi main-main -- ini layanan publik,
+     dibuka untuk menyelesaikan urusan, bukan untuk ditonton. */
+  animation-timing-function: cubic-bezier(0.32, 1.28, 0.5, 1);
+  /* `backwards`, BUKAN `both`. `both` ikut memaku nilai transform di akhir
+     animasi, dan itu mematikan `hover:scale-*` pada elemen yang kebetulan
+     memakai keduanya. `backwards` cukup untuk mencegah kedipan satu bingkai
+     sebelum animasi mulai, tanpa efek samping itu. */
+  animation-fill-mode: backwards;
+}
+
+.fade-in { --gerak-opasitas: 0; }
+.zoom-in-95 { --gerak-skala: 0.95; }
+
+/* Angka mengikuti skala spasi Tailwind (1 = 0.25rem), sesuai nama kelas yang
+   sudah dipakai markup -- hanya varian yang benar-benar terpakai didefinisikan,
+   supaya tak ada CSS mati yang menumpuk. */
+.slide-in-from-top-1 { --gerak-y: -0.25rem; }
+.slide-in-from-top-2 { --gerak-y: -0.5rem; }
+.slide-in-from-top-5 { --gerak-y: -1.25rem; }
+.slide-in-from-bottom-2 { --gerak-y: 0.5rem; }
+.slide-in-from-bottom-4 { --gerak-y: 1rem; }
+
+/* `duration-*` bawaan Tailwind hanya menyetel `transition-duration`, yang tak
+   berpengaruh sama sekali pada animasi keyframe. Markup memakainya dengan
+   maksud mengatur animasi (`animate-in fade-in duration-200`), jadi ketiga
+   nilai yang dipakai dipetakan ke `animation-duration` di sini. */
+.animate-in.duration-200 { animation-duration: 200ms; }
+.animate-in.duration-300 { animation-duration: 300ms; }
+.animate-in.duration-500 { animation-duration: 500ms; }
+
+/* Umpan balik galat pada ConfirmStatusModal. Sengaja PENDEK dan mengecil
+   (6px, 4px, 2px): guncangan yang panjang atau berayun terbaca sebagai
+   kerusakan, sementara sentakan singkat terbaca sebagai "yang ini belum
+   benar". Geraknya horizontal murni supaya tak bertabrakan dengan animasi
+   masuk modalnya. */
+@keyframes shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  15% { transform: translate3d(-6px, 0, 0); }
+  30% { transform: translate3d(6px, 0, 0); }
+  45% { transform: translate3d(-4px, 0, 0); }
+  60% { transform: translate3d(4px, 0, 0); }
+  75% { transform: translate3d(-2px, 0, 0); }
+  90% { transform: translate3d(2px, 0, 0); }
+}
+
+.animate-shake {
+  animation: shake 400ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }

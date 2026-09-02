@@ -16,6 +16,7 @@ import { hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConsentService } from '../auth/consent.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { COMPLAINT_SUB_CATEGORIES } from '../reference/reference.constants';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
@@ -67,6 +68,7 @@ export class ComplaintsService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     config: ConfigService,
+    private readonly consent: ConsentService,
   ) {
     this.uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
   }
@@ -77,6 +79,11 @@ export class ComplaintsService {
     files: Express.Multer.File[] | undefined,
     user: CurrentUser,
   ): Promise<ComplaintEntity> {
+    // PALING AWAL, sebelum validasi & sebelum lampiran ditulis ke disk (celah 2,
+    // 2026-08-27): menulis berkas lalu menolak akan meninggalkan lampiran yatim
+    // untuk pengaduan yang tak pernah ada.
+    await this.consent.assertConsented(user);
+
     await this.assertOpdExists(dto.opdId);
     this.assertSubKategoriConsistent(dto.kategori, dto.subKategori);
     const validFiles = this.validateFiles(files);

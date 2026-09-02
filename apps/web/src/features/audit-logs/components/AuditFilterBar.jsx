@@ -1,7 +1,6 @@
 import React from 'react';
-import { RotateCcw } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
-import Button from '@/components/ui/Button';
+import ResetFilterButton from '@/components/ui/ResetFilterButton';
 
 /**
  * HANYA filter "Modul" (entitas) -- satu-satunya yg didukung backend
@@ -26,13 +25,14 @@ export default function AuditFilterBar({ entitas, onEntitasChange, onReset }) {
         <div className="flex-1 min-w-[200px]">
           <Dropdown value={entitas} onChange={onEntitasChange} options={MODULE_OPTIONS} />
         </div>
-        <Button
-          variant="outline"
-          onClick={onReset}
-          className="flex items-center gap-2 whitespace-nowrap"
-        >
-          <RotateCcw size={16} /> Reset Filter
-        </Button>
+        {/* Dulu memakai `Button variant="outline"` -- varian yang tak pernah
+            ada di Button.jsx, sehingga jatuh ke `variants.primary`: pil
+            terbesar di sistem desain (py-md px-lg text-lg font-bold) untuk
+            sebuah tombol penyaring. Kini seragam dengan tombol reset di
+            halaman lain, lengkap dengan putaran ikonnya. Tulisannya sengaja
+            selalu tampak di sini: bilah ini hanya berisi satu dropdown, jadi
+            ruangnya cukup bahkan di ponsel. */}
+        <ResetFilterButton onReset={onReset} labelClassName="" />
       </div>
     </div>
   );
