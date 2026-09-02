@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { copyToClipboard } from '@/utils/clipboard';
 import { X, Copy, Check, Download, ExternalLink, Info, AlertTriangle } from 'lucide-react';
 
 const QR_PIXEL_SIZE = 512; // resolusi berkas unduhan; tampilannya dikecilkan lewat CSS
@@ -70,19 +71,22 @@ export default function ShareSurveyModal({ survey, onClose }) {
   // Pola inline lama dipindah ke hooks/useBodyScrollLock.js (2026-08-24).
   useBodyScrollLock();
 
+  /**
+   * Penanganan secure-context DIPINDAH ke utils/clipboard.js (2 September
+   * 2026). Pengetahuan itu tadinya hanya hidup di sini, dan akibatnya
+   * terbukti: AdminSurveyCardActions memanggil `navigator.clipboard` mentah
+   * lalu melempar di `http://skema.local`. Satu tempat, satu perilaku.
+   *
+   * Bila menyalin benar-benar gagal, tautannya DISELEKSI supaya pengguna bisa
+   * menyalin manual -- dan `setCopied` sengaja tak dijalankan: memberi tanda
+   * "Tersalin" untuk sesuatu yang tak tersalin lebih buruk daripada tak
+   * memberi tanda sama sekali.
+   */
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      // navigator.clipboard butuh secure context -- pada intranet http biasa
-      // (bukan localhost) ia gagal. Jatuh ke seleksi + execCommand agar tombol
-      // tetap berguna di lingkungan seperti itu.
+    const berhasil = await copyToClipboard(url);
+    if (!berhasil) {
       urlInputRef.current?.select();
-      try {
-        document.execCommand('copy');
-      } catch {
-        return; // benar-benar tak bisa: biarkan pengguna menyalin manual
-      }
+      return;
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
