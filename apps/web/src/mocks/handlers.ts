@@ -16,6 +16,17 @@ import { http, HttpResponse } from 'msw';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
+/**
+ * Body JSON sebuah permintaan mock.
+ *
+ * Sengaja `unknown`, BUKAN `any`: berkas ini meniru server, jadi ia memang tak
+ * boleh berasumsi apa pun tentang apa yang dikirim pemanggil — persis seperti
+ * backend sungguhan yang memvalidasi lebih dulu lewat DTO. `unknown` memaksa
+ * setiap nilai dilewatkan `String()`/`Number()` atau disebar ke fixture, dan
+ * itulah yang memang dilakukan handler di bawah.
+ */
+type JsonBody = Record<string, unknown>;
+
 // ---------------------------------------------------------------------------
 // Envelope baku — dihasilkan ResponseInterceptor di backend.
 // Bentuk: { success, statusCode, message, data, meta:{ timestamp, path } }
@@ -205,7 +216,7 @@ export const handlers = [
   // ===================== AUTENTIKASI =====================
   // [REKAM] dev-login membalas 201 (POST default Nest), bukan 200.
   http.post(`${API_BASE}/auth/dev-login`, async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     const identifier = String(body?.identifier ?? '').trim().toLowerCase();
     if (!identifier) return fail(400, 'identifier should not be empty');
     if (identifier.includes('tidak-ada'))
@@ -261,7 +272,7 @@ export const handlers = [
 
   // [TURUN] mengembalikan profil terbaru, bentuk sama dengan GET /auth/me.
   http.patch(`${API_BASE}/auth/profile`, async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return ok(userFixture({ ...body, role: 'responden' }), '/auth/profile');
   }),
 
@@ -286,12 +297,12 @@ export const handlers = [
 
   // [TURUN]
   http.post(`${API_BASE}/opd`, async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return created(opdFixture({ id: 99, ...body }), '/opd');
   }),
 
   http.patch(`${API_BASE}/opd/:id`, async ({ request, params }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return ok(opdFixture({ id: Number(params.id), ...body }), `/opd/${params.id}`);
   }),
 
@@ -365,17 +376,17 @@ export const handlers = [
   ),
 
   http.post(`${API_BASE}/surveys`, async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return created(surveyFixture({ id: 3, ...body, status: 'draft' }), '/surveys');
   }),
 
   http.patch(`${API_BASE}/surveys/:id/status`, async ({ request, params }) => {
-    const { status } = (await request.json()) as any;
+    const { status } = (await request.json()) as JsonBody;
     return ok(surveyFixture({ id: Number(params.id), status }), `/surveys/${params.id}/status`);
   }),
 
   http.patch(`${API_BASE}/surveys/:id`, async ({ request, params }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return ok(surveyFixture({ id: Number(params.id), ...body }), `/surveys/${params.id}`);
   }),
 
@@ -400,7 +411,7 @@ export const handlers = [
   // [TURUN] PENTING: DTO memakai `teks` & `tipe` (versi lama keliru membaca
   // `text`/`type`, sehingga selalu jatuh ke nilai cadangan).
   http.post(`${API_BASE}/surveys/:id/questions`, async ({ request, params }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     if (!body?.teks) return fail(400, 'teks should not be empty');
     return created(
       questionFixture({
@@ -434,7 +445,9 @@ export const handlers = [
   ),
 
   http.patch(`${API_BASE}/surveys/:id/questions/reorder`, async ({ request, params }) => {
-    const { orderedIds } = (await request.json()) as any;
+    // Satu-satunya body yang dipakai sebagai ARRAY, bukan sekadar disebar ke
+    // fixture — jadi bentuknya disebutkan agar `.map()` di bawah tetap bertipe.
+    const { orderedIds } = (await request.json()) as { orderedIds: number[] };
     return ok(
       orderedIds.map((id, index) => questionFixture({ id, surveyId: Number(params.id), urutan: index + 1 })),
       `/surveys/${params.id}/questions/reorder`,
@@ -442,7 +455,7 @@ export const handlers = [
   }),
 
   http.patch(`${API_BASE}/questions/:id`, async ({ request, params }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return ok(questionFixture({ id: Number(params.id), ...body }), `/questions/${params.id}`);
   }),
 
@@ -504,18 +517,18 @@ export const handlers = [
   http.get(`${API_BASE}/users/:id`, ({ params }) => ok(userFixture({ id: Number(params.id) }), `/users/${params.id}`)),
 
   http.post(`${API_BASE}/users`, async ({ request }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     if (body?.role === 'opd' && !body?.opdId) return fail(400, 'opdId wajib diisi untuk role opd');
     return created(userFixture({ id: 99, ...body }), '/users');
   }),
 
   http.patch(`${API_BASE}/users/:id/status`, async ({ request, params }) => {
-    const { isActive } = (await request.json()) as any;
+    const { isActive } = (await request.json()) as JsonBody;
     return ok(userFixture({ id: Number(params.id), isActive }), `/users/${params.id}/status`);
   }),
 
   http.patch(`${API_BASE}/users/:id`, async ({ request, params }) => {
-    const body = (await request.json()) as any;
+    const body = (await request.json()) as JsonBody;
     return ok(userFixture({ id: Number(params.id), ...body }), `/users/${params.id}`);
   }),
 
@@ -534,12 +547,12 @@ export const handlers = [
   ),
 
   http.post(`${API_BASE}/complaints`, async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as any;
+    const body = (await request.json().catch(() => ({}))) as JsonBody;
     return created(complaintFixture({ id: 99, ...body, status: 'diterima' }), '/complaints');
   }),
 
   http.patch(`${API_BASE}/complaints/:id/status`, async ({ request, params }) => {
-    const { status } = (await request.json()) as any;
+    const { status } = (await request.json()) as JsonBody;
     return ok(complaintFixture({ status }), `/complaints/${params.id}/status`);
   }),
 
@@ -548,7 +561,7 @@ export const handlers = [
   ),
 
   http.post(`${API_BASE}/complaints/:id/replies`, async ({ request, params }) => {
-    const body = (await request.json().catch(() => ({}))) as any;
+    const body = (await request.json().catch(() => ({}))) as JsonBody;
     return created(
       { id: 1, complaintId: Number(params.id), authorId: 1, pesan: body?.pesan ?? '', createdAt: new Date().toISOString() },
       `/complaints/${params.id}/replies`,

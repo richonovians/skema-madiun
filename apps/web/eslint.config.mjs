@@ -15,6 +15,22 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "warn",
     },
   },
+  // Konfigurasi Jest DIMUAT NODE SEBAGAI CommonJS, bukan sebagai modul ESM:
+  // `apps/web/package.json` tidak menyetel `"type": "module"`, sehingga `.js` di
+  // sini memang berformat CJS. `require('next/jest')` + `module.exports` bukan
+  // gaya lama yang belum sempat dirapikan — itu satu-satunya bentuk yang bisa
+  // dimuat Jest. Aturan `no-require-imports` benar untuk kode aplikasi, tetapi
+  // pada dua berkas ini mustahil dipenuhi tanpa memindahkannya ke ESM yang belum
+  // didukung jalur muat Jest.
+  //
+  // Tanpa pengecualian ini `pnpm --filter @skm-spm/web lint` keluar dengan kode 1
+  // (6 galat), yang berarti job CI `web:lint` gagal pada setiap push.
+  {
+    files: ["jest.config.js", "jest.setup.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
