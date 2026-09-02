@@ -7,6 +7,7 @@ import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, Clipb
 import Avatar from '@/components/ui/Avatar';
 import ProfileErrorAvatar from '@/components/ui/ProfileErrorAvatar';
 import { useAsync } from '@/hooks/useAsync';
+import useKeepInViewport from '@/hooks/useKeepInViewport';
 import { isUnauthorizedError } from '@/services/api';
 import { USER_ROLES } from '@/features/users/constants/userConstants';
 import { getMyProfile } from '../services/profile.api';
@@ -30,6 +31,13 @@ import { clearSession } from '@/features/authentication/services/authStorage';
 export default function ProfileAvatarDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Panel 256px ini terukur `kiri=-4` pada layar 320px -- baru 4px, tapi
+  // penyebabnya sama dengan panel notifikasi yang kehilangan 60px, dan ia akan
+  // memburuk begitu ada satu ikon lagi ditambahkan di kanannya. Lihat
+  // useKeepInViewport.
+  const panelRef = useRef(null);
+  useKeepInViewport(panelRef, isOpen);
   const router = useRouter();
 
   const fetchProfile = useCallback(() => getMyProfile(), []);
@@ -112,7 +120,10 @@ export default function ProfileAvatarDropdown() {
 
       {/* Dropdown Menu Popover */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl bg-surface p-2 shadow-xl shadow-slate-900/10 border border-border/80 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-200">
+        <div
+          ref={panelRef}
+          className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] origin-top-right rounded-2xl bg-surface p-2 shadow-xl shadow-slate-900/10 border border-border/80 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-200"
+        >
           {/* User Header Info inside Dropdown */}
           {gagalKoneksi ? (
             /* Keterangan + pemulihan diletakkan DI TEMPAT identitas, bukan di

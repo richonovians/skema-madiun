@@ -9,13 +9,11 @@ import {
   Users,
   MessageSquare,
   ClipboardList,
-  LogOut,
   X,
-  History,
-  Repeat
+  History
 } from 'lucide-react';
+import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
-import { useLogout } from '@/hooks/useLogout';
 import { useAsync } from '@/hooks/useAsync';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { getMyProfile } from '@/features/profile/services/profile.api';
@@ -40,7 +38,6 @@ import { USER_ROLES } from '@/features/users/constants/userConstants';
  */
 export default function AdminKabSidebar() {
   const pathname = usePathname();
-  const { logout, isLoggingOut } = useLogout();
   const fetchProfile = useCallback(() => getMyProfile(), []);
   const { data: profile } = useAsync(fetchProfile);
   const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
@@ -72,6 +69,7 @@ export default function AdminKabSidebar() {
       
       <aside className={`
         bg-slate-900 text-slate-300 font-body-md text-body-md h-screen w-64 fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50
+        overflow-y-auto overscroll-contain
         transition-transform duration-300 ease-in-out
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
@@ -120,26 +118,14 @@ export default function AdminKabSidebar() {
           )}
         </nav>
 
-        <div className="mt-auto pt-lg border-t border-slate-800 flex flex-col gap-sm">
-          {isSuperuser && (
-            <Link
-              href="/pilih-peran"
-              className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg"
-              onClick={() => setIsMobileSidebarOpen(false)}
-            >
-              <Repeat size={20} />
-              <span>Ganti Peran</span>
-            </Link>
-          )}
-          <button
-            onClick={logout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg w-full text-left disabled:opacity-50"
-          >
-            <LogOut size={20} />
-            <span>{isLoggingOut ? 'Keluar...' : 'Keluar'}</span>
-          </button>
-        </div>
+        {/* "Keluar" kembali ke sini atas permintaan pengguna (1 September 2026).
+            Yang membuatnya aman sekarang: `<aside>` di atas sudah
+            `overflow-y-auto overscroll-contain`, jadi menu superuser yang
+            lebih tinggi dari layar bisa digulir dan tombol ini tetap dapat
+            dicapai -- persis kelas masalah yang dulu membuatnya dipindahkan.
+            Alasan panjangnya di AdminSidebarLogout.
+            "Ganti Peran" TETAP hanya di ikon profil (AdminAccountMenu). */}
+        <AdminSidebarLogout />
       </aside>
     </>
   );
