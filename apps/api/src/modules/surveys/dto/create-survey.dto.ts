@@ -32,6 +32,14 @@ export class CreateSurveyDto {
   allowMultipleSubmit?: boolean;
 
   @ApiPropertyOptional({
+    default: false,
+    description: 'Izinkan pengisian tanpa login (tautan/QR publik, rute /isi/:id)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  izinkanAnonim?: boolean;
+
+  @ApiPropertyOptional({
     description:
       'OPD tujuan — hanya dipakai oleh kabupaten (=superuser; Admin OPD memakai OPD-nya sendiri)',
   })

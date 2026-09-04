@@ -173,6 +173,10 @@ model Survey {
   periode             String       @db.VarChar(20)
   status              SurveyStatus @default(draft)
   allowMultipleSubmit Boolean      @default(false) @map("allow_multiple_submit")
+  // Pengisian TANPA sesi (4 September 2026). Baku `false`, sehingga seluruh
+  // survei yang sudah ada tidak berubah perilakunya sedikit pun. Hanya
+  // endpoint /public/surveys/* yang membacanya.
+  izinkanAnonim       Boolean      @default(false) @map("izinkan_anonim")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
 
@@ -228,15 +232,22 @@ model QuestionOption {
 model SurveyResponse {
   id           Int      @id @default(autoincrement())
   surveyId     Int      @map("survey_id")
-  userId       Int      @map("user_id")
+  // NULL = respons anonim (tanpa sesi). Ditelusuri sebelum diubah: satu-satunya
+  // pembaca kolom ini adalah ResponsesService (submit & findMine); IKM maupun
+  // dashboard hanya count(), jadi respons tanpa pemilik tak merusak perhitungan.
+  userId       Int?     @map("user_id")
   // Anti-duplikat: diisi = userId bila survei TIDAK mengizinkan multi-submit,
   // null bila boleh berulang. Postgres memperlakukan NULL sebagai distinct,
   // sehingga @@unique di bawah = 1 respons/user saat single-submit, tak dibatasi saat multi.
   dedupeUserId Int?     @map("dedupe_user_id")
   submittedAt  DateTime @default(now()) @map("submitted_at")
+  // Disiapkan untuk persetujuan UU PDP bagi pengirim anonim. BELUM DIPAKAI --
+  // menunggu konfirmasi tim Diskominfo; selalu NULL sampai saat itu. Ada di
+  // migrasi yang sama supaya konfirmasinya tak menuntut migrasi kedua.
+  consentAt    DateTime? @map("consent_at")
 
   survey  Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
   answers Answer[]
 
   @@unique([surveyId, dedupeUserId])

@@ -84,6 +84,7 @@ export const surveyFixture = (over = {}) => ({
   periode: '2026-Q1',
   status: 'draft',
   allowMultipleSubmit: false,
+  izinkanAnonim: false,
   createdAt: '2026-08-06T08:10:04.832Z',
   updatedAt: '2026-08-06T08:12:26.861Z',
   respondentsCount: 0,
@@ -357,6 +358,31 @@ export const handlers = [
     ),
   ),
 
+  // [TURUN] jalur publik (tanpa sesi) -- rute /isi/:id. Terpisah dari handler
+  // berpenjaga di bawah, persis seperti di backend.
+  http.get(`${API_BASE}/public/surveys/:id/fill`, ({ params }) =>
+    ok(
+      {
+        id: Number(params.id),
+        judul: 'Survei IKM Loket',
+        periode: '2026-Q3',
+        status: 'aktif',
+        allowMultipleSubmit: false,
+        izinkanAnonim: true,
+        sudahMengisi: false,
+        questions: QUESTION_LIST,
+      },
+      `/public/surveys/${params.id}/fill`,
+    ),
+  ),
+
+  http.post(`${API_BASE}/public/surveys/:id/responses`, ({ params }) =>
+    created(
+      { id: 1, surveyId: Number(params.id), submittedAt: new Date().toISOString() },
+      `/public/surveys/${params.id}/responses`,
+    ),
+  ),
+
   // [TURUN] form pengisian untuk responden.
   http.get(`${API_BASE}/surveys/:id/fill`, ({ params }) =>
     ok(
@@ -364,6 +390,9 @@ export const handlers = [
         id: Number(params.id),
         judul: 'Survei IKM 2025',
         periode: '2025-Q4',
+        status: 'aktif',
+        allowMultipleSubmit: false,
+        izinkanAnonim: false,
         sudahMengisi: false,
         questions: QUESTION_LIST,
       },

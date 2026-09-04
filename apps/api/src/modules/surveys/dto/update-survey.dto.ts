@@ -20,4 +20,12 @@ export class UpdateSurveyDto {
   @IsOptional()
   @IsBoolean()
   allowMultipleSubmit?: boolean;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Izinkan pengisian tanpa login (tautan/QR publik, rute /isi/:id)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  izinkanAnonim?: boolean;
 }

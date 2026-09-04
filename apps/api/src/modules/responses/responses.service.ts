@@ -121,6 +121,86 @@ export class ResponsesService {
     }
   }
 
+  /**
+   * Survei untuk diisi TANPA sesi (rute /isi/:id).
+   *
+   * TERPISAH dari `getFill`, bukan pelonggaran atasnya: `getFill` menuntut
+   * `CurrentUser` dan memakainya untuk anti-duplikat, sedangkan di sini tak ada
+   * pengguna sama sekali. Menyatukan keduanya berarti satu parameter opsional
+   * yang menentukan seluruh perilaku keamanan -- persis bentuk kode yang kelak
+   * longgar karena kelalaian.
+   */
+  async getPublicFill(surveyId: number): Promise<SurveyFillEntity> {
+    const survey = await this.findAnonimSurveyOrThrow(surveyId);
+
+    return new SurveyFillEntity({
+      id: survey.id,
+      judul: survey.judul,
+      periode: survey.periode,
+      status: survey.status,
+      allowMultipleSubmit: survey.allowMultipleSubmit,
+      // Tanpa sesi, `dedupeUserId` tak punya pegangan apa pun. Penanda
+      // pengisian ada di peramban (localStorage) -- penghalang kejujuran,
+      // BUKAN penegakan, dan batasnya dinyatakan terus terang di sana.
+      sudahMengisi: false,
+      questions: survey.questions.map(
+        (q) =>
+          new QuestionEntity({
+            ...q,
+            options: q.options.map((o) => new QuestionOptionEntity(o)),
+          }),
+      ),
+    });
+  }
+
+  /**
+   * Kirim jawaban tanpa sesi. SELALU menulis `userId: null`.
+   *
+   * Gerbang PDP (`ConsentService.assertConsented`) sengaja TIDAK dipanggil: ia
+   * membaca `users.consentAt`, dan pengirim anonim tak punya baris `users`.
+   * Penggantinya (`SurveyResponse.consentAt`) sudah disiapkan di skema tetapi
+   * BELUM diaktifkan -- menunggu konfirmasi tim Diskominfo. Validasi isi
+   * jawaban tetap sama ketat: `validateAnswers` yang sama dipakai di sini.
+   */
+  async submitPublic(surveyId: number, dto: SubmitResponseDto): Promise<ResponseEntity> {
+    const survey = await this.findAnonimSurveyOrThrow(surveyId);
+    const answerData = this.validateAnswers(survey.questions, dto);
+
+    const created = await this.prisma.surveyResponse.create({
+      data: {
+        surveyId,
+        userId: null,
+        dedupeUserId: null,
+        answers: { create: answerData },
+      },
+      include: { answers: true },
+    });
+    return this.toResponseEntity(created, created.answers);
+  }
+
+  /**
+   * Survei aktif YANG MENGIZINKAN anonim, atau 404. Dua syarat, satu tempat --
+   * dipakai kedua endpoint publik supaya tak mungkin salah satunya kelewat.
+   *
+   * 404 (bukan 403) mengikuti `getFill`: keberadaan survei yang tak boleh diisi
+   * tak perlu dibocorkan kepada pemanggil tanpa sesi.
+   */
+  private async findAnonimSurveyOrThrow(surveyId: number) {
+    const survey = await this.prisma.survey.findUnique({
+      where: { id: surveyId },
+      include: {
+        questions: {
+          orderBy: { urutan: 'asc' },
+          include: { options: { orderBy: { urutan: 'asc' } } },
+        },
+      },
+    });
+    if (!survey || survey.status !== SurveyStatus.aktif || !survey.izinkanAnonim) {
+      throw new NotFoundException(`Survei anonim dengan id ${surveyId} tidak ditemukan`);
+    }
+    return survey;
+  }
+
   /** Daftar respons sebuah survei untuk admin (BE-24). Isolasi data per-OPD. */
   async findAllForSurvey(
     surveyId: number,

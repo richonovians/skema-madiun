@@ -70,6 +70,7 @@ export default function SurveyFormModal({
   const [opdId, setOpdId] = useState(initialValues?.opdId != null ? String(initialValues.opdId) : '');
   const [tahun, setTahun] = useState(initialPeriode.tahun);
   const [triwulan, setTriwulan] = useState(initialPeriode.triwulan);
+  const [izinkanAnonim, setIzinkanAnonim] = useState(initialValues?.izinkanAnonim ?? false);
   const [validationError, setValidationError] = useState(null);
 
   useEffect(() => {
@@ -111,6 +112,7 @@ export default function SurveyFormModal({
     onSubmit({
       title: trimmedTitle,
       period: buildPeriode(tahun, triwulan),
+      izinkanAnonim,
       ...(isEdit ? {} : { opdId: Number(opdId) }),
     });
   };
@@ -235,6 +237,34 @@ export default function SurveyFormModal({
               menuMaxHeight={MENU_MAX_HEIGHT_PERIODE}
             />
           </div>
+
+          {/* Kotak centang dibungkus labelnya sendiri (pola sama ConsentGate.jsx):
+              kotaknya 20px, tapi bidang sentuhnya seluruh label -- itulah yang
+              memenuhi target 44px. */}
+          <label
+            htmlFor="survey-izinkan-anonim"
+            className="flex items-start gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60 cursor-pointer hover:bg-surface-container-low transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary-container/20"
+          >
+            <input
+              id="survey-izinkan-anonim"
+              type="checkbox"
+              checked={izinkanAnonim}
+              onChange={(e) => setIzinkanAnonim(e.target.checked)}
+              aria-describedby="survey-izinkan-anonim-bantuan"
+              className="w-5 h-5 mt-0.5 shrink-0 accent-primary cursor-pointer"
+            />
+            <span className="text-sm text-text-primary leading-relaxed">
+              Izinkan pengisian <strong className="font-semibold">tanpa login</strong> (tautan/QR
+              publik)
+            </span>
+          </label>
+          {/* Keterangan ini WAJIB ada: admin yang menyalakan saklar berhak tahu
+              bahwa integritas hitungannya bertumpu pada kejujuran responden,
+              bukan pada penegakan sistem. */}
+          <p id="survey-izinkan-anonim-bantuan" className="text-xs text-text-secondary px-1">
+            Cocok untuk QR di loket layanan. Pengisian berulang hanya dicegah lewat penanda di
+            peramban responden, bukan ditegakkan sistem.
+          </p>
 
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">

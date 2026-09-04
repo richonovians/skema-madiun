@@ -5,7 +5,14 @@ import Link from 'next/link';
 import { CheckCircle2, Home, FileText } from 'lucide-react';
 import useSurveyStore from '../store/useSurveyStore';
 
-export default function SurveyCompletion() {
+/**
+ * @param {boolean} [tampilkanTautanWarga] Tautan "Daftar Survei" & "Beranda"
+ * keduanya menuju rute khusus peran `responden` (/surveys, /dashboard), yang
+ * memantulkan pengunjung tanpa sesi ke '/'. Pengisi anonim lewat /isi/:id
+ * karena itu diberi satu tautan beranda publik — jalan buntu adalah cacat,
+ * bukan detail kosmetik. Baku `true` supaya pemakaian yang sudah ada tak berubah.
+ */
+export default function SurveyCompletion({ tampilkanTautanWarga = true }) {
   const { surveyData } = useSurveyStore();
 
   return (
@@ -41,18 +48,30 @@ export default function SurveyCompletion() {
         
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row justify-center w-full gap-md">
+          {!tampilkanTautanWarga && (
+            <Link href="/" className="w-full sm:w-1/2 mx-auto block">
+              <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
+                <Home size={20} />
+                <span>Kembali ke Beranda</span>
+              </button>
+            </Link>
+          )}
+          {tampilkanTautanWarga && (
           <Link href="/surveys" className="w-full sm:w-1/2 block">
             <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl border border-outline text-text-secondary font-bold hover:bg-surface-container-low hover:border-outline-variant hover:text-primary transition-all active:scale-95 group/btn">
               <FileText size={20} className="group-hover/btn:scale-110 transition-transform" />
               <span>Daftar Survei</span>
             </button>
           </Link>
+          )}
+          {tampilkanTautanWarga && (
           <Link href="/dashboard" className="w-full sm:w-1/2 block">
             <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95 group/btn">
               <Home size={20} className="group-hover/btn:-translate-y-1 transition-transform" />
               <span>Beranda</span>
             </button>
           </Link>
+          )}
         </div>
       </div>
     </div>
