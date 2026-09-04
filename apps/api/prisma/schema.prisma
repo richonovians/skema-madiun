@@ -309,13 +309,14 @@ model Complaint {
   ticketNo    String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
   userId      Int             @map("user_id")
   opdId       Int             @map("opd_id")
-  kategori    String          @db.VarChar(50)
-  // INT-42 (D12): sub-level opsional di bawah `kategori` (7 umum tetap wajib
-  // untuk agregasi lintas kabupaten) -- lihat COMPLAINT_SUB_CATEGORIES.
-  subKategori String?         @map("sub_kategori") @db.VarChar(50)
+  kategori    String          @db.VarChar(50) // 'aduan' | 'lapor' | 'lainnya' -- COMPLAINT_CATEGORIES
   judul       String          @db.VarChar(255)
   uraian      String          @db.Text
   status      ComplaintStatus @default(diterima)
+  // Pengiriman anonim (4 September 2026). Basis data TETAP menyimpan userId
+  // sebenarnya -- penyamaran terjadi di lapisan entity, supaya tautan pelapor
+  // tetap ada untuk eskalasi resmi lewat audit_logs.
+  isAnonim    Boolean         @default(false) @map("is_anonim")
   createdAt   DateTime        @default(now()) @map("created_at")
   updatedAt   DateTime        @updatedAt @map("updated_at")
 

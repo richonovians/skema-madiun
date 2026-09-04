@@ -24,7 +24,6 @@ const complaint = (over: Partial<Complaint> = {}): Complaint =>
     userId: 10,
     opdId: 5,
     kategori: 'lainnya',
-    subKategori: null,
     judul: 'Jalan rusak',
     uraian: 'Uraian',
     status: ComplaintStatus.diterima,

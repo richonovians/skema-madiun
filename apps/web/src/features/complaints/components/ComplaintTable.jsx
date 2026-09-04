@@ -27,6 +27,7 @@ export default function ComplaintTable({ complaints = [] }) {
               department={item.department}
               title={item.title}
               status={item.status}
+              isAnonim={item.isAnonim}
             />
           ))}
         </Tbody>

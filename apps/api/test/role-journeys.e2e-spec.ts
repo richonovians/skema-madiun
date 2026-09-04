@@ -247,7 +247,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
         .post('/api/v1/complaints')
         .set(responden1Headers())
         .field('opdId', String(opdId))
-        .field('kategori', 'pelayanan_administrasi')
+        .field('kategori', 'aduan')
         .field('judul', 'Pengaduan Journey E2E')
         .field('uraian', 'Uraian pengaduan test alur end-to-end lintas peran.');
 

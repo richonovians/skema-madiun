@@ -21,7 +21,7 @@ const complaintRow = (over: Record<string, unknown> = {}) => ({
   ticketNo: 'PGD20260729ABCD',
   userId: 10,
   opdId: 5,
-  kategori: 'infrastruktur',
+  kategori: 'aduan',
   judul: 'Jalan rusak',
   uraian: 'Jalan berlubang di depan kantor desa',
   status: ComplaintStatus.diterima,
@@ -74,7 +74,7 @@ describe('ComplaintsService', () => {
 
       await expect(
         service.create(
-          { opdId: 1, kategori: 'infrastruktur', judul: 'x', deskripsi: 'y' } as never,
+          { opdId: 1, kategori: 'aduan', judul: 'x', deskripsi: 'y' } as never,
           undefined,
           { userId: 10, role: Role.responden, opdId: null },
         ),
@@ -155,7 +155,7 @@ describe('ComplaintsService', () => {
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
 
       const result = await service.create(
-        { opdId: 5, kategori: 'infrastruktur', judul: 'Jalan rusak', uraian: 'Uraian' },
+        { opdId: 5, kategori: 'aduan', judul: 'Jalan rusak', uraian: 'Uraian' },
         undefined,
         respondenUser(),
       );
@@ -175,7 +175,7 @@ describe('ComplaintsService', () => {
         .mockResolvedValueOnce(complaintRow());
 
       const result = await service.create(
-        { opdId: 5, kategori: 'infrastruktur', judul: 'X', uraian: 'Y' },
+        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
         undefined,
         respondenUser(),
       );
@@ -184,34 +184,51 @@ describe('ComplaintsService', () => {
       expect(prisma.complaint.create).toHaveBeenCalledTimes(2);
     });
 
-    it('(INT-42) subKategori tidak sejalan dgn kategori → BadRequest', async () => {
+    it('menyimpan isAnonim=true ke kolomnya', async () => {
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
-      await expect(
-        service.create(
-          { opdId: 5, kategori: 'kesehatan', subKategori: 'ktp_kk', judul: 'X', uraian: 'Y' },
-          undefined,
-          respondenUser(),
-        ),
-      ).rejects.toThrow(BadRequestException);
-      expect(prisma.complaint.create).not.toHaveBeenCalled();
-    });
+      (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow({ isAnonim: true }));
 
-    it('(INT-42) subKategori sejalan dgn kategori → tersimpan', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
-      (prisma.complaint.create as jest.Mock).mockResolvedValue(
-        complaintRow({ kategori: 'kesehatan', subKategori: 'bpjs' }),
-      );
-
-      const result = await service.create(
-        { opdId: 5, kategori: 'kesehatan', subKategori: 'bpjs', judul: 'X', uraian: 'Y' },
+      await service.create(
+        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y', isAnonim: true },
         undefined,
         respondenUser(),
       );
 
       expect(prisma.complaint.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ subKategori: 'bpjs' }) }),
+        expect.objectContaining({ data: expect.objectContaining({ isAnonim: true }) }),
       );
-      expect(result.subKategori).toBe('bpjs');
+    });
+
+    it('tanpa flag -> tersimpan false, bukan undefined', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
+
+      await service.create(
+        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
+        undefined,
+        respondenUser(),
+      );
+
+      expect(prisma.complaint.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ isAnonim: false }) }),
+      );
+    });
+
+    it('tidak lagi mengirim kolom subKategori ke Prisma', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
+
+      await service.create(
+        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
+        undefined,
+        respondenUser(),
+      );
+
+      expect(prisma.complaint.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ subKategori: expect.anything() }),
+        }),
+      );
     });
 
     it('tabrakan nomor tiket terus-menerus → Conflict setelah 5 percobaan', async () => {
@@ -220,7 +237,7 @@ describe('ComplaintsService', () => {
 
       await expect(
         service.create(
-          { opdId: 5, kategori: 'infrastruktur', judul: 'X', uraian: 'Y' },
+          { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
           undefined,
           respondenUser(),
         ),
@@ -481,6 +498,101 @@ describe('ComplaintsService', () => {
       await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
 
       expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(row, 10);
+    });
+  });
+  /**
+   * Uji KORELASI, bukan sekadar "nama tidak tampil": dua pengaduan anonim dari
+   * satu pengguna harus tak dapat dikaitkan satu sama lain dari respons API --
+   * kalau `userId` masih ikut, admin cukup membandingkan angkanya.
+   */
+  describe('penyamaran pengaduan anonim', () => {
+    it('menghilangkan userId & reporterNama SEBAGAI KUNCI, bukan mengisinya null', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ isAnonim: true, user: { nama: 'Siti Aminah' }, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGD20260729ABCD', kabupatenUser());
+
+      expect(Object.keys(hasil)).not.toContain('userId');
+      expect(Object.keys(hasil)).not.toContain('reporterNama');
+      expect(hasil.isAnonim).toBe(true);
+      // OPD tujuan bukan identitas pelapor -- tetap dikirim.
+      expect(hasil.opdNama).toBe('Dinkes');
+    });
+
+    it('dua pengaduan anonim dari SATU pengguna tak dapat dikorelasikan', async () => {
+      const rows = [
+        complaintRow({ id: 1, ticketNo: 'PGD20260729AAAA', userId: 77, isAnonim: true }),
+        complaintRow({ id: 2, ticketNo: 'PGD20260729BBBB', userId: 77, isAnonim: true }),
+      ];
+      (prisma.$transaction as jest.Mock).mockResolvedValue([rows, 2]);
+
+      const hasil = await service.findAll({ page: 1, limit: 20 }, kabupatenUser());
+
+      const sidik = hasil.items.map((c) => JSON.stringify(c));
+      expect(sidik[0]).not.toContain('77');
+      expect(sidik[1]).not.toContain('77');
+      expect(hasil.items.every((c) => !('userId' in c))).toBe(true);
+    });
+
+    it('pengaduan biasa TIDAK berubah', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ isAnonim: false, user: { nama: 'Siti Aminah' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGD20260729ABCD', kabupatenUser());
+
+      expect(hasil.userId).toBe(10);
+      expect(hasil.reporterNama).toBe('Siti Aminah');
+    });
+
+    it('balasan pelapor kehilangan authorId; balasan admin tetap membawanya', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ isAnonim: true, userId: 10 }),
+      );
+      (prisma.complaintReply.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 1,
+          complaintId: 1,
+          authorId: 10,
+          pesan: 'dari pelapor',
+          createdAt: new Date(),
+          attachments: [],
+        },
+        {
+          id: 2,
+          complaintId: 1,
+          authorId: 3,
+          pesan: 'dari admin',
+          createdAt: new Date(),
+          attachments: [],
+        },
+      ]);
+
+      const balasan = await service.listReplies(1, kabupatenUser());
+
+      expect('authorId' in balasan[0]).toBe(false);
+      expect(balasan[1].authorId).toBe(3);
+    });
+
+    it('balasan pada pengaduan BIASA tetap membawa authorId pelapor', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ isAnonim: false, userId: 10 }),
+      );
+      (prisma.complaintReply.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 1,
+          complaintId: 1,
+          authorId: 10,
+          pesan: 'dari pelapor',
+          createdAt: new Date(),
+          attachments: [],
+        },
+      ]);
+
+      const balasan = await service.listReplies(1, kabupatenUser());
+
+      expect(balasan[0].authorId).toBe(10);
     });
   });
 });

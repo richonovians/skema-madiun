@@ -74,9 +74,9 @@ describe('StatisticsDashboard', () => {
     render(<StatisticsDashboard />);
 
     expect(await screen.findByText('Top Kategori Pengaduan')).toBeInTheDocument();
-    expect(screen.getByText('Keamanan dan Ketertiban')).toBeInTheDocument();
+    expect(screen.getByText('Aduan')).toBeInTheDocument();
     expect(screen.getByText('18')).toBeInTheDocument();
-    expect(screen.getByText('Infrastruktur')).toBeInTheDocument();
+    expect(screen.getByText('Lapor')).toBeInTheDocument();
     expect(screen.getByText('11')).toBeInTheDocument();
   });
 

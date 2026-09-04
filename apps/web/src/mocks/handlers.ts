@@ -124,8 +124,8 @@ export const complaintFixture = (over = {}) => ({
   ticketNo: 'PGD20260806CDPH',
   userId: 21,
   opdId: 1,
-  kategori: 'keamanan_ketertiban',
-  subKategori: 'rambu',
+  kategori: 'aduan',
+  isAnonim: false,
   judul: 'Rambu lalu lintas rusak',
   uraian: 'Rambu di perempatan sudah tidak terbaca sejak bulan lalu.',
   status: 'diterima',
@@ -533,7 +533,7 @@ export const handlers = [
   }),
 
   // ===================== PENGADUAN =====================
-  // [REKAM] berpaginasi; item punya `subKategori` dan `attachments`.
+  // [REKAM] berpaginasi; item punya `kategori` dan `attachments`.
   http.get(`${API_BASE}/complaints`, ({ request }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -592,22 +592,17 @@ export const handlers = [
   http.get(`${API_BASE}/ref/complaint-categories`, () =>
     ok(
       [
-        { kode: 'infrastruktur', nama: 'Infrastruktur' },
-        { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban' },
+        { kode: 'aduan', nama: 'Aduan' },
+        { kode: 'lapor', nama: 'Lapor' },
         { kode: 'lainnya', nama: 'Lainnya' },
       ],
       '/ref/complaint-categories',
     ),
   ),
 
-  http.get(`${API_BASE}/ref/complaint-sub-categories`, ({ request }) => {
-    const kategori = new URL(request.url).searchParams.get('kategori');
-    const all = [
-      { kode: 'rambu', nama: 'Rambu Lalu Lintas', kategori: 'keamanan_ketertiban' },
-      { kode: 'jalan_rusak', nama: 'Jalan Rusak', kategori: 'infrastruktur' },
-    ];
-    return ok(kategori ? all.filter((s) => s.kategori === kategori) : all, '/ref/complaint-sub-categories');
-  }),
+  // Handler `/ref/complaint-sub-categories` DIBUANG 4 September 2026 bersama
+  // taksonomi sub-kategori: endpointnya sudah tak ada di backend, dan mock yang
+  // masih melayaninya akan menyembunyikan pemanggil yang lupa dibersihkan.
 
   // ===================== DASBOR & STATISTIK =====================
   // [REKAM] objek tunggal, bukan array.
@@ -662,8 +657,8 @@ export const handlers = [
           { status: 'ditolak', count: 2 },
         ],
         complaintCategories: [
-          { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban', count: 18 },
-          { kode: 'infrastruktur', nama: 'Infrastruktur', count: 11 },
+          { kode: 'aduan', nama: 'Aduan', count: 18 },
+          { kode: 'lapor', nama: 'Lapor', count: 11 },
           { kode: 'lainnya', nama: 'Lainnya', count: 5 },
         ],
         // `avgNrr` berskala 1-4; adapter mengalikannya 25 menjadi skala 0-100.

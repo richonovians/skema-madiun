@@ -25,6 +25,9 @@ export default function RespondentComplaints() {
     department: c.target ?? '-',
     title: c.title,
     status: c.status,
+    // Penanda "Dikirim anonim" untuk PEMILIKNYA sendiri -- ia berhak tahu OPD
+    // tidak melihat namanya.
+    isAnonim: c.isAnonim,
   }));
 
   return (

@@ -5,7 +5,8 @@ import { ComplaintAttachmentEntity } from './complaint-attachment.entity';
 export class ComplaintReplyEntity extends BaseEntity<ComplaintReplyEntity> {
   id: number;
   complaintId: number;
-  authorId: number;
+  /** Dihilangkan pada balasan yang ditulis pelapor anonim; balasan admin tetap membawanya. */
+  authorId?: number;
   pesan: string;
   createdAt: Date;
   // Lampiran opsional pada balasan (2026-08-06, laporan bug user "tidak bisa

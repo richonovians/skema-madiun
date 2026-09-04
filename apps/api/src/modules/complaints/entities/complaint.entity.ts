@@ -5,14 +5,23 @@ import { ComplaintAttachmentEntity } from './complaint-attachment.entity';
 export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
   id: number;
   ticketNo: string;
-  userId: number;
+  /**
+   * DIHILANGKAN seluruhnya pada pengaduan anonim (bukan `null`/`0`). Nilai apa
+   * pun yang tetap dikirim membuka celah bagi kode klien yang kelak membacanya
+   * tanpa memeriksa `isAnonim`.
+   */
+  userId?: number;
   opdId: number;
   kategori: string;
-  /** Sub-kategori opsional di bawah `kategori` (INT-42, D12). */
-  subKategori: string | null;
   judul: string;
   uraian: string;
   status: ComplaintStatus;
+  /**
+   * Pengaduan dikirim tanpa identitas. Bukan data identitas, jadi TETAP dikirim
+   * ke admin -- justru inilah yang memberi tahu antarmuka untuk menampilkan
+   * "Anonim" alih-alih tanda hubung tanpa keterangan.
+   */
+  isAnonim: boolean;
   createdAt: Date;
   updatedAt: Date;
   attachments?: ComplaintAttachmentEntity[];

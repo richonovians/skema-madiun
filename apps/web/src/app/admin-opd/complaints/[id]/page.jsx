@@ -38,7 +38,7 @@ export default function AdminComplaintDetailPage() {
       getComplaintCategories(),
     ]);
     const chatHistory = rawReplies.map((r) =>
-      adaptComplaintReplyToChatMessage(r, complaint.userId),
+      adaptComplaintReplyToChatMessage(r, complaint.userId, { isAnonim: complaint.isAnonim }),
     );
     return { complaint, chatHistory, categories };
   }, [ticketNo]);

@@ -40,7 +40,9 @@ export default function ComplaintDetailPage() {
       getComplaintReplies(complaint.numericId),
       getComplaintCategories(),
     ]);
-    const chatHistory = rawReplies.map((r) => adaptComplaintReplyToChatMessage(r, complaint.userId));
+    const chatHistory = rawReplies.map((r) =>
+      adaptComplaintReplyToChatMessage(r, complaint.userId, { isAnonim: complaint.isAnonim }),
+    );
     return { complaint, chatHistory, categories };
   }, [ticketNo]);
 
@@ -54,7 +56,9 @@ export default function ComplaintDetailPage() {
 
   const handleSendReply = async (text, file) => {
     const reply = await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
-    return adaptComplaintReplyToChatMessage(reply, data.complaint.userId);
+    return adaptComplaintReplyToChatMessage(reply, data.complaint.userId, {
+      isAnonim: data.complaint.isAnonim,
+    });
   };
 
   return (

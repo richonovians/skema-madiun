@@ -43,10 +43,10 @@ export class ComplaintStatusDistributionEntity extends BaseEntity<ComplaintStatu
 }
 
 export class ComplaintCategoryDistributionEntity extends BaseEntity<ComplaintCategoryDistributionEntity> {
-  @ApiProperty({ example: 'infrastruktur' })
+  @ApiProperty({ example: 'aduan' })
   kode: string;
 
-  @ApiProperty({ example: 'Infrastruktur' })
+  @ApiProperty({ example: 'Aduan' })
   nama: string;
 
   @ApiProperty()

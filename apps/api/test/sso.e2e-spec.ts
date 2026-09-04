@@ -292,7 +292,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
         .post('/api/v1/complaints')
         .set('Cookie', `${SESSION_COOKIE}=${sesi}`)
         .field('opdId', '1')
-        .field('kategori', 'infrastruktur')
+        .field('kategori', 'aduan')
         .field('judul', 'Uji persetujuan')
         // `uraian`, BUKAN `deskripsi`: ValidationPipe memakai
         // forbidNonWhitelisted, jadi nama field yang salah menghasilkan 400
@@ -323,7 +323,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
         .post('/api/v1/complaints')
         .set(auth)
         .field('opdId', '999999') // OPD sengaja tak ada
-        .field('kategori', 'infrastruktur')
+        .field('kategori', 'aduan')
         .field('judul', 'Uji persetujuan')
         .field('uraian', 'Persetujuan sudah ada, jadi yang menolak bukan lagi PDP');
 
