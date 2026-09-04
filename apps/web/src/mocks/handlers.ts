@@ -600,13 +600,26 @@ export const handlers = [
     ),
   ),
 
+  // [REKAM] Field induknya bernama `kategoriKode`, BUKAN `kategori` — lihat
+  // ComplaintSubCategoryEntity di backend, dan diverifikasi langsung terhadap
+  // `GET /ref/complaint-sub-categories` di lingkungan pengembangan (2 Sep 2026).
+  //
+  // Fixture ini sebelumnya menulis `kategori`, dan penyimpangan sekecil itu
+  // menyesatkan dengan cara yang mahal: `CreateComplaintForm` menyaring dengan
+  // `s.kategoriKode === kategori terpilih`, sehingga dropdown sub-kategori tak
+  // pernah muncul di bawah mock lama. Uji yang bersandar padanya akan melaporkan
+  // fitur yang sebenarnya sehat sebagai rusak. Mock harus mencerminkan bentuk
+  // sungguhan, bukan bentuk yang kebetulan mudah ditulis.
   http.get(`${API_BASE}/ref/complaint-sub-categories`, ({ request }) => {
     const kategori = new URL(request.url).searchParams.get('kategori');
     const all = [
-      { kode: 'rambu', nama: 'Rambu Lalu Lintas', kategori: 'keamanan_ketertiban' },
-      { kode: 'jalan_rusak', nama: 'Jalan Rusak', kategori: 'infrastruktur' },
+      { kode: 'rambu', nama: 'Rambu Lalu Lintas', kategoriKode: 'keamanan_ketertiban' },
+      { kode: 'jalan_rusak', nama: 'Jalan Rusak', kategoriKode: 'infrastruktur' },
     ];
-    return ok(kategori ? all.filter((s) => s.kategori === kategori) : all, '/ref/complaint-sub-categories');
+    return ok(
+      kategori ? all.filter((s) => s.kategoriKode === kategori) : all,
+      '/ref/complaint-sub-categories',
+    );
   }),
 
   // ===================== DASBOR & STATISTIK =====================

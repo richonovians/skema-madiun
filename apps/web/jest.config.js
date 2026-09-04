@@ -9,6 +9,12 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  // Spec Playwright di `e2e/` juga berakhiran `.spec.js`, sehingga tanpa
+  // pengecualian ini Jest ikut memungutnya lalu gagal — `test`/`expect` di sana
+  // berasal dari @playwright/test, bukan dari Jest, dan spec-nya menuntut
+  // peramban sungguhan. Keduanya dijalankan terpisah: `pnpm test` (Jest) dan
+  // `pnpm test:e2e` (Playwright).
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/e2e/'],
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you soon)
     '^@/(.*)$': '<rootDir>/src/$1',
