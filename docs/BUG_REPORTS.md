@@ -2,8 +2,8 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 2.0                                                                                                        |
-| **Tanggal**         | 2 September 2026                                                                                           |
+| **Versi**           | 2.9                                                                                                        |
+| **Tanggal**         | 3 September 2026                                                                                           |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
 | **Dokumen terkait** | [TEST_PLAN.md](TEST_PLAN.md) · [TEST_CASES.md](TEST_CASES.md) · [TEST_EXPLORATORY.md](TEST_EXPLORATORY.md) |
@@ -57,14 +57,25 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 
 | ID                  | Judul                                                          | Severity | Verifikasi    | Status     | Charter |
 | ------------------- | -------------------------------------------------------------- | -------- | ------------- | ---------- | ------- |
-| [BUG-005](#bug-005) | Duplikasi survei membuang seluruh opsi jawaban                 | High     | Bukti statis  | Baru       | —       |
+| [BUG-005](#bug-005) | Duplikasi survei membuang opsi jawaban — survei jadi buntu total | **Critical** | Terkonfirmasi | Baru       | —       |
 | [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | Baru       | —       |
 | [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | **Ditutup** | C-01    |
 | [BUG-006](#bug-006) | Sesi hantu: tampak sudah login, tombol mati, data tetap terisi | High     | Terkonfirmasi | **Ditutup** | —       |
+| [BUG-007](#bug-007) | Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah  | Low      | Terkonfirmasi | Baru       | C-03    |
+| [BUG-008](#bug-008) | Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung | Medium   | Terkonfirmasi | Baru       | C-11    |
+| [BUG-009](#bug-009) | Akun terlanjur dibuat ketika penetapan statusnya gagal          | Medium   | Terkonfirmasi | Baru       | C-05    |
+| [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | Baru       | C-06    |
+| [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
+| [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
 
-**Rekap** — 6 temuan: 4 ditutup, 2 terbuka (1 High, 1 Low)
+**Rekap** — 11 temuan: 4 ditutup, **7 terbuka (1 Critical, 2 Medium, 4 Low)**
+
+> ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
+> sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
+> tidak dapat diselesaikan sama sekali. Reproduksi hidupnya bisa dibuka di
+> `/surveys/333` pada lingkungan dev.
 
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
@@ -77,7 +88,10 @@ tampak hidup, kali ini sesi hidup yang cookienya sudah mati.
 **BUG-005 adalah CAT-004 yang menjadi kenyataan.** Pada 12 Agustus ia dicatat
 sebagai peringatan yang "belum berdampak karena tipe pilihan memang belum bisa
 dibuat". Tipe pilihan kini bisa dibuat, dan `duplicate()` masih tidak menyalin
-opsi — jadi peringatannya berubah menjadi cacat.
+opsi — jadi peringatannya berubah menjadi cacat. Dikonfirmasi di peramban pada
+2 September 2026, dan **dinaikkan dari High ke Critical** setelah terlihat bahwa
+akibatnya bukan satu pertanyaan yang tak terjawab, melainkan seluruh survei yang
+tak dapat dilewati.
 
 ---
 
@@ -408,16 +422,16 @@ menjadi cacat sungguhan.
 
 <a id="bug-005"></a>
 
-### BUG-005 — Duplikasi survei membuang seluruh opsi jawaban
+### BUG-005 — Duplikasi survei membuang opsi jawaban, responden buntu total
 
 |                       |                                                                   |
 | --------------------- | ----------------------------------------------------------------- |
 | **Charter**           | — (ditemukan saat menyesuaikan pengujian, 2 September 2026)        |
 | **Tanggal**           | 2 September 2026                                                  |
-| **Peran**             | Admin OPD, Admin Kabupaten, Superuser                             |
-| **Halaman**           | `/admin-opd/surveys` → tombol Duplikat, lalu wizard pengisian     |
-| **Severity**          | High                                                              |
-| **Verifikasi**        | Bukti statis — rantai penyebabnya utuh, belum dijalankan di peramban |
+| **Peran**             | Admin OPD, Admin Kabupaten, Superuser (pembuat) — **korbannya warga** |
+| **Halaman**           | `/admin-opd/surveys` → tombol Duplikat, lalu `/surveys/<id>`      |
+| **Severity**          | **Critical** (dinaikkan dari High setelah dikonfirmasi)           |
+| **Verifikasi**        | **Terkonfirmasi** — direproduksi di peramban 2 September 2026     |
 | **Kasus uji terkait** | Usulan TC-FE-031 di bawah                                          |
 | **Riwayat**           | Diperingatkan sebagai CAT-004 pada 12 Agustus 2026                 |
 
@@ -437,14 +451,56 @@ Salinan identik dengan aslinya, termasuk opsi jawaban dan label skala tersuai.
 
 Dua kerugian sekaligus, keduanya tanpa peringatan apa pun:
 
-| Tipe pertanyaan             | Akibat pada salinan                                                     |
-| --------------------------- | ------------------------------------------------------------------------ |
-| Pilihan Ganda               | Kehilangan seluruh opsi → pertanyaan **tidak dapat dijawab**              |
-| Skala 1-4 berlabel tersuai  | Label kembali diam-diam ke label baku PermenPANRB                        |
+| Tipe pertanyaan            | Akibat pada salinan                                        |
+| -------------------------- | ---------------------------------------------------------- |
+| Pilihan Ganda              | Kehilangan seluruh opsi → **responden buntu, lihat bawah**  |
+| Skala 1-4 berlabel tersuai | Label kembali diam-diam ke label baku PermenPANRB          |
 
-**Bukti**
+**Yang membuatnya Critical, bukan sekadar High**
 
-Rantainya utuh dan dapat ditelusuri dari kode:
+Akibatnya bukan "satu pertanyaan tak bisa dijawab", melainkan **seluruh survei
+tak dapat dilewati**. Pertanyaan pilihan ganda bersifat wajib (`isRequired`
+bernilai benar untuk semua tipe selain `teks`), sementara tidak ada satu pun
+opsi untuk dipilih. Tombol **"Pertanyaan Selanjutnya" tetap nonaktif selamanya**,
+dan responden tersangkut di "Pertanyaan 1 dari 2" tanpa jalan maju, tanpa jalan
+mundur, tanpa cara mengirim.
+
+Panduan severity di §1 menyebut Critical mencakup "alur inti buntu total".
+Mengisi survei **adalah** alur inti sistem SKM, dan di sini ia buntu total pada
+survei yang sudah terbit ke publik. Tim dev boleh menurunkannya bila menilai
+kondisinya terlalu sempit — tetapi alasan menaikkannya dicatat di sini.
+
+**Bukti — dikonfirmasi langsung, 2 September 2026**
+
+Dibuktikan dua lapis. Pertama di tingkat API, dengan membuat survei uji berisi
+satu pertanyaan pilihan ganda (3 opsi) dan satu skala berlabel tersuai, lalu
+menduplikasinya:
+
+```
+--- ASLI (id 332) ---
+  'Layanan mana yang Anda gunakan?'   pilihan  3 opsi  'Rawat Jalan | Rawat Inap | IGD'
+  'Bagaimana kepuasan Anda ...'       skala    4 opsi  'Sangat Tidak Puas (uji) | ... | Sangat Puas (uji)'
+
+--- SALINAN (id 333) ---
+  'Layanan mana yang Anda gunakan?'   pilihan  0 opsi  (kosong)
+  'Bagaimana kepuasan Anda ...'       skala    0 opsi  (kosong)
+
+total opsi  asli=7  salinan=0
+```
+
+Kedua di peramban, membuka kedua survei sebagai responden `warga@example.go.id`:
+
+| Yang diperiksa                        | Asli | Salinan |
+| ------------------------------------- | :--: | :-----: |
+| Opsi pilihan ganda tampil             |  ✅  |   ❌    |
+| Label skala tersuai tampil            |  ✅  |   ❌    |
+| Peringatan "opsi belum tersedia"      |  —   |   ⚠️ ya |
+| **Responden dapat maju ke soal 2**    |  ✅  | **❌ buntu** |
+
+Pada salinan, tombol "Pertanyaan Selanjutnya" dirender dengan gaya nonaktif
+(`bg-surface-dim`, bukan biru primer) dan `isEnabled()` mengembalikan `false`.
+
+Rantai penyebabnya, dapat ditelusuri dari kode:
 
 1. [`duplicate()`](../apps/api/src/modules/surveys/surveys.service.ts#L178-L186)
    menyalin `teks`, `tipe`, `isIkmUnsur`, `kodeUnsur`, dan `urutan` — relasi
@@ -465,20 +521,46 @@ Rantainya utuh dan dapat ditelusuri dari kode:
 
 **Catatan**
 
-Dinilai **High** karena tiga hal:
+Selalu terjadi — tidak bergantung waktu, peran, atau urutan.
 
-1. **Duplikasi adalah alur yang dianjurkan**, bukan jalur pinggir. Fitur ini
-   ada justru supaya survei triwulan berikutnya tidak dibuat dari nol.
-2. **Tidak ada jalan memutar selain membuat ulang opsinya satu per satu**, dan
-   admin baru mengetahui masalahnya setelah survei terbit.
+Tiga hal memperberatnya:
+
+1. **Duplikasi adalah alur yang dianjurkan**, bukan jalur pinggir. Fitur ini ada
+   justru supaya survei triwulan berikutnya tidak dibuat dari nol.
+2. **Admin tidak punya cara mengetahuinya sebelum terlambat.** Builder tidak
+   memberi tanda apa pun bahwa salinan kehilangan opsi; barulah setelah survei
+   terbit dan warga membukanya, masalahnya kelihatan.
 3. **Kerugian label skala berlangsung diam-diam.** Pertanyaan pilihan ganda
-   setidaknya memunculkan kotak peringatan; label skala hanya berganti, dan
-   survei tetap tampak normal. Hasil IKM-nya pun tetap terhitung, hanya saja
-   respondennya membaca kalimat yang berbeda dari yang dirancang.
+   setidaknya memunculkan kotak peringatan; label skala hanya berganti tanpa
+   tanda apa pun, dan survei tetap tampak normal. Hasil IKM-nya tetap terhitung,
+   hanya saja respondennya membaca kalimat yang berbeda dari yang dirancang.
 
-Perbaikannya di ranah backend (menyertakan `options` pada `duplicate()`), jadi
-di luar lingkup pengujian saya. Yang dilaporkan di sini adalah gejalanya, yang
+Perbaikannya di ranah backend (menyertakan relasi `options` pada `duplicate()`),
+jadi di luar lingkup pengujian saya. Yang dilaporkan di sini gejalanya, yang
 seluruhnya terlihat di frontend.
+
+**Data uji yang tertinggal di basis data dev**
+
+Konfirmasi ini menulis ke basis data dev atas izin penguji. Yang tertinggal:
+
+| Id  | Judul                                    | Status |
+| --- | ---------------------------------------- | ------ |
+| 332 | `[UJI BUG-005] Survei asli ...`          | aktif  |
+| 333 | `[UJI BUG-005] Survei asli ... (Salinan)` | aktif  |
+
+Survei **333 adalah reproduksi hidup** — biarkan sampai perbaikannya diverifikasi,
+karena ia bukti yang bisa dibuka siapa pun. Keduanya berjudul berawalan
+`[UJI BUG-005]` supaya mudah dikenali dan dibersihkan nanti.
+
+> **4 September 2026 — keduanya SUDAH DIHAPUS** atas permintaan penguji, sesudah
+> keberatan disampaikan dan tetap diminta. Reproduksi hidupnya karena itu **tidak
+> lagi tersedia untuk dibuka**; yang tersisa adalah bukti tertulis di laporan ini
+> — keluaran API di atas, tabel perbandingan peramban, dan rantai penyebab di
+> kode. Ketiganya cukup untuk menilai temuan, tetapi tim dev yang ingin melihatnya
+> sendiri harus **membangun ulang** lewat empat langkah reproduksi di atas
+> (± satu menit lewat API: buat survei 2 pertanyaan → `POST /surveys/:id/duplicate`
+> → bandingkan jumlah opsinya). Salinan lengkap kedua baris beserta pertanyaan dan
+> opsinya dicadangkan ke `cadangan-survei-332-333-336.json` sebelum dihapus.
 
 **Usulan kasus uji setelah diperbaiki**
 
@@ -615,6 +697,336 @@ menghidupkan sesi mati — yaitu cacat yang justru diperbaiki 18 Agustus lalu.
 
 ---
 
+<a id="bug-007"></a>
+
+### BUG-007 — Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah
+
+|                       |                                                          |
+| --------------------- | -------------------------------------------------------- |
+| **Charter**           | C-03                                                     |
+| **Tanggal**           | 2 September 2026                                         |
+| **Peran**             | Warga (form pengaduan), Admin OPD & Kabupaten (percakapan) |
+| **Halaman**           | `/complaints/new`, panel balasan pengaduan               |
+| **Severity**          | Low                                                      |
+| **Verifikasi**        | Terkonfirmasi                                            |
+| **Kasus uji terkait** | Usulan TC-FE-033 di bawah                                 |
+
+**Langkah reproduksi**
+
+1. Buka form pengaduan sebagai warga, tekan tombol lampirkan berkas
+2. Perhatikan jenis berkas apa saja yang ditawarkan pemilih berkas
+3. Pilih berkas `.exe`, atau gambar `.gif`, atau PNG berukuran 20 MB
+4. Kirim, lalu tunggu
+
+**Hasil yang diharapkan**
+
+Berkas yang pasti ditolak backend tidak ditawarkan sejak awal, dan berkas yang
+melebihi 5 MB ditolak seketika tanpa perlu diunggah lebih dulu.
+
+**Hasil sebenarnya**
+
+Tidak ada satu pun pemeriksaan di sisi klien. Pengguna memilih berkas, menunggu
+unggahannya selesai, baru ditolak.
+
+| Tempat                                                                                       | Keadaan                                                    |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [FileDropzone.jsx:10](../apps/web/src/components/ui/FileDropzone.jsx#L10)                     | `accept="image/*,.pdf"` — menawarkan GIF, SVG, BMP, TIFF yang semuanya ditolak backend |
+| [AdminResolutionWorkspace.jsx:157](../apps/web/src/features/complaints/components/AdminResolutionWorkspace.jsx#L157) | **tanpa `accept` sama sekali** — menawarkan segala jenis berkas |
+| [ChatReplyForm.jsx:87](../apps/web/src/features/complaints/components/chat/ChatReplyForm.jsx#L87) | **tanpa `accept` sama sekali**                             |
+| Seluruh komponen                                                                             | ukuran berkas hanya **ditampilkan**, tidak pernah diperiksa terhadap batas 5 MB |
+
+**Bukti**
+
+Batas backend: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`;
+maksimal 5 MB; maksimal 5 berkas
+([complaints.service.ts:37-39](../apps/api/src/modules/complaints/complaints.service.ts#L37-L39)).
+Enam berkas diuji lewat API, dan **backend menolak semuanya dengan benar**
+(rincian di ringkasan sesi C-03). Jadi tidak ada risiko data — yang hilang
+hanyalah waktu dan kuota pengguna.
+
+**Catatan**
+
+Selalu terjadi. Dinilai **Low** karena datanya aman, pesan galatnya jelas
+(menyebut tipe yang ditolak sekaligus daftar yang diizinkan), dan jalan
+memutarnya sederhana: pilih berkas yang benar.
+
+Namun perlu ditimbang siapa penggunanya. Ini layanan pengaduan publik yang
+dibuka warga dari ponsel, kerap dengan kuota terbatas dan jaringan lambat.
+Mengunggah foto 20 MB sampai selesai lalu ditolak bukan sekadar merepotkan —
+itu kuota yang benar-benar hilang. Tim boleh menaikkannya ke Medium atas dasar
+itu.
+
+Perbaikannya kecil dan seluruhnya di frontend: samakan `accept` dengan daftar
+backend (`image/jpeg,image/png,image/webp,application/pdf`), pasang atribut itu
+pada ketiga input, dan tolak berkas >5 MB di `handleFileChange` sebelum dikirim.
+
+**Usulan kasus uji**
+
+> **TC-FE-033** — Validasi lampiran di sisi klien
+> Pilih berkas 6 MB dan berkas `.gif`; pastikan keduanya ditolak **tanpa**
+> permintaan jaringan terkirim, dan pesannya menyebutkan batas yang dilanggar.
+
+### BUG-008 — Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung
+
+|                       |                                                          |
+| --------------------- | -------------------------------------------------------- |
+| **Charter**           | C-11                                                     |
+| **Tanggal**           | 2 September 2026                                         |
+| **Peran**             | Pengunjung yang belum masuk                              |
+| **Halaman**           | `/` (beranda publik)                                     |
+| **Severity**          | Medium                                                   |
+| **Verifikasi**        | Terkonfirmasi — direproduksi dua kali                    |
+| **Kasus uji terkait** | TC-FE-034                                                |
+
+**Langkah reproduksi**
+
+1. Buka `http://skema.local/` di jendela penyamaran (belum pernah masuk)
+2. Perhatikan formulir "Sampaikan Keluhan & Pengaduan Anda" yang langsung tampil
+3. Buka daftar pilihan **Kategori** — lalu pindah ke tab "Survei Kepuasan" dan
+   buka daftar pilihan **Instansi / OPD**
+
+**Hasil yang diharapkan**
+
+Salah satu dari dua: pilihannya terisi, atau halaman menerangkan bahwa pengunjung
+harus masuk lebih dulu.
+
+**Hasil sebenarnya**
+
+Kedua daftar pilihan kosong, dan **tidak ada satu kalimat pun** di halaman itu
+yang menyebutkan perlunya masuk. Pengunjung melihat formulir yang tampak siap
+diisi tetapi tak dapat diteruskan, tanpa cara mengetahui sebabnya.
+
+**Bukti**
+
+`src/app/page.jsx` merender `CreateComplaintForm` dan `SurveyForm` tanpa syarat
+apa pun. Ketiga permintaan rujukannya menuntut autentikasi dan membalas **401**
+bagi pengunjung:
+
+| Permintaan                              | Balasan | Keterangan                                        |
+| ----------------------------------------- | :-----: | -------------------------------------------------- |
+| `GET /opd?limit=100&isActive=true`        | 401     | `opd.controller.ts:37` tanpa `@Roles` = "seluruh peran **terautentikasi**" |
+| `GET /ref/complaint-categories`           | 401     | daftar kategori pengaduan                          |
+| `GET /ref/complaint-sub-categories`       | 401     | daftar subkategori                                 |
+
+Kegagalannya **ditelan diam-diam**. `CreateComplaintForm.jsx` mengambil hanya
+`data` dari `useAsync` dan membuang `error`-nya:
+
+```js
+const { data: categories } = useAsync(fetchCategories);   // `error` tidak diambil
+const categoryOptions = (categories ?? []).map(...);      // 401 -> senyap menjadi []
+```
+
+`Select.jsx` adalah `<select>` biasa, sehingga hasil akhirnya daftar kosong tanpa
+keterangan. Diverifikasi dua kali lewat peramban sungguhan (sapuan C-11 dan
+pemeriksaan ulang), dengan hasil sama persis.
+
+**Catatan**
+
+Selalu terjadi, dan hanya menimpa pengunjung yang belum masuk — pengguna yang
+sudah masuk tak terpengaruh sama sekali.
+
+Dinilai **Medium**, bukan Critical: tak ada data yang hilang atau bocor, dan
+jalan memutarnya ada (masuk dulu lewat tombol di navbar). Tetapi juga bukan Low,
+karena inilah pintu masuk utama layanan publik. Beranda menjanjikan sesuatu yang
+tak bisa ditepatinya, dan bentuk cacatnya sama persis dengan [BUG-007](#bug-007):
+penolakan baru terasa **sesudah** pengguna berusaha, bukan diterangkan jujur di
+awal.
+
+Ada satu keputusan produk yang mendahului perbaikan teknisnya: **apakah warga
+memang seharusnya bisa mengadu tanpa masuk?** `POST /complaints` menuntut token
+warga, jadi jawabannya saat ini "tidak". Bila itu memang keputusannya, yang
+kurang hanyalah kejujuran antarmuka. Bila ternyata tidak — bila pengaduan
+anonim memang diinginkan — yang perlu berubah jauh lebih besar dan itu ranah
+backend.
+
+Perbaikan terkecil yang menutup cacat ini seluruhnya di frontend: ambil `error`
+dari `useAsync` (yang memang sudah menyediakannya) dan tampilkan ajakan masuk
+menggantikan formulir bagi pengunjung yang belum bersesi.
+
+**Usulan kasus uji**
+
+> **TC-FE-034** — Beranda publik bagi pengunjung yang belum masuk
+> Buka `/` tanpa sesi; pastikan pengunjung diberi tahu apa yang harus
+> dilakukannya, bukan disodori daftar pilihan kosong tanpa keterangan.
+
+---
+
+---
+
+<a id="bug-009"></a>
+
+### BUG-009 — Akun terlanjur dibuat ketika penetapan statusnya gagal
+
+| Butir          | Isi                                                     |
+| -------------- | ------------------------------------------------------- |
+| **Severity**   | Medium                                                  |
+| **Verifikasi** | Terkonfirmasi di peramban, 3 September 2026 (sesi C-05) |
+| **Berkas**     | `src/app/admin-kab/users/create/page.jsx:112-131`       |
+| **Peran**      | Superuser (halaman ini `SUPERUSER_ONLY_PREFIXES`)       |
+
+**Yang terjadi.** Membuat akun dengan sakelar "Aktif" dimatikan menempuh **dua
+panggilan berurutan**, bukan satu:
+
+```js
+const created = await createUser({ ... });        // akun lahir, SELALU aktif
+if (!formData.isActive) {
+  await updateUserStatus(created.id, false);      // baru di sini dinonaktifkan
+}
+router.push('/admin-kab/users');
+```
+
+Pembagian ini sendiri benar dan disengaja — `UsersService.create` di backend
+mematok `isActive: true`, jadi tak ada cara lain mewujudkan sakelar itu. Yang
+belum ditangani adalah keadaan ketika **hanya panggilan kedua yang gagal**.
+
+Ketika `PATCH /users/:id/status` dijawab 500, `catch` menangkapnya dan
+menampilkan `submitError` di atas formulir. Formulirnya masih terisi lengkap,
+halamannya tidak berpindah, dan tak satu kalimat pun menyebut bahwa akunnya
+**sudah ada**.
+
+**Bukti.** Hanya `PATCH .../status` yang dijatuhkan; `POST /users` dibiarkan
+berjalan sungguhan.
+
+```
+   masih di form? YA
+   pesan ke pengguna: "Gangguan sementara di server"
+   pesan menyebut akun SUDAH terbuat? TIDAK
+   akun ada di basis data? YA (id=274, isActive=true)
+```
+
+**Mengapa ini merugikan.** Dua akibat, dan keduanya menimpa pengguna yang
+melakukan hal paling wajar — mencoba lagi:
+
+1. Akun itu **aktif**, padahal admin justru memintanya nonaktif. Ia bisa dipakai
+   masuk sejak detik itu juga, tanpa ada yang tahu.
+2. Percobaan kedua **pasti gagal** dengan pesan surel duplikat (terbukti pada
+   probe terpisah di sesi yang sama: `"Email atau ssoSubject sudah digunakan"`).
+   Admin lalu menghadapi dua pesan galat yang saling bertentangan — "gangguan
+   server" lalu "surel sudah dipakai" — tanpa petunjuk bahwa keduanya berasal
+   dari satu akun yang memang sudah jadi.
+
+**Yang diharapkan.** Ketika panggilan kedua gagal, pesannya harus mengakui apa
+yang sudah terjadi: akun sudah dibuat dan **berstatus aktif**, penonaktifannya
+yang gagal, dan penyelesaiannya ada di halaman daftar pengguna — bukan dengan
+mengirim ulang formulir ini.
+
+**Catatan cakupan.** Selebihnya formulir ini bersih. Validasi "Admin OPD tanpa
+OPD" menahan pengiriman dengan pesan yang tepat, surel duplikat ditolak dan
+pesannya ditampilkan (tidak ditelan), dan sakelar nonaktif yang berhasil
+benar-benar tersimpan `isActive=false`. Lihat TC-FE-044.
+
+---
+
+<a id="bug-010"></a>
+
+### BUG-010 — Tombol paginasi tak punya nama yang dapat dibacakan
+
+| Butir          | Isi                                                 |
+| -------------- | --------------------------------------------------- |
+| **Severity**   | Low                                                 |
+| **Verifikasi** | Terkonfirmasi, 3 September 2026 (sesi C-06)         |
+| **Berkas**     | `src/components/ui/Pagination.jsx:23-45`            |
+| **Sebaran**    | **Seluruh tabel aplikasi** — bukan hanya daftar OPD |
+
+**Yang terjadi.** Kedua tombol paginasi berisi ikon `<ChevronLeft>` /
+`<ChevronRight>` saja: tanpa teks, tanpa `aria-label`, tanpa `title`.
+
+```
+   [{"teks":"","ariaLabel":null,"title":null},{"teks":"","ariaLabel":null,"title":null}]
+```
+
+Pembaca layar membacakan keduanya cuma sebagai "tombol", tak terbedakan satu
+sama lain. Pengguna tunanetra tak punya cara mengetahui mana maju dan mana
+mundur selain menekannya lalu menyimpulkan dari perubahan tabel.
+
+**Mengapa ini penting di sini.** Ini sistem layanan publik pemerintah daerah,
+dan aksesibilitas bukan pelengkap. Bentuknya sama persis dengan
+[BUG-002](#bug-002) yang sudah diperbaiki dan dikunci uji otomatis — kelasnya
+sudah dikenali tim, hanya komponen ini yang belum ikut disisir.
+
+**Yang diharapkan.** `aria-label="Halaman sebelumnya"` dan
+`aria-label="Halaman berikutnya"` pada masing-masing tombol.
+
+**Perbaikannya sekaligus menolong pengujian.** Selama tombolnya tak bernama,
+`getByRole('button', { name: ... })` mustahil dipakai dan setiap pengujian
+paginasi terpaksa menebak lewat posisi — cara yang diam-diam ikut rusak begitu
+tata letaknya berubah.
+
+---
+
+<a id="bug-011"></a>
+
+### BUG-011 — Pencarian daftar OPD tak memangkas spasi
+
+| Butir          | Isi                                         |
+| -------------- | ------------------------------------------- |
+| **Severity**   | Low                                         |
+| **Verifikasi** | Terkonfirmasi, 3 September 2026 (sesi C-06) |
+| **Berkas**     | `src/app/admin-kab/opd/page.jsx:38-45`      |
+
+**Yang terjadi.** Kata kunci dipakai apa adanya:
+
+```js
+const q = searchQuery.toLowerCase();          // tak ada .trim()
+opd.name.toLowerCase().includes(q)
+```
+
+Kapitalisasinya sudah ditangani dengan benar. Spasinya tidak.
+
+**Bukti.**
+
+```
+   OK  "DINAS"       (huruf besar)   -> 18 hasil, diharapkan 18
+   OK  "dinas"       (huruf kecil)   -> 18 hasil, diharapkan 18
+   OK  "DiNaS"       (campur)        -> 18 hasil, diharapkan 18
+   >>> "  DINAS"     (spasi depan)   ->  0 hasil, diharapkan 18
+   >>> "DINAS  "     (spasi belakang)->  0 hasil, diharapkan 18
+```
+
+**Mengapa ini merugikan.** Menempel nama OPD dari dokumen, surel, atau sel
+spreadsheet hampir selalu membawa spasi ikut serta. Yang dilihat pengguna adalah
+tabel kosong beserta kalimat "Tidak ada data OPD yang ditemukan." — pesan yang
+terdengar pasti dan justru menyesatkan, karena datanya jelas ada. Kata kuncinya
+sendiri tampak benar di kotak pencarian, sehingga tak ada apa pun di layar yang
+memberi petunjuk apa yang salah.
+
+**Yang diharapkan.** `searchQuery.trim().toLowerCase()`.
+
+---
+
+<a id="bug-012"></a>
+
+### BUG-012 — Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan
+
+| Butir          | Isi                                         |
+| -------------- | ------------------------------------------- |
+| **Severity**   | Low                                         |
+| **Verifikasi** | Terkonfirmasi, 3 September 2026 (sesi C-06) |
+| **Berkas**     | `src/app/admin-kab/opd/page.jsx:79-84`      |
+
+**Yang terjadi.** `syncOpd()` mengembalikan **lima** angka — `fetched`,
+`created`, `updated`, `deactivated`, `skipped` (lihat JSDoc di
+`features/opd/services/opd.api.js`). Kalimat yang ditampilkan menyebut empat:
+
+```
+Sinkron selesai: 64 diambil, 2 baru, 60 diperbarui, 1 dinonaktifkan.
+```
+
+Laporan di atas dihasilkan dengan jawaban `POST /opd/sync` yang **dipalsukan**
+berisi `skipped: 1`. Angka itu tak muncul di mana pun.
+
+**Mengapa justru angka itu yang paling perlu terlihat.** Empat angka lainnya
+melaporkan hal yang berhasil. `skipped` melaporkan OPD yang **tidak** ikut
+tersinkron — biasanya karena datanya tak lengkap atau cacat di sisi Helpdesk.
+Itulah satu-satunya angka yang menuntut tindak lanjut, dan justru itu yang
+dihilangkan. Sinkronisasi yang melewatkan sepuluh OPD terbaca persis sama
+suksesnya dengan yang tak melewatkan satu pun.
+
+**Yang diharapkan.** Sebutkan juga jumlah yang dilewati, dan tandai berbeda
+(mis. peringatan kuning, bukan hijau) bila nilainya lebih dari nol.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -651,6 +1063,555 @@ Dua di antaranya layak dicatat alasannya, bukan cuma hasilnya:
 
 - Perilaku duplikasi pada survei yang **sudah terbit dan sudah punya jawaban**
 - Apakah spanduk galat builder terlihat saat kanvas tergulir (lihat BUG-004)
+
+---
+
+### Sesi C-02 — Alur pengaduan lintas peran
+
+| Isi                  | Keterangan                                                                    |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                              |
+| **Peran**            | Warga, Admin OPD, Admin Kabupaten, Superuser — keempatnya dalam satu tiket    |
+| **Cakupan tercapai** | Pengajuan, tampil di daftar OPD, transisi status, notifikasi warga, percakapan |
+| **Temuan**           | 0 cacat; 1 pertanyaan produk ([CAT-005](#cat-005))                            |
+| **Tiket uji**        | `PGD202609029O8P` (id 183)                                                    |
+
+**Yang lulus**
+
+| Yang diuji                               | Hasil                                                                            |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| Format nomor tiket                       | `PGD202609029O8P` — sesuai pola `PGD` + tanggal + 4 karakter                     |
+| Pengaduan baru tampil di daftar Admin OPD | Ya                                                                               |
+| Notifikasi warga tiap perubahan status   | Belum-dibaca naik 1 → 2 → 3; judul "Status Pengaduan Diperbarui"                 |
+| Tautan notifikasi                        | `/complaints/PGD202609029O8P` — menunjuk tiket yang benar                        |
+| Status terminal ditegakkan               | `selesai → diproses` ditolak 400: _"Transisi status selesai → diproses tidak diizinkan"_ |
+| Keempat peran dapat membalas             | Semua 201                                                                        |
+
+Notifikasi lintas peran (D9) ini **belum pernah diuji manual sebelumnya** dan
+ternyata bekerja utuh sampai ke tautannya — termasuk bagian yang paling mudah
+salah, yaitu menautkan ke tiket yang tepat.
+
+**Satu dugaan temuan yang GUGUR setelah diperiksa**
+
+Sesi ini sempat mencatat bahwa tiga peran admin berbeda (`authorId` 22, 1, 2)
+membalas satu tiket sementara adapter frontend hanya membedakan "pelapor vs
+bukan". Terlihat seperti cacat — ternyata bukan. Perbaikan `3a1905c` justru
+sudah mengganti label dari `'Admin OPD'` menjadi `'Admin'`, sehingga frontend
+berhenti mengklaim peran yang bisa keliru. Karena `ComplaintReplyEntity` memang
+tidak membawa nama maupun peran penulis, "Admin" adalah keterangan paling jujur
+yang mungkin diberikan. Dicatat sebagai pertanyaan produk di
+[CAT-005](#cat-005), bukan sebagai cacat.
+
+---
+
+### Sesi C-03 — Batas & perilaku unggah lampiran
+
+| Isi                  | Keterangan                                                             |
+| -------------------- | ---------------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                       |
+| **Peran**            | Warga                                                                  |
+| **Cakupan tercapai** | Tipe berkas terlarang, berkas melebihi batas ukuran, berkas sah        |
+| **Temuan**           | 1 ([BUG-007](#bug-007), Low)                                           |
+
+**Yang lulus — penjagaan backend utuh**
+
+Enam berkas diuji; tidak satu pun yang tak sah lolos:
+
+| Berkas        | Tipe                       | Hasil                                                            |
+| ------------- | -------------------------- | ---------------------------------------------------------------- |
+| `bukti.png`   | image/png, 1 KB            | **201** diterima                                                 |
+| `animasi.gif` | image/gif                  | 400 — _"Tipe berkas "image/gif" tidak diizinkan (hanya JPEG/PNG/WEBP/PDF)"_ |
+| `gambar.svg`  | image/svg+xml              | 400 — ditolak (penting: SVG dapat memuat skrip)                  |
+| `catatan.txt` | text/plain                 | 400 — ditolak                                                    |
+| `program.exe` | application/x-msdownload   | 400 — ditolak                                                    |
+| `besar.png`   | image/png, 6 MB            | 400 — _"Ukuran berkas "besar.png" melebihi 5MB"_                 |
+
+Pesan galatnya menyebutkan tipe yang ditolak **dan** daftar yang diizinkan —
+sudah cukup jelas bagi pengguna awam tanpa perlu menebak.
+
+**Yang gagal** — seluruh penjagaan itu hanya ada di backend; sisi klien tidak
+mencegah apa pun lebih dulu. Lihat [BUG-007](#bug-007).
+
+---
+
+### Sesi C-10 — Area Superuser
+
+| Isi                  | Keterangan                                                              |
+| -------------------- | ----------------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                        |
+| **Peran**            | Keempat peran, terhadap 7 rute terjaga                                  |
+| **Cakupan tercapai** | Matriks proteksi rute (28 kombinasi) + kurungan area + penjagaan data   |
+| **Temuan**           | 0 cacat                                                                 |
+
+**Lapis 1 — penjagaan navigasi (`proxy.js`), 28 kombinasi peran × rute**
+
+Seluruhnya sesuai rancangan. Yang paling penting:
+
+| Rute                    | superuser | kabupaten             | opd                   | responden       |
+| ----------------------- | --------- | --------------------- | --------------------- | --------------- |
+| `/admin-kab/audit-logs` | MASUK     | → `/admin-kab/dashboard` | → `/admin-opd/dashboard` | → `/dashboard` |
+| `/admin-kab/users`      | MASUK     | → `/admin-kab/dashboard` | → `/admin-opd/dashboard` | → `/dashboard` |
+| `/pilih-peran`          | MASUK     | dipantulkan           | dipantulkan           | dipantulkan     |
+
+**Lapis 2 — penjagaan data (URL API dipaksa langsung)**
+
+Ini yang menentukan, karena proxy hanyalah penjaga navigasi yang bisa ditembus
+siapa pun yang menyunting cookie di perambannya sendiri:
+
+| Endpoint              | superuser | kabupaten | opd     | responden |
+| --------------------- | --------- | --------- | ------- | --------- |
+| `GET /api/v1/audit-logs` | 200       | **403**   | **403** | **403**   |
+| `GET /api/v1/users`      | 200       | **403**   | **403** | **403**   |
+
+Backend menolak semuanya. **Proxy bukan satu-satunya pertahanan** — inilah hasil
+terpenting sesi ini.
+
+**Kurungan area superuser** — bekerja sebagaimana dirancang:
+
+| Rute                   | tanpa area | area=kabupaten | area=opd (opd=1) | area=responden |
+| ---------------------- | ---------- | -------------- | ---------------- | -------------- |
+| `/admin-kab/dashboard` | MASUK      | MASUK          | dipantulkan      | dipantulkan    |
+| `/admin-opd/dashboard` | dipantulkan | dipantulkan   | **MASUK**        | dipantulkan    |
+| `/dashboard`           | MASUK      | dipantulkan    | dipantulkan      | MASUK          |
+| `/pilih-peran`         | MASUK      | MASUK          | MASUK            | MASUK          |
+
+Ini menjawab pertanyaan charter: superuser **memang bisa** membuka dashboard OPD
+(`49ad3d8`), tetapi hanya setelah memilih OPD. Tanpa itu ia dipantulkan —
+perilaku yang benar, meski **tanpa penjelasan apa pun** kepada penggunanya.
+`/pilih-peran` tetap terbuka di semua area, sesuai rancangan: itu satu-satunya
+jalan berpindah tanpa logout.
+
+**Dua jebakan metode yang layak dicatat** — keduanya sempat menghasilkan
+kesimpulan palsu sebelum ketahuan:
+
+1. **Batas laju 100 permintaan/60 detik.** Sapuan rute otomatis menembusnya di
+   tengah jalan; `/auth/me` membalas 429, aplikasi menyimpulkan sesi mati, dan
+   semua rute berikutnya memantul ke `/` **seolah-olah penjagaan akses yang
+   bekerja**. Sejak itu setiap 429 dicatat terang-terangan.
+2. **Cookie saja tidak cukup untuk memalsukan sesi.** Cookie dibaca `proxy.js`
+   di edge, tetapi `api.js` mengambil token dari `localStorage`. Tanpa keduanya,
+   rute PERTAMA lolos lalu sisanya memantul — bukan karena hak akses, melainkan
+   karena aplikasi menghapus sesinya sendiri setelah `/auth/me` menolak.
+
+Keduanya bukan cacat produk, melainkan sifat lingkungan yang wajib diketahui
+siapa pun yang mengotomatiskan pengujian rute di proyek ini.
+
+**Belum tercakup**
+
+- C-09 (alur masuk SSO) **terkunci**: `HELPDESK_SSO_CLIENT_ID` dan
+  `CLIENT_SECRET` masih kosong menunggu Diskominfo, dan `SsoService` membalas
+  `ServiceUnavailableException`. Tidak dapat diuji siapa pun sampai kredensial
+  tersedia.
+- Log aktivitas superuser: apakah pelakunya tercatat benar — belum diperiksa.
+
+### Sesi C-04 — Proteksi route & peralihan peran
+
+| Isi                  | Keterangan                                                                 |
+| -------------------- | --------------------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                            |
+| **Peran**            | Tanpa sesi, responden, opd, kabupaten                                       |
+| **Cakupan tercapai** | Matriks A.5.1 (32 kombinasi, diotomatiskan) + 3 probe yang tak bisa diotomatiskan lewat tabel |
+| **Temuan**           | 0 cacat · 1 catatan rancangan (CAT-007)                                     |
+
+**Matriks A.5.1** — 8 rute × 4 kondisi peran, seluruhnya sesuai. Kini terkunci
+otomatis di `apps/web/e2e/proteksi-route.spec.js`, jadi baris `proxy.js` yang
+hilang atau tertukar urutannya akan langsung memerahkan suite.
+
+**Probe 1 — pengguna menyunting cookie `role` miliknya sendiri.** Masuk sebagai
+warga, lalu cookie `role` diubah `responden` → `kabupaten` lewat DevTools. Token
+tetap milik warga.
+
+| Halaman                | Terbuka? | Yang terjadi pada datanya                                        |
+| ---------------------- | -------- | ----------------------------------------------------------------- |
+| `/admin-kab/dashboard` | ya       | `GET /dashboard/ikm` → **403**, halaman menampilkan galat          |
+| `/admin-kab/opd`       | ya       | 10 baris tampil — `GET /opd` memang terbuka bagi **semua peran terautentikasi** (`opd.controller.ts:37`), termasuk warga |
+
+Kesimpulannya: proxy memang **hanya penjaga navigasi** dan bisa ditembus siapa
+pun di perambannya sendiri, tetapi **tak ada data istimewa yang bocor**. Yang
+tampil di `/admin-kab/opd` adalah daftar yang formulir survei di beranda publik
+pun memakainya. Endpoint yang benar-benar istimewa menolak. Dicatat sebagai
+**CAT-007**, bukan bug.
+
+**Probe 2 — logout lalu tombol Back.** *Dugaan awal saya keliru dan sudah
+dikoreksi.* Pemeriksaan pertama menyimpulkan halaman `/profile` "masih tampil"
+sesudah logout — padahal yang cocok hanyalah judul halamannya. Penelusuran
+lanjutan menunjukkan keadaan sebenarnya:
+
+| Yang diperiksa sesudah menekan Back            | Hasil                       |
+| ----------------------------------------------- | ---------------------------- |
+| Nama pengguna masih terlihat?                   | **tidak**                    |
+| Surel akun masih terlihat?                      | **tidak**                    |
+| Halaman tampak sebagai "sudah masuk"?           | **tidak**                    |
+| `GET /auth/me` dari halaman itu                 | **401** — sesi memang mati   |
+
+Tidak ada cacat. Yang tersisa hanyalah kerangka halaman kosong; React sudah
+membersihkan datanya dan sesinya benar-benar berakhir.
+
+**Probe 3 — dua tab, dua peran.** Tab 1 dibiarkan terbuka sebagai warga, tab 2
+keluar lalu masuk sebagai Admin Kabupaten. Cookie dipakai bersama, jadi sesi tab
+1 ikut berganti. Saat tab 1 dipakai lagi, ia dipantulkan ke `/admin-kab/dashboard`
+dan menampilkan identitas yang **benar** ("Admin Kabupaten"), tanpa satu pun
+panggilan API yang ditolak. Berperilaku benar. Satu-satunya ketidaksempurnaan —
+layar lama di tab 1 masih menyapa warga sampai tab itu disentuh — melekat pada
+setiap aplikasi web bertab banyak dan tak layak dicatat sebagai cacat.
+
+**Catatan metodologi.** Percobaan pertama probe 3 gagal karena premis saya
+sendiri salah: saya mengira bisa langsung masuk sebagai peran lain di tab kedua,
+padahal peramban sudah memegang sesi warga sehingga navbar menampilkan avatar,
+bukan tombol masuk. Skenario yang mungkin dilakukan pengguna adalah keluar dulu —
+dan itulah yang akhirnya diuji.
+
+---
+
+### Sesi C-11 — Sapuan seluruh halaman
+
+| Isi                  | Keterangan                                                          |
+| -------------------- | --------------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                      |
+| **Peran**            | Tanpa sesi, warga, opd, kabupaten, superuser                          |
+| **Cakupan tercapai** | 35 halaman — seluruh rute `src/app/**/page.jsx` yang dapat dijangkau |
+| **Temuan**           | 1 cacat nyata ([BUG-008](#bug-008)) · 6 alarm palsu                   |
+
+Tiap halaman dibuka dengan peran yang berhak, memakai id nyata untuk rute
+berparameter, sambil merekam galat konsol, panggilan API yang gagal, penanda
+galat yang terlihat pengguna, dan halaman yang nyaris kosong.
+
+Tujuh halaman tertandai. Ketujuhnya diperiksa ulang satu per satu, dan **enam di
+antaranya bukan cacat aplikasi** — bagian ini justru yang paling berharga dari
+sesi ini, karena melaporkannya sebagai bug akan membuang waktu tim.
+
+| Halaman                       | Tanda awal          | Sesudah diperiksa ulang                                                |
+| ----------------------------- | ------------------- | ----------------------------------------------------------------------- |
+| `/` tanpa sesi                | 401 di 3 endpoint   | **CACAT NYATA** → [BUG-008](#bug-008)                                   |
+| `/complaints/{tiket}` (warga) | 502 di 3 endpoint   | Gangguan sesaat — pemeriksaan ulang: seluruh API berhasil               |
+| `/admin-opd/dashboard`        | 502 di 2 endpoint   | Gangguan sesaat — pemeriksaan ulang: seluruh API berhasil               |
+| `/admin-opd/complaints/184`   | 404                 | **Salah skrip saya** — rute ini menerima `ticketNo`, bukan id numerik   |
+| `/admin-kab/complaints/184`   | 404                 | **Salah skrip saya** — sama seperti di atas                            |
+| `/admin-opd/surveys/336`      | dialihkan           | **Memang dirancang** — Admin OPD tak punya halaman detail survei; alasannya tertulis di kode sumbernya |
+| `/admin-kab/users/24/edit`    | batas waktu 45 detik | **Kompilasi dingin `next dev`** — kunjungan kedua: 3,4 detik           |
+
+**Tiga jenis alarm palsu yang perlu diingat pada sesi berikutnya:**
+
+1. **502 sesaat dari gateway.** Beberapa endpoint yang tak berhubungan gagal
+   serentak — pertanda gangguan sisi server, bukan cacat halaman. Selalu ulangi
+   sebelum melaporkan.
+2. **Parameter URL yang salah bentuk.** Rute detail pengaduan admin menerima
+   `ticketNo`, sedangkan daftarnya mengembalikan `id` numerik juga. Memakai yang
+   keliru menghasilkan 404 yang tampak persis seperti cacat.
+3. **Kompilasi dingin `next dev`.** Kunjungan pertama ke rute berat bisa melebihi
+   batas waktu. Gejalanya menyesatkan karena yang gagal **berpindah-pindah** tiap
+   kali dijalankan — begitu satu rute terkompilasi, giliran rute berikutnya.
+
+---
+
+### Sesi C-13 — Gerbang persetujuan PDP
+
+| Isi                  | Keterangan                                                     |
+| -------------------- | ---------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                 |
+| **Peran**            | Warga, Admin Kabupaten, Admin OPD                                |
+| **Cakupan tercapai** | Penjagaan cookie & pemantulan peran — **formulir persetujuannya sendiri terkunci** |
+| **Temuan**           | 0 cacat                                                          |
+
+**Terkunci lebih dulu, dan perlu dikatakan di muka.** Gerbang hanya muncul bagi
+`responden` yang `consentAt`-nya masih kosong. Satu-satunya akun responden di
+basis data pengembangan sudah menyetujui (`consentRequired: false`), dan akun
+responden baru **tak dapat dibuat lewat jalur mana pun yang dicapai frontend**:
+`CreateUserDto` hanya menerima peran admin (`opd`/`kabupaten`/`superuser`), dan
+`dev-login` membalas 404 untuk identifier yang belum terdaftar — ia tidak
+membuat akun. Jadi kotak centang, tombol "Setuju & Lanjutkan", dan jalur
+penolakannya belum teruji sama sekali. Yang dibutuhkan: satu akun responden
+seed tanpa persetujuan — pekerjaan seed/backend.
+
+**Yang tetap dapat dibuktikan** justru bagian paling rawan, karena cookie
+`consent` ada di tangan pengguna:
+
+| Yang diuji                                              | Hasil                                                                 |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Cookie `consent` dihapus, lalu buka `/complaints`         | Dipantulkan ke `/persetujuan` — proxy bekerja                          |
+| Cookie **dan** cerminan localStorage dihapus, buka `/surveys` | Tetap dipantulkan ke `/persetujuan`                                |
+| Gerbang lalu memeriksa `GET /auth/me`                     | Melihat persetujuan tak diperlukan, memulihkan cookie, meneruskan ke `/dashboard` |
+| Admin Kabupaten & Admin OPD membuka `/persetujuan`        | Keduanya dipantulkan ke berandanya masing-masing                       |
+| Logout, lalu periksa sisa persetujuan                     | Cookie `consent` dan cerminannya **dibuang** — warga berikutnya di peramban yang sama wajib menyetujui sendiri |
+
+Kesimpulannya: **cookie basi tak dapat membuka gerbang, dan tak dapat mengurung
+pengguna di dalamnya.** Sumber kebenarannya API, persis seperti yang diklaim
+komentar pada `persetujuan/page.jsx`. Baris terakhir tabel adalah yang paling
+penting bagi privasi, dan ia lulus.
+
+**Catatan metodologi — alarm palsu ketiga dari sebab yang sama.** Jalan pertama
+probe ini menyimpulkan warga tanpa cookie `consent` **tidak** dipantulkan. Salah.
+Halaman dilayani dari **cache peramban**, sehingga navigasinya tak pernah sampai
+ke server dan proxy tak pernah ditanya. Dengan cache dimatikan, pemantulannya
+terjadi persis seperti seharusnya. Ini kali ketiga cache peramban menghasilkan
+kesimpulan palsu pada sesi-sesi ini — lihat juga TEST_CASES §Y.4.
+
+---
+
+**Bagian FORMULIR dijalankan 3 September 2026 — 10 probe, nol temuan.**
+
+Yang menahannya selama ini bukan kesulitan teknis melainkan ketiadaan fixture:
+gerbang hanya muncul bagi responden ber-`consentAt` kosong, dan tak ada satu pun
+di dev. User menyediakan `warga@gmail.com` (id 21).
+
+> ⚠️ **Fixture sekali pakai, dan itu menentukan urutan kerjanya.**
+> `POST /auth/consent` hanya menulis; `ConsentService.record` mengembalikan nilai
+> lama bila sudah terisi, dan tak ada endpoint reset. Sembilan probe yang tak
+> menghabiskan fixture dikerjakan lebih dulu; penerimaan sungguhan paling akhir.
+> Probe kegagalan pencatatan dijalankan dengan mencegat permintaannya **di
+> peramban**, sehingga backend tak pernah tersentuh dan fixture tetap utuh —
+> diperiksa langsung sesudahnya lewat `GET /auth/me` (`consentRequired` masih true).
+
+| Probe | Yang diuji                                | Hasil                                                                |
+| :---: | ----------------------------------------- | -------------------------------------------------------------------- |
+|   1   | Masuk sebagai warga tanpa persetujuan     | ✅ dipantulkan ke `/persetujuan`                                     |
+|   2   | Isi gerbang                               | ✅ 4 rincian PDP, rujukan UU 27/2022, **0** tautan keluar ke area warga |
+|   3   | Kunci tombol ↔ kotak centang              | ✅ terkunci → aktif → **terkunci lagi** saat centang dibatalkan        |
+|   4   | Aksesibilitas kotak centang               | ✅ label tertaut, `aria-describedby`, target sentuh 80px lewat label   |
+|   5   | Kiriman tanpa persetujuan                 | ✅ **403** dengan pesan yang menyebut halaman Persetujuan             |
+|   6   | Cookie `consent` dipalsukan `1`           | ✅ navigasi tembus, pengiriman **tetap 403**                          |
+|   7   | `POST /auth/consent` gagal 500            | ✅ `role="alert"` + fokus pindah, tetap di gerbang, **tak tercatat**   |
+|   8   | Menyetujui sungguhan                      | ✅ ke `/dashboard`, `consentRequired` false, cookie `consent=1`        |
+|   9   | `/persetujuan` sesudah menyetujui         | ✅ dipantulkan ke `/dashboard`                                        |
+|  10   | Kiriman sesudah menyetujui                | ✅ **201**                                                            |
+
+**Probe 5 & 6 membuktikan klaim yang selama ini hanya berupa komentar.**
+`ConsentGate.jsx` menyatakan halaman itu "pembatas NAVIGASI, dan penegakan
+sesungguhnya ada di backend". Probe 6 mengujinya dengan cara paling tak
+bersahabat — memalsukan cookie `consent` menjadi `1` — dan hasilnya persis
+seperti yang dijanjikan: halaman warga terbuka, tetapi
+`POST /surveys/:id/responses` tetap 403. Melewati gerbang hanya menghasilkan
+halaman yang gagal mengirim.
+
+**Sisa jejak — sudah dibersihkan 3 September 2026.** Probe 10 meninggalkan satu
+respons uji pada survei fixture `[UJI E2E]` (#336), dan `warga@gmail.com` berubah
+menjadi sudah menyetujui. Keduanya dikembalikan lewat basis data: responsnya
+dihapus, `consentAt` disetel `null` kembali.
+
+> **Koreksi.** Kalimat sebelumnya menyebut persetujuan itu "tak dapat
+> dikembalikan". Itu benar **lewat aplikasi** — `POST /auth/consent` hanya
+> menulis dan tak ada endpoint reset — tetapi tidak benar lewat basis data.
+> Akun responden tanpa persetujuan kini tersedia lagi sebagai fixture, sehingga
+> gerbang PDP dapat diuji ulang tanpa menunggu seed responden baru.
+
+---
+
+### Sesi C-12 — Analisis & ekspor
+
+| Isi                  | Keterangan                                                          |
+| -------------------- | --------------------------------------------------------------------- |
+| **Tanggal**          | 2 September 2026                                                      |
+| **Peran**            | Admin OPD, Admin Kabupaten, Superuser                                 |
+| **Cakupan tercapai** | Konsistensi IKM lintas tiga endpoint + ketiga format ekspor + tab pengaduan |
+| **Temuan**           | 0 cacat                                                               |
+
+Halaman ini tak pernah disebut sekali pun di dokumen pengujian sebelum hari ini.
+Pertanyaan pokoknya bukan "apakah tampil", melainkan **apakah angkanya
+konsisten** — tiga layar berbeda mengaku menghitung IKM dari data yang sama, dan
+pengelola yang melihat dua angka berbeda untuk hal yang sama tak punya cara tahu
+mana yang benar.
+
+**Konsistensi IKM.** Tujuh survei layak diperiksa satu per satu:
+
+| Survei | Unsur IKM | Responden | `nilaiIkm` | Papan peringkat Kabupaten |
+| ------ | :-------: | :-------: | :--------: | -------------------------- |
+| 24     | 9         | 2         | 77,78 (B)  | peringkat 1 — **cocok persis** |
+| 22     | 9         | 1         | 77,78 (B)  | peringkat 2 — **cocok persis** |
+| 332–336 | 0        | 0–34      | `null`     | dikecualikan               |
+
+Pengecualian itu **benar, bukan cacat**: IKM hanya bermakna bagi survei yang
+disusun dari 9 unsur baku. Karena itu `totalResponden` pada dasbor Kabupaten
+(3) memang lebih kecil daripada jumlah seluruh responden di semua survei (38) —
+ia menghitung responden survei ber-IKM, sebagaimana mestinya sebuah papan
+peringkat IKM.
+
+**Yang paling penting bagi pengguna:** survei tanpa unsur IKM ditampilkan
+sebagai **"Belum dapat dinilai"**, bukan angka **0**. Pada skala IKM, 0 berarti
+pelayanan terburuk — menampilkannya untuk "belum ada data" akan memfitnah OPD
+yang bersangkutan. Antarmukanya jujur.
+
+**Ekspor.** Ketiganya diuji dari peramban sungguhan, bukan hanya lewat API, dan
+isi berkasnya diperiksa — bukan sekadar status HTTP-nya:
+
+| Format | Content-Type                        | Isi berkas                     | Nama berkas                        |
+| ------ | ----------------------------------- | ------------------------------ | ---------------------------------- |
+| CSV    | `text/csv; charset=utf-8`           | teks CSV berjudul "Laporan Hasil IKM" | `hasil-ikm-336-2026-Q3.csv`  |
+| Excel  | `application/vnd.openxmlformats-…`  | **arsip ZIP/XLSX asli**        | `hasil-ikm-336-2026-Q3.xlsx`       |
+| PDF    | `application/pdf`                   | **diawali `%PDF`**             | `hasil-ikm-336-2026-Q3.pdf`        |
+
+Pemeriksaan isi ini disengaja: proyek ini pernah punya tombol "PDF" yang
+sebenarnya mengunduh berkas teks (lihat catatan pada `handleExportPDF` di
+halaman daftar pengaduan). Status 200 saja tak membuktikan formatnya benar.
+
+**Catatan data uji — sudah dibersihkan 3 September 2026.** Survei fixture E2E
+(id 336) sempat menumpuk sampai **40 respons**, bertambah dua tiap kali suite E2E
+dijalankan. Seluruh responsnya dihapus pada 3 September, dan **survei-nya sendiri
+menyusul pada 4 September** atas permintaan penguji. Itu tidak melumpuhkan suite:
+`globalSetup` (`e2e/support/api.js`, `pastikanSurveiUji()`) membuatnya kembali
+secara otomatis pada `pnpm test:e2e` berikutnya — dengan id baru, dan akan
+kembali menumpuk respons kalau tak dibersihkan lagi.
+
+Angka IKM memang tak pernah terganggu — survei itu tanpa unsur IKM, jadi selalu
+dikecualikan. Yang terganggu adalah **halaman `/statistics` publik**, dan itu
+baru terlihat setelah dihitung:
+
+| Angka `/statistics`  | Sebelum dibersihkan | Sesudah | Isi sebenarnya                    |
+| -------------------- | ------------------: | ------: | --------------------------------- |
+| `totalRespondents`   | 44                  | **3**   | 41 di antaranya respons uji       |
+| `totalComplaints`    | 11                  | **6**   | 5 di antaranya pengaduan uji      |
+| `completionRate`     | 36,36 %             | **50 %**| ikut bergeser karena pembilangnya |
+
+Pelajarannya bukan "jangan menulis ke basis data" — E2E memang harus menembus
+sampai ke sana supaya buktinya sahih — melainkan bahwa **sisa pengujian ikut
+terbaca sebagai angka resmi di halaman publik**, dan karena itu harus dibersihkan
+sebagai bagian dari pengujian, bukan sesudahnya kalau sempat.
+
+---
+
+---
+
+### Sesi C-05 — Form buat akun admin
+
+**Dijalankan:** 3 September 2026 · **Peran:** Superuser · **Hasil:** 1 temuan
+([BUG-009](#bug-009), Medium) · **TC terkait:** TC-FE-044 ✅
+
+**Dasar kecurigaan charter ternyata sudah usang.** Charter ini ditulis ketika
+formulirnya masih meminta `phone` (kolom yang tak pernah ada di skema backend)
+dan ketika sakelar `isActive` belum tersambung ke mana pun. Keduanya sudah
+diperbaiki tim: `phone` dihapus, dan `isActive` kini benar-benar bekerja lewat
+panggilan status susulan. Sesi ini karena itu menguji yang tersisa — **termasuk
+satu risiko yang lahir justru dari perbaikan itu.**
+
+| Probe | Yang diuji                                  | Hasil                                                                          |
+| :---: | ------------------------------------------- | ------------------------------------------------------------------------------ |
+|   1   | Peran Admin OPD tanpa memilih OPD           | ✅ ditahan di formulir, pesan "Silakan pilih instansi / OPD."                   |
+|   2   | Surel yang sudah terdaftar                  | ✅ ditolak, pesan backend ditampilkan apa adanya                                |
+|   3   | Sakelar "Aktif" dimatikan                   | ✅ tersimpan `isActive=false` — dua panggilan berurutan, keduanya berhasil       |
+|   4   | Panggilan **kedua** gagal sendirian         | ❌ [BUG-009](#bug-009) — akun terlanjur dibuat dan aktif, admin tak diberi tahu |
+
+**Dua kekeliruan saya sendiri, dicatat supaya tak terulang.**
+
+1. *Percobaan pertama gagal masuk.* Skrip menunggu superuser mendarat di
+   `/admin-kab/dashboard`; superuser justru ditahan pada pemilih peran
+   (`SSOLoginButton.jsx:73`). Jalan keluarnya bukan berpindah ke
+   `admin.kabupaten@example.go.id`: `proxy.js:54` menaruh `/admin-kab/users` di
+   `SUPERUSER_ONLY_PREFIXES`, sehingga Admin Kabupaten biasa dipantulkan dari
+   halaman yang hendak diuji. **Superuser + memilih area "Admin Kabupaten"
+   adalah satu-satunya jalan masuk.**
+2. *Locator salah.* Peran dipilih lewat komponen `Dropdown` (tombol `#role` plus
+   panel berisi `<button>`), bukan `<select>`, dan sakelarnya ber-`role="switch"`.
+
+**Pembersihan.** Dua akun uji yang tercipta (`uji.c05.c.*`, `uji.c05.d.*`)
+dihapus lewat `DELETE /users/:id` sesudah sesi selesai.
+
+---
+
+### Sesi C-06 — Daftar & sinkronisasi OPD pada volume nyata
+
+**Dijalankan:** 3 September 2026 · **Peran:** Superuser (area Kabupaten) ·
+**Hasil:** 3 temuan + 1 catatan · **TC terkait:** TC-FE-049 🟡
+
+**Tombol sinkronisasi sungguhan tidak ditekan.** `POST /opd/sync` menarik data
+dari Helpdesk dan dapat **menonaktifkan** OPD yang tak lagi ada di sumbernya —
+perubahan pada basis data pengembangan bersama yang tak bisa dibatalkan dari
+sini. Yang perlu diuji adalah bagian frontend-nya (bagaimana laporan dan
+kegagalannya ditampilkan), dan itu dihasilkan dengan memalsukan jawaban lewat
+pencegatan rute. Tak satu baris pun di basis data tersentuh.
+
+| Probe | Yang diuji                                  | Hasil                                                             |
+| :---: | ------------------------------------------- | ----------------------------------------------------------------- |
+|   1   | 62 OPD terjangkau paginasi                  | ✅ 62/62 unik dalam 7 halaman; indikator cocok dengan backend      |
+|   2   | Pencarian nama & kode                       | ✅ tak peka huruf besar-kecil · ❌ [BUG-011](#bug-011) soal spasi   |
+|   3   | Menyaring mengembalikan ke halaman 1        | ✅ dari halaman 3 kembali ke baris 1                               |
+|   4   | Penyaring "Jenis Layanan"                   | ⚠️ [CAT-011](#cat-011) — tak pernah bisa menyaring apa pun         |
+|   5   | Laporan sinkron berhasil                    | ❌ [BUG-012](#bug-012) — angka `skipped` tak ditampilkan            |
+|   6   | Sinkron gagal 503                           | ✅ diberitahukan, tabel lama tak dibuang, tombol bisa ditekan lagi  |
+|   7   | Nama tombol paginasi                        | ❌ [BUG-010](#bug-010) — dua tombol tanpa nama sama sekali          |
+
+**Probe 2 harus diulang karena hasil pertamanya tidak sah.** Ia menghitung
+`tbody tr`, padahal keadaan kosong `OPDTable` **juga sebuah `<tr>`**
+("Tidak ada data OPD yang ditemukan.", `OPDTable.jsx:123-129`). Akibatnya setiap
+kasus mengembalikan angka 1 — baik ketika benar-benar menemukan satu OPD maupun
+ketika tak menemukan apa pun — dan ketujuh kasus tampak seragam. Hasilnya
+kebetulan terlihat menenangkan, dan justru itu bahayanya: **laporan bersih yang
+tak berdasar sama sekali.** Pengulangannya mengecualikan baris keadaan-kosong,
+memakai kata kunci yang cocok dengan 18 OPD (bukan 1) supaya angka nolnya tak
+bisa tertukar, dan membandingkan dengan hitungan dari backend.
+
+**Catatan volume.** 62 OPD, sementara halaman ini mengambil `limit: 100` **sekali**
+lalu menyaring dan memaginasi di peramban (`page.jsx:14`). Hari ini aman dengan
+sisa 38, tetapi begitu jumlah OPD melewati 100, kelebihannya takkan muncul di
+tabel **maupun di pencarian** — dan tak ada apa pun di layar yang akan
+memberitahukannya.
+
+---
+
+### Sesi C-07 — Profil responden & pemakaian ulang data (FR-AUTH-05)
+
+**Dijalankan:** 3 September 2026 · **Peran:** Warga · **Hasil:** 1 catatan
+([CAT-010](#cat-010))
+
+FR-AUTH-05 berbunyi: *"Data profil responden dipakai ulang otomatis pada setiap
+survei/pengaduan baru (tidak isi ulang)."* Sesi ini memeriksa kedua sisinya.
+
+**Sisi "tidak isi ulang" — terpenuhi.** Formulir survei tak meminta satu pun
+label identitas (NIK, nama, telepon, alamat, jenis kelamin, pendidikan,
+pekerjaan, umur), dan formulir pengaduan hanya meminta OPD, kategori,
+sub-kategori, judul, dan uraian. Respons survei yang tersimpan pun tak memuat
+`userId` sama sekali — SKM memang dirancang anonim.
+
+**Sisi "data profil" — kosong, dan tak ada cara mengisinya.** Halaman profil
+sepenuhnya baca-saja: nol `<input>`, nol `<select>`, nol tombol ubah, dan
+berlencana "Read-Only". Lihat [CAT-010](#cat-010).
+
+Tiga dari enam kolom biodata (NIK, telepon, alamat domisili) bernilai `-` bagi
+setiap warga karena backend memang tak punya kolomnya. **Ini bukan temuan:**
+kartunya sendiri sudah menyatakannya terus terang — *"Kolom bertanda '-' belum
+tersedia karena tidak disimpan sistem"* — dan `me.adapter.js` menandai
+masing-masing sebagai gap yang disengaja, bukan nilai yang dikarang.
+
+---
+
+### Sesi C-08 — Ketahanan saat backend bermasalah
+
+**Dijalankan:** 3 September 2026 · **Peran:** Superuser & Warga ·
+**Hasil: tidak ada cacat** · **TC terkait:** TC-FE-048 ✅
+
+**Backend sungguhan tidak dimatikan.** Ia milik lingkungan pengembangan bersama.
+Yang perlu diuji adalah perilaku frontend ketika jawaban tak datang, dan itu
+dihasilkan persis dengan mencegat permintaannya di peramban — cara yang justru
+lebih tajam, karena bisa menjatuhkan **satu** endpoint saja atau menunda jawaban
+tanpa menggagalkannya, dua keadaan yang mustahil dibuat dengan mencabut seluruh
+backend. `/auth/me` sengaja dibiarkan lewat: kalau ia ikut dijatuhkan, aplikasi
+menganggap sesinya batal dan yang teruji berubah menjadi alur logout.
+
+| Probe | Yang diuji                                        | Hasil                                                       |
+| :---: | ------------------------------------------------- | ----------------------------------------------------------- |
+|   1   | Enam halaman admin saat seluruh data gagal 503    | ✅ semuanya: pesan galat + tombol "Coba Lagi"                |
+|   2   | "Coba Lagi" sesudah backend pulih                 | ✅ benar-benar memulihkan halaman                            |
+|   3   | Pengiriman survei ditolak 503                     | ✅ pesan tampil, **seluruh jawaban bertahan**, bisa diulang  |
+|   4   | Empat klik kirim pada jaringan ditahan 5 detik    | ✅ tepat **1** `POST /responses` (respons 34 → 35)           |
+
+**Satu "temuan" dibatalkan setelah diperiksa ulang.** Sapuan Probe 1 mula-mula
+melaporkan Log Aktivitas "terkunci pada Memuat...". Kode halamannya jelas
+menangani galat (`isLoading → error → ErrorState`), jadi kesimpulan itu
+berselisih dengan yang tertulis. Pemeriksaan ulang dengan rute yang dipanaskan
+lebih dahulu memberi jawabannya: **kompilasi dingin `next dev` memakan 182 detik**
+pada kunjungan pertama, sementara sapuan hanya menunggu 4 detik. Sesudah panas,
+pesan galatnya muncul dalam 2,4 detik beserta tombol "Coba Lagi". Ini kali
+**ketiga** kompilasi dingin menghasilkan tuduhan palsu — lihat §Y.3 di
+`TEST_CASES.md`.
+
+**Probe 3 & 4 juga harus diulang.** Percobaan pertama menekan keempat `<input
+type="radio">` sekaligus di layar pertama lalu mencari tombol "Kirim".
+Pengisian survei berupa **wizard satu pertanyaan per layar**, dan opsinya
+`<input class="hidden peer">` di dalam `<label>` (`RadioCard.jsx`) yang tak dapat
+diklik langsung. Hasilnya nol `POST` terkirim — tetapi laporannya berbunyi
+"pengiriman gagal tanpa pemberitahuan" dan "jawaban hilang", **dua tuduhan berat
+terhadap kode yang tak pernah dijalankan sama sekali.** Pengulangannya menyalin
+alur `e2e/isi-survei.spec.js` yang sudah terbukti, dan menambahkan penjaga:
+setiap probe kini menghitung `POST` yang benar-benar terkirim, lalu menolak
+mengambil kesimpulan apa pun bila angkanya nol.
 
 ---
 
@@ -733,6 +1694,213 @@ sekarang daripada ditemukan setelah fiturnya rilis.
 > disimpan sebagai opsi, dan `duplicate()` masih belum menyalinnya. Catatan ini
 > ditinggalkan apa adanya sebagai jejak, bukan dihapus.
 
+<a id="cat-005"></a>
+
+### CAT-005 — Warga tak dapat membedakan admin mana yang membalas
+
+Muncul dari sesi C-02, dan **bukan cacat** — dicatat sebagai pertanyaan produk.
+
+Satu pengaduan dapat dibalas oleh Admin OPD, Admin Kabupaten, maupun Superuser.
+Pada uji C-02 ketiganya membalas satu tiket yang sama (`authorId` 22, 1, dan 2).
+Bagi warga, ketiganya tampil dengan nama pengirim yang sama: **"Admin"**.
+
+Ini bukan kelalaian frontend. `ComplaintReplyEntity` hanya membawa `authorId`
+berupa angka — tanpa nama, tanpa peran — sehingga
+[`adaptComplaintReplyToChatMessage`](../apps/web/src/features/complaints/adapters/complaint.adapter.js)
+tidak punya bahan untuk membedakannya. Perbaikan `3a1905c` justru mengganti
+label lama `'Admin OPD'` menjadi `'Admin'` **supaya frontend berhenti mengklaim
+peran yang bisa keliru**. Dengan data yang tersedia, itu pilihan paling jujur.
+
+Yang perlu diputuskan pemilik produk: **apakah warga memang perlu tahu siapa
+yang membalas?** Pada layanan pengaduan pemerintah, mengetahui bahwa jawaban
+datang dari dinas terkait — bukan dari admin kabupaten yang meneruskan — bisa
+jadi bagian dari akuntabilitas. Bila jawabannya ya, `ComplaintReplyEntity`
+perlu ikut membawa nama/peran penulis, dan itu pekerjaan backend.
+
+Selama belum diputuskan, keadaan sekarang aman: tidak ada informasi salah yang
+ditampilkan, hanya informasi yang tidak ditampilkan.
+
+### CAT-006 — Dua sisa kode mati
+
+**Berkas kosong.** `apps/web/src/features/complaints/services/helpdesk.api.js`
+berukuran **0 byte** dan tidak diimpor dari mana pun. Satu-satunya berkas kosong
+di seluruh `src/`.
+
+**Kunci localStorage yang hanya ditulis, tak pernah dibaca.** `sso_logged_in`
+disetel di tiga tempat pada `authStorage.js` (dua kali `'true'` saat masuk, satu
+kali `'false'` saat keluar) dan **tidak dibaca di satu berkas pun**.
+
+Keduanya tidak berbahaya — perilaku aplikasi sama persis dengan atau tanpanya.
+Dicatat karena sejenis [BUG-003](#bug-003): sisa yang menyesatkan pembaca kode
+berikutnya. Seseorang yang melihat `helpdesk.api.js` wajar mengira ada integrasi
+Helpdesk yang belum selesai di sisi pengaduan, padahal tidak ada.
+
+---
+
+### CAT-007 — Proxy dapat ditembus dengan menyunting cookie sendiri (memang begitu rancangannya)
+
+Warga yang mengubah cookie `role` miliknya menjadi `kabupaten` lewat DevTools
+**dapat membuka halaman admin**. Ini bukan celah yang terlewat, melainkan
+konsekuensi rancangan yang tertulis jelas di `proxy.js`: proxy adalah penjaga
+**navigasi**, dan keabsahan sesungguhnya ditegakkan backend pada setiap panggilan
+API.
+
+Dibuktikan pada sesi C-04 bahwa penjagaan datanya memang bekerja:
+`GET /dashboard/ikm` menolak dengan **403** meski halamannya terbuka.
+
+Yang tetap layak diketahui tim: **`/admin-kab/opd` terbuka penuh dengan 10 baris
+data dan tanpa tanda apa pun bahwa ada yang tak beres**, sedangkan
+`/admin-kab/dashboard` setidaknya menampilkan galat. Datanya sendiri tidak
+istimewa — `GET /opd` memang terbuka bagi seluruh peran terautentikasi
+(`opd.controller.ts:37`), dan formulir survei di beranda publik pun memakainya.
+Jadi tak ada kebocoran.
+
+Bobotnya rendah dan tak menuntut perbaikan: pengguna harus merusak perambannya
+sendiri untuk sampai ke sana, dan tak ada yang bisa diperbuatnya di sana —
+seluruh aksi pengelolaan OPD dijaga `@Roles(Role.kabupaten)` di backend.
+
+---
+
+### CAT-008 — Fixture MSW menyimpang dari bentuk API sungguhan
+
+`src/mocks/handlers.ts` mengembalikan sub-kategori pengaduan dengan field
+**`kategori`**, sedangkan API sungguhan memakai **`kategoriKode`** — diverifikasi
+dua lapis: `complaint-sub-category.entity.ts:13` dan pemanggilan langsung ke
+`GET /ref/complaint-sub-categories` di lingkungan pengembangan.
+
+`CreateComplaintForm.jsx` menyaring dengan `s.kategoriKode === kategori terpilih`,
+jadi **kode produksinya benar dan fixture-nyalah yang salah.**
+
+Bukan cacat produk — tak seorang pengguna pun terpengaruh. Dicatat karena
+inilah jenis kekeliruan mock yang paling mahal: uji yang bersandar padanya
+melaporkan dropdown sub-kategori "tak pernah muncul", dan penguji yang
+mempercayainya akan membuka laporan bug atas fitur yang sebenarnya sehat.
+Sudah diperbaiki agar mencerminkan API sungguhan.
+
+---
+
+### CAT-009 — Penyiapan Jest melumpuhkan `File`, membuat seluruh permukaan lampiran mustahil diuji
+
+`jest.setup.js` mengambil `File` dari `undici`:
+
+```js
+const { fetch, Headers, Request, Response, FormData, File } = require('undici');
+global.File = File;
+```
+
+Sejak **undici 8** (proyek ini memakai 8.10.0) `File` tak lagi diekspor dari
+sana, sehingga nilainya `undefined` — dan menugaskannya ke `global.File`
+**menimpa implementasi jsdom yang sebenarnya berfungsi.**
+
+Akibatnya setiap uji yang membangun sebuah berkas gagal dengan
+`TypeError: File is not a constructor`, pesan yang menuding uji-nya padahal
+penyiapan inilah yang merusaknya. Selama itu berlaku, seluruh permukaan
+lampiran — formulir pengaduan maupun balasan percakapan — mustahil diuji, dan
+itu menjelaskan sebagian kenapa area ini tak pernah punya cakupan.
+
+Sudah diperbaiki: `File` diambil dari `node:buffer`, dan hanya ditugaskan bila
+benar-benar ada. Ditemukan saat menulis TC-FE-040.
+
+---
+
+---
+
+<a id="cat-010"></a>
+
+### CAT-010 — Warga tak punya cara mengisi profil demografisnya (FR-AUTH-05)
+
+**Ditemukan:** 3 September 2026 (sesi C-07) · **Butuh keputusan produk, bukan
+perbaikan langsung**
+
+Tiga fakta yang saling menutup:
+
+1. Halaman `/profile` sepenuhnya baca-saja — nol kolom isian, nol tombol ubah,
+   dan berlencana "Read-Only" (`ProfileBiodataCard.jsx`).
+2. `updateMyProfile()` di `features/profile/services/profile.api.js` — pemanggil
+   `PATCH /auth/profile` untuk `jenisKelamin`, `kelompokUmur`, `pendidikan`, dan
+   `pekerjaan` — **tidak dipanggil satu komponen pun.** Ia kode mati.
+3. Backend menerima keempat field itu, dan `RespondentProfile` memang ada untuk
+   menyimpannya.
+
+Akibatnya: data demografis hanya ada pada akun hasil *seed*. Akun `warga@example.go.id`
+memilikinya lengkap (`perempuan` / `26-35` / `S1` / `Wiraswasta`) karena
+ditanamkan langsung ke basis data. Warga yang lahir dari SSO Helpdesk takkan
+pernah punya, dan tak ada layar mana pun tempat ia bisa mengisinya.
+
+**Mengapa ini dicatat sebagai catatan, bukan cacat.** Arahnya bergantung pada
+keputusan produk yang belum tertulis di mana pun:
+
+- Bila demografi memang **dibutuhkan** untuk pelaporan IKM per segmen (usia,
+  pendidikan, pekerjaan — pemilahan yang lazim pada laporan SKM), maka formulir
+  pengisiannya belum dibangun dan FR-AUTH-05 belum terpenuhi.
+- Bila demografi memang **sengaja tidak dikumpulkan** demi PDP — dan komentar di
+  `me.adapter.js` mengarah ke sana ("survei memang didesain anonim") — maka yang
+  perlu dibereskan justru sebaliknya: `updateMyProfile()` sebaiknya dihapus
+  sebagai kode mati, dan FR-AUTH-05 disesuaikan agar tak lagi menjanjikan
+  pemakaian ulang data yang memang tak pernah dikumpulkan.
+
+Yang pasti keliru adalah keadaan sekarang, ketika kedua kemungkinan itu
+dibiarkan berdampingan tanpa satu pun dituntaskan.
+
+**Sisi lain FR-AUTH-05 sudah benar** dan tak perlu diubah: tak satu pun formulir
+survei atau pengaduan meminta identitas yang sudah ada di profil. Lihat sesi C-07.
+
+---
+
+<a id="cat-011"></a>
+
+### CAT-011 — Penyaring "Jenis Layanan" tak pernah bisa menyaring apa pun
+
+**Ditemukan:** 3 September 2026 (sesi C-06)
+
+Opsi penyaring ini diderivasi dari nilai `jenisLayanan` yang sungguhan ada pada
+data OPD (`page.jsx:29-35`) — pendekatan yang benar, karena backend tak punya
+enum tetap untuk field itu. Persoalannya, **seluruh 62 OPD dari Helpdesk
+bernilai `jenisLayanan: null`.** Dropdown-nya karena itu selamanya berisi satu
+pilihan:
+
+```
+   opsi di dropdown: ["Semua Jenis Layanan"]
+```
+
+Sebuah kendali yang menempati ruang di bilah penyaring tetapi tak dapat mengubah
+apa pun. Pengguna yang membukanya akan menyimpulkan penyaringnya rusak.
+
+**Bukan cacat kode.** Begitu Helpdesk mulai mengisi `jenisLayanan`, penyaring ini
+akan langsung bekerja tanpa satu baris pun diubah. Yang perlu diputuskan hanyalah
+apa yang ditampilkan selama itu belum terjadi — menyembunyikannya saat opsinya
+cuma satu, atau menonaktifkannya dengan keterangan singkat, keduanya lebih jujur
+daripada membiarkannya tampak dapat dipakai.
+
+Hal yang sama berlaku pada kolom `penanggungJawab`, yang juga `null` untuk
+seluruh 62 OPD.
+
+---
+
+<a id="cat-012"></a>
+
+### CAT-012 — Pesan surel duplikat menyebut nama field backend
+
+**Ditemukan:** 3 September 2026 (sesi C-05)
+
+Mengirim formulir akun admin dengan surel yang sudah terpakai memunculkan pesan
+backend apa adanya:
+
+```
+Email atau ssoSubject sudah digunakan
+```
+
+Meneruskan pesan backend tanpa menelannya adalah perilaku yang **benar** —
+itulah yang diuji dan lulus pada TC-FE-044. Yang mengganjal hanya kata
+`ssoSubject`: nama kolom basis data yang tak berarti apa-apa bagi admin di
+Diskominfo, dan yang menyisakan keraguan apakah masalahnya ada pada surel yang
+baru saja ia ketik atau pada sesuatu yang lain.
+
+Perbaikannya kecil dan sebaiknya di sisi backend (agar seluruh pemanggil ikut
+terbantu): sebutkan saja surelnya. Bila dipilih di frontend, terjemahkan hanya
+pesan spesifik ini — jangan mengganti seluruh pesan backend dengan kalimat
+generik, karena itu akan mengembalikan cacat yang sudah diperbaiki.
+
 ---
 
 ## 6. Riwayat revisi
@@ -742,3 +1910,12 @@ sekarang daripada ditemukan setelah fiturnya rilis.
 | 1.0   | 12 Agustus 2026    | Berkas dibuat. BUG-001 s.d. BUG-003 dan CAT-001 s.d. CAT-003 dari penelaahan kode dan penulisan uji otomatis, sebelum sesi eksploratori dimulai.                                                |
 | 1.1   | 12 Agustus 2026    | Hasil sesi eksploratori C-01: tambah BUG-004, ringkasan sesi (§4), dan CAT-004. TC-FE-004 ditutup lulus di TEST_CASES.md.                                                                       |
 | 2.0   | 2 September 2026   | Penyesuaian menyeluruh setelah 81 commit. BUG-001, BUG-002, BUG-004 ditutup (diverifikasi ulang). CAT-004 naik jadi BUG-005 (High). CAT-002 sebagian terjawab oleh SSO Helpdesk. CAT-001 masih terbuka. |
+| 2.1   | 2 September 2026   | BUG-005 dikonfirmasi di peramban dan **dinaikkan High → Critical**: akibatnya bukan satu pertanyaan tak terjawab, melainkan seluruh survei tak dapat dilewati responden. Bukti dua lapis (API + peramban) beserta data uji yang ditinggalkan. |
+| 2.2   | 2 September 2026   | Tiga sesi eksploratori dijalankan: **C-02** (alur pengaduan lintas peran — lulus, 1 dugaan temuan gugur setelah diperiksa), **C-03** (lampiran — BUG-007, Low), **C-10** (area Superuser — lulus, 28 kombinasi rute + penjagaan data backend). Tambah CAT-005. C-09 dinyatakan **terkunci** menunggu kredensial SSO dari Diskominfo. |
+| 2.3   | 2 September 2026   | Sesi **C-04** (proteksi route — 0 cacat, matriks A.5.1 kini terkunci otomatis) dan **C-11** (sapuan 35 halaman — 1 cacat nyata, 6 alarm palsu). Tambah **BUG-008** (beranda publik menawarkan formulir yang tak dapat dipakai, Medium), **CAT-006** (dua sisa kode mati), **CAT-007** (proxy tertembus cookie sendiri — konsekuensi rancangan, bukan celah). Dugaan "halaman terlindungi masih tampil sesudah logout" **dicabut** setelah ditelusuri lebih jauh: yang tersisa hanya kerangka halaman, sesinya benar-benar mati. |
+| 2.4   | 2 September 2026   | Antarmuka pengaduan akhirnya beruji: **TC-FE-039/040/041 lulus** (23 kasus di tiga berkas, Jest naik 57 → 80). Sesi **C-13** (gerbang PDP) dijalankan — 0 cacat pada penjagaan cookie & pemantulan peran, tetapi **formulir persetujuannya sendiri terkunci** karena tak ada akun responden tanpa persetujuan di dev dan tak ada jalur frontend untuk membuatnya. Tambah **CAT-008** (fixture MSW menyimpang dari API) dan **CAT-009** (`jest.setup.js` melumpuhkan `File`, membuat seluruh permukaan lampiran mustahil diuji). |
+| 2.5   | 2 September 2026   | Sesi **C-12** (analisis & ekspor) dijalankan — 0 cacat. Nilai IKM terbukti konsisten di tiga endpoint yang menghitungnya; survei tanpa unsur IKM ditampilkan "Belum dapat dinilai", bukan 0; ketiga format ekspor diperiksa **isi berkasnya**, bukan sekadar status HTTP. TC-FE-035/036/037 ditutup lulus. |
+| 2.6   | 3 September 2026   | **Empat charter P1 terakhir dijalankan** — C-05 (form akun admin), C-06 (daftar & sinkronisasi OPD), C-07 (profil responden), C-08 (ketahanan saat backend bermasalah). Empat temuan baru: **BUG-009** (akun terlanjur dibuat ketika penetapan statusnya gagal, Medium), **BUG-010** (tombol paginasi tanpa nama aksesibel, berlaku di seluruh tabel aplikasi), **BUG-011** (pencarian OPD tak memangkas spasi), **BUG-012** (angka `skipped` laporan sinkron tak ditampilkan). Tiga catatan: **CAT-010** (warga tak punya cara mengisi profil demografis; `updateMyProfile()` kode mati), **CAT-011** (penyaring Jenis Layanan tak pernah bisa menyaring), **CAT-012** (pesan duplikat menyebut `ssoSubject`). **C-08 nihil cacat.** Tiga hasil probe dibatalkan sesudah diperiksa ulang — dua karena kekeliruan skrip pengujian (baris keadaan-kosong ikut terhitung; wizard survei diisi dengan cara yang salah), satu karena kompilasi dingin `next dev` selama 182 detik. |
+| 2.7   | 3 September 2026   | **Formulir C-13 akhirnya dapat diuji** — user menyediakan `warga@gmail.com`, responden ber-`consentAt` kosong yang selama ini tak ada. 10 probe, **nol temuan**, TC-FE-038 ditutup lulus. Penegakan berlapisnya terbukti: kiriman tanpa persetujuan ditolak 403, dan **tetap 403 walau cookie `consent` dipalsukan** — gerbangnya memang pembatas navigasi, backend yang menegakkan. Fixture-nya sekali pakai (tak ada endpoint reset), jadi sembilan probe yang tak menghabiskannya dikerjakan lebih dulu dan penerimaan sungguhan paling akhir. Ditambah **§Y.6** di TEST_CASES: `.next` tercemar build produksi membuat 37 dari 37 rute 404 — insiden lingkungan, bukan cacat produk. |
+| 2.8   | 3 September 2026   | **Dua belas kasus uji terakhir Modul Y ditutup** (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047) — Jest 80 → **195** di 24 berkas, E2E 6 → **9**. Nol temuan baru, tetapi **tiga premis kasus uji ternyata usang** dan dikoreksi alih-alih dipaksakan: TC-FE-006 menuntut toast pada aplikasi yang tak punya sistem toast, TC-FE-012 menuntut tooltip pada grafik SVG yang nilainya selalu terlihat, dan satu temuan mobile TC-FE-007 (guliran mendatar 809 px) **dibatalkan sendiri** setelah terbukti berasal dari gambar `w-auto` yang diukur sebelum dimuat — masuk §Y.5 sebagai butir keempat. Ditambah **pembersihan data uji dari basis data dev** atas permintaan penguji: 6 pengaduan, 43 respons, 2 survei mati, 30 notifikasi tanpa FK, 2 akun karangan, dan 22 berkas unggahan yatim dihapus — `/statistics` publik jujur kembali (responden 44 → 3, pengaduan 11 → 6). Survei 332/333 sengaja dipertahankan karena BUG-005 masih terbuka, dan `consentAt` `warga@gmail.com` dikembalikan `null` sehingga fixture responden tanpa persetujuan tersedia lagi. |
+| 2.9   | 4 September 2026   | **Tiga survei uji tersisa dihapus paksa** atas permintaan penguji: 332 & 333 (reproduksi hidup BUG-005) dan 336 (fixture E2E). Keberatan sudah disampaikan — BUG-005 masih terbuka dan peragaannya jadi hilang — tetapi keputusan tetap di penguji. Bukti tertulis BUG-005 utuh di laporan ini dan dapat dibangun ulang dalam hitungan menit; baris aslinya dicadangkan lebih dulu. Fixture E2E dibuat ulang sendiri oleh `globalSetup` pada jalan berikutnya. Basis data dev kini **nol baris bertanda `[UJI `**. |
