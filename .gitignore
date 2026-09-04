@@ -11,3 +11,6 @@ coverage/
 # tak sengaja kebuat kalau ada yang jalanin `npm install` alih-alih `pnpm
 # install`, jangan sampai ke-commit lagi (INT-28).
 package-lock.json
+# Dokumen kerja skill "superpowers" (spec & rencana implementasi). Berguna
+# selama pengerjaan, tapi bukan dokumentasi produk -- tak perlu masuk GitLab.
+docs/superpowers/

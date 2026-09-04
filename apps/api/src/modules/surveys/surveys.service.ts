@@ -106,6 +106,7 @@ export class SurveysService {
         judul: dto.judul,
         periode: dto.periode,
         allowMultipleSubmit: dto.allowMultipleSubmit ?? false,
+        izinkanAnonim: dto.izinkanAnonim ?? false,
       },
     });
     return new SurveyEntity(created);
@@ -122,6 +123,8 @@ export class SurveysService {
         judul: dto.judul,
         periode: dto.periode,
         allowMultipleSubmit: dto.allowMultipleSubmit,
+        // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
+        izinkanAnonim: dto.izinkanAnonim,
       },
     });
     return new SurveyEntity(updated);
@@ -181,6 +184,7 @@ export class SurveysService {
         judul: `${original.judul} (Salinan)`,
         periode: original.periode,
         allowMultipleSubmit: original.allowMultipleSubmit,
+        izinkanAnonim: original.izinkanAnonim,
         status: SurveyStatus.draft,
         questions: {
           create: original.questions.map((q) => ({

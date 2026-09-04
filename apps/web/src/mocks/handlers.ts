@@ -84,6 +84,7 @@ export const surveyFixture = (over = {}) => ({
   periode: '2026-Q1',
   status: 'draft',
   allowMultipleSubmit: false,
+  izinkanAnonim: false,
   createdAt: '2026-08-06T08:10:04.832Z',
   updatedAt: '2026-08-06T08:12:26.861Z',
   respondentsCount: 0,
@@ -124,8 +125,8 @@ export const complaintFixture = (over = {}) => ({
   ticketNo: 'PGD20260806CDPH',
   userId: 21,
   opdId: 1,
-  kategori: 'keamanan_ketertiban',
-  subKategori: 'rambu',
+  kategori: 'aduan',
+  isAnonim: false,
   judul: 'Rambu lalu lintas rusak',
   uraian: 'Rambu di perempatan sudah tidak terbaca sejak bulan lalu.',
   status: 'diterima',
@@ -357,6 +358,31 @@ export const handlers = [
     ),
   ),
 
+  // [TURUN] jalur publik (tanpa sesi) -- rute /isi/:id. Terpisah dari handler
+  // berpenjaga di bawah, persis seperti di backend.
+  http.get(`${API_BASE}/public/surveys/:id/fill`, ({ params }) =>
+    ok(
+      {
+        id: Number(params.id),
+        judul: 'Survei IKM Loket',
+        periode: '2026-Q3',
+        status: 'aktif',
+        allowMultipleSubmit: false,
+        izinkanAnonim: true,
+        sudahMengisi: false,
+        questions: QUESTION_LIST,
+      },
+      `/public/surveys/${params.id}/fill`,
+    ),
+  ),
+
+  http.post(`${API_BASE}/public/surveys/:id/responses`, ({ params }) =>
+    created(
+      { id: 1, surveyId: Number(params.id), submittedAt: new Date().toISOString() },
+      `/public/surveys/${params.id}/responses`,
+    ),
+  ),
+
   // [TURUN] form pengisian untuk responden.
   http.get(`${API_BASE}/surveys/:id/fill`, ({ params }) =>
     ok(
@@ -364,6 +390,9 @@ export const handlers = [
         id: Number(params.id),
         judul: 'Survei IKM 2025',
         periode: '2025-Q4',
+        status: 'aktif',
+        allowMultipleSubmit: false,
+        izinkanAnonim: false,
         sudahMengisi: false,
         questions: QUESTION_LIST,
       },
@@ -533,7 +562,7 @@ export const handlers = [
   }),
 
   // ===================== PENGADUAN =====================
-  // [REKAM] berpaginasi; item punya `subKategori` dan `attachments`.
+  // [REKAM] berpaginasi; item punya `kategori` dan `attachments`.
   http.get(`${API_BASE}/complaints`, ({ request }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -592,22 +621,17 @@ export const handlers = [
   http.get(`${API_BASE}/ref/complaint-categories`, () =>
     ok(
       [
-        { kode: 'infrastruktur', nama: 'Infrastruktur' },
-        { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban' },
+        { kode: 'aduan', nama: 'Aduan' },
+        { kode: 'lapor', nama: 'Lapor' },
         { kode: 'lainnya', nama: 'Lainnya' },
       ],
       '/ref/complaint-categories',
     ),
   ),
 
-  http.get(`${API_BASE}/ref/complaint-sub-categories`, ({ request }) => {
-    const kategori = new URL(request.url).searchParams.get('kategori');
-    const all = [
-      { kode: 'rambu', nama: 'Rambu Lalu Lintas', kategori: 'keamanan_ketertiban' },
-      { kode: 'jalan_rusak', nama: 'Jalan Rusak', kategori: 'infrastruktur' },
-    ];
-    return ok(kategori ? all.filter((s) => s.kategori === kategori) : all, '/ref/complaint-sub-categories');
-  }),
+  // Handler `/ref/complaint-sub-categories` DIBUANG 4 September 2026 bersama
+  // taksonomi sub-kategori: endpointnya sudah tak ada di backend, dan mock yang
+  // masih melayaninya akan menyembunyikan pemanggil yang lupa dibersihkan.
 
   // ===================== DASBOR & STATISTIK =====================
   // [REKAM] objek tunggal, bukan array.
@@ -662,8 +686,8 @@ export const handlers = [
           { status: 'ditolak', count: 2 },
         ],
         complaintCategories: [
-          { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban', count: 18 },
-          { kode: 'infrastruktur', nama: 'Infrastruktur', count: 11 },
+          { kode: 'aduan', nama: 'Aduan', count: 18 },
+          { kode: 'lapor', nama: 'Lapor', count: 11 },
           { kode: 'lainnya', nama: 'Lainnya', count: 5 },
         ],
         // `avgNrr` berskala 1-4; adapter mengalikannya 25 menjadi skala 0-100.

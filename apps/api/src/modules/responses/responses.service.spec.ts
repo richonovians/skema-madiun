@@ -301,4 +301,117 @@ describe('ResponsesService', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
+  /**
+   * Jalur publik (spec bagian 5): pengisian TANPA sesi. Setiap kasus di bawah
+   * dipasangkan dengan kontrolnya -- gerbang yang tak pernah terbukti terbuka
+   * tak membuktikan bahwa penolakannya berarti.
+   */
+  describe('jalur publik (tanpa sesi)', () => {
+    const surveiAnonim = (over: Record<string, unknown> = {}) =>
+      aktifSurvey({ izinkanAnonim: true, judul: 'SKM Loket', periode: '2026-Q3', ...over });
+
+    it('getPublicFill menolak survei yang tidak mengizinkan anonim -> NotFound', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+        surveiAnonim({ izinkanAnonim: false }),
+      );
+
+      await expect(service.getPublicFill(1)).rejects.toThrow(NotFoundException);
+    });
+
+    it('getPublicFill menolak survei non-aktif -> NotFound', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+        surveiAnonim({ status: SurveyStatus.draft }),
+      );
+
+      await expect(service.getPublicFill(1)).rejects.toThrow(NotFoundException);
+    });
+
+    it('getPublicFill pada survei anonim aktif -> kuesioner, sudahMengisi selalu false', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+
+      const hasil = await service.getPublicFill(1);
+
+      expect(hasil.id).toBe(1);
+      expect(hasil.questions).toHaveLength(2);
+      // Tanpa sesi tak ada pegangan anti-duplikat -- penandanya di peramban.
+      expect(hasil.sudahMengisi).toBe(false);
+      expect(prisma.surveyResponse.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('submitPublic menolak survei yang tidak mengizinkan anonim -> NotFound', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+        surveiAnonim({ izinkanAnonim: false }),
+      );
+
+      await expect(
+        service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }] }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.surveyResponse.create).not.toHaveBeenCalled();
+    });
+
+    it('submitPublic menulis userId & dedupeUserId null', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+        id: 9,
+        surveyId: 1,
+        submittedAt: new Date(),
+        answers: [],
+      });
+
+      const hasil = await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }] });
+
+      expect(hasil.id).toBe(9);
+      expect(prisma.surveyResponse.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: null, dedupeUserId: null }),
+        }),
+      );
+    });
+
+    it('submitPublic tetap memvalidasi kelengkapan jawaban', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+
+      // Pertanyaan skala (101) wajib dijawab; membuka jalur publik tidak boleh
+      // melonggarkan validasi isinya.
+      await expect(
+        service.submitPublic(1, { answers: [{ questionId: 102, teks: 'x' }] }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.surveyResponse.create).not.toHaveBeenCalled();
+    });
+
+    it('submitPublic TIDAK memanggil gerbang persetujuan PDP (bagian 6 belum aktif)', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+        id: 9,
+        surveyId: 1,
+        submittedAt: new Date(),
+        answers: [],
+      });
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }] });
+
+      // Pengirim anonim tak punya baris `users`, jadi tak ada tempat mencatat
+      // persetujuannya. Keadaan yang DIKETAHUI & DIDOKUMENTASIKAN, bukan
+      // kelalaian -- menunggu konfirmasi Diskominfo.
+      expect(consent.assertConsented).not.toHaveBeenCalled();
+    });
+
+    it('KONTROL: submit bersesi TETAP menuntut persetujuan & menulis userId', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+        id: 10,
+        surveyId: 1,
+        submittedAt: new Date(),
+        answers: [],
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      expect(consent.assertConsented).toHaveBeenCalledWith(responden(10));
+      expect(prisma.surveyResponse.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 10 }) }),
+      );
+    });
+  });
 });

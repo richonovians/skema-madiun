@@ -10,7 +10,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Complaint, ComplaintStatus, Prisma, Role } from '@prisma/client';
+import {
+  Complaint,
+  ComplaintAttachment,
+  ComplaintReply,
+  ComplaintStatus,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,7 +25,6 @@ import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { COMPLAINT_SUB_CATEGORIES } from '../reference/reference.constants';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
@@ -85,7 +91,6 @@ export class ComplaintsService {
     await this.consent.assertConsented(user);
 
     await this.assertOpdExists(dto.opdId);
-    this.assertSubKategoriConsistent(dto.kategori, dto.subKategori);
     const validFiles = this.validateFiles(files);
     const saved = await this.persistFiles(validFiles);
 
@@ -220,7 +225,7 @@ export class ComplaintsService {
       include: { attachments: true },
       orderBy: { createdAt: 'asc' },
     });
-    return rows.map((row) => new ComplaintReplyEntity(row));
+    return rows.map((row) => this.toReplyEntity(row, complaint));
   }
 
   /**
@@ -235,7 +240,7 @@ export class ComplaintsService {
    * teks tidak terkirim") -- balasan boleh lampiran saja, TAPI minimal salah
    * satu (pesan/lampiran) harus ada; dicek di sini (bukan class-validator,
    * yg tak tahu jumlah file) SEBELUM file ditulis ke disk (fail-fast, pola
-   * sama assertSubKategoriConsistent di create()). `pesan: String` di skema
+   * sama assertOpdExists di create()). `pesan: String` di skema
    * tetap wajib-non-null (tanpa migrasi) -- disubstitusi string kosong.
    */
   async addReply(
@@ -272,7 +277,7 @@ export class ComplaintsService {
         include: { attachments: true },
       });
       await this.notificationsService.notifyComplaintReply(complaint, user.userId);
-      return new ComplaintReplyEntity(created);
+      return this.toReplyEntity(created, complaint);
     } catch (err) {
       // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort, pola sama create()).
       await this.cleanupFiles(saved);
@@ -315,19 +320,6 @@ export class ComplaintsService {
       throw new ForbiddenException('Anda tidak memiliki akses ke pengaduan ini');
     }
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
-  }
-
-  /** subKategori (bila diisi) wajib sejalan dgn kategori induknya (INT-42, D12). */
-  private assertSubKategoriConsistent(kategori: string, subKategori?: string): void {
-    if (!subKategori) {
-      return;
-    }
-    const sub = COMPLAINT_SUB_CATEGORIES.find((s) => s.kode === subKategori);
-    if (!sub || sub.kategoriKode !== kategori) {
-      throw new BadRequestException(
-        `Sub-kategori "${subKategori}" tidak sesuai dengan kategori "${kategori}"`,
-      );
-    }
   }
 
   private async assertOpdExists(opdId: number): Promise<void> {
@@ -375,9 +367,9 @@ export class ComplaintsService {
             userId,
             opdId: dto.opdId,
             kategori: dto.kategori,
-            subKategori: dto.subKategori,
             judul: dto.judul,
             uraian: dto.uraian,
+            isAnonim: dto.isAnonim ?? false,
             attachments: { create: attachmentData },
           },
           include: { attachments: true },
@@ -449,13 +441,44 @@ export class ComplaintsService {
     return name.replace(/[^a-zA-Z0-9.\-_]/g, '_').slice(-100);
   }
 
+  /**
+   * Penyamaran pengaduan anonim terjadi DI SINI, satu tempat: seluruh jalur baca
+   * (findAll, findByTicketNo, updateStatus, create) melewatinya.
+   *
+   * Field DIHAPUS, bukan diisi null. Dan penyamaran ini TIDAK bergantung pada
+   * siapa yang meminta -- termasuk pemilik pengaduan itu sendiri, yang toh tak
+   * memerlukan id-nya sendiri (pola sama MyResponseEntity). Begitu ada satu
+   * pengecualian berbasis peran di sini, janji anonim bergantung pada disiplin
+   * pemakainya, bukan pada sistem.
+   */
   private toEntity(row: ComplaintWithAttachments): ComplaintEntity {
     const { user, opd, ...rest } = row;
-    return new ComplaintEntity({
+    const entity = new ComplaintEntity({
       ...rest,
       attachments: rest.attachments.map((a) => ({ ...a })),
       reporterNama: user?.nama,
       opdNama: opd?.nama,
     });
+    if (row.isAnonim) {
+      delete entity.userId;
+      delete entity.reporterNama;
+    }
+    return entity;
+  }
+
+  /**
+   * Balasan pada pengaduan anonim: `authorId` dihilangkan bila penulisnya
+   * pelapor. Balasan admin sengaja TETAP membawanya -- itu bukan identitas yang
+   * dijanjikan tersembunyi, dan frontend memerlukannya untuk membedakan pihak.
+   */
+  private toReplyEntity(
+    row: ComplaintReply & { attachments: ComplaintAttachment[] },
+    complaint: { userId: number; isAnonim: boolean },
+  ): ComplaintReplyEntity {
+    const entity = new ComplaintReplyEntity(row);
+    if (complaint.isAnonim && row.authorId === complaint.userId) {
+      delete entity.authorId;
+    }
+    return entity;
   }
 }

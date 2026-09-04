@@ -1,13 +1,18 @@
-import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
-  COMPLAINT_CATEGORIES,
-  COMPLAINT_SUB_CATEGORIES,
-} from '../../reference/reference.constants';
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+import { COMPLAINT_CATEGORIES } from '../../reference/reference.constants';
 
 const KATEGORI_KODE = COMPLAINT_CATEGORIES.map((k) => k.kode);
-const SUB_KATEGORI_KODE = COMPLAINT_SUB_CATEGORIES.map((s) => s.kode);
 
 export class CreateComplaintDto {
   @ApiProperty({ description: 'Id OPD tujuan pengaduan' })
@@ -23,15 +28,6 @@ export class CreateComplaintDto {
   @IsIn(KATEGORI_KODE)
   kategori: string;
 
-  @ApiPropertyOptional({
-    enum: SUB_KATEGORI_KODE,
-    description:
-      'Kode sub-kategori opsional (lihat GET /ref/complaint-sub-categories), harus sejalan dengan `kategori`',
-  })
-  @IsOptional()
-  @IsIn(SUB_KATEGORI_KODE)
-  subKategori?: string;
-
   @ApiProperty({ maxLength: 255 })
   @IsString()
   @MinLength(1)
@@ -43,4 +39,17 @@ export class CreateComplaintDto {
   @MinLength(1)
   @MaxLength(5000)
   uraian: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Kirim tanpa menampilkan identitas pelapor kepada admin',
+  })
+  @IsOptional()
+  // Nilai datang dari multipart (string), jadi konversinya EKSPLISIT -- pola
+  // sama list-opd-query.dto.ts. `@Type(() => Boolean)` TIDAK dipakai karena
+  // Boolean('false') === true, yang akan membuat setiap pengaduan biasa
+  // terkirim sebagai anonim.
+  @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
+  @IsBoolean()
+  isAnonim?: boolean;
 }

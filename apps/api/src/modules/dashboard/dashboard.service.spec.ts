@@ -382,8 +382,8 @@ describe('DashboardService', () => {
       (prisma.complaint.groupBy as jest.Mock).mockImplementation(({ by }: { by: string[] }) => {
         if (by[0] === 'kategori') {
           return Promise.resolve([
-            { kategori: 'infrastruktur', _count: { _all: 3 } },
-            { kategori: 'kesehatan', _count: { _all: 7 } },
+            { kategori: 'aduan', _count: { _all: 3 } },
+            { kategori: 'lapor', _count: { _all: 7 } },
           ]);
         }
         return Promise.resolve([]);
@@ -392,8 +392,8 @@ describe('DashboardService', () => {
       const result = await service.getStatistics();
 
       expect(result.complaintCategories).toEqual([
-        { kode: 'kesehatan', nama: 'Kesehatan', count: 7 },
-        { kode: 'infrastruktur', nama: 'Infrastruktur', count: 3 },
+        { kode: 'lapor', nama: 'Lapor', count: 7 },
+        { kode: 'aduan', nama: 'Aduan', count: 3 },
       ]);
     });
 

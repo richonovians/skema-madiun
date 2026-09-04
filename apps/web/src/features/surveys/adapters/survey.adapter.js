@@ -85,6 +85,9 @@ export function adaptSurvey(survey) {
     period: survey.periode,
     respondentsCount: survey.respondentsCount ?? 0,
     ikmScore: survey.nilaiIkm ?? null,
+    // Dipakai formulir kelola survei (saklar "izinkan tanpa login") dan modal
+    // bagikan (keterangan tautannya menyesuaikan diri).
+    izinkanAnonim: survey.izinkanAnonim === true,
     isClosed: survey.status === 'ditutup',
   };
 }
@@ -100,13 +103,19 @@ const STATUS_TO_BACKEND = {
 };
 
 /** Terjemahkan payload buat-survei (bentuk komponen) -> CreateSurveyDto backend. */
-export function toCreateSurveyPayload({ title, period, allowMultipleSubmit, opdId }) {
-  return { judul: title, periode: period, allowMultipleSubmit, opdId };
+export function toCreateSurveyPayload({
+  title,
+  period,
+  allowMultipleSubmit,
+  izinkanAnonim,
+  opdId,
+}) {
+  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim, opdId };
 }
 
 /** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
-export function toUpdateSurveyPayload({ title, period, allowMultipleSubmit }) {
-  return { judul: title, periode: period, allowMultipleSubmit };
+export function toUpdateSurveyPayload({ title, period, allowMultipleSubmit, izinkanAnonim }) {
+  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim };
 }
 
 /** Terjemahkan status frontend ('AKTIF' dkk) -> enum backend ('aktif' dkk). */
@@ -178,6 +187,7 @@ export function adaptSurveyFill(fill) {
     title: fill.judul,
     periode: fill.periode,
     allowMultipleSubmit: fill.allowMultipleSubmit,
+    izinkanAnonim: fill.izinkanAnonim === true,
     sudahMengisi: fill.sudahMengisi,
     questions: fill.questions.map(adaptFillQuestion),
   };

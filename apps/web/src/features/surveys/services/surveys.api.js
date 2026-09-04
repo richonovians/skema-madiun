@@ -160,6 +160,24 @@ export async function submitSurveyResponse(surveyId, questions, answers) {
   return response.data;
 }
 
+/**
+ * Struktur kuesioner untuk pengunjung TANPA sesi (rute /isi/:id). Endpoint
+ * TERPISAH dari yang berpenjaga: backend menolaknya 404 kecuali survei aktif
+ * DAN mengizinkan anonim.
+ */
+export async function getPublicSurveyFill(surveyId) {
+  const response = await api.get(`/public/surveys/${surveyId}/fill`);
+  return adaptSurveyFill(response.data);
+}
+
+/** Kirim jawaban tanpa sesi. Backend selalu mencatatnya dengan userId null. */
+export async function submitPublicSurveyResponse(surveyId, questions, answers) {
+  const response = await api.post(`/public/surveys/${surveyId}/responses`, {
+    answers: toSubmitAnswers(questions, answers),
+  });
+  return response.data;
+}
+
 /** Daftar respons masuk (Admin OPD). */
 export async function getSurveyResponses(surveyId, params = {}) {
   const response = await api.get(`/surveys/${surveyId}/responses`, { params });

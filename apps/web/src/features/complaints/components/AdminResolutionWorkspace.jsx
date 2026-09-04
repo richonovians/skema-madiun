@@ -101,6 +101,14 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
                 <User size={20} className="text-on-surface-variant" />
               </div>
               <div className="space-y-xs">
+                {/* Label pengirim untuk pihak-lawan. Gelembung ini SEBELUMNYA tak
+                    pernah menampilkan nama sama sekali, sehingga balasan pelapor
+                    anonim akan tampak seolah ditulis pihak yang tak dikenal. */}
+                {msg.senderName && (
+                  <span className="block text-label-md font-bold text-text-secondary">
+                    {msg.senderName}
+                  </span>
+                )}
                 <div className="bg-white border border-border p-md rounded-2xl rounded-tl-none shadow-sm">
                   {msg.text && (
                     <p className="font-body-md text-body-md text-text-primary leading-relaxed">{msg.text}</p>

@@ -81,7 +81,7 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'infrastruktur')
+      .field('kategori', 'aduan')
       .field('judul', 'Jalan rusak')
       .field('uraian', 'Jalan berlubang parah di depan balai desa');
 
@@ -95,7 +95,7 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'kebersihan_lingkungan')
+      .field('kategori', 'lapor')
       .field('judul', 'Sampah menumpuk')
       .field('uraian', 'Sampah tidak diangkut selama 2 minggu')
       .attach('lampiran', Buffer.from('fake-png-bytes'), 'foto.png');
@@ -118,31 +118,60 @@ describe('Complaints (e2e)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /complaints (INT-42) dgn subKategori sejalan kategori -> 201, tersimpan', async () => {
+  it('POST /complaints dgn subKategori (field sudah dihapus) -> 400', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'kesehatan')
+      .field('kategori', 'aduan')
       .field('subKategori', 'bpjs')
-      .field('judul', 'Layanan BPJS lambat')
-      .field('uraian', 'Antrean BPJS tidak jelas');
+      .field('judul', 'Judul')
+      .field('uraian', 'Uraian');
 
-    expect(res.status).toBe(201);
-    expect(res.body.data.subKategori).toBe('bpjs');
+    // forbidNonWhitelisted: properti asing DITOLAK, bukan diabaikan.
+    expect(res.status).toBe(400);
   });
 
-  it('POST /complaints (INT-42) dgn subKategori TIDAK sejalan kategori -> 400', async () => {
-    const res = await request(app.getHttpServer())
+  it('pengaduan anonim: respons admin tak memuat userId maupun reporterNama', async () => {
+    const dibuat = await request(app.getHttpServer())
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'kesehatan')
-      .field('subKategori', 'ktp_kk') // sub-kategori ini milik pelayanan_administrasi
-      .field('judul', 'X')
-      .field('uraian', 'Y');
+      .field('kategori', 'aduan')
+      .field('judul', 'Pengaduan anonim (uji e2e)')
+      .field('uraian', 'Uraian pengaduan anonim')
+      .field('isAnonim', 'true');
 
-    expect(res.status).toBe(400);
+    expect(dibuat.status).toBe(201);
+    expect(dibuat.body.data.isAnonim).toBe(true);
+
+    const dilihatAdmin = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${dibuat.body.data.ticketNo}`)
+      .set(asKabupaten());
+
+    expect(dilihatAdmin.status).toBe(200);
+    expect(Object.keys(dilihatAdmin.body.data)).not.toContain('userId');
+    expect(Object.keys(dilihatAdmin.body.data)).not.toContain('reporterNama');
+  });
+
+  it('pengaduan biasa: admin TETAP menerima userId & reporterNama (kontrol)', async () => {
+    const dibuat = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'aduan')
+      .field('judul', 'Pengaduan biasa (uji e2e)')
+      .field('uraian', 'Uraian pengaduan biasa');
+
+    expect(dibuat.status).toBe(201);
+
+    const dilihatAdmin = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${dibuat.body.data.ticketNo}`)
+      .set(asKabupaten());
+
+    // Tanpa kontrol ini, uji di atas tak membuktikan apa pun tentang penyamaran.
+    expect(dilihatAdmin.body.data.userId).toBe(respondenId);
+    expect(typeof dilihatAdmin.body.data.reporterNama).toBe('string');
   });
 
   it('POST /complaints oleh Admin OPD -> 403 (hanya Responden)', async () => {
@@ -181,7 +210,20 @@ describe('Complaints (e2e)', () => {
       .get('/api/v1/complaints')
       .set(asResponden(respondenId));
     expect(res.status).toBe(200);
-    expect(res.body.data.every((c: { userId: number }) => c.userId === respondenId)).toBe(true);
+    // DIPERBARUI 4 September 2026: pengaduan anonim milik sendiri SENGAJA tak
+    // membawa `userId` -- penyamaran berlaku juga bagi pemiliknya, yang toh tak
+    // memerlukan id-nya sendiri. Karena itu yang diperiksa bukan lagi "semua
+    // baris ber-userId saya", melainkan dua hal yang benar-benar dijanjikan
+    // penyaring kepemilikan: tak ada userId ORANG LAIN, dan pengaduan pihak
+    // lain tak muncul sama sekali.
+    expect(
+      res.body.data.every(
+        (c: { userId?: number }) => c.userId === undefined || c.userId === respondenId,
+      ),
+    ).toBe(true);
+    expect(res.body.data.some((c: { judul: string }) => c.judul === 'Punya responden 2')).toBe(
+      false,
+    );
   });
 
   it('GET /complaints (Admin OPD) -> semua pengaduan OPD-nya (lintas responden)', async () => {
@@ -202,7 +244,7 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'kesehatan')
+      .field('kategori', 'aduan')
       .field('judul', 'Lifecycle')
       .field('uraian', 'Uraian lifecycle');
     const id = created.body.data.id;

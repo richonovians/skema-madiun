@@ -26,14 +26,21 @@ export function adaptComplaint(complaint) {
     ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000)
     : null;
 
+  // Pengaduan anonim: backend MENGHILANGKAN `reporterNama` & `userId` (bukan
+  // mengirimnya null). Tanpa penanganan di sini komponen hanya menampilkan '-',
+  // yang membuat admin menyangka datanya rusak alih-alih disembunyikan.
+  const isAnonim = complaint.isAnonim === true;
+  const reporterName = isAnonim ? 'Anonim' : (complaint.reporterNama ?? null);
+
   return {
     id: complaint.ticketNo,
     numericId: complaint.id,
     userId: complaint.userId,
     opdId: complaint.opdId,
+    isAnonim,
     reporter: {
-      name: complaint.reporterNama ?? null,
-      initials: complaint.reporterNama ? getInitials(complaint.reporterNama) : '',
+      name: reporterName,
+      initials: reporterName ? getInitials(reporterName) : '',
       // nik/phone/address (dipakai ComplaintReporterProfile.jsx, halaman detail
       // Admin OPD, INT-20): TIDAK ADA sumbernya di backend -- RespondentProfile
       // sengaja cuma demografis IKM, bukan identitas pribadi (lihat gap sama
@@ -49,13 +56,10 @@ export function adaptComplaint(complaint) {
     createdAt,
     ageDays,
     status: STATUS_MAP[complaint.status] ?? complaint.status,
-    // Kode kategori mentah (mis. 'infrastruktur') -- label ramah-baca perlu
-    // di-cross-reference terpisah ke GET /ref/complaint-categories, di luar
-    // tanggung jawab adapter sinkron ini.
+    // Kode kategori mentah ('aduan'/'lapor'/'lainnya') -- label ramah-baca
+    // perlu di-cross-reference terpisah ke GET /ref/complaint-categories, di
+    // luar tanggung jawab adapter sinkron ini.
     kategori: complaint.kategori,
-    // Sub-kategori opsional di bawah kategori (INT-42, D12) -- sama seperti
-    // kategori, ini kode mentah; label ramah-baca dari GET /ref/complaint-sub-categories.
-    subKategori: complaint.subKategori ?? null,
     // Nama OPD tujuan (terisi dari GET /complaints maupun /complaints/:ticketNo, INT-18).
     target: complaint.opdNama ?? null,
     attachments: (complaint.attachments ?? []).map(adaptComplaintAttachment),
@@ -101,13 +105,13 @@ export function toBackendComplaintStatus(status) {
 }
 
 /** Terjemahkan payload form (lihat CreateComplaintForm.jsx) -> CreateComplaintDto backend. */
-export function toCreateComplaintPayload({ opdId, kategori, subKategori, title, description }) {
+export function toCreateComplaintPayload({ opdId, kategori, title, description, isAnonim }) {
   return {
     opdId: Number(opdId),
     kategori,
-    subKategori: subKategori || undefined,
     judul: title,
     uraian: description,
+    isAnonim: isAnonim === true,
   };
 }
 
@@ -132,16 +136,26 @@ export function toCreateComplaintPayload({ opdId, kategori, subKategori, title, 
  * ketiga peran admin sekaligus. Membedakan "Admin Kabupaten" vs "Admin OPD"
  * MUSTAHIL di frontend tanpa backend mengekspos peran penulis; menebaknya dari
  * OPD pengaduan akan salah setiap kali kabupaten yang membalas.
+ *
+ * PENGADUAN ANONIM (4 September 2026): `authorId` balasan pelapor DIHILANGKAN
+ * backend, dan `complaint.userId` pun tak dikirim. Pembandingan lama
+ * (`authorId === complaintUserId`) kebetulan masih "benar" karena
+ * undefined === undefined -- dan kebetulan seperti itu tak boleh dijadikan
+ * dasar. Yang diperiksa di sini ADA-TIDAKNYA `authorId`, tepat seperti yang
+ * dijanjikan kontrak backend.
  */
-export function adaptComplaintReplyToChatMessage(reply, complaintUserId) {
-  const isReporter = reply.authorId === complaintUserId;
+export function adaptComplaintReplyToChatMessage(reply, complaintUserId, { isAnonim = false } = {}) {
+  const isReporter = isAnonim ? reply.authorId == null : reply.authorId === complaintUserId;
   const time = reply.createdAt
     ? new Date(reply.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     : '';
   return {
     type: 'chat',
     role: isReporter ? 'user' : 'admin',
-    senderName: isReporter ? undefined : 'Admin',
+    // Pelapor anonim DIBERI label: tanpanya, percakapan di mata admin tampak
+    // seolah ditulis pihak yang tak dikenal. Pelapor biasa tetap tanpa label
+    // (gelembungnya memang tak pernah menampilkan nama).
+    senderName: isReporter ? (isAnonim ? 'Pelapor (anonim)' : undefined) : 'Admin',
     text: reply.pesan,
     // Lampiran balasan (2026-08-06, laporan bug user) -- URL dibangun sama
     // persis dgn attachments tingkat-pengaduan (adaptComplaintAttachment).
@@ -151,6 +165,6 @@ export function adaptComplaintReplyToChatMessage(reply, complaintUserId) {
   };
 }
 
-export function adaptComplaintRepliesToChatMessages(replies, complaintUserId) {
-  return replies.map((r) => adaptComplaintReplyToChatMessage(r, complaintUserId));
+export function adaptComplaintRepliesToChatMessages(replies, complaintUserId, opsi) {
+  return replies.map((r) => adaptComplaintReplyToChatMessage(r, complaintUserId, opsi));
 }

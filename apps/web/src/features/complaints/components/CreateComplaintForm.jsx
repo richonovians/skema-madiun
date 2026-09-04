@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { getComplaintCategories, getComplaintSubCategories } from '../services/reference.api';
+import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 
 export default function CreateComplaintForm() {
@@ -23,26 +23,21 @@ export default function CreateComplaintForm() {
   const [formData, setFormData] = useState({
     department: '',
     category: '',
-    subCategory: '',
     title: '',
     description: '',
+    isAnonim: false,
   });
 
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
   const { data: opdResponse } = useAsync(fetchOpd);
   const fetchCategories = useCallback(() => getComplaintCategories(), []);
   const { data: categories } = useAsync(fetchCategories);
-  const fetchSubCategories = useCallback(() => getComplaintSubCategories(), []);
-  const { data: subCategories } = useAsync(fetchSubCategories);
 
   const departmentOptions = (opdResponse?.data ?? []).map((opd) => ({
     label: opd.name,
     value: String(opd.id),
   }));
   const categoryOptions = (categories ?? []).map((c) => ({ label: c.nama, value: c.kode }));
-  const subCategoryOptions = (subCategories ?? [])
-    .filter((s) => s.kategoriKode === formData.category)
-    .map((s) => ({ label: s.nama, value: s.kode }));
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -50,9 +45,7 @@ export default function CreateComplaintForm() {
   };
 
   const handleCategoryChange = (value) => {
-    // Sub-kategori bergantung kategori -- reset saat kategori berganti (sub-kategori
-    // lama kemungkinan tak lagi valid utk kategori baru).
-    setFormData((prev) => ({ ...prev, category: value, subCategory: '' }));
+    setFormData((prev) => ({ ...prev, category: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -64,9 +57,9 @@ export default function CreateComplaintForm() {
         {
           opdId: formData.department,
           kategori: formData.category,
-          subKategori: formData.subCategory,
           title: formData.title,
           description: formData.description,
+          isAnonim: formData.isAnonim,
         },
         files,
       );
@@ -112,16 +105,6 @@ export default function CreateComplaintForm() {
           />
         </div>
 
-        {formData.category && subCategoryOptions.length > 0 && (
-          <Dropdown
-            label="Sub-Kategori (opsional)"
-            id="subCategory"
-            options={[{ label: 'Pilih Sub-Kategori', value: '' }, ...subCategoryOptions]}
-            value={formData.subCategory}
-            onChange={(val) => setFormData((prev) => ({ ...prev, subCategory: val }))}
-          />
-        )}
-
         <Input
           label="Judul Laporan"
           id="title"
@@ -140,6 +123,30 @@ export default function CreateComplaintForm() {
           onChange={handleChange}
           required
         />
+
+        {/* Kotak centang dibungkus labelnya sendiri (pola sama ConsentGate.jsx):
+            kotaknya 20px, tapi bidang sentuhnya seluruh label -- itulah yang
+            memenuhi target 44px, bukan kotaknya. */}
+        <label
+          htmlFor="isAnonim"
+          className="flex items-start gap-3 p-4 rounded-xl border border-border bg-surface-container-low/60 cursor-pointer hover:bg-surface-container-low transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary-container/20"
+        >
+          <input
+            id="isAnonim"
+            type="checkbox"
+            checked={formData.isAnonim}
+            onChange={(e) => setFormData((prev) => ({ ...prev, isAnonim: e.target.checked }))}
+            aria-describedby="isAnonim-bantuan"
+            className="w-5 h-5 mt-0.5 shrink-0 accent-primary cursor-pointer"
+          />
+          <span className="text-sm text-text-primary leading-relaxed">
+            Kirim sebagai <strong className="font-semibold">anonim</strong> (identitas pelapor
+            tidak ditampilkan kepada petugas).
+          </span>
+        </label>
+        <p id="isAnonim-bantuan" className="text-xs text-text-secondary -mt-4 px-1">
+          Anda tetap dapat memantau status dan menerima notifikasi pengaduan ini.
+        </p>
 
         <div>
           <label className="block text-sm font-bold text-text-primary mb-2">Lampiran Bukti (Foto/Dokumen)</label>

@@ -1,6 +1,8 @@
 'use client';
-import React from 'react';
+import React, { useCallback } from 'react';
 import Dropdown from '@/components/ui/Dropdown';
+import { useAsync } from '@/hooks/useAsync';
+import { getComplaintCategories } from '@/features/complaints/services/reference.api';
 import ExportButton from './ExportButton';
 
 export default function AnalyticsHeader({ filters, setFilters }) {
@@ -20,11 +22,16 @@ export default function AnalyticsHeader({ filters, setFilters }) {
     { value: '6', label: 'Juni' },
   ];
 
+  // Daftar kategori SEBELUMNYA di-hardcode di sini, dan hanya memuat 3 dari 7
+  // kode lama. Setelah taksonomi disederhanakan menjadi Aduan/Lapor/Lainnya
+  // (4 September 2026), salinan mati seperti itu menawarkan kategori yang sudah
+  // tak ada -- karena itu kini diambil dari sumber yang sama dengan formulir
+  // pengaduan, GET /ref/complaint-categories.
+  const fetchCategories = useCallback(() => getComplaintCategories(), []);
+  const { data: categories } = useAsync(fetchCategories);
   const serviceOptions = [
-    { value: 'all', label: 'Semua Layanan' },
-    { value: 'kesehatan', label: 'Kesehatan' },
-    { value: 'pendidikan', label: 'Pendidikan' },
-    { value: 'infrastruktur', label: 'Infrastruktur' },
+    { value: 'all', label: 'Semua Kategori' },
+    ...(categories ?? []).map((c) => ({ value: c.kode, label: c.nama })),
   ];
 
   return (

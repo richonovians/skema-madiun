@@ -1,9 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Controller, Get } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ComplaintCategoryEntity } from './entities/complaint-category.entity';
-import { ComplaintSubCategoryEntity } from './entities/complaint-sub-category.entity';
 import { UnsurEntity } from './entities/unsur.entity';
 import { ReferenceService } from './reference.service';
 
@@ -21,25 +20,15 @@ export class ReferenceController {
     return this.referenceService.getUnsur();
   }
 
-  /** Daftar kategori baku pengaduan (semua peran terautentikasi). */
+  /**
+   * Daftar kategori baku pengaduan (semua peran terautentikasi).
+   *
+   * Endpoint `GET /ref/complaint-sub-categories` DIHAPUS 4 September 2026
+   * bersama taksonomi sub-kategori (D12/INT-42) -- lihat reference.constants.ts.
+   */
   @Get('complaint-categories')
   @ApiOkResponse({ type: ComplaintCategoryEntity, isArray: true })
   getComplaintCategories(): ComplaintCategoryEntity[] {
     return this.referenceService.getComplaintCategories();
-  }
-
-  /**
-   * Daftar sub-kategori pengaduan (INT-42) -- opsional difilter via `?kategori=`
-   * (kode dari `GET /ref/complaint-categories`). Semua peran terautentikasi.
-   */
-  @Get('complaint-sub-categories')
-  @ApiQuery({
-    name: 'kategori',
-    required: false,
-    description: 'Filter berdasarkan kode kategori induk',
-  })
-  @ApiOkResponse({ type: ComplaintSubCategoryEntity, isArray: true })
-  getComplaintSubCategories(@Query('kategori') kategori?: string): ComplaintSubCategoryEntity[] {
-    return this.referenceService.getComplaintSubCategories(kategori);
   }
 }

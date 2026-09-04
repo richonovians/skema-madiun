@@ -217,4 +217,64 @@ describe('SurveysService', () => {
     await service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
     expect(ikmService.snapshot).not.toHaveBeenCalled();
   });
+  describe('izinkanAnonim', () => {
+    beforeEach(() => {
+      // assertOpdExists() dipanggil create() -- tanpa mock ini ia menolak
+      // BadRequest sebelum sampai ke prisma.survey.create.
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());
+    });
+
+    it('create tanpa flag -> tersimpan false (survei lama tak berubah perilakunya)', async () => {
+      await service.create({ judul: 'S', periode: '2026-Q1' } as CreateSurveyDto, opdUser(5));
+
+      expect(prisma.survey.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ izinkanAnonim: false }) }),
+      );
+    });
+
+    it('create dengan flag -> tersimpan true', async () => {
+      await service.create(
+        { judul: 'S', periode: '2026-Q1', izinkanAnonim: true } as CreateSurveyDto,
+        opdUser(5),
+      );
+
+      expect(prisma.survey.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ izinkanAnonim: true }) }),
+      );
+    });
+
+    it('update meneruskan flag; undefined berarti tak diubah', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyRow());
+      (prisma.survey.update as jest.Mock).mockResolvedValue(surveyRow({ izinkanAnonim: true }));
+
+      await service.update(1, { izinkanAnonim: true }, opdUser(5));
+
+      expect(prisma.survey.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ izinkanAnonim: true }) }),
+      );
+    });
+
+    it('duplicate mempertahankan setelan anonim survei asal', async () => {
+      // findUnique dipanggil DUA kali (getAccessibleOrThrow, lalu pengambilan
+      // beserta questions) -- mockResolvedValue, bukan ...Once.
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+        surveyRow({ izinkanAnonim: true, questions: [] }),
+      );
+
+      await service.duplicate(1, opdUser(5));
+
+      expect(prisma.survey.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ izinkanAnonim: true }) }),
+      );
+    });
+
+    it('entity membawa izinkanAnonim ke antarmuka', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyRow({ izinkanAnonim: true }));
+
+      const hasil = await service.findOne(1, opdUser(5));
+
+      expect(hasil.izinkanAnonim).toBe(true);
+    });
+  });
 });
