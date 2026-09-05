@@ -28,7 +28,7 @@ const TARGET = userFixture({
   ssoSubject: 'seed-admin-opd',
   nama: 'Admin OPD (Contoh)',
   email: 'admin.opd@example.go.id',
-  role: 'opd',
+  roles: ['opd'],
   opdId: 1,
 });
 
@@ -65,11 +65,13 @@ describe('Halaman Ubah Role Admin', () => {
     render(<EditUserPage />);
 
     await screen.findByLabelText(NAMA);
-    // Dropdown role dirender sebagai <button> pemicu (lihat Dropdown.jsx), dan
-    // nama aksesibelnya adalah LABELNYA ('ROLE ADMINISTRATOR') -- bukan teks di
-    // dalamnya ('Admin OPD'), karena <label htmlFor> mengalahkan isi elemen
-    // untuk elemen yang bisa dilabeli.
-    expect(screen.getByRole('button', { name: /role administrator/i })).toBeEnabled();
+    // Sejak multi-role (5 September 2026) role dipilih lewat KOTAK CENTANG,
+    // bukan dropdown. Yang diperiksa: kotaknya aktif (bukan terkunci) DAN
+    // mencerminkan keadaan akun (Admin OPD tercentang, yang lain tidak).
+    const adminOpd = screen.getByLabelText('Admin OPD');
+    expect(adminOpd).toBeEnabled();
+    expect(adminOpd).toBeChecked();
+    expect(screen.getByLabelText('Superuser')).not.toBeChecked();
   });
 
   it('TIDAK mengirim `nama` ke backend saat disimpan', async () => {
@@ -95,7 +97,7 @@ describe('Halaman Ubah Role Admin', () => {
     expect(Object.keys(terkirim)).not.toContain('nama');
     // Kontrol: role tetap terkirim, jadi ketiadaan `nama` di atas bukan karena
     // permintaannya kosong atau gagal terbentuk.
-    expect(terkirim.role).toBe('opd');
+    expect(terkirim.roles).toEqual(['opd']);
   });
 
   it('menjelaskan bahwa identitas berasal dari Helpdesk', async () => {

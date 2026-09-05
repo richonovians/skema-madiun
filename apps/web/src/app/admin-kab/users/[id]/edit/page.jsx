@@ -28,11 +28,11 @@ import { X, Save, Loader2 } from 'lucide-react';
 function validate(formData) {
   const errors = {};
 
-  if (!formData.role) {
-    errors.role = 'Silakan pilih role administrator.';
+  if (!formData.roles.length) {
+    errors.roles = 'Silakan pilih minimal satu role administrator.';
   }
 
-  if (formData.role === USER_ROLES.ADMIN_OPD && !formData.opdId) {
+  if (formData.roles.includes(USER_ROLES.ADMIN_OPD) && !formData.opdId) {
     errors.opdId = 'Silakan pilih instansi / OPD.';
   }
 
@@ -70,7 +70,7 @@ export default function EditUserPage() {
       setFormData({
         fullName: data.user.name,
         email: data.user.email,
-        role: data.user.role,
+        roles: data.user.roles ?? [],
         opdId: data.user.opdId ? String(data.user.opdId) : '',
       });
     }
@@ -87,15 +87,17 @@ export default function EditUserPage() {
   }, [data]);
 
   const handleDropdownChange = (field, value) => {
-    setFormData((prev) => {
-      const updated = { ...prev, [field]: value };
-      // Reset OPD jika role diganti bukan ke ADMIN_OPD
-      if (field === 'role' && value !== USER_ROLES.ADMIN_OPD) {
-        updated.opdId = '';
-      }
-      return updated;
-    });
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
+  };
+
+  const handleRolesChange = (roles) => {
+    setFormData((prev) => ({
+      ...prev,
+      roles,
+      opdId: roles.includes(USER_ROLES.ADMIN_OPD) ? prev.opdId : '',
+    }));
+    if (errors.roles) setErrors((prev) => ({ ...prev, roles: null }));
   };
 
   const handleSubmit = async (e) => {
@@ -116,8 +118,8 @@ export default function EditUserPage() {
       // nilai lama berarti satu klik "Simpan" menulis ulang nama -- menimpa
       // pembaruan yang mungkin baru datang dari Helpdesk.
       await updateUser(userId, {
-        role: formData.role,
-        opdId: formData.role === USER_ROLES.ADMIN_OPD ? formData.opdId : undefined,
+        roles: formData.roles,
+        opdId: formData.roles.includes(USER_ROLES.ADMIN_OPD) ? formData.opdId : undefined,
       });
       router.push('/admin-kab/users');
     } catch (err) {
@@ -166,6 +168,7 @@ export default function EditUserPage() {
             <AccountInformationCard formData={formData} errors={errors} identityLocked />
             <RoleAssignmentCard
               formData={formData}
+              onRolesChange={handleRolesChange}
               onDropdownChange={handleDropdownChange}
               errors={errors}
               opdOptions={opdOptions}

@@ -12,7 +12,6 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
 import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
-import { getActingOpd } from '@/features/authentication/services/authStorage';
 import {
   getSurveyById,
   getQuestions,
@@ -114,11 +113,11 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     // akun superuser tak tertaut OPD mana pun (resolveOpdId di SurveysService).
     // Admin OPD sungguhan tak terpengaruh: backend selalu memakai OPD akunnya
     // sendiri dan mengabaikan field ini.
-    const actingOpd = getActingOpd();
+    // `opdId` tak dikirim lagi: SurveysService.resolveOpdId memakai OPD akun
+    // bagi peran `opd`, dan area ini hanya terbuka bagi sesi berperan `opd`.
     const created = await createSurvey({
       title: title.trim() || 'Survei Tanpa Judul',
       period: periode,
-      ...(actingOpd ? { opdId: actingOpd.id } : {}),
     });
     setSurveyId(created.id);
     setStatus(created.status);

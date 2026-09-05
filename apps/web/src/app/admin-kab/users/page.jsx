@@ -31,7 +31,9 @@ export default function ManajemenUsersPage() {
   const filteredData = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return (response?.data ?? []).filter((user) => {
-      const matchRole = activeRoleFilter === 'ALL' || user.role === activeRoleFilter;
+      // Menyaring KEPEMILIKAN: akun ber-role banyak cocok bila SALAH SATU
+      // rolenya sesuai penyaring.
+      const matchRole = activeRoleFilter === 'ALL' || user.roles.includes(activeRoleFilter);
       const matchSearch =
         user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q);
       return matchRole && matchSearch;

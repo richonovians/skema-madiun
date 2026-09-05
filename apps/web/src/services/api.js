@@ -63,6 +63,24 @@ api.interceptors.response.use(
         error.message = envelope.message;
       }
       if (error.response.status === 401) {
+        // SATU pengecualian, ditambahkan bersama multi-role (5 September 2026):
+        // "peran belum dipilih" BUKAN sesi mati. Sesinya masih sah sepenuhnya;
+        // yang dibutuhkan hanya satu pilihan peran. Membuang sesi di sini
+        // memaksa akun ber-role banyak login ulang tanpa sebab, dan justru
+        // menghalanginya mencapai halaman pemilih peran.
+        //
+        // Dibedakan lewat `error.code` dari backend, bukan lewat pencocokan
+        // pesan: pesan bisa diubah kapan saja tanpa ada yang memerah.
+        const kode = envelope?.error?.code;
+        if (kode === 'ROLE_SELECTION_REQUIRED') {
+          if (typeof window !== 'undefined' && window.location.pathname !== '/pilih-peran') {
+            // Halaman pemilih peran sendiri memanggil GET /auth/me, jadi
+            // mengarahkannya ke dirinya sendiri = pemuatan ulang tanpa henti.
+            window.location.assign('/pilih-peran');
+          }
+          return Promise.reject(error);
+        }
+
         if (typeof window !== 'undefined') {
           // SEBELUMNYA hanya `localStorage.removeItem('token')` -- `role` di
           // localStorage dan KEDUA cookie (`token`, `role`) dibiarkan utuh,
@@ -70,9 +88,10 @@ api.interceptors.response.use(
           // dan tetap membuka /admin-* padahal seluruh API-nya 401. Kini seluruh
           // artefak sesi dibersihkan sekaligus.
           //
-          // Aman untuk SEMUA 401: backend memakai 401 khusus "Autentikasi
-          // diperlukan" (sesi tak sah), sedangkan penolakan karena peran/akses
-          // dikembalikan sebagai 403 -- lihat RolesGuard & opd-scope.util.ts.
+          // Aman untuk 401 SELAIN yang di atas: backend memakainya khusus
+          // "Autentikasi diperlukan" (sesi tak sah), sedangkan penolakan karena
+          // peran/akses dikembalikan sebagai 403 -- lihat RolesGuard &
+          // opd-scope.util.ts.
           clearSession();
         }
       }

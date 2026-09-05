@@ -8,6 +8,9 @@ const ROLE_LABELS = {
   [USER_ROLES.SUPERUSER]: 'Superuser',
   [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
   [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
+  // Ditambahkan 5 September 2026: `responden` kini dapat diberikan lewat
+  // Manajemen User, jadi tanpa baris ini ringkasannya menampilkan kode mentah.
+  [USER_ROLES.RESPONDENT]: 'Warga (Responden)',
 };
 
 function SummaryRow({ icon: Icon, label, value, emptyText = '—', badge }) {
@@ -33,7 +36,9 @@ function SummaryRow({ icon: Icon, label, value, emptyText = '—', badge }) {
 }
 
 export default function UserAccessSummary({ formData, opdOptions = [] }) {
-  const roleLabel = ROLE_LABELS[formData.role] || null;
+  // Beberapa role sekaligus (5 September 2026).
+  const roles = formData.roles ?? [];
+  const roleLabels = roles.map((r) => ROLE_LABELS[r] ?? r);
 
   const opdLabel = React.useMemo(() => {
     if (!formData.opdId) return null;
@@ -42,8 +47,8 @@ export default function UserAccessSummary({ formData, opdOptions = [] }) {
   }, [formData.opdId, opdOptions]);
 
   const isComplete =
-    formData.fullName && formData.email && formData.role &&
-    (formData.role !== USER_ROLES.ADMIN_OPD || formData.opdId);
+    formData.fullName && formData.email && roles.length > 0 &&
+    (!roles.includes(USER_ROLES.ADMIN_OPD) || formData.opdId);
 
   return (
     <Card className="p-lg sticky top-24">
@@ -57,25 +62,34 @@ export default function UserAccessSummary({ formData, opdOptions = [] }) {
       <div className="space-y-0">
         <SummaryRow
           icon={ShieldCheck}
-          label="Role"
-          value={roleLabel}
+          label={roleLabels.length > 1 ? 'Role (beberapa)' : 'Role'}
+          value={roleLabels.join(', ')}
           emptyText="Belum dipilih"
           badge={
-            roleLabel ? (
-              <span
-                className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  formData.role === USER_ROLES.ADMIN_KABUPATEN
-                    ? 'bg-indigo-100 text-indigo-800'
-                    : 'bg-blue-100 text-blue-800'
-                }`}
-              >
-                {roleLabel}
+            roleLabels.length ? (
+              <span className="flex flex-wrap gap-1 justify-end">
+                {roles.map((r) => (
+                  <span
+                    key={r}
+                    className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      r === USER_ROLES.SUPERUSER
+                        ? 'bg-violet-100 text-violet-800'
+                        : r === USER_ROLES.ADMIN_KABUPATEN
+                          ? 'bg-indigo-100 text-indigo-800'
+                          : r === USER_ROLES.ADMIN_OPD
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-slate-100 text-slate-800'
+                    }`}
+                  >
+                    {ROLE_LABELS[r] ?? r}
+                  </span>
+                ))}
               </span>
             ) : null
           }
         />
 
-        {formData.role === USER_ROLES.ADMIN_OPD && (
+        {roles.includes(USER_ROLES.ADMIN_OPD) && (
           <SummaryRow
             icon={Building2}
             label="Instansi"

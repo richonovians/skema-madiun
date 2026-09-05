@@ -4,22 +4,45 @@ import Card from '@/components/ui/Card';
 import Dropdown from '@/components/ui/Dropdown';
 import { USER_ROLES } from '../constants/userConstants';
 
-// `Superuser` ikut ditawarkan sejak 2026-08-20: backend menerimanya di
-// ADMIN_ROLES (CreateUserDto/UpdateUserDto), jadi akun superuser tak perlu lagi
-// dibuat lewat seed atau SQL. Peran `responden` TETAP tak ada di sini -- backend
-// menolaknya (akun warga lahir dari SSO).
-const ROLE_OPTIONS = [
-  { value: '', label: 'Pilih Hak Akses (Role)' },
-  { value: USER_ROLES.SUPERUSER, label: 'Superuser' },
-  { value: USER_ROLES.ADMIN_KABUPATEN, label: 'Admin Kabupaten' },
-  { value: USER_ROLES.ADMIN_OPD, label: 'Admin OPD' },
+/**
+ * Pilihan role. Sejak 5 September 2026 ini KELOMPOK KOTAK CENTANG, bukan
+ * dropdown: satu akun boleh memegang beberapa role sekaligus, dan pemiliknya
+ * memilih sedang bertindak sebagai yang mana saat login.
+ *
+ * `Warga (Responden)` ikut ditawarkan sejak tanggal yang sama. Sebelumnya
+ * backend menolaknya (`ADMIN_ROLES`) karena akun warga lahir dari SSO; batas
+ * itu dicabut atas permintaan pengguna, dan `ASSIGNABLE_ROLES` kini memuat
+ * seluruh role. Yang TETAP tertutup: `superuser` tak dapat dipetakan dari klaim
+ * SSO -- di sini yang memberi adalah manusia yang sudah superuser.
+ */
+const ROLE_CHOICES = [
+  {
+    value: USER_ROLES.SUPERUSER,
+    label: 'Superuser',
+    keterangan:
+      'Seluruh hak Admin Kabupaten, DITAMBAH log aktivitas dan manajemen pengguna (halaman ini).',
+  },
+  {
+    value: USER_ROLES.ADMIN_KABUPATEN,
+    label: 'Admin Kabupaten',
+    keterangan:
+      'Akses penuh lintas OPD, KECUALI log aktivitas dan manajemen pengguna (keduanya khusus Superuser).',
+  },
+  {
+    value: USER_ROLES.ADMIN_OPD,
+    label: 'Admin OPD',
+    keterangan:
+      'Dashboard, survei, pertanyaan, respons, dan pengaduan milik SATU instansi yang ditautkan di bawah.',
+  },
+  {
+    value: USER_ROLES.RESPONDENT,
+    label: 'Warga (Responden)',
+    keterangan:
+      'Mengirim pengaduan dan mengisi survei sebagai warga. Terkena gerbang persetujuan UU PDP.',
+  },
 ];
 
-const ROLE_LABEL = {
-  [USER_ROLES.SUPERUSER]: 'Superuser',
-  [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
-  [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
-};
+const ROLE_LABEL = ROLE_CHOICES.reduce((acc, r) => ({ ...acc, [r.value]: r.label }), {});
 
 /**
  * `opdOptions` datang dari page.jsx (GET /opd sungguhan) -- versi dummy lama
@@ -27,18 +50,25 @@ const ROLE_LABEL = {
  * validasi backend (`opdId` tak ditemukan) kalau dikirim apa adanya.
  *
  * `roleLocked` (2026-08-05, edit akun sendiri): backend menolak 403 kalau
- * kabupaten mengubah role akun sendiri (cegah self-lockout, lihat
- * UsersService.update). Saat true, role ditampilkan statis (bukan Dropdown
- * interaktif) supaya pengguna tak mencoba aksi yang pasti ditolak.
+ * seseorang mengubah role akunnya sendiri (cegah self-lockout, lihat
+ * UsersService.update). Saat true, role ditampilkan statis supaya pengguna tak
+ * mencoba aksi yang pasti ditolak.
  */
 export default function RoleAssignmentCard({
   formData,
+  onRolesChange,
   onDropdownChange,
   errors,
   opdOptions = [],
   roleLocked = false,
 }) {
-  const isAdminOPD = formData.role === USER_ROLES.ADMIN_OPD;
+  const roles = formData.roles ?? [];
+  const isAdminOPD = roles.includes(USER_ROLES.ADMIN_OPD);
+
+  const toggle = (value) => {
+    const next = roles.includes(value) ? roles.filter((r) => r !== value) : [...roles, value];
+    onRolesChange(next);
+  };
 
   return (
     <Card className="p-lg">
@@ -50,45 +80,94 @@ export default function RoleAssignmentCard({
         <div>
           <h2 className="font-bold text-text-primary text-sm">Hak Akses</h2>
           <p className="text-xs text-text-secondary mt-0.5">
-            Tentukan role dan cakupan akses administrator
+            Boleh lebih dari satu. Pemilik akun memilih sedang memakai yang mana saat masuk.
           </p>
         </div>
       </div>
 
-      {/* Fields */}
       <div className="space-y-md">
-        {/* Role: Dropdown interaktif, KECUALI saat mengedit akun sendiri */}
-        <div className="space-y-xs">
-          {roleLocked ? (
-            <div className="space-y-xs">
-              <span className="block text-sm font-bold text-text-primary">ROLE ADMINISTRATOR</span>
-              <div className="w-full flex items-center gap-2 min-h-[44px] px-md py-2 border border-outline-variant rounded-lg bg-surface-container-low text-text-secondary">
-                <Lock size={14} className="flex-shrink-0" />
-                <span className="text-body-md">{ROLE_LABEL[formData.role] || formData.role}</span>
-              </div>
-              <p className="text-xs text-text-secondary">
-                Anda tidak dapat mengubah role akun Anda sendiri.
-              </p>
+        {roleLocked ? (
+          <div className="space-y-xs">
+            <span className="block text-sm font-bold text-text-primary">ROLE ADMINISTRATOR</span>
+            <div className="w-full flex items-start gap-2 min-h-[44px] px-md py-2 border border-outline-variant rounded-lg bg-surface-container-low text-text-secondary">
+              <Lock size={14} className="flex-shrink-0 mt-1" />
+              <span className="text-body-md">
+                {roles.length ? roles.map((r) => ROLE_LABEL[r] ?? r).join(', ') : '-'}
+              </span>
             </div>
-          ) : (
-            <Dropdown
-              id="role"
-              label="ROLE ADMINISTRATOR"
-              options={ROLE_OPTIONS}
-              value={formData.role}
-              onChange={(value) => onDropdownChange('role', value)}
-              error={errors.role}
-            />
-          )}
-        </div>
+            <p className="text-xs text-text-secondary">
+              Anda tidak dapat mengubah role akun Anda sendiri.
+            </p>
+          </div>
+        ) : (
+          <fieldset className="space-y-xs">
+            <legend className="block text-sm font-bold text-text-primary mb-2">
+              ROLE ADMINISTRATOR
+            </legend>
+            <div className="space-y-2">
+              {ROLE_CHOICES.map((pilihan) => {
+                const tercentang = roles.includes(pilihan.value);
+                return (
+                  <label
+                    key={pilihan.value}
+                    htmlFor={`role-${pilihan.value}`}
+                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                      tercentang
+                        ? 'border-primary bg-primary-container/20'
+                        : 'border-border bg-surface hover:bg-surface-container-low'
+                    }`}
+                  >
+                    {/* `aria-label` NAMA ROLENYA SAJA, dengan keterangan
+                        dilekatkan lewat aria-describedby. Tanpa itu nama
+                        aksesibel field ini menjadi seluruh paragraf --
+                        pembaca layar membacakan kalimat panjang sebagai nama
+                        kotak centang, dan dua pilihan bisa punya nama yang
+                        saling tumpang tindih (keterangan Admin Kabupaten
+                        menyebut kata "Superuser"). */}
+                    <input
+                      id={`role-${pilihan.value}`}
+                      type="checkbox"
+                      checked={tercentang}
+                      onChange={() => toggle(pilihan.value)}
+                      aria-label={pilihan.label}
+                      aria-describedby={`role-${pilihan.value}-ket`}
+                      className="w-5 h-5 mt-0.5 shrink-0 accent-primary cursor-pointer"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-text-primary">
+                        {pilihan.label}
+                      </span>
+                      <span
+                        id={`role-${pilihan.value}-ket`}
+                        className="block text-xs text-text-secondary mt-0.5 leading-relaxed"
+                      >
+                        {pilihan.keterangan}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {errors.roles && (
+              <p className="text-xs text-error flex items-center gap-1 mt-1">
+                <span className="inline-block w-3.5 h-3.5 rounded-full bg-error/10 text-error flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                  !
+                </span>
+                {errors.roles}
+              </p>
+            )}
+          </fieldset>
+        )}
 
-        {/* OPD Dropdown — hanya muncul saat role === ADMIN_OPD */}
+        {/* OPD hanya relevan bila Admin OPD termasuk. Instansi ini yang akan
+            dipakai saat pemiliknya masuk sebagai Admin OPD -- ia tak memilih
+            OPD lagi di sana (keputusan pengguna 5 September 2026). */}
         {isAdminOPD && (
           <div className="space-y-xs animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2 mb-xs">
               <Building2 size={14} className="text-text-secondary" />
               <span className="text-xs text-text-secondary font-medium">
-                Pilih instansi yang akan dikelola oleh admin ini
+                Instansi yang dikelola akun ini saat masuk sebagai Admin OPD
               </span>
             </div>
             <Dropdown
@@ -99,28 +178,6 @@ export default function RoleAssignmentCard({
               onChange={(value) => onDropdownChange('opdId', value)}
               error={errors.opdId}
             />
-          </div>
-        )}
-
-        {/* Info: Jika Admin Kabupaten, tampilkan keterangan cakupan */}
-        {formData.role === USER_ROLES.ADMIN_KABUPATEN && (
-          <div className="flex items-start gap-2 p-sm bg-indigo-50 rounded-lg border border-indigo-100 animate-in fade-in duration-200">
-            <ShieldCheck size={15} className="text-indigo-500 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-indigo-700">
-              Admin Kabupaten memiliki akses penuh terhadap seluruh OPD, KECUALI log aktivitas dan
-              manajemen pengguna (keduanya khusus Superuser) — termasuk tak dapat mengubah role akun
-              lain.
-            </p>
-          </div>
-        )}
-
-        {formData.role === USER_ROLES.SUPERUSER && (
-          <div className="flex items-start gap-2 p-sm bg-violet-50 rounded-lg border border-violet-100 animate-in fade-in duration-200">
-            <ShieldCheck size={15} className="text-violet-500 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-violet-700">
-              Superuser memiliki seluruh hak Admin Kabupaten DITAMBAH log aktivitas dan manajemen
-              pengguna (halaman ini), serta dapat memilih peran mana yang dibuka saat login.
-            </p>
           </div>
         )}
       </div>

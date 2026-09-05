@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ROLE_HOME, SUPERUSER_AREA_HOME } from '@/constants/roleHome';
+import { ROLE_HOME } from '@/constants/roleHome';
 
 // Proxy (dulu "middleware") jalan di edge/server — tidak bisa akses localStorage,
 // makanya cek sesi dari cookie: `token` (jalur dev-login, ditulis authStorage.js)
@@ -85,7 +85,8 @@ const CONSENT_PATH = '/persetujuan';
  * dan cookie `area` bisa disunting pemiliknya sendiri -- yang memang tak
  * menaikkan hak siapa pun, karena hanya superuser yang punya sesi superuser.
  */
-const SUPERUSER_AREA_PREFIXES = {
+const ROLE_PREFIXES = {
+  superuser: ['/admin-kab'],
   kabupaten: ['/admin-kab'],
   opd: ['/admin-opd'],
   responden: RESPONDENT_ONLY_PREFIXES,
@@ -107,23 +108,14 @@ export function proxy(request) {
   // Proxy hanya butuh tahu ADA atau TIDAK; keabsahan tokennya ditegakkan backend
   // pada setiap panggilan API (SessionAuthProvider), bukan di sini.
   const token = request.cookies.get('token')?.value ?? request.cookies.get('session')?.value;
+  // Cookie `role` kini berarti PERAN YANG SEDANG DIPAKAI (5 September 2026).
+  // Cookie `area` & `opd` sudah tak ada -- setiap sesi punya TEPAT SATU peran
+  // yang dipakai, jadi tak ada lagi kasus "superuser bebas ketiga area".
   const role = request.cookies.get('role')?.value;
   const { pathname } = request.nextUrl;
   const hasFullAccess = FULL_ACCESS_ROLES.includes(role);
-
-  // Area kerja pilihan superuser. Diabaikan untuk peran lain (peran mereka
-  // sendiri sudah menentukan areanya) dan bila nilainya tak dikenal.
-  const superuserArea =
-    role === 'superuser' ? request.cookies.get('area')?.value : undefined;
-  const areaPrefixes = superuserArea ? SUPERUSER_AREA_PREFIXES[superuserArea] : undefined;
-  // OPD yang sedang diperankan superuser (cookie `opd`, ditulis authStorage.js).
-  // Proxy hanya butuh tahu ADA atau TIDAK -- yang memakai nilainya adalah
-  // halaman area OPD di sisi klien (`?opdId=`).
-  const actingOpdId = role === 'superuser' ? request.cookies.get('opd')?.value : undefined;
-  // Beranda yang dituju saat superuser dipantulkan: beranda AREA-nya, bukan
-  // /admin-kab/dashboard -- memantulkannya ke luar area yang sedang dipakai
-  // hanya akan dipantulkan lagi oleh aturan area di bawah (lingkaran).
-  const superuserHome = areaPrefixes ? SUPERUSER_AREA_HOME[superuserArea] : ROLE_HOME.superuser;
+  const prefixes = ROLE_PREFIXES[role];
+  const home = ROLE_HOME[role] ?? '/';
 
   // Beranda publik (2026-08-06, laporan bug user): "ketika sudah login
   // sebagai admin ... mengakses halaman untuk warga dan halaman sebelum
@@ -133,17 +125,11 @@ export function proxy(request) {
   // relevan buat warga (mis. form pengaduan cepat), cuma admin yg diarahkan
   // ke area kerjanya sendiri.
   if (pathname === '/') {
-    // Superuser yang sedang memakai area WARGA tidak dipaksa keluar dari beranda
-    // publik -- beranda itu bagian dari pengalaman warga yang sedang ia buka
-    // (perlakuan sama seperti peran `responden`).
-    if (token && superuserArea === 'responden') {
-      return NextResponse.next();
-    }
-    if (token && role === 'superuser') {
-      return NextResponse.redirect(new URL(superuserHome, request.url));
-    }
+    // Yang sedang memakai peran WARGA tidak dipaksa keluar dari beranda publik
+    // -- beranda itu bagian dari pengalaman warga, termasuk bagi akun ber-role
+    // banyak yang sedang memakai peran itu.
     if (token && (hasFullAccess || role === 'opd')) {
-      return NextResponse.redirect(new URL(ROLE_HOME[role], request.url));
+      return NextResponse.redirect(new URL(home, request.url));
     }
     return NextResponse.next();
   }
@@ -163,19 +149,22 @@ export function proxy(request) {
     // jadi cookie basi tak bisa membuka gerbang maupun mengurung selamanya.
     return perluPersetujuan
       ? NextResponse.next()
-      : NextResponse.redirect(new URL(ROLE_HOME[role] ?? '/', request.url));
+      : NextResponse.redirect(new URL(home, request.url));
   }
   if (perluPersetujuan) {
     return NextResponse.redirect(new URL(CONSENT_PATH, request.url));
   }
 
-  // Pemilih peran: satu-satunya jalan superuser berpindah area tanpa logout,
-  // jadi TIDAK boleh ikut terkena kurungan area di bawah. Peran lain tak punya
-  // apa pun untuk dipilih di sana.
+  // Pemilih peran: satu-satunya jalan berpindah peran tanpa logout, jadi TIDAK
+  // boleh ikut terkena kurungan di bawah.
+  //
+  // SELALU diloloskan bagi siapa pun bersesi, dan itu keputusan sadar: proxy
+  // tak tahu berapa role sebuah akun (cookie hanya membawa peran yang DIPAKAI,
+  // dan mendekode token dilarang di Edge Runtime). Halamannya sendiri
+  // memeriksa lewat `GET /auth/me` dan memantulkan akun ber-role tunggal --
+  // lapis jujur yang sudah ada sejak 20 Agustus.
   if (isUnder(pathname, ROLE_PICKER_PATH)) {
-    return role === 'superuser'
-      ? NextResponse.next()
-      : NextResponse.redirect(new URL(ROLE_HOME[role] ?? '/', request.url));
+    return NextResponse.next();
   }
 
   const isAdminKab = pathname.startsWith('/admin-kab');
@@ -184,53 +173,38 @@ export function proxy(request) {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
-  // Superuser ikut dipantulkan dari /admin-opd/dashboard: `getOpdDashboard`
-  // menuntut `Role.opd` DENGAN opdId terisi (diperiksa di dalam service, bukan
-  // lewat @Roles), dan superuser tak tertaut OPD mana pun -- jadi ia pun akan 403.
-  if (isAdminOpd && pathname.startsWith('/admin-opd/dashboard') && hasFullAccess) {
-    // SUPERUSER kini boleh (2026-08-20, keputusan user: "hanya superuser yang
-    // bisa membuka dashboard opd") ASALKAN sudah memilih OPD -- backend menuntut
-    // `?opdId=` darinya dan menolak 400 tanpa itu, jadi tanpa pilihan OPD
-    // halaman ini pasti gagal memuat dan lebih baik dipantulkan.
-    //
-    // Admin Kabupaten TETAP dipantulkan: `resolveDashboardOpdId` menolaknya 403
-    // dengan atau tanpa parameter. Dashboard lintas-OPD miliknya ada di
-    // /admin-kab/dashboard.
-    const superuserMayOpen = role === 'superuser' && actingOpdId != null;
-    if (!superuserMayOpen) {
-      // Superuser dipantulkan ke beranda AREA-nya, bukan selalu /admin-kab: kalau
-      // ia sedang terkurung di area OPD, memantulkannya ke admin-kab hanya akan
-      // dipantulkan lagi oleh aturan area di bawah.
-      const home = role === 'superuser' ? superuserHome : ROLE_HOME[role];
-      return NextResponse.redirect(new URL(home, request.url));
-    }
-    // Sengaja TIDAK `return next()` di sini: kurungan area & pemeriksaan
-    // `forbidden` di bawah harus tetap berjalan, supaya superuser yang sedang
-    // memakai area kabupaten/warga tak bisa menyelinap ke sini hanya karena
-    // cookie OPD-nya masih tertinggal.
+  // Dashboard OPD menuntut peran `opd` DENGAN opdId terisi, dan itu ditegakkan
+  // DI DALAM DashboardService (bukan lewat @Roles). Sejak hak mengikuti peran
+  // yang dipakai, siapa pun yang membukanya dengan peran lain pasti 403 -- jadi
+  // dipantulkan di sini alih-alih menampilkan halaman yang pasti gagal memuat.
+  //
+  // Superuser yang ingin membukanya harus MEMILIKI role `opd` beserta tautan
+  // OPD-nya, lalu berpindah ke peran itu. Kemampuan lamanya (memerankan OPD
+  // mana pun tanpa tautan) memang dihapus -- keputusan pengguna 5 Sep 2026.
+  if (pathname.startsWith('/admin-opd/dashboard') && role !== 'opd') {
+    return NextResponse.redirect(new URL(home, request.url));
   }
 
   // Hanya superuser: Admin Kabupaten biasa dipantulkan ke berandanya.
   if (SUPERUSER_ONLY_PREFIXES.some((prefix) => isUnder(pathname, prefix)) && role !== 'superuser') {
-    return NextResponse.redirect(new URL(ROLE_HOME[role] ?? '/', request.url));
+    return NextResponse.redirect(new URL(home, request.url));
   }
 
-  // Kurungan area superuser (2026-08-20). Berlaku HANYA bila ia sudah memilih
-  // area: sesi lama tanpa cookie `area` dibiarkan seperti sebelumnya (bebas
-  // ketiga area) daripada tiba-tiba terpantul dari halaman yang sedang dibuka.
-  if (areaPrefixes && !areaPrefixes.some((prefix) => isUnder(pathname, prefix))) {
-    return NextResponse.redirect(new URL(superuserHome, request.url));
+  // Kurungan per PERAN YANG DIPAKAI. Dulu berlaku khusus superuser dan hanya
+  // bila ia sudah memilih area; sekarang berlaku untuk semua, karena setiap
+  // sesi selalu punya tepat satu peran yang dipakai.
+  if (prefixes && !prefixes.some((prefix) => isUnder(pathname, prefix))) {
+    return NextResponse.redirect(new URL(home, request.url));
   }
 
+  // Lapis kedua, sesudah kurungan di atas. Sengaja dipertahankan: ia menangkap
+  // peran yang TIDAK punya entri di ROLE_PREFIXES (mis. nilai cookie asing)
+  // -- fail-safe, bukan daftar putih yang lupa diperbarui.
   const forbidden =
     (isAdminKab && !hasFullAccess) ||
-    (isAdminOpd && role !== 'opd' && !hasFullAccess) ||
-    // Superuser boleh menengok area warga (ia memang bisa memilih masuk sebagai
-    // warga). Catatan penting ada di RoleLoginPicker.jsx: datanya TIDAK disaring
-    // per warga, karena backend memberi superuser cakupan penuh.
-    (isRespondentArea && role !== 'responden' && role !== 'superuser');
+    (isAdminOpd && role !== 'opd') ||
+    (isRespondentArea && role !== 'responden');
   if (forbidden) {
-    const home = role === 'superuser' ? superuserHome : (ROLE_HOME[role] ?? '/');
     return NextResponse.redirect(new URL(home, request.url));
   }
 

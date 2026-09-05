@@ -153,7 +153,9 @@ export const userFixture = (over = {}) => ({
   ssoSubject: 'seed-responden',
   nama: 'Warga Contoh',
   email: 'warga@example.go.id',
-  role: 'responden',
+  // `roles` (array) menggantikan `role` tunggal, 5 September 2026.
+  roles: ['responden'],
+  actingRole: 'responden',
   opdId: null,
   isActive: true,
   lastLoginAt: '2026-08-10T07:57:10.033Z',
@@ -252,6 +254,30 @@ export const handlers = [
 
   // [TURUN] persetujuan PDP (SSO Helpdesk, 2026-08-27). Dipanggil sekali oleh
   // responden baru; membalas HANYA stempel waktunya, bukan seluruh profil.
+  /**
+   * [TURUN] ganti peran yang sedang dipakai (5 September 2026). Mengembalikan
+   * token baru seperti jalur dev-login sungguhan; pada jalur SSO backend hanya
+   * memasang cookie dan body-nya tak memuat token.
+   */
+  /**
+   * [TURUN] role yang dimiliki akun (6 September 2026). Terpisah dari
+   * `/auth/me` karena endpoint itu menolak 401 saat peran belum dipilih.
+   */
+  http.get(`${API_BASE}/auth/roles`, () =>
+    ok(
+      { nama: 'Admin Kabupaten (Contoh)', roles: ['kabupaten'], opdId: null, consentRequired: false },
+      '/auth/roles',
+    ),
+  ),
+
+  http.post(`${API_BASE}/auth/acting-role`, async ({ request }) => {
+    const body = (await request.json()) as { role: string };
+    return ok(
+      { role: body.role, expiresAt: 0, token: 'token-uji-acting-role' },
+      '/auth/acting-role',
+    );
+  }),
+
   http.post(`${API_BASE}/auth/consent`, () =>
     created({ consentAt: '2026-09-02T02:00:00.000Z' }, '/auth/consent'),
   ),
@@ -264,7 +290,7 @@ export const handlers = [
         ssoSubject: 'seed-admin-kabupaten',
         nama: 'Admin Kabupaten (Contoh)',
         email: 'admin.kabupaten@example.go.id',
-        role: 'kabupaten',
+        roles: ['kabupaten'], actingRole: 'kabupaten',
         respondentProfile: null,
       }),
       '/auth/me',
@@ -274,7 +300,7 @@ export const handlers = [
   // [TURUN] mengembalikan profil terbaru, bentuk sama dengan GET /auth/me.
   http.patch(`${API_BASE}/auth/profile`, async ({ request }) => {
     const body = (await request.json()) as JsonBody;
-    return ok(userFixture({ ...body, role: 'responden' }), '/auth/profile');
+    return ok(userFixture({ ...body, roles: ['responden'], actingRole: 'responden' }), '/auth/profile');
   }),
 
   // ===================== OPD =====================
@@ -536,8 +562,8 @@ export const handlers = [
     const role = url.searchParams.get('role');
     const list = [
       userFixture(),
-      userFixture({ id: 22, ssoSubject: 'seed-admin-opd', nama: 'Admin OPD (Contoh)', email: 'admin.opd@example.go.id', role: 'opd', opdId: 1 }),
-      userFixture({ id: 1, ssoSubject: 'seed-admin-kabupaten', nama: 'Admin Kabupaten (Contoh)', email: 'admin.kabupaten@example.go.id', role: 'kabupaten' }),
+      userFixture({ id: 22, ssoSubject: 'seed-admin-opd', nama: 'Admin OPD (Contoh)', email: 'admin.opd@example.go.id', roles: ['opd'], actingRole: 'opd', opdId: 1 }),
+      userFixture({ id: 1, ssoSubject: 'seed-admin-kabupaten', nama: 'Admin Kabupaten (Contoh)', email: 'admin.kabupaten@example.go.id', roles: ['kabupaten'], actingRole: 'kabupaten' }),
     ];
     const filtered = role ? list.filter((u) => u.role === role) : list;
     return paginated(filtered, '/users', { total: filtered.length });

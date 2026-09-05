@@ -15,7 +15,6 @@ import { useAdminLayout } from '@/components/layouts/AdminLayoutProvider';
 import { getOpdDashboard } from '@/features/dashboards/services/dashboardOpd.api';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
-import { getActingOpd } from '@/features/authentication/services/authStorage';
 import { periodeFromDate } from '@/features/surveys/adapters/survey.adapter';
 
 const LIST_LIMIT = 100; // batas maksimum `limit` PaginationQueryDto backend
@@ -35,16 +34,15 @@ export default function AdminDashboardPage() {
   const { periode } = useAdminLayout();
 
   const fetchDashboard = useCallback(async () => {
-    // Superuser yang memerankan satu OPD (2026-08-20): OPD-nya dikirim eksplisit
-    // ke ketiga panggilan. Backend menolak 400 tanpa `opdId` untuk superuser
-    // (akunnya tak tertaut OPD), sementara Admin OPD sungguhan mendapat null di
-    // sini dan backend memakai OPD akunnya sendiri seperti sebelumnya.
-    const actingOpd = getActingOpd();
-    const opdScope = actingOpd ? { opdId: actingOpd.id } : {};
+    // `opdId` tak lagi dikirim dari klien (5 September 2026): halaman ini hanya
+    // terbuka bagi sesi yang sedang bertindak sebagai `opd` (proxy.js), dan
+    // backend menurunkan instansinya dari `users.opd_id` --
+    // DashboardService.resolveDashboardOpdId. Superuser yang ingin membukanya
+    // harus punya role `opd` beserta tautan OPD-nya.
     const [dashboard, surveysResult, complaintsResult] = await Promise.all([
-      getOpdDashboard(actingOpd?.id),
-      getSurveys({ limit: LIST_LIMIT, ...opdScope }),
-      getComplaints({ limit: LIST_LIMIT, ...opdScope }),
+      getOpdDashboard(),
+      getSurveys({ limit: LIST_LIMIT }),
+      getComplaints({ limit: LIST_LIMIT }),
     ]);
     return {
       dashboard,
