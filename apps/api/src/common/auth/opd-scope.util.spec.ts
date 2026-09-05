@@ -3,11 +3,12 @@ import { Role } from '@prisma/client';
 import type { CurrentUser } from '../decorators/current-user.decorator';
 import { assertOpdAccess, opdWhereFilter } from './opd-scope.util';
 
-const user = (role: Role, opdId: number | null = null): CurrentUser => ({
+const user = (actingRole: Role, opdId: number | null = null): CurrentUser => ({
   userId: 1,
-  role,
+  roles: [actingRole],
+  actingRole,
   opdId,
-  ssoSubject: `stub-${role}`,
+  ssoSubject: `stub-${actingRole}`,
 });
 
 describe('opdWhereFilter', () => {

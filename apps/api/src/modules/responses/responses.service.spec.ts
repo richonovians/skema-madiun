@@ -10,7 +10,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { ConsentService } from '../auth/consent.service';
 import { ResponsesService } from './responses.service';
 
-const responden = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
+const responden = (userId = 10): CurrentUser => ({
+  userId,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+});
 
 const skalaQ = (id: number) => ({ id, surveyId: 1, tipe: QuestionType.skala, options: [] });
 const teksQ = (id: number) => ({ id, surveyId: 1, tipe: QuestionType.teks, options: [] });
@@ -279,7 +284,8 @@ describe('ResponsesService', () => {
           { page: 1, limit: 20 },
           {
             userId: 1,
-            role: Role.opd,
+            roles: [Role.opd],
+            actingRole: Role.opd,
             opdId: 999,
           },
         ),
@@ -294,7 +300,8 @@ describe('ResponsesService', () => {
           { page: 1, limit: 20 },
           {
             userId: 1,
-            role: Role.kabupaten,
+            roles: [Role.kabupaten],
+            actingRole: Role.kabupaten,
             opdId: null,
           },
         ),

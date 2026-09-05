@@ -226,7 +226,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
 
       const user = await prisma.user.findFirst({ where: { ssoSubject: SUB } });
       expect(user?.email).toBe(EMAIL);
-      expect(user?.role).toBe(Role.responden);
+      expect(user?.roles).toEqual([Role.responden]);
       // consentAt SENGAJA null: persetujuan PDP bukan efek samping login.
       expect(user?.consentAt).toBeNull();
     });

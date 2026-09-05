@@ -6,7 +6,12 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
 
-const respondenUser = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
+const respondenUser = (userId = 10): CurrentUser => ({
+  userId,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+});
 
 /**
  * Sejak superuser dipisah kembali (2026-08-20), broadcast pengawasan menyasar
@@ -14,8 +19,8 @@ const respondenUser = (userId = 10): CurrentUser => ({ userId, role: Role.respon
  * di bawah membedakan kueri itu lewat bentuknya, bukan mencocokkan nilai persis,
  * supaya penambahan peran berhak penuh tak perlu menyunting tiap mock lagi.
  */
-const isFullAccessQuery = (where: { role?: unknown }): boolean =>
-  typeof where.role === 'object' && where.role !== null && 'in' in where.role;
+const isFullAccessQuery = (where: { roles?: unknown }): boolean =>
+  typeof where.roles === 'object' && where.roles !== null && 'hasSome' in where.roles;
 
 const complaint = (over: Partial<Complaint> = {}): Complaint =>
   ({
@@ -58,7 +63,7 @@ describe('NotificationsService', () => {
   describe('notifyComplaintCreated', () => {
     it('membuat notifikasi utk Admin OPD tujuan (link admin-opd), TIDAK utk pelapor', async () => {
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
-        if (where.role === Role.opd) return Promise.resolve([{ id: 200 }]);
+        if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
         return Promise.resolve([]);
       });
 
@@ -128,7 +133,9 @@ describe('NotificationsService', () => {
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: {
-          role: { in: [...FULL_ACCESS_ROLES] },
+          // `hasSome`, bukan `in`: kolomnya kini array (5 September 2026), dan
+          // yang dicari adalah akun yang MEMILIKI salah satu role berhak penuh.
+          roles: { hasSome: [...FULL_ACCESS_ROLES] },
           isActive: true,
           id: { not: 999 },
         },
@@ -153,14 +160,14 @@ describe('NotificationsService', () => {
   describe('notifyComplaintReply', () => {
     it('responden membalas -> semua Admin OPD aktif pemilik diberi tahu (link admin-opd)', async () => {
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
-        if (where.role === Role.opd) return Promise.resolve([{ id: 100 }, { id: 101 }]);
+        if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 100 }, { id: 101 }]);
         return Promise.resolve([]);
       });
 
       await service.notifyComplaintReply(complaint({ userId: 10, opdId: 5 }), 10);
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
-        where: { role: Role.opd, opdId: 5, isActive: true },
+        where: { roles: { has: Role.opd }, opdId: 5, isActive: true },
         select: { id: true },
       });
       expect(prisma.notification.create).toHaveBeenCalledWith(

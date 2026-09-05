@@ -42,7 +42,7 @@ describe('Notifications (e2e)', () => {
         ssoSubject: 'e2e-notif-opd',
         nama: 'Admin OPD Notifikasi',
         email: 'e2e-notif-opd@example.go.id',
-        role: Role.opd,
+        roles: [Role.opd],
         opdId,
       },
     });
@@ -57,7 +57,7 @@ describe('Notifications (e2e)', () => {
         ssoSubject: 'e2e-notif-resp',
         nama: 'Responden Notifikasi',
         email: 'e2e-notif-resp@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
@@ -70,7 +70,7 @@ describe('Notifications (e2e)', () => {
         ssoSubject: 'e2e-notif-kab',
         nama: 'Admin Kabupaten Notifikasi',
         email: 'e2e-notif-kab@example.go.id',
-        role: Role.kabupaten,
+        roles: [Role.kabupaten],
       },
     });
     kabupatenUserId = kabupatenUser.id;

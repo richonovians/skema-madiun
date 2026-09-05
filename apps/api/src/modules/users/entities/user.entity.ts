@@ -9,7 +9,8 @@ export class UserEntity extends BaseEntity<UserEntity> {
   ssoSubject: string;
   nama: string;
   email: string;
-  role: Role;
+  /** Seluruh role yang dimiliki akun (5 September 2026). */
+  roles: Role[];
   opdId: number | null;
   isActive: boolean;
   lastLoginAt: Date | null;

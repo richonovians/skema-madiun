@@ -6,9 +6,19 @@ import { AuditService } from './audit.service';
 
 // Log aktivitas HANYA untuk superuser (2026-08-20) -- kabupaten pun ditolak,
 // meski RolesGuard meloloskannya. Karena itu setiap pemanggilan butuh user.
-const SUPERUSER = { userId: 1, role: Role.superuser, opdId: null } as CurrentUser;
-const KABUPATEN = { userId: 2, role: Role.kabupaten, opdId: null } as CurrentUser;
-const OPD = { userId: 3, role: Role.opd, opdId: 7 } as CurrentUser;
+const SUPERUSER = {
+  userId: 1,
+  roles: [Role.superuser],
+  actingRole: Role.superuser,
+  opdId: null,
+} as CurrentUser;
+const KABUPATEN = {
+  userId: 2,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+} as CurrentUser;
+const OPD = { userId: 3, roles: [Role.opd], actingRole: Role.opd, opdId: 7 } as CurrentUser;
 
 describe('AuditService', () => {
   const prisma = {

@@ -5,7 +5,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { QuestionsService } from './questions.service';
 
-const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
+const opdUser = (opdId: number | null): CurrentUser => ({
+  userId: 1,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId,
+});
 
 const draftSurvey = (opdId = 5) => ({ id: 1, opdId, status: SurveyStatus.draft });
 

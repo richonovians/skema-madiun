@@ -5,8 +5,18 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { IkmExportService } from './ikm-export.service';
 import { IkmService } from './ikm.service';
 
-const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
-const kabupatenUser = (): CurrentUser => ({ userId: 2, role: Role.kabupaten, opdId: null });
+const opdUser = (opdId: number | null): CurrentUser => ({
+  userId: 1,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId,
+});
+const kabupatenUser = (): CurrentUser => ({
+  userId: 2,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+});
 
 const survey = (over: Record<string, unknown> = {}) => ({
   id: 1,

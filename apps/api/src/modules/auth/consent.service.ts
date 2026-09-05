@@ -46,7 +46,7 @@ export class ConsentService {
    * permintaan mereka dengan satu perjalanan ke basis data.
    */
   async assertConsented(user: CurrentUser): Promise<void> {
-    if (user.role !== Role.responden) {
+    if (user.actingRole !== Role.responden) {
       return;
     }
 
@@ -57,7 +57,7 @@ export class ConsentService {
 
     // Baris hilang diperlakukan sebagai BELUM menyetujui, bukan diloloskan:
     // ketiadaan bukti persetujuan bukan bukti adanya persetujuan.
-    if (!row || ConsentService.isRequired(user.role, row.consentAt)) {
+    if (!row || ConsentService.isRequired(user.actingRole, row.consentAt)) {
       throw new ForbiddenException(
         'Anda perlu memberikan persetujuan pemrosesan data pribadi sebelum mengirim data. Buka halaman Persetujuan terlebih dahulu.',
       );

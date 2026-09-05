@@ -49,7 +49,7 @@ describe('Responses (e2e)', () => {
         ssoSubject: 'e2e-resp-1',
         nama: 'Responden E2E 1',
         email: 'e2e-resp-1@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
@@ -63,7 +63,7 @@ describe('Responses (e2e)', () => {
         ssoSubject: 'e2e-resp-2',
         nama: 'Responden E2E 2',
         email: 'e2e-resp-2@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });

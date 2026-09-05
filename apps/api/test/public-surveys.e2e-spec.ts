@@ -56,7 +56,7 @@ describe('Public Surveys (e2e)', () => {
         ssoSubject: 'e2e-pub-resp-1',
         nama: 'Responden E2E Publik',
         email: 'e2e-pub-resp-1@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(),
       },
     });

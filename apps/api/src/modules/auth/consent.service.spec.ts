@@ -5,7 +5,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { ConsentService } from './consent.service';
 
-const cu = (role: Role, userId = 5): CurrentUser => ({ userId, role, opdId: null });
+const cu = (actingRole: Role, userId = 5): CurrentUser => ({
+  userId,
+  roles: [actingRole],
+  actingRole,
+  opdId: null,
+});
 
 function buat() {
   const prisma = {

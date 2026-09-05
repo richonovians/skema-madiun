@@ -12,9 +12,24 @@ import type { ConsentService } from '../auth/consent.service';
 import type { NotificationsService } from '../notifications/notifications.service';
 import { ComplaintsService } from './complaints.service';
 
-const respondenUser = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
-const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
-const kabupatenUser = (): CurrentUser => ({ userId: 2, role: Role.kabupaten, opdId: null });
+const respondenUser = (userId = 10): CurrentUser => ({
+  userId,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+});
+const opdUser = (opdId: number | null): CurrentUser => ({
+  userId: 1,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId,
+});
+const kabupatenUser = (): CurrentUser => ({
+  userId: 2,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+});
 
 const complaintRow = (over: Record<string, unknown> = {}) => ({
   id: 1,
@@ -76,7 +91,7 @@ describe('ComplaintsService', () => {
         service.create(
           { opdId: 1, kategori: 'aduan', judul: 'x', deskripsi: 'y' } as never,
           undefined,
-          { userId: 10, role: Role.responden, opdId: null },
+          { userId: 10, roles: [Role.responden], actingRole: Role.responden, opdId: null },
         ),
       ).rejects.toThrow(ForbiddenException);
 

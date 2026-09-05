@@ -12,15 +12,24 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExcludeEndpoint,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { Role } from '@prisma/client';
 import type { Request, Response } from 'express';
+import { AllowUnselectedRole } from '../../common/decorators/allow-unselected-role.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from './auth.service';
 import { ConsentService } from './consent.service';
 import { DevLoginDto } from './dto/dev-login.dto';
+import { SetActingRoleDto } from './dto/set-acting-role.dto';
 import { SsoCallbackQueryDto } from './dto/sso-callback-query.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
@@ -228,6 +237,56 @@ export class AuthController {
   async consent(@CurrentUser() user: CurrentUser): Promise<{ consentAt: string }> {
     const consentAt = await this.consentService.record(user);
     return { consentAt: consentAt.toISOString() };
+  }
+
+  /**
+   * Role yang dimiliki akun -- untuk menyusun pemilih peran.
+   *
+   * `@AllowUnselectedRole()` WAJIB, dan itu seluruh alasan endpoint ini ada:
+   * `GET /auth/me` menolak 401 ketika peran belum dipilih, sehingga halaman
+   * /pilih-peran tak akan pernah bisa memuat daftar pilihannya.
+   */
+  @AllowUnselectedRole()
+  @Get('roles')
+  @ApiOperation({ summary: 'Role yang dimiliki akun (boleh diakses sebelum memilih peran)' })
+  getRoles(@CurrentUser() user: CurrentUser) {
+    return this.authService.getRoles(user);
+  }
+
+  /**
+   * Ganti peran yang sedang dipakai, tanpa logout (5 September 2026).
+   *
+   * `@AllowUnselectedRole()` WAJIB di sini: akun ber-role banyak yang belum
+   * memilih ditolak 401 di setiap rute lain, jadi tanpa kekecualian ini ia
+   * terkurung -- satu-satunya jalan keluarnya logout.
+   *
+   * Sesi baru diserahkan lewat KANAL YANG SAMA dengan sesi lamanya, dan itu
+   * bukan kerapian belaka: jalur SSO menyimpan tokennya di cookie `session`
+   * HttpOnly, sehingga mengembalikannya di body akan menyerahkan token itu
+   * kepada JavaScript dan meniadakan seluruh guna HttpOnly-nya.
+   */
+  @AllowUnselectedRole()
+  @Post('acting-role')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ganti peran yang sedang dipakai pada sesi ini' })
+  async setActingRole(
+    @CurrentUser() user: CurrentUser,
+    @Body() dto: SetActingRoleDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ role: Role; expiresAt: number; token?: string }> {
+    const { token } = await this.authService.setActingRole(user, dto.role);
+    const expiresAt = this.sessionCookie.expiresAt(token);
+
+    const value = req.headers['authorization'];
+    const header = Array.isArray(value) ? value[0] : value;
+    if (header?.startsWith('Bearer ')) {
+      // Jalur dev-login: frontend memegang tokennya sendiri di localStorage.
+      return { role: dto.role, expiresAt, token };
+    }
+
+    res.setHeader('Set-Cookie', this.sessionCookie.build(token));
+    return { role: dto.role, expiresAt };
   }
 
   /** Profil pengguna aktif (semua peran terautentikasi). */

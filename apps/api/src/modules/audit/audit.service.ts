@@ -54,7 +54,7 @@ export class AuditService {
    * builder pertanyaan) -- mempersempitnya akan mematikan area admin-kab.
    */
   private assertSuperuser(user: CurrentUser): void {
-    if (user.role !== Role.superuser) {
+    if (user.actingRole !== Role.superuser) {
       throw new ForbiddenException('Log aktivitas hanya dapat diakses oleh Superuser');
     }
   }
