@@ -15,7 +15,6 @@ import useKeepInViewport from '@/hooks/useKeepInViewport';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getSurveyResults, exportSurveyResults } from '@/features/analytics/services/ikm.api';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
-import { getActingOpd } from '@/features/authentication/services/authStorage';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
 import { getOpdDashboard } from '@/features/dashboards/services/dashboardOpd.api';
 
@@ -73,10 +72,7 @@ function AnalyticsPageContent() {
   // Dipersempit ke OPD yang diperankan superuser bila ada (lihat
   // app/admin-opd/surveys/page.jsx) supaya pemilih survei di halaman ini tak
   // menawarkan survei OPD lain.
-  const fetchSurveys = useCallback(() => {
-    const actingOpd = getActingOpd();
-    return getSurveys({ limit: 100, ...(actingOpd ? { opdId: actingOpd.id } : {}) });
-  }, []);
+  const fetchSurveys = useCallback(() => getSurveys({ limit: 100 }), []);
   const { data: surveysResponse, isLoading: isLoadingSurveys, error: surveysError } =
     useAsync(fetchSurveys);
 
@@ -232,11 +228,10 @@ function AnalyticsPageContent() {
 
   // --- Tab Pengaduan: fetch data saat tab aktif ---
   const fetchComplaintData = useCallback(async () => {
-    const actingOpd = getActingOpd();
     const [complaintsRes, categories, dashboard] = await Promise.all([
-      getComplaints({ limit: 100, ...(actingOpd ? { opdId: actingOpd.id } : {}) }),
+      getComplaints({ limit: 100 }),
       getComplaintCategories(),
-      getOpdDashboard(actingOpd?.id),
+      getOpdDashboard(),
     ]);
     return { complaints: complaintsRes.data, categories, dashboard };
   }, []);

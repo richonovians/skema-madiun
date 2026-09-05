@@ -287,16 +287,16 @@ export class ComplaintsService {
 
   /** Fragmen `where` sesuai kepemilikan data (dipakai findAll). */
   private ownershipWhere(user: CurrentUser): Prisma.ComplaintWhereInput {
-    if (hasFullAccess(user.role)) {
+    if (hasFullAccess(user.actingRole)) {
       return {};
     }
-    if (user.role === Role.opd) {
+    if (user.actingRole === Role.opd) {
       if (user.opdId == null) {
         throw new ForbiddenException('Akun OPD tidak tertaut ke OPD mana pun');
       }
       return { opdId: user.opdId };
     }
-    if (user.role === Role.responden) {
+    if (user.actingRole === Role.responden) {
       return { userId: user.userId };
     }
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
@@ -304,16 +304,16 @@ export class ComplaintsService {
 
   /** Akses per-record: kabupaten & superuser semua; OPD hanya OPD-nya; Responden hanya miliknya. */
   private assertAccess(user: CurrentUser, complaint: { userId: number; opdId: number }): void {
-    if (hasFullAccess(user.role)) {
+    if (hasFullAccess(user.actingRole)) {
       return;
     }
-    if (user.role === Role.opd) {
+    if (user.actingRole === Role.opd) {
       if (user.opdId === complaint.opdId) {
         return;
       }
       throw new ForbiddenException('Anda tidak memiliki akses ke pengaduan ini');
     }
-    if (user.role === Role.responden) {
+    if (user.actingRole === Role.responden) {
       if (user.userId === complaint.userId) {
         return;
       }

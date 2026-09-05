@@ -72,7 +72,10 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
         </Thead>
         <Tbody className="divide-y divide-outline-variant">
           {data.map((user) => {
-            const roleConfig = getRoleBadgeConfig(user.role);
+            // Satu akun bisa memegang beberapa role (5 September 2026), jadi
+            // beberapa lencana -- bukan satu. Avatar memakai role PERTAMA;
+            // warnanya sekadar pembeda visual, bukan pernyataan hak.
+            const roleConfigs = (user.roles ?? []).map(getRoleBadgeConfig);
             const isActive = user.status === 'ACTIVE';
 
             return (
@@ -82,7 +85,7 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                     <Avatar
                       initials={user.initials}
                       size="md"
-                      variant={getAvatarVariant(user.role)}
+                      variant={getAvatarVariant((user.roles ?? [])[0])}
                     />
                     <div>
                       <div className="font-label-md text-text-primary">{user.name}</div>
@@ -91,9 +94,22 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                   </div>
                 </Td>
                 <Td>
-                  <span className={`inline-block whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold ${roleConfig.className}`}>
-                    {roleConfig.label}
-                  </span>
+                  {/* `flex-wrap`, bukan sebaris: akun ber-tiga role akan
+                      melebarkan tabel dan memaksa halaman bergeser horizontal. */}
+                  <div className="flex flex-wrap gap-1">
+                    {roleConfigs.length ? (
+                      roleConfigs.map((cfg) => (
+                        <span
+                          key={cfg.label}
+                          className={`inline-block whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold ${cfg.className}`}
+                        >
+                          {cfg.label}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-text-secondary">-</span>
+                    )}
+                  </div>
                 </Td>
                 <Td className="text-body-md text-text-secondary">
                   {user.organization}

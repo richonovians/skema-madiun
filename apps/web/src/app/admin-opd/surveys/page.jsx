@@ -8,22 +8,20 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getSurveys, updateSurveyStatus, duplicateSurvey, deleteSurvey } from '@/features/surveys/services/surveys.api';
-import { getActingOpd } from '@/features/authentication/services/authStorage';
 
 export default function AdminSurveysPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [actionError, setActionError] = useState(null);
 
   // Superuser yang masuk sebagai Admin OPD untuk SATU OPD (lihat
-  // RoleLoginPicker.jsx): daftar dipersempit ke OPD itu, karena tanpa penyaring
-  // ini backend memberinya survei SELURUH OPD (cakupan peran berhak penuh).
-  // `getActingOpd()` dipanggil DI DALAM callback -- ia membaca localStorage yang
-  // tak ada di server, jadi tak boleh dibaca saat render. Admin OPD sungguhan
-  // mendapat null di sini dan perilakunya tak berubah sama sekali.
-  const fetchSurveys = useCallback(() => {
-    const actingOpd = getActingOpd();
-    return getSurveys({ limit: 100, ...(actingOpd ? { opdId: actingOpd.id } : {}) });
-  }, []);
+  // Penyaring `?opdId=` DIBUANG 5 September 2026. Dulu diperlukan karena
+  // superuser bisa "memerankan" OPD mana pun sementara backend memberinya
+  // cakupan penuh, jadi daftarnya harus dipersempit dari sisi klien. Sekarang
+  // hak mengikuti peran yang DIPAKAI: siapa pun yang membuka area ini sedang
+  // bertindak sebagai `opd`, dan backend menurunkan instansinya sendiri dari
+  // `users.opd_id` (opd-scope.util.ts). Mengirimnya dari klien hanya menambah
+  // sumber kebenaran kedua yang bisa basi.
+  const fetchSurveys = useCallback(() => getSurveys({ limit: 100 }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchSurveys);
   const surveys = response?.data ?? [];
 

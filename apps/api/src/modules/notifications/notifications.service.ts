@@ -139,7 +139,10 @@ export class NotificationsService {
   ): Promise<void> {
     try {
       const recipients = await this.prisma.user.findMany({
-        where: { role, opdId, isActive: true },
+        // `roles: { has }` (5 September 2026): pemberitahuan menyasar
+        // KEPEMILIKAN role, bukan peran yang sedang dipakai seseorang --
+        // penerimanya belum tentu sedang membuka aplikasi sama sekali.
+        where: { roles: { has: role }, opdId, isActive: true },
         select: { id: true },
       });
       await Promise.all(
@@ -163,7 +166,7 @@ export class NotificationsService {
       // jadi tak masuk akal kalau justru tak diberi tahu perkara yang sama.
       const kabupatenUsers = await this.prisma.user.findMany({
         where: {
-          role: { in: [...FULL_ACCESS_ROLES] },
+          roles: { hasSome: [...FULL_ACCESS_ROLES] },
           isActive: true,
           id: { not: excludeUserId },
         },

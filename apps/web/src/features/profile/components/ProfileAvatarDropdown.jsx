@@ -9,7 +9,6 @@ import ProfileErrorAvatar from '@/components/ui/ProfileErrorAvatar';
 import { useAsync } from '@/hooks/useAsync';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 import { isUnauthorizedError } from '@/services/api';
-import { USER_ROLES } from '@/features/users/constants/userConstants';
 import { getMyProfile } from '../services/profile.api';
 import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
@@ -202,10 +201,11 @@ export default function ProfileAvatarDropdown() {
           </div>
 
           <div className="border-t border-border/60 my-1 pt-1">
-            {/* Superuser yang sedang memakai area warga terkurung di area itu
-                (lihat proxy.js) -- ini pintu berpindahnya tanpa logout. Peran
-                lain tak punya apa pun untuk dipilih, jadi menunya disembunyikan. */}
-            {user?.role === USER_ROLES.SUPERUSER && (
+            {/* Pintu berpindah peran tanpa logout. Syaratnya JUMLAH role yang
+                dimiliki (5 September 2026), bukan superuser: akun ber-role
+                tunggal tak punya apa pun untuk dipilih, sementara akun
+                ber-role banyak -- peran apa pun itu -- punya. */}
+            {(user?.roles?.length ?? 0) > 1 && (
               <Link
                 href="/pilih-peran"
                 onClick={() => setIsOpen(false)}

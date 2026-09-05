@@ -15,10 +15,10 @@ import { hasFullAccess } from './role.util';
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException (fail-safe)
  */
 export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
-  if (hasFullAccess(user.role)) {
+  if (hasFullAccess(user.actingRole)) {
     return {};
   }
-  if (user.role === Role.opd) {
+  if (user.actingRole === Role.opd) {
     if (user.opdId == null) {
       throw new ForbiddenException('Akun OPD tidak tertaut ke OPD mana pun');
     }
@@ -34,10 +34,10 @@ export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException
  */
 export function assertOpdAccess(user: CurrentUser, targetOpdId: number): void {
-  if (hasFullAccess(user.role)) {
+  if (hasFullAccess(user.actingRole)) {
     return;
   }
-  if (user.role === Role.opd) {
+  if (user.actingRole === Role.opd) {
     if (user.opdId == null) {
       throw new ForbiddenException('Akun OPD tidak tertaut ke OPD mana pun');
     }

@@ -149,7 +149,10 @@ export class SsoService {
         ssoSubject: profile.sub,
         email,
         nama: truncate(profile.nama ?? email, NAMA_MAX),
-        role,
+        // Akun baru dari SSO lahir dengan SATU role, seperti sebelum multi-role
+        // ada. Role tambahan hanya diberikan manusia lewat Manajemen User --
+        // klaim Helpdesk tak pernah dapat memberi lebih dari satu.
+        roles: [role],
         ...(opdId === null ? {} : { opdId }),
         lastLoginAt: new Date(),
         // `consentAt` SENGAJA dibiarkan null. Kolom itu catatan persetujuan UU
@@ -159,7 +162,7 @@ export class SsoService {
       },
     });
     this.logger.log(
-      `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.role}` +
+      `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.roles.join(',')}` +
         (created.opdId === null ? '' : ` opdId=${created.opdId}`),
     );
     return created;

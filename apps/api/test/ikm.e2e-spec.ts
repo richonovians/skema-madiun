@@ -96,7 +96,7 @@ describe('IKM (e2e)', () => {
             ssoSubject,
             nama: `Responden IKM ${i + 1}`,
             email: `${ssoSubject}@example.go.id`,
-            role: Role.responden,
+            roles: [Role.responden],
             consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
           },
         }),
@@ -136,7 +136,7 @@ describe('IKM (e2e)', () => {
         ssoSubject: 'e2e-ikm-resp-3',
         nama: 'Responden IKM 3',
         email: 'e2e-ikm-resp-3@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });

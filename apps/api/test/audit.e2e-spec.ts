@@ -36,7 +36,7 @@ describe('Audit Log (e2e)', () => {
         ssoSubject: 'e2e-audit-opd',
         nama: 'Admin OPD Audit',
         email: 'e2e-audit-opd@example.go.id',
-        role: Role.opd,
+        roles: [Role.opd],
         opdId,
       },
     });

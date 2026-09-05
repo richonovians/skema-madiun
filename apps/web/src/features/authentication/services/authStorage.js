@@ -8,35 +8,20 @@ const TOKEN_KEY = 'token';
 // backend). Disimpan cookie TERPISAH dari token, bukan didekode dari JWT,
 // karena proxy.js Edge Runtime tak boleh bergantung pada isi klaim token.
 const ROLE_KEY = 'role';
-// Area kerja yang DIPILIH superuser saat login (2026-08-20): 'kabupaten' | 'opd'
-// | 'responden'. Sama seperti `role`, disimpan sebagai cookie terpisah karena
-// yang membacanya adalah proxy.js di edge/server.
+// Peran yang SEDANG DIPAKAI pada sesi ini (5 September 2026):
+// 'kabupaten' | 'opd' | 'responden' | 'superuser'. MENGGANTIKAN cookie `area`
+// milik superuser beserta cookie `opd` -- mekanismenya kini berlaku bagi siapa
+// pun ber-role banyak, bukan kekhususan satu peran.
 //
-// JUJUR soal sifatnya: ini PEMBATAS NAVIGASI, bukan pembatas hak. Backend
-// memperlakukan superuser setara kabupaten di seluruh pemeriksaan akses
-// (`hasFullAccess` di role.util.ts), jadi memilih "Warga" tidak mengurangi apa
-// pun yang boleh dilakukan token-nya -- yang berubah adalah halaman mana yang
-// dibukakan untuknya. Cookie ini bisa disunting sendiri oleh pemiliknya di
-// peramban, dan itu memang tak menaikkan hak siapa pun: hanya superuser yang
-// punya sesi superuser.
-const AREA_KEY = 'area';
-// OPD yang sedang "diperankan" superuser saat memakai area OPD (2026-08-20):
-// `{ id, nama }` sebagai JSON. Hanya localStorage, TANPA cookie -- proxy tak
-// membutuhkannya (kurungan areanya sudah ditentukan cookie `area`), dan yang
-// memakainya hanya halaman area OPD di sisi klien untuk menyaring daftar
-// (`?opdId=`) serta menentukan OPD tujuan saat membuat survei.
+// Disimpan sebagai cookie terpisah (bukan didekode dari token) karena yang
+// membacanya proxy.js di edge/server, dan Edge Runtime sengaja tak bergantung
+// pada isi klaim token.
 //
-// Sama seperti `area`: ini mempersempit TAMPILAN, bukan hak akses. Backend
-// meng-AND-kan `opdId` dengan penyaring kepemilikan, jadi parameter ini tak
-// pernah bisa melebarkan apa pun.
-const ACTING_OPD_KEY = 'acting_opd';
-// ...KECUALI satu hal yang memang perlu dibaca proxy: ADA-TIDAKNYA OPD terpilih
-// menentukan boleh-tidaknya superuser membuka /admin-opd/dashboard (2026-08-20).
-// Karena itu ID-nya (bukan seluruh objek) ikut disimpan sebagai cookie -- proxy
-// jalan di edge dan tak bisa menyentuh localStorage. Nama OPD sengaja TIDAK
-// dimasukkan cookie: proxy tak membutuhkannya, dan cookie ikut terkirim pada
-// setiap permintaan.
-const ACTING_OPD_COOKIE = 'opd';
+// JUJUR soal sifatnya, sama seperti sebelumnya: ini PEMBATAS NAVIGASI. Bedanya
+// sekarang menyuntingnya di peramban tak lagi cukup untuk memperoleh hak peran
+// lain -- hak ditentukan klaim `act` DI DALAM token, yang tak dapat dipalsukan
+// tanpa kunci tanda tangan. Cookie yang disunting hanya menghasilkan halaman
+// yang seluruh API-nya menolak: membingungkan, bukan celah.
 // Waktu kedaluwarsa sesi SSO (2026-08-27), detik epoch. HANYA untuk jalur SSO.
 //
 // Kenapa perlu disimpan sendiri: pada jalur SSO tokennya ada di cookie `session`
@@ -161,12 +146,6 @@ export function selaraskanCookieSesi() {
   const role = localStorage.getItem(ROLE_KEY);
   if (role) tulisCookieSesi(ROLE_KEY, role, umur);
 
-  const area = localStorage.getItem(AREA_KEY);
-  if (area) tulisCookieSesi(AREA_KEY, area, umur);
-
-  const opd = getActingOpd();
-  if (opd) tulisCookieSesi(ACTING_OPD_COOKIE, opd.id, umur);
-
   const consent = localStorage.getItem(CONSENT_KEY);
   if (consent) tulisCookieSesi(CONSENT_KEY, consent, umur);
 }
@@ -263,8 +242,6 @@ export function clearSession() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
-  localStorage.removeItem(AREA_KEY);
-  localStorage.removeItem(ACTING_OPD_KEY);
   localStorage.removeItem(SSO_EXPIRES_KEY);
   // Cerminan penanda persetujuan ikut dibuang -- alasannya sama dengan
   // cookienya di bawah: membiarkannya berarti warga BERIKUTNYA di peramban ini
@@ -273,10 +250,6 @@ export function clearSession() {
   localStorage.setItem('sso_logged_in', 'false');
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
   document.cookie = `${ROLE_KEY}=; path=/; max-age=0`;
-  // Area ikut dibuang saat keluar -- kalau tidak, login berikutnya (bisa akun
-  // lain di peramban yang sama) mewarisi pembatasan area milik sesi lama.
-  document.cookie = `${AREA_KEY}=; path=/; max-age=0`;
-  document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
   // Alasan yang sama untuk persetujuan: membiarkannya berarti warga BERIKUTNYA
   // di peramban ini melewati gerbang persetujuan atas nama persetujuan orang lain.
   document.cookie = `${CONSENT_KEY}=; path=/; max-age=0`;
@@ -288,59 +261,19 @@ export function clearSession() {
   window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
 }
 
-/** Simpan area kerja pilihan superuser (lihat RoleLoginPicker.jsx). */
-export function saveSuperuserArea(area) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(AREA_KEY, area);
-  tulisCookieSesi(AREA_KEY, area, sisaUmurSesi());
-}
-
 /**
- * Simpan OPD yang diperankan superuser di area OPD.
- * @param {{id: number, nama: string}|null} opd null = lupakan (lihat seluruh OPD).
+ * Simpan peran yang sedang dipakai. MENGGANTIKAN `saveSuperuserArea` +
+ * `saveActingOpd` (5 September 2026).
+ *
+ * OPD tidak lagi disimpan di sisi klien sama sekali: seseorang yang bertindak
+ * sebagai Admin OPD memakai instansi yang tercantum di AKUNNYA, dan backend
+ * menurunkannya sendiri dari `users.opd_id` (opd-scope.util.ts). Menyimpan
+ * salinannya di peramban hanya menciptakan sumber kedua yang bisa basi.
  */
-export function saveActingOpd(opd) {
-  if (typeof window === 'undefined') return;
-  if (!opd) {
-    localStorage.removeItem(ACTING_OPD_KEY);
-    document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
-    return;
-  }
-  localStorage.setItem(ACTING_OPD_KEY, JSON.stringify({ id: opd.id, nama: opd.nama }));
-  tulisCookieSesi(ACTING_OPD_COOKIE, opd.id, sisaUmurSesi());
-}
-
-/**
- * OPD yang sedang diperankan; null bila tak ada atau isinya rusak.
- * @returns {{id: number, nama: string}|null}
- */
-export function getActingOpd() {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(ACTING_OPD_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    // Dibaca dari localStorage yang bisa disunting/basi -- id yang bukan angka
-    // akan menghasilkan `?opdId=NaN` dan 400 dari backend, jadi ditolak di sini.
-    return typeof parsed?.id === 'number' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Area kerja yang sedang dipakai superuser; null bila belum memilih. */
-export function getSuperuserArea() {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(AREA_KEY);
-}
-
-/** Lupakan pilihan area & OPD yang diperankan (saat superuser memilih ulang). */
-export function clearSuperuserArea() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(AREA_KEY);
-  localStorage.removeItem(ACTING_OPD_KEY);
-  document.cookie = `${AREA_KEY}=; path=/; max-age=0`;
-  document.cookie = `${ACTING_OPD_COOKIE}=; path=/; max-age=0`;
+export function saveActingRoleCookie(role) {
+  if (typeof window === 'undefined' || !role) return;
+  localStorage.setItem(ROLE_KEY, role);
+  tulisCookieSesi(ROLE_KEY, role, sisaUmurSesi());
 }
 
 /**

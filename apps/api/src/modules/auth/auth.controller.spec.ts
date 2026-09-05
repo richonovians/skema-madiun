@@ -205,15 +205,25 @@ describe('AuthController — penyambungan SSO', () => {
       const waktu = new Date('2026-08-27T03:00:00Z');
       (consent.record as jest.Mock).mockResolvedValue(waktu);
 
-      const hasil = await controller.consent({ userId: 9, role: Role.responden, opdId: null });
+      const hasil = await controller.consent({
+        userId: 9,
+        roles: [Role.responden],
+        actingRole: Role.responden,
+        opdId: null,
+      });
 
-      expect(consent.record).toHaveBeenCalledWith({ userId: 9, role: Role.responden, opdId: null });
+      expect(consent.record).toHaveBeenCalledWith({
+        userId: 9,
+        roles: [Role.responden],
+        actingRole: Role.responden,
+        opdId: null,
+      });
       expect(hasil).toEqual({ consentAt: waktu.toISOString() });
     });
   });
 
   describe('POST /auth/logout', () => {
-    const aktor = { userId: 12, role: Role.responden, opdId: null };
+    const aktor = { userId: 12, roles: [Role.responden], actingRole: Role.responden, opdId: null };
 
     it('membuang cookie session DAN tetap mengembalikan badan JSON', async () => {
       const { controller, authService, res } = buat();

@@ -39,7 +39,7 @@ describe('Dashboard & Statistics (e2e)', () => {
         ssoSubject: 'e2e-dash-opd',
         nama: 'Admin OPD Dashboard',
         email: 'e2e-dash-opd@example.go.id',
-        role: Role.opd,
+        roles: [Role.opd],
         opdId,
       },
     });
@@ -52,7 +52,7 @@ describe('Dashboard & Statistics (e2e)', () => {
         ssoSubject: 'e2e-dash-resp',
         nama: 'Responden Dashboard',
         email: 'e2e-dash-resp@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
       },
     });
     respondenId = responden.id;

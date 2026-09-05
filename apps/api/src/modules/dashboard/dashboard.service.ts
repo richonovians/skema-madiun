@@ -199,7 +199,7 @@ export class DashboardService {
    * yang lupa diperbarui.
    */
   private resolveDashboardOpdId(user: CurrentUser, requestedOpdId?: number): number {
-    if (user.role === Role.opd) {
+    if (user.actingRole === Role.opd) {
       if (user.opdId == null) {
         throw new ForbiddenException(
           'Hanya Admin OPD dengan OPD tertaut yang memiliki dashboard ini',
@@ -207,7 +207,7 @@ export class DashboardService {
       }
       return user.opdId;
     }
-    if (user.role === Role.superuser) {
+    if (user.actingRole === Role.superuser) {
       if (requestedOpdId == null) {
         throw new BadRequestException(
           'opdId wajib diisi: pilih OPD terlebih dahulu untuk membuka dashboard OPD',

@@ -40,7 +40,7 @@ export default function AdminKabSidebar() {
   const pathname = usePathname();
   const fetchProfile = useCallback(() => getMyProfile(), []);
   const { data: profile } = useAsync(fetchProfile);
-  const isSuperuser = profile?.role === USER_ROLES.SUPERUSER;
+  const isSuperuser = profile?.actingRole === USER_ROLES.SUPERUSER;
 
   const getLinkClass = (path) => {
     // Exact match or active section

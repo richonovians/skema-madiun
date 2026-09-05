@@ -5,10 +5,30 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardService } from './dashboard.service';
 import type { IkmService } from '../ikm/ikm.service';
 
-const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
-const kabupatenUser = (): CurrentUser => ({ userId: 2, role: Role.kabupaten, opdId: null });
-const superUser = (): CurrentUser => ({ userId: 3, role: Role.superuser, opdId: null });
-const respondenUser = (): CurrentUser => ({ userId: 4, role: Role.responden, opdId: null });
+const opdUser = (opdId: number | null): CurrentUser => ({
+  userId: 1,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId,
+});
+const kabupatenUser = (): CurrentUser => ({
+  userId: 2,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+});
+const superUser = (): CurrentUser => ({
+  userId: 3,
+  roles: [Role.superuser],
+  actingRole: Role.superuser,
+  opdId: null,
+});
+const respondenUser = (): CurrentUser => ({
+  userId: 4,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+});
 
 describe('DashboardService', () => {
   const prisma = {

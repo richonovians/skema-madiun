@@ -35,7 +35,7 @@ export class UsersService {
    * mengangkat/menurunkan admin. Itulah maksud pembatasannya.
    */
   private assertSuperuser(actor: CurrentUser): void {
-    if (actor.role !== Role.superuser) {
+    if (actor.actingRole !== Role.superuser) {
       throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Superuser');
     }
   }
@@ -49,7 +49,9 @@ export class UsersService {
 
     const where: Prisma.UserWhereInput = { deletedAt: null };
     if (role) {
-      where.role = role;
+      // Menyaring KEPEMILIKAN: "punya role ini", bukan "sedang memakai role
+      // ini" -- yang terakhir bahkan tak dapat diketahui dari basis data.
+      where.roles = { has: role };
     }
     if (opdId !== undefined) {
       where.opdId = opdId;
@@ -82,13 +84,34 @@ export class UsersService {
     return new UserEntity(await this.getActiveOrThrow(id));
   }
 
+  /**
+   * Aturan bersama himpunan role, dipakai `create` MAUPUN `update`.
+   *
+   * Satu tempat, bukan dua salinan: aturan "opd wajib bertaut OPD" pernah
+   * ditulis dua kali di berkas ini (create & update), dan itulah bentuk yang
+   * cepat atau lambat menyimpang saat salah satunya diubah.
+   */
+  private normalisasiRoles(
+    roles: Role[],
+    opdId?: number | null,
+  ): { roles: Role[]; opdId: number | null } {
+    if (!roles || roles.length === 0) {
+      throw new BadRequestException('Minimal satu role harus dipilih');
+    }
+    const unik = [...new Set(roles)];
+    if (unik.includes(Role.opd) && opdId == null) {
+      throw new BadRequestException('opdId wajib diisi bila role memuat Admin OPD');
+    }
+    // Tanpa role `opd`, tautan OPD tak punya arti apa pun -- dikosongkan supaya
+    // tak ada sisa yang menyesatkan di antarmuka maupun di penyaring data.
+    return { roles: unik, opdId: unik.includes(Role.opd) ? (opdId ?? null) : null };
+  }
+
   async create(dto: CreateUserDto, actor: CurrentUser): Promise<UserEntity> {
     this.assertSuperuser(actor);
-    if (dto.role === Role.opd && dto.opdId == null) {
-      throw new BadRequestException('opdId wajib diisi untuk role opd');
-    }
-    if (dto.opdId != null) {
-      await this.assertOpdExists(dto.opdId);
+    const normal = this.normalisasiRoles(dto.roles, dto.opdId);
+    if (normal.opdId != null) {
+      await this.assertOpdExists(normal.opdId);
     }
 
     const email = dto.email.toLowerCase();
@@ -105,8 +128,8 @@ export class UsersService {
       data: {
         nama: dto.nama,
         email,
-        role: dto.role,
-        opdId: dto.role === Role.opd ? dto.opdId : null,
+        roles: normal.roles,
+        opdId: normal.opdId,
         ssoSubject,
         isActive: true,
       },
@@ -114,27 +137,30 @@ export class UsersService {
     return new UserEntity(created);
   }
 
-  /** `role` opsional (2026-08-05); sejak 2026-08-20 hanya superuser yang boleh. */
+  /** `roles` opsional; sejak 2026-08-20 hanya superuser yang boleh mengubahnya. */
   async update(id: number, dto: UpdateUserDto, actor: CurrentUser): Promise<UserEntity> {
     this.assertSuperuser(actor);
     const target = await this.getActiveOrThrow(id);
 
-    if (dto.role && dto.role !== target.role && id === actor.userId) {
+    // Perbandingan HIMPUNAN, bukan `!==` pada array: urutan role yang berbeda
+    // bukan perubahan apa pun, dan memperlakukannya sebagai perubahan akan
+    // mengunci pengguna dari menyunting akunnya sendiri tanpa sebab.
+    const berubah =
+      dto.roles !== undefined &&
+      (dto.roles.length !== target.roles.length ||
+        [...new Set(dto.roles)].sort().join(',') !== [...new Set(target.roles)].sort().join(','));
+    if (berubah && id === actor.userId) {
       throw new ForbiddenException('Tidak bisa mengubah role akun sendiri');
     }
 
-    const nextRole = dto.role ?? target.role;
-    const nextOpdId = nextRole === Role.opd ? (dto.opdId ?? target.opdId) : null;
-    if (nextRole === Role.opd && nextOpdId == null) {
-      throw new BadRequestException('opdId wajib diisi untuk role opd');
-    }
-    if (nextOpdId != null) {
-      await this.assertOpdExists(nextOpdId);
+    const normal = this.normalisasiRoles(dto.roles ?? target.roles, dto.opdId ?? target.opdId);
+    if (normal.opdId != null) {
+      await this.assertOpdExists(normal.opdId);
     }
 
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { nama: dto.nama, role: dto.role, opdId: nextOpdId },
+      data: { nama: dto.nama, roles: dto.roles ? normal.roles : undefined, opdId: normal.opdId },
     });
     return new UserEntity(updated);
   }

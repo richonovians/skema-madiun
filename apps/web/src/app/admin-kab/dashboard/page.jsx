@@ -77,7 +77,7 @@ export default function AdminKabDashboardPage() {
     // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
     // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
     const profile = await getMyProfile();
-    const isSuperuser = profile.role === USER_ROLES.SUPERUSER;
+    const isSuperuser = profile.actingRole === USER_ROLES.SUPERUSER;
 
     const [statistics, auditLogs] = await Promise.all([
       getStatistics(),

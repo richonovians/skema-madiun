@@ -7,8 +7,18 @@ import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { SurveysService } from './surveys.service';
 
-const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
-const superUser = (): CurrentUser => ({ userId: 9, role: Role.kabupaten, opdId: null });
+const opdUser = (opdId: number | null): CurrentUser => ({
+  userId: 1,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId,
+});
+const superUser = (): CurrentUser => ({
+  userId: 9,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+});
 
 const surveyRow = (overrides: Record<string, unknown> = {}) => ({
   id: 1,

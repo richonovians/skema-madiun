@@ -60,7 +60,7 @@ export default function AdminNavbar() {
   const gagalIdentitas = error != null;
   const alasanGagal = isUnauthorizedError(error) ? 'expired' : 'offline';
 
-  const titleText = opd?.name ?? (user?.role === 'ADMIN_KABUPATEN' ? 'Lintas OPD' : 'Panel Admin OPD');
+  const titleText = opd?.name ?? (user?.actingRole === 'ADMIN_KABUPATEN' ? 'Lintas OPD' : 'Panel Admin OPD');
 
   /**
    * Tinggi nyata bilah ini dilaporkan ke `--tinggi-navbar-opd`, yang dipakai

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { authApi, getSsoLoginUrl } from '../services/sso.api';
-import { saveSession, clearSession, clearSuperuserArea } from '../services/authStorage';
+import { saveSession, clearSession } from '../services/authStorage';
 import { ROLE_HOME } from '@/constants/roleHome';
 import RoleLoginPicker from './RoleLoginPicker';
 
@@ -47,8 +47,10 @@ export default function SSOLoginButton() {
   // pada beberapa permintaan pertama.
   const handleSsoLogin = () => {
     setIsRedirecting(true);
+    // `clearSession()` sudah membuang cookie `role` (peran yang dipakai);
+    // `clearSuperuserArea()` yang dulu dipanggil di sini ikut hilang bersama
+    // cookie `area`/`opd` (5 September 2026).
     clearSession();
-    clearSuperuserArea();
     // `location.assign` (bukan router.push): tujuannya di luar aplikasi ini.
     window.location.assign(getSsoLoginUrl());
   };
@@ -59,19 +61,22 @@ export default function SSOLoginButton() {
     setIsLoading(true);
     try {
       const res = await authApi.devLogin(identifier);
-      const role = res.data.user?.role;
-      saveSession(res.data.token, role, res.data.user?.consentRequired);
-      // Buang pilihan area sesi SEBELUMNYA (bisa jadi akun lain di peramban yang
-      // sama) -- superuser menuliskannya lagi lewat pemilih peran di bawah.
-      clearSuperuserArea();
+      const pengguna = res.data.user;
+      const roles = pengguna?.roles ?? [];
+      // `actingRole` null berarti akun ber-role banyak yang belum memilih --
+      // backend sengaja tak memilihkannya (lihat resolveActingRole).
+      const actingRole = pengguna?.actingRole ?? null;
+      saveSession(res.data.token, actingRole, pengguna?.consentRequired);
 
-      // HANYA `superuser` yang boleh memilih peran (2026-08-20). Admin
-      // Kabupaten TIDAK: ia langsung ke /admin-kab/dashboard lewat ROLE_HOME di
-      // bawah, sama seperti Admin OPD dan Warga. Sesi superuser sendiri yang
-      // terus dipakai -- pemilihnya cuma menentukan area mana yang dibuka, tak
-      // ada login ulang dan tak ada akun lain yang dipinjam.
-      if (role === 'superuser') {
-        setRolePicker({ name: res.data.user?.nama ?? '' });
+      // Pemilih peran kini untuk SIAPA PUN ber-role lebih dari satu, bukan
+      // khusus superuser (5 September 2026). Akun ber-role tunggal tak melihat
+      // langkah ini sama sekali -- backend pun tak menuntutnya memilih.
+      if (roles.length > 1) {
+        setRolePicker({
+          name: pengguna?.nama ?? '',
+          roles,
+          opdId: pengguna?.opdId ?? null,
+        });
         return; // `finally` di bawah tetap mematikan status memuat
       }
 
@@ -85,7 +90,7 @@ export default function SSOLoginButton() {
       // Tujuannya tetap ROLE_HOME walau warga belum menyetujui PDP: proxy yang
       // memantulkannya ke /persetujuan. Menyalin keputusan itu ke sini berarti
       // dua tempat harus mengingat aturan yang sama.
-      window.location.href = ROLE_HOME[role] ?? '/';
+      window.location.href = ROLE_HOME[actingRole ?? roles[0]] ?? '/';
     } catch (err) {
       setError(err.message || 'Login gagal');
     } finally {
@@ -104,7 +109,14 @@ export default function SSOLoginButton() {
   };
 
   if (rolePicker) {
-    return <RoleLoginPicker superuserName={rolePicker.name} onCancel={handleCancelRolePicker} />;
+    return (
+      <RoleLoginPicker
+        userName={rolePicker.name}
+        roles={rolePicker.roles}
+        opdId={rolePicker.opdId}
+        onCancel={handleCancelRolePicker}
+      />
+    );
   }
 
   if (!isFormOpen) {

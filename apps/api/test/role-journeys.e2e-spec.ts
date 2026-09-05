@@ -66,7 +66,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
         ssoSubject: 'e2e-jrn-kab',
         nama: 'Kabupaten E2E Journey',
         email: 'e2e-jrn-kab@example.go.id',
-        role: Role.kabupaten,
+        roles: [Role.kabupaten],
       },
     });
     kabupatenUserId = kabupatenUser.id;
@@ -80,7 +80,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
         ssoSubject: 'e2e-jrn-r1',
         nama: 'Responden Satu E2E',
         email: 'e2e-jrn-r1@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
@@ -95,7 +95,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
         ssoSubject: 'e2e-jrn-r2',
         nama: 'Responden Dua E2E',
         email: 'e2e-jrn-r2@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
@@ -131,7 +131,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
         .send({
           nama: 'Admin OPD E2E Journey',
           email: 'e2e-jrn-opd@example.go.id',
-          role: 'opd',
+          roles: ['opd'],
           opdId,
           ssoSubject: 'e2e-jrn-opd',
         });

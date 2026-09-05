@@ -6,8 +6,9 @@ import Button from '@/components/ui/Button';
 import ErrorState from '@/components/ui/ErrorState';
 import LoadingState from '@/components/ui/LoadingState';
 import { authApi, getSsoLoginUrl } from '../services/sso.api';
-import { clearSession, clearSuperuserArea, saveSsoSession } from '../services/authStorage';
+import { clearSession, saveSsoSession } from '../services/authStorage';
 import RoleLoginPicker from './RoleLoginPicker';
+import { getMyRoles } from '../services/actingRole.api';
 
 /**
  * Halaman pendaratan setelah callback SSO Helpdesk (`/sso/callback`).
@@ -34,7 +35,7 @@ export default function AuthCallbackLoader() {
   // karena berujung pada navigasi keluar dari halaman ini.
   const [status, setStatus] = useState('memuat');
   const [message, setMessage] = useState('');
-  const [superuserName, setSuperuserName] = useState('');
+  const [pemilih, setPemilih] = useState(null);
   // Callback SSO sekali pakai: `code` sudah ditukar backend dan cookie `state`
   // sudah dibuang, jadi menjalankan ulang efek ini (mis. Strict Mode di dev)
   // tak boleh memanggil /auth/me dua kali.
@@ -60,18 +61,23 @@ export default function AuthCallbackLoader() {
 
     const expiresAt = Number(fragment.get('expires'));
 
-    authApi
-      .me()
-      .then((res) => {
-        const role = res.data?.role;
-        // Pilihan area sesi SEBELUMNYA dibuang — bisa jadi milik akun lain di
-        // peramban yang sama, dan superuser menuliskannya lagi lewat pemilih
-        // peran di bawah.
-        clearSuperuserArea();
-        saveSsoSession(role, expiresAt, res.data?.consentRequired);
+    // `/auth/roles`, BUKAN `/auth/me`: akun ber-role banyak belum memilih peran
+    // pada titik ini, dan /auth/me menolaknya 401 justru karena itu (ditemukan
+    // saat verifikasi di peramban, 6 September 2026).
+    getMyRoles()
+      .then((data) => {
+        const roles = data?.roles ?? [];
+        const actingRole = roles.length === 1 ? roles[0] : null;
+        saveSsoSession(actingRole, expiresAt, data?.consentRequired);
 
-        if (role === 'superuser') {
-          setSuperuserName(res.data?.nama ?? '');
+        // Pemilih peran untuk SIAPA PUN ber-role lebih dari satu (5 September
+        // 2026), bukan khusus superuser.
+        if (roles.length > 1) {
+          setPemilih({
+            nama: data?.nama ?? '',
+            roles,
+            opdId: data?.opdId ?? null,
+          });
           setStatus('pilih-peran');
           return;
         }
@@ -79,7 +85,7 @@ export default function AuthCallbackLoader() {
         // Navigasi HARD (bukan router.push) SENGAJA — proxy.js membaca cookie
         // lewat full request, jadi cookie `role` yang baru ditulis harus ikut
         // terkirim pada permintaan berikutnya.
-        window.location.assign(ROLE_HOME[role] ?? '/');
+        window.location.assign(ROLE_HOME[actingRole ?? roles[0]] ?? '/');
       })
       .catch((err) => {
         // Sampai di sini berarti backend sudah menerbitkan sesi tapi kita gagal
@@ -95,7 +101,9 @@ export default function AuthCallbackLoader() {
   if (status === 'pilih-peran') {
     return (
       <RoleLoginPicker
-        superuserName={superuserName}
+        userName={pemilih?.nama}
+        roles={pemilih?.roles ?? []}
+        opdId={pemilih?.opdId ?? null}
         // Menutup pemilih = MEMBATALKAN login, sama seperti pada dev-login:
         // meninggalkan pengguna dengan sesi tersimpan di halaman callback yang
         // kosong adalah keadaan setengah masuk yang membingungkan.

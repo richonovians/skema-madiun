@@ -6,7 +6,6 @@ import { ChevronDown, LogOut, Repeat } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 import { useLogout } from '@/hooks/useLogout';
-import { USER_ROLES } from '@/features/users/constants/userConstants';
 
 /**
  * Menu akun untuk kedua area admin (Kabupaten & OPD): "Ganti Peran" dan
@@ -45,7 +44,10 @@ export default function AdminAccountMenu({ user, className = '' }) {
   useKeepInViewport(panelRef, isOpen);
 
   const { logout, isLoggingOut } = useLogout();
-  const isSuperuser = user?.role === USER_ROLES.SUPERUSER;
+  // "Ganti Peran" kini bergantung pada JUMLAH role yang dimiliki, bukan pada
+  // superuser (5 September 2026): siapa pun ber-role lebih dari satu punya
+  // sesuatu untuk dipilih, dan akun ber-role tunggal tak punya apa pun.
+  const bolehGantiPeran = (user?.roles?.length ?? 0) > 1;
 
   useEffect(() => {
     const klikLuar = (event) => {
@@ -111,7 +113,7 @@ export default function AdminAccountMenu({ user, className = '' }) {
           {/* "Ganti Peran" tetap KHUSUS SUPERUSER, syarat yang sama seperti
               waktu masih di sidebar -- peran lain tak punya peran lain untuk
               dipindahi, jadi menampilkannya hanya membingungkan. */}
-          {isSuperuser && (
+          {bolehGantiPeran && (
             <Link
               href="/pilih-peran"
               role="menuitem"

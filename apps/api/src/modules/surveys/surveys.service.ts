@@ -201,7 +201,7 @@ export class SurveysService {
   }
 
   private resolveOpdId(dto: CreateSurveyDto, user: CurrentUser): number {
-    if (user.role === Role.opd) {
+    if (user.actingRole === Role.opd) {
       if (user.opdId == null) {
         throw new BadRequestException('Akun OPD tidak tertaut ke OPD mana pun');
       }

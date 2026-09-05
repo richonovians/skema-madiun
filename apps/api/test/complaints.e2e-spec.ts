@@ -40,7 +40,7 @@ describe('Complaints (e2e)', () => {
         ssoSubject: 'e2e-cmp-resp-1',
         nama: 'Responden CMP 1',
         email: 'e2e-cmp-resp-1@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
@@ -54,7 +54,7 @@ describe('Complaints (e2e)', () => {
         ssoSubject: 'e2e-cmp-resp-2',
         nama: 'Responden CMP 2',
         email: 'e2e-cmp-resp-2@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });

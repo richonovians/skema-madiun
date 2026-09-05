@@ -44,7 +44,7 @@ function userRow(overrides: Record<string, unknown> = {}) {
     ssoSubject: 'hd-sub-abc123',
     nama: 'Budi Santoso',
     email: 'budi@example.go.id',
-    role: Role.responden,
+    roles: [Role.responden],
     opdId: null,
     isActive: true,
     consentAt: null,
@@ -190,14 +190,14 @@ describe('SsoService', () => {
       prisma.user.findFirst
         .mockResolvedValueOnce(null) // pencarian by sub
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'seed-superuser', role: Role.superuser }),
+          userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.superuser] }),
         ); // pencarian by email
       prisma.user.update
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', role: Role.superuser }),
+          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
         )
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', role: Role.superuser }),
+          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
         );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -241,7 +241,7 @@ describe('SsoService', () => {
       const arg = prisma.user.create.mock.calls[0][0].data;
       expect(arg.ssoSubject).toBe('hd-sub-abc123');
       expect(arg.email).toBe('budi@example.go.id');
-      expect(arg.role).toBe(Role.responden);
+      expect(arg.roles).toEqual([Role.responden]);
       // consentAt adalah catatan persetujuan UU PDP -- tak boleh terisi sebagai
       // efek samping login.
       expect(arg.consentAt).toBeUndefined();
@@ -326,7 +326,7 @@ describe('SsoService', () => {
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
-      expect(m.prisma.user.create.mock.calls[0][0].data.role).toBe(Role.kabupaten);
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.kabupaten]);
     });
 
     it('klaim admin-opd + OPD ditemukan -> peran opd DAN opdId terisi', async () => {
@@ -339,7 +339,7 @@ describe('SsoService', () => {
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
       const data = m.prisma.user.create.mock.calls[0][0].data;
-      expect(data.role).toBe(Role.opd);
+      expect(data.roles).toEqual([Role.opd]);
       expect(data.opdId).toBe(9);
     });
 
@@ -357,7 +357,7 @@ describe('SsoService', () => {
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
       const data = m.prisma.user.create.mock.calls[0][0].data;
-      expect(data.role).toBe(Role.responden);
+      expect(data.roles).toEqual([Role.responden]);
       expect(data.opdId ?? null).toBeNull();
     });
 
@@ -367,7 +367,7 @@ describe('SsoService', () => {
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
-      expect(m.prisma.user.create.mock.calls[0][0].data.role).toBe(Role.responden);
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.responden]);
     });
 
     it('klaim tak dikenal -> responden', async () => {
@@ -376,7 +376,7 @@ describe('SsoService', () => {
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
-      expect(m.prisma.user.create.mock.calls[0][0].data.role).toBe(Role.responden);
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.responden]);
     });
 
     it('pemetaan ke superuser diabaikan -> responden, bukan superuser', async () => {
@@ -385,7 +385,7 @@ describe('SsoService', () => {
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
-      expect(m.prisma.user.create.mock.calls[0][0].data.role).toBe(Role.responden);
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.responden]);
     });
 
     it('OPD dicari lewat externalId ATAU kode, hanya yang aktif', async () => {
@@ -408,9 +408,9 @@ describe('SsoService', () => {
     it('akun kabupaten dengan klaim responden -> peran TIDAK diturunkan', async () => {
       const m = buat({ 'helpdesk.ssoRoleMap': 'warga:responden' });
       m.prisma.user.findFirst.mockResolvedValueOnce(
-        userRow({ id: 1, role: Role.kabupaten, ssoSubject: 'hd-sub-abc123' }),
+        userRow({ id: 1, roles: [Role.kabupaten], ssoSubject: 'hd-sub-abc123' }),
       );
-      m.prisma.user.update.mockResolvedValue(userRow({ id: 1, role: Role.kabupaten }));
+      m.prisma.user.update.mockResolvedValue(userRow({ id: 1, roles: [Role.kabupaten] }));
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['warga'] }));
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
@@ -425,8 +425,10 @@ describe('SsoService', () => {
       const m = buat({ 'helpdesk.ssoRoleMap': 'admin-kab:kabupaten' });
       m.prisma.user.findFirst
         .mockResolvedValueOnce(null) // by sub
-        .mockResolvedValueOnce(userRow({ id: 3, role: Role.opd, ssoSubject: 'pending:x@y.go.id' }));
-      m.prisma.user.update.mockResolvedValue(userRow({ id: 3, role: Role.opd }));
+        .mockResolvedValueOnce(
+          userRow({ id: 3, roles: [Role.opd], ssoSubject: 'pending:x@y.go.id' }),
+        );
+      m.prisma.user.update.mockResolvedValue(userRow({ id: 3, roles: [Role.opd] }));
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['admin-kab'] }));
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');

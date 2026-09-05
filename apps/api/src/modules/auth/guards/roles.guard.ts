@@ -9,6 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
 import { hasFullAccess } from '../../../common/auth/role.util';
+import { ALLOW_UNSELECTED_ROLE_KEY } from '../../../common/decorators/allow-unselected-role.decorator';
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
 import { ROLES_KEY } from '../../../common/decorators/roles.decorator';
 import type { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -38,7 +39,28 @@ export class RolesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthRequestLike & { user?: CurrentUser }>();
 
-    const user = await this.authProvider.resolveUser(request);
+    // Rute pemilih peran (5 September 2026). Lihat AllowUnselectedRole untuk
+    // alasannya: tanpa kekecualian ini akun ber-role banyak terkurung, karena
+    // rute yang dipakai untuk MEMILIH peran pun menolaknya 401.
+    const bolehTanpaPilihan = this.reflector.getAllAndOverride<boolean>(ALLOW_UNSELECTED_ROLE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    let user: CurrentUser | null;
+    try {
+      user = await this.authProvider.resolveUser(request);
+    } catch (err) {
+      // `resolveUser` melempar 401 ketika sesinya SAH tapi perannya belum
+      // terpilih (SessionAuthProvider). Untuk rute berdekorator, teruskan
+      // dengan identitas tanpa peran terpilih; untuk rute lain, lemparkan apa
+      // adanya -- kalau tidak, SETIAP rute jadi dapat diakses tanpa memilih
+      // peran dan seluruh fitur ini kehilangan artinya.
+      if (!bolehTanpaPilihan || !(err instanceof UnauthorizedException)) {
+        throw err;
+      }
+      user = await this.authProvider.resolveUserWithoutActingRole(request);
+    }
     if (!user) {
       throw new UnauthorizedException('Autentikasi diperlukan');
     }
@@ -52,7 +74,7 @@ export class RolesGuard implements CanActivate {
     // survei, builder pertanyaan). Karena itu pembatasan yang HARUS berlaku
     // walau bypass aktif ditegakkan di dalam service, bukan lewat @Roles --
     // lihat AuditService.assertSuperuser & DashboardService.getOpdDashboard.
-    if (hasFullAccess(user.role)) {
+    if (hasFullAccess(user.actingRole)) {
       return true;
     }
 
@@ -64,7 +86,8 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    if (!requiredRoles.includes(user.role)) {
+    // `actingRole`, BUKAN `roles`: hak mengikuti peran yang sedang dipakai.
+    if (!requiredRoles.includes(user.actingRole)) {
       throw new ForbiddenException('Anda tidak memiliki hak akses untuk sumber daya ini');
     }
     return true;

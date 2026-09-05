@@ -17,20 +17,22 @@ import { getOpdList } from '@/features/opd/services/opd.api';
 import { useAsync } from '@/hooks/useAsync';
 import { X, Save, Loader2 } from 'lucide-react';
 
+/**
+ * Nama TIDAK divalidasi di sini (5 September 2026): identitas akun dikunci di
+ * halaman ini (lihat AccountInformationCard), jadi tak ada masukan pengguna
+ * yang perlu diperiksa -- aturan panjang minimal hanya akan menghalangi
+ * penyimpanan role gara-gara data lama dari Helpdesk yang tak bisa dibetulkan
+ * dari sini. Halaman TAMBAH admin punya `validate()` sendiri dan tetap
+ * memeriksanya.
+ */
 function validate(formData) {
   const errors = {};
 
-  if (!formData.fullName.trim()) {
-    errors.fullName = 'Nama lengkap wajib diisi.';
-  } else if (formData.fullName.trim().length < 3) {
-    errors.fullName = 'Nama lengkap minimal 3 karakter.';
+  if (!formData.roles.length) {
+    errors.roles = 'Silakan pilih minimal satu role administrator.';
   }
 
-  if (!formData.role) {
-    errors.role = 'Silakan pilih role administrator.';
-  }
-
-  if (formData.role === USER_ROLES.ADMIN_OPD && !formData.opdId) {
+  if (formData.roles.includes(USER_ROLES.ADMIN_OPD) && !formData.opdId) {
     errors.opdId = 'Silakan pilih instansi / OPD.';
   }
 
@@ -68,7 +70,7 @@ export default function EditUserPage() {
       setFormData({
         fullName: data.user.name,
         email: data.user.email,
-        role: data.user.role,
+        roles: data.user.roles ?? [],
         opdId: data.user.opdId ? String(data.user.opdId) : '',
       });
     }
@@ -84,22 +86,18 @@ export default function EditUserPage() {
     ];
   }, [data]);
 
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
-    if (errors[id]) setErrors((prev) => ({ ...prev, [id]: null }));
+  const handleDropdownChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
   };
 
-  const handleDropdownChange = (field, value) => {
-    setFormData((prev) => {
-      const updated = { ...prev, [field]: value };
-      // Reset OPD jika role diganti bukan ke ADMIN_OPD
-      if (field === 'role' && value !== USER_ROLES.ADMIN_OPD) {
-        updated.opdId = '';
-      }
-      return updated;
-    });
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
+  const handleRolesChange = (roles) => {
+    setFormData((prev) => ({
+      ...prev,
+      roles,
+      opdId: roles.includes(USER_ROLES.ADMIN_OPD) ? prev.opdId : '',
+    }));
+    if (errors.roles) setErrors((prev) => ({ ...prev, roles: null }));
   };
 
   const handleSubmit = async (e) => {
@@ -116,10 +114,12 @@ export default function EditUserPage() {
 
     setIsSubmitting(true);
     try {
+      // `fullName` SENGAJA tidak dikirim: field-nya dikunci, dan mengirim
+      // nilai lama berarti satu klik "Simpan" menulis ulang nama -- menimpa
+      // pembaruan yang mungkin baru datang dari Helpdesk.
       await updateUser(userId, {
-        fullName: formData.fullName.trim(),
-        role: formData.role,
-        opdId: formData.role === USER_ROLES.ADMIN_OPD ? formData.opdId : undefined,
+        roles: formData.roles,
+        opdId: formData.roles.includes(USER_ROLES.ADMIN_OPD) ? formData.opdId : undefined,
       });
       router.push('/admin-kab/users');
     } catch (err) {
@@ -150,7 +150,7 @@ export default function EditUserPage() {
       <CreateUserHeader
         breadcrumbLabel="Ubah Role Admin"
         title="Ubah Role Admin"
-        subtitle={`Perbarui nama dan hak akses untuk ${data.user.name}.`}
+        subtitle={`Perbarui hak akses untuk ${data.user.name}.`}
       />
 
       <form onSubmit={handleSubmit} noValidate>
@@ -165,14 +165,10 @@ export default function EditUserPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg items-start">
           {/* === Kolom Kiri: Form === */}
           <div className="lg:col-span-2 flex flex-col gap-md">
-            <AccountInformationCard
-              formData={formData}
-              onChange={handleChange}
-              errors={errors}
-              emailReadOnly
-            />
+            <AccountInformationCard formData={formData} errors={errors} identityLocked />
             <RoleAssignmentCard
               formData={formData}
+              onRolesChange={handleRolesChange}
               onDropdownChange={handleDropdownChange}
               errors={errors}
               opdOptions={opdOptions}

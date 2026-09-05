@@ -48,17 +48,27 @@ export class AuthService {
       throw new ForbiddenException('Akun tidak aktif');
     }
 
+    // Jalur dev TIDAK boleh menjadi jalan memperoleh hak yang tak dimiliki:
+    // ia menerbitkan sesi untuk email mana pun tanpa kata sandi.
+    if (dto.role && !row.roles.includes(dto.role)) {
+      throw new ForbiddenException('Akun tersebut tidak memiliki peran yang diminta');
+    }
+
     await this.prisma.user.update({ where: { id: row.id }, data: { lastLoginAt: new Date() } });
     // Dicatat SETELAH kedua penolakan di atas: login gagal tak punya aktor untuk
     // ditunjuk (`audit_logs.actor_id` NOT NULL), jadi kegagalan tetap hanya masuk
     // log aplikasi. Lihat catatan di AuthController.logout.
     await this.audit.record(row.id, 'login', 'auth', { via: 'dev-login' });
 
-    const token = this.sessionService.issue(row.id);
+    const token = this.sessionService.issue(row.id, dto.role);
+    // Peran yang dipakai sesi ini: yang diminta, atau -- bila akunnya ber-role
+    // tunggal -- satu-satunya yang ada. `null` berarti "belum memilih", dan
+    // frontend memakainya untuk mengarahkan ke /pilih-peran.
+    const actingRole = dto.role ?? (row.roles.length === 1 ? row.roles[0] : null);
     // Lewat helper yang SAMA dengan getMe: sebelumnya `new MeEntity(row)`
     // langsung, sehingga `consentRequired` & `ssoLinked` tak pernah terisi di
     // jalur dev-login dan frontend tak tahu harus mengarahkan ke persetujuan.
-    return new SessionEntity({ token, user: toMeEntity(row) });
+    return new SessionEntity({ token, user: toMeEntity(row, actingRole) });
   }
 
   /**
@@ -71,6 +81,68 @@ export class AuthService {
     return { success: true };
   }
 
+  /**
+   * Role yang DIMILIKI akun, untuk menyusun pemilih peran (6 September 2026).
+   *
+   * Ada karena `GET /auth/me` TIDAK dapat dipakai untuk keperluan ini: endpoint
+   * itu menolak 401 justru ketika peran belum dipilih, sehingga halaman
+   * /pilih-peran tak akan pernah bisa memuat daftar pilihannya -- ayam dan
+   * telur, ditemukan saat verifikasi di peramban.
+   *
+   * SENGAJA minimal, bukan /auth/me kedua: hanya yang dibutuhkan pemilih peran.
+   * `actingRole` TIDAK disertakan -- pada jalur ini perannya memang belum
+   * ditentukan, dan mengarang nilainya hanya akan menyesatkan pemanggil.
+   *
+   * `consentRequired` dihitung dari role tunggal bila memang cuma satu (jalur
+   * callback SSO memakainya untuk menyimpan sesi dalam satu panggilan); untuk
+   * akun ber-role banyak nilainya false, dan itu benar -- ia belum dapat
+   * mengirim apa pun sebelum memilih peran.
+   */
+  async getRoles(user: CurrentUser): Promise<{
+    nama: string;
+    roles: Role[];
+    opdId: number | null;
+    consentRequired: boolean;
+  }> {
+    const row = await this.prisma.user.findFirst({
+      where: { id: user.userId, deletedAt: null },
+      select: { nama: true, roles: true, opdId: true, consentAt: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Pengguna tidak ditemukan');
+    }
+    const satuRole = row.roles.length === 1 ? row.roles[0] : null;
+    return {
+      nama: row.nama,
+      roles: row.roles,
+      opdId: row.opdId,
+      consentRequired: satuRole ? ConsentService.isRequired(satuRole, row.consentAt) : false,
+    };
+  }
+
+  /**
+   * Ganti peran yang sedang dipakai TANPA logout (5 September 2026).
+   *
+   * Kepemilikan diperiksa dari `user.roles`, yaitu hasil pembacaan basis data
+   * pada permintaan ini (lihat SessionAuthProvider) -- bukan dari klaim token,
+   * yang bisa saja menyebut role yang sudah dicabut.
+   *
+   * Mengembalikan tokennya saja; masa berlakunya dihitung controller lewat
+   * SessionCookieService yang sudah ada di sana.
+   */
+  async setActingRole(user: CurrentUser, role: Role): Promise<{ token: string }> {
+    if (!user.roles.includes(role)) {
+      throw new ForbiddenException('Akun Anda tidak memiliki peran tersebut');
+    }
+    if (role === Role.opd && user.opdId == null) {
+      throw new BadRequestException(
+        'Akun Anda belum tertaut OPD, sehingga tidak dapat bertindak sebagai Admin OPD',
+      );
+    }
+
+    return { token: this.sessionService.issue(user.userId, role) };
+  }
+
   /** Profil pengguna aktif + profil demografis (bila responden). */
   async getMe(user: CurrentUser): Promise<MeEntity> {
     const row = await this.prisma.user.findFirst({
@@ -80,7 +152,7 @@ export class AuthService {
     if (!row) {
       throw new NotFoundException('Pengguna tidak ditemukan');
     }
-    return toMeEntity(row);
+    return toMeEntity(row, user.actingRole);
   }
 
   /** Ubah nama (semua peran) + demografis (khusus responden). Data dipakai ulang antar survei. */
@@ -89,7 +161,7 @@ export class AuthService {
       await this.prisma.user.update({ where: { id: user.userId }, data: { nama: dto.nama } });
     }
 
-    if (user.role === Role.responden) {
+    if (user.actingRole === Role.responden) {
       await this.upsertRespondentProfile(user.userId, dto);
     }
 
@@ -155,7 +227,7 @@ function isSsoLinked(ssoSubject: string | null): boolean {
 
 /** Baris Prisma yang dibutuhkan toMeEntity — sengaja minimal, bukan `User` utuh. */
 type MeRow = {
-  role: Role;
+  roles: Role[];
   consentAt: Date | null;
   ssoSubject: string;
   [key: string]: unknown;
@@ -168,10 +240,18 @@ type MeRow = {
  * berarti keduanya bisa diam-diam hilang dari respons kalau strategi
  * serialisasi berubah.
  */
-function toMeEntity(row: MeRow): MeEntity {
+function toMeEntity(row: MeRow, actingRole: Role | null): MeEntity {
   return new MeEntity({
     ...row,
-    consentRequired: ConsentService.isRequired(row.role, row.consentAt),
+    actingRole,
+    // Dihitung dari peran yang DIPAKAI, bukan dari kepemilikan: persetujuan UU
+    // PDP hanya berlaku bagi warga, dan seseorang ber-role banyak baru menjadi
+    // warga ketika ia memilih peran itu.
+    //
+    // `actingRole` null (akun ber-role banyak yang belum memilih) menghasilkan
+    // `false`, dan itu benar: ia belum dapat mengirim apa pun. Begitu ia memilih
+    // `responden`, /auth/me berikutnya menghitungnya ulang dengan benar.
+    consentRequired: actingRole ? ConsentService.isRequired(actingRole, row.consentAt) : false,
     ssoLinked: isSsoLinked(row.ssoSubject),
   } as Partial<MeEntity>);
 }

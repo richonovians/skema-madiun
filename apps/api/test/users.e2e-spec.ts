@@ -40,7 +40,7 @@ describe('Users (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ nama: 'Admin OPD E2E', email: 'opd@users.e2e.test', role: 'opd', opdId });
+      .send({ nama: 'Admin OPD E2E', email: 'opd@users.e2e.test', roles: ['opd'], opdId });
 
     expect(res.status).toBe(201);
     expect(res.body.data.role).toBe('opd');
@@ -51,7 +51,7 @@ describe('Users (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ nama: 'Kab E2E', email: 'kab@users.e2e.test', role: 'kabupaten' });
+      .send({ nama: 'Kab E2E', email: 'kab@users.e2e.test', roles: ['kabupaten'] });
 
     expect(res.status).toBe(201);
     expect(res.body.data.role).toBe('kabupaten');
@@ -61,12 +61,12 @@ describe('Users (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ nama: 'Ubah Role E2E', email: 'ubahrole@users.e2e.test', role: 'opd', opdId });
+      .send({ nama: 'Ubah Role E2E', email: 'ubahrole@users.e2e.test', roles: ['opd'], opdId });
 
     const res = await request(app.getHttpServer())
       .patch(`/api/v1/users/${created.body.data.id}`)
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ role: 'kabupaten' });
+      .send({ roles: ['kabupaten'] });
 
     expect(res.status).toBe(200);
     expect(res.body.data.role).toBe('kabupaten');
@@ -76,13 +76,17 @@ describe('Users (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ nama: 'Self Lockout E2E', email: 'selflockout@users.e2e.test', role: 'kabupaten' });
+      .send({
+        nama: 'Self Lockout E2E',
+        email: 'selflockout@users.e2e.test',
+        roles: ['kabupaten'],
+      });
     const selfId: number = created.body.data.id;
 
     const res = await request(app.getHttpServer())
       .patch(`/api/v1/users/${selfId}`)
       .set(devHeaders({ role: Role.kabupaten, userId: selfId }))
-      .send({ role: 'opd', opdId });
+      .send({ roles: ['opd'], opdId });
 
     expect(res.status).toBe(403);
   });
@@ -116,7 +120,7 @@ describe('Users (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ nama: 'Hapus E2E', email: 'hapus@users.e2e.test', role: 'opd', opdId });
+      .send({ nama: 'Hapus E2E', email: 'hapus@users.e2e.test', roles: ['opd'], opdId });
     const targetId: number = created.body.data.id;
 
     const res = await request(app.getHttpServer())
@@ -136,7 +140,7 @@ describe('Users (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/users')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ nama: 'Self Delete E2E', email: 'selfdelete@users.e2e.test', role: 'kabupaten' });
+      .send({ nama: 'Self Delete E2E', email: 'selfdelete@users.e2e.test', roles: ['kabupaten'] });
     const selfId: number = created.body.data.id;
 
     const res = await request(app.getHttpServer())
