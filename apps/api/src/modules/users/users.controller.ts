@@ -20,6 +20,7 @@ import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UserEntity } from './entities/user.entity';
+import { UserStatsEntity } from './entities/user-stats.entity';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -52,6 +53,19 @@ export class UsersController {
   @ApiOkResponse({ type: UserEntity })
   create(@Body() dto: CreateUserDto, @CurrentUser() actor: CurrentUser): Promise<UserEntity> {
     return this.usersService.create(dto, actor);
+  }
+
+  /**
+   * Jumlah akun aktif & total. Khusus superuser.
+   *
+   * DIDEKLARASIKAN SEBELUM `@Get(':id')`, dan urutannya bukan selera: Nest
+   * memadankan rute berurutan, jadi bila ia di bawah, '/users/stats' tertangkap
+   * sebagai ':id' dan ParseIntPipe menjawab 400 untuk kata "stats".
+   */
+  @Get('stats')
+  @ApiOkResponse({ type: UserStatsEntity })
+  getStats(@CurrentUser() actor: CurrentUser): Promise<UserStatsEntity> {
+    return this.usersService.getStats(actor);
   }
 
   /** Detail akun. Khusus superuser. */

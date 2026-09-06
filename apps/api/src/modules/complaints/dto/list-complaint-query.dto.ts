@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ComplaintStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListComplaintQueryDto extends PaginationQueryDto {
@@ -22,4 +22,18 @@ export class ListComplaintQueryDto extends PaginationQueryDto {
   @IsInt()
   @Min(1)
   opdId?: number;
+
+  /**
+   * Kotak masuk triase (6 September 2026): hanya pengaduan yang BELUM punya OPD
+   * tujuan. Seperti `opdId`, ia di-AND-kan dengan penyaring kepemilikan
+   * sehingga tak dapat dipakai melebarkan akses.
+   */
+  @ApiPropertyOptional({ description: 'Hanya pengaduan yang belum punya OPD tujuan' })
+  @IsOptional()
+  // Nilai datang dari query string, jadi konversinya EKSPLISIT --
+  // `@Type(() => Boolean)` tak dipakai karena Boolean('false') === true, yang
+  // akan membuat setiap daftar pengaduan tiba-tiba tersaring.
+  @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
+  @IsBoolean()
+  tanpaOpd?: boolean;
 }

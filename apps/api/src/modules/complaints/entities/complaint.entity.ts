@@ -11,7 +11,12 @@ export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
    * tanpa memeriksa `isAnonim`.
    */
   userId?: number;
-  opdId: number;
+  /**
+   * `null` berarti pengaduan ini BELUM BERTUJUAN — pengirimnya tak tahu harus
+   * ditujukan kepada siapa (6 September 2026). Superuser/Admin Kabupaten
+   * mengisinya lewat `PATCH /complaints/:id/opd`.
+   */
+  opdId: number | null;
   kategori: string;
   judul: string;
   uraian: string;

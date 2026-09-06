@@ -24,6 +24,14 @@ export class StatisticsSummaryEntity extends BaseEntity<StatisticsSummaryEntity>
 
   @ApiProperty({ description: 'Jumlah OPD berstatus aktif (cache Helpdesk)' })
   activeOpd: number;
+
+  /**
+   * Jumlah AKUN aktif seluruh sistem (6 September 2026). Berbeda dari
+   * `totalRespondents`, yang menghitung RESPONS survei -- satu orang dapat
+   * mengisi banyak survei, dan pengisi tanpa login tak punya akun sama sekali.
+   */
+  @ApiProperty({ description: 'Jumlah akun aktif (belum dihapus) di seluruh sistem' })
+  activeUsers: number;
 }
 
 export class PeriodePointEntity extends BaseEntity<PeriodePointEntity> {

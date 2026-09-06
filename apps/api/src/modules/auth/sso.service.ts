@@ -13,7 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
-import { parseClaimValues, parseRoleMap, resolveRoleFromClaims } from './sso-role.mapper';
+import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
 import { SsoStateService } from './sso-state.service';
 
 /** Batas kolom `users.nama` (VarChar(50)) & `users.email` (VarChar(100)). */
@@ -140,19 +140,20 @@ export class SsoService {
     }
 
     // Peran & OPD ditentukan dari klaim HANYA di sini, yaitu saat akun dibuat.
-    // Lihat resolveRoleAndOpd() untuk aturannya dan alasan ia tak pernah
+    // Lihat resolveRolesAndOpd() untuk aturannya dan alasan ia tak pernah
     // berjalan pada akun yang sudah ada.
-    const { role, opdId } = await this.resolveRoleAndOpd(profile);
+    const { roles, opdId } = await this.resolveRolesAndOpd(profile);
 
     const created = await this.prisma.user.create({
       data: {
         ssoSubject: profile.sub,
         email,
         nama: truncate(profile.nama ?? email, NAMA_MAX),
-        // Akun baru dari SSO lahir dengan SATU role, seperti sebelum multi-role
-        // ada. Role tambahan hanya diberikan manusia lewat Manajemen User --
-        // klaim Helpdesk tak pernah dapat memberi lebih dari satu.
-        roles: [role],
+        // Akun baru dari SSO dapat lahir memegang BEBERAPA role sekaligus
+        // (6 September 2026): satu nilai klaim Helpdesk memetakan ke satu PAKET
+        // peran. Inilah yang memunculkan pemilih peran saat login -- dengan satu
+        // role, pemilih itu tak pernah tampil.
+        roles,
         ...(opdId === null ? {} : { opdId }),
         lastLoginAt: new Date(),
         // `consentAt` SENGAJA dibiarkan null. Kolom itu catatan persetujuan UU
@@ -165,6 +166,21 @@ export class SsoService {
       `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.roles.join(',')}` +
         (created.opdId === null ? '' : ` opdId=${created.opdId}`),
     );
+
+    // Pengaman KETIGA atas dicabutnya larangan memetakan `superuser` dari klaim
+    // (6 September 2026; dua lainnya: baku `responden` bila env kosong, dan
+    // penetapan hanya saat akun dibuat). Hak tertinggi yang diberikan sistem di
+    // luar SKEMA harus meninggalkan jejak -- tanpa ini, Helpdesk yang salah
+    // kirim memberi hak itu tanpa ada yang pernah tahu.
+    if (created.roles.includes(Role.superuser)) {
+      this.logger.warn(
+        `Akun baru id=${created.id} lahir memegang superuser dari klaim Helpdesk (sub=${profile.sub})`,
+      );
+      await this.audit.record(created.id, 'sso_grant_superuser', 'auth', {
+        sub: profile.sub,
+        roles: created.roles,
+      });
+    }
     return created;
   }
 
@@ -181,35 +197,48 @@ export class SsoService {
    * Tanpa `HELPDESK_SSO_ROLE_MAP` hasilnya selalu `responden` — persis perilaku
    * sebelum pemetaan ini ada.
    */
-  private async resolveRoleAndOpd(
+  private async resolveRolesAndOpd(
     profile: SsoProfile,
-  ): Promise<{ role: Role; opdId: number | null }> {
+  ): Promise<{ roles: Role[]; opdId: number | null }> {
     const values = parseClaimValues(profile.groups, profile.role);
-    const resolved = resolveRoleFromClaims(
+    const resolved = resolveRolesFromClaims(
       values,
-      parseRoleMap(this.config.get<string>('helpdesk.ssoRoleMap')),
+      parseRolePackages(this.config.get<string>('helpdesk.ssoRoleMap')),
     );
 
-    if (resolved === null || resolved === Role.responden) {
-      return { role: Role.responden, opdId: null };
+    if (resolved.length === 0) {
+      return { roles: [Role.responden], opdId: null };
     }
-    if (resolved !== Role.opd) {
-      // `kabupaten`. Tak tertaut OPD mana pun -- sama seperti akun seed-nya.
-      return { role: resolved, opdId: null };
+    if (!resolved.includes(Role.opd)) {
+      // Tak tertaut OPD mana pun -- sama seperti akun seed Admin Kabupaten.
+      return { roles: resolved, opdId: null };
     }
 
     const opd = await this.findOpdFromClaims(values);
-    if (!opd) {
-      // Peran `opd` TANPA opdId adalah keadaan setengah jadi: dashboard OPD-nya
-      // pasti gagal karena DashboardService.resolveDashboardOpdId menuntut
-      // opdId terisi. Lebih baik jadi warga biasa yang berfungsi penuh, dan
-      // biarkan Admin Kabupaten menautkannya lewat Manajemen User.
-      this.logger.warn(
-        `Klaim menunjuk peran OPD tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ') || '-'}) — akun dibuat sebagai responden`,
-      );
-      return { role: Role.responden, opdId: null };
+    if (opd) {
+      return { roles: resolved, opdId: opd.id };
     }
-    return { role: Role.opd, opdId: opd.id };
+
+    // Peran `opd` TANPA opdId adalah keadaan setengah jadi: dashboard OPD-nya
+    // pasti gagal (DashboardService.resolveDashboardOpdId menuntut opdId
+    // terisi) dan pemilih peran menampilkannya nonaktif.
+    //
+    // Yang dibuang HANYA `opd`, bukan seluruh paket (6 September 2026).
+    // Sebelumnya seluruh akun jatuh menjadi `responden`, yang berarti pemegang
+    // paket `superuser+opd+responden` kehilangan hak tertingginya hanya karena
+    // OPD-nya belum terdaftar -- kegagalan yang jauh lebih besar daripada
+    // sebabnya.
+    const tanpaOpd = resolved.filter((role) => role !== Role.opd);
+    this.logger.warn(
+      `Klaim menunjuk peran OPD tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ') || '-'}) — peran opd tidak diberikan, sisa paket: ${tanpaOpd.join(',') || 'kosong'}`,
+    );
+    return {
+      // Paket yang isinya HANYA `opd` menjadi kosong di sini; `responden`
+      // adalah jaring pengamannya, bukan pilihan sewenang-wenang -- akun tanpa
+      // satu pun role tak dapat masuk ke mana pun.
+      roles: tanpaOpd.length > 0 ? tanpaOpd : [Role.responden],
+      opdId: null,
+    };
   }
 
   /**

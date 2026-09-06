@@ -217,6 +217,55 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
   });
 
+  /**
+   * Permintaan pengguna 6 September 2026: "ketika login sebagai admin OPD akan
+   * langsung redirect ke OPD sesuai dengan dinas akun tersebut, meskipun
+   * rolenya superuser. Jadi tetap tidak bisa masuk sebagai admin OPD selain
+   * tempat dinas user tersebut."
+   *
+   * Akun uji di berkas ini memegang `[superuser, opd]` DAN tertaut satu OPD,
+   * jadi ia tepat menjadi batu ujinya.
+   */
+  describe('dashboard OPD terikat dinas akun', () => {
+    it('act=opd -> 200, memakai OPD akunnya sendiri tanpa parameter apa pun', async () => {
+      const token = sessionService.issue(userId, Role.opd);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/opd')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+    });
+
+    /**
+     * PASANGAN yang membuat uji di atas berarti. Tanpa ini, "200" di atas bisa
+     * saja karena endpointnya terbuka bagi siapa pun.
+     */
+    it('act=superuser + ?opdId= -> 403, OPD lain tak dapat dibuka', async () => {
+      const token = sessionService.issue(userId, Role.superuser);
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/dashboard/opd?opdId=${opdId}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      // 403, BUKAN 400: endpoint ini tak mendeklarasikan parameter query sama
+      // sekali (DTO-nya dibuang 6 September 2026 bersama cabang superuser),
+      // sehingga `?opdId=` diabaikan Nest tanpa kena forbidNonWhitelisted.
+      // Yang ditolak perannya.
+      expect(res.status).toBe(403);
+    });
+
+    it('act=superuser tanpa parameter -> 403 juga', async () => {
+      const token = sessionService.issue(userId, Role.superuser);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/opd')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('pencabutan role', () => {
     /**
      * Sifat yang HARUS bertahan dari sebelum multi-role ada: kepemilikan role

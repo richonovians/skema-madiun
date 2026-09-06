@@ -25,7 +25,9 @@ import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
+import { ForwardComplaintDto } from './dto/forward-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
@@ -61,8 +63,12 @@ type ComplaintWithAttachments = Complaint & {
   }[];
   /** Hanya terisi bila query di-`include` (lihat findAll, INT-11). */
   user?: { nama: string };
-  /** Hanya terisi bila query di-`include` (lihat findByTicketNo, INT-18). */
-  opd?: { nama: string };
+  /**
+   * Hanya terisi bila query di-`include` (lihat findByTicketNo, INT-18).
+   * `null` bila pengaduannya belum bertujuan (6 September 2026) -- relasinya
+   * memang tak ada, bukan tak ikut di-include.
+   */
+  opd?: { nama: string } | null;
 };
 
 @Injectable()
@@ -75,6 +81,7 @@ export class ComplaintsService {
     private readonly notificationsService: NotificationsService,
     config: ConfigService,
     private readonly consent: ConsentService,
+    private readonly audit: AuditService,
   ) {
     this.uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
   }
@@ -90,7 +97,12 @@ export class ComplaintsService {
     // untuk pengaduan yang tak pernah ada.
     await this.consent.assertConsented(user);
 
-    await this.assertOpdExists(dto.opdId);
+    // Hanya bila tujuannya disertakan. Pengaduan "belum tahu tujuannya"
+    // (6 September 2026) sengaja tak punya OPD untuk diperiksa; memanggil
+    // pemeriksaan itu dengan undefined berarti mencari OPD ber-id undefined.
+    if (dto.opdId != null) {
+      await this.assertOpdExists(dto.opdId);
+    }
     const validFiles = this.validateFiles(files);
     const saved = await this.persistFiles(validFiles);
 
@@ -121,15 +133,23 @@ export class ComplaintsService {
     query: ListComplaintQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<ComplaintEntity>> {
-    const { page, limit, status, opdId } = query;
+    const { page, limit, status, opdId, tanpaOpd } = query;
     const where: Prisma.ComplaintWhereInput = { ...this.ownershipWhere(user) };
     if (status) {
       where.status = status;
     }
+    // AND, bukan menimpa penyaring kepemilikan -- lihat catatan yang sama di
+    // SurveysService.findAll. Kedua filter ini hanya boleh MEMPERSEMPIT.
+    const penyaring: Prisma.ComplaintWhereInput[] = [];
     if (opdId != null) {
-      // AND, bukan menimpa penyaring kepemilikan -- lihat catatan yang sama di
-      // SurveysService.findAll. Filter ini hanya boleh MEMPERSEMPIT.
-      where.AND = [{ opdId }];
+      penyaring.push({ opdId });
+    }
+    if (tanpaOpd) {
+      // Kotak masuk triase: pengaduan yang pengirimnya tak tahu tujuannya.
+      penyaring.push({ opdId: null });
+    }
+    if (penyaring.length > 0) {
+      where.AND = penyaring;
     }
 
     const [rows, total] = await this.prisma.$transaction([
@@ -186,7 +206,15 @@ export class ComplaintsService {
     user: CurrentUser,
   ): Promise<ComplaintEntity> {
     const complaint = await this.getByIdOrThrow(id);
+    // Urutannya sengaja: penolakan PERAN lebih dulu (Admin OPD & warga tak
+    // berhak menyentuh tiket yang belum bertujuan sama sekali), baru penolakan
+    // KEADAAN. Dibalik, akun tak berhak akan tahu bahwa tiket itu ada.
     assertOpdAccess(user, complaint.opdId);
+    if (complaint.opdId == null) {
+      throw new BadRequestException(
+        'Pengaduan ini belum diteruskan ke OPD mana pun. Teruskan ke OPD yang berwenang lebih dahulu.',
+      );
+    }
 
     if (!ALLOWED_TRANSITIONS[complaint.status].includes(dto.status)) {
       throw new BadRequestException(
@@ -303,12 +331,18 @@ export class ComplaintsService {
   }
 
   /** Akses per-record: kabupaten & superuser semua; OPD hanya OPD-nya; Responden hanya miliknya. */
-  private assertAccess(user: CurrentUser, complaint: { userId: number; opdId: number }): void {
+  private assertAccess(
+    user: CurrentUser,
+    complaint: { userId: number; opdId: number | null },
+  ): void {
     if (hasFullAccess(user.actingRole)) {
       return;
     }
     if (user.actingRole === Role.opd) {
-      if (user.opdId === complaint.opdId) {
+      // `complaint.opdId == null` DIPERIKSA LEBIH DULU, dan itu keamanan bukan
+      // kerapian tipe: akun `opd` yang `opdId`-nya juga null akan lolos lewat
+      // `null === null` dan membaca pengaduan yang bukan haknya sama sekali.
+      if (complaint.opdId != null && user.opdId === complaint.opdId) {
         return;
       }
       throw new ForbiddenException('Anda tidak memiliki akses ke pengaduan ini');
@@ -320,6 +354,61 @@ export class ComplaintsService {
       throw new ForbiddenException('Anda tidak memiliki akses ke pengaduan ini');
     }
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
+  }
+
+  /**
+   * `PATCH /complaints/:id/opd` -- meneruskan pengaduan yang belum bertujuan ke
+   * OPD yang berwenang (permintaan pengguna 6 September 2026).
+   *
+   * HAK DITEGAKKAN DI SINI, bukan lewat `@Roles`: RolesGuard memberi
+   * `kabupaten` & `superuser` bypass penuh atas dekorator itu, sehingga `@Roles`
+   * tak mampu membedakan keduanya dari peran lain (pola sama seperti
+   * AuditService.assertSuperuser).
+   *
+   * Hanya berlaku bila tujuannya MASIH kosong. Memindahkan tiket yang sudah
+   * ditangani OPD lain adalah alur tersendiri yang belum diminta -- dan
+   * membiarkannya di sini berarti riwayat penanganan berpindah tangan tanpa
+   * jejak apa pun bagi OPD yang kehilangannya.
+   */
+  async forward(id: number, dto: ForwardComplaintDto, user: CurrentUser): Promise<ComplaintEntity> {
+    const complaint = await this.getByIdOrThrow(id);
+
+    if (!hasFullAccess(user.actingRole)) {
+      throw new ForbiddenException(
+        'Hanya Superuser dan Admin Kabupaten yang dapat meneruskan pengaduan ke OPD',
+      );
+    }
+    if (complaint.opdId != null) {
+      throw new BadRequestException(
+        'Pengaduan ini sudah memiliki OPD tujuan, jadi tidak dapat diteruskan lagi',
+      );
+    }
+
+    const opd = await this.prisma.opd.findUnique({ where: { id: dto.opdId } });
+    if (!opd) {
+      // 404, bukan 400: yang tak ditemukan adalah sumber daya yang ditunjuk
+      // pemanggil, bukan bentuk permintaannya yang salah.
+      throw new NotFoundException(`OPD dengan id ${dto.opdId} tidak ditemukan`);
+    }
+
+    const updated = await this.prisma.complaint.update({
+      where: { id },
+      data: { opdId: dto.opdId },
+      include: { attachments: true },
+    });
+
+    // Tindakan administratif atas pengaduan orang lain -- harus berjejak.
+    await this.audit.record(user.userId, 'forward', 'complaint', {
+      complaintId: id,
+      ticketNo: complaint.ticketNo,
+      opdId: dto.opdId,
+    });
+    // Memakai jalur "pengaduan baru masuk" apa adanya: bagi OPD tujuan, inilah
+    // saat tiket itu benar-benar masuk. Tanpa ini ia tak akan pernah tahu ada
+    // tanggung jawab baru -- persis keluhan 6 Agustus 2026 soal tiket baru.
+    await this.notificationsService.notifyComplaintCreated(updated);
+
+    return this.toEntity(updated as ComplaintWithAttachments);
   }
 
   private async assertOpdExists(opdId: number): Promise<void> {
@@ -365,7 +454,11 @@ export class ComplaintsService {
           data: {
             ticketNo,
             userId,
-            opdId: dto.opdId,
+            // `?? null` EKSPLISIT, bukan `dto.opdId` apa adanya: undefined akan
+            // membuat Prisma menghilangkan kolomnya dari INSERT, dan meski
+            // hasilnya kebetulan sama (default NULL), yang tersurat di sini
+            // adalah "belum bertujuan" -- bukan "lupa diisi".
+            opdId: dto.opdId ?? null,
             kategori: dto.kategori,
             judul: dto.judul,
             uraian: dto.uraian,

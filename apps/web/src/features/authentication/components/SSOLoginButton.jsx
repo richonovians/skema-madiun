@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { authApi, getSsoLoginUrl } from '../services/sso.api';
@@ -25,6 +26,7 @@ import RoleLoginPicker from './RoleLoginPicker';
  *   kolomnya supaya tak menimbulkan salah paham di layar publik.
  */
 const IS_DEV = process.env.NODE_ENV !== 'production';
+const ID_GALAT = 'galat-dev-login';
 
 export default function SSOLoginButton() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -139,8 +141,26 @@ export default function SSOLoginButton() {
     );
   }
 
+  // `relative` di sini cuma jadi JANGKAR bagi galat di bawah -- itu inti
+  // perbaikan 7 September 2026.
+  //
+  // Dulu galatnya sekadar `<span>` yang menjadi anggota flex keempat pada baris
+  // ini. Begitu backend menjawab (pesannya panjang -- "Pengguna dengan
+  // email/ssoSubject "..." tidak ditemukan"), barisnya kelebihan lebar dan
+  // `flex-wrap` menurunkannya ke baris kedua. Baris kedua tak punya tempat sama
+  // sekali: navbar bertinggi mati `h-16` (64 px) sementara kolom emailnya
+  // sendiri sudah 56 px (`p-md` 16 px x2 + tinggi baris ~24 px). Jadi galatnya
+  // tergambar DI LUAR latar navbar, menimpa hero di bawahnya, dan karena navbar
+  // `z-50` ia menang gambar.
+  //
+  // `flex-wrap` tetap DIPERTAHANKAN, dan itu disengaja. Komponen ini juga
+  // dipakai di drawer mobile (Navbar.jsx), dan di sana barisnya memang tak muat:
+  // kolomnya `w-56` (224 px) sementara drawer di layar 390 px cuma menyisakan
+  // ~342 px setelah `px-6`. Tanpa pembungkusan, tombolnya yang menjebol ke
+  // samping dan halaman jadi bisa digeser horizontal. Yang harus keluar dari
+  // baris ini cuma GALATNYA, bukan kemampuan barisnya membungkus.
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+    <form onSubmit={handleSubmit} className="relative flex flex-wrap items-center gap-2">
       <Input
         type="text"
         placeholder="Email akun (dev-login)"
@@ -148,6 +168,11 @@ export default function SSOLoginButton() {
         onChange={(e) => setIdentifier(e.target.value)}
         className="w-56"
         required
+        // Galatnya bukan cuma diwarnai merah: kolomnya ditandai tak sah dan
+        // ditautkan ke pesannya, supaya pembaca layar menyebut sebabnya saat
+        // fokus kembali ke kolom itu -- bukan cuma "kotak isian, wajib".
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error ? ID_GALAT : undefined}
       />
       <Button type="submit" variant="navLogin" disabled={isLoading}>
         {isLoading ? 'Memproses...' : 'Masuk'}
@@ -162,7 +187,43 @@ export default function SSOLoginButton() {
       >
         pakai SSO
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && (
+        // `absolute` = keluar dari alur baris navbar. Ini inti perbaikannya:
+        // elemen di luar alur tak bisa lagi menjadi baris kedua yang menjebol
+        // tinggi navbar, sepanjang apa pun pesannya.
+        //
+        // `right-0` (bukan `left-0`): form ini duduk di ujung kanan navbar, jadi
+        // menjangkarkannya ke kanan menahannya tetap di dalam layar.
+        //
+        // Lebarnya PASTI (`w-[min(20rem,...)]`), bukan menyusut-ke-isi, dan
+        // JANGAN diganti `max-w-xs`. Repo ini mendaftarkan `--spacing-xs: 4px`
+        // di `@theme` (globals.css), dan pada Tailwind v4 skala spacing itulah
+        // yang dipakai utilitas `max-w-<nama>` -- jadi `max-w-xs` di sini
+        // bernilai 4 px, bukan 20 rem. Terukur: kartunya runtuh jadi 26 px dan
+        // pesannya tercetak satu huruf per baris. Sebelumnya dicoba `w-max`, dan
+        // itu gagal ke arah sebaliknya: `width: max-content` ditetapkan SEBELUM
+        // `max-width` membatasinya, sehingga `<p>`-nya terbentang ~500 px dan
+        // menjebol 42 px ke luar layar pada 1440 px (terbukti lewat kontrol:
+        // geser horizontal itu tak ada saat form tertutup MAUPUN terbuka tanpa
+        // galat). Lebar pasti menutup kedua arah sekaligus.
+        //
+        // Bagian `calc(100vw-3rem)` menjaga kartunya tetap muat di drawer mobile
+        // 390 px; `min-w-0` + `break-words` pada `<p>`-nya kini aman justru
+        // KARENA lebar kartunya pasti -- tugasnya cuma memecah alamat email
+        // panjang yang satu token tak terpotong.
+        //
+        // role="alert" -- galat kiriman form harus terdengar, bukan hanya
+        // terlihat. Tak dipasangi `aria-live` lagi: role ini sudah bermakna
+        // assertive, dan menambahkan `polite` justru saling membatalkan.
+        <div
+          id={ID_GALAT}
+          role="alert"
+          className="absolute top-full right-0 z-10 mt-2 flex w-[min(20rem,calc(100vw-3rem))] items-start gap-2 rounded-xl border border-error/30 bg-error-container p-3 text-left text-on-error-container shadow-md"
+        >
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 break-words text-xs font-medium">{error}</p>
+        </div>
+      )}
     </form>
   );
 }

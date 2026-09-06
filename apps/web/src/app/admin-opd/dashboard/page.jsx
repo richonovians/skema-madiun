@@ -8,6 +8,7 @@ import PeriodSurveyPerformance from '@/features/dashboards/components/PeriodSurv
 import ComplaintStatusBreakdown from '@/features/dashboards/components/ComplaintStatusBreakdown';
 import PerformanceMetrics from '@/features/dashboards/components/PerformanceMetrics';
 import RecentFeedback from '@/features/dashboards/components/RecentFeedback';
+import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -79,6 +80,10 @@ export default function AdminDashboardPage() {
   return (
     <>
       <OpdDashboardHeader periode={periode} />
+
+      {/* Di antara kepala halaman dan grid ringkasan: angkanya keterangan
+          tentang AKUN, bukan salah satu metrik layanan di grid itu. */}
+      <ActiveAccountsInfo activeCount={data.dashboard.summary.activeOpdUsers ?? null} scope="opd" />
 
       <DashboardSummary summaryData={data.dashboard.summary} />
 

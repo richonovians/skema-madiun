@@ -383,4 +383,30 @@ describe('UsersService', () => {
       );
     });
   });
+
+  /**
+   * Jumlah akun aktif untuk halaman Manajemen User (permintaan pengguna
+   * 6 September 2026). Dipisah dari `GET /dashboard/statistics` supaya halaman
+   * itu tak perlu menjalankan selusin groupBy hanya untuk satu angka.
+   */
+  describe('getStats', () => {
+    it('menghitung akun aktif & total, keduanya tanpa yang soft-deleted', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([7, 5]);
+
+      const hasil = await service.getStats(SUPERUSER);
+
+      expect(hasil.totalUsers).toBe(7);
+      expect(hasil.activeUsers).toBe(5);
+      const panggilan = (prisma.user.count as jest.Mock).mock.calls;
+      // Kedua hitungan HARUS mengecualikan akun terhapus: tanpa `deletedAt`,
+      // angka di layar terus bertambah walau akunnya sudah dihapus.
+      expect(panggilan[0][0]).toEqual({ where: { deletedAt: null } });
+      expect(panggilan[1][0]).toEqual({ where: { deletedAt: null, isActive: true } });
+    });
+
+    it('bukan superuser -> Forbidden', async () => {
+      await expect(service.getStats(KABUPATEN)).rejects.toThrow(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -1,11 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ComplaintStatus, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
 import { periodeFromDate } from '../surveys/utils/periode.util';
-import { OpdDashboardQueryDto } from './dto/opd-dashboard-query.dto';
 import { UpdateInsightDto } from './dto/update-insight.dto';
 import {
   OpdDashboardEntity,
@@ -55,14 +54,11 @@ export class DashboardService {
   /**
    * `GET /dashboard/opd` (INT-12) -- ringkasan satu OPD.
    *
-   * Admin OPD: selalu OPD-nya sendiri. Superuser: OPD yang diminta lewat
-   * `?opdId=` (2026-08-20, permintaan user). Admin Kabupaten: TIDAK boleh.
+   * HANYA peran `opd`, dan hanya OPD yang tertaut di akunnya sendiri. Peran
+   * `superuser` & `kabupaten` DITOLAK -- lihat resolveDashboardOpdId().
    */
-  async getOpdDashboard(
-    user: CurrentUser,
-    query: OpdDashboardQueryDto = {},
-  ): Promise<OpdDashboardEntity> {
-    const opdId = this.resolveDashboardOpdId(user, query.opdId);
+  async getOpdDashboard(user: CurrentUser): Promise<OpdDashboardEntity> {
+    const opdId = this.resolveDashboardOpdId(user);
 
     const [
       latestSurvey,
@@ -72,6 +68,7 @@ export class DashboardService {
       allComplaintsCount,
       feedbackAnswers,
       trend,
+      activeOpdUsers,
       ikmHistory,
     ] = await Promise.all([
       this.prisma.survey.findFirst({
@@ -103,6 +100,10 @@ export class DashboardService {
         take: RECENT_FEEDBACK_LIMIT,
       }),
       this.getRespondentTrendPercent(opdId),
+      // `opdId` pada penyaring itu inti angkanya: tanpanya setiap OPD akan
+      // menampilkan jumlah akun SELURUH sistem -- angka yang terlihat masuk
+      // akal dan sepenuhnya salah.
+      this.prisma.user.count({ where: { deletedAt: null, isActive: true, opdId } }),
       this.prisma.ikmResult.findMany({
         where: { survey: { opdId } },
         select: { periode: true, nilaiIkm: true },
@@ -169,6 +170,7 @@ export class DashboardService {
       totalRespondents,
       respondentTrendPercent: trend,
       activeTickets,
+      activeOpdUsers,
       avgResponseHours,
       slaTargetHours: SLA_TARGET_HOURS,
       completionRate,
@@ -184,21 +186,35 @@ export class DashboardService {
    * - `opd` → OPD akunnya sendiri. `requestedOpdId` DIABAIKAN, bukan divalidasi:
    *   dengan begitu tak ada jalan bagi akun OPD mengintip OPD lain lewat
    *   parameter, dan tak perlu pesan error yang membocorkan OPD mana yang ada.
-   * - `superuser` → OPD yang diminta. WAJIB dikirim: akun superuser tak tertaut
-   *   OPD mana pun, jadi tak ada yang bisa disimpulkan sendiri.
-   * - `kabupaten` → DITOLAK (2026-08-20, keputusan user: "admin kabupaten tidak
-   *   bisa membuka dashboard opd. hanya superuser yang bisa"). Perhatikan
-   *   pemeriksaan ini SENGAJA di dalam service, bukan lewat `@Roles`: RolesGuard
-   *   memberi kabupaten & superuser bypass penuh atas @Roles sehingga dekorator
-   *   tak dapat membedakan keduanya (pola sama seperti AuditService &
-   *   UsersService.assertSuperuser). Dashboard lintas-OPD milik Admin Kabupaten
-   *   tetap ada di /admin-kab/dashboard, dan ia tetap bisa melihat data per-OPD
-   *   lewat monitoring survei, pengaduan, dan hasil IKM.
+   * - SEMUA peran lain → DITOLAK, `superuser` termasuk.
    *
-   * Peran lain (mis. responden) juga ditolak -- fail-safe, bukan daftar putih
-   * yang lupa diperbarui.
+   * Cabang `superuser → OPD yang diminta` DIBUANG 6 September 2026 atas
+   * permintaan pengguna: "ketika login sebagai admin OPD akan langsung redirect
+   * ke OPD sesuai dengan dinas akun tersebut, meskipun rolenya superuser. Jadi
+   * tetap tidak bisa masuk sebagai admin OPD selain tempat dinas user
+   * tersebut." Frontend sudah berhenti mengirim `?opdId=` sejak 5 September
+   * 2026; parameternya kini benar-benar tak berpengaruh, bukan cuma tak dipakai.
+   *
+   * `?opdId=` pun IKUT DIBUANG, beserta DTO-nya: begitu cabang superuser
+   * hilang, tak ada lagi yang membacanya, dan DTO yang tinggal itu masih
+   * mendokumentasikan perilaku lama ("hanya berlaku untuk superuser, dan wajib
+   * diisi olehnya") -- keliru, bukan cuma menganggur. Klien lama tak rugi:
+   * endpoint ini kini tak mendeklarasikan parameter query sama sekali, jadi
+   * `?opdId=1` diabaikan Nest tanpa 400, dan yang ditolak tetap perannya (403).
+   * Parameter yang cuma ada untuk diabaikan justru menyesatkan pembaca
+   * berikutnya.
+   *
+   * Pemeriksaan ini SENGAJA di dalam service, bukan lewat `@Roles`: RolesGuard
+   * memberi `kabupaten` & `superuser` bypass penuh atas dekorator itu, jadi
+   * `@Roles` tak mampu membedakan keduanya dari peran lain (pola sama seperti
+   * AuditService & UsersService.assertSuperuser).
+   *
+   * Yang TIDAK ikut ditutup: `superuser` & `kabupaten` tetap dapat MEMBACA data
+   * lintas OPD lewat monitoring survei, pengaduan, dan hasil IKM
+   * (opdWhereFilter). Itu pengawasan, bukan "masuk sebagai Admin OPD";
+   * menutupnya akan mengosongkan dashboard Admin Kabupaten.
    */
-  private resolveDashboardOpdId(user: CurrentUser, requestedOpdId?: number): number {
+  private resolveDashboardOpdId(user: CurrentUser): number {
     if (user.actingRole === Role.opd) {
       if (user.opdId == null) {
         throw new ForbiddenException(
@@ -207,16 +223,9 @@ export class DashboardService {
       }
       return user.opdId;
     }
-    if (user.actingRole === Role.superuser) {
-      if (requestedOpdId == null) {
-        throw new BadRequestException(
-          'opdId wajib diisi: pilih OPD terlebih dahulu untuk membuka dashboard OPD',
-        );
-      }
-      return requestedOpdId;
-    }
     throw new ForbiddenException(
-      'Dashboard OPD hanya untuk Admin OPD (OPD-nya sendiri) dan Superuser',
+      'Dashboard OPD hanya untuk peran Admin OPD, dan hanya OPD yang tertaut di akun Anda. ' +
+        'Berpindahlah ke peran Admin OPD terlebih dahulu.',
     );
   }
 
@@ -249,6 +258,7 @@ export class DashboardService {
       totalComplaints,
       allComplaints,
       activeOpd,
+      activeUsers,
       complaintStatusRows,
       complaintCategoryRows,
       scaleAnswerRows,
@@ -273,6 +283,7 @@ export class DashboardService {
         select: { createdAt: true, updatedAt: true, status: true },
       }),
       this.prisma.opd.count({ where: { isActive: true } }),
+      this.prisma.user.count({ where: { deletedAt: null, isActive: true } }),
       this.prisma.complaint.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.complaint.groupBy({ by: ['kategori'], _count: { _all: true } }),
       this.prisma.answer.groupBy({
@@ -342,6 +353,7 @@ export class DashboardService {
       completionRate,
       avgSlaDays,
       activeOpd,
+      activeUsers,
     });
 
     const ikmTrend = this.bucketByPeriode(

@@ -26,6 +26,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
 import { ComplaintsService } from './complaints.service';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
+import { ForwardComplaintDto } from './dto/forward-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
@@ -95,6 +96,27 @@ export class ComplaintsController {
     @CurrentUser() user: CurrentUser,
   ): Promise<ComplaintEntity> {
     return this.complaintsService.updateStatus(id, dto, user);
+  }
+
+  /**
+   * Teruskan pengaduan yang belum bertujuan ke OPD yang berwenang
+   * (6 September 2026).
+   *
+   * TANPA `@Roles`, dan itu disengaja: haknya (Superuser & Admin Kabupaten)
+   * ditegakkan di dalam service, karena RolesGuard memberi kedua peran itu
+   * bypass penuh atas dekorator sehingga `@Roles` tak dapat membedakannya dari
+   * peran lain. Memasang `@Roles(Role.kabupaten)` di sini justru MELOLOSKAN
+   * lebih banyak, bukan lebih sedikit.
+   */
+  @Patch(':id/opd')
+  @Audit('complaint', 'forward')
+  @ApiOkResponse({ type: ComplaintEntity })
+  forward(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ForwardComplaintDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<ComplaintEntity> {
+    return this.complaintsService.forward(id, dto, user);
   }
 
   /** Riwayat tanggapan pada satu tiket. */
