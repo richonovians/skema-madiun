@@ -68,3 +68,15 @@ export async function deleteUser(userId) {
   const response = await api.delete(`/users/${userId}`);
   return adaptUser(response.data);
 }
+
+/**
+ * Jumlah akun aktif & total (`GET /users/stats`, 6 September 2026).
+ *
+ * Dipisah dari `getUsers` walau halaman ini memuat keduanya: daftar akun
+ * dipaginasi, jadi jumlah barisnya BUKAN jumlah akun -- memakai `meta.total`
+ * akan menghitung yang aktif dan yang nonaktif sekaligus.
+ */
+export async function getUserStats() {
+  const response = await api.get('/users/stats');
+  return response.data;
+}

@@ -122,17 +122,25 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                 </Td>
                 <Td>
                   <div className="flex items-center gap-2">
-                    {/* Ubah Role hanya utk akun admin (opd/kabupaten) -- UpdateUserDto.role
-                        divalidasi @IsIn(ADMIN_ROLES), tak menerima responden sama sekali. */}
-                    {user.role !== USER_ROLES.RESPONDENT && (
-                      <Link
-                        href={`/admin-kab/users/${user.id}/edit`}
-                        className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
-                      >
-                        <Pencil size={12} />
-                        Ubah Role
-                      </Link>
-                    )}
+                    {/* TANPA SYARAT, termasuk untuk warga (permintaan pengguna
+                        6 September 2026). Backend menerimanya sejak
+                        5 September 2026: `ASSIGNABLE_ROLES` pada CreateUserDto
+                        memuat `responden`.
+
+                        Syarat `user.role !== USER_ROLES.RESPONDENT` yang dulu
+                        ada di sini SUDAH MATI sejak adapter beralih ke `roles`:
+                        `user.role` tak ada lagi, jadi `undefined !==
+                        'responden'` selalu benar dan tombolnya sebenarnya sudah
+                        tampil untuk semua orang -- di bawah komentar yang
+                        menyatakan kebalikannya. Dihapus supaya yang tersurat
+                        sama dengan yang terjadi. */}
+                    <Link
+                      href={`/admin-kab/users/${user.id}/edit`}
+                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
+                    >
+                      <Pencil size={12} />
+                      Ubah Role
+                    </Link>
                     <button
                       onClick={() => onUpdateStatus?.(user.id, !isActive)}
                       className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"

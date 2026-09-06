@@ -569,6 +569,12 @@ export const handlers = [
     return paginated(filtered, '/users', { total: filtered.length });
   }),
 
+  // Jumlah akun aktif untuk Manajemen User (6 September 2026). HARUS di atas
+  // handler `/users/:id`: MSW memadankan berurutan, sama seperti Nest.
+  http.get(`${API_BASE}/users/stats`, () =>
+    ok({ totalUsers: 7, activeUsers: 5 }, '/users/stats'),
+  ),
+
   http.get(`${API_BASE}/users/:id`, ({ params }) => ok(userFixture({ id: Number(params.id) }), `/users/${params.id}`)),
 
   http.post(`${API_BASE}/users`, async ({ request }) => {
@@ -604,6 +610,12 @@ export const handlers = [
   http.post(`${API_BASE}/complaints`, async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as JsonBody;
     return created(complaintFixture({ id: 99, ...body, status: 'diterima' }), '/complaints');
+  }),
+
+  // Teruskan pengaduan belum bertujuan ke OPD berwenang (6 September 2026).
+  http.patch(`${API_BASE}/complaints/:id/opd`, async ({ request, params }) => {
+    const { opdId } = (await request.json()) as JsonBody;
+    return ok(complaintFixture({ opdId: Number(opdId) }), `/complaints/${params.id}/opd`);
   }),
 
   http.patch(`${API_BASE}/complaints/:id/status`, async ({ request, params }) => {
@@ -694,6 +706,7 @@ export const handlers = [
           completionRate: 92,
           avgSlaDays: 3.4,
           activeOpd: 54,
+          activeUsers: 5,
         },
         ikmTrend: [
           { periode: '2026-Q1', value: 78.2 },

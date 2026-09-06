@@ -107,7 +107,10 @@ export function toBackendComplaintStatus(status) {
 /** Terjemahkan payload form (lihat CreateComplaintForm.jsx) -> CreateComplaintDto backend. */
 export function toCreateComplaintPayload({ opdId, kategori, title, description, isAnonim }) {
   return {
-    opdId: Number(opdId),
+    // `undefined` bila tujuannya belum diketahui (6 September 2026). Number('')
+    // menghasilkan 0 dan Number(undefined) menghasilkan NaN -- keduanya akan
+    // terkirim sebagai medan yang ada dan ditolak backend.
+    opdId: opdId == null || opdId === '' ? undefined : Number(opdId),
     kategori,
     judul: title,
     uraian: description,

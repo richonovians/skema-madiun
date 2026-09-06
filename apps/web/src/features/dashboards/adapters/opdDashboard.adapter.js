@@ -26,6 +26,7 @@ export function adaptOpdDashboard(dashboard) {
           ? `${dashboard.respondentTrendPercent > 0 ? '+' : ''}${dashboard.respondentTrendPercent}% dari bulan lalu`
           : 'Belum ada data pembanding',
       activeTickets: dashboard.activeTickets,
+      activeOpdUsers: dashboard.activeOpdUsers,
       avgResponseTime: dashboard.avgResponseHours != null ? `${dashboard.avgResponseHours} Jam` : 'Belum ada data',
       slaTarget: `${dashboard.slaTargetHours} Jam`,
       completionRate: dashboard.completionRate,

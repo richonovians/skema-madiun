@@ -37,6 +37,15 @@ export default function CreateComplaintForm() {
     label: opd.name,
     value: String(opd.id),
   }));
+  /**
+   * Nilai penampung untuk "pengirim tak tahu tujuannya" (6 September 2026).
+   *
+   * Sengaja BUKAN string kosong: kosong sudah dipakai penampung "Pilih
+   * Instansi", jadi keduanya tak dapat dibedakan -- dan "belum memilih" harus
+   * dapat dibedakan dari "sengaja memilih tak bertujuan", karena yang pertama
+   * seharusnya menghalangi pengiriman sedangkan yang kedua justru sah.
+   */
+  const TANPA_TUJUAN = 'tanpa-tujuan';
   const categoryOptions = (categories ?? []).map((c) => ({ label: c.nama, value: c.kode }));
 
   const handleChange = (e) => {
@@ -55,7 +64,9 @@ export default function CreateComplaintForm() {
     try {
       const result = await createComplaint(
         {
-          opdId: formData.department,
+          // `undefined`, bukan '' atau NaN: medannya harus benar-benar tidak
+          // ikut terkirim, karena backend memvalidasi @IsInt bila ada.
+          opdId: formData.department === TANPA_TUJUAN ? undefined : formData.department,
           kategori: formData.category,
           title: formData.title,
           description: formData.description,
@@ -63,6 +74,14 @@ export default function CreateComplaintForm() {
         },
         files,
       );
+      if (formData.department === TANPA_TUJUAN) {
+        // Tanpa `opdId`/`opdName` di URL: halaman sukses menampilkan tujuan
+        // pengaduan, dan mengarang nama instansi di sini berarti memberi tahu
+        // pelapor bahwa tiketnya sudah menuju suatu tempat -- padahal justru
+        // sedang menunggu ditriase.
+        router.push(`/complaints/success?complaintId=${result.id}`);
+        return;
+      }
       const opdName =
         departmentOptions.find((o) => o.value === formData.department)?.label ?? 'Instansi Terkait';
       router.push(
@@ -92,7 +111,11 @@ export default function CreateComplaintForm() {
           <Dropdown
             label="OPD / Instansi Tujuan"
             id="department"
-            options={[{ label: 'Pilih Instansi', value: '' }, ...departmentOptions]}
+            options={[
+              { label: 'Pilih Instansi', value: '' },
+              { label: 'Belum tahu tujuannya', value: TANPA_TUJUAN },
+              ...departmentOptions,
+            ]}
             value={formData.department}
             onChange={(val) => setFormData((prev) => ({ ...prev, department: val }))}
           />

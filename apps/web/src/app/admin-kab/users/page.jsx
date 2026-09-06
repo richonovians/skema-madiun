@@ -10,7 +10,13 @@ import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
-import { getUsers, updateUserStatus, deleteUser } from '@/features/users/services/users.api';
+import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
+import {
+  getUsers,
+  getUserStats,
+  updateUserStatus,
+  deleteUser,
+} from '@/features/users/services/users.api';
 
 const ITEMS_PER_PAGE = 10;
 const FETCH_LIMIT = 100;
@@ -26,6 +32,12 @@ export default function ManajemenUsersPage() {
 
   const fetchUsers = useCallback(() => getUsers({ limit: FETCH_LIMIT }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchUsers);
+
+  // Diambil TERPISAH dan kegagalannya TIDAK menggagalkan halaman: angka ini
+  // keterangan, sedangkan daftar akunnya isi utama. Menggabungkannya ke satu
+  // Promise.all berarti satu endpoint yang bermasalah mengosongkan tabelnya.
+  const fetchStats = useCallback(() => getUserStats(), []);
+  const { data: stats } = useAsync(fetchStats);
 
   // Filter Data
   const filteredData = useMemo(() => {
@@ -91,7 +103,13 @@ export default function ManajemenUsersPage() {
         atau kita bisa menambahkan local search bar di sini jika dibutuhkan.
       */}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-lg gap-4">
+      {/* Menumpuk sampai `xl`, dulu `md`. Diukur, bukan dikira: penyaring peran
+          butuh ~700px dan tombol ~275px, jadi keduanya baru benar-benar cukup
+          sebaris pada area konten >=1000px -- yaitu sejak lebar layar 1280px.
+          Pada `md` (768px) area kontennya hanya ~512px dan keduanya digencet:
+          teks tombol terbelah empat baris, penyaringnya terpotong. Pada `lg`
+          (1024px) penyaringnya membungkus jadi tiga baris. */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-lg gap-4">
         {/* TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
             Penyaring di halaman ini berupa tab peran yang salah satunya selalu
             aktif dan "Semua Pengguna" ada di paling kiri, jadi menetralkannya
@@ -102,12 +120,29 @@ export default function ManajemenUsersPage() {
         />
         <Button
           variant="primary-box"
-          className="shadow-md px-6 py-3 w-full md:w-auto"
+          // `shrink-0` + `whitespace-nowrap`: sebagai flex item tombol ini
+          // menyusut secara baku sampai labelnya terbelah empat baris.
+          className="shadow-md px-6 py-3 w-full xl:w-auto xl:shrink-0 whitespace-nowrap"
           onClick={() => router.push('/admin-kab/users/create')}
         >
           <Plus size={20} />
           <span>Buat Akun Admin Baru</span>
         </Button>
+      </div>
+
+      {/* BARIS SENDIRI, bukan anak baris tab+tombol di atas. Ketiganya bersama
+          melebihi lebar layar 1440px sekalipun (tab ~700px + strip ~290px +
+          tombol ~250px), jadi satu di antaranya PASTI mengalah: sebelum ini
+          stripnya yang digencet sampai kalimatnya terbelah dua baris, dan
+          begitu ia dibuat tak menyusut, tombol "Buat Akun Admin Baru" yang
+          terlempar ke baris kedua. Diberi barisnya sendiri, tak ada yang
+          mengalah -- dan letaknya sama dengan pada kedua dashboard. */}
+      <div className="mb-lg">
+        <ActiveAccountsInfo
+          activeCount={stats?.activeUsers ?? null}
+          totalCount={stats?.totalUsers ?? null}
+          scope="all"
+        />
       </div>
 
       {actionError && (
