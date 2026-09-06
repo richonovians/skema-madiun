@@ -1,11 +1,10 @@
-import { Body, Controller, Get, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
-import { OpdDashboardQueryDto } from './dto/opd-dashboard-query.dto';
 import { UpdateInsightDto } from './dto/update-insight.dto';
 import { OpdDashboardEntity } from './entities/opd-dashboard.entity';
 import { StatisticsEntity, StatisticsInsightEntity } from './entities/statistics.entity';
@@ -28,11 +27,8 @@ export class DashboardController {
   @ApiBearerAuth()
   @Roles(Role.opd)
   @ApiOkResponse({ type: OpdDashboardEntity })
-  getOpdDashboard(
-    @Query() query: OpdDashboardQueryDto,
-    @CurrentUser() user: CurrentUser,
-  ): Promise<OpdDashboardEntity> {
-    return this.dashboardService.getOpdDashboard(user, query);
+  getOpdDashboard(@CurrentUser() user: CurrentUser): Promise<OpdDashboardEntity> {
+    return this.dashboardService.getOpdDashboard(user);
   }
 
   /** Statistik publik (INT-14, D2: TANPA autentikasi) -- ringkasan lintas seluruh OPD. */

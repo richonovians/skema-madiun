@@ -49,4 +49,30 @@ describe('assertOpdAccess', () => {
   it('responden → Forbidden', () => {
     expect(() => assertOpdAccess(user(Role.responden), 5)).toThrow(ForbiddenException);
   });
+
+  /**
+   * Sumber daya TANPA OPD tujuan — pengaduan "belum bertujuan" (6 September
+   * 2026). Hanya peran berhak penuh yang boleh menyentuhnya, karena hanya
+   * merekalah yang bertugas meneruskannya.
+   */
+  describe('target OPD null (belum bertujuan)', () => {
+    it('kabupaten & superuser → boleh', () => {
+      expect(() => assertOpdAccess(user(Role.kabupaten), null)).not.toThrow();
+      expect(() => assertOpdAccess(user(Role.superuser), null)).not.toThrow();
+    });
+
+    /**
+     * INI PEMERIKSAAN KEAMANAN, bukan kerapian tipe. Tanpa penolakan eksplisit,
+     * akun `opd` yang `opdId`-nya juga null akan lolos lewat perbandingan
+     * `null === null` dan membaca pengaduan yang bukan haknya sama sekali.
+     */
+    it('opd → DITOLAK, termasuk akun yang opdId-nya juga null', () => {
+      expect(() => assertOpdAccess(user(Role.opd, 5), null)).toThrow(ForbiddenException);
+      expect(() => assertOpdAccess(user(Role.opd, null), null)).toThrow(ForbiddenException);
+    });
+
+    it('responden → DITOLAK', () => {
+      expect(() => assertOpdAccess(user(Role.responden), null)).toThrow(ForbiddenException);
+    });
+  });
 });

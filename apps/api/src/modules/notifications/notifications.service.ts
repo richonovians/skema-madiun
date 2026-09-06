@@ -49,14 +49,20 @@ export class NotificationsService {
 
   /** Pengaduan baru masuk -> beri tahu Admin OPD tujuan + kabupaten (oversight). Pelapor TIDAK diberi tahu (dia sendiri pelakunya). */
   async notifyComplaintCreated(complaint: Complaint): Promise<void> {
-    await this.notifyRole(
-      Role.opd,
-      complaint.opdId,
-      NotificationType.complaint_created,
-      'Pengaduan Baru Masuk',
-      `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
-      `/admin-opd/complaints/${complaint.ticketNo}`,
-    );
+    // Pengaduan "belum bertujuan" (6 September 2026) tak punya OPD untuk
+    // diberi tahu. Meneruskan `null` ke notifyRole bukan sekadar sia-sia: ia
+    // akan mencari akun ber-`opdId: null` -- yaitu Admin Kabupaten & warga --
+    // dan mengabari mereka bahwa ada tiket "masuk ke OPD Anda".
+    if (complaint.opdId != null) {
+      await this.notifyRole(
+        Role.opd,
+        complaint.opdId,
+        NotificationType.complaint_created,
+        'Pengaduan Baru Masuk',
+        `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
+        `/admin-opd/complaints/${complaint.ticketNo}`,
+      );
+    }
     await this.notifyKabupaten(
       complaint.userId,
       NotificationType.complaint_created,
@@ -93,14 +99,20 @@ export class NotificationsService {
    */
   async notifyComplaintReply(complaint: Complaint, replyAuthorUserId: number): Promise<void> {
     if (replyAuthorUserId === complaint.userId) {
-      await this.notifyRole(
-        Role.opd,
-        complaint.opdId,
-        NotificationType.complaint_reply,
-        'Balasan Baru pada Pengaduan',
-        `Ada balasan baru dari pelapor pada pengaduan ${complaint.ticketNo}`,
-        `/admin-opd/complaints/${complaint.ticketNo}`,
-      );
+      // `opdId != null`: pengaduan yang belum bertujuan (6 September 2026)
+      // tak punya OPD untuk dikabari. Pelapornya TIDAK kehilangan perhatian --
+      // notifyKabupaten di akhir metode ini tetap berjalan, dan Superuser
+      // beserta Admin Kabupaten justru pihak yang bertugas menriasenya.
+      if (complaint.opdId != null) {
+        await this.notifyRole(
+          Role.opd,
+          complaint.opdId,
+          NotificationType.complaint_reply,
+          'Balasan Baru pada Pengaduan',
+          `Ada balasan baru dari pelapor pada pengaduan ${complaint.ticketNo}`,
+          `/admin-opd/complaints/${complaint.ticketNo}`,
+        );
+      }
     } else {
       await this.safeCreate({
         userId: complaint.userId,

@@ -62,8 +62,13 @@ describe('Complaints (e2e)', () => {
   }, 60000);
 
   afterAll(async () => {
-    await prisma.complaintReply.deleteMany({ where: { complaint: { opdId } } });
-    await prisma.complaintAttachment.deleteMany({ where: { complaint: { opdId } } });
+    // Disapu lewat PELAPOR, bukan lewat `opdId`: sejak 6 September 2026 ada
+    // pengaduan yang `opdId`-nya NULL, dan penyaring lama meninggalkannya di
+    // basis data selamanya -- termasuk di basis data pengembangan.
+    const pelapor = { in: [respondenId, respondenId2] };
+    await prisma.complaintReply.deleteMany({ where: { complaint: { userId: pelapor } } });
+    await prisma.complaintAttachment.deleteMany({ where: { complaint: { userId: pelapor } } });
+    await prisma.complaint.deleteMany({ where: { userId: pelapor } });
     await prisma.complaint.deleteMany({ where: { opdId } });
     await prisma.user.deleteMany({
       where: { ssoSubject: { in: ['e2e-cmp-resp-1', 'e2e-cmp-resp-2'] } },
@@ -429,5 +434,107 @@ describe('Complaints (e2e)', () => {
       .send({ pesan: 'Halo' });
     expect(res.status).toBe(201);
     expect(res.body.data.pesan).toBe('Halo');
+  });
+
+  /**
+   * PENGADUAN TANPA TUJUAN & PENERUSANNYA (permintaan pengguna 6 September
+   * 2026). Yang dibuktikan di sini bukan cuma "endpointnya menjawab 200",
+   * melainkan ISOLASINYA: tiket yang belum bertujuan tak boleh terlihat oleh
+   * Admin OPD mana pun, karena belum menjadi tanggung jawab siapa-siapa.
+   */
+  describe('pengaduan tanpa OPD tujuan', () => {
+    let tiketId: number;
+    let tiketNo: string;
+
+    it('POST /complaints TANPA opdId -> 201, opdId null', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/complaints')
+        .set(asResponden(respondenId))
+        .field('kategori', 'lainnya')
+        .field('judul', 'Tidak tahu harus ke mana')
+        .field('uraian', 'Pengirim tidak tahu OPD mana yang berwenang');
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.opdId).toBeNull();
+      tiketId = res.body.data.id;
+      tiketNo = res.body.data.ticketNo;
+    });
+
+    it('Admin OPD TIDAK melihatnya di daftar', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/complaints?limit=100')
+        .set(asOpd());
+
+      expect(res.status).toBe(200);
+      const nomor = res.body.data.map((c: { ticketNo: string }) => c.ticketNo);
+      expect(nomor).not.toContain(tiketNo);
+    });
+
+    it('Admin OPD tidak dapat membukanya lewat nomor tiket -> 403', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/complaints/${tiketNo}`)
+        .set(asOpd());
+
+      expect(res.status).toBe(403);
+    });
+
+    it('Admin Kabupaten melihatnya lewat ?tanpaOpd=true', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/complaints?tanpaOpd=true&limit=100')
+        .set(asKabupaten());
+
+      expect(res.status).toBe(200);
+      const nomor = res.body.data.map((c: { ticketNo: string }) => c.ticketNo);
+      expect(nomor).toContain(tiketNo);
+      // Penyaringnya benar-benar menyaring: tak satu pun baris yang sudah
+      // bertujuan ikut terbawa.
+      expect(res.body.data.every((c: { opdId: number | null }) => c.opdId === null)).toBe(true);
+    });
+
+    it('statusnya tidak dapat diubah sebelum diteruskan -> 400', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/status`)
+        .set(asKabupaten())
+        .send({ status: 'diproses' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('Admin OPD tidak dapat meneruskan -> 403', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/opd`)
+        .set(asOpd())
+        .send({ opdId });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('Admin Kabupaten meneruskan -> 200, opdId terisi', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/opd`)
+        .set(asKabupaten())
+        .send({ opdId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.opdId).toBe(opdId);
+    });
+
+    it('sesudah diteruskan, Admin OPD tujuan MELIHATNYA', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/complaints?limit=100')
+        .set(asOpd());
+
+      const nomor = res.body.data.map((c: { ticketNo: string }) => c.ticketNo);
+      expect(nomor).toContain(tiketNo);
+    });
+
+    it('meneruskan ulang -> 400 (bukan dialihkan diam-diam)', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/opd`)
+        .set(asKabupaten())
+        .send({ opdId });
+
+      expect(res.status).toBe(400);
+    });
   });
 });

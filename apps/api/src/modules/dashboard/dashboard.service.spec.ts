@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -44,6 +44,7 @@ describe('DashboardService', () => {
     answer: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
     opd: { count: jest.fn().mockResolvedValue(0) },
     ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
+    user: { count: jest.fn().mockResolvedValue(0) },
     statisticsInsight: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
   } as unknown as PrismaService;
   const ikmService = {
@@ -55,46 +56,50 @@ describe('DashboardService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   describe('getOpdDashboard', () => {
-    it('Admin Kabupaten -> Forbidden, bahkan dengan opdId (keputusan user 2026-08-20)', async () => {
+    it('Admin Kabupaten -> Forbidden (keputusan user 2026-08-20)', async () => {
       await expect(service.getOpdDashboard(kabupatenUser())).rejects.toThrow(ForbiddenException);
-      await expect(service.getOpdDashboard(kabupatenUser(), { opdId: 5 })).rejects.toThrow(
-        ForbiddenException,
-      );
       expect(prisma.survey.findFirst).not.toHaveBeenCalled();
     });
 
     it('peran lain (responden) -> Forbidden', async () => {
-      await expect(service.getOpdDashboard(respondenUser(), { opdId: 5 })).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(service.getOpdDashboard(respondenUser())).rejects.toThrow(ForbiddenException);
     });
 
     it('akun opd tanpa opdId -> Forbidden', async () => {
       await expect(service.getOpdDashboard(opdUser(null))).rejects.toThrow(ForbiddenException);
     });
 
-    it('Superuser tanpa opdId -> BadRequest (tak ada OPD yang bisa disimpulkan)', async () => {
-      await expect(service.getOpdDashboard(superUser())).rejects.toThrow(BadRequestException);
+    /**
+     * PERILAKU YANG SENGAJA DIBUANG (6 September 2026, permintaan pengguna:
+     * "tetap tidak bisa masuk sebagai admin OPD selain tempat dinas user
+     * tersebut"). Sampai 5 September 2026, sesi ber-peran `superuser` boleh
+     * meminta OPD MANA PUN lewat `?opdId=`.
+     *
+     * Uji ini dulu menegaskan kebalikannya; ia diubah menjadi menegaskan
+     * penolakan alih-alih dihapus, supaya perubahan kebijakan ini terbaca
+     * sebagai keputusan -- bukan sebagai uji yang hilang tanpa jejak.
+     *
+     * Pasangan "DENGAN ?opdId=" TIDAK lagi bisa ditulis di sini: parameternya
+     * sudah tak ada di tanda tangan mana pun, jadi jaminan itu kini struktural.
+     * Yang menjaganya di tingkat HTTP -- di mana query masih bisa dikirim
+     * siapa pun -- ada di test/multi-role.e2e-spec.ts
+     * ("act=superuser + ?opdId= -> 403").
+     *
+     * Jalan yang benar sekarang: berpindah ke peran `opd` lewat
+     * `POST /auth/acting-role`, yang memakai `users.opd_id` akun itu sendiri.
+     */
+    it('Superuser -> Forbidden (dashboard OPD bukan miliknya)', async () => {
+      await expect(service.getOpdDashboard(superUser())).rejects.toThrow(ForbiddenException);
+      // Bukan cuma status penolakannya: tak boleh ada satu pun query yang
+      // sempat berjalan atas OPD yang bukan miliknya.
       expect(prisma.survey.findFirst).not.toHaveBeenCalled();
+      expect(prisma.surveyResponse.count).not.toHaveBeenCalled();
     });
 
-    it('Superuser dengan opdId -> memakai OPD ITU untuk seluruh query', async () => {
+    it('Admin OPD: selalu OPD akunnya sendiri', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
 
-      await service.getOpdDashboard(superUser(), { opdId: 7 });
-
-      expect(prisma.survey.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ opdId: 7 }) }),
-      );
-      expect(prisma.surveyResponse.count).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { survey: { opdId: 7 } } }),
-      );
-    });
-
-    it('Admin OPD: opdId di query DIABAIKAN, tetap OPD akunnya sendiri', async () => {
-      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
-
-      await service.getOpdDashboard(opdUser(5), { opdId: 99 });
+      await service.getOpdDashboard(opdUser(5));
 
       expect(prisma.survey.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ opdId: 5 }) }),
@@ -448,6 +453,43 @@ describe('DashboardService', () => {
         }),
       );
       expect(result.text).toBe('Narasi baru');
+    });
+  });
+
+  /**
+   * JUMLAH AKUN AKTIF (permintaan pengguna 6 September 2026): halaman superuser
+   * menampilkan seluruh akun aktif, halaman Admin OPD hanya akun OPD itu.
+   */
+  describe('jumlah akun aktif', () => {
+    it('statistik: activeUsers menghitung akun aktif yang belum dihapus', async () => {
+      (prisma.user.count as jest.Mock).mockResolvedValue(12);
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+
+      const hasil = await service.getStatistics();
+
+      expect(hasil.summary.activeUsers).toBe(12);
+      expect(prisma.user.count).toHaveBeenCalledWith({
+        where: { deletedAt: null, isActive: true },
+      });
+    });
+
+    it('dashboard OPD: activeOpdUsers hanya akun OPD ITU', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
+      // Dinyatakan EKSPLISIT, bukan mengandalkan baku: `jest.clearAllMocks()`
+      // hanya membersihkan catatan pemanggilan, bukan implementasi, jadi
+      // `mockResolvedValue` dari uji sebelumnya masih berlaku di sini.
+      (prisma.complaint.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.user.count as jest.Mock).mockResolvedValue(2);
+
+      const hasil = await service.getOpdDashboard(opdUser(5));
+
+      expect(hasil.activeOpdUsers).toBe(2);
+      // KONTROL yang membuat angka ini berarti: tanpa `opdId` pada penyaring,
+      // setiap OPD akan menampilkan jumlah akun SELURUH sistem -- angka yang
+      // terlihat masuk akal dan sepenuhnya salah.
+      expect(prisma.user.count).toHaveBeenCalledWith({
+        where: { deletedAt: null, isActive: true, opdId: 5 },
+      });
     });
   });
 });

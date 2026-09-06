@@ -1,22 +1,31 @@
 import { Role } from '@prisma/client';
 
 /**
- * Peran yang BOLEH ditetapkan dari klaim SSO. `superuser` sengaja TIDAK ada di
- * daftar ini, dan itu keputusan keamanan, bukan kelalaian: peran itu memegang
- * log aktivitas & manajemen pengguna (AuditService.assertSuperuser,
- * UsersService.assertSuperuser), sehingga membiarkannya dipetakan dari klaim
- * berarti menyerahkan penetapan hak tertinggi kepada sistem di luar kendali
- * kita. `superuser` hanya bisa diberikan Admin Kabupaten lewat Manajemen User.
+ * Peran yang BOLEH ditetapkan dari klaim SSO.
+ *
+ * `superuser` ADA di daftar ini sejak 6 September 2026, dan itu PEMBALIKAN
+ * keputusan keamanan 27 Agustus 2026 yang sengaja mengeluarkannya — pengguna
+ * meminta tipe "admin" dari Helpdesk menjadi superuser di SKEMA.
+ *
+ * Pembalikan itu tidak dibiarkan tanpa pengaman, tapi pengamannya BUKAN di
+ * berkas ini:
+ *   1. Baku tetap `responden` bila `HELPDESK_SSO_ROLE_MAP` kosong (dan hari ini
+ *      ia memang kosong), jadi tak ada yang berubah sampai seseorang mengisinya.
+ *   2. Peran ditetapkan HANYA saat akun dibuat — SsoService.resolveRolesAndOpd
+ *      tak pernah berjalan pada akun yang sudah ada, sehingga tak ada jalan bagi
+ *      klaim untuk menurunkan siapa pun.
+ *   3. Akun yang lahir memegang `superuser` dari klaim menulis satu baris
+ *      `audit_logs` — lihat SsoService.provision.
  */
-const MAPPABLE_ROLES: readonly string[] = [Role.kabupaten, Role.opd, Role.responden];
+const MAPPABLE_ROLES: readonly string[] = [
+  Role.superuser,
+  Role.kabupaten,
+  Role.opd,
+  Role.responden,
+];
 
-/**
- * Urutan kemenangan bila beberapa klaim cocok sekaligus. DITETAPKAN, bukan
- * "yang pertama ditemukan": urutan klaim dari Helpdesk tak dijamin stabil, dan
- * peran yang berubah-ubah antar login jauh lebih membingungkan daripada satu
- * aturan yang selalu sama. Batas atasnya `kabupaten` — lihat MAPPABLE_ROLES.
- */
-const ROLE_PRECEDENCE: readonly Role[] = [Role.kabupaten, Role.opd, Role.responden];
+/** Pemisah antar peran DI DALAM satu paket (`opd+responden`). */
+const PACKAGE_SEPARATOR = '+';
 
 /** Kunci objek yang mungkin memuat nama/kode grup, diperiksa berurutan. */
 const OBJECT_KEYS = ['name', 'slug', 'id', 'code', 'kode'] as const;
@@ -87,7 +96,14 @@ function fromScalarOrObject(item: unknown): string[] {
 
 /**
  * Baca tabel pemetaan dari env `HELPDESK_SSO_ROLE_MAP`, format
- * `nilaiKlaim:peran` dipisah koma (mis. `admin-kab:kabupaten,admin-opd:opd`).
+ * `nilaiKlaim:paket` dipisah koma, dengan paket berisi satu peran atau beberapa
+ * peran yang dipisah `+`:
+ *
+ *   `pegawai-dinas:opd+responden,admin:superuser+opd+responden`
+ *
+ * Bentuk LAMA (`admin-kab:kabupaten`) tetap sah dan menghasilkan paket berisi
+ * satu peran — env yang sudah terpasang di lingkungan mana pun tak rusak oleh
+ * penambahan format ini.
  *
  * Disimpan di env, bukan di kode, justru KARENA bentuk klaimnya belum
  * dikonfirmasi: begitu Helpdesk menjawab, yang berubah cuma satu baris env —
@@ -96,9 +112,10 @@ function fromScalarOrObject(item: unknown): string[] {
  * Entri cacat DIABAIKAN diam-diam alih-alih menggagalkan boot: env yang salah
  * tulis sebaiknya membuat pemetaan tak berlaku (semua akun baru jadi
  * `responden`, keadaan paling tidak berbahaya) daripada mematikan seluruh API.
+ * Paket yang separuh cacat menyisakan peran yang sah saja.
  */
-export function parseRoleMap(raw: string | undefined): Map<string, Role> {
-  const map = new Map<string, Role>();
+export function parseRolePackages(raw: string | undefined): Map<string, Role[]> {
+  const map = new Map<string, Role[]>();
   if (!raw) {
     return map;
   }
@@ -109,30 +126,51 @@ export function parseRoleMap(raw: string | undefined): Map<string, Role> {
       continue;
     }
     const key = entry.slice(0, separator).trim().toLowerCase();
-    const roleName = entry
-      .slice(separator + 1)
-      .trim()
-      .toLowerCase();
-    if (!key || !MAPPABLE_ROLES.includes(roleName)) {
+    if (!key) {
       continue;
     }
-    map.set(key, roleName as Role);
+
+    const roles: Role[] = [];
+    for (const part of entry.slice(separator + 1).split(PACKAGE_SEPARATOR)) {
+      const roleName = part.trim().toLowerCase();
+      if (!MAPPABLE_ROLES.includes(roleName)) {
+        continue;
+      }
+      // Peran ganda di dalam satu paket dibuang di sini, bukan di pemanggil:
+      // `users.roles` adalah array biasa, bukan himpunan, jadi duplikat akan
+      // benar-benar tersimpan dan tampil dua kali di Manajemen User.
+      if (!roles.includes(roleName as Role)) {
+        roles.push(roleName as Role);
+      }
+    }
+    if (roles.length === 0) {
+      continue;
+    }
+    map.set(key, roles);
   }
   return map;
 }
 
 /**
- * Peran yang cocok dari daftar nilai klaim, atau null bila tak ada.
+ * Seluruh peran yang cocok dari daftar nilai klaim — GABUNGAN paketnya.
  *
- * null BUKAN galat — pemanggil yang menentukan peran bakunya (`responden`).
+ * Array kosong BUKAN galat — pemanggil yang menentukan peran bakunya
+ * (`responden`).
+ *
+ * UNION, bukan peringkat. `ROLE_PRECEDENCE` dibuang bersama pemetaan tunggal:
+ * begitu satu nilai klaim dapat membawa beberapa peran, "peran mana yang
+ * menang" tak lagi bermakna. Union pun tak bergantung pada urutan klaim — yang
+ * memang tak dijamin stabil oleh Helpdesk — karena himpunan hasilnya sama apa
+ * pun urutan masukannya.
  */
-export function resolveRoleFromClaims(values: string[], map: Map<string, Role>): Role | null {
-  const matched = new Set<Role>();
+export function resolveRolesFromClaims(values: string[], map: Map<string, Role[]>): Role[] {
+  const matched: Role[] = [];
   for (const value of values) {
-    const role = map.get(value);
-    if (role) {
-      matched.add(role);
+    for (const role of map.get(value) ?? []) {
+      if (!matched.includes(role)) {
+        matched.push(role);
+      }
     }
   }
-  return ROLE_PRECEDENCE.find((role) => matched.has(role)) ?? null;
+  return matched;
 }

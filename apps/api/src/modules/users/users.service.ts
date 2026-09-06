@@ -14,6 +14,7 @@ import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UserEntity } from './entities/user.entity';
+import { UserStatsEntity } from './entities/user-stats.entity';
 
 @Injectable()
 export class UsersService {
@@ -38,6 +39,23 @@ export class UsersService {
     if (actor.actingRole !== Role.superuser) {
       throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Superuser');
     }
+  }
+
+  /**
+   * Jumlah akun untuk halaman Manajemen User (6 September 2026).
+   *
+   * Endpoint tersendiri, bukan bagian `GET /dashboard/statistics`: halaman itu
+   * hanya butuh satu angka, sedangkan statistik menjalankan selusin agregasi.
+   */
+  async getStats(actor: CurrentUser): Promise<UserStatsEntity> {
+    this.assertSuperuser(actor);
+
+    const [totalUsers, activeUsers] = await this.prisma.$transaction([
+      this.prisma.user.count({ where: { deletedAt: null } }),
+      this.prisma.user.count({ where: { deletedAt: null, isActive: true } }),
+    ]);
+
+    return new UserStatsEntity({ totalUsers, activeUsers });
   }
 
   async findAll(
