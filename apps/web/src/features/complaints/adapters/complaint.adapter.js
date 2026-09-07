@@ -95,12 +95,27 @@ function getFileOrigin() {
  * memuat ulang halaman untuk mendapatkan tautan baru -- itu konsekuensi yang
  * disengaja dari pendekatan URL bertanda tangan.
  */
+/**
+ * Buang awalan UUID yang ditambahkan backend saat menyimpan.
+ *
+ * Berkas disimpan sebagai `<uuid>-<nama asli>` (ComplaintsService.persistFiles)
+ * supaya dua unggahan bernama sama tak saling menimpa. UUID itu urusan
+ * penyimpanan, bukan nama yang layak dibaca pengguna — dan sejak tombol unduh
+ * benar-benar bekerja (7 September 2026), nama inilah yang tersimpan di
+ * komputer mereka.
+ *
+ * Polanya MENGIKAT bentuk UUID persis (8-4-4-4-12 heksadesimal), bukan sekadar
+ * "ada tanda hubung di depan": `laporan-2026-buku.png` tak boleh ikut terpotong.
+ */
+const AWALAN_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i;
+
 export function adaptComplaintAttachment(attachment) {
   const jalurTanpaKueri = attachment.fileUrl.split('?')[0];
+  const namaTersimpan = jalurTanpaKueri.split('/').pop();
   return {
     id: attachment.id,
     url: `${getFileOrigin()}${attachment.fileUrl}`,
-    alt: jalurTanpaKueri.split('/').pop(),
+    alt: namaTersimpan.replace(AWALAN_UUID, ''),
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
   };

@@ -3,20 +3,18 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { X } from 'lucide-react';
-import IconButton from './IconButton';
-import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import ImageLightbox from './ImageLightbox';
 
 /**
- * ImageViewer displays an image thumbnail and opens it in a full-screen modal on click.
+ * Thumbnail gambar yang membuka lightbox saat diklik.
+ *
+ * Lightbox-nya sendiri kini ImageLightbox (diekstrak 7 September 2026, dipakai
+ * juga oleh galeri lampiran admin). `useBodyScrollLock` pindah ke sana bersama
+ * markup-nya -- ia dipasang hanya saat komponen itu terpasang, jadi perilakunya
+ * sama dengan `useBodyScrollLock(isOpen)` yang dulu di sini.
  */
 export default function ImageViewer({ src, alt, className }) {
   const [isOpen, setIsOpen] = useState(false);
-
-  // Tanpa ini, menggulir di atas gambar layar penuh menggeser halaman di
-  // baliknya -- terasa jelas di halaman detail pengaduan yang panjang, karena
-  // menutup lightbox meninggalkan pengguna jauh dari tempatnya semula.
-  useBodyScrollLock(isOpen);
 
   return (
     <>
@@ -31,21 +29,7 @@ export default function ImageViewer({ src, alt, className }) {
         <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-all" />
       </div>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 md:p-8">
-          <IconButton 
-            className="absolute top-4 right-4 text-white hover:text-white hover:bg-white/20 p-2"
-            onClick={() => setIsOpen(false)}
-          >
-            <X size={24} />
-          </IconButton>
-          <img 
-            src={src} 
-            alt={alt} 
-            className="max-w-full max-h-full object-contain rounded-lg"
-          />
-        </div>
-      )}
+      {isOpen && <ImageLightbox src={src} alt={alt} onClose={() => setIsOpen(false)} />}
     </>
   );
 }
