@@ -121,6 +121,32 @@ describe('adaptComplaintAttachment', () => {
     expect(adaptComplaintAttachment(lampiran).alt).toBe('8a7b-foto.png');
   });
 
+  it('awalan UUID dibuang dari nama yang ditampilkan & diunduh', () => {
+    // Backend menyimpan berkas sebagai `<uuid>-<nama asli>` supaya dua unggahan
+    // bernama sama tak saling menimpa. UUID itu urusan penyimpanan, bukan nama
+    // yang layak dibaca pengguna -- dan sejak tombol unduh benar-benar bekerja
+    // (7 September 2026) nama inilah yang tersimpan di komputer mereka.
+    const hasil = adaptComplaintAttachment({
+      ...lampiran,
+      fileUrl:
+        '/uploads/complaints/e6874b87-de62-4667-95e8-67b81584086d-Probis_Pengaduan.png?exp=1&sig=z',
+    });
+
+    expect(hasil.alt).toBe('Probis_Pengaduan.png');
+  });
+
+  it('nama yang KEBETULAN berawalan mirip-UUID tak dipangkas keliru', () => {
+    // Kontrol: pemangkasnya harus mengikat bentuk UUID persis, bukan "ada tanda
+    // hubung di depan". Tanpa kontrol ini, `laporan-2026-buku.png` bisa ikut
+    // terpotong dan penggunanya kehilangan nama berkasnya.
+    const hasil = adaptComplaintAttachment({
+      ...lampiran,
+      fileUrl: '/uploads/complaints/laporan-2026-buku.png',
+    });
+
+    expect(hasil.alt).toBe('laporan-2026-buku.png');
+  });
+
   it('fileUrl tanpa kueri tetap bekerja', () => {
     // Balasan lama / data uji bisa saja belum bertanda tangan.
     const hasil = adaptComplaintAttachment({ ...lampiran, fileUrl: '/uploads/complaints/a.png' });
