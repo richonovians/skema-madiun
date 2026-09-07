@@ -33,6 +33,24 @@ describe('Alur End-to-End per Peran (e2e)', () => {
   let complaintId: number;
   let complaintTicketNo: string;
 
+  /**
+   * Akun admin pada perjalanan ini memegang DUA peran, dan itu diperbaiki
+   * 7 September 2026 -- bukan sekadar tambalan agar hijau.
+   *
+   * Dulu ia ber-role `kabupaten` saja dan memakai satu helper untuk segalanya.
+   * Sejak `kabupaten` & `superuser` dipisah (20 Agustus 2026), manajemen
+   * pengguna dan audit log menjadi superuser-saja, sehingga langkah 1 dan 7
+   * merah -- lalu langkah 4 & 5 ikut merah SEBAGAI RANTAI, karena
+   * `opdAdminUserId` tak pernah terisi. Empat kegagalan, dua akar.
+   *
+   * Sekarang perjalanannya memodelkan rancangan multi-role yang sesungguhnya:
+   * SATU akun (`e2e-jrn-kab`) memegang `[superuser, kabupaten]`, dan yang
+   * menentukan hak adalah PERAN YANG SEDANG DIPAKAI. Itu pula bentuk akun nyata
+   * di basis data pengguna. Jadi perjalanan ini kini ikut membuktikan mekanisme
+   * peran-yang-dipakai, bukan cuma alur bisnisnya.
+   */
+  const superuserHeaders = () =>
+    devHeaders({ role: Role.superuser, userId: kabupatenUserId, ssoSubject: 'e2e-jrn-kab' });
   const kabupatenHeaders = () =>
     devHeaders({ role: Role.kabupaten, userId: kabupatenUserId, ssoSubject: 'e2e-jrn-kab' });
   const opdHeaders = () =>
@@ -61,12 +79,15 @@ describe('Alur End-to-End per Peran (e2e)', () => {
 
     const kabupatenUser = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-jrn-kab' },
-      update: {},
+      // `roles` juga di `update`: baris SISA dari run sebelumnya hanya ber-role
+      // kabupaten, dan tanpa ini perjalanan gagal pada mesin yang pernah
+      // menjalankan versi lama berkas ini (pola sama seperti consentAt di bawah).
+      update: { roles: [Role.superuser, Role.kabupaten] },
       create: {
         ssoSubject: 'e2e-jrn-kab',
-        nama: 'Kabupaten E2E Journey',
+        nama: 'Admin E2E Journey (superuser + kabupaten)',
         email: 'e2e-jrn-kab@example.go.id',
-        roles: [Role.kabupaten],
+        roles: [Role.superuser, Role.kabupaten],
       },
     });
     kabupatenUserId = kabupatenUser.id;
@@ -123,11 +144,11 @@ describe('Alur End-to-End per Peran (e2e)', () => {
     await app.close();
   }, 30000);
 
-  describe('1. Kabupaten: siapkan akun Admin OPD', () => {
-    it('POST /users (Kabupaten) -> buat akun Admin OPD baru', async () => {
+  describe('1. Superuser: siapkan akun Admin OPD', () => {
+    it('POST /users (peran superuser) -> buat akun Admin OPD baru', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/users')
-        .set(kabupatenHeaders())
+        .set(superuserHeaders())
         .send({
           nama: 'Admin OPD E2E Journey',
           email: 'e2e-jrn-opd@example.go.id',
@@ -381,11 +402,14 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       expect(item?.nilaiIkm).toBe(75);
     });
 
-    it('GET /audit-logs -> seluruh aksi Admin OPD di atas tercatat', async () => {
+    it('GET /audit-logs (peran superuser) -> seluruh aksi Admin OPD di atas tercatat', async () => {
+      // Audit log superuser-saja; pemantauan lintas OPD di dua uji sebelumnya
+      // TETAP dengan peran kabupaten. Akun yang sama, hak yang berbeda --
+      // itulah yang membuat pasangan ini berarti.
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
         .query({ actorId: opdAdminUserId, limit: 50 })
-        .set(kabupatenHeaders());
+        .set(superuserHeaders());
 
       expect(res.status).toBe(200);
       const aksiTercatat = (res.body.data as { aksi: string; entitas: string }[]).map(
@@ -398,6 +422,17 @@ describe('Alur End-to-End per Peran (e2e)', () => {
           'complaint.update_status',
         ]),
       );
+    });
+
+    it('GET /audit-logs dengan peran KABUPATEN -> 403, walau akunnya sama', async () => {
+      // Bukti bahwa yang menentukan hak adalah peran yang DIPAKAI, bukan daftar
+      // role yang dimiliki akun. Tanpa uji ini, "superuser -> 200" di atas bisa
+      // saja karena akunnya kebetulan istimewa.
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/audit-logs')
+        .set(kabupatenHeaders());
+
+      expect(res.status).toBe(403);
     });
   });
 });

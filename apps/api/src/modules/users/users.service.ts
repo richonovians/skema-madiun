@@ -25,11 +25,15 @@ export class UsersService {
    * user) -- Admin Kabupaten biasa tak lagi boleh membuat/mengubah/menghapus akun
    * maupun melihat daftarnya.
    *
-   * Diperiksa DI SINI, bukan dengan mengganti `@Roles(Role.kabupaten)` menjadi
-   * `@Roles(Role.superuser)` di controller: RolesGuard memberi `kabupaten`
-   * BYPASS PENUH atas seluruh @Roles (lihat roles.guard.ts), sehingga dekorator
-   * apa pun akan dilewatinya dan pembatasan ini takkan pernah berlaku. Pola sama
-   * dipakai `AuditService.assertSuperuser` & `DashboardService.getOpdDashboard`.
+   * Dulu pemeriksaan ini SATU-SATUNYA gerbang: RolesGuard memberi `kabupaten`
+   * bypass penuh atas seluruh @Roles, sehingga mengganti `@Roles(Role.kabupaten)`
+   * menjadi `@Roles(Role.superuser)` di controller tak akan berpengaruh apa pun.
+   * Bypass itu dibongkar T6 (7 September 2026), dekoratornya sudah dibetulkan,
+   * dan controller kini menolak kabupaten lebih dahulu.
+   *
+   * Pemeriksaan ini TETAP sebagai lapis kedua (alasannya di
+   * `AuditService.assertSuperuser`), dengan pesan yang BERBEDA dari pesan guard
+   * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    *
    * Konsekuensi yang disengaja: ini juga menutup pintu terakhir untuk MENGUBAH
    * peran akun lain (`PATCH /users/:id`), jadi hanya superuser yang dapat

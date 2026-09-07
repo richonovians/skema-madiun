@@ -18,10 +18,11 @@ export class DashboardController {
    * Ringkasan dashboard satu OPD (INT-12): IKM survei terbaru, tiket aktif, SLA,
    * umpan balik terbaru.
    *
-   * `@Roles(Role.opd)` DIPERTAHANKAN, tapi bukan itu yang menentukan siapa yang
-   * boleh: RolesGuard meloloskan kabupaten & superuser lewat bypass peran berhak
-   * penuh. Pembedanya ada di `DashboardService.resolveDashboardOpdId` --
-   * Superuser boleh (wajib mengirim `?opdId=`), Admin Kabupaten TIDAK.
+   * `@Roles(Role.opd)` -- dan sejak T6 (7 September 2026) dekorator ini
+   * benar-benar berlaku: kabupaten & superuser tak lagi melampauinya. Itu BUKAN
+   * perubahan perilaku, karena `resolveDashboardOpdId` sudah menolak setiap
+   * peran selain `opd` sejak 6 September 2026 (cabang superuser dibuang atas
+   * permintaan pengguna). Yang berubah cuma lapis mana yang menjawab 403.
    */
   @Get('dashboard/opd')
   @ApiBearerAuth()
@@ -42,7 +43,7 @@ export class DashboardController {
   /** Isi/perbarui narasi `/statistics` (D6) -- Admin Kabupaten. */
   @Patch('statistics/insight')
   @ApiBearerAuth()
-  @Roles(Role.kabupaten)
+  @Roles(Role.kabupaten, Role.superuser)
   @ApiOkResponse({ type: StatisticsInsightEntity })
   updateInsight(
     @Body() dto: UpdateInsightDto,

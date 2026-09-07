@@ -646,13 +646,33 @@ describe('Complaints (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('Admin OPD tidak dapat meneruskan -> 403', async () => {
+    /**
+     * 403 dari LAPIS GUARD, dan PESANnyalah yang membuktikannya.
+     *
+     * Sampai T6 dibereskan (7 September 2026) rute ini sengaja tanpa `@Roles`,
+     * sehingga yang menolak adalah `ComplaintsService.forward` -- uji ini dulu
+     * lulus, tapi karena sebab yang lain. Memeriksa pesannya membuat uji ini
+     * MEMERAH bila dekoratornya kelak dicabut, walau statusnya tetap 403 dan
+     * seluruh rangkaian ini tetap tampak sehat.
+     */
+    it('Admin OPD tidak dapat meneruskan -> 403 dari gerbang peran', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/complaints/${tiketId}/opd`)
         .set(asOpd())
         .send({ opdId });
 
       expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, superuser/i);
+    });
+
+    it('Responden pun tidak dapat meneruskan -> 403 (kontrol peran tak berwenang)', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/opd`)
+        .set(asResponden(respondenId))
+        .send({ opdId });
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, superuser/i);
     });
 
     it('Admin Kabupaten meneruskan -> 200, opdId terisi', async () => {

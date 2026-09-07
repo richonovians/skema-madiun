@@ -2,6 +2,7 @@ import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { lastValueFrom, of } from 'rxjs';
 import type { AuditService } from '../../modules/audit/audit.service';
+import { PENANDA_DISUNTING } from './audit-redact.util';
 import { AuditInterceptor } from './audit.interceptor';
 
 function mockContext(request: Record<string, unknown>): ExecutionContext {
@@ -87,5 +88,55 @@ describe('AuditInterceptor', () => {
       ),
     );
     expect(result).toEqual({ id: 99, judul: 'Survei A' });
+  });
+
+  /**
+   * TEMUAN AUDIT T8 (7 September 2026). Interceptor ini dulu menyalin
+   * `request.body` apa adanya, sehingga nama & email yang diketik admin pada
+   * `POST /users` ikut tersalin ke `audit_logs` — tabel kedua, tanpa daftar
+   * redaksi, yang dapat dibaca superuser lewat `GET /audit-logs`.
+   */
+  it('menyunting nilai pribadi pada body & params sebelum dicatat', async () => {
+    const { interceptor } = buildInterceptor({ entitas: 'user' });
+
+    await lastValueFrom(
+      interceptor.intercept(
+        mockContext({
+          method: 'POST',
+          user: { userId: 9 },
+          params: { id: '42' },
+          body: { nama: 'Budi Santoso', email: 'budi@example.go.id', roles: ['opd'], opdId: 3 },
+        }),
+        mockHandler(),
+      ),
+    );
+
+    expect(auditService.record).toHaveBeenCalledWith(9, 'create', 'user', {
+      params: { id: '42' },
+      body: {
+        // Kuncinya tetap ada: "nama diubah" harus tetap terekam...
+        nama: PENANDA_DISUNTING,
+        email: PENANDA_DISUNTING,
+        // ...sedangkan INI justru alasan audit log ada, jadi tak disentuh.
+        roles: ['opd'],
+        opdId: 3,
+      },
+    });
+  });
+
+  it('tidak MENGUBAH request.body yang masih dipakai handler', async () => {
+    // Interceptor berjalan pada objek permintaan yang hidup; menyunting di
+    // tempat akan merusak permintaan yang sedang berjalan.
+    const { interceptor } = buildInterceptor({ entitas: 'user' });
+    const body = { nama: 'Budi Santoso' };
+
+    await lastValueFrom(
+      interceptor.intercept(
+        mockContext({ method: 'PATCH', user: { userId: 9 }, params: {}, body }),
+        mockHandler(),
+      ),
+    );
+
+    expect(body.nama).toBe('Budi Santoso');
   });
 });

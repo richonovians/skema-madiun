@@ -225,9 +225,11 @@ export class AuthController {
    *
    * Terbuka untuk SEMUA peran terautentikasi, bukan hanya `responden` yang
    * diwajibkan: memanggilnya dari peran lain tak berbahaya (idempoten, dan
-   * `consentRequired` mereka memang selalu false), sementara membatasinya
-   * dengan `@Roles` justru akan dilewati bypass penuh milik kabupaten/superuser
-   * di RolesGuard — pembatasan yang tampak ada tapi tak berlaku.
+   * `consentRequired` mereka memang selalu false). Sejak T6 (7 September 2026)
+   * `@Roles(Role.responden)` di sini akan BENAR-BENAR menolak peran lain --
+   * itulah sebabnya ia tetap tidak dipasang: yang diinginkan memang terbuka.
+   * Alasan lamanya keliru (dianggap tak berlaku karena bypass); kesimpulannya
+   * kebetulan sama.
    *
    * Idempoten: pemanggilan ulang mengembalikan waktu persetujuan yang SUDAH ada
    * tanpa menggesernya. Lihat ConsentService.record.

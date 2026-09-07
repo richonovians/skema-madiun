@@ -26,13 +26,15 @@ import { UsersService } from './users.service';
 @ApiTags('users')
 @ApiBearerAuth()
 /**
- * @Roles TETAP `Role.kabupaten` walau seluruh endpoint di sini kini khusus
- * superuser. Bukan kelalaian: RolesGuard meloloskan `kabupaten` DAN `superuser`
- * lewat bypass peran berhak penuh, jadi dekorator ini tak bisa membedakan
- * keduanya sama sekali. Yang menegakkan batasnya adalah
- * `UsersService.assertSuperuser` (403) -- lihat catatan panjang di sana.
+ * `@Roles(Role.superuser)` -- dan dekorator ini kini JUJUR. Sampai T6 dibereskan
+ * (7 September 2026) ia tertulis `Role.kabupaten` justru karena isinya tak
+ * berarti apa-apa: RolesGuard meloloskan `kabupaten` DAN `superuser` lewat
+ * bypass menyeluruh, jadi nilai apa pun di sini sama saja.
+ *
+ * `UsersService.assertSuperuser` (403) DIPERTAHANKAN sebagai lapis kedua --
+ * lihat catatan panjang di sana.
  */
-@Roles(Role.kabupaten)
+@Roles(Role.superuser)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
