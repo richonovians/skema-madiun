@@ -7,6 +7,7 @@ import {
   IsString,
   Max,
   Min,
+  MinLength,
   validateSync,
 } from 'class-validator';
 
@@ -64,10 +65,30 @@ class EnvironmentVariables {
   @IsString()
   UPLOAD_DIR: string = 'uploads';
 
+  // Masa berlaku URL lampiran bertanda tangan, dalam detik (T1, 7 September
+  // 2026). Batas bawah 60 detik: lebih pendek dari itu membuat gambar gagal
+  // dimuat ulang pada halaman yang wajar-wajar saja lamanya dibuka. Batas atas
+  // 24 jam — di atas itu "berbatas waktu" kehilangan artinya.
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  @Max(86_400)
+  UPLOAD_SIGNED_URL_TTL_SECONDS: number = 3600;
+
   // Sesi lokal (JWT) — diterbitkan SKM sendiri setelah login (dev-login sekarang,
   // callback SSO nanti). Wajib diisi eksplisit (fail-fast), bukan default lemah bawaan.
+  //
+  // `@MinLength(32)` ditambahkan 7 September 2026 (temuan audit T7): `@IsNotEmpty()`
+  // sendirian meloloskan rahasia satu karakter, dan aplikasi boot normal
+  // dengannya. Rahasia ini menandatangani SELURUH token sesi — rahasia pendek
+  // dapat ditebak paksa DI LUAR jaringan, tempat batas laju tak menolong sama
+  // sekali, dan yang menemukannya bisa menerbitkan token untuk peran apa pun.
+  // 32 karakter = 256 bit bila acak, sepadan dengan HS256 yang dipakai.
   @IsString()
   @IsNotEmpty()
+  @MinLength(32, {
+    message: 'SESSION_JWT_SECRET minimal 32 karakter (rahasia penanda tangan token sesi)',
+  })
   SESSION_JWT_SECRET!: string;
 
   @IsOptional()
@@ -129,6 +150,13 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   HELPDESK_SSO_ROLE_MAP?: string;
+
+  // Sakelar darurat penautan email (T5, 7 September 2026). String, bukan boolean:
+  // hanya nilai persis "true" yang menyalakannya (lihat configuration.ts), jadi
+  // salah tulis mana pun gagal ke arah AMAN alih-alih menyalakannya diam-diam.
+  @IsOptional()
+  @IsString()
+  HELPDESK_SSO_ALLOW_UNVERIFIED_EMAIL_LINK?: string;
 
   @IsOptional()
   @IsString()

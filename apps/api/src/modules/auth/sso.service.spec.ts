@@ -12,7 +12,7 @@ import { SessionService } from './session/session.service';
 import { SsoService } from './sso.service';
 import { SsoStateService } from './sso-state.service';
 
-const CONFIG_TERISI: Record<string, string> = {
+const CONFIG_TERISI: Record<string, string | boolean> = {
   'helpdesk.ssoIssuer': 'https://api.example.go.id/api/oauth',
   'helpdesk.ssoClientId': 'klien-skm',
   'helpdesk.ssoClientSecret': 'rahasia',
@@ -22,7 +22,7 @@ const CONFIG_TERISI: Record<string, string> = {
   'app.nodeEnv': 'test',
 };
 
-function mockConfig(overrides: Record<string, string | undefined> = {}): ConfigService {
+function mockConfig(overrides: Record<string, string | boolean | undefined> = {}): ConfigService {
   const values = { ...CONFIG_TERISI, ...overrides };
   return { get: (key: string) => values[key] } as unknown as ConfigService;
 }
@@ -34,6 +34,10 @@ function profil(overrides: Partial<SsoProfile> = {}): SsoProfile {
     nama: 'Budi Santoso',
     groups: undefined,
     role: undefined,
+    // Keadaan normal dari penyedia identitas. Ditulis TERSURAT sejak temuan
+    // audit T5 (7 September 2026) supaya uji lain tak diam-diam bergantung pada
+    // nilai baku yang justru sedang diperketat di blok "penautan email".
+    emailVerified: true,
     ...overrides,
   };
 }
@@ -72,7 +76,7 @@ type Mocked = {
   audit: { record: jest.Mock };
 };
 
-function buat(configOverrides: Record<string, string | undefined> = {}): Mocked {
+function buat(configOverrides: Record<string, string | boolean | undefined> = {}): Mocked {
   const prisma = {
     user: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
     opd: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -176,6 +180,134 @@ describe('SsoService', () => {
         ForbiddenException,
       );
       expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * TEMUAN AUDIT T5 (7 September 2026).
+   *
+   * Jalur penautan lewat email adalah SATU-SATUNYA tempat sebuah klaim SSO dapat
+   * membuat pemegangnya mewarisi peran akun yang sudah ada. Sebelum ini klaim
+   * `email` dipercaya tanpa syarat: siapa pun yang dapat membuat akun Helpdesk
+   * ber-email `superuser@example.go.id` akan ditautkan ke akun superuser SKEMA
+   * beserta seluruh haknya.
+   *
+   * Karena itu penautan sekarang menuntut `email_verified === true`. GAGAL
+   * TERTUTUP disengaja: klaim yang HILANG pun ditolak, sebab "tak ada bukti
+   * terverifikasi" bukan berarti "terverifikasi" -- pola yang sama dipakai
+   * ConsentService.assertConsented.
+   *
+   * Jalur LAIN sengaja tak disentuh, dan itu bukan kelalaian:
+   * - Pencocokan lewat `sub` tak melibatkan email sama sekali.
+   * - Pembuatan akun baru tak mewarisi hak siapa pun; perannya datang dari klaim
+   *   grup, bukan dari emailnya.
+   */
+  describe('provisioning: penautan email menuntut email terverifikasi (T5)', () => {
+    const akunLama = () =>
+      userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.superuser] });
+
+    const siapkan = (prisma: Mocked['prisma']) => {
+      prisma.user.findFirst
+        .mockResolvedValueOnce(null) // pencarian by sub
+        .mockResolvedValueOnce(akunLama()); // pencarian by email
+    };
+
+    it('email_verified false -> DITOLAK, akun lama tak disentuh', async () => {
+      const { service, prisma, source, session } = buat();
+      source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
+      siapkan(prisma);
+
+      await expect(service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      // Bukan cuma tak ditulis: tak ada sesi yang terbit sama sekali.
+      expect(session.issue).not.toHaveBeenCalled();
+    });
+
+    it('klaim email_verified HILANG -> juga ditolak (gagal tertutup)', async () => {
+      const { service, prisma, source } = buat();
+      source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: null }));
+      siapkan(prisma);
+
+      await expect(service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('email_verified true -> penautan berjalan seperti biasa', async () => {
+      const { service, prisma, session } = buat();
+      siapkan(prisma);
+      prisma.user.update.mockResolvedValue(
+        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+      );
+
+      await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { ssoSubject: 'hd-sub-abc123' },
+      });
+      expect(session.issue).toHaveBeenCalledWith(1);
+    });
+
+    it('penautan tercatat di audit walau emailnya terverifikasi', async () => {
+      // Menaikkan sebuah akun ke identitas Helpdesk baru adalah peristiwa
+      // pembawa hak; ia harus meninggalkan jejak, bukan hanya baris log.
+      const { service, prisma, audit } = buat();
+      siapkan(prisma);
+      prisma.user.update.mockResolvedValue(
+        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+      );
+
+      await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+
+      expect(audit.record).toHaveBeenCalledWith(
+        1,
+        'sso_link_email',
+        'auth',
+        expect.objectContaining({ sub: 'hd-sub-abc123' }),
+      );
+    });
+
+    it('sakelar darurat mengizinkan klaim hilang, dan penautannya tetap tercatat', async () => {
+      // Bentuk klaim Helpdesk belum dikonfirmasi (butir 04 dokumen permintaan).
+      // Tanpa jalan keluar apa pun, go-live tanpa klaim ini berarti SELURUH akun
+      // lama gagal ditautkan dan hanya dapat diperbaiki dengan mengubah kode.
+      // Sakelarnya baku MATI, dan pemakaiannya wajib meninggalkan jejak.
+      const { service, prisma, audit, source } = buat({
+        // boolean, bukan string 'true' — configuration.ts sudah mengubahnya
+        // (`=== 'true'`) sebelum sampai ke service.
+        'helpdesk.ssoAllowUnverifiedEmailLink': true,
+      });
+      source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: null }));
+      siapkan(prisma);
+      prisma.user.update.mockResolvedValue(userRow({ id: 1, ssoSubject: 'hd-sub-abc123' }));
+
+      await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+
+      expect(prisma.user.update).toHaveBeenCalled();
+      expect(audit.record).toHaveBeenCalledWith(
+        1,
+        'sso_link_email_unverified',
+        'auth',
+        expect.objectContaining({ sub: 'hd-sub-abc123' }),
+      );
+    });
+
+    it('KONTROL: pencocokan lewat sub tak terpengaruh email_verified', async () => {
+      // Kalau uji ini ikut merah, artinya penjaga barunya dipasang terlalu jauh
+      // ke atas dan memutus login setiap pengguna yang sudah dikenal.
+      const { service, prisma, source, session } = buat();
+      source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
+      prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 9 })); // ketemu by sub
+      prisma.user.update.mockResolvedValue(userRow({ id: 9 }));
+
+      await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+
+      expect(session.issue).toHaveBeenCalledWith(9);
     });
   });
 

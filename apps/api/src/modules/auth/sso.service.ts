@@ -108,6 +108,36 @@ export class SsoService {
     if (email) {
       const byEmail = await this.prisma.user.findFirst({ where: { email, deletedAt: null } });
       if (byEmail) {
+        // TEMUAN AUDIT T5 (7 September 2026). Ini SATU-SATUNYA tempat sebuah
+        // klaim SSO membuat pemegangnya MEWARISI peran akun yang sudah ada.
+        // Sebelum penjaga ini, klaim `email` dipercaya tanpa syarat: siapa pun
+        // yang dapat membuat akun Helpdesk ber-email `superuser@...` akan
+        // ditautkan ke akun superuser SKEMA beserta seluruh haknya.
+        //
+        // Gagal TERTUTUP, termasuk saat klaimnya hilang: "tak ada bukti
+        // terverifikasi" bukan berarti "terverifikasi" (pola yang sama dipakai
+        // ConsentService.assertConsented). Pemeriksaannya di SINI, bukan di awal
+        // fungsi — pencocokan lewat `sub` tak melibatkan email sama sekali, dan
+        // memeriksanya lebih awal akan memutus login setiap pengguna yang sudah
+        // dikenal.
+        const bolehTanpaVerifikasi = this.config.get<boolean>(
+          'helpdesk.ssoAllowUnverifiedEmailLink',
+        );
+        // `false` ditolak walau sakelarnya hidup: penyedia sudah menyatakan
+        // tidak, dan tak ada tafsir lain untuk pernyataan itu.
+        const lolos =
+          profile.emailVerified === true ||
+          (profile.emailVerified === null && bolehTanpaVerifikasi === true);
+        if (!lolos) {
+          this.logger.warn(
+            `Penautan akun id=${byEmail.id} DITOLAK — email_verified=${String(profile.emailVerified)}`,
+          );
+          throw new ForbiddenException(
+            'Alamat email pada akun Helpdesk Anda belum terverifikasi, sehingga tidak dapat ' +
+              'ditautkan ke akun SKEMA yang sudah ada. Hubungi Admin Kabupaten.',
+          );
+        }
+
         this.logger.log(
           `Menyelaraskan akun lama id=${byEmail.id} — sso_subject "${byEmail.ssoSubject}" dinaikkan ke sub Helpdesk`,
         );
@@ -115,6 +145,23 @@ export class SsoService {
           where: { id: byEmail.id },
           data: { ssoSubject: profile.sub },
         });
+
+        // Penautan adalah peristiwa PEMBAWA HAK — ia harus meninggalkan jejak
+        // yang dapat diperiksa, bukan hanya baris log yang ikut hilang bersama
+        // rotasi log. Aksinya dibedakan supaya pemakaian sakelar darurat dapat
+        // dicari sendiri di audit.
+        await this.audit.record(
+          upgraded.id,
+          profile.emailVerified === true ? 'sso_link_email' : 'sso_link_email_unverified',
+          'auth',
+          {
+            sub: profile.sub,
+            ssoSubjectLama: byEmail.ssoSubject,
+            emailVerified: profile.emailVerified,
+            roles: byEmail.roles,
+          },
+        );
+
         return this.acceptLogin(upgraded, profile);
       }
 

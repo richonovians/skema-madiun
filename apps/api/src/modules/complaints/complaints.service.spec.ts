@@ -167,7 +167,10 @@ describe('ComplaintsService', () => {
           mimetype: 'image/png',
           size: 6 * 1024 * 1024,
           originalname: 'a.png',
-          buffer: Buffer.from(''),
+          // Header PNG SAH (T2, 7 September 2026): sejak isi berkas ikut
+          // diperiksa, buffer kosong akan tertangkap pemeriksaan ISI dan uji ini
+          // lulus karena sebab yang salah. Yang harus diuji di sini UKURANnya.
+          buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
         },
       ] as unknown as Express.Multer.File[];
       await expect(
@@ -508,6 +511,14 @@ describe('ComplaintsService', () => {
         authorId: 10,
         pesan: 'Halo',
         createdAt: new Date(),
+        // `attachments` SELALU ada pada baris sungguhan -- setiap query balasan
+        // memakai `include: { attachments: true }`, dan tipenya pun menuntutnya.
+        // Fixture ini menghilangkannya, jadi ia tak mewakili apa pun yang bisa
+        // keluar dari Prisma (ketahuan saat penandatanganan lampiran ditambahkan,
+        // 7 September 2026). Sengaja TIDAK ditambal `?? []` di kodenya: kalau
+        // kelak ada query yang lupa `include`, lebih baik ia gagal keras
+        // daripada diam-diam mengembalikan pengaduan tanpa lampirannya.
+        attachments: [],
       });
       const result = await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
       expect(result.pesan).toBe('Halo');
@@ -522,6 +533,14 @@ describe('ComplaintsService', () => {
         authorId: 10,
         pesan: 'Halo',
         createdAt: new Date(),
+        // `attachments` SELALU ada pada baris sungguhan -- setiap query balasan
+        // memakai `include: { attachments: true }`, dan tipenya pun menuntutnya.
+        // Fixture ini menghilangkannya, jadi ia tak mewakili apa pun yang bisa
+        // keluar dari Prisma (ketahuan saat penandatanganan lampiran ditambahkan,
+        // 7 September 2026). Sengaja TIDAK ditambal `?? []` di kodenya: kalau
+        // kelak ada query yang lupa `include`, lebih baik ia gagal keras
+        // daripada diam-diam mengembalikan pengaduan tanpa lampirannya.
+        attachments: [],
       });
 
       await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));

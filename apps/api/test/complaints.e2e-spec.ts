@@ -3,9 +3,26 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+
+/**
+ * PNG SUNGGUHAN (8 bita tanda tangan + isi apa saja).
+ *
+ * Dulu uji-uji di bawah mengirim `Buffer.from('fake-png-bytes')` bernama
+ * `foto.png` dan lulus — persis celah yang ditutup temuan audit T2 (7 September
+ * 2026): daftar izin memeriksa header `Content-Type` KIRIMAN, bukan isinya,
+ * sehingga apa pun yang mengaku PNG diterima. Sejak isinya ikut diperiksa,
+ * lampiran uji harus benar-benar PNG — dan uji yang judulnya "lampiran valid
+ * (png)" jadi menguji apa yang ia katakan.
+ */
+const PNG_ASLI = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.from('isi-gambar-uji'),
+]);
 
 describe('Complaints (e2e)', () => {
   let app: INestApplication;
@@ -67,6 +84,25 @@ describe('Complaints (e2e)', () => {
     // basis data selamanya -- termasuk di basis data pengembangan.
     const pelapor = { in: [respondenId, respondenId2] };
     await prisma.complaintReply.deleteMany({ where: { complaint: { userId: pelapor } } });
+
+    // Berkas di DISK ikut dibersihkan, dan urutannya menentukan: begitu baris
+    // lampirannya hilang, jejak menuju berkasnya juga hilang dan berkas itu jadi
+    // yatim selamanya. Sebelum ini suite ini hanya menghapus baris DB dan
+    // meninggalkan satu berkas setiap kali dijalankan (terhitung 39 yatim pada
+    // 7 September 2026).
+    const lampiran = await prisma.complaintAttachment.findMany({
+      where: { complaint: { userId: pelapor } },
+      select: { fileUrl: true },
+    });
+    const dirUnggahan = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? 'uploads');
+    for (const { fileUrl } of lampiran) {
+      try {
+        await fs.unlink(path.join(dirUnggahan, fileUrl.replace(/^\/uploads\//, '')));
+      } catch {
+        // Berkas sudah tak ada -- bukan kegagalan pembersihan.
+      }
+    }
+
     await prisma.complaintAttachment.deleteMany({ where: { complaint: { userId: pelapor } } });
     await prisma.complaint.deleteMany({ where: { userId: pelapor } });
     await prisma.complaint.deleteMany({ where: { opdId } });
@@ -103,11 +139,92 @@ describe('Complaints (e2e)', () => {
       .field('kategori', 'lapor')
       .field('judul', 'Sampah menumpuk')
       .field('uraian', 'Sampah tidak diangkut selama 2 minggu')
-      .attach('lampiran', Buffer.from('fake-png-bytes'), 'foto.png');
+      .attach('lampiran', PNG_ASLI, 'foto.png');
 
     expect(res.status).toBe(201);
     expect(res.body.data.attachments).toHaveLength(1);
     expect(res.body.data.attachments[0].fileUrl).toContain('/uploads/complaints/');
+  });
+
+  /**
+   * TEMUAN AUDIT T1 (7 September 2026), pendekatan (b).
+   *
+   * Diuji lewat HTTP karena di situlah persoalannya berada: `/uploads/*` bukan
+   * rute controller melainkan aset statis, dan sebelum ini ia disajikan TANPA
+   * autentikasi apa pun -- terbukti dengan `curl` tanpa kredensial menjawab 200.
+   *
+   * Penyajiannya sengaja dipindah ke `configureApp` supaya baris-baris di bawah
+   * benar-benar dapat menyentuhnya; selama ia hanya ada di main.ts, tak satu pun
+   * e2e dapat mengujinya.
+   */
+  describe('lampiran hanya dapat diambil dengan URL bertanda tangan (T1)', () => {
+    let urlBertandaTangan: string;
+
+    beforeAll(async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/complaints')
+        .set(asResponden(respondenId))
+        .field('opdId', opdId)
+        .field('kategori', 'lapor')
+        .field('judul', 'Uji tanda tangan lampiran')
+        .field('uraian', 'Lampiran hanya boleh diambil lewat URL bertanda tangan')
+        .attach('lampiran', PNG_ASLI, 'foto.png');
+
+      expect(res.status).toBe(201);
+      urlBertandaTangan = res.body.data.attachments[0].fileUrl;
+    });
+
+    it('API mengembalikan fileUrl yang sudah ber-exp & sig', () => {
+      // Kalau baris ini merah, penandatanganannya tak terpasang dan seluruh uji
+      // di bawah kehilangan makna -- termasuk yang menuntut 403.
+      expect(urlBertandaTangan).toMatch(/^\/uploads\/complaints\/.+\?exp=\d+&sig=[A-Za-z0-9_-]+$/);
+    });
+
+    it('jalur POLOS tanpa tanda tangan -> 403 (inilah celah yang ditutup)', async () => {
+      const polos = urlBertandaTangan.split('?')[0];
+
+      const res = await request(app.getHttpServer()).get(polos);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('URL bertanda tangan -> 200 dan mengembalikan bita berkasnya', async () => {
+      const res = await request(app.getHttpServer()).get(urlBertandaTangan);
+
+      expect(res.status).toBe(200);
+      // Bukan cuma statusnya: isinya harus benar-benar berkas yang diunggah.
+      expect(res.body).toEqual(PNG_ASLI);
+      // Tanpa header ini peramban memblokir <img> lintas-origin walau 200.
+      expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    });
+
+    it('sig diutak-atik -> 403', async () => {
+      const rusak = urlBertandaTangan.replace(/sig=(.)/, (_m, c) => `sig=${c === 'A' ? 'B' : 'A'}`);
+
+      const res = await request(app.getHttpServer()).get(rusak);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('exp diperpanjang sendiri -> 403', async () => {
+      const jauh = Math.floor(Date.now() / 1000) + 999_999;
+      const rusak = urlBertandaTangan.replace(/exp=\d+/, `exp=${jauh}`);
+
+      const res = await request(app.getHttpServer()).get(rusak);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('tanda tangan satu berkas tak dapat dipakai untuk berkas lain', async () => {
+      // Pengulangan lintas-berkas: satu URL sah dipakai mengambil lampiran milik
+      // pengaduan orang lain.
+      const [, kueri] = urlBertandaTangan.split('?');
+      const res = await request(app.getHttpServer()).get(
+        `/uploads/complaints/berkas-lain.png?${kueri}`,
+      );
+
+      expect(res.status).toBe(403);
+    });
   });
 
   it('POST /complaints dengan tipe berkas tidak diizinkan -> 400', async () => {
@@ -121,6 +238,35 @@ describe('Complaints (e2e)', () => {
       .attach('lampiran', Buffer.from('exe-bytes'), 'virus.exe');
 
     expect(res.status).toBe(400);
+  });
+
+  /**
+   * Serangan yang SUDAH TERBUKTI berjalan sebelum T2 ditutup (7 September 2026),
+   * dijaga di tingkat HTTP karena di situlah `Content-Type` bagian multipart
+   * benar-benar datang dari pengirim — di uji unit ia hanya sebuah field objek.
+   *
+   * Dulu: lolos daftar izin -> tersimpan `.svg` -> disajikan `image/svg+xml`
+   * dari origin API. Yang menahannya hanya CSP.
+   */
+  it('POST /complaints: SVG yang mengaku image/png -> 400 (T2)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lainnya')
+      .field('judul', 'Uji T2')
+      .field('uraian', 'Isi berkas tidak cocok dengan tipe yang dinyatakan')
+      .attach('lampiran', Buffer.from('<svg><script>alert(1)</script></svg>'), {
+        // `contentType` = header pada BAGIAN multipart, yaitu tepat nilai yang
+        // dikendalikan penyerang dan yang dulu dipercaya daftar izin.
+        filename: 'probe.svg',
+        contentType: 'image/png',
+      });
+
+    expect(res.status).toBe(400);
+    // Pesannya harus menyebut KETIDAKCOCOKAN, bukan "tipe tidak diizinkan" --
+    // `image/png` memang diizinkan; yang salah isinya.
+    expect(String(res.body.message)).toMatch(/tidak cocok/i);
   });
 
   it('POST /complaints dgn subKategori (field sudah dihapus) -> 400', async () => {
@@ -391,7 +537,7 @@ describe('Complaints (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(`/api/v1/complaints/${id}/replies`)
       .set(asResponden(respondenId))
-      .attach('lampiran', Buffer.from('fake-png-bytes'), 'foto.png');
+      .attach('lampiran', PNG_ASLI, 'foto.png');
 
     expect(res.status).toBe(201);
     expect(res.body.data.pesan).toBe('');

@@ -31,6 +31,8 @@ import { ForwardComplaintDto } from './dto/forward-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
+import { signAttachmentPath } from './attachment-url.util';
+import { assertAllowedContent, safeFilename } from './attachment.util';
 import { ComplaintEntity } from './entities/complaint.entity';
 import { ComplaintReplyEntity } from './entities/complaint-reply.entity';
 
@@ -42,7 +44,6 @@ const ALLOWED_TRANSITIONS: Record<ComplaintStatus, ComplaintStatus[]> = {
   [ComplaintStatus.ditolak]: [],
 };
 
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — batas bisnis (dicek di sini, bukan di multer).
 const MAX_FILES = 5;
 
@@ -75,6 +76,11 @@ type ComplaintWithAttachments = Complaint & {
 export class ComplaintsService {
   private readonly logger = new Logger(ComplaintsService.name);
   private readonly uploadDir: string;
+  // Rahasia & masa berlaku URL lampiran bertanda tangan (T1, 7 September 2026).
+  // Diambil sekali di konstruktor: ia dipakai pada SETIAP baris lampiran di
+  // setiap respons, jadi membaca ConfigService per baris hanya kerja berulang.
+  private readonly urlSecret: string;
+  private readonly urlTtl: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -84,6 +90,33 @@ export class ComplaintsService {
     private readonly audit: AuditService,
   ) {
     this.uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
+    // `SESSION_JWT_SECRET` sudah WAJIB & minimal 32 karakter (env.validation),
+    // jadi tak ada cadangan lemah di sini -- kalau ia kosong, aplikasi bahkan
+    // tak sampai boot. Kuncinya diturunkan lagi di attachment-url.util.ts
+    // (pemisahan domain), jadi rahasia ini tak dipakai apa adanya.
+    this.urlSecret = config.get<string>('session.jwtSecret') ?? '';
+    this.urlTtl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
+  }
+
+  /**
+   * Tanda tangani `fileUrl` setiap lampiran, tepat saat ia keluar sebagai
+   * respons (T1, 7 September 2026).
+   *
+   * DI SINI, bukan disimpan ke DB: tanda tangannya berbatas waktu, jadi ia harus
+   * dibuat ulang setiap permintaan. `file_url` di basis data tetap jalur bersih
+   * -- itu pula yang membuat kontrak DB tak berubah dan pemindahan ke S3 nanti
+   * tetap terbuka.
+   *
+   * Dipanggil dari DUA tempat (toEntity & toReplyEntity). Kalau kelak ada tempat
+   * ketiga yang lupa memanggilnya, akibatnya adalah gambar yang GAGAL dimuat
+   * (403 dari penjaga), bukan lampiran yang bocor -- gagal ke arah aman, dan
+   * terlihat seketika.
+   */
+  private tandaTanganiLampiran<T extends { fileUrl: string }>(rows: T[]): T[] {
+    return rows.map((a) => ({
+      ...a,
+      fileUrl: signAttachmentPath(a.fileUrl, this.urlSecret, this.urlTtl),
+    }));
   }
 
   /** Ajukan pengaduan baru (Responden). Lampiran divalidasi lalu disimpan SEBELUM baris DB dibuat. */
@@ -477,21 +510,27 @@ export class ComplaintsService {
     throw new ConflictException('Gagal membuat nomor tiket unik, silakan coba lagi');
   }
 
-  /** Validasi tipe & ukuran lampiran (batas bisnis — 400 yang jelas, bukan error multer). */
+  /**
+   * Validasi lampiran (batas bisnis — 400 yang jelas, bukan error multer).
+   *
+   * URUTANNYA disengaja: jumlah -> ukuran -> tipe & isi. Ukuran diperiksa
+   * sebelum isi karena membaca angka ajaib pada berkas 5MB+ yang toh akan
+   * ditolak hanya membuang kerja; dan setiap berkas gagal dengan pesan yang
+   * benar-benar menyebut sebabnya, bukan sebab pertama yang kebetulan cocok.
+   */
   private validateFiles(files: Express.Multer.File[] | undefined): Express.Multer.File[] {
     const list = files ?? [];
     if (list.length > MAX_FILES) {
       throw new BadRequestException(`Maksimal ${MAX_FILES} lampiran per pengaduan`);
     }
     for (const file of list) {
-      if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-        throw new BadRequestException(
-          `Tipe berkas "${file.mimetype}" tidak diizinkan (hanya JPEG/PNG/WEBP/PDF)`,
-        );
-      }
       if (file.size > MAX_FILE_SIZE_BYTES) {
         throw new BadRequestException(`Ukuran berkas "${file.originalname}" melebihi 5MB`);
       }
+      // Memeriksa ISI berkas, bukan hanya header `Content-Type` kiriman (temuan
+      // audit T2, 7 September 2026 — serangan SVG-mengaku-PNG yang terbukti
+      // berjalan). Lihat attachment.util.ts untuk alasan lengkapnya.
+      assertAllowedContent(file);
     }
     return list;
   }
@@ -505,7 +544,11 @@ export class ComplaintsService {
 
     const saved: SavedFile[] = [];
     for (const file of files) {
-      const filename = `${randomUUID()}-${this.sanitizeFilename(file.originalname)}`;
+      // Ekstensi ditentukan MIME yang SUDAH divalidasi isinya, bukan nama
+      // kiriman: ekstensi itulah yang dipakai `express.static` menentukan
+      // `Content-Type`, jadi membiarkan pengirim memilihnya berarti membiarkan
+      // pengirim memilih bagaimana berkasnya dieksekusi di peramban orang lain.
+      const filename = `${randomUUID()}-${safeFilename(file.originalname, file.mimetype)}`;
       const absolutePath = path.join(dir, filename);
       await fs.writeFile(absolutePath, file.buffer);
       saved.push({
@@ -530,10 +573,6 @@ export class ComplaintsService {
     );
   }
 
-  private sanitizeFilename(name: string): string {
-    return name.replace(/[^a-zA-Z0-9.\-_]/g, '_').slice(-100);
-  }
-
   /**
    * Penyamaran pengaduan anonim terjadi DI SINI, satu tempat: seluruh jalur baca
    * (findAll, findByTicketNo, updateStatus, create) melewatinya.
@@ -548,7 +587,7 @@ export class ComplaintsService {
     const { user, opd, ...rest } = row;
     const entity = new ComplaintEntity({
       ...rest,
-      attachments: rest.attachments.map((a) => ({ ...a })),
+      attachments: this.tandaTanganiLampiran(rest.attachments),
       reporterNama: user?.nama,
       opdNama: opd?.nama,
     });
@@ -568,7 +607,14 @@ export class ComplaintsService {
     row: ComplaintReply & { attachments: ComplaintAttachment[] },
     complaint: { userId: number; isAnonim: boolean },
   ): ComplaintReplyEntity {
-    const entity = new ComplaintReplyEntity(row);
+    const entity = new ComplaintReplyEntity({
+      ...row,
+      // Lampiran pada balasan chat menempuh jalur penyajian yang SAMA
+      // (`/uploads/*`), jadi ia perlu tanda tangan yang sama. Tanpa ini gambar
+      // di percakapan gagal dimuat 403 -- gejalanya berbeda dari kebocoran,
+      // tapi tetap harus benar.
+      attachments: this.tandaTanganiLampiran(row.attachments),
+    });
     if (complaint.isAnonim && row.authorId === complaint.userId) {
       delete entity.authorId;
     }

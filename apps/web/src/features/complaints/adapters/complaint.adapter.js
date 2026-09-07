@@ -77,16 +77,30 @@ function getFileOrigin() {
 }
 
 /**
- * Lampiran disajikan lewat `/uploads/*` (2026-08-05, `main.ts` `useStaticAssets`
- * -- SEBELUMNYA gap: fileUrl backend sudah benar tapi tak ada route yg
- * menyajikannya, selalu 404). Publik/tanpa-auth SENGAJA (nama file UUID tak
- * tertebak) -- endpoint terautentikasi adalah pekerjaan terpisah yg lebih besar.
+ * Lampiran disajikan lewat `/uploads/*` (2026-08-05; sebelumnya `fileUrl` sudah
+ * benar tapi tak ada rute yang menyajikannya, selalu 404).
+ *
+ * SEJAK 7 September 2026 (temuan audit T1) rute itu TIDAK lagi publik: backend
+ * mengembalikan `fileUrl` yang sudah bertanda tangan dan berbatas waktu
+ * (`?exp=...&sig=...`), dan permintaan tanpa itu dijawab 403. Karena itu:
+ *
+ * - `url` HARUS membawa kuerinya utuh. Memotongnya berarti setiap gambar 403.
+ * - `alt` TIDAK boleh membawanya. Ia diambil dari potongan terakhir jalur, jadi
+ *   tanpa pemisahan di bawah teks alternatifnya berbunyi
+ *   "foto.png?exp=1764000000&sig=aB3..." -- dibacakan lantang oleh pembaca
+ *   layar, dan ikut muncul di mana pun nama berkas ditampilkan.
+ *
+ * Tautannya dapat KEDALUWARSA (baku 1 jam). Bila halaman dibiarkan terbuka
+ * lebih lama dan gambarnya dimuat ulang, jawabannya 403 dan pengguna perlu
+ * memuat ulang halaman untuk mendapatkan tautan baru -- itu konsekuensi yang
+ * disengaja dari pendekatan URL bertanda tangan.
  */
 export function adaptComplaintAttachment(attachment) {
+  const jalurTanpaKueri = attachment.fileUrl.split('?')[0];
   return {
     id: attachment.id,
     url: `${getFileOrigin()}${attachment.fileUrl}`,
-    alt: attachment.fileUrl.split('/').pop(),
+    alt: jalurTanpaKueri.split('/').pop(),
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
   };
