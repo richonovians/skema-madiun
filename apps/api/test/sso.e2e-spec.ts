@@ -37,6 +37,9 @@ class StubSsoSource implements SsoSource {
     nama: 'Warga SSO',
     groups: undefined,
     role: undefined,
+    // Keadaan normal penyedia identitas. Wajib tersurat sejak T5 (7 September
+    // 2026): penautan akun lama lewat email menolak klaim yang hilang.
+    emailVerified: true,
   };
   lastCode: string | null = null;
   /** Disetel satu tes untuk meniru Helpdesk yang tak dapat dihubungi. */

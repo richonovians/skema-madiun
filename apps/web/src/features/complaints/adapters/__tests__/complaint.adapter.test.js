@@ -1,5 +1,6 @@
 import {
   adaptComplaint,
+  adaptComplaintAttachment,
   adaptComplaintReplyToChatMessage,
   toCreateComplaintPayload,
 } from '../complaint.adapter';
@@ -90,5 +91,39 @@ describe('toCreateComplaintPayload', () => {
       toCreateComplaintPayload({ opdId: '3', kategori: 'aduan', title: 'J', description: 'U' })
         .isAnonim,
     ).toBe(false);
+  });
+});
+
+/**
+ * Sejak T1 ditutup (7 September 2026), `fileUrl` dari backend membawa tanda
+ * tangan: `/uploads/complaints/<uuid>-foto.png?exp=...&sig=...`.
+ *
+ * `url` memang harus memuat kueri itu utuh -- tanpanya gambar dijawab 403. Yang
+ * TIDAK boleh memuatnya adalah `alt`: ia diambil dari potongan terakhir jalur,
+ * jadi tanpa perbaikan ini teks alternatif setiap lampiran berbunyi
+ * "foto.png?exp=1764000000&sig=aB3..." -- terbaca lantang oleh pembaca layar,
+ * dan ikut tampil di mana pun nama berkas ditampilkan.
+ */
+describe('adaptComplaintAttachment', () => {
+  const lampiran = {
+    id: 3,
+    fileUrl: '/uploads/complaints/8a7b-foto.png?exp=1764000000&sig=aB3_x-9',
+    mimeType: 'image/png',
+    sizeBytes: 1024,
+  };
+
+  it('url membawa tanda tangannya utuh', () => {
+    // Memotong kueri di sini berarti setiap gambar dijawab 403.
+    expect(adaptComplaintAttachment(lampiran).url).toContain('?exp=1764000000&sig=aB3_x-9');
+  });
+
+  it('alt hanya nama berkas, TANPA kueri tanda tangan', () => {
+    expect(adaptComplaintAttachment(lampiran).alt).toBe('8a7b-foto.png');
+  });
+
+  it('fileUrl tanpa kueri tetap bekerja', () => {
+    // Balasan lama / data uji bisa saja belum bertanda tangan.
+    const hasil = adaptComplaintAttachment({ ...lampiran, fileUrl: '/uploads/complaints/a.png' });
+    expect(hasil.alt).toBe('a.png');
   });
 });

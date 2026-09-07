@@ -11,6 +11,15 @@ export interface SsoProfile {
   /** Klaim `sub` — identitas stabil, disimpan ke `users.ssoSubject`. */
   sub: string;
   email: string | null;
+  /**
+   * Klaim `email_verified` — pernyataan penyedia identitas bahwa email itu
+   * benar milik pemegang akun. `null` berarti klaimnya TIDAK ADA, dan itu
+   * dibedakan dari `false` dengan sengaja: keduanya sama-sama menghalangi
+   * penautan akun (lihat SsoService.provision), tapi hanya yang `null` yang
+   * dapat dilonggarkan sakelar darurat, karena hanya `null` yang berarti
+   * "belum diketahui" alih-alih "sudah dinyatakan tidak".
+   */
+  emailVerified: boolean | null;
   nama: string | null;
   groups: unknown;
   role: unknown;
