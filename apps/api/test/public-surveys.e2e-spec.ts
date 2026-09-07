@@ -208,7 +208,11 @@ describe('Public Surveys (e2e)', () => {
    * melainkan StubAuthProvider yang dipakai seluruh e2e (NODE_ENV=test)
    * MEMPERLAKUKAN permintaan tanpa header x-dev-* sebagai `kabupaten`
    * (stub-auth.provider.ts:24). Jadi di lingkungan ini "tanpa sesi" tak punya
-   * arti, dan tak ada gerbang yang bisa dibuktikan tertutup.
+   * arti, dan tak ada gerbang 401 yang bisa dibuktikan tertutup. Sejak T6
+   * (7 September 2026) `@Roles` ditegakkan apa adanya, sehingga permintaan
+   * tanpa header itu kini DITOLAK 403 pada rute yang tak mengizinkan kabupaten
+   * -- perbedaan 401 vs 403 itulah yang membuktikan ia terautentikasi sebagai
+   * sesuatu, bukan sebagai tak-ada-siapa-pun.
    *
    * Fakta itu direkam sebagai uji supaya tak ada yang menambahkan kembali
    * kontrol 401 yang mustahil lulus di sini lalu menyangka menemukan lubang.
@@ -217,9 +221,26 @@ describe('Public Surveys (e2e)', () => {
    * aktif. Di produksi hanya provider itu yang dipakai (auth.module.ts).
    */
   it('lingkungan: mode test memperlakukan permintaan tanpa header sebagai kabupaten', async () => {
-    const res = await request(app.getHttpServer()).get(`/api/v1/surveys/${surveiAnonimId}/fill`);
+    // TANDANYA berubah 7 September 2026, FAKTANYA tidak.
+    //
+    // Dulu buktinya: permintaan tanpa header menembus `/surveys/:id/fill`
+    // (@Roles responden) dan menjawab 200 -- yang lolos lewat bypass menyeluruh
+    // kabupaten atas @Roles, dan bypass itu dibongkar T6. Fakta yang direkam
+    // uji ini tetap sama: tanpa header BUKAN "tanpa sesi", melainkan kabupaten.
+    //
+    // Sekarang dipatok dua sisi sekaligus, dan itu justru lebih tepat daripada
+    // satu angka 200:
+    const rutePerandaResponden = await request(app.getHttpServer()).get(
+      `/api/v1/surveys/${surveiAnonimId}/fill`,
+    );
+    // 403, BUKAN 401: ia terautentikasi sebagai SESUATU -- cuma bukan responden.
+    expect(rutePerandaResponden.status).toBe(403);
+    expect(String(rutePerandaResponden.body.message)).toMatch(/responden/i);
 
-    expect(res.status).toBe(200); // BUKAN 401 -- lihat catatan di atas
+    // Dan pada rute yang memang mengizinkan kabupaten, ia langsung dilayani
+    // tanpa satu pun header -- itulah bagian yang berbahaya bila dilupakan.
+    const ruteKabupaten = await request(app.getHttpServer()).get('/api/v1/surveys');
+    expect(ruteKabupaten.status).toBe(200);
   });
 
   it('KONTROL: endpoint berpenjaga tetap berfungsi bagi responden bersesi', async () => {

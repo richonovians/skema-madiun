@@ -14,7 +14,7 @@ export class ReferenceController {
 
   /** Daftar 9 unsur baku SKM (template PermenPANRB 14/2017). */
   @Get('unsur')
-  @Roles(Role.kabupaten, Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @ApiOkResponse({ type: UnsurEntity, isArray: true })
   getUnsur(): UnsurEntity[] {
     return this.referenceService.getUnsur();

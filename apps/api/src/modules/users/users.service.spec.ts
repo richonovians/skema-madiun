@@ -212,9 +212,10 @@ describe('UsersService', () => {
     await expect(service.remove(99, SUPERUSER)).rejects.toThrow(NotFoundException);
   });
 
-  // Manajemen pengguna khusus superuser (2026-08-20). Diuji lewat service, BUKAN
-  // lewat @Roles: RolesGuard meloloskan kabupaten & superuser sama saja (bypass
-  // peran berhak penuh), jadi dekorator controller tak bisa jadi batasnya.
+  // Manajemen pengguna khusus superuser (2026-08-20). Sejak T6 (7 Sep 2026)
+  // `@Roles(Role.superuser)` di controller juga menahannya; yang diuji di sini
+  // lapis service -- yang tetap berlaku bila daftar dekorator kelak diperluas
+  // keliru. Gerbang guard-nya diuji di test/users.e2e-spec.ts.
   describe('khusus superuser (2026-08-20)', () => {
     it('findAll oleh Admin Kabupaten → Forbidden, DB tak disentuh', async () => {
       await expect(

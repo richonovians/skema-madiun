@@ -204,10 +204,11 @@ export class DashboardService {
    * Parameter yang cuma ada untuk diabaikan justru menyesatkan pembaca
    * berikutnya.
    *
-   * Pemeriksaan ini SENGAJA di dalam service, bukan lewat `@Roles`: RolesGuard
-   * memberi `kabupaten` & `superuser` bypass penuh atas dekorator itu, jadi
-   * `@Roles` tak mampu membedakan keduanya dari peran lain (pola sama seperti
-   * AuditService & UsersService.assertSuperuser).
+   * Pemeriksaan ini dulu SATU-SATUNYA gerbang, karena RolesGuard memberi
+   * `kabupaten` & `superuser` bypass penuh atas `@Roles(Role.opd)`. Bypass itu
+   * dibongkar T6 (7 September 2026), jadi guard menolak keduanya lebih dahulu.
+   * Ia TETAP sebagai lapis kedua, dan pesannyalah yang menuntun pengguna
+   * berpindah peran (pola sama seperti AuditService & UsersService).
    *
    * Yang TIDAK ikut ditutup: `superuser` & `kabupaten` tetap dapat MEMBACA data
    * lintas OPD lewat monitoring survei, pengaduan, dan hasil IKM

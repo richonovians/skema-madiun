@@ -61,7 +61,7 @@ export class ResponsesController {
 
   /** Daftar respons survei untuk admin (Admin OPD: milik OPD-nya; Kabupaten: semua). */
   @Get('surveys/:surveyId/responses')
-  @Roles(Role.kabupaten, Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @ApiOkResponse({ type: ResponseEntity, isArray: true })
   findAll(
     @Param('surveyId', ParseIntPipe) surveyId: number,

@@ -393,10 +393,11 @@ export class ComplaintsService {
    * `PATCH /complaints/:id/opd` -- meneruskan pengaduan yang belum bertujuan ke
    * OPD yang berwenang (permintaan pengguna 6 September 2026).
    *
-   * HAK DITEGAKKAN DI SINI, bukan lewat `@Roles`: RolesGuard memberi
-   * `kabupaten` & `superuser` bypass penuh atas dekorator itu, sehingga `@Roles`
-   * tak mampu membedakan keduanya dari peran lain (pola sama seperti
-   * AuditService.assertSuperuser).
+   * HAK DITEGAKKAN DUA LAPIS sejak T6 (7 September 2026):
+   * `@Roles(Role.kabupaten, Role.superuser)` di controller menolak lebih dahulu,
+   * dan pemeriksaan di bawah tetap ada sebagai lapis kedua. Dulu hanya ada lapis
+   * ini, karena bypass menyeluruh membuat dekorator apa pun tak berlaku bagi
+   * kedua peran itu.
    *
    * Hanya berlaku bila tujuannya MASIH kosong. Memindahkan tiket yang sudah
    * ditangani OPD lain adalah alur tersendiri yang belum diminta -- dan

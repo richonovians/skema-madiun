@@ -92,9 +92,13 @@ describe('RolesGuard', () => {
    * dipakainya berbeda. Tanpa ini, "menolak" di atas bisa saja karena guard
    * menolak semuanya.
    */
-  it('KONTROL: akun yang SAMA dengan actingRole superuser diloloskan', async () => {
+  it('KONTROL: akun yang SAMA dengan actingRole yang TERDAFTAR diloloskan', async () => {
+    // Perannya harus benar-benar ada di daftar. Sebelum T6 dibereskan
+    // (7 September 2026) uji ini memasang `@Roles([kabupaten])` dan mengharap
+    // `superuser` lolos -- yang lolos lewat BYPASS, bukan lewat daftar. Maksud
+    // uji ini tetap sama: yang menentukan `actingRole`, bukan `roles`.
     const { guard, context } = buat(
-      { [ROLES_KEY]: [Role.kabupaten] },
+      { [ROLES_KEY]: [Role.kabupaten, Role.superuser] },
       {
         resolveUser: jest
           .fn()
@@ -105,6 +109,97 @@ describe('RolesGuard', () => {
     );
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  /**
+   * TEMUAN AUDIT T6 (7 September 2026).
+   *
+   * `kabupaten` & `superuser` dulu MELAMPAUI seluruh `@Roles` tanpa syarat.
+   * Akibatnya dekoratornya berbohong: rute ber-`@Roles(Role.superuser)` juga
+   * terbuka bagi kabupaten, dan setiap rute ber-`@Roles(Role.opd)` terbuka bagi
+   * keduanya. Yang menahan hanya pemeriksaan di dalam service -- jadi rute baru
+   * yang lupa memeriksanya diam-diam terbuka. Itu fail-OPEN.
+   *
+   * Sekarang `@Roles` ditegakkan apa adanya. Peran berakses penuh yang memang
+   * perlu masuk harus DITULIS di daftarnya, dan itu sudah dilakukan pada seluruh
+   * 29 dekorator. Kegagalannya kini fail-CLOSED: rute yang daftarnya kurang
+   * menjawab 403 dan langsung terlihat, bukan terbuka tanpa suara.
+   */
+  describe('@Roles ditegakkan apa adanya (T6)', () => {
+    it('rute superuser-saja MENOLAK kabupaten', async () => {
+      // Inilah kebohongan yang paling nyata: `@Roles(Role.superuser)` pada
+      // audit.controller.ts dulu tak berpengaruh sama sekali bagi kabupaten.
+      const { guard, context } = buat(
+        { [ROLES_KEY]: [Role.superuser] },
+        {
+          resolveUser: jest
+            .fn()
+            .mockResolvedValue(pengguna({ roles: [Role.kabupaten], actingRole: Role.kabupaten })),
+        },
+      );
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rute opd-saja MENOLAK kabupaten (tak ada lagi bypass menyeluruh)', async () => {
+      const { guard, context } = buat(
+        { [ROLES_KEY]: [Role.opd] },
+        {
+          resolveUser: jest
+            .fn()
+            .mockResolvedValue(pengguna({ roles: [Role.kabupaten], actingRole: Role.kabupaten })),
+        },
+      );
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rute responden-saja MENOLAK superuser', async () => {
+      // Penting bagi UU PDP: `ConsentService.assertConsented` hanya berlaku bagi
+      // actingRole `responden`. Selama bypass ada, peran berakses penuh dapat
+      // mengirim pengaduan TANPA pernah melewati gerbang persetujuan.
+      const { guard, context } = buat(
+        { [ROLES_KEY]: [Role.responden] },
+        {
+          resolveUser: jest
+            .fn()
+            .mockResolvedValue(pengguna({ roles: [Role.superuser], actingRole: Role.superuser })),
+        },
+      );
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('pesan penolakannya MENYEBUT peran yang dibutuhkan', async () => {
+      // Pesan lama ("Anda tidak memiliki hak akses...") tak dapat dibedakan dari
+      // penolakan di dalam service, sehingga uji dapat lulus karena gerbang yang
+      // salah. Menyebut perannya membuat penolakan guard dapat dikenali.
+      const { guard, context } = buat(
+        { [ROLES_KEY]: [Role.superuser] },
+        {
+          resolveUser: jest
+            .fn()
+            .mockResolvedValue(pengguna({ roles: [Role.kabupaten], actingRole: Role.kabupaten })),
+        },
+      );
+
+      await expect(guard.canActivate(context)).rejects.toThrow(/superuser/i);
+    });
+
+    it('KONTROL: rute TANPA @Roles tetap terbuka bagi peran mana pun', async () => {
+      // Yang dibongkar adalah bypass atas `@Roles`, bukan aturan rute tanpa
+      // dekorator -- 33 dari 62 rute memang tak berdekorator.
+      const { guard, context } = buat(
+        {},
+        {
+          resolveUser: jest
+            .fn()
+            .mockResolvedValue(pengguna({ roles: [Role.kabupaten], actingRole: Role.kabupaten })),
+        },
+      );
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
   });
 
   it('actingRole yang memenuhi @Roles diloloskan', async () => {

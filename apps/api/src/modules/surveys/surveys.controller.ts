@@ -33,7 +33,7 @@ export class SurveysController {
 
   /** Daftar survei (Kabupaten: semua; Admin OPD: milik OPD-nya). */
   @Get()
-  @Roles(Role.kabupaten, Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
   findAll(
     @Query() query: ListSurveyQueryDto,
@@ -44,7 +44,7 @@ export class SurveysController {
 
   /** Buat paket survei (Admin OPD). */
   @Post()
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   create(@Body() dto: CreateSurveyDto, @CurrentUser() user: CurrentUser): Promise<SurveyEntity> {
@@ -65,7 +65,7 @@ export class SurveysController {
 
   /** Detail survei. */
   @Get(':id')
-  @Roles(Role.kabupaten, Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @ApiOkResponse({ type: SurveyEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,
@@ -76,7 +76,7 @@ export class SurveysController {
 
   /** Ubah survei (draft, Admin OPD). */
   @Patch(':id')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   update(
@@ -89,7 +89,7 @@ export class SurveysController {
 
   /** Hapus survei (draft, Admin OPD). */
   @Delete(':id')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
@@ -98,7 +98,7 @@ export class SurveysController {
 
   /** Publikasikan / tutup survei (Admin OPD). */
   @Patch(':id/status')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey', 'update_status')
   @ApiOkResponse({ type: SurveyEntity })
   updateStatus(
@@ -111,7 +111,7 @@ export class SurveysController {
 
   /** Duplikasi survei periode sebelumnya (Admin OPD). */
   @Post(':id/duplicate')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey', 'duplicate')
   @ApiOkResponse({ type: SurveyEntity })
   duplicate(

@@ -87,7 +87,7 @@ export class ComplaintsController {
 
   /** Ubah status pengaduan (Admin OPD pemilik). */
   @Patch(':id/status')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('complaint', 'update_status')
   @ApiOkResponse({ type: ComplaintEntity })
   updateStatus(
@@ -102,13 +102,19 @@ export class ComplaintsController {
    * Teruskan pengaduan yang belum bertujuan ke OPD yang berwenang
    * (6 September 2026).
    *
-   * TANPA `@Roles`, dan itu disengaja: haknya (Superuser & Admin Kabupaten)
-   * ditegakkan di dalam service, karena RolesGuard memberi kedua peran itu
-   * bypass penuh atas dekorator sehingga `@Roles` tak dapat membedakannya dari
-   * peran lain. Memasang `@Roles(Role.kabupaten)` di sini justru MELOLOSKAN
-   * lebih banyak, bukan lebih sedikit.
+   * `@Roles(Role.kabupaten, Role.superuser)` DITAMBAHKAN saat T6 dibereskan
+   * (7 September 2026). Sebelumnya rute ini sengaja TANPA dekorator, dan
+   * alasannya masuk akal saat itu: bypass menyeluruh membuat
+   * `@Roles(Role.kabupaten)` MELOLOSKAN lebih banyak, bukan lebih sedikit.
+   * Begitu bypass-nya dibongkar, alasan itu hilang -- dan rute tanpa dekorator
+   * justru terbuka bagi SETIAP pengguna terautentikasi di lapis guard.
+   *
+   * Daftarnya PERSIS `FULL_ACCESS_ROLES`, jadi tak ada perubahan siapa yang
+   * boleh: yang berubah hanya lapis mana yang menolak lebih dahulu. Pemeriksaan
+   * di service tetap ada, dengan pesan yang lebih spesifik.
    */
   @Patch(':id/opd')
+  @Roles(Role.kabupaten, Role.superuser)
   @Audit('complaint', 'forward')
   @ApiOkResponse({ type: ComplaintEntity })
   forward(
@@ -131,7 +137,7 @@ export class ComplaintsController {
 
   /** Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). Lampiran opsional (multipart). */
   @Post(':id/replies')
-  @Roles(Role.opd, Role.responden)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd, Role.responden)
   @UseInterceptors(
     FilesInterceptor('lampiran', 5, {
       storage: memoryStorage(),

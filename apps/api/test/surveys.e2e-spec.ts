@@ -48,9 +48,9 @@ describe('Surveys (e2e)', () => {
     expect(res.body.data.status).toBe('draft');
   });
 
-  // Kabupaten (= superuser, 2026-08-05) melampaui @Roles(Role.opd) via bypass
-  // RolesGuard -- bukan lagi read-only, tapi wajib kirim opdId sendiri (tidak
-  // seperti Admin OPD yang opdId-nya tersirat dari akun).
+  // Kabupaten mencapai rute ini karena TERDAFTAR di @Roles-nya, bukan lewat
+  // bypass menyeluruh -- bypass itu dibongkar T6 (7 Sep 2026). Ia wajib kirim
+  // opdId sendiri, tidak seperti Admin OPD yang opdId-nya tersirat dari akun.
   it('POST /surveys (Kabupaten) tanpa opdId -> 400', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')

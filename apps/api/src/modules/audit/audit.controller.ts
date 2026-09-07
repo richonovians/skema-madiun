@@ -11,10 +11,13 @@ import { AuditLogEntity } from './entities/audit-log.entity';
 /**
  * Log aktivitas -- SUPERUSER saja (2026-08-20). Admin Kabupaten biasa ditolak.
  *
- * `@Roles` di sini hanya menyaring peran non-admin; yang MENEGAKKAN batas
- * superuser adalah `AuditService.assertSuperuser`, karena RolesGuard memberi
- * `kabupaten` bypass penuh atas @Roles sehingga dekorator saja tak cukup.
- * Penjelasan lengkapnya ada di service.
+ * `@Roles(Role.superuser)` di sini SUDAH menegakkan batasnya sejak T6
+ * dibereskan (7 September 2026). Sebelum itu dekorator ini tak berarti apa-apa
+ * bagi `kabupaten`, yang melampaui seluruh @Roles tanpa syarat -- rute inilah
+ * contoh paling nyata mengapa bypass itu dibongkar.
+ *
+ * `AuditService.assertSuperuser` DIPERTAHANKAN sebagai lapis kedua, bukan sisa
+ * yang lupa dibuang. Penjelasan lengkapnya ada di service.
  */
 @ApiTags('audit')
 @ApiBearerAuth()

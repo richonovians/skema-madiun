@@ -207,7 +207,7 @@ export class SurveysService {
       }
       return user.opdId; // Admin OPD selalu membuat untuk OPD-nya sendiri
     }
-    // kabupaten (=superuser, lolos guard) atau lainnya
+    // kabupaten & superuser (terdaftar di @Roles sejak T6) atau lainnya
     if (dto.opdId == null) {
       throw new BadRequestException('opdId wajib diisi');
     }
