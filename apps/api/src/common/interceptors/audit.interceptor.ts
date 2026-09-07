@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { concatMap, Observable } from 'rxjs';
 import { AuditService } from '../../modules/audit/audit.service';
 import { AUDIT_KEY, AuditMeta } from '../decorators/audit.decorator';
+import { redactAuditBody } from './audit-redact.util';
 import type { CurrentUser } from '../decorators/current-user.decorator';
 
 interface AuditableRequest {
@@ -60,9 +61,14 @@ export class AuditInterceptor implements NestInterceptor {
       return;
     }
     const aksi = meta.aksi ?? inferAksi(request.method);
+    // Badan permintaan DIREDAKSI sebelum masuk `audit_logs.detail` (temuan audit
+    // T8, 7 September 2026): nilai identitas & teks bebas disunting, KUNCInya
+    // dipertahankan supaya audit log tetap menjawab "field mana yang disentuh".
+    // `params` ikut dilewatkan -- ia biasanya hanya `{ id }`, tapi melewatkannya
+    // lewat fungsi yang sama berarti satu aturan, bukan dua yang bisa berbeda.
     await this.auditService.record(request.user.userId, aksi, meta.entitas, {
-      params: request.params,
-      body: request.body,
+      params: redactAuditBody(request.params),
+      body: redactAuditBody(request.body),
     });
   }
 }
