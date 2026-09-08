@@ -1,6 +1,12 @@
 // Penyimpanan token sesi. Disimpan di DUA tempat dengan alasan berbeda:
 // - localStorage: dibaca interceptor axios (api.js) untuk header Authorization di client.
 // - cookie: dibaca proxy.js (jalan di server/edge, tak bisa akses localStorage) untuk proteksi route.
+//
+// SATU-SATUNYA impor berkas ini, dan sengaja ke modul yang tak mengimpor apa pun
+// (8 September 2026). `api.js` mengimpor `clearSession` dari sini, jadi
+// mengimpor `api.js` balik akan berputar.
+import { API_BASE_URL } from '@/services/apiBase';
+
 const TOKEN_KEY = 'token';
 // `role` (2026-08-05): SEBELUMNYA hanya token yang disimpan -- proxy.js tak
 // bisa membedakan peran sama sekali, sehingga Responden bisa membuka
@@ -227,19 +233,64 @@ export function saveSsoSession(role, expiresAt, consentRequired) {
 }
 
 /**
- * Buang seluruh artefak sesi SISI KLIEN.
+ * Minta SERVER mematikan sesinya. Tembak-dan-lupakan.
  *
- * BATASAN YANG PERLU DINYATAKAN TERUS TERANG (2026-08-27): cookie `session`
- * HttpOnly dari jalur SSO TIDAK dapat dihapus dari sini -- hanya server yang
- * boleh menghapus cookie yang ia setel HttpOnly, dan justru itu gunanya. Yang
- * membuangnya adalah `POST /auth/logout`, dan karena itu ketiga pemanggil
- * (useLogout, ProfileActions, ProfileAvatarDropdown) selalu memanggil endpoint
- * itu LEBIH DULU. Cookie sesi juga memikul `Max-Age` sesuai masa berlaku
- * tokennya, jadi peramban menghapusnya sendiri saat kedaluwarsa -- tak ada sisa
- * yang menumpuk bila logout gagal.
+ * Cookie `session` HttpOnly hanya dapat dihapus oleh yang menyetelnya, jadi ini
+ * satu-satunya cara `clearSession()` benar-benar mengakhiri sesi alih-alih
+ * sekadar melupakannya (perbaikan sesi hantu, 8 September 2026).
+ *
+ * `fetch` mentah, BUKAN instance axios: `api.js` mengimpor berkas ini, jadi
+ * mengimpornya balik akan berputar -- dan yang lebih penting, permintaan ini
+ * tak boleh melewati interceptor 401 milik axios, yang justru memanggil
+ * `clearSession()` lagi.
+ *
+ * `keepalive` supaya tetap terkirim ketika pemanggilnya langsung menavigasi.
+ * Galat DITELAN dengan sengaja: membersihkan sesi lokal tak boleh gagal gara-gara
+ * jaringan, karena kegagalannya meninggalkan pengguna "setengah login" -- lebih
+ * buruk daripada keadaan yang sedang diperbaiki.
+ */
+function matikanSesiDiServer() {
+  try {
+    void fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // `fetch` tak tersedia (mis. lingkungan uji tanpa polyfill) -- pembersihan
+    // lokal di bawah tetap harus jalan.
+  }
+}
+
+/**
+ * Buang seluruh artefak sesi, DI KLIEN MAUPUN DI SERVER.
+ *
+ * Sampai 8 September 2026 fungsi ini hanya membersihkan sisi klien, dan
+ * batasannya dinyatakan terus terang: cookie `session` HttpOnly tak dapat
+ * dihapus dari JavaScript, jadi ketiga pemanggil logout (useLogout,
+ * ProfileActions, ProfileAvatarDropdown) memanggil `POST /auth/logout` lebih
+ * dulu. Yang terlewat: pemanggil LAIN tidak.
+ *
+ * `isAuthenticated()` memanggilnya begitu `sso_expires_at` hilang atau lewat,
+ * dan interceptor 401 di `api.js` juga. Pada jalur-jalur itu sesi server tetap
+ * hidup sementara antarmuka menyatakan logout -- dan setiap panggilan API masih
+ * dijawab 200. Itulah "sesi hantu" yang dilaporkan pengguna: daftar OPD tetap
+ * terisi di beranda padahal navbar menampilkan tombol masuk.
+ *
+ * Karena itu permintaan logout dipindah KE SINI, ke satu-satunya tempat yang
+ * pasti dilewati semua jalur. Pemanggil yang sudah memanggil endpointnya sendiri
+ * jadi mengirim dua kali; itu tak berakibat apa pun -- yang kedua tiba tanpa
+ * cookie, dijawab 401, dan tak menghasilkan baris audit kedua.
  */
 export function clearSession() {
   if (typeof window === 'undefined') return;
+  // Yang dimatikannya jalur SSO saja, dan itu memang lingkupnya: backend
+  // menerima `Authorization: Bearer` (dev-login) ATAU cookie `session` (SSO),
+  // dan permintaan ini tak membawa header Bearer. Pada jalur dev-login tokennya
+  // dipegang klien dan tak ada apa pun di server yang perlu dicabut, jadi 401
+  // yang ditelan di sana bukan kegagalan -- sesi hantunya khas SSO, karena hanya
+  // di sanalah ada cookie yang JavaScript tak dapat hapus.
+  matikanSesiDiServer();
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
   localStorage.removeItem(SSO_EXPIRES_KEY);
