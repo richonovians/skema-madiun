@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Building2, History, Info, Lock, ShieldCheck, User, X } from 'lucide-react';
+// `History` dibuang bersama tombol Superuser (8 September 2026).
+import { Building2, Info, Lock, ShieldCheck, User, X } from 'lucide-react';
 import useBodyScrollLock from '@/hooks/useBodyScrollLock';
 import { ROLE_HOME } from '@/constants/roleHome';
 import { setActingRole } from '../services/actingRole.api';
+import { KUNCI_TOMBOL, peranUntukTombol, tombolUntukRoles } from '../utils/tombolPeran';
 
 /**
  * Pemilih peran. Sejak 5 September 2026 BUKAN lagi khusus superuser: siapa pun
@@ -24,23 +26,25 @@ import { setActingRole } from '../services/actingRole.api';
  */
 const ROLE_CHOICES = [
   {
-    key: 'superuser',
-    label: 'Superuser',
-    icon: History,
-    tone: 'border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-800',
-    description: 'Seluruh hak Admin Kabupaten, ditambah log aktivitas & manajemen pengguna.',
-    note: 'Hanya peran ini yang membuka log aktivitas dan manajemen pengguna.',
-  },
-  {
-    key: 'kabupaten',
+    // SATU tombol untuk DUA role (8 September 2026). Yang menentukan haknya
+    // `peranUntukTombol()`, bukan label di sini: akun bersuperuser masuk dengan
+    // `act=superuser`, akun kabupaten biasa dengan `act=kabupaten`.
+    key: KUNCI_TOMBOL.KABUPATEN,
     label: 'Admin Kabupaten',
     icon: ShieldCheck,
     tone: 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800',
     description: 'Dashboard eksekutif dan monitoring survei serta pengaduan lintas OPD.',
     note: 'Log aktivitas & manajemen pengguna TIDAK terbuka pada peran ini.',
+    // Dipakai bila akunnya memegang role `superuser`. Keterangannya WAJIB
+    // berbeda: tombolnya satu, tapi haknya benar-benar tidak sama, dan
+    // menjanjikan hal yang salah di sini berarti pengguna mengira fiturnya
+    // rusak ketika manajemen pengguna tak terbuka -- atau sebaliknya.
+    deskripsiSuper:
+      'Dashboard eksekutif, monitoring lintas OPD, ditambah log aktivitas & manajemen pengguna.',
+    noteSuper: 'Akun Anda bersuperuser, jadi log aktivitas & manajemen pengguna ikut terbuka.',
   },
   {
-    key: 'opd',
+    key: KUNCI_TOMBOL.OPD,
     label: 'Admin OPD',
     icon: Building2,
     tone: 'border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800',
@@ -48,7 +52,7 @@ const ROLE_CHOICES = [
     note: 'Instansinya mengikuti OPD yang tercantum di akun Anda.',
   },
   {
-    key: 'responden',
+    key: KUNCI_TOMBOL.WARGA,
     label: 'Warga',
     icon: User,
     tone: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800',
@@ -83,22 +87,32 @@ export default function RoleLoginPicker({
   // Komponen ini hanya di-mount selagi pemilih terbuka, jadi tanpa syarat.
   useBodyScrollLock();
 
-  // Hanya role yang BENAR-BENAR dimiliki. Bukan sekadar kerapian: menawarkan
-  // peran yang tak dimiliki hanya menghasilkan 403 dari backend
-  // (AuthService.setActingRole), dan itu terasa seperti aplikasi rusak.
-  const pilihan = ROLE_CHOICES.filter((c) => roles.includes(c.key));
+  // Hanya tombol yang BENAR-BENAR dapat dipakai akun ini. Bukan sekadar
+  // kerapian: menawarkan peran yang tak dimiliki hanya menghasilkan 403 dari
+  // backend (AuthService.setActingRole), dan itu terasa seperti aplikasi rusak.
+  //
+  // Penyaringnya `tombolUntukRoles`, BUKAN `roles.includes(c.key)` seperti dulu:
+  // tombol Admin Kabupaten mewakili DUA role, sehingga penyaring lama memberi
+  // akun ber-role `[superuser]` nol tombol -- terkunci di luar tanpa pesan apa
+  // pun. Ada uji khusus untuk kasus itu di utils/__tests__/tombolPeran.test.js.
+  const kunciTampil = tombolUntukRoles(roles);
+  const pilihan = ROLE_CHOICES.filter((c) => kunciTampil.includes(c.key));
+  const punyaSuperuser = roles.includes('superuser');
 
-  const enterAs = async (roleKey) => {
+  const enterAs = async (tombolKey) => {
     setGalat('');
-    setSedangGanti(roleKey);
+    // `sedangGanti` memegang kunci TOMBOL, bukan peran hasil pemetaan, supaya
+    // penanda "berpindah..." tetap menempel pada tombol yang benar-benar diklik.
+    setSedangGanti(tombolKey);
+    const peran = peranUntukTombol(tombolKey, roles);
     try {
-      await setActingRole(roleKey);
+      await setActingRole(peran);
       // Navigasi HARD (bukan router.push) SENGAJA -- proxy.js membaca cookie
       // lewat full request, jadi cookie `role` yang baru ditulis harus ikut
       // terkirim pada permintaan berikutnya. `location.assign()` dipakai
       // alih-alih menugaskan `location.href`: efeknya sama, tapi ia pemanggilan
       // metode, bukan mutasi properti objek di luar komponen.
-      window.location.assign(ROLE_HOME[roleKey] ?? '/');
+      window.location.assign(ROLE_HOME[peran] ?? '/');
     } catch (err) {
       setSedangGanti(null);
       setGalat(err.message || 'Gagal berpindah peran. Silakan coba lagi.');
@@ -118,7 +132,10 @@ export default function RoleLoginPicker({
             <X size={18} />
           </button>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            {roles.length} peran
+            {/* Jumlah TOMBOL, bukan jumlah role: akun ber-role
+                `[superuser, kabupaten]` memegang dua role tapi melihat satu
+                tombol, dan "2 peran" di atas satu tombol hanya membingungkan. */}
+            {pilihan.length} pilihan peran
           </p>
           <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1">
             {isSwitch ? 'Ganti peran' : 'Masuk sebagai'}
@@ -138,11 +155,15 @@ export default function RoleLoginPicker({
 
           {pilihan.map((choice) => {
             const Icon = choice.icon;
-            const isCurrent = choice.key === currentRole;
+            // Dibandingkan LEWAT PEMETAAN: peran yang sedang dipakai seorang
+            // superuser adalah `superuser`, sementara kunci tombolnya
+            // `kabupaten`. Tanpa ini penanda "sedang dipakai" tak pernah muncul
+            // bagi mereka.
+            const isCurrent = peranUntukTombol(choice.key, roles) === currentRole;
             // Admin OPD tanpa tautan OPD tak dapat dipakai -- backend menolaknya
             // 400. Ditampilkan NONAKTIF beserta sebabnya, bukan disembunyikan:
             // pemiliknya berhak tahu mengapa peran yang ia miliki tak bisa dibuka.
-            const terhalang = choice.key === 'opd' && opdId == null;
+            const terhalang = choice.key === KUNCI_TOMBOL.OPD && opdId == null;
             const sibuk = sedangGanti !== null;
 
             return (
@@ -169,13 +190,19 @@ export default function RoleLoginPicker({
                     </span>
                   )}
                 </span>
-                <span className="block text-xs mt-1.5 opacity-90">{choice.description}</span>
+                <span className="block text-xs mt-1.5 opacity-90">
+                  {punyaSuperuser && choice.deskripsiSuper
+                    ? choice.deskripsiSuper
+                    : choice.description}
+                </span>
                 <span className="flex items-start gap-1.5 text-[11px] mt-2 opacity-80">
                   <Info size={12} className="mt-0.5 shrink-0" />
                   <span>
                     {terhalang
                       ? 'Akun Anda belum ditautkan ke OPD mana pun, jadi peran ini belum dapat dipakai. Hubungi Superuser untuk menautkannya.'
-                      : choice.note}
+                      : punyaSuperuser && choice.noteSuper
+                        ? choice.noteSuper
+                        : choice.note}
                   </span>
                 </span>
               </button>
