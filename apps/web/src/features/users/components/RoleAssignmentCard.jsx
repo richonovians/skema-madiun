@@ -53,6 +53,17 @@ const ROLE_LABEL = ROLE_CHOICES.reduce((acc, r) => ({ ...acc, [r.value]: r.label
  * seseorang mengubah role akunnya sendiri (cegah self-lockout, lihat
  * UsersService.update). Saat true, role ditampilkan statis supaya pengguna tak
  * mencoba aksi yang pasti ditolak.
+ *
+ * `opdLocked` (8 September 2026, KEPEMILIKAN DATA) mengikuti pola yang sama,
+ * dengan alasan yang sama kerasnya: `opdId` berasal dari Helpdesk, dan
+ * `PATCH /users/:id` kini MENOLAKNYA (UpdateUserDto). Menyisakan dropdown yang
+ * dapat diubah berarti menawarkan aksi yang pasti gagal 400 — dan pengguna
+ * akan menyalahkan aplikasinya, bukan aturannya.
+ *
+ * Instansinya tetap DITAMPILKAN, bukan disembunyikan: orang yang memberi peran
+ * Admin OPD perlu tahu instansi mana yang akan dipegang akun itu. Dipakai
+ * halaman EDIT saja; halaman TAMBAH admin tetap memakai dropdown, karena akun
+ * manual (`pending:email`) belum punya data Helpdesk sama sekali.
  */
 export default function RoleAssignmentCard({
   formData,
@@ -61,9 +72,20 @@ export default function RoleAssignmentCard({
   errors,
   opdOptions = [],
   roleLocked = false,
+  opdLocked = false,
 }) {
   const roles = formData.roles ?? [];
   const isAdminOPD = roles.includes(USER_ROLES.ADMIN_OPD);
+  // Label dicari dari `opdOptions` supaya nama instansinya benar-benar yang
+  // dikenal backend, bukan salinan kedua yang bisa basi. `null` = tak tertaut.
+  //
+  // Nilai kosong DISARING lebih dahulu, dan itu bukan kehati-hatian berlebihan:
+  // `opdOptions` memuat opsi penampung ber-`value: ''` ("Pilih Instansi / OPD"),
+  // jadi tanpa penjaga ini akun yang belum tertaut akan menampilkan kalimat
+  // ajakan memilih sebagai kalau-kalau itu nama instansinya.
+  const namaOpdTertaut = formData.opdId
+    ? (opdOptions.find((o) => String(o.value) === String(formData.opdId))?.label ?? null)
+    : null;
 
   const toggle = (value) => {
     const next = roles.includes(value) ? roles.filter((r) => r !== value) : [...roles, value];
@@ -170,14 +192,28 @@ export default function RoleAssignmentCard({
                 Instansi yang dikelola akun ini saat masuk sebagai Admin OPD
               </span>
             </div>
-            <Dropdown
-              id="opdId"
-              label="INSTANSI / OPD"
-              options={opdOptions}
-              value={formData.opdId}
-              onChange={(value) => onDropdownChange('opdId', value)}
-              error={errors.opdId}
-            />
+            {opdLocked ? (
+              <div className="space-y-xs">
+                <p className="text-sm font-bold text-text-primary">
+                  {namaOpdTertaut ?? 'Belum ditautkan Helpdesk'}
+                </p>
+                <p className="text-xs text-text-secondary">
+                  Instansi ini berasal dari Helpdesk dan tak dapat diubah dari SKEMA.
+                  {namaOpdTertaut
+                    ? ' Ia diperbarui sendiri saat pemiliknya masuk lewat SSO.'
+                    : ' Peran Admin OPD baru berlaku setelah Helpdesk menautkan instansinya.'}
+                </p>
+              </div>
+            ) : (
+              <Dropdown
+                id="opdId"
+                label="INSTANSI / OPD"
+                options={opdOptions}
+                value={formData.opdId}
+                onChange={(value) => onDropdownChange('opdId', value)}
+                error={errors.opdId}
+              />
+            )}
           </div>
         )}
       </div>

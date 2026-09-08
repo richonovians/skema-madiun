@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
+import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
 import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
 import { SsoStateService } from './sso-state.service';
 
@@ -261,7 +262,7 @@ export class SsoService {
       return { roles: resolved, opdId: null };
     }
 
-    const opd = await this.findOpdFromClaims(values);
+    const opd = await this.findOpdFromClaims(profile);
     if (opd) {
       return { roles: resolved, opdId: opd.id };
     }
@@ -289,19 +290,48 @@ export class SsoService {
   }
 
   /**
-   * Cari OPD dari nilai klaim, dicocokkan ke `externalId` (UUID tenant Helpdesk)
-   * ATAU `kode`. Keduanya diperiksa karena tak diketahui mana yang dibawa klaim.
+   * Nilai kandidat OPD dari sebuah profil.
    *
-   * `mode: 'insensitive'` BUKAN kehati-hatian berlebihan: `parseClaimValues`
-   * mengubah semuanya ke huruf kecil, sementara `opd.kode` tersimpan huruf besar
-   * ("DINKES", "DISKOMINFO"). Tanpa ini pencocokan lewat kode tak akan pernah
+   * DUA sumber, dan urutannya berarti: field khusus OPD lebih dulu
+   * (`HELPDESK_SSO_OPD_CLAIM`), lalu klaim `groups`/`role` yang sejak awal
+   * dipakai. Sumber kedua DIPERTAHANKAN supaya perilaku yang sudah jalan tak
+   * berubah -- kalau ada instalasi yang OPD-nya memang tertulis di `groups`, ia
+   * tetap ketemu.
+   */
+  private nilaiKandidatOpd(profile: SsoProfile): string[] {
+    const fields = parseOpdClaimFields(this.config.get<string>('helpdesk.ssoOpdClaim'));
+    return [
+      ...new Set([
+        ...extractOpdClaimValues(profile.klaim, fields),
+        ...parseClaimValues(profile.groups, profile.role),
+      ]),
+    ];
+  }
+
+  /**
+   * Cari OPD dari klaim, BERTINGKAT (8 September 2026):
+   *
+   *   1. `externalId` (UUID tenant Helpdesk) -- paling tepat.
+   *   2. `kode` ("DINKES") -- juga tepat.
+   *   3. `nama` yang dinormalkan -- jalan terakhir, dan yang paling rapuh.
+   *
+   * Tingkat ketiga DITAMBAHKAN karena pengguna menyatakan userinfo membawa
+   * "data nama opdnya", sementara dua tingkat pertama tak akan pernah cocok
+   * dengan sebuah nama panjang. Bentuk klaimnya belum dikonfirmasi, jadi
+   * ketiganya dicoba dan bentuk apa pun tertangani.
+   *
+   * `mode: 'insensitive'` pada tingkat 1-2 BUKAN kehati-hatian berlebihan:
+   * `parseClaimValues` mengubah semuanya ke huruf kecil, sementara `opd.kode`
+   * tersimpan huruf besar. Tanpa ini pencocokan lewat kode tak akan pernah
    * berhasil, dan setiap Admin OPD diam-diam jatuh menjadi warga.
    */
-  private async findOpdFromClaims(values: string[]): Promise<{ id: number } | null> {
+  private async findOpdFromClaims(profile: SsoProfile): Promise<{ id: number } | null> {
+    const values = this.nilaiKandidatOpd(profile);
     if (values.length === 0) {
       return null;
     }
-    return this.prisma.opd.findFirst({
+
+    const tepat = await this.prisma.opd.findFirst({
       where: {
         isActive: true,
         OR: values.flatMap((value) => [
@@ -311,6 +341,97 @@ export class SsoService {
       },
       select: { id: true },
     });
+    if (tepat) {
+      return tepat;
+    }
+
+    return this.cocokkanNamaOpd(values);
+  }
+
+  /**
+   * Tingkat ketiga: cocokkan NAMA, dan hanya bila hasilnya TEPAT SATU.
+   *
+   * Menuntut satu-satunya kecocokan adalah inti keamanan fungsi ini. Nama OPD
+   * saling bersarang di daftar nyata ("Dinas Kesehatan" vs "Dinas Kesehatan dan
+   * Keluarga Berencana"), dan `findFirst` akan mengambil baris pertama yang
+   * kebetulan ditemukan -- menautkan seseorang ke instansi yang bukan tempatnya,
+   * tanpa satu pun galat. Yang mendua DITOLAK dan dicatat, tidak diterka.
+   *
+   * Seluruh OPD aktif dimuat (puluhan baris) karena normalisasinya tak dapat
+   * dinyatakan sebagai kueri SQL; ini hanya berjalan bila tingkat 1-2 gagal.
+   */
+  private async cocokkanNamaOpd(values: string[]): Promise<{ id: number } | null> {
+    const dicari = new Set(values.map(normalkanNamaOpd).filter(Boolean));
+    if (dicari.size === 0) {
+      return null;
+    }
+
+    const semua = await this.prisma.opd.findMany({
+      where: { isActive: true },
+      select: { id: true, nama: true },
+    });
+    const cocok = semua.filter((opd) => dicari.has(normalkanNamaOpd(opd.nama)));
+
+    if (cocok.length === 1) {
+      return { id: cocok[0].id };
+    }
+    if (cocok.length > 1) {
+      this.logger.warn(
+        `Nama OPD dari klaim cocok ke ${cocok.length} instansi sekaligus ` +
+          `(${cocok.map((o) => o.nama).join(' | ')}) -- DITOLAK, bukan diterka. ` +
+          `Isi HELPDESK_SSO_OPD_CLAIM dengan field yang membawa kode atau UUID.`,
+      );
+    }
+    return null;
+  }
+
+  /**
+   * `opdId` yang perlu ditulis saat login, atau `null` bila TAK ADA yang perlu
+   * diubah (8 September 2026).
+   *
+   * Permintaan pengguna: data yang berasal dari Helpdesk harus tetap sinkron dan
+   * tak dapat diacak-acak dari SKEMA. Karena itu login menjadi satu-satunya
+   * penulis kolom ini -- `PATCH /users/:id` sudah tak menerimanya.
+   *
+   * KLAIM TIDAK ADA -> JANGAN SENTUH, jangan pernah mengosongkan. Ini menghormati
+   * keputusan 27 Agustus 2026 yang menolak sinkronisasi PERAN pada setiap login:
+   * bila Helpdesk suatu saat berhenti mengirim klaim -- konfigurasi berubah,
+   * scope dicabut, bentuknya bergeser -- yang mengosongkan tautan akan mencabut
+   * hak setiap Admin OPD sekaligus, dan kegagalan itu SENYAP. Peran pun tetap
+   * TIDAK disinkronkan di sini; yang disinkronkan hanya OPD.
+   */
+  private async opdIdUntukSinkron(user: User, profile: SsoProfile): Promise<number | null> {
+    const values = this.nilaiKandidatOpd(profile);
+    if (values.length === 0) {
+      // Lazim & benar bagi non-ASN. Nama-nama field dicatat di tingkat debug
+      // supaya bentuk klaim yang sebenarnya dapat ditemukan dari log sendiri
+      // ketika `HELPDESK_SSO_OPD_CLAIM` ternyata salah nama -- tanpa menebak,
+      // dan tanpa menyalin NILAI klaim (data pribadi) ke log.
+      this.logger.debug(
+        `Tak ada klaim OPD pada profil ${profile.sub}; field yang diterima: ` +
+          `${Object.keys(profile.klaim).join(', ') || '(tak ada)'}`,
+      );
+      return null;
+    }
+
+    const opd = await this.findOpdFromClaims(profile);
+    if (!opd) {
+      this.logger.warn(
+        `Klaim OPD ada tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ')}); ` +
+          `field yang diterima: ${Object.keys(profile.klaim).join(', ') || '(tak ada)'} -- ` +
+          `tautan OPD akun dibiarkan apa adanya.`,
+      );
+      return null;
+    }
+    if (opd.id === user.opdId) {
+      return null;
+    }
+
+    this.logger.log(
+      `Tautan OPD akun ${user.id} disinkronkan dari Helpdesk: ` +
+        `${user.opdId ?? '(kosong)'} -> ${opd.id}`,
+    );
+    return opd.id;
   }
 
   /** Tolak akun nonaktif, lalu segarkan nama & waktu login. */
@@ -320,10 +441,14 @@ export class SsoService {
     }
 
     const nama = profile.nama ? truncate(profile.nama, NAMA_MAX) : null;
+    // OPD ikut disegarkan setiap login (8 September 2026), dengan sifat yang
+    // sama seperti nama di bawah: hanya bila Helpdesk benar-benar mengirimnya.
+    const opdId = await this.opdIdUntukSinkron(user, profile);
     return this.prisma.user.update({
       where: { id: user.id },
       data: {
         lastLoginAt: new Date(),
+        ...(opdId === null ? {} : { opdId }),
         // Nama disegarkan dari Helpdesk (sumbernya di sana), tapi EMAIL TIDAK.
         // Alasannya: `users.email` unik, sehingga menyalin email baru bisa
         // bertabrakan dengan akun lain dan menggagalkan login karena hal yang

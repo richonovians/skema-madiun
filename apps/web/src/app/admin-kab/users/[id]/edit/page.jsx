@@ -32,8 +32,15 @@ function validate(formData) {
     errors.roles = 'Silakan pilih minimal satu role administrator.';
   }
 
+  // Admin OPD tanpa tautan instansi DIPERIKSA di sini, tapi pesannya berbeda
+  // dari halaman TAMBAH admin, dan itu bukan kerapian: di sini tak ada instansi
+  // yang bisa dipilih siapa pun. Tautannya milik Helpdesk (8 September 2026),
+  // dan backend menolak 400 dengan pesannya sendiri. Menampilkan "Silakan pilih
+  // instansi" akan menyuruh pengguna melakukan hal yang tak mungkin dilakukan.
   if (formData.roles.includes(USER_ROLES.ADMIN_OPD) && !formData.opdId) {
-    errors.opdId = 'Silakan pilih instansi / OPD.';
+    errors.roles =
+      'Akun ini belum ditautkan ke instansi mana pun oleh Helpdesk, jadi peran Admin OPD ' +
+      'belum dapat diberikan. Tautannya terisi sendiri saat pemiliknya masuk lewat SSO.';
   }
 
   return errors;
@@ -92,11 +99,13 @@ export default function EditUserPage() {
   };
 
   const handleRolesChange = (roles) => {
-    setFormData((prev) => ({
-      ...prev,
-      roles,
-      opdId: roles.includes(USER_ROLES.ADMIN_OPD) ? prev.opdId : '',
-    }));
+    // `opdId` TIDAK lagi dikosongkan saat Admin OPD dibuka centangnya
+    // (8 September 2026). Dulu itu benar, karena field-nya ikut terkirim dan
+    // backend memang mengosongkan tautannya. Sekarang tautan itu milik Helpdesk
+    // dan tak pernah dikirim dari sini — mengosongkan salinan lokalnya hanya
+    // membuat nama instansi hilang dari layar begitu centangnya dipasang lagi,
+    // padahal di basis data ia tak pernah berubah.
+    setFormData((prev) => ({ ...prev, roles }));
     if (errors.roles) setErrors((prev) => ({ ...prev, roles: null }));
   };
 
@@ -114,13 +123,12 @@ export default function EditUserPage() {
 
     setIsSubmitting(true);
     try {
-      // `fullName` SENGAJA tidak dikirim: field-nya dikunci, dan mengirim
-      // nilai lama berarti satu klik "Simpan" menulis ulang nama -- menimpa
-      // pembaruan yang mungkin baru datang dari Helpdesk.
-      await updateUser(userId, {
-        roles: formData.roles,
-        opdId: formData.roles.includes(USER_ROLES.ADMIN_OPD) ? formData.opdId : undefined,
-      });
+      // HANYA `roles` yang dikirim (8 September 2026). `nama` sudah tak dikirim
+      // sejak 5 September; `opdId` menyusul karena keduanya milik Helpdesk, dan
+      // `UpdateUserDto` sekarang menolak keduanya dengan 400 alih-alih
+      // mengabaikannya. Pembuangannya juga ada di `toUpdateUserPayload`, jadi
+      // halaman lain tak perlu mengingat aturan ini.
+      await updateUser(userId, { roles: formData.roles });
       router.push('/admin-kab/users');
     } catch (err) {
       setSubmitError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
@@ -173,6 +181,10 @@ export default function EditUserPage() {
               errors={errors}
               opdOptions={opdOptions}
               roleLocked={isSelf}
+              // Instansi milik Helpdesk (8 September 2026): ditampilkan, tak
+              // dapat diubah. Halaman TAMBAH admin tidak memasang ini, karena
+              // akun manual belum punya data Helpdesk sama sekali.
+              opdLocked
             />
             <AccountNotice />
           </div>

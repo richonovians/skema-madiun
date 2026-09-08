@@ -183,13 +183,19 @@ describe('Users (e2e)', () => {
       });
       const selfId: number = created.body.data.id;
 
+      // `opdId` TIDAK lagi dikirim (8 September 2026): sejak field itu dibuang
+      // dari UpdateUserDto, ValidationPipe menolaknya 400 SEBELUM service
+      // sempat memeriksa self-lockout -- uji ini lalu lulus dengan status yang
+      // salah. Yang diuji di sini gerbang self-lockout, jadi badannya harus
+      // memuat perubahan role saja.
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${selfId}`)
         .set(asSuper(selfId))
-        .send({ roles: ['opd'], opdId });
+        .send({ roles: ['opd'] });
 
       expect(res.status).toBe(403);
-      // Bukan 403 dari gerbang peran: yang menolak harus anti-self-lockout.
+      // Bukan 403 dari gerbang peran, dan bukan 400 dari validasi badan: yang
+      // menolak harus anti-self-lockout.
       expect(String(res.body.message)).toMatch(/role akun sendiri/i);
     });
 
@@ -289,6 +295,130 @@ describe('Users (e2e)', () => {
         .set(devHeaders({ role: Role.opd, opdId }));
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  /**
+   * KEPEMILIKAN DATA (permintaan pengguna 8 September 2026).
+   *
+   * `nama`, `email`, dan `opdId` berasal dari Helpdesk; `roles` & `isActive`
+   * milik SKEMA. Kata penggunanya: "tim saya tidak bisa mengubah data yang
+   * berasal dari helpdesk … jadi yang bisa diubah hanya role pada SKEMA saja."
+   *
+   * DITEGAKKAN DI API, bukan cuma di halaman. Sebelum ini penguncian nama hanya
+   * ada di antarmuka "Ubah Role Admin" — DTO-nya bahkan sengaja mempertahankan
+   * `nama` supaya klien lama tak menerima 400. Sekarang 400 itulah yang
+   * diinginkan: aturan kepemilikan yang hanya hidup di satu halaman bukan
+   * aturan, melainkan kebiasaan.
+   */
+  describe('data milik Helpdesk tak dapat diubah lewat SKEMA', () => {
+    it('PATCH dengan `nama` -> 400, dan namanya TIDAK berubah', async () => {
+      const created = await buatAkun({
+        nama: 'Nama Asli Helpdesk',
+        email: 'nama-terkunci@users.e2e.test',
+        roles: ['kabupaten'],
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asSuper())
+        .send({ nama: 'Nama Timpaan' });
+
+      expect(res.status).toBe(400);
+      const sesudah = await prisma.user.findUnique({ where: { id }, select: { nama: true } });
+      expect(sesudah?.nama).toBe('Nama Asli Helpdesk');
+    });
+
+    /**
+     * `opdId` yang dikirim SENGAJA yang SAH dan memang milik akun itu.
+     *
+     * Versi pertama uji ini mengirim `999999` dan LULUS terhadap kode lama --
+     * tapi karena sebab yang salah: OPD itu tak ada, jadi 400-nya datang dari
+     * `assertOpdExists`, bukan dari penolakan field. Uji semacam itu tetap hijau
+     * walau penguncian kepemilikan datanya tak pernah dipasang.
+     *
+     * Dengan nilai yang sah, satu-satunya alasan 400 adalah field-nya dilarang:
+     * kode lama menjawab 200 (tak ada yang berubah), kode baru menjawab 400.
+     */
+    it('PATCH dengan `opdId` yang SAH pun -> 400, karena field-nya memang dilarang', async () => {
+      const created = await buatAkun({
+        nama: 'OPD Terkunci E2E',
+        email: 'opd-terkunci@users.e2e.test',
+        roles: ['opd'],
+        opdId,
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asSuper())
+        .send({ opdId });
+
+      expect(res.status).toBe(400);
+      const sesudah = await prisma.user.findUnique({ where: { id }, select: { opdId: true } });
+      expect(sesudah?.opdId).toBe(opdId);
+    });
+
+    it('mencabut peran `opd` -> 200, tapi tautan OPD TETAP (data Helpdesk tak ikut terhapus)', async () => {
+      const created = await buatAkun({
+        nama: 'Cabut Peran OPD E2E',
+        email: 'cabut-opd@users.e2e.test',
+        roles: ['opd'],
+        opdId,
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asSuper())
+        .send({ roles: ['kabupaten'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.roles).toEqual(['kabupaten']);
+      // Inilah bedanya dengan perilaku lama: dulu `normalisasiRoles` MENGOSONGKAN
+      // opdId begitu role `opd` hilang. Itu menghapus data milik Helpdesk sebagai
+      // efek samping penyuntingan role — dan bila orangnya diberi peran `opd`
+      // lagi, tautannya sudah lenyap tanpa jejak.
+      const sesudah = await prisma.user.findUnique({ where: { id }, select: { opdId: true } });
+      expect(sesudah?.opdId).toBe(opdId);
+    });
+
+    it('KONTROL: memberi peran `opd` pada akun tanpa tautan OPD tetap -> 400', async () => {
+      const created = await buatAkun({
+        nama: 'Tanpa OPD E2E',
+        email: 'tanpa-opd@users.e2e.test',
+        roles: ['kabupaten'],
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asSuper())
+        .send({ roles: ['opd'] });
+
+      // Penjaga ini HARUS bertahan: tanpa tautan OPD, peran Admin OPD adalah
+      // keadaan setengah jadi yang dashboardnya pasti gagal. Sejak `opdId` tak
+      // lagi dapat dikirim, satu-satunya jalan memberikannya adalah lewat
+      // Helpdesk — dan itu memang maksudnya.
+      expect(res.status).toBe(400);
+    });
+
+    it('KONTROL: `isActive` tetap dapat diubah — itu milik SKEMA, bukan Helpdesk', async () => {
+      const created = await buatAkun({
+        nama: 'Status SKEMA E2E',
+        email: 'status-skema@users.e2e.test',
+        roles: ['kabupaten'],
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}/status`)
+        .set(asSuper())
+        .send({ isActive: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.isActive).toBe(false);
     });
   });
 });

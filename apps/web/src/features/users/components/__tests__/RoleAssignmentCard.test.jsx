@@ -18,8 +18,14 @@ const render1 = (over = {}, props = {}) =>
       errors={props.errors ?? {}}
       opdOptions={props.opdOptions ?? []}
       roleLocked={props.roleLocked ?? false}
+      opdLocked={props.opdLocked ?? false}
     />,
   );
+
+const OPD_CONTOH = [
+  { value: '', label: 'Pilih Instansi / OPD' },
+  { value: '7', label: 'Dinas Kesehatan' },
+];
 
 describe('RoleAssignmentCard', () => {
   it('mencentang satu role melaporkannya sebagai array', () => {
@@ -87,5 +93,44 @@ describe('RoleAssignmentCard', () => {
     render1({}, { errors: { roles: 'Pilih minimal satu role.' } });
 
     expect(screen.getByText('Pilih minimal satu role.')).toBeInTheDocument();
+  });
+
+  /**
+   * KEPEMILIKAN DATA (8 September 2026). `opdId` berasal dari Helpdesk, dan
+   * sejak `PATCH /users/:id` menolaknya (UpdateUserDto), menawarkan dropdown
+   * yang dapat diubah berarti menawarkan aksi yang PASTI gagal 400.
+   *
+   * Instansinya tetap DITAMPILKAN, bukan disembunyikan: orang yang memberi
+   * peran Admin OPD perlu tahu instansi mana yang akan dipegang akun itu.
+   */
+  describe('opdLocked: instansi milik Helpdesk', () => {
+    it('menampilkan nama instansi sebagai teks, TANPA dropdown', () => {
+      render1({ roles: [USER_ROLES.ADMIN_OPD], opdId: '7' }, { opdLocked: true, opdOptions: OPD_CONTOH });
+
+      expect(screen.getByText('Dinas Kesehatan')).toBeInTheDocument();
+      // Dropdown-nya benar-benar hilang, bukan cuma dinonaktifkan: kontrol
+      // nonaktif masih mengundang klik dan menyisakan pertanyaan "kenapa mati".
+      //
+      // Dicocokkan PERSIS, bukan dengan regex: `opdOptions` memuat opsi berlabel
+      // "Pilih Instansi / OPD" yang juga cocok dengan /instansi \/ opd/i, dan
+      // versi regex uji ini gagal karena menemukan dua elemen sekaligus.
+      expect(screen.queryByText('INSTANSI / OPD')).not.toBeInTheDocument();
+      expect(screen.getByText(/berasal dari Helpdesk/i)).toBeInTheDocument();
+    });
+
+    it('akun tanpa tautan OPD: mengatakannya terus terang, bukan kosong', () => {
+      // Keadaan ini nyata: peran `opd` hanya dapat diberikan bila Helpdesk
+      // sudah menautkan OPD-nya, jadi kotak centangnya ada tapi tautannya
+      // belum. Halaman harus menjelaskan itu, bukan menampilkan ruang kosong.
+      render1({ roles: [USER_ROLES.ADMIN_OPD], opdId: '' }, { opdLocked: true, opdOptions: OPD_CONTOH });
+
+      expect(screen.getByText(/belum ditautkan Helpdesk/i)).toBeInTheDocument();
+    });
+
+    it('KONTROL: tanpa opdLocked, dropdown-nya tetap ada (halaman TAMBAH admin)', () => {
+      render1({ roles: [USER_ROLES.ADMIN_OPD], opdId: '' }, { opdOptions: OPD_CONTOH });
+
+      expect(screen.getByText('INSTANSI / OPD')).toBeInTheDocument();
+    });
   });
 });

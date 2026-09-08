@@ -112,6 +112,11 @@ export class UsersService {
    * Satu tempat, bukan dua salinan: aturan "opd wajib bertaut OPD" pernah
    * ditulis dua kali di berkas ini (create & update), dan itulah bentuk yang
    * cepat atau lambat menyimpang saat salah satunya diubah.
+   *
+   * `opdId` yang dikembalikan HANYA dipakai `create` sejak 8 September 2026.
+   * `update` mengambil `roles` saja dan tak pernah menulis kolom `opdId` --
+   * lihat alasannya di sana. Pengosongan di bawah karena itu berlaku pada
+   * pembuatan akun manual, tempat pengirimnya memang menentukan keduanya.
    */
   private normalisasiRoles(
     roles: Role[],
@@ -175,14 +180,23 @@ export class UsersService {
       throw new ForbiddenException('Tidak bisa mengubah role akun sendiri');
     }
 
-    const normal = this.normalisasiRoles(dto.roles ?? target.roles, dto.opdId ?? target.opdId);
-    if (normal.opdId != null) {
-      await this.assertOpdExists(normal.opdId);
-    }
+    // `opdId` diambil dari BARIS, bukan dari DTO -- ia sudah tak ada di sana
+    // (kepemilikan data, 8 September 2026). Yang tetap ditegakkan: role `opd`
+    // menuntut tautan OPD yang SUDAH ADA. Konsekuensinya disengaja: satu-satunya
+    // jalan memberi seseorang peran Admin OPD adalah lewat Helpdesk.
+    const normal = this.normalisasiRoles(dto.roles ?? target.roles, target.opdId);
 
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { nama: dto.nama, roles: dto.roles ? normal.roles : undefined, opdId: normal.opdId },
+      data: {
+        roles: dto.roles ? normal.roles : undefined,
+        // `opdId` SENGAJA TIDAK DITULIS SAMA SEKALI, bukan ditulis dengan nilai
+        // lama. Bedanya penting: `normal.opdId` MENGOSONGKAN tautan begitu role
+        // `opd` dicabut, dan itu menghapus data milik Helpdesk sebagai efek
+        // samping penyuntingan role. Bila orangnya diberi peran `opd` lagi,
+        // tautannya sudah lenyap tanpa jejak -- dan hanya login SSO berikutnya
+        // yang dapat memulihkannya.
+      },
     });
     return new UserEntity(updated);
   }

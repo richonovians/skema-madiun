@@ -23,6 +23,19 @@ export interface SsoProfile {
   nama: string | null;
   groups: unknown;
   role: unknown;
+  /**
+   * SELURUH klaim userinfo, apa adanya (8 September 2026).
+   *
+   * Dibawa mentah karena field yang membawa OPD seorang ASN belum diketahui
+   * bentuk maupun namanya, dan pengguna belum memiliki contoh payload. Nama
+   * field-nya dikonfigurasi lewat `HELPDESK_SSO_OPD_CLAIM`; tanpa klaim mentah
+   * di sini, konfigurasi itu tak punya apa pun untuk dibaca.
+   *
+   * TIDAK disimpan ke basis data dan tidak ikut ke log: yang dicatat hanya
+   * NAMA-NAMA field-nya saat pencocokan gagal (lihat SsoService), supaya data
+   * pribadi tak tersalin ke tabel maupun berkas log.
+   */
+  klaim: Record<string, unknown>;
 }
 
 /**

@@ -26,7 +26,20 @@ import api from '../api';
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-const server = setupServer();
+/**
+ * Handler AWAL, bukan lewat `server.use()`: hanya yang diberikan ke
+ * `setupServer` yang bertahan melewati `resetHandlers()` di `afterEach`.
+ *
+ * `POST /auth/logout` ada di sini karena `clearSession()` kini memanggilnya
+ * sendiri (perbaikan sesi hantu, 8 September 2026) — cookie `session` HttpOnly
+ * hanya dapat dihapus server. Tanpa handler ini, `onUnhandledRequest: 'bypass'`
+ * meneruskan permintaan itu ke jaringan sungguhan, dan undici di dalam jsdom
+ * gagal dengan `markResourceTiming is not a function` — galat yang sama sekali
+ * tak berhubungan dengan apa pun yang diuji berkas ini.
+ */
+const server = setupServer(
+  http.post(`${API_BASE}/auth/logout`, () => HttpResponse.json({ success: true })),
+);
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => {

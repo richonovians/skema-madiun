@@ -34,6 +34,11 @@ function profil(overrides: Partial<SsoProfile> = {}): SsoProfile {
     nama: 'Budi Santoso',
     groups: undefined,
     role: undefined,
+    // Klaim mentah. Baku KOSONG, bukan berisi contoh: bentuk klaim OPD Helpdesk
+    // belum dikonfirmasi (8 September 2026), jadi uji yang butuh klaim OPD
+    // menuliskannya sendiri lewat `overrides` -- tak ada uji yang diam-diam
+    // bergantung pada tebakan bentuk di sini.
+    klaim: {},
     // Keadaan normal dari penyedia identitas. Ditulis TERSURAT sejak temuan
     // audit T5 (7 September 2026) supaya uji lain tak diam-diam bergantung pada
     // nilai baku yang justru sedang diperketat di blok "penautan email".
@@ -68,7 +73,7 @@ type Mocked = {
       update: jest.Mock;
       create: jest.Mock;
     };
-    opd: { findFirst: jest.Mock };
+    opd: { findFirst: jest.Mock; findMany: jest.Mock };
   };
   source: { buildAuthorizeUrl: jest.Mock; exchangeCodeForProfile: jest.Mock };
   state: { issue: jest.Mock; verify: jest.Mock; clearCookie: jest.Mock };
@@ -79,7 +84,13 @@ type Mocked = {
 function buat(configOverrides: Record<string, string | boolean | undefined> = {}): Mocked {
   const prisma = {
     user: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
-    opd: { findFirst: jest.fn().mockResolvedValue(null) },
+    opd: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      // Dipakai pencocokan NAMA (tingkat 3). Baku kosong: pencocokan nama
+      // hanya berjalan bila externalId/kode gagal, dan uji yang
+      // membutuhkannya mengisinya sendiri.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
   const source = {
     buildAuthorizeUrl: jest.fn().mockResolvedValue('https://helpdesk.example.go.id/login'),
@@ -708,5 +719,143 @@ describe('SsoService', () => {
       expect(service.buildSuccessRedirect(1)).toBe('http://localhost:3000/sso/callback#expires=1');
       expect(service.buildFailureRedirect('x')).toBe('http://localhost:3000/sso/callback#error=x');
     });
+  });
+});
+
+/**
+ * SINKRONISASI OPD DARI HELPDESK (permintaan pengguna 8 September 2026).
+ *
+ * Kata penggunanya: "kalau semisalnya sudah memilih opd pada salah satu akun dan
+ * tidak bisa diganti lagi setelah sudah disimpan agar tetap sinkron dengan
+ * helpdesk", dan alasannya diperjelas sendiri: "tim saya tidak bisa mengubah
+ * data yang berasal dari helpdesk ... jadi yang bisa diubah hanya role pada
+ * SKEMA saja."
+ *
+ * Sampai perubahan ini, OPD hanya ditetapkan SAAT AKUN DIBUAT dan tak pernah
+ * disegarkan lagi. Sekarang login menjadi satu-satunya penulis kolom itu —
+ * `PATCH /users/:id` sudah tak menerimanya (UpdateUserDto).
+ *
+ * Yang dijaga ketat di blok ini: KLAIM YANG TIDAK ADA tidak boleh mengosongkan
+ * apa pun. Itu menghormati keputusan 27 Agustus 2026 yang menolak sinkronisasi
+ * PERAN setiap login — bila Helpdesk berhenti mengirim klaim, yang mengosongkan
+ * akan mencabut hak seluruh Admin OPD secara senyap.
+ *
+ * DIUKUR, supaya tak ada yang mengira seluruh blok ini membuktikan hal yang
+ * sama: terhadap service LAMA hanya DUA uji pertama yang memerah — sisanya
+ * hijau karena kode lama tak pernah menyentuh `opdId` sama sekali. Ketujuh uji
+ * itu menjaga arah yang berbeda: bukan "fiturnya ada", melainkan "fiturnya
+ * tidak salah". Dibuktikan pada yang paling penting — `cocok.length === 1`
+ * diganti `>= 1` (yaitu "ambil yang pertama"), dan uji "cocok ke DUA OPD"
+ * langsung memerah.
+ */
+describe('sinkronisasi OPD saat login', () => {
+  const OPD_DINKES = { id: 42, nama: 'Dinas Kesehatan' };
+
+  /** Akun lama yang login kembali; `opdId` awal ditentukan pemanggil. */
+  const login = async (
+    m: Mocked,
+    profileOverrides: Partial<SsoProfile>,
+    opdIdAwal: number | null = null,
+  ) => {
+    m.prisma.user.findFirst.mockResolvedValue(userRow({ opdId: opdIdAwal }));
+    m.prisma.user.update.mockResolvedValue(userRow({ opdId: opdIdAwal }));
+    m.source.exchangeCodeForProfile.mockResolvedValue(profil(profileOverrides));
+    await m.service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+    return m.prisma.user.update.mock.calls[0][0].data as Record<string, unknown>;
+  };
+
+  it('nama OPD dari klaim yang cocok TEPAT SATU -> opdId ditulis', async () => {
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([OPD_DINKES]);
+
+    const data = await login(m, { klaim: { opd: 'Dinas Kesehatan' } });
+
+    expect(data.opdId).toBe(42);
+  });
+
+  it('kapital & spasi berlebih tetap cocok', async () => {
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([OPD_DINKES]);
+
+    const data = await login(m, { klaim: { opd: '  DINAS   Kesehatan ' } });
+
+    expect(data.opdId).toBe(42);
+  });
+
+  it('TANPA klaim OPD -> kolomnya tak disentuh sama sekali', async () => {
+    // Bukan "ditulis dengan nilai lama": tak disentuh. Bedanya penting kalau
+    // kelak ada penulis lain — dan ini yang menghormati keputusan 27 Agustus.
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+
+    const data = await login(m, { klaim: {} }, 42);
+
+    expect(data).not.toHaveProperty('opdId');
+  });
+
+  it('klaim ADA tapi tak ada OPD yang cocok -> kolomnya tak disentuh', async () => {
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([OPD_DINKES]);
+
+    const data = await login(m, { klaim: { opd: 'Dinas Yang Tak Terdaftar' } }, 42);
+
+    expect(data).not.toHaveProperty('opdId');
+  });
+
+  it('nama yang cocok ke DUA OPD -> DITOLAK, bukan diterka', async () => {
+    // Penjaga terpenting blok ini. Dengan `findFirst`, baris pertama yang
+    // kebetulan ditemukan akan dipakai — menautkan orang ke instansi yang bukan
+    // tempatnya tanpa satu pun galat.
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([
+      { id: 42, nama: 'Dinas Kesehatan' },
+      { id: 43, nama: 'DINAS KESEHATAN' },
+    ]);
+
+    const data = await login(m, { klaim: { opd: 'Dinas Kesehatan' } }, null);
+
+    expect(data).not.toHaveProperty('opdId');
+  });
+
+  it('nama yang MEMUAT nama OPD lain tidak ikut cocok', async () => {
+    // "Dinas Kesehatan" dan "Dinas Kesehatan dan Keluarga Berencana" adalah dua
+    // instansi berbeda; pencocokan sebagian akan menyamakannya.
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([
+      { id: 43, nama: 'Dinas Kesehatan dan Keluarga Berencana' },
+    ]);
+
+    const data = await login(m, { klaim: { opd: 'Dinas Kesehatan' } }, null);
+
+    expect(data).not.toHaveProperty('opdId');
+  });
+
+  it('sudah sama dengan yang tersimpan -> tak ditulis ulang', async () => {
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([OPD_DINKES]);
+
+    const data = await login(m, { klaim: { opd: 'Dinas Kesehatan' } }, 42);
+
+    expect(data).not.toHaveProperty('opdId');
+  });
+
+  it('field klaim di luar konfigurasi TIDAK dibaca sebagai OPD', async () => {
+    // Tanpa pembatasan ini, `nama` pengguna dapat menautkannya ke instansi yang
+    // kebetulan bernama sama.
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'satker' });
+    m.prisma.opd.findMany.mockResolvedValue([OPD_DINKES]);
+
+    const data = await login(m, { klaim: { nama: 'Dinas Kesehatan' } }, null);
+
+    expect(data).not.toHaveProperty('opdId');
+  });
+
+  it('PERAN tidak ikut disinkronkan — hanya OPD', async () => {
+    // Batas yang disepakati: role milik SKEMA, OPD milik Helpdesk.
+    const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+    m.prisma.opd.findMany.mockResolvedValue([OPD_DINKES]);
+
+    const data = await login(m, { klaim: { opd: 'Dinas Kesehatan' } }, null);
+
+    expect(data).not.toHaveProperty('roles');
   });
 });

@@ -335,7 +335,8 @@ model Complaint {
   ticketNo    String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
   userId      Int             @map("user_id")
   // Opsional sejak 6 September 2026: pengirim yang tak tahu tujuannya memilih
-  // "Belum tahu tujuannya", lalu Superuser/Admin Kabupaten meneruskannya lewat
+  // "Lainnya (belum tahu tujuannya)", lalu Superuser/Admin Kabupaten
+  // meneruskannya lewat
   // PATCH /complaints/:id/opd. NULL berarti "belum bertujuan" -- bukan status
   // tersendiri, karena statusnya tetap `diterima` sampai OPD-nya menangani.
   opdId       Int?            @map("opd_id")

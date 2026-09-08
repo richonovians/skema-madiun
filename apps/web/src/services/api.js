@@ -2,13 +2,17 @@ import axios from 'axios';
 // Sengaja memakai ulang clearSession() alih-alih menghapus key di sini: daftar
 // artefak sesi (token & role, masing-masing di localStorage DAN cookie) hanya
 // boleh punya satu definisi. Menyalinnya ke sini persis yang dulu bikin
-// pembersihan tak sinkron. authStorage tak mengimpor apa pun, jadi tak ada
-// impor sirkular.
+// pembersihan tak sinkron.
+//
+// TIDAK ADA impor berputar: sejak 8 September 2026 authStorage mengimpor satu
+// modul, `services/apiBase.js`, dan modul itu tak mengimpor apa pun. Arah
+// impornya tetap satu arah -- api.js -> authStorage -> apiBase.
 import { clearSession } from '@/features/authentication/services/authStorage';
+import { API_BASE_URL } from './apiBase';
 
 // Konfigurasi instance Axios
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
