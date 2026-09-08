@@ -37,6 +37,9 @@ class StubSsoSource implements SsoSource {
     nama: 'Warga SSO',
     groups: undefined,
     role: undefined,
+    // Wajib sejak sinkronisasi OPD (8 September 2026). Kosong = profil warga
+    // biasa tanpa klaim OPD, yang memang keadaan yang diuji berkas ini.
+    klaim: {},
     // Keadaan normal penyedia identitas. Wajib tersurat sejak T5 (7 September
     // 2026): penautan akun lama lewat email menolak klaim yang hilang.
     emailVerified: true,

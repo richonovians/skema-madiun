@@ -119,6 +119,15 @@ export default () => ({
     // termasuk kenapa `superuser` tak pernah bisa dipetakan dari sini.
     ssoRoleMap: process.env.HELPDESK_SSO_ROLE_MAP,
 
+    // Nama field klaim userinfo yang membawa OPD seorang ASN, dipisah koma
+    // (8 September 2026). Dikonfigurasi, bukan dipaku di kode, karena bentuk
+    // maupun nama field-nya belum dikonfirmasi Helpdesk.
+    //
+    // Kosong = pakai daftar baku (lihat sso-opd.mapper.ts). Bila tak ada yang
+    // cocok, SsoService mencatat NAMA-NAMA field yang benar-benar diterima —
+    // dari situlah nilai env ini diisi, tanpa perlu menebak.
+    ssoOpdClaim: process.env.HELPDESK_SSO_OPD_CLAIM,
+
     // JALAN KELUAR DARURAT, baku MATI (temuan audit T5, 7 September 2026).
     //
     // Penautan akun lama lewat email menuntut `email_verified === true`. Bentuk

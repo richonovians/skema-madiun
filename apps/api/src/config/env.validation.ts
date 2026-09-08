@@ -151,6 +151,15 @@ class EnvironmentVariables {
   @IsString()
   HELPDESK_SSO_ROLE_MAP?: string;
 
+  // Nama field klaim yang membawa OPD ASN, dipisah koma (8 September 2026).
+  // Tidak divalidasi bentuknya, alasan yang sama seperti di atas: nama field
+  // yang salah tulis hanya membuat pencocokan tak menemukan apa pun — dan
+  // kegagalan itu TERLIHAT, karena SsoService mencatat nama-nama field yang
+  // sebenarnya diterima. Mematikan API saat boot demi ini akan jauh lebih mahal.
+  @IsOptional()
+  @IsString()
+  HELPDESK_SSO_OPD_CLAIM?: string;
+
   // Sakelar darurat penautan email (T5, 7 September 2026). String, bukan boolean:
   // hanya nilai persis "true" yang menyalakannya (lihat configuration.ts), jadi
   // salah tulis mana pun gagal ke arah AMAN alih-alih menyalakannya diam-diam.

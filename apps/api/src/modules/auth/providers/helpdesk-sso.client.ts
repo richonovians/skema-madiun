@@ -123,6 +123,12 @@ export class HelpdeskSsoClient implements SsoSource {
       nama: pickName(claims),
       groups: claims.groups,
       role: claims.role,
+      // Seluruh klaim dibawa apa adanya (8 September 2026): field yang memuat
+      // OPD seorang ASN belum diketahui namanya, dan `HELPDESK_SSO_OPD_CLAIM`
+      // yang menentukannya perlu sesuatu untuk dibaca. Tak ada penyaringan di
+      // sini supaya field yang belum terpikir pun tetap dapat dikonfigurasi
+      // tanpa mengubah kode.
+      klaim: claims,
     };
   }
 
