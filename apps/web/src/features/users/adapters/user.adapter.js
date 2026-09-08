@@ -68,17 +68,24 @@ export function toCreateUserPayload({ fullName, email, roles, opdId }) {
 }
 
 /**
- * Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId+roles).
+ * Terjemahkan payload edit akun -> UpdateUserDto backend — HANYA `roles`.
  *
- * Setiap field opsional: yang tak disertakan pemanggil dikirim `undefined` dan
- * dibuang JSON.stringify, lalu diabaikan `@IsOptional` di backend. Itulah cara
- * halaman "Ubah Role Admin" tidak mengirim `nama` sama sekali (identitas akun
- * dikunci, 5 September 2026) tanpa perlu adapter kedua.
+ * KEPEMILIKAN DATA (8 September 2026): `nama` & `opdId` berasal dari Helpdesk,
+ * dan `UpdateUserDto` kini MENOLAK keduanya. Karena `ValidationPipe` backend
+ * memakai `forbidNonWhitelisted`, mengirimkannya bukan lagi "diabaikan
+ * `@IsOptional`" seperti dulu, melainkan 400 untuk seluruh permintaan.
+ *
+ * Field-nya dibuang DI SINI, bukan hanya di halaman pemanggilnya. Sebelum ini
+ * halaman "Ubah Role Admin" sengaja tak mengirim `nama` sementara adapter tetap
+ * menerimanya — aturan yang hidup di pemanggil, bukan di batas. Halaman
+ * berikutnya yang memakai adapter ini tak perlu lagi mengingat aturannya.
+ *
+ * `fullName` & `opdId` sengaja TIDAK diterima lagi sebagai parameter, supaya
+ * pemanggil yang masih mengirimkannya terlihat saat ESLint/uji berjalan, bukan
+ * diam-diam dibuang di sini.
  */
-export function toUpdateUserPayload({ fullName, opdId, roles }) {
+export function toUpdateUserPayload({ roles }) {
   return {
-    nama: fullName,
-    opdId: opdId ? Number(opdId) : undefined,
     roles: roles ? roles.map((r) => ROLE_TO_BACKEND[r] ?? r) : undefined,
   };
 }

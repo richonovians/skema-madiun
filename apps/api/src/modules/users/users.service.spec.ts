@@ -140,20 +140,34 @@ describe('UsersService', () => {
     });
   });
 
-  it('update (2026-08-05) mengubah role akun lain, opd → kabupaten, opdId ikut dikosongkan', async () => {
-    (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow); // role: opd
+  /**
+   * KEBIJAKAN YANG BERUBAH, bukan uji yang rusak (8 September 2026).
+   *
+   * Judul lama uji ini: "opd → kabupaten, opdId ikut dikosongkan". Itu memang
+   * perilaku yang dulu benar — `opdId` dikirim lewat DTO, jadi mengosongkannya
+   * bersama pencabutan role adalah kerapian.
+   *
+   * Sejak `opdId` menjadi data milik Helpdesk, mengosongkannya sebagai EFEK
+   * SAMPING penyuntingan role berarti SKEMA menghapus data yang bukan miliknya.
+   * Akibatnya nyata: bila orangnya diberi peran `opd` lagi, tautannya sudah
+   * lenyap, dan satu-satunya jalan memulihkannya adalah login SSO berikutnya.
+   */
+  it('update: mencabut role opd TIDAK mengosongkan opdId — itu data Helpdesk', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow); // role: opd, opdId terisi
     (prisma.user.update as jest.Mock).mockResolvedValue({
       ...userRow,
       roles: [Role.kabupaten],
-      opdId: null,
     });
 
     const result = await service.update(10, { roles: [Role.kabupaten] }, SUPERUSER);
 
     expect(result.roles).toEqual([Role.kabupaten]);
+    // Kolom `opdId` TIDAK muncul di badan pembaruan sama sekali. Bedanya dengan
+    // "ditulis dengan nilai lama" itu penting: yang tak disebut tak tersentuh,
+    // sehingga login SSO tetap satu-satunya penulis kolom itu.
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 10 },
-      data: { nama: undefined, roles: [Role.kabupaten], opdId: null },
+      data: { roles: [Role.kabupaten] },
     });
   });
 
@@ -164,7 +178,11 @@ describe('UsersService', () => {
       roles: [Role.kabupaten],
     });
 
-    await expect(service.update(1, { roles: [Role.opd], opdId: 1 }, SUPERUSER)).rejects.toThrow(
+    // `opdId` TIDAK lagi dikirim: field itu dibuang dari UpdateUserDto
+    // (kepemilikan data Helpdesk, 8 September 2026). Yang diuji di sini gerbang
+    // self-lockout, dan ia berjalan SEBELUM normalisasi role -- jadi badan
+    // berisi role saja sudah cukup untuk memicunya.
+    await expect(service.update(1, { roles: [Role.opd] }, SUPERUSER)).rejects.toThrow(
       ForbiddenException,
     );
     expect(prisma.user.update).not.toHaveBeenCalled();
