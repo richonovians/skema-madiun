@@ -97,21 +97,42 @@ describe('CreateComplaintForm — kategori umum', () => {
 
 /**
  * Pengaduan yang pengirimnya tak tahu tujuannya (permintaan pengguna
- * 6 September 2026). Labelnya "Belum tahu tujuannya", BUKAN "Lainnya" walau itu
- * kata pengguna: formulir yang sama sudah punya KATEGORI bernama "Lainnya", dan
- * dua "Lainnya" yang artinya berbeda pada satu formulir adalah sumber kesalahan
- * pengisian. Penyimpangan ini disetujui pengguna.
+ * 6 September 2026).
+ *
+ * LABELNYA BERUBAH 8 September 2026 atas permintaan pengguna: dari "Belum tahu
+ * tujuannya" menjadi "Lainnya (belum tahu tujuannya)".
+ *
+ * Kata "Lainnya" saja pernah DITOLAK dengan sengaja — formulir yang sama punya
+ * KATEGORI bernama "Lainnya" (reference.constants.ts), dan dua "Lainnya" yang
+ * artinya berbeda pada satu formulir adalah sumber kesalahan pengisian. Bentuk
+ * gabungan inilah kompromi yang disetujui pengguna: kata yang diminta ada di
+ * depan, keterangannya menghilangkan ambiguitasnya.
+ *
+ * Uji kedua di bawah adalah KONTROL yang menjaga kompromi itu: ia memerah bila
+ * labelnya kelak dipangkas menjadi "Lainnya" saja.
  */
 describe('CreateComplaintForm — tujuan belum diketahui', () => {
   const opdDropdown = () => screen.getByLabelText(/opd \/ instansi tujuan/i);
 
-  it('menawarkan pilihan "Belum tahu tujuannya"', async () => {
+  it('menawarkan pilihan "Lainnya (belum tahu tujuannya)"', async () => {
     render(<CreateComplaintForm />);
     await screen.findByText('Pilih Instansi');
 
     fireEvent.click(opdDropdown());
 
-    expect(await screen.findByText('Belum tahu tujuannya')).toBeInTheDocument();
+    expect(await screen.findByText('Lainnya (belum tahu tujuannya)')).toBeInTheDocument();
+  });
+
+  it('label OPD-nya TIDAK boleh "Lainnya" saja — itu bentrok dengan nama kategori', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    await screen.findByText('Lainnya (belum tahu tujuannya)');
+
+    // Persis "Lainnya", bukan yang memuatnya. Kalau opsi seperti itu ada di
+    // dropdown OPD, pengisi formulir menghadapi dua "Lainnya" berbeda arti.
+    expect(screen.queryByText((teks) => teks.trim() === 'Lainnya')).not.toBeInTheDocument();
   });
 
   it('mengirim TANPA memilih OPD tidak menyertakan opdId sama sekali', async () => {

@@ -113,7 +113,14 @@ export default function CreateComplaintForm() {
             id="department"
             options={[
               { label: 'Pilih Instansi', value: '' },
-              { label: 'Belum tahu tujuannya', value: TANPA_TUJUAN },
+              // "Lainnya (belum tahu tujuannya)" — bentuk gabungan, dan itu
+              // kompromi yang disadari (8 September 2026). Kata "Lainnya" saja
+              // diminta pengguna, tapi dropdown Kategori di sebelahnya SUDAH
+              // punya pilihan bernama "Lainnya" (reference.constants.ts): dua
+              // "Lainnya" berbeda arti pada satu formulir adalah sumber
+              // kesalahan pengisian. Keterangan dalam kurung menghapus
+              // ambiguitasnya tanpa membuang kata yang diminta.
+              { label: 'Lainnya (belum tahu tujuannya)', value: TANPA_TUJUAN },
               ...departmentOptions,
             ]}
             value={formData.department}
