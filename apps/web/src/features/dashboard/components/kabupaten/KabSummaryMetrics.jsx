@@ -46,7 +46,7 @@ export default function KabSummaryMetrics({ data }) {
             <h3 className="text-4xl font-extrabold text-text-primary tracking-tight">
               {data.totalRespondents.toLocaleString('id-ID')}
             </h3>
-            <span className="text-text-secondary text-xs font-semibold">Warga</span>
+            <span className="text-text-secondary text-xs font-semibold">Masyarakat</span>
           </div>
         </div>
       </div>

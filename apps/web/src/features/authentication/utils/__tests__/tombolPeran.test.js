@@ -65,7 +65,7 @@ describe('peranUntukTombol', () => {
   });
 
   it('TIDAK menaikkan hak pada tombol selain Admin Kabupaten', () => {
-    // Penjaga: seorang superuser yang memilih "Warga" harus benar-benar menjadi
+    // Penjaga: seorang superuser yang memilih "Masyarakat" harus benar-benar menjadi
     // warga — termasuk terkena gerbang persetujuan UU PDP. Kalau di sini
     // dinaikkan menjadi `superuser`, gerbang itu terlewati.
     expect(peranUntukTombol(KUNCI_TOMBOL.WARGA, ['superuser', 'responden'])).toBe('responden');
