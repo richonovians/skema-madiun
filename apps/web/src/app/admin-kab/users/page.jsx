@@ -11,6 +11,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
   getUsers,
   getUserStats,
@@ -21,6 +22,38 @@ import {
 const ITEMS_PER_PAGE = 10;
 const FETCH_LIMIT = 100;
 
+/**
+ * Naskah konfirmasi per aksi akun (8 September 2026), pola yang sama dengan
+ * `CONFIRM_COPY` di admin-kab/surveys/page.jsx: tiap aksi punya peringatan yang
+ * jujur sesuai akibatnya di backend, bukan satu pesan generik.
+ *
+ * Sebelum ini Nonaktifkan tak punya gerbang sama sekali, dan Hapus memakai
+ * `window.confirm` bawaan peramban.
+ */
+const CONFIRM_COPY = {
+  deactivate: {
+    title: 'Nonaktifkan akun ini?',
+    description: (user) =>
+      `"${user.name}" tidak akan dapat masuk ke SKEMA sampai diaktifkan kembali. Data, pengaduan, dan jawaban surveinya tetap tersimpan.`,
+    confirmLabel: 'Ya, Nonaktifkan',
+    tone: 'danger',
+  },
+  activate: {
+    title: 'Aktifkan kembali akun ini?',
+    description: (user) =>
+      `"${user.name}" akan dapat masuk kembali dengan peran yang sekarang dimilikinya.`,
+    confirmLabel: 'Ya, Aktifkan',
+    tone: 'primary',
+  },
+  delete: {
+    title: 'Hapus akun ini?',
+    description: (user) =>
+      `Akun "${user.name}" akan dihapus dan tidak dapat masuk lagi. Pengaduan serta jawaban survei yang pernah dikirimnya tetap tersimpan sebagai data.`,
+    confirmLabel: 'Ya, Hapus Akun',
+    tone: 'danger',
+  },
+};
+
 export default function ManajemenUsersPage() {
   const router = useRouter();
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
@@ -29,6 +62,11 @@ export default function ManajemenUsersPage() {
   const [searchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [actionError, setActionError] = useState(null);
+  // `confirmAction` = { type: 'deactivate'|'activate'|'delete', user } saat
+  // dialog terbuka. `busyUserId` mengunci dialognya selagi permintaan berjalan
+  // supaya klik ganda tak mengirim dua permintaan.
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [busyUserId, setBusyUserId] = useState(null);
 
   const fetchUsers = useCallback(() => getUsers({ limit: FETCH_LIMIT }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchUsers);
@@ -63,23 +101,24 @@ export default function ManajemenUsersPage() {
     setCurrentPage(1);
   };
 
-  const handleUpdateStatus = async (userId, isActive) => {
+  /** Jalankan aksi yang sudah dikonfirmasi lewat ConfirmDialog. */
+  const handleConfirmedAction = async () => {
+    if (!confirmAction) return;
+    const { type, user } = confirmAction;
+    setConfirmAction(null);
+    setBusyUserId(user.id);
     setActionError(null);
     try {
-      await updateUserStatus(userId, isActive);
+      if (type === 'delete') {
+        await deleteUser(user.id);
+      } else {
+        await updateUserStatus(user.id, type === 'activate');
+      }
       await refetch();
     } catch (err) {
       setActionError(err.message);
-    }
-  };
-
-  const handleDelete = async (userId) => {
-    setActionError(null);
-    try {
-      await deleteUser(userId);
-      await refetch();
-    } catch (err) {
-      setActionError(err.message);
+    } finally {
+      setBusyUserId(null);
     }
   };
 
@@ -154,8 +193,7 @@ export default function ManajemenUsersPage() {
       <div className="flex-1 flex flex-col min-h-0 mt-xs">
         <UsersTable
           data={paginatedData}
-          onUpdateStatus={handleUpdateStatus}
-          onDelete={handleDelete}
+          onRequestAction={(user, type) => setConfirmAction({ type, user })}
           pagination={
             totalItems > 0 && (
               <Pagination
@@ -170,6 +208,19 @@ export default function ManajemenUsersPage() {
           }
         />
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmAction}
+        title={confirmAction ? CONFIRM_COPY[confirmAction.type].title : ''}
+        description={
+          confirmAction ? CONFIRM_COPY[confirmAction.type].description(confirmAction.user) : ''
+        }
+        confirmLabel={confirmAction ? CONFIRM_COPY[confirmAction.type].confirmLabel : ''}
+        tone={confirmAction ? CONFIRM_COPY[confirmAction.type].tone : 'danger'}
+        isProcessing={busyUserId !== null}
+        onConfirm={handleConfirmedAction}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }
