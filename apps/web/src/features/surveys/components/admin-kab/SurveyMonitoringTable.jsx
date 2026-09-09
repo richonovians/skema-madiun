@@ -1,7 +1,17 @@
 import React from 'react';
 import Link from 'next/link';
 import Badge from '@/components/ui/Badge';
-import { Eye, FileEdit, Pencil, UploadCloud, Lock, Unlock, Trash2, ClipboardList } from 'lucide-react';
+import {
+  Eye,
+  FileEdit,
+  Pencil,
+  UploadCloud,
+  Lock,
+  Unlock,
+  Trash2,
+  ClipboardList,
+  Copy,
+} from 'lucide-react';
 import ShareSurveyButton from '@/features/surveys/components/ShareSurveyButton';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
@@ -58,6 +68,7 @@ export default function SurveyMonitoringTable({
   onClose,
   onReopen,
   onDelete,
+  onDuplicate,
   busySurveyId = null,
 }) {
   return (
@@ -167,6 +178,20 @@ export default function SurveyMonitoringTable({
                           Ubah
                         </button>
                       )}
+
+                      {/* TANPA syarat status (8 September 2026), dan itu bukan
+                          kelalaian: `surveysService.duplicate` tidak memanggil
+                          `assertDraft`, jadi survei aktif maupun yang sudah
+                          ditutup boleh disalin. Salinannya selalu draf baru,
+                          sehingga aslinya tak tersentuh sama sekali. */}
+                      <button
+                        onClick={() => onDuplicate?.(survey)}
+                        disabled={isBusy}
+                        className={ACTION_CLASS}
+                      >
+                        <Copy size={12} />
+                        Salin
+                      </button>
 
                       {isDraft && (
                         <button onClick={() => onPublish?.(survey)} disabled={isBusy} className={ACTION_CLASS}>
