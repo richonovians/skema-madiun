@@ -8,7 +8,7 @@ import useSurveyStore from '../store/useSurveyStore';
 /**
  * @param {boolean} [tampilkanTautanWarga] Tautan "Daftar Survei" & "Beranda"
  * keduanya menuju rute khusus peran `responden` (/surveys, /dashboard), yang
- * memantulkan pengunjung tanpa sesi ke '/'. Pengisi anonim lewat /isi/:id
+ * memantulkan pengunjung tanpa sesi ke '/'. Pengisi anonim lewat /survei/:id
  * karena itu diberi satu tautan beranda publik — jalan buntu adalah cacat,
  * bukan detail kosmetik. Baku `true` supaya pemakaian yang sudah ada tak berubah.
  */

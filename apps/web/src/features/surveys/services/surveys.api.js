@@ -152,16 +152,24 @@ export async function getSurveyFill(surveyId) {
  * Kirim jawaban. `questions` & `answers` bentuk dari useSurveyStore
  * (getSurveyFill().questions + store.answers) -- toSubmitAnswers menerjemahkan
  * ke AnswerInputDto[] backend berdasar tipe tiap pertanyaan.
+ *
+ * @param {boolean} tanpaDataDiri Pilihan anonim dari GerbangPengisianBersesi.
+ *   Data dirinya TIDAK dikirim dari sini: backend menyalinnya dari akun
+ *   pengirim, jadi isinya tak dapat dikarang oleh pemanggil.
  */
-export async function submitSurveyResponse(surveyId, questions, answers) {
+export async function submitSurveyResponse(surveyId, questions, answers, tanpaDataDiri = false) {
   const response = await api.post(`/surveys/${surveyId}/responses`, {
     answers: toSubmitAnswers(questions, answers),
+    // Dikirim hanya bila benar. Backend memperlakukan medan yang tak ada sama
+    // dengan false (`@IsOptional`), dan payload yang tak memuatnya menjaga
+    // bentuk permintaan lama tetap apa adanya.
+    ...(tanpaDataDiri ? { tanpaDataDiri: true } : {}),
   });
   return response.data;
 }
 
 /**
- * Struktur kuesioner untuk pengunjung TANPA sesi (rute /isi/:id). Endpoint
+ * Struktur kuesioner untuk pengunjung TANPA sesi (rute /survei/:id). Endpoint
  * TERPISAH dari yang berpenjaga: backend menolaknya 404 kecuali survei aktif
  * DAN mengizinkan anonim.
  */
@@ -170,10 +178,26 @@ export async function getPublicSurveyFill(surveyId) {
   return adaptSurveyFill(response.data);
 }
 
-/** Kirim jawaban tanpa sesi. Backend selalu mencatatnya dengan userId null. */
-export async function submitPublicSurveyResponse(surveyId, questions, answers) {
+/**
+ * Kirim jawaban tanpa sesi. Backend selalu mencatatnya dengan userId null, dan
+ * MENOLAK 400 tanpa `setuju: true` (persetujuan UU PDP, 8 September 2026).
+ *
+ * @param {{setuju: boolean, nama: string|null, nomorHp: string|null,
+ *   jenisKelamin: string|null, kelompokUmur: string|null}} dataPublik
+ *   Hasil GerbangPengisianPublik.
+ */
+export async function submitPublicSurveyResponse(surveyId, questions, answers, dataPublik) {
   const response = await api.post(`/public/surveys/${surveyId}/responses`, {
     answers: toSubmitAnswers(questions, answers),
+    setuju: dataPublik?.setuju === true,
+    // Medan data diri DIHILANGKAN dari payload bila kosong, bukan dikirim
+    // null. Backend menerima keduanya (`@IsOptional`), tetapi payload yang
+    // tidak memuatnya menyatakan lebih jujur bahwa pengisi memilih tidak
+    // memberi datanya.
+    ...(dataPublik?.nama ? { nama: dataPublik.nama } : {}),
+    ...(dataPublik?.nomorHp ? { nomorHp: dataPublik.nomorHp } : {}),
+    ...(dataPublik?.jenisKelamin ? { jenisKelamin: dataPublik.jenisKelamin } : {}),
+    ...(dataPublik?.kelompokUmur ? { kelompokUmur: dataPublik.kelompokUmur } : {}),
   });
   return response.data;
 }

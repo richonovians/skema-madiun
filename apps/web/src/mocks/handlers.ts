@@ -384,7 +384,7 @@ export const handlers = [
     ),
   ),
 
-  // [TURUN] jalur publik (tanpa sesi) -- rute /isi/:id. Terpisah dari handler
+  // [TURUN] jalur publik (tanpa sesi) -- rute /survei/:id. Terpisah dari handler
   // berpenjaga di bawah, persis seperti di backend.
   http.get(`${API_BASE}/public/surveys/:id/fill`, ({ params }) =>
     ok(

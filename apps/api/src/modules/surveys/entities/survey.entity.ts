@@ -8,7 +8,7 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   periode: string;
   status: SurveyStatus;
   allowMultipleSubmit: boolean;
-  /** Survei ini boleh diisi tanpa sesi lewat /isi/:id. Baku false. */
+  /** Survei ini boleh diisi tanpa sesi lewat /survei/:id. Baku false. */
   izinkanAnonim: boolean;
   createdAt: Date;
   updatedAt: Date;
