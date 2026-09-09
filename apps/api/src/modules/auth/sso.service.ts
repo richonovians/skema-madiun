@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
+import { bentukKlaim } from './sso-claim-shape';
 import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
 import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
 import { SsoStateService } from './sso-state.service';
@@ -24,6 +25,17 @@ const EMAIL_MAX = 100;
 @Injectable()
 export class SsoService {
   private readonly logger = new Logger(SsoService.name);
+
+  /**
+   * Penanda bahwa bentuk klaim sudah dicatat pada proses ini (9 September
+   * 2026). Lihat `catatBentukKlaimSekali`.
+   *
+   * Medan INSTANS, bukan modul: SsoService memang singleton di Nest, jadi
+   * keduanya berperilaku sama saat berjalan. Bedanya di pengujian, tempat tiap
+   * uji membuat instans baru; penanda tingkat modul akan membuat uji kedua
+   * bergantung pada uji pertama yang pernah berjalan lebih dahulu.
+   */
+  private bentukKlaimSudahDicatat = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -66,6 +78,11 @@ export class SsoService {
     }
 
     const profile = await this.ssoSource.exchangeCodeForProfile(code);
+    // SEBELUM `provision`, dan urutannya inti dari gunanya: `provision` dapat
+    // melempar 403 pada login pertama seorang admin (penjaga penautan
+    // `email_verified`), dan justru login itulah yang bentuk klaimnya paling
+    // ingin diketahui. Dicatat sesudahnya berarti tak pernah tercatat.
+    this.catatBentukKlaimSekali(profile);
     const user = await this.provision(profile);
 
     // `sub` ikut dicatat karena itulah satu-satunya identitas yang dapat
@@ -76,6 +93,45 @@ export class SsoService {
       token: this.sessionService.issue(user.id),
       clearCookie: this.stateService.clearCookie(),
     };
+  }
+
+  /**
+   * Catat BENTUK payload klaim Helpdesk sekali per proses (9 September 2026).
+   *
+   * MENGAPA PERLU, padahal `opdIdUntukSinkron` sudah mencatat nama klaim.
+   * Pencatatan itu punya empat batas yang justru mengenai kasus yang sedang
+   * diselidiki: ia hanya berjalan pada jalur sinkronisasi (akun yang sudah
+   * dikenal lewat `sub`), sehingga bungkam pada login pertama; ia mencatat NAMA
+   * klaim tanpa bentuk nilainya, padahal yang menghalangi pengisian
+   * `HELPDESK_SSO_OPD_CLAIM` adalah pertanyaan apakah `groups` berisi string
+   * atau objek; ia tak pernah menyebut ada atau tidaknya `email_verified`; dan
+   * ia di tingkat `debug`.
+   *
+   * SEKALI PER PROSES, bukan setiap login: yang dicari struktur, dan struktur
+   * tidak berubah antar login. Mencatatnya berulang hanya membanjiri log dengan
+   * baris yang sama. Restart mempersenjatainya kembali, dan itu disengaja,
+   * sebab login pertama sesudah tiap deploy pantas mencatat bentuk terbarunya.
+   *
+   * TINGKAT `log`, bukan `debug`: ia harus benar-benar terbaca tanpa menyetel
+   * apa pun lebih dahulu. Karena hanya sekali per proses, ia tak memboroskan
+   * apa-apa.
+   *
+   * TANPA NILAI. Lihat sso-claim-shape.ts untuk apa saja yang boleh keluar dan
+   * apa yang tidak.
+   */
+  private catatBentukKlaimSekali(profile: SsoProfile): void {
+    if (this.bentukKlaimSudahDicatat) {
+      return;
+    }
+    this.bentukKlaimSudahDicatat = true;
+    try {
+      this.logger.log(`Bentuk klaim Helpdesk (sekali per proses): ${bentukKlaim(profile.klaim)}`);
+    } catch (err) {
+      // Alat bantu diagnosis TIDAK BOLEH menjadi sebab orang gagal masuk.
+      // Payload dari jaringan dapat berbentuk apa pun, termasuk objek yang
+      // pengaksesan propertinya sendiri melempar.
+      this.logger.warn(`Gagal mencatat bentuk klaim: ${(err as Error)?.message ?? err}`);
+    }
   }
 
   /**
