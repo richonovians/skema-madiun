@@ -15,8 +15,15 @@ import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
  * (`PATCH /users/:id/status`), link Ubah Role (`PATCH /users/:id`,
  * 2026-08-05), dan Hapus (`DELETE /users/:id`, soft delete, 2026-08-05 --
  * sebelumnya `deletedAt` ada di skema tapi tak ada endpoint/UI sama sekali).
+ *
+ * SEJAK 8 SEPTEMBER 2026 tabel ini TIDAK lagi memanggil endpoint apa pun. Ia
+ * cuma MEMINTA aksi lewat `onRequestAction(user, tipe)`; halaman pemanggil yang
+ * memegang ConfirmDialog lalu memutuskan. Dua sebabnya: sebelum ini
+ * Nonaktifkan mengubah status tanpa konfirmasi sama sekali dan Hapus memakai
+ * `window.confirm()` bawaan peramban, dan dialog yang dipasang di dalam tabel
+ * akan membuat tiap baris punya salinan dialognya sendiri.
  */
-export default function UsersTable({ data, onUpdateStatus, onDelete, pagination }) {
+export default function UsersTable({ data, onRequestAction, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
       // Warna dibedakan dari Admin Kabupaten: keduanya kini peran berbeda, dan
@@ -142,17 +149,13 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                       Ubah Role
                     </Link>
                     <button
-                      onClick={() => onUpdateStatus?.(user.id, !isActive)}
+                      onClick={() => onRequestAction?.(user, isActive ? 'deactivate' : 'activate')}
                       className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
                     >
                       {isActive ? 'Nonaktifkan' : 'Aktifkan'}
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Hapus akun "${user.name}"? Akun tidak bisa login lagi setelah dihapus.`)) {
-                          onDelete?.(user.id);
-                        }
-                      }}
+                      onClick={() => onRequestAction?.(user, 'delete')}
                       className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-error hover:bg-error-container transition-colors h-[32px] flex items-center justify-center gap-1"
                     >
                       <Trash2 size={12} />

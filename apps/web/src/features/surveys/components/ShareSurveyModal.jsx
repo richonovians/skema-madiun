@@ -15,13 +15,19 @@ const QR_PIXEL_SIZE = 512; // resolusi berkas unduhan; tampilannya dikecilkan le
  * produksi) sehingga QR tak pernah menunjuk host yang salah karena env lupa
  * diisi. Karena itu pula seluruh isi modal dirender di klien.
  *
- * Rute tujuannya `/isi/:id` (4 September 2026), BUKAN lagi `/surveys/:id`.
- * Catatan lama di sini menyatakan "SKM tak menerima jawaban anonim tanpa sesi"
- * -- itu sudah tidak berlaku. `/isi/*` berada di luar `config.matcher` milik
- * proxy.js, sehingga proxy tak berjalan untuk rute itu dan pengunjung tanpa
- * sesi tidak dipantulkan ke beranda. Satu tautan/QR karena itu berlaku untuk
- * semua orang: yang bersesi tercatat atas namanya, yang tidak dikirim anonim
- * (hanya bila survei ini `izinkanAnonim`).
+ * Rute tujuannya `/survei/:id` (8 September 2026), sebelumnya `/isi/:id`
+ * (4 September 2026) dan sebelum itu `/surveys/:id`. Catatan lama di sini
+ * menyatakan "SKM tak menerima jawaban anonim tanpa sesi" -- itu sudah tidak
+ * berlaku. `/survei/*` berada di luar `config.matcher` milik proxy.js,
+ * sehingga proxy tak berjalan untuk rute itu dan pengunjung tanpa sesi tidak
+ * dipantulkan ke beranda. Satu tautan/QR karena itu berlaku untuk semua orang:
+ * yang bersesi tercatat atas namanya, yang tidak dikirim anonim (hanya bila
+ * survei ini `izinkanAnonim`).
+ *
+ * Yang DIBAGIKAN selalu alamat baru, bukan yang lama. `/isi/:id` masih hidup
+ * sebagai pengalihan permanen bagi QR yang sudah tercetak, tetapi tautan baru
+ * yang lewat pengalihan menambah satu perjalanan jaringan pada setiap
+ * pemindaian.
  */
 export default function ShareSurveyModal({ survey, onClose }) {
   // Dihitung saat inisialisasi state, BUKAN di dalam useEffect: menyetel state
@@ -30,7 +36,7 @@ export default function ShareSurveyModal({ survey, onClose }) {
   // diklik, jadi `window` pasti sudah ada; penjagaan `typeof window` tetap
   // dipasang agar aman bila kelak dirender saat prerender.
   const [url] = useState(() =>
-    typeof window === 'undefined' ? '' : `${window.location.origin}/isi/${survey.id}`,
+    typeof window === 'undefined' ? '' : `${window.location.origin}/survei/${survey.id}`,
   );
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrError, setQrError] = useState(null);

@@ -9,7 +9,7 @@ import { USER_ROLES } from '../constants/userConstants';
  * dropdown: satu akun boleh memegang beberapa role sekaligus, dan pemiliknya
  * memilih sedang bertindak sebagai yang mana saat login.
  *
- * `Warga (Responden)` ikut ditawarkan sejak tanggal yang sama. Sebelumnya
+ * `Masyarakat (Responden)` ikut ditawarkan sejak tanggal yang sama. Sebelumnya
  * backend menolaknya (`ADMIN_ROLES`) karena akun warga lahir dari SSO; batas
  * itu dicabut atas permintaan pengguna, dan `ASSIGNABLE_ROLES` kini memuat
  * seluruh role. Yang TETAP tertutup: `superuser` tak dapat dipetakan dari klaim
@@ -36,7 +36,7 @@ const ROLE_CHOICES = [
   },
   {
     value: USER_ROLES.RESPONDENT,
-    label: 'Warga (Responden)',
+    label: 'Masyarakat (Responden)',
     keterangan:
       'Mengirim pengaduan dan mengisi survei sebagai warga. Terkena gerbang persetujuan UU PDP.',
   },

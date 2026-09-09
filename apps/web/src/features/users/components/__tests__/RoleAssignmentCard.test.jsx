@@ -60,10 +60,14 @@ describe('RoleAssignmentCard', () => {
     expect(onRolesChange).toHaveBeenLastCalledWith([USER_ROLES.ADMIN_OPD]);
   });
 
-  it('menawarkan Warga (Responden) — batas lama sudah dicabut', () => {
+  it('menawarkan Masyarakat (Responden) — batas lama sudah dicabut', () => {
+    // Labelnya "Masyarakat" sejak 8 September 2026 (permintaan pengguna).
+    // Nilai yang dikirim tetap `USER_ROLES.RESPONDENT`, dan itu yang membuat
+    // penggantian nama ini aman: tak ada perbandingan peran yang berubah.
     render1();
 
-    expect(screen.getByLabelText('Warga (Responden)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Masyarakat (Responden)')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Warga (Responden)')).not.toBeInTheDocument();
   });
 
   it('dropdown OPD TIDAK muncul bila Admin OPD tak tercentang', () => {

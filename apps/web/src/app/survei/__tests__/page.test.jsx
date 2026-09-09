@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useParams } from 'next/navigation';
 import IsiSurveiPage from '../[id]/page';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
@@ -7,7 +7,7 @@ import { sudahMengisiDiPeramban } from '@/utils/surveyFillMarker';
 import { getPublicSurveyFill, getSurveyFill } from '@/features/surveys/services/surveys.api';
 
 /**
- * Rute `/isi/:id` melayani DUA keadaan dengan satu tautan. Yang diuji di sini
+ * Rute `/survei/:id` melayani DUA keadaan dengan satu tautan. Yang diuji di sini
  * adalah pemilihan jalurnya, bukan tampilan wizardnya (itu sudah punya ujinya
  * sendiri): ada sesi -> endpoint berpenjaga, tanpa sesi -> endpoint publik.
  *
@@ -46,7 +46,7 @@ beforeEach(() => {
   sudahMengisiDiPeramban.mockReturnValue(false);
 });
 
-describe('/isi/:id', () => {
+describe('/survei/:id', () => {
   it('tanpa sesi: memakai endpoint publik', async () => {
     isAuthenticated.mockReturnValue(false);
 
@@ -106,5 +106,87 @@ describe('/isi/:id', () => {
 
     expect(await screen.findByText(/tidak dapat diisi/i)).toBeInTheDocument();
     expect(screen.getByText(/tidak ditemukan/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * GERBANG PERSETUJUAN PDP (8 September 2026).
+ *
+ * Yang diuji di sini adalah URUTANNYA di dalam halaman: gerbangnya menahan
+ * kuesioner bagi pengunjung tanpa sesi, dan tidak muncul sama sekali bagi yang
+ * bersesi. Isi gerbangnya sendiri diuji di
+ * features/surveys/components/__tests__/GerbangPengisianPublik.test.jsx.
+ */
+describe('/survei/:id - gerbang persetujuan', () => {
+  /**
+   * Melewati gerbang PDP dengan memilih "tanpa data diri". Sejak 8 September
+   * 2026 nama & nomor HP WAJIB kecuali opsi itu dipilih, jadi jalan tercepat
+   * melewati gerbang di sini adalah memilihnya. Kelengkapan medannya sendiri
+   * sudah diuji di GerbangPengisianPublik.test.jsx, bukan urusan berkas ini.
+   */
+  const setuju = () => {
+    fireEvent.click(screen.getByRole('checkbox', { name: /tanpa data diri/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /menyetujui/i }));
+    fireEvent.click(screen.getByRole('button', { name: /setuju & mulai isi/i }));
+  };
+
+  it('TANPA sesi: gerbang tampil dan kuesioner ditahan', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<IsiSurveiPage />);
+
+    expect(await screen.findByText('Persetujuan Pemrosesan Data Pribadi')).toBeInTheDocument();
+    expect(screen.queryByText(/Bagaimana pelayanannya\?/)).not.toBeInTheDocument();
+  });
+
+  it('sesudah setuju, kuesionernya tampil', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<IsiSurveiPage />);
+    await screen.findByText('Persetujuan Pemrosesan Data Pribadi');
+
+    setuju();
+
+    expect(await screen.findByText(/Bagaimana pelayanannya\?/)).toBeInTheDocument();
+    expect(screen.queryByText('Persetujuan Pemrosesan Data Pribadi')).not.toBeInTheDocument();
+  });
+
+  /**
+   * DIPERBARUI 8 September 2026. Sebelumnya uji ini menuntut pengguna bersesi
+   * TIDAK menemui gerbang apa pun. Pengguna lalu meminta gerbang opsi anonim
+   * muncul sebelum pengisian, jadi kini ada gerbang bagi mereka juga.
+   *
+   * Yang dijaga uji ini TETAP sama dan itulah sebabnya ia tidak dibuang:
+   * gerbang PDP tak boleh muncul dua kali. Persetujuan pengguna bersesi sudah
+   * tercatat di `users.consentAt` dan ditegakkan `assertConsented`, jadi
+   * memintanya lagi hanya menghalangi tanpa menambah satu pun jaminan.
+   */
+  it('DENGAN sesi: gerbang anonim yang muncul, BUKAN gerbang PDP', async () => {
+    isAuthenticated.mockReturnValue(true);
+    render(<IsiSurveiPage />);
+
+    expect(await screen.findByText('Sebelum Anda Mulai Mengisi')).toBeInTheDocument();
+    expect(screen.queryByText('Persetujuan Pemrosesan Data Pribadi')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bagaimana pelayanannya\?/)).not.toBeInTheDocument();
+  });
+
+  it('DENGAN sesi: sesudah gerbang anonim dilewati, kuesionernya tampil', async () => {
+    isAuthenticated.mockReturnValue(true);
+    render(<IsiSurveiPage />);
+    await screen.findByText('Sebelum Anda Mulai Mengisi');
+
+    fireEvent.click(screen.getByRole('button', { name: /mulai isi survei/i }));
+
+    expect(await screen.findByText(/Bagaimana pelayanannya\?/)).toBeInTheDocument();
+    expect(screen.queryByText('Sebelum Anda Mulai Mengisi')).not.toBeInTheDocument();
+  });
+
+  it('KONTROL: penanda peramban tetap menahan LEBIH DAHULU daripada gerbang', async () => {
+    // Urutan penjaga. Pengunjung yang sudah ditandai tak boleh dimintai
+    // persetujuan untuk survei yang tak akan pernah dapat ia kirim.
+    isAuthenticated.mockReturnValue(false);
+    sudahMengisiDiPeramban.mockReturnValue(true);
+    render(<IsiSurveiPage />);
+
+    expect(await screen.findByText(/sudah mengisi survei ini/i)).toBeInTheDocument();
+    expect(screen.queryByText('Persetujuan Pemrosesan Data Pribadi')).not.toBeInTheDocument();
   });
 });

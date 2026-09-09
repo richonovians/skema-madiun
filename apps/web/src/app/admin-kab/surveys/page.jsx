@@ -17,6 +17,7 @@ import {
   updateSurvey,
   updateSurveyStatus,
   deleteSurvey,
+  duplicateSurvey,
 } from '@/features/surveys/services/surveys.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
@@ -53,6 +54,13 @@ const CONFIRM_COPY = {
     description: (survey) =>
       `"${survey.title}" akan kembali berstatus aktif dan dapat diisi responden lagi. Jawaban yang sudah masuk tetap tersimpan. Catatan: snapshot hasil IKM dari penutupan sebelumnya tidak terhapus, sehingga survei ini sementara terhitung dua kali pada rekap lintas-OPD sampai periodenya ditutup lagi.`,
     confirmLabel: 'Ya, Aktifkan Kembali',
+    tone: 'primary',
+  },
+  duplicate: {
+    title: 'Salin survei ini?',
+    description: (survey) =>
+      `Salinan "${survey.title}" akan dibuat sebagai draf baru pada ${survey.opdName} beserta seluruh pertanyaannya. Jawaban responden tidak ikut disalin.`,
+    confirmLabel: 'Ya, Salin',
     tone: 'primary',
   },
   delete: {
@@ -259,6 +267,14 @@ export default function AdminKabSurveysPage() {
       );
       return;
     }
+    if (type === 'duplicate') {
+      await runRowAction(
+        survey.id,
+        () => duplicateSurvey(survey.id),
+        'Salinan survei dibuat sebagai draf baru. Judulnya diberi akhiran "(Salinan)".',
+      );
+      return;
+    }
     await runRowAction(survey.id, () => deleteSurvey(survey.id), 'Survei draf berhasil dihapus.');
   };
 
@@ -350,6 +366,7 @@ export default function AdminKabSurveysPage() {
           onClose={(survey) => setConfirmAction({ type: 'close', survey })}
           onReopen={(survey) => setConfirmAction({ type: 'reopen', survey })}
           onDelete={(survey) => setConfirmAction({ type: 'delete', survey })}
+          onDuplicate={(survey) => setConfirmAction({ type: 'duplicate', survey })}
           busySurveyId={busySurveyId}
         />
 

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -857,5 +858,116 @@ describe('sinkronisasi OPD saat login', () => {
     const data = await login(m, { klaim: { opd: 'Dinas Kesehatan' } }, null);
 
     expect(data).not.toHaveProperty('roles');
+  });
+});
+
+/**
+ * BENTUK KLAIM DICATAT SEKALI PER PROSES (9 September 2026).
+ *
+ * Tiga pertanyaan tentang SSO Helpdesk menghalangi pekerjaan lain: bentuk nilai
+ * `groups` dan `role` (yang menentukan isi `HELPDESK_SSO_OPD_CLAIM`, sampai
+ * kini kosong sehingga sinkronisasi OPD mati), dan ada atau tidaknya
+ * `email_verified` (yang menentukan apakah penautan akun admin ditolak pada
+ * login pertama). Satu payload sungguhan menjawab ketiganya, dan blok ini
+ * menjaga bahwa payload itu benar-benar tercatat ketika akhirnya tiba.
+ *
+ * `Logger.prototype.log` diintip, bukan logger milik instans: `SsoService`
+ * membuat loggernya sendiri sebagai medan privat, jadi tak ada jalan
+ * menyuntikkan pengganti tanpa mengubah bentuk konstruktornya hanya untuk
+ * keperluan pengujian.
+ */
+describe('SsoService — bentuk klaim dicatat', () => {
+  let intip: jest.SpyInstance;
+
+  beforeEach(() => {
+    intip = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    intip.mockRestore();
+  });
+
+  // Disaring menurut isi pesannya: `SsoService` juga memanggil `logger.log`
+  // untuk hal lain (menyelaraskan akun lama, akun baru lahir), dan menghitung
+  // seluruh panggilan akan menguji hal yang salah.
+  const barisBentuk = () =>
+    intip.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('Bentuk klaim Helpdesk'));
+
+  const KLAIM = { sub: 'hd-sub-abc123', groups: ['dinkes'], email_verified: true };
+
+  // `acceptLogin` menulis `lastLoginAt` lewat `prisma.user.update` dan
+  // mengembalikan hasilnya, jadi `update` HARUS ikut dipalsukan. Tanpa itu
+  // `provision` mengembalikan undefined dan yang meledak justru pencatatan
+  // audit, bukan hal yang sedang diuji.
+  const siapkanLoginSukses = (prisma: Mocked['prisma']) => {
+    prisma.user.findFirst.mockResolvedValue(userRow());
+    prisma.user.update.mockResolvedValue(userRow());
+  };
+
+  it('mencatat bentuknya, bukan isinya', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: KLAIM }));
+    siapkanLoginSukses(prisma);
+
+    await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+
+    expect(barisBentuk()).toHaveLength(1);
+    const baris = barisBentuk()[0];
+    expect(baris).toContain('groups=array[1] of string(6)');
+    expect(baris).toContain('email_verified=boolean(true)');
+    // Nilainya TIDAK ikut. Penjaganya ada di sso-claim-shape.spec.ts; di sini
+    // yang dijaga adalah bahwa jalur nyatanya memakai fungsi itu, bukan
+    // merangkai pesannya sendiri.
+    expect(baris).not.toContain('dinkes');
+    expect(baris).not.toContain('hd-sub-abc123');
+  });
+
+  it('TIDAK berulang pada login berikutnya', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: KLAIM }));
+    siapkanLoginSukses(prisma);
+
+    await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+    await service.completeLogin('kode-2', 'nonce-1', 'sso_state=abc');
+    await service.completeLogin('kode-3', 'nonce-1', 'sso_state=abc');
+
+    expect(barisBentuk()).toHaveLength(1);
+  });
+
+  it('TETAP tercatat walau login berakhir ditolak 403', async () => {
+    // INI alasan utama pemanggilannya diletakkan sebelum `provision`. Login
+    // pertama seorang admin yang akunnya sudah dibuat lebih dahulu justru
+    // berakhir 403 pada penjaga penautan `email_verified`, dan payload login
+    // itulah yang paling ingin diketahui bentuknya. Dicatat sesudah
+    // `provision` berarti tak pernah tercatat pada kasus yang diselidiki.
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: KLAIM, emailVerified: false }));
+    prisma.user.findFirst
+      .mockResolvedValueOnce(null) // pencarian by sub
+      .mockResolvedValueOnce(userRow({ id: 1, ssoSubject: 'seed-superuser' })); // by email
+
+    await expect(service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    expect(barisBentuk()).toHaveLength(1);
+  });
+
+  it('payload yang meledak saat dibaca tidak menggagalkan login', async () => {
+    // Alat bantu diagnosis tak boleh menjadi sebab orang gagal masuk.
+    const klaimJahat = {};
+    Object.defineProperty(klaimJahat, 'sub', {
+      enumerable: true,
+      get() {
+        throw new Error('properti ini meledak');
+      },
+    });
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimJahat }));
+    siapkanLoginSukses(prisma);
+
+    await expect(
+      service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc'),
+    ).resolves.toMatchObject({ token: 'token-sesi-skm' });
   });
 });

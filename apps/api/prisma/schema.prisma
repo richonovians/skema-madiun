@@ -256,10 +256,41 @@ model SurveyResponse {
   // sehingga @@unique di bawah = 1 respons/user saat single-submit, tak dibatasi saat multi.
   dedupeUserId Int?     @map("dedupe_user_id")
   submittedAt  DateTime @default(now()) @map("submitted_at")
-  // Disiapkan untuk persetujuan UU PDP bagi pengirim anonim. BELUM DIPAKAI --
-  // menunggu konfirmasi tim Diskominfo; selalu NULL sampai saat itu. Ada di
-  // migrasi yang sama supaya konfirmasinya tak menuntut migrasi kedua.
+  // Persetujuan UU PDP pengirim TANPA sesi, diisi WAKTU SERVER pada setiap
+  // pengiriman publik. Berlaku sejak tim mengonfirmasi keharusannya
+  // (8 September 2026); sebelum itu kolom ini ada tetapi selalu NULL, menunggu
+  // konfirmasi tersebut. `ConsentService.assertConsented` tak dapat dipakai di
+  // jalur ini karena ia membaca `users.consentAt`, dan pengirim tanpa sesi tak
+  // punya baris `users`; penjaganya `setuju: true` yang wajib pada
+  // SubmitPublicResponseDto. NULL pada baris bersesi adalah keadaan normal:
+  // persetujuan mereka tercatat di `users.consentAt`.
   consentAt    DateTime? @map("consent_at")
+  // Data diri pengisi (8 September 2026). SELURUHNYA opsional, karena pengisi
+  // boleh memilih "tanpa data diri" pada gerbang sebelum kuesioner. NULL pada
+  // keempatnya berarti ia memilih itu.
+  //
+  // Sumbernya berbeda per jalur, dan bedanya bukan kebetulan:
+  //   - tanpa sesi : diketik pengisi pada GerbangPengisianPublik.
+  //   - bersesi    : disalin dari akunnya. `nama` dari `users.nama` (klaim
+  //                  `name` Helpdesk), demografis dari `respondent_profiles`
+  //                  bila akun itu punya barisnya.
+  //
+  // `nomorHp` SELALU null pada jalur bersesi, dan itu keadaan terukur, bukan
+  // kelalaian: Helpdesk tidak mengirim nomor telepon (klaim yang dibaca
+  // helpdesk-sso.client.ts hanya `sub`, `email`, `email_verified`, `nama`) dan
+  // tabel `users` tak punya kolomnya. `me.adapter.js` sudah mencatat celah ini
+  // sejak sebelum kolom-kolom ini ada.
+  //
+  // BELUM ADA PEMBACANYA. `ResponseEntity` hanya memuat id, surveyId, dan
+  // submittedAt, jadi tak satu pun layar menampilkan isi keempat kolom ini.
+  // Dikumpulkan atas permintaan tersurat pengguna 8 September 2026 sesudah
+  // keputusan sebelumnya (membuang nama & nomor HP) dibalik. Sampai ada laporan
+  // yang membacanya, keempatnya data pribadi yang tersimpan tanpa pemakai, dan
+  // itu memperbesar kewajiban PDP tanpa menambah manfaat.
+  nama         String?       @db.VarChar(50)
+  nomorHp      String?       @map("nomor_hp") @db.VarChar(20)
+  jenisKelamin JenisKelamin? @map("jenis_kelamin")
+  kelompokUmur String?       @map("kelompok_umur") @db.VarChar(20)
 
   survey  Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   user    User?    @relation(fields: [userId], references: [id])

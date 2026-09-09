@@ -100,11 +100,15 @@ describe('Public Surveys dengan SessionAuthProvider aktif (e2e)', () => {
   it('POST /public/surveys/:id/responses tanpa kredensial -> 201, userId null', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
-      .send({ answers: [{ questionId: qSkala, nilai: 4 }] });
+      // `setuju` wajib sejak 8 September 2026 (persetujuan UU PDP). Yang diuji
+      // berkas ini tetap sama: rute publik tak menuntut KREDENSIAL, dan itu
+      // tidak sama dengan tak menuntut persetujuan.
+      .send({ answers: [{ questionId: qSkala, nilai: 4 }], setuju: true });
 
     expect(res.status).toBe(201);
     const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
     expect(tersimpan?.userId).toBeNull();
+    expect(tersimpan?.consentAt).toBeInstanceOf(Date);
   });
 
   it('KONTROL: POST /surveys/:id/responses tanpa kredensial -> 401', async () => {

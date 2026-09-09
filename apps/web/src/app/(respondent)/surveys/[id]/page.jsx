@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import SurveyProgress from '@/features/surveys/components/SurveyProgress';
+import GerbangPengisianBersesi from '@/features/surveys/components/GerbangPengisianBersesi';
 import QuestionCard from '@/features/surveys/components/QuestionCard';
 import SurveyNavigation from '@/features/surveys/components/SurveyNavigation';
 import SurveyCompletion from '@/features/surveys/components/SurveyCompletion';
@@ -27,20 +28,32 @@ export default function SurveyWizardPage() {
   const [showWarning, setShowWarning] = useState(false);
   const [pendingUrl, setPendingUrl] = useState('');
 
+  /**
+   * Pilihan anonim dari gerbang sebelum kuesioner (8 September 2026, atas
+   * permintaan pengguna: "sebelum pengguna mengisi survei muncul tampilan opsi
+   * anonim"). `null` = gerbangnya belum dilewati.
+   *
+   * Rute ini SELALU bersesi: ia ada di dalam `config.matcher` milik proxy.js,
+   * jadi tak ada cabang tanpa sesi yang perlu dilayani di sini. Padanan rute
+   * publiknya, app/survei/[id]/page.jsx, melayani keduanya.
+   */
+  const [pilihanBersesi, setPilihanBersesi] = useState(null);
+  const perluGerbang = pilihanBersesi === null;
+
   // Modal "Tinggalkan Survei?" -- kunci gulir latarnya. Di halaman inilah paling
   // penting: pertanyaan survei bisa panjang, dan pengguna yang latarnya bergeser
   // saat modal terbuka bisa kehilangan posisi pertanyaan yang sedang diisinya.
   useBodyScrollLock(showWarning);
 
   useEffect(() => {
-    if (fillData && !fillData.sudahMengisi) {
-      initSurvey(fillData);
+    if (fillData && !fillData.sudahMengisi && !perluGerbang) {
+      initSurvey(fillData, { tanpaDataDiri: pilihanBersesi?.anonim === true });
     }
     return () => {
       resetSurvey();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fillData]);
+  }, [fillData, perluGerbang]);
 
   // Handle prevention of leaving page when survey is active.
   //
@@ -55,7 +68,10 @@ export default function SurveyWizardPage() {
   // -- klik terasa "mati". Tombol biasa (bukan link, mis. logout) tak
   // terpengaruh krn listener ini hanya mencocokkan `closest('a')`.
   useEffect(() => {
-    if (!fillData || fillData.sudahMengisi || isCompleted) return;
+    // `perluGerbang` ikut menghalangi, sebab gerbangnya sendiri punya tautan
+    // "Kembali ke Daftar Survei": tanpa syarat ini, menekannya akan memicu modal
+    // "Tinggalkan Survei?" untuk progres yang belum ada.
+    if (!fillData || fillData.sudahMengisi || isCompleted || perluGerbang) return;
 
     const handleBeforeUnload = (e) => {
       e.preventDefault();
@@ -81,7 +97,7 @@ export default function SurveyWizardPage() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('click', handleLinkClick, { capture: true });
     };
-  }, [fillData, isCompleted]);
+  }, [fillData, isCompleted, perluGerbang]);
 
   if (isLoading) {
     return (
@@ -114,6 +130,19 @@ export default function SurveyWizardPage() {
             </Link>
           }
         />
+      </main>
+    );
+  }
+
+  /**
+   * Gerbang sebelum kuesioner, SESUDAH penjaga "memuat", "galat", dan "sudah
+   * mengisi". Urutannya penting: pengguna yang surveinya sudah diisi tak boleh
+   * dimintai pilihan untuk sesuatu yang tak akan pernah ia kirim.
+   */
+  if (perluGerbang) {
+    return (
+      <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
+        <GerbangPengisianBersesi onMulai={setPilihanBersesi} />
       </main>
     );
   }

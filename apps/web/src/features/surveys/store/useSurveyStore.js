@@ -10,9 +10,20 @@ const useSurveyStore = create((set, get) => ({
   isSurveyInProgress: false,
   isSubmitting: false,
   submitError: null,
-  // Pengisian tanpa sesi (rute /isi/:id). Menentukan endpoint pengiriman, bukan
+  // Pengisian tanpa sesi (rute /survei/:id). Menentukan endpoint pengiriman, bukan
   // tampilan.
   isAnonimMode: false,
+  // Persetujuan PDP & data diri dari GerbangPengisianPublik (8 September
+  // 2026). Disimpan di store bersama `isAnonimMode`, dengan alasan yang sama:
+  // keputusannya diambil SEKALI sebelum pengisian, bukan diperiksa ulang saat
+  // mengirim. `null` pada jalur bersesi, yang tak memakainya.
+  dataPublik: null,
+  // Pilihan anonim pada GerbangPengisianBersesi, jalur BERSESI (8 September
+  // 2026). Terpisah dari `dataPublik` karena isinya bukan data, melainkan satu
+  // pilihan: data dirinya disalin backend dari akunnya, tak pernah dikirim dari
+  // sini. Terpisah pula dari `isAnonimMode`, yang menyatakan ada-tidaknya sesi
+  // dan menentukan endpoint, bukan pilihan pengisi.
+  tanpaDataDiri: false,
 
   startSurvey: () => {
     set({ isSurveyInProgress: true, isCompleted: false });
@@ -24,7 +35,7 @@ const useSurveyStore = create((set, get) => ({
    * tengah pengisian berisiko berpindah jalur di tengah jalan bila sesi
    * kedaluwarsa -- responden akan kehilangan jawabannya tanpa sebab yang jelas.
    */
-  initSurvey: (data, { anonim = false } = {}) => {
+  initSurvey: (data, { anonim = false, dataPublik = null, tanpaDataDiri = false } = {}) => {
     set({
       surveyData: data,
       currentStepIndex: 0,
@@ -32,6 +43,8 @@ const useSurveyStore = create((set, get) => ({
       isCompleted: false,
       isSurveyInProgress: true,
       isAnonimMode: anonim,
+      dataPublik,
+      tanpaDataDiri,
     });
   },
 
@@ -68,14 +81,21 @@ const useSurveyStore = create((set, get) => ({
    * publik (POST /public/surveys/:id/responses) bagi pengunjung tanpa sesi.
    */
   submitSurvey: async () => {
-    const { surveyData, answers, isAnonimMode } = get();
+    const { surveyData, answers, isAnonimMode, dataPublik, tanpaDataDiri } = get();
     if (!surveyData) {
       return { success: false, error: 'Survei belum dimuat' };
     }
     set({ isSubmitting: true, submitError: null });
     try {
-      const kirim = isAnonimMode ? submitPublicSurveyResponse : submitSurveyResponse;
-      await kirim(surveyData.id, surveyData.questions, answers);
+      // Parameter keempat berbeda arti per jalur, dan tiap fungsi hanya
+      // menerima yang menjadi urusannya: jalur publik menerima persetujuan PDP
+      // beserta data diri yang diketik pengisi, jalur berpenjaga menerima satu
+      // pilihan anonim (data dirinya disalin backend dari akun, tak pernah
+      // dikirim dari sini). Persetujuan pengguna bersesi sudah tercatat di
+      // `users.consentAt` dan ditegakkan `assertConsented` di backend.
+      await (isAnonimMode
+        ? submitPublicSurveyResponse(surveyData.id, surveyData.questions, answers, dataPublik)
+        : submitSurveyResponse(surveyData.id, surveyData.questions, answers, tanpaDataDiri));
       // Penanda peramban ditulis HANYA sesudah server menerima -- menandainya
       // lebih dulu akan mengunci responden dari survei yang belum tersimpan.
       if (isAnonimMode) {
@@ -99,6 +119,8 @@ const useSurveyStore = create((set, get) => ({
       isSubmitting: false,
       submitError: null,
       isAnonimMode: false,
+      dataPublik: null,
+      tanpaDataDiri: false,
     });
   },
 }));

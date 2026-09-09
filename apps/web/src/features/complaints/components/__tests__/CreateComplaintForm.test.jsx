@@ -4,6 +4,7 @@ import { setupServer } from 'msw/node';
 import { http } from 'msw';
 import { useRouter } from 'next/navigation';
 import { handlers, ok } from '@/mocks/handlers';
+import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import CreateComplaintForm from '../CreateComplaintForm';
 
 /**
@@ -20,6 +21,23 @@ import CreateComplaintForm from '../CreateComplaintForm';
  */
 jest.mock('next/navigation', () => ({ useRouter: jest.fn() }));
 
+/**
+ * `isAuthenticated` dimock dengan `requireActual` untuk ekspor lainnya, BUKAN
+ * seluruh modulnya: `services/api.js` memakai `clearSession` dan `getToken`
+ * dari modul yang sama pada interseptornya, dan mengosongkan keduanya membuat
+ * interseptor itu meledak alih-alih menguji apa pun. Alasan & pola sama
+ * SurveyForm.test.jsx.
+ *
+ * Bakunya `true` di `beforeEach`, dan itu bukan kemalasan: seluruh uji yang
+ * sudah ada di berkas ini ditulis ketika komponennya belum sadar sesi. Tanpa
+ * baku itu mereka semua melihat dropdown yang menghimbau masuk, lalu berhenti
+ * menguji hal yang mereka maksud.
+ */
+jest.mock('@/features/authentication/services/authStorage', () => ({
+  ...jest.requireActual('@/features/authentication/services/authStorage'),
+  isAuthenticated: jest.fn(),
+}));
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 const server = setupServer(...handlers);
 
@@ -29,6 +47,7 @@ afterAll(() => server.close());
 
 beforeEach(() => {
   useRouter.mockReturnValue({ push: jest.fn() });
+  isAuthenticated.mockReturnValue(true);
 });
 
 const kategoriDropdown = () => screen.getByLabelText(/kategori pengaduan/i);
@@ -195,5 +214,93 @@ describe('CreateComplaintForm — tujuan belum diketahui', () => {
 
     await waitFor(() => expect(terkirim).not.toBeNull());
     expect('opdId' in terkirim).toBe(true);
+  });
+});
+
+/**
+ * KEADAAN TANPA SESI (permintaan pengguna 8 September 2026).
+ *
+ * Formulir ini dirender di dua tempat, dan hanya satu di antaranya boleh dibuka
+ * tanpa sesi: beranda '/'. Rute '/complaints/new' ada di dalam `config.matcher`
+ * milik proxy.js, jadi cabang yang diuji blok ini hanya pernah terlihat di
+ * beranda.
+ *
+ * Ketiga endpointnya sudah diukur menjawab 401 tanpa sesi: `GET /opd`,
+ * `GET /ref/complaint-categories`, dan `POST /complaints`. Jadi yang terhalang
+ * bukan satu dropdown melainkan seluruh pemakaian formulirnya.
+ */
+describe('CreateComplaintForm — tanpa sesi', () => {
+  const opdDropdown = () => screen.getByLabelText(/opd \/ instansi tujuan/i);
+
+  it('TIDAK menawarkan "Lainnya (belum tahu tujuannya)"', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<CreateComplaintForm />);
+    await screen.findByText(/masuk untuk melihat daftar instansi/i);
+
+    fireEvent.click(opdDropdown());
+
+    expect(screen.queryByText(/belum tahu tujuannya/i)).not.toBeInTheDocument();
+  });
+
+  it('kedua penampung dropdown menghimbau masuk, bukan menyuruh memilih', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<CreateComplaintForm />);
+
+    expect(await screen.findByText(/masuk untuk melihat daftar instansi/i)).toBeInTheDocument();
+    expect(screen.getByText(/masuk untuk melihat kategori/i)).toBeInTheDocument();
+    expect(screen.queryByText('Pilih Instansi')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pilih Kategori')).not.toBeInTheDocument();
+  });
+
+  it('menampilkan himbauan masuk di atas formulir', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<CreateComplaintForm />);
+
+    expect(await screen.findByText(/masuk terlebih dahulu/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/melihat daftar instansi dan kategori pengaduan/i),
+    ).toBeInTheDocument();
+  });
+
+  it('menekan Kirim tidak memanggil API, melainkan menyuruh masuk', async () => {
+    isAuthenticated.mockReturnValue(false);
+    let dipanggil = false;
+    server.use(
+      http.post(`${API_BASE}/complaints`, () => {
+        dipanggil = true;
+        return ok({ id: 1, ticketNo: 'PGD20260908ZZZZ' }, '/complaints');
+      }),
+    );
+
+    render(<CreateComplaintForm />);
+    await screen.findByText(/masuk untuk melihat daftar instansi/i);
+
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Uraian pengaduan yang cukup panjang' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+
+    expect(
+      await screen.findByText(/masuk terlebih dahulu untuk mengirim laporan/i),
+    ).toBeInTheDocument();
+    expect(dipanggil).toBe(false);
+  });
+
+  /**
+   * KONTROL. Tanpa uji ini, ketiga uji di atas dapat lulus dengan cara
+   * menyembunyikan himbauan dan pilihan "Lainnya" dari SEMUA keadaan, termasuk
+   * keadaan bersesi yang justru memerlukan keduanya.
+   */
+  it('KONTROL: dengan sesi, himbauannya hilang dan "Lainnya" kembali ada', async () => {
+    isAuthenticated.mockReturnValue(true);
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    expect(screen.queryByText(/masuk terlebih dahulu/i)).not.toBeInTheDocument();
+
+    fireEvent.click(opdDropdown());
+
+    expect(await screen.findByText('Lainnya (belum tahu tujuannya)')).toBeInTheDocument();
   });
 });

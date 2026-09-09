@@ -23,7 +23,7 @@ export class UpdateSurveyDto {
 
   @ApiPropertyOptional({
     default: false,
-    description: 'Izinkan pengisian tanpa login (tautan/QR publik, rute /isi/:id)',
+    description: 'Izinkan pengisian tanpa login (tautan/QR publik, rute /survei/:id)',
   })
   @IsOptional()
   @IsBoolean()

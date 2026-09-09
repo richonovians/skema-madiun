@@ -58,12 +58,22 @@ describe('RoleLoginPicker — tiga tombol', () => {
     await waitFor(() => expect(setActingRole).toHaveBeenCalledWith('kabupaten'));
   });
 
-  it('KONTROL: superuser yang memilih Warga tetap menjadi warga — gerbang PDP tak terlewati', async () => {
+  it('KONTROL: superuser yang memilih Masyarakat tetap menjadi responden — gerbang PDP tak terlewati', async () => {
     render1({ roles: ['superuser', 'responden'] });
 
-    fireEvent.click(screen.getByText('Warga'));
+    fireEvent.click(screen.getByText('Masyarakat'));
 
     await waitFor(() => expect(setActingRole).toHaveBeenCalledWith('responden'));
+  });
+
+  it('tombol peran responden berlabel "Masyarakat", bukan "Warga"', () => {
+    // Permintaan pengguna 8 September 2026. Nilai perannya TIDAK ikut berubah:
+    // `setActingRole` tetap dipanggil dengan 'responden', dan itu dijaga uji
+    // KONTROL di atas.
+    render1({ roles: ['responden'] });
+
+    expect(screen.getByText('Masyarakat')).toBeInTheDocument();
+    expect(screen.queryByText('Warga')).not.toBeInTheDocument();
   });
 
   it('akun bersuperuser diberi keterangan yang BERBEDA pada tombol yang sama', () => {

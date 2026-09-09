@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import Textarea from '@/components/ui/Textarea';
@@ -11,6 +11,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
+import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 
@@ -19,6 +20,12 @@ export default function CreateComplaintForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [files, setFiles] = useState([]);
+
+  // Dihitung lewat inisialisasi useState, BUKAN di dalam useEffect: menyetel
+  // state dari dalam effect memicu render berjenjang dan dilanggar aturan
+  // react-hooks/set-state-in-effect (catatan sama di SurveyForm.jsx).
+  // `isAuthenticated()` sudah menjaga SSR sendiri (false di server).
+  const [adaSesi] = useState(() => isAuthenticated());
 
   const [formData, setFormData] = useState({
     department: '',
@@ -48,6 +55,25 @@ export default function CreateComplaintForm() {
   const TANPA_TUJUAN = 'tanpa-tujuan';
   const categoryOptions = (categories ?? []).map((c) => ({ label: c.nama, value: c.kode }));
 
+  /**
+   * Penampung kedua dropdown membedakan keadaan sesi (8 September 2026), dan
+   * bedanya bukan kosmetik: `GET /opd` maupun `GET /ref/complaint-categories`
+   * menjawab 401 tanpa sesi (terukur), jadi pengunjung yang belum masuk SELALU
+   * melihat kedua daftar kosong. Menyuruhnya "pilih instansi" berarti menyuruh
+   * melakukan hal yang tak mungkin dilakukan.
+   *
+   * Formulir ini dirender di DUA tempat: '/complaints/new', yang selalu
+   * bersesi karena ada di dalam `config.matcher` milik proxy.js, dan beranda
+   * '/', yang boleh dibuka siapa saja. Cabang tanpa sesi di berkas ini hanya
+   * pernah terlihat di beranda.
+   */
+  const penampungOpd = adaSesi ? 'Pilih Instansi' : 'Masuk untuk melihat daftar instansi';
+  // "kategori" saja, tanpa "pengaduan": diukur di peramban, kalimat penuhnya
+  // terpotong menjadi "...kategori pen..." karena dropdown ini hanya selebar
+  // separuh baris. Kata yang dibuang sudah dikatakan label di atasnya
+  // ("Kategori Pengaduan") dan himbauan di atas formulir.
+  const penampungKategori = adaSesi ? 'Pilih Kategori' : 'Masuk untuk melihat kategori';
+
   const handleChange = (e) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
@@ -60,6 +86,13 @@ export default function CreateComplaintForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError(null);
+    // Ditahan SEBELUM permintaan dikirim. Tanpa sesi, `POST /complaints`
+    // menjawab 401 dan pengirim hanya melihat pesan galat teknis, padahal
+    // sebabnya sederhana dan dapat ia perbaiki sendiri.
+    if (!adaSesi) {
+      setSubmitError('Masuk terlebih dahulu untuk mengirim laporan pengaduan.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const result = await createComplaint(
@@ -100,6 +133,26 @@ export default function CreateComplaintForm() {
         <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">Sampaikan Keluhan & Pengaduan Anda</h1>
       </div>
 
+      {/* Himbauan masuk, atas permintaan pengguna 8 September 2026. Diletakkan
+          di ATAS formulir, bukan di bawah dropdown yang bersangkutan: yang
+          terhalang bukan satu medan melainkan seluruh pengiriman, sebab
+          `POST /complaints` juga menjawab 401 tanpa sesi (terukur).
+
+          TANPA tautan "Masuk", dengan alasan yang sama seperti penghapusan
+          tautan serupa di SurveyForm.jsx pada hari yang sama: cabang ini hanya
+          pernah terlihat di beranda, dan tombol masuknya sudah ada di navbar
+          halaman yang sedang dibaca. Tautan yang menuju halaman itu sendiri
+          hanya pengulangan. */}
+      {!adaSesi && (
+        <div className="flex items-start gap-3 p-4 mb-6 rounded-xl border border-border bg-surface-container-low/60">
+          <LogIn size={18} className="text-primary shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-sm text-text-secondary leading-relaxed">
+            <span className="font-semibold text-text-primary">Masuk terlebih dahulu</span> untuk
+            melihat daftar instansi dan kategori pengaduan, lalu mengirim laporan Anda.
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
         {submitError && (
           <div className="p-4 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
@@ -112,7 +165,7 @@ export default function CreateComplaintForm() {
             label="OPD / Instansi Tujuan"
             id="department"
             options={[
-              { label: 'Pilih Instansi', value: '' },
+              { label: penampungOpd, value: '' },
               // "Lainnya (belum tahu tujuannya)" — bentuk gabungan, dan itu
               // kompromi yang disadari (8 September 2026). Kata "Lainnya" saja
               // diminta pengguna, tapi dropdown Kategori di sebelahnya SUDAH
@@ -120,7 +173,16 @@ export default function CreateComplaintForm() {
               // "Lainnya" berbeda arti pada satu formulir adalah sumber
               // kesalahan pengisian. Keterangan dalam kurung menghapus
               // ambiguitasnya tanpa membuang kata yang diminta.
-              { label: 'Lainnya (belum tahu tujuannya)', value: TANPA_TUJUAN },
+              //
+              // DISEMBUNYIKAN tanpa sesi atas permintaan pengguna (8 September
+              // 2026), dan alasannya bukan sekadar tampilan: tanpa sesi ia satu-
+              // satunya pilihan yang tersisa, sehingga dropdown yang seharusnya
+              // memilih instansi berubah menjadi dropdown berisi satu jalan
+              // pintas. Pengunjung akan memilihnya bukan karena tujuannya
+              // memang belum diketahui, melainkan karena tak ada pilihan lain.
+              ...(adaSesi
+                ? [{ label: 'Lainnya (belum tahu tujuannya)', value: TANPA_TUJUAN }]
+                : []),
               ...departmentOptions,
             ]}
             value={formData.department}
@@ -129,7 +191,7 @@ export default function CreateComplaintForm() {
           <Dropdown
             label="Kategori Pengaduan"
             id="category"
-            options={[{ label: 'Pilih Kategori', value: '' }, ...categoryOptions]}
+            options={[{ label: penampungKategori, value: '' }, ...categoryOptions]}
             value={formData.category}
             onChange={handleCategoryChange}
           />

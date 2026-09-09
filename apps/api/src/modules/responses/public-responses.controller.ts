@@ -2,13 +2,14 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
-import { SubmitResponseDto } from './dto/submit-response.dto';
+import { SubmitPublicResponseDto } from './dto/submit-public-response.dto';
 import { ResponseEntity } from './entities/response.entity';
 import { SurveyFillEntity } from './entities/survey-fill.entity';
 import { ResponsesService } from './responses.service';
 
 /**
- * Pengisian survei TANPA sesi (rute frontend /isi/:id).
+ * Pengisian survei TANPA sesi (rute frontend /survei/:id, sebelumnya /isi/:id
+ * yang kini mengalihkan permanen ke sana).
  *
  * Controller TERPISAH dari ResponsesController dengan sengaja: tak ada
  * `@ApiBearerAuth`, tak ada `@Roles`, dan tak satu pun handler di sini yang
@@ -42,7 +43,7 @@ export class PublicResponsesController {
   @ApiCreatedResponse({ type: ResponseEntity })
   submit(
     @Param('surveyId', ParseIntPipe) surveyId: number,
-    @Body() dto: SubmitResponseDto,
+    @Body() dto: SubmitPublicResponseDto,
   ): Promise<ResponseEntity> {
     return this.responsesService.submitPublic(surveyId, dto);
   }

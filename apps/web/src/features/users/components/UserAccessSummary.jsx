@@ -10,7 +10,7 @@ const ROLE_LABELS = {
   [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
   // Ditambahkan 5 September 2026: `responden` kini dapat diberikan lewat
   // Manajemen User, jadi tanpa baris ini ringkasannya menampilkan kode mentah.
-  [USER_ROLES.RESPONDENT]: 'Warga (Responden)',
+  [USER_ROLES.RESPONDENT]: 'Masyarakat (Responden)',
 };
 
 function SummaryRow({ icon: Icon, label, value, emptyText = '—', badge }) {

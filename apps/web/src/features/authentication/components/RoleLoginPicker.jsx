@@ -53,7 +53,7 @@ const ROLE_CHOICES = [
   },
   {
     key: KUNCI_TOMBOL.WARGA,
-    label: 'Warga',
+    label: 'Masyarakat',
     icon: User,
     tone: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800',
     description: 'Tampilan warga: dashboard, pengaduan, dan pengisian survei.',

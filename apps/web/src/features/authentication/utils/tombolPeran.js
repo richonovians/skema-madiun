@@ -55,7 +55,7 @@ export function tombolUntukRoles(roles = []) {
  *
  * Hanya tombol Admin Kabupaten yang bercabang; sisanya memetakan ke peran
  * senama. Percabangan itu SENGAJA tidak digeneralisasi menjadi "ambil role
- * tertinggi yang dimiliki": seorang superuser yang menekan "Warga" harus
+ * tertinggi yang dimiliki": seorang superuser yang menekan "Masyarakat" harus
  * benar-benar menjadi warga, termasuk terkena gerbang persetujuan UU PDP.
  * Menaikkan haknya di sana akan melewati gerbang itu.
  *
