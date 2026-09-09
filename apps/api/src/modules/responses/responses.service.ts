@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
 import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
+import { SubmitPublicResponseDto } from './dto/submit-public-response.dto';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { AnswerEntity } from './entities/answer.entity';
 import { MyResponseEntity } from './entities/my-response.entity';
@@ -101,12 +102,27 @@ export class ResponsesService {
       }
     }
 
+    // Data diri DISALIN DARI AKUN, tidak diterima dari payload (8 September
+    // 2026). Pengisi bersesi hanya memilih ya/tidak pada gerbangnya, jadi
+    // isinya tak dapat dikarang lewat permintaan langsung.
+    //
+    // Diambil SESUDAH pra-cek duplikat, bukan sebelumnya: permintaan yang sudah
+    // pasti berakhir 409 tak perlu membayar satu kueri tambahan.
+    const dataDiri = dto.tanpaDataDiri ? null : await this.ambilDataDiriAkun(user.userId);
+
     try {
       const created = await this.prisma.surveyResponse.create({
         data: {
           surveyId,
           userId: user.userId,
           dedupeUserId,
+          // `nomorHp` TIDAK disebut di sini, dan ketiadaannya disengaja: tak ada
+          // sumbernya untuk pengguna bersesi. Helpdesk tak mengirim nomor
+          // telepon dan `users` tak punya kolomnya, jadi menyebutkannya di sini
+          // hanya menulis null yang menyamar sebagai data yang dicoba diambil.
+          nama: dataDiri?.nama ?? null,
+          jenisKelamin: dataDiri?.jenisKelamin ?? null,
+          kelompokUmur: dataDiri?.kelompokUmur ?? null,
           answers: { create: answerData },
         },
         include: { answers: true },
@@ -122,7 +138,7 @@ export class ResponsesService {
   }
 
   /**
-   * Survei untuk diisi TANPA sesi (rute /isi/:id).
+   * Survei untuk diisi TANPA sesi (rute /survei/:id).
    *
    * TERPISAH dari `getFill`, bukan pelonggaran atasnya: `getFill` menuntut
    * `CurrentUser` dan memakainya untuk anti-duplikat, sedangkan di sini tak ada
@@ -156,13 +172,26 @@ export class ResponsesService {
   /**
    * Kirim jawaban tanpa sesi. SELALU menulis `userId: null`.
    *
-   * Gerbang PDP (`ConsentService.assertConsented`) sengaja TIDAK dipanggil: ia
-   * membaca `users.consentAt`, dan pengirim anonim tak punya baris `users`.
-   * Penggantinya (`SurveyResponse.consentAt`) sudah disiapkan di skema tetapi
-   * BELUM diaktifkan -- menunggu konfirmasi tim Diskominfo. Validasi isi
-   * jawaban tetap sama ketat: `validateAnswers` yang sama dipakai di sini.
+   * `ConsentService.assertConsented` tetap TIDAK dipanggil di jalur ini, dan
+   * sebabnya teknis: ia membaca `users.consentAt`, sedangkan pengirim tanpa
+   * sesi tak punya baris `users`. Penggantinya kini BERLAKU (8 September 2026,
+   * sesudah tim mengonfirmasi bahwa aplikasi ini memang memerlukan persetujuan
+   * UU PDP): `setuju: true` wajib pada `SubmitPublicResponseDto`, ditolak 400
+   * oleh ValidationPipe sebelum satu baris pun tertulis, dan waktunya direkam
+   * per respons di `consentAt`.
+   *
+   * Penegakannya memang harus di sini, bukan di layar: gerbang di frontend
+   * dapat dilewati dengan satu permintaan langsung, jadi tanpa penjaga ini
+   * gerbang PDP-nya hanya hiasan. Alasan yang sama sudah tertulis di
+   * ConsentGate.jsx bagi jalur yang berpenjaga.
+   *
+   * `consentAt` diisi waktu SERVER, bukan waktu kiriman klien: waktu
+   * persetujuan yang boleh ditentukan pengirim bukan bukti apa pun.
+   *
+   * Validasi isi jawaban tetap sama ketat: `validateAnswers` yang sama dipakai
+   * di sini.
    */
-  async submitPublic(surveyId: number, dto: SubmitResponseDto): Promise<ResponseEntity> {
+  async submitPublic(surveyId: number, dto: SubmitPublicResponseDto): Promise<ResponseEntity> {
     const survey = await this.findAnonimSurveyOrThrow(surveyId);
     const answerData = this.validateAnswers(survey.questions, dto);
 
@@ -171,6 +200,21 @@ export class ResponsesService {
         surveyId,
         userId: null,
         dedupeUserId: null,
+        consentAt: new Date(),
+        // `?? null`, BUKAN dibiarkan undefined: pada `create` Prisma,
+        // `undefined` berarti "pakai nilai baku", sedangkan `null` menyatakan
+        // tersurat bahwa pengisi memilih tidak memberi datanya. Bedanya yang
+        // membedakan "memilih anonim" dari "medannya lupa dikirim".
+        //
+        // `tanpaDataDiri` DIHORMATI walau pada jalur ini ia berlebihan: gerbang
+        // publik sudah menghilangkan medannya saat pengisi memilih anonim.
+        // Menghormatinya tetap membuat payload yang mengirim keduanya sekaligus
+        // (anonim DAN data diri) berperilaku seperti yang dikatakan pilihannya,
+        // bukan seperti yang dikatakan sisa payloadnya.
+        nama: dto.tanpaDataDiri ? null : (dto.nama ?? null),
+        nomorHp: dto.tanpaDataDiri ? null : (dto.nomorHp ?? null),
+        jenisKelamin: dto.tanpaDataDiri ? null : (dto.jenisKelamin ?? null),
+        kelompokUmur: dto.tanpaDataDiri ? null : (dto.kelompokUmur ?? null),
         answers: { create: answerData },
       },
       include: { answers: true },
@@ -199,6 +243,39 @@ export class ResponsesService {
       throw new NotFoundException(`Survei anonim dengan id ${surveyId} tidak ditemukan`);
     }
     return survey;
+  }
+
+  /**
+   * Data diri pengguna bersesi, untuk direkam pada respons (8 September 2026).
+   *
+   * DISALIN, tidak diterima dari payload: gerbang bagi pengguna bersesi hanya
+   * menampilkan kotak anonim, sesuai permintaan pengguna, jadi isinya harus
+   * berasal dari sumber yang tak dapat dikarang pemanggil.
+   *
+   * Yang diambil hanya yang BENAR-BENAR ADA, dan batasnya sudah diukur:
+   * Helpdesk mengirim `sub`, `email`, `email_verified`, dan `nama` saja, jadi
+   * `nama` satu-satunya yang datang dari sana. Demografisnya diambil dari
+   * `respondent_profiles`, yang barisnya jarang ada karena belum ada satu pun
+   * UI yang menulis tabel itu. Akun tanpa baris itu menghasilkan respons yang
+   * demografisnya null, dan itu keadaan normal, bukan galat.
+   *
+   * Nomor HP tak ada di sini karena tak ada di mana pun: bukan di klaim
+   * Helpdesk, bukan di kolom `users`.
+   */
+  private async ambilDataDiriAkun(userId: number) {
+    const akun = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        nama: true,
+        respondentProfile: { select: { jenisKelamin: true, kelompokUmur: true } },
+      },
+    });
+    if (!akun) return null;
+    return {
+      nama: akun.nama,
+      jenisKelamin: akun.respondentProfile?.jenisKelamin ?? null,
+      kelompokUmur: akun.respondentProfile?.kelompokUmur ?? null,
+    };
   }
 
   /** Daftar respons sebuah survei untuk admin (BE-24). Isolasi data per-OPD. */

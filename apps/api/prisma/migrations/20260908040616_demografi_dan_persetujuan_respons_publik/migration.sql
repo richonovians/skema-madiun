@@ -1,0 +1,32 @@
+-- Demografis pengisi survei TANPA sesi, beserta pemakaian `consent_at` yang
+-- sudah lama disiapkan (permintaan pengguna 8 September 2026, sesudah timnya
+-- mengonfirmasi bahwa aplikasi ini memang memerlukan persetujuan UU PDP).
+--
+-- Kolomnya NULLABLE, jadi tidak ada baris lama yang perlu diisi dan tidak ada
+-- penulisan ulang tabel. `consent_at` TIDAK diubah bentuknya di sini: kolomnya
+-- sudah ada sejak migrasi 20260904020000_add_survey_anonim, hanya tak pernah
+-- terisi. Yang berubah adalah kodenya, bukan skemanya.
+--
+-- Enum "jenis_kelamin" TIDAK dibuat ulang: ia sudah ada di basis data, dipakai
+-- "respondent_profiles".
+--
+-- DITULIS TANGAN, dan itu keputusan yang perlu dijelaskan. `prisma migrate dev`
+-- menghasilkan migrasi yang JAUH lebih luas daripada ini, karena ia sekalian
+-- membereskan drift lama antara schema.prisma dan basis data yang sesungguhnya:
+--
+--   1. "complaints_opd_id_fkey" dan "survey_responses_user_id_fkey" di basis
+--      data berperilaku RESTRICT (diperiksa lewat pg_constraint.confdeltype =
+--      'r'), sementara relasi opsional di schema.prisma menyiratkan SET NULL.
+--      Migrasi bikinan Prisma akan mengubah keduanya menjadi SET NULL, dan itu
+--      mengubah arti penghapusan data: menghapus pengguna yang punya respons
+--      survei yang tadinya DITOLAK akan berubah menjadi diam-diam
+--      mengosongkan pemiliknya.
+--   2. "users"."roles" masih punya default '{}'::user_role[] di basis data
+--      sementara schema.prisma tak menyatakan default apa pun.
+--
+-- Dua hal itu drift yang SUDAH ADA sebelum pekerjaan ini dan bukan lingkupnya.
+-- Menumpangkannya pada migrasi ini akan menyelundupkan perubahan perilaku
+-- referensial ke dalam commit yang judulnya soal persetujuan PDP. Drift-nya
+-- dibiarkan apa adanya dan dilaporkan, bukan diperbaiki sambil lewat.
+ALTER TABLE "survey_responses" ADD COLUMN "jenis_kelamin" "jenis_kelamin";
+ALTER TABLE "survey_responses" ADD COLUMN "kelompok_umur" VARCHAR(20);

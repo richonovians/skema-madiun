@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { QuestionType, Role, SurveyStatus } from '@prisma/client';
+import { JenisKelamin, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { ConsentService } from '../auth/consent.service';
@@ -44,6 +44,10 @@ const aktifSurvey = (over: Record<string, unknown> = {}) => ({
 describe('ResponsesService', () => {
   const prisma = {
     survey: { findUnique: jest.fn() },
+    // Dibaca `submit` untuk menyalin data diri akun ke respons (8 September
+    // 2026). Bakunya diisi di `beforeEach` supaya seluruh uji `submit` yang
+    // sudah ada tidak perlu menyebut akun yang bukan urusan mereka.
+    user: { findUnique: jest.fn() },
     surveyResponse: {
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -56,6 +60,15 @@ describe('ResponsesService', () => {
     assertConsented: jest.fn().mockResolvedValue(undefined),
   } as unknown as ConsentService;
   const service = new ResponsesService(prisma, consent);
+
+  const AKUN_BERPROFIL = {
+    nama: 'Siti Aminah',
+    respondentProfile: { jenisKelamin: JenisKelamin.perempuan, kelompokUmur: '26-35' },
+  };
+
+  beforeEach(() => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(AKUN_BERPROFIL);
+  });
 
   /**
    * Penegakan persetujuan PDP (celah 2, 2026-08-27). Penjaga navigasi di
@@ -351,7 +364,7 @@ describe('ResponsesService', () => {
       );
 
       await expect(
-        service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }] }),
+        service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true }),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.surveyResponse.create).not.toHaveBeenCalled();
     });
@@ -365,7 +378,10 @@ describe('ResponsesService', () => {
         answers: [],
       });
 
-      const hasil = await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }] });
+      const hasil = await service.submitPublic(1, {
+        answers: [{ questionId: 101, nilai: 4 }],
+        setuju: true,
+      });
 
       expect(hasil.id).toBe(9);
       expect(prisma.surveyResponse.create).toHaveBeenCalledWith(
@@ -381,12 +397,12 @@ describe('ResponsesService', () => {
       // Pertanyaan skala (101) wajib dijawab; membuka jalur publik tidak boleh
       // melonggarkan validasi isinya.
       await expect(
-        service.submitPublic(1, { answers: [{ questionId: 102, teks: 'x' }] }),
+        service.submitPublic(1, { answers: [{ questionId: 102, teks: 'x' }], setuju: true }),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.surveyResponse.create).not.toHaveBeenCalled();
     });
 
-    it('submitPublic TIDAK memanggil gerbang persetujuan PDP (bagian 6 belum aktif)', async () => {
+    it('submitPublic tidak memanggil assertConsented, sebab penjaganya di DTO', async () => {
       (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
         id: 9,
@@ -395,12 +411,83 @@ describe('ResponsesService', () => {
         answers: [],
       });
 
-      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }] });
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
 
-      // Pengirim anonim tak punya baris `users`, jadi tak ada tempat mencatat
-      // persetujuannya. Keadaan yang DIKETAHUI & DIDOKUMENTASIKAN, bukan
-      // kelalaian -- menunggu konfirmasi Diskominfo.
+      // `assertConsented` membaca `users.consentAt`, dan pengirim tanpa sesi tak
+      // punya baris `users`, jadi ia memang tak dapat dipakai di jalur ini.
+      // Sejak 8 September 2026 persetujuannya DITEGAKKAN di tempat lain:
+      // `setuju: true` wajib pada SubmitPublicResponseDto (ditolak 400 oleh
+      // ValidationPipe) dan waktunya direkam per respons di `consentAt`.
+      // Jadi ini bukan lagi "gerbang belum aktif", melainkan gerbang yang
+      // berada di lapis yang benar.
       expect(consent.assertConsented).not.toHaveBeenCalled();
+    });
+
+    /**
+     * PERSETUJUAN PDP & DEMOGRAFIS PADA JALUR PUBLIK (8 September 2026).
+     *
+     * Tim pengguna mengonfirmasi bahwa aplikasi ini memang memerlukan
+     * persetujuan UU PDP. Kolom `survey_responses.consent_at` sudah ada di
+     * skema sejak dahulu dengan komentar yang menyatakan ia menunggu
+     * konfirmasi itu; sekarang ia terisi.
+     */
+    const responsBaru = () => ({ id: 9, surveyId: 1, submittedAt: new Date(), answers: [] });
+
+    const dataYangDitulis = () =>
+      (prisma.surveyResponse.create as jest.Mock).mock.calls[0][0].data as Record<string, unknown>;
+
+    it('submitPublic menulis consentAt saat pengiriman diterima', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      expect(dataYangDitulis().consentAt).toBeInstanceOf(Date);
+    });
+
+    it('submitPublic menulis demografis yang dikirim', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+
+      await service.submitPublic(1, {
+        answers: [{ questionId: 101, nilai: 4 }],
+        setuju: true,
+        jenisKelamin: JenisKelamin.perempuan,
+        kelompokUmur: '26-35',
+      });
+
+      const data = dataYangDitulis();
+      expect(data.jenisKelamin).toBe(JenisKelamin.perempuan);
+      expect(data.kelompokUmur).toBe('26-35');
+    });
+
+    it('tanpa demografis: kolomnya null, BUKAN undefined', async () => {
+      // Bedanya penting. Pada Prisma, `undefined` berarti "jangan sentuh
+      // kolomnya", dan pada `create` itu menyisakan nilai baku. `null`
+      // menyatakan tersurat bahwa pengisi memilih tidak memberi datanya, dan
+      // itu yang membedakan "memilih anonim" dari "medannya lupa dikirim".
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      const data = dataYangDitulis();
+      expect(data.jenisKelamin).toBeNull();
+      expect(data.kelompokUmur).toBeNull();
+    });
+
+    it('KONTROL: userId & dedupeUserId tetap null sesudah perubahan ini', async () => {
+      // Perubahan ini tak boleh diam-diam menautkan respons publik ke sebuah
+      // akun, dan tak boleh menyalakan anti-duplikat yang memang mati di jalur
+      // ini (tak ada pegangan tanpa sesi; penandanya di peramban).
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      const data = dataYangDitulis();
+      expect(data.userId).toBeNull();
+      expect(data.dedupeUserId).toBeNull();
     });
 
     it('KONTROL: submit bersesi TETAP menuntut persetujuan & menulis userId', async () => {
@@ -419,6 +506,152 @@ describe('ResponsesService', () => {
       expect(prisma.surveyResponse.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ userId: 10 }) }),
       );
+    });
+
+    it('submitPublic menulis nama & nomor HP yang dikirim', async () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+
+      await service.submitPublic(1, {
+        answers: [{ questionId: 101, nilai: 4 }],
+        setuju: true,
+        nama: 'Budi Santoso',
+        nomorHp: '081234567890',
+      });
+
+      const data = dataYangDitulis();
+      expect(data.nama).toBe('Budi Santoso');
+      expect(data.nomorHp).toBe('081234567890');
+    });
+
+    it('tanpaDataDiri membuang data diri yang tetap dikirim di payload', async () => {
+      // Payload yang menyatakan anonim SEKALIGUS membawa data diri berperilaku
+      // seperti yang dikatakan pilihannya, bukan seperti yang dikatakan sisa
+      // payloadnya. Gerbang di frontend memang sudah menghilangkan medannya,
+      // tapi permintaan langsung tak melewati gerbang itu.
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+
+      await service.submitPublic(1, {
+        answers: [{ questionId: 101, nilai: 4 }],
+        setuju: true,
+        tanpaDataDiri: true,
+        nama: 'Budi Santoso',
+        nomorHp: '081234567890',
+        jenisKelamin: JenisKelamin.laki_laki,
+        kelompokUmur: '36-45',
+      });
+
+      const data = dataYangDitulis();
+      expect(data.nama).toBeNull();
+      expect(data.nomorHp).toBeNull();
+      expect(data.jenisKelamin).toBeNull();
+      expect(data.kelompokUmur).toBeNull();
+    });
+  });
+
+  /**
+   * DATA DIRI PADA JALUR BERSESI (8 September 2026).
+   *
+   * Disalin dari akun, tidak diterima dari payload: gerbang bagi pengguna
+   * bersesi hanya menampilkan kotak anonim (permintaan tersurat pengguna), jadi
+   * isinya harus datang dari sumber yang tak dapat dikarang pemanggil.
+   */
+  describe('data diri jalur bersesi', () => {
+    const responsBaru = () => ({ id: 11, surveyId: 1, submittedAt: new Date(), answers: [] });
+
+    const dataYangDitulis = () =>
+      (prisma.surveyResponse.create as jest.Mock).mock.calls[0][0].data as Record<string, unknown>;
+
+    const siapkan = () => {
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
+    };
+
+    it('menyalin nama & demografis dari akun pengirim', async () => {
+      siapkan();
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 7 } }),
+      );
+      const data = dataYangDitulis();
+      expect(data.nama).toBe('Siti Aminah');
+      expect(data.jenisKelamin).toBe(JenisKelamin.perempuan);
+      expect(data.kelompokUmur).toBe('26-35');
+    });
+
+    it('tanpaDataDiri: kolomnya null DAN akunnya tidak dibaca sama sekali', async () => {
+      // Bukan cuma soal kolom. Tidak membaca akunnya berarti data itu tak pernah
+      // meninggalkan basis data, dan itu jaminan yang lebih kuat daripada
+      // membaca lalu membuangnya.
+      siapkan();
+
+      await service.submit(
+        1,
+        { answers: [{ questionId: 101, nilai: 4 }], tanpaDataDiri: true },
+        responden(7),
+      );
+
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      const data = dataYangDitulis();
+      expect(data.nama).toBeNull();
+      expect(data.jenisKelamin).toBeNull();
+      expect(data.kelompokUmur).toBeNull();
+    });
+
+    it('akun tanpa baris respondent_profiles: nama tetap tercatat, demografis null', async () => {
+      // Keadaan yang PALING SERING terjadi, bukan kasus pinggir: tak ada satu
+      // pun UI yang menulis `respondent_profiles`, jadi hampir semua akun tak
+      // punya barisnya. Ketiadaan itu keadaan normal, bukan galat.
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Agus Wijaya',
+        respondentProfile: null,
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      const data = dataYangDitulis();
+      expect(data.nama).toBe('Agus Wijaya');
+      expect(data.jenisKelamin).toBeNull();
+      expect(data.kelompokUmur).toBeNull();
+    });
+
+    it('nomorHp TIDAK pernah ditulis pada jalur bersesi', async () => {
+      // Tak ada sumbernya, dan itu terukur: Helpdesk tak mengirim nomor telepon
+      // dan `users` tak punya kolomnya. Menulis null di sini akan menyamar
+      // sebagai data yang dicoba diambil lalu tak ada.
+      siapkan();
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect('nomorHp' in dataYangDitulis()).toBe(false);
+    });
+
+    it('akun yang tidak ditemukan tidak menggagalkan pengiriman', async () => {
+      // Jawaban survei tak boleh hilang gara-gara data diri yang cuma pelengkap.
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect(dataYangDitulis().nama).toBeNull();
+    });
+
+    it('KONTROL: pra-cek duplikat menolak SEBELUM akun dibaca', async () => {
+      // Urutan kueri. Permintaan yang sudah pasti berakhir 409 tak perlu
+      // membayar satu kueri tambahan.
+      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue({ id: 5 });
+
+      await expect(
+        service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7)),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
     });
   });
 });

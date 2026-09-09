@@ -168,6 +168,7 @@ describe('Public Surveys (e2e)', () => {
           { questionId: qSkala, nilai: 4 },
           { questionId: qTeks, teks: 'Bagus' },
         ],
+        setuju: true,
       });
 
     expect(res.status).toBe(201);
@@ -179,14 +180,22 @@ describe('Public Surveys (e2e)', () => {
     });
     expect(tersimpan?.userId).toBeNull();
     expect(tersimpan?.dedupeUserId).toBeNull();
-    // Bagian 6 (persetujuan UU PDP) belum diaktifkan — kolomnya disiapkan, tak diisi.
-    expect(tersimpan?.consentAt).toBeNull();
+    // Persetujuan UU PDP BERLAKU sejak 8 September 2026 (tim mengonfirmasi
+    // keharusannya). Kolom yang dahulu disiapkan tanpa pernah diisi sekarang
+    // memuat waktu server pada setiap pengiriman publik.
+    expect(tersimpan?.consentAt).toBeInstanceOf(Date);
+    // Tanpa demografis yang dikirim, kolomnya NULL tersurat, bukan nilai baku.
+    expect(tersimpan?.jenisKelamin).toBeNull();
+    expect(tersimpan?.kelompokUmur).toBeNull();
   });
 
   it('POST /public/surveys/:id/responses pada survei TANPA izinkanAnonim -> 404', async () => {
     const res = await request(app.getHttpServer())
+      // `setuju` DIBAWA supaya penolakannya benar-benar datang dari gerbang
+      // survei (404), bukan dari ValidationPipe (400) yang berjalan lebih
+      // dahulu. Tanpa ini ujinya lulus karena sebab yang salah.
       .post(`/api/v1/public/surveys/${surveiBiasaId}/responses`)
-      .send({ answers: [{ questionId: qSkala, nilai: 4 }] });
+      .send({ answers: [{ questionId: qSkala, nilai: 4 }], setuju: true });
 
     expect(res.status).toBe(404);
   });
@@ -194,10 +203,236 @@ describe('Public Surveys (e2e)', () => {
   it('POST /public/surveys/:id/responses dengan jawaban tak lengkap -> 400', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
-      .send({ answers: [{ questionId: qTeks, teks: 'tanpa skala' }] });
+      // `setuju` DIBAWA supaya 400-nya datang dari validasi JAWABAN, bukan dari
+      // persetujuan yang kebetulan tak dikirim.
+      .send({ answers: [{ questionId: qTeks, teks: 'tanpa skala' }], setuju: true });
 
     // Membuka jalur publik tidak melonggarkan validasi isi jawaban.
     expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).not.toContain('Persetujuan');
+  });
+
+  /**
+   * PERSETUJUAN UU PDP PADA JALUR PUBLIK (8 September 2026).
+   *
+   * Tim pengguna mengonfirmasi bahwa aplikasi SKEMA memang memerlukan
+   * persetujuan PDP. Yang dijaga blok ini: penegakannya ada di BACKEND, bukan
+   * di layar. Gerbang di frontend dapat dilewati dengan satu permintaan
+   * langsung seperti yang dilakukan uji-uji di bawah, jadi tanpa penjaga di
+   * DTO gerbang PDP-nya hanya hiasan.
+   */
+  it('POST tanpa medan `setuju` -> 400, dan pesannya menyebut persetujuan', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+      });
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('Persetujuan');
+  });
+
+  it('POST dengan `setuju: false` juga ditolak 400', async () => {
+    // Bukan cuma medan yang HILANG. Tanpa `@Equals(true)`, `@IsBoolean()` saja
+    // akan meloloskan `false` dan persetujuannya jadi formalitas kosong.
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: false,
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('POST dengan persetujuan & demografis -> 201, ketiganya tersimpan', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 3 },
+          { questionId: qTeks, teks: 'Cukup' },
+        ],
+        setuju: true,
+        jenisKelamin: 'perempuan',
+        kelompokUmur: '26-35',
+      });
+
+    expect(res.status).toBe(201);
+
+    const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(tersimpan?.consentAt).toBeInstanceOf(Date);
+    expect(tersimpan?.jenisKelamin).toBe('perempuan');
+    expect(tersimpan?.kelompokUmur).toBe('26-35');
+    // Demografis TIDAK boleh diam-diam menautkan responsnya ke sebuah akun.
+    expect(tersimpan?.userId).toBeNull();
+  });
+
+  it('kelompok umur di luar daftar -> 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: true,
+        kelompokUmur: '99-120',
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('jenis kelamin di luar enum -> 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: true,
+        jenisKelamin: 'lainnya',
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * NAMA & NOMOR HP (permintaan pengguna 8 September 2026, membalik keputusan
+   * hari yang sama untuk membuangnya).
+   *
+   * Diuji di sini, bukan cukup di unit test, karena yang dibuktikan justru dua
+   * hal yang hanya ada di luar unit: `@Matches` yang dijalankan ValidationPipe
+   * sungguhan, dan kolom VARCHAR yang benar-benar menerima nilainya.
+   */
+  it('POST dengan nama & nomor HP -> 201, keduanya tersimpan', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'Baik' },
+        ],
+        setuju: true,
+        nama: 'Siti Aminah',
+        nomorHp: '081234567890',
+        jenisKelamin: 'perempuan',
+        kelompokUmur: '26-35',
+      });
+
+    expect(res.status).toBe(201);
+
+    const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(tersimpan?.nama).toBe('Siti Aminah');
+    expect(tersimpan?.nomorHp).toBe('081234567890');
+    // Data diri TIDAK boleh diam-diam menautkan responsnya ke sebuah akun.
+    expect(tersimpan?.userId).toBeNull();
+  });
+
+  it('nomor HP yang bentuknya tak dikenali -> 400, dan pesannya menyebut nomor HP', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: true,
+        nama: 'Siti Aminah',
+        nomorHp: '12345',
+      });
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toMatch(/nomor hp/i);
+  });
+
+  it('KONTROL: bentuk +62 DITERIMA', async () => {
+    // Tanpa kontrol ini, uji di atas dapat lulus dengan cara menolak semua
+    // nomor, dan pengisi yang menulis +62 akan tertahan tanpa sebab.
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: true,
+        nama: 'Siti Aminah',
+        nomorHp: '+6281234567890',
+      });
+
+    expect(res.status).toBe(201);
+    const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(tersimpan?.nomorHp).toBe('+6281234567890');
+  });
+
+  it('nama satu huruf -> 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: true,
+        nama: 'A',
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('tanpaDataDiri: keempat kolom null walau payloadnya membawa isinya', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
+      .send({
+        answers: [
+          { questionId: qSkala, nilai: 4 },
+          { questionId: qTeks, teks: 'x' },
+        ],
+        setuju: true,
+        tanpaDataDiri: true,
+        nama: 'Siti Aminah',
+        nomorHp: '081234567890',
+        jenisKelamin: 'perempuan',
+        kelompokUmur: '26-35',
+      });
+
+    expect(res.status).toBe(201);
+
+    const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(tersimpan?.nama).toBeNull();
+    expect(tersimpan?.nomorHp).toBeNull();
+    expect(tersimpan?.jenisKelamin).toBeNull();
+    expect(tersimpan?.kelompokUmur).toBeNull();
+    // Persetujuannya TETAP tercatat: yang dilewati hanya data dirinya, bukan
+    // pemrosesan jawabannya.
+    expect(tersimpan?.consentAt).toBeInstanceOf(Date);
+  });
+
+  /**
+   * KONTROL. Perubahan ini tak boleh membuka survei yang pemiliknya TIDAK
+   * mengizinkan pengisian tanpa login, sebanyak apa pun persetujuan yang
+   * dikirim. Sudah ada uji 404-nya di atas; yang ini menegaskan bahwa
+   * persetujuan bukan kunci yang membukanya.
+   */
+  it('KONTROL: survei tanpa izinkanAnonim tetap 404 walau persetujuan lengkap', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/public/surveys/${surveiBiasaId}/responses`)
+      .send({
+        answers: [{ questionId: qSkala, nilai: 4 }],
+        setuju: true,
+        jenisKelamin: 'laki_laki',
+        kelompokUmur: '17-25',
+      });
+
+    expect(res.status).toBe(404);
   });
 
   /**
@@ -243,6 +478,74 @@ describe('Public Surveys (e2e)', () => {
     expect(ruteKabupaten.status).toBe(200);
   });
 
+  /**
+   * JALUR BERPENJAGA: data diri DISALIN dari akun, tidak diterima dari payload.
+   *
+   * Gerbang bagi pengguna bersesi hanya menampilkan kotak anonim (permintaan
+   * tersurat pengguna 8 September 2026), jadi isinya harus datang dari sumber
+   * yang tak dapat dikarang pemanggil. Kedua uji di bawah memakai surveinya
+   * sendiri dengan `allowMultipleSubmit`, supaya tak saling terganjal
+   * anti-duplikat maupun mengganggu uji lain di berkas ini.
+   */
+  const surveiBersesi = async () => {
+    const survei = await prisma.survey.create({
+      data: {
+        opdId,
+        judul: 'SKM Data Diri Bersesi E2E',
+        periode: '2026-Q3',
+        status: SurveyStatus.aktif,
+        allowMultipleSubmit: true,
+        questions: {
+          create: [{ teks: 'Kepuasan layanan', tipe: QuestionType.skala, urutan: 1 }],
+        },
+      },
+      include: { questions: true },
+    });
+    return { id: survei.id, questionId: survei.questions[0].id };
+  };
+
+  it('bersesi: nama disalin dari akun, dan nomor HP tak pernah terisi', async () => {
+    const { id, questionId } = await surveiBersesi();
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${id}/responses`)
+      .set(devHeaders({ role: Role.responden, userId: respondenId }))
+      .send({ answers: [{ questionId, nilai: 4 }] });
+
+    expect(res.status).toBe(201);
+
+    const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(tersimpan?.nama).toBe('Responden E2E Publik');
+    expect(tersimpan?.userId).toBe(respondenId);
+    // Tak ada sumbernya: Helpdesk tak mengirim nomor telepon dan `users` tak
+    // punya kolomnya. Akun ini juga tak punya baris `respondent_profiles`,
+    // yang merupakan keadaan paling sering terjadi.
+    expect(tersimpan?.nomorHp).toBeNull();
+    expect(tersimpan?.jenisKelamin).toBeNull();
+    // Persetujuannya ada di `users.consentAt`, bukan di baris respons.
+    expect(tersimpan?.consentAt).toBeNull();
+  });
+
+  it('bersesi + tanpaDataDiri: nama TIDAK tercatat walau akunnya punya nama', async () => {
+    // KONTROL bagi uji di atas: tanpa ini, penyalinan nama dapat lulus dengan
+    // cara mengabaikan pilihan anonim pengisi sama sekali.
+    const { id, questionId } = await surveiBersesi();
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${id}/responses`)
+      .set(devHeaders({ role: Role.responden, userId: respondenId }))
+      .send({ answers: [{ questionId, nilai: 4 }], tanpaDataDiri: true });
+
+    expect(res.status).toBe(201);
+
+    const tersimpan = await prisma.surveyResponse.findUnique({ where: { id: res.body.data.id } });
+    expect(tersimpan?.nama).toBeNull();
+    // Responsnya TETAP tertaut akun: anti-duplikat & riwayat survei pemiliknya
+    // bergantung pada `userId`, dan pilihan anonim tak melepasnya (keputusan
+    // pengguna 8 September 2026).
+    expect(tersimpan?.userId).toBe(respondenId);
+  });
+
   it('KONTROL: endpoint berpenjaga tetap berfungsi bagi responden bersesi', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/surveys/${surveiAnonimId}/fill`)
@@ -256,7 +559,7 @@ describe('Public Surveys (e2e)', () => {
 
     const kirim = await request(app.getHttpServer())
       .post(`/api/v1/public/surveys/${surveiAnonimId}/responses`)
-      .send({ answers: [{ questionId: qSkala, nilai: 4 }] });
+      .send({ answers: [{ questionId: qSkala, nilai: 4 }], setuju: true });
     expect(kirim.status).toBe(201);
 
     const sesudah = await prisma.surveyResponse.count({ where: { surveyId: surveiAnonimId } });
