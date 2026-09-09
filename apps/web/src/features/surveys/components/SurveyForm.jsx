@@ -6,6 +6,7 @@ import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
+import { isAuthenticated } from '@/features/authentication/services/authStorage';
 
 /**
  * SEBELUMNYA (bug ditemukan 2026-08-06, pola sama dgn ComplaintForm.jsx yg
@@ -27,15 +28,49 @@ export default function SurveyForm() {
   const [opdId, setOpdId] = useState('');
   const [error, setError] = useState(null);
 
+  // Dihitung lewat inisialisasi useState, BUKAN di dalam useEffect: menyetel
+  // state dari dalam effect memicu render berjenjang dan dilanggar aturan
+  // react-hooks/set-state-in-effect (catatan sama di app/survei/[id]/page.jsx).
+  // `isAuthenticated()` sudah menjaga SSR sendiri (false di server).
+  const [adaSesi] = useState(() => isAuthenticated());
+
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
-  const { data: opdResponse, isLoading } = useAsync(fetchOpd);
+  const { data: opdResponse, isLoading, error: gagalMuat } = useAsync(fetchOpd);
   const opdOptions = (opdResponse?.data ?? []).map((opd) => ({
     label: opd.name,
     value: String(opd.id),
   }));
 
+  /**
+   * EMPAT keadaan, dan pembedaannya bukan kosmetik. `getOpdList()` menuntut
+   * sesi: `GET /api/v1/opd` menjawab 401 tanpa sesi (terukur 8 September 2026).
+   * Jadi pengunjung beranda yang belum masuk SELALU melihat daftar kosong, dan
+   * menyuruhnya "silakan pilih instansi" berarti menyuruh melakukan hal yang
+   * tak mungkin dilakukan.
+   *
+   * Keadaan "gagal memuat" ikut dibedakan karena `useAsync` sudah mengembalikan
+   * `error` dan nilai itu tadinya dibuang, sehingga kegagalan jaringan tak
+   * dapat dibedakan dari daftar yang memang kosong.
+   *
+   * HANYA DI SINI himbauan masuk itu muncul. Sebelumnya ada paragraf tambahan
+   * beserta tautan "Masuk sekarang" di bawah dropdown, dan pengguna meminta
+   * keduanya dihapus (8 September 2026) karena satu pesan pada penampung
+   * dropdown sudah cukup. Tautannya menuju '/' , yaitu halaman yang sedang
+   * dibaca, jadi yang hilang cuma pengulangan.
+   */
+  const labelPenampung = () => {
+    if (!adaSesi) return 'Masuk untuk melihat daftar instansi';
+    if (isLoading) return 'Memuat daftar instansi...';
+    if (gagalMuat) return 'Daftar instansi gagal dimuat';
+    return 'Pilih Instansi';
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!adaSesi) {
+      setError('Masuk terlebih dahulu untuk melihat instansi dan survei yang tersedia.');
+      return;
+    }
     if (!opdId) {
       setError('Silakan pilih Instansi / OPD yang ingin dinilai terlebih dahulu');
       return;
@@ -62,11 +97,8 @@ export default function SurveyForm() {
           label="PILIH INSTANSI / OPD"
           value={opdId}
           onChange={handleChange}
-          error={error}
-          options={[
-            { value: '', label: isLoading ? 'Memuat daftar instansi...' : 'Pilih Instansi' },
-            ...opdOptions,
-          ]}
+          error={error ?? (adaSesi && gagalMuat ? gagalMuat.message : null)}
+          options={[{ value: '', label: labelPenampung() }, ...opdOptions]}
         />
 
         <Button type="submit" className="w-full py-4 text-xl">
