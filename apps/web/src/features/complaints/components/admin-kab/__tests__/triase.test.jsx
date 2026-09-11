@@ -132,3 +132,44 @@ describe('ForwardComplaintModal', () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * PENCARIAN OPD pada modal Teruskan (11 September 2026). Daftarnya SELURUH OPD
+ * aktif -- 62 di basis data nyata -- dan petugas triase membukanya berkali-kali
+ * dalam satu sesi kerja, sekali per pengaduan yang belum bertujuan.
+ */
+describe('ForwardComplaintModal — pencarian OPD', () => {
+  const medanCari = () => screen.queryByRole('textbox', { name: /cari opd yang berwenang/i });
+
+  it('menyaring daftar OPD menurut namanya', async () => {
+    render(
+      <ForwardComplaintModal complaint={{ id: 99, ticketNo: 'PGD1' }} onClose={jest.fn()} onDone={jest.fn()} />,
+    );
+
+    fireEvent.click(await screen.findByLabelText(/opd yang berwenang/i));
+    fireEvent.change(await screen.findByRole('textbox', { name: /cari opd yang berwenang/i }), {
+      target: { value: 'pendidikan' },
+    });
+
+    expect(screen.getByRole('button', { name: 'Dinas Pendidikan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dinas Kesehatan' })).not.toBeInTheDocument();
+  });
+
+  it('hasil pencarian tetap dapat dipilih dan mengaktifkan tombol Teruskan', async () => {
+    render(
+      <ForwardComplaintModal complaint={{ id: 99, ticketNo: 'PGD1' }} onClose={jest.fn()} onDone={jest.fn()} />,
+    );
+
+    fireEvent.click(await screen.findByLabelText(/opd yang berwenang/i));
+    fireEvent.change(await screen.findByRole('textbox', { name: /cari opd yang berwenang/i }), {
+      target: { value: 'kependudukan' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Dinas Kependudukan dan Pencatatan Sipil' }),
+    );
+
+    expect(screen.getByRole('button', { name: /^teruskan$/i })).toBeEnabled();
+    // Panel tertutup sesudah memilih, jadi medan carinya ikut hilang.
+    expect(medanCari()).not.toBeInTheDocument();
+  });
+});

@@ -87,6 +87,13 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
             options={opdOptions}
             value={opdId}
             onChange={setOpdId}
+            /* Petugas triase membuka modal ini sekali per pengaduan yang belum
+               bertujuan, dan tiap kali menghadapi seluruh OPD aktif. Syarat
+               `> 1` menutup keadaan daftarnya belum termuat, ketika isinya baru
+               penampung "Pilih OPD". */
+            searchable={opdOptions.length > 1}
+            searchPlaceholder="Cari nama OPD..."
+            emptySearchLabel="Tidak ada OPD yang cocok"
           />
 
           <p className="text-xs text-text-secondary">
