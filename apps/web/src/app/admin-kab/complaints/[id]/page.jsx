@@ -121,12 +121,13 @@ export default function AdminKabComplaintDetailPage() {
   const handleSendUpdate = async (text, file) => {
     if (!data || (!text?.trim() && !file)) return;
     setActionError(null);
-    try {
-      await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
-      await refetch();
-    } catch (err) {
-      setActionError(err.message);
-    }
+    // Galat pengiriman TIDAK ditangkap di sini. Spanduk galat halaman berada di
+    // puncak, jauh di luar pandangan admin yang sedang berada di kolom balasan,
+    // sehingga kegagalan lewat tanpa terlihat. AdminResolutionWorkspace yang
+    // menangkapnya, menahan teks yang sudah diketik, dan menampilkan sebabnya
+    // tepat di atas tombol kirim.
+    await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
+    await refetch();
   };
 
   const handleCloseTicket = () => {
@@ -145,7 +146,11 @@ export default function AdminKabComplaintDetailPage() {
     setPendingStatus('Selesai');
   };
 
-  if (isLoading) {
+  // Pemuat penuh HANYA saat belum ada yang bisa ditampilkan. Pada muat ulang
+  // sesudah balasan terkirim, isi halaman dibiarkan terpasang: menggantinya
+  // dengan pemuat meruntuhkan tinggi dokumen, dan peramban menjepit posisi
+  // gulir ke nol -- admin terlempar ke puncak halaman tiap kali membalas.
+  if (isLoading && !data) {
     return <LoadingState label="Memuat detail pengaduan..." />;
   }
 
