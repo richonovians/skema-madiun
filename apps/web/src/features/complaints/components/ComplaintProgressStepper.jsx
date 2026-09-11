@@ -2,6 +2,7 @@ import React from 'react';
 import Card from '@/components/ui/Card';
 import { Check, Hourglass } from 'lucide-react';
 import clsx from 'clsx';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Progress steps: 'diterima', 'diproses', 'selesai'
@@ -11,8 +12,10 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
   const steps = [
     {
       id: 'diterima',
-      title: 'Diterima',
-      description: 'Tiket telah diverifikasi sistem.',
+      title: COMPLAINT_STATUS_LABEL.Diterima,
+      // BUKAN "telah diverifikasi sistem": pada tahap ini tak ada yang
+      // memverifikasi apa pun, laporannya baru masuk dan mengantre.
+      description: 'Laporan sudah masuk dan menunggu diperiksa petugas.',
     },
     {
       id: 'diproses',

@@ -10,6 +10,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '../services/complaints.api';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 const STATUS_VARIANT = {
   Diterima: 'info',
@@ -83,7 +84,7 @@ export default function RecentComplaintWidget() {
         <div className="flex-grow space-y-2 relative z-10 w-full">
           <div className="flex items-center gap-4">
             <span className="text-primary font-bold text-sm tracking-wider">#{complaint.id}</span>
-            <Badge variant={STATUS_VARIANT[complaint.status] ?? 'secondary'}>{complaint.status}</Badge>
+            <Badge variant={STATUS_VARIANT[complaint.status] ?? 'secondary'}>{COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}</Badge>
           </div>
           <h3 className="text-xl sm:text-2xl font-semibold text-text-primary">{complaint.title}</h3>
           <p className="text-text-secondary font-body flex items-center gap-2 text-sm sm:text-base">

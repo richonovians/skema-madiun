@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, Printer, Download, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /** Badge Prioritas & SLA DIHAPUS -- tak ada field ini di backend (lihat gap complaint.adapter.js). */
 export default function ComplaintDetailHeader({ complaint }) {
@@ -118,7 +119,9 @@ export default function ComplaintDetailHeader({ complaint }) {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-lg font-bold text-primary">#{complaint.id}</span>
-              <Badge variant={getStatusVariant(complaint.status)}>{complaint.status}</Badge>
+              <Badge variant={getStatusVariant(complaint.status)}>
+                {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
+              </Badge>
             </div>
             <h1 className="text-headline-sm font-bold text-slate-900 leading-tight">
               {complaint.title}

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, AlertTriangle, CheckCircle2, XCircle, Clock, X, ShieldAlert } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 const STATUS_CONFIG = {
   Diterima: {
@@ -37,7 +38,7 @@ function StatusBadge({ status }) {
       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${cfg.color}`}
     >
       <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-      {status}
+      {COMPLAINT_STATUS_LABEL[status] ?? status}
     </span>
   );
 }
