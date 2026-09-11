@@ -7,6 +7,7 @@ import {
   adaptSurvey,
   adaptSurveyFill,
   adaptSurveyList,
+  adaptTrashedSurveyList,
   toBackendStatus,
   toCreateQuestionPayload,
   toCreateSurveyPayload,
@@ -46,8 +47,29 @@ export async function updateSurvey(surveyId, payload) {
   return adaptSurvey(response.data);
 }
 
+/**
+ * Buang survei ke Sampah. BERUBAH ARTI 11 September 2026: bukan lagi
+ * penghapusan permanen, melainkan soft delete yang dapat dipulihkan.
+ */
 export async function deleteSurvey(surveyId) {
   await api.delete(`/surveys/${surveyId}`);
+}
+
+/** Isi Sampah (Admin Kabupaten: semua; Admin OPD: miliknya sendiri). */
+export async function getTrashedSurveys(params = {}) {
+  const response = await api.get('/surveys/trash', { params });
+  return { data: adaptTrashedSurveyList(response.data), meta: response.meta };
+}
+
+/** Pulihkan dari Sampah. Statusnya tidak berubah -- lihat SurveysService.restore. */
+export async function restoreSurvey(surveyId) {
+  const response = await api.post(`/surveys/${surveyId}/restore`);
+  return adaptSurvey(response.data);
+}
+
+/** Hapus permanen. Hanya Admin Kabupaten; backend menolak peran lain 403. */
+export async function purgeSurvey(surveyId) {
+  await api.delete(`/surveys/${surveyId}/purge`);
 }
 
 /** @param {string} status Nilai frontend ('AKTIF'/'DRAF'/'DITUTUP'). */
@@ -79,7 +101,10 @@ export async function getQuestions(surveyId) {
  *   dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
  */
 export async function createCustomQuestion(surveyId, payload) {
-  const response = await api.post(`/surveys/${surveyId}/questions`, toCreateQuestionPayload(payload));
+  const response = await api.post(
+    `/surveys/${surveyId}/questions`,
+    toCreateQuestionPayload(payload),
+  );
   const q = response.data;
   return {
     id: q.id,

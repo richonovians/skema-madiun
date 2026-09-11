@@ -426,6 +426,33 @@ export const handlers = [
     ),
   ),
 
+  // [REKAM] isi Sampah. Didaftarkan SEBELUM '/surveys/:id' -- MSW mencocokkan
+  // sesuai urutan, dan 'trash' akan tertangkap ':id' bila ditaruh sesudahnya.
+  http.get(`${API_BASE}/surveys/trash`, () =>
+    paginated(
+      [
+        {
+          id: 91,
+          judul: 'Survei IKM 2026 (dibuang)',
+          periode: '2026-Q2',
+          status: 'ditutup',
+          opdId: 1,
+          opdNama: 'Dinas Kesehatan',
+          deletedAt: '2026-09-10T02:00:00.000Z',
+          deletedByNama: 'Admin Kabupaten (Contoh)',
+          jumlahJawaban: 12,
+        },
+      ],
+      '/surveys/trash',
+    ),
+  ),
+
+  http.post(`${API_BASE}/surveys/:id/restore`, ({ params }) =>
+    ok(surveyFixture({ id: Number(params.id) }), `/surveys/${params.id}/restore`),
+  ),
+
+  http.delete(`${API_BASE}/surveys/:id/purge`, () => ok(null, '/surveys/purge')),
+
   http.get(`${API_BASE}/surveys/:id`, ({ params }) =>
     ok(surveyFixture({ id: Number(params.id) }), `/surveys/${params.id}`),
   ),

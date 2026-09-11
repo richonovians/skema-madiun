@@ -2,6 +2,8 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Trash2 } from 'lucide-react';
 import SurveyOverviewCards from '@/features/surveys/components/admin-kab/SurveyOverviewCards';
 import SurveyFilterBar from '@/features/surveys/components/admin-kab/SurveyFilterBar';
 import SurveyMonitoringTable from '@/features/surveys/components/admin-kab/SurveyMonitoringTable';
@@ -64,13 +66,35 @@ const CONFIRM_COPY = {
     tone: 'primary',
   },
   delete: {
-    title: 'Hapus survei draf ini?',
-    description: (survey) =>
-      `"${survey.title}" beserta seluruh pertanyaan di dalamnya akan dihapus permanen dan tidak dapat dikembalikan.`,
-    confirmLabel: 'Ya, Hapus Survei',
+    title: 'Pindahkan survei ini ke Sampah?',
+    description: (survey) => pesanHapus(survey),
+    confirmLabel: 'Ya, Pindahkan ke Sampah',
     tone: 'danger',
   },
 };
+
+/**
+ * Bunyi dialog buang mengikuti KEADAAN barisnya, bukan satu kalimat untuk
+ * semua. Yang perlu diketahui sebelum menekan tombol memang berbeda: survei
+ * aktif akan ditutup, dan survei yang sudah dijawab membawa serta jawabannya.
+ *
+ * BERUBAH ARTI 11 September 2026: dahulu pesan ini mengumumkan penghapusan
+ * permanen, yang kini tidak lagi benar -- barisnya pindah ke Sampah.
+ */
+function pesanHapus(survey) {
+  const bagian = [`"${survey.title}" akan dipindahkan ke Sampah dan dapat dipulihkan kembali.`];
+  if (survey.status === 'AKTIF') {
+    bagian.push(
+      'Survei ini ditutup lebih dulu, sehingga tautan dan QR yang sudah tersebar berhenti menerima jawaban.',
+    );
+  }
+  if (survey.respondentsCount > 0) {
+    bagian.push(
+      `${survey.respondentsCount} jawaban yang sudah masuk ikut terbawa ke Sampah.`,
+    );
+  }
+  return bagian.join(' ');
+}
 
 function downloadBlob(content, mimeType, filename) {
   const blob = new Blob([content], { type: mimeType });
@@ -275,7 +299,11 @@ export default function AdminKabSurveysPage() {
       );
       return;
     }
-    await runRowAction(survey.id, () => deleteSurvey(survey.id), 'Survei draf berhasil dihapus.');
+    await runRowAction(
+      survey.id,
+      () => deleteSurvey(survey.id),
+      'Survei dipindahkan ke Sampah. Anda dapat memulihkannya dari halaman Sampah.',
+    );
   };
 
   const filteredSurveys = useMemo(() => {
@@ -334,6 +362,18 @@ export default function AdminKabSurveysPage() {
 
   return (
     <div className="p-lg w-full space-y-6">
+      <div className="flex justify-end">
+        {/* Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali --
+            survei yang terlanjur dibuang akan terlihat seperti hilang. */}
+        <Link
+          href="/admin-kab/surveys/sampah"
+          className="px-lg py-sm border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
+        >
+          <Trash2 size={16} />
+          Sampah
+        </Link>
+      </div>
+
       <SurveyOverviewCards surveys={surveys} />
 
       {actionNotice && (

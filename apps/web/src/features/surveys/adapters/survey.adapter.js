@@ -96,6 +96,32 @@ export function adaptSurveyList(surveys) {
   return surveys.map(adaptSurvey);
 }
 
+/**
+ * Baris halaman Sampah -- bentuk TrashedSurveyEntity backend.
+ *
+ * `id` dijadikan string dan statusnya diterjemahkan lewat `STATUS_MAP`, persis
+ * seperti `adaptSurvey` di atas: dua bentuk id yang berbeda pada satu fitur
+ * adalah sumber bug perbandingan yang sulit dilacak.
+ */
+export function adaptTrashedSurvey(row) {
+  return {
+    id: String(row.id),
+    title: row.judul,
+    period: row.periode,
+    status: STATUS_MAP[row.status] ?? row.status,
+    opdId: row.opdId,
+    opdName: row.opdNama,
+    deletedAt: row.deletedAt,
+    // `null` bila akun yang membuangnya sudah dihapus (FK ON DELETE SET NULL).
+    deletedByName: row.deletedByNama ?? null,
+    responsesCount: row.jumlahJawaban,
+  };
+}
+
+export function adaptTrashedSurveyList(rows) {
+  return (rows ?? []).map(adaptTrashedSurvey);
+}
+
 const STATUS_TO_BACKEND = {
   DRAF: 'draft',
   AKTIF: 'aktif',

@@ -165,19 +165,33 @@ export default function SurveyMonitoringTable({
                         </Link>
                       )}
 
-                      {isDraft && (
+                      {/* "Pertanyaan" & "Ubah" tak lagi khusus draf (11
+                          September 2026). Yang terkunci begitu ada jawaban
+                          adalah SUSUNAN pertanyaan, dan penjaganya di backend
+                          (assertSurveyEditable) -- bukan hilangnya tombol ini,
+                          yang justru menyembunyikan perbaikan teks pertanyaan
+                          yang masih sah. Survei DITUTUP terkunci seluruhnya
+                          karena hasil IKM-nya sudah terbit. */}
+                      {!isClosed && (
                         <Link href={`/admin-kab/surveys/builder/${survey.id}`} className={ACTION_CLASS}>
                           <FileEdit size={12} />
                           Pertanyaan
                         </Link>
                       )}
 
-                      {isDraft && (
-                        <button onClick={() => onEdit?.(survey)} disabled={isBusy} className={ACTION_CLASS}>
-                          <Pencil size={12} />
-                          Ubah
-                        </button>
-                      )}
+                      <button
+                        onClick={() => onEdit?.(survey)}
+                        disabled={isBusy || isClosed}
+                        title={
+                          isClosed
+                            ? 'Survei yang sudah ditutup tidak dapat diubah. Aktifkan kembali lebih dulu.'
+                            : undefined
+                        }
+                        className={ACTION_CLASS}
+                      >
+                        <Pencil size={12} />
+                        Ubah
+                      </button>
 
                       {/* TANPA syarat status (8 September 2026), dan itu bukan
                           kelalaian: `surveysService.duplicate` tidak memanggil
@@ -221,16 +235,19 @@ export default function SurveyMonitoringTable({
                         </button>
                       )}
 
-                      {isDraft && (
-                        <button
-                          onClick={() => onDelete?.(survey)}
-                          disabled={isBusy}
-                          className={`${ACTION_CLASS} text-error hover:bg-error-container`}
-                        >
-                          <Trash2 size={12} />
-                          Hapus
-                        </button>
-                      )}
+                      {/* Semua status boleh dibuang -- keputusan pengguna 11
+                          September 2026. Bukan lagi penghapusan permanen:
+                          barisnya pindah ke Sampah dan dapat dipulihkan.
+                          Survei aktif ditutup lebih dulu oleh backend supaya
+                          tautan & QR yang beredar berhenti menerima jawaban. */}
+                      <button
+                        onClick={() => onDelete?.(survey)}
+                        disabled={isBusy}
+                        className={`${ACTION_CLASS} text-error hover:bg-error-container`}
+                      >
+                        <Trash2 size={12} />
+                        Hapus
+                      </button>
                     </div>
                   </td>
                 </tr>

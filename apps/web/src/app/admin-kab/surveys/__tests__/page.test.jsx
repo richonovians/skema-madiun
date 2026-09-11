@@ -1,7 +1,11 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdminKabSurveysPage from '../page';
-import { getSurveys, duplicateSurvey } from '@/features/surveys/services/surveys.api';
+import {
+  getSurveys,
+  duplicateSurvey,
+  deleteSurvey,
+} from '@/features/surveys/services/surveys.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
 
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -52,6 +56,7 @@ beforeEach(() => {
     meta: { total: 1 },
   });
   duplicateSurvey.mockResolvedValue({});
+  deleteSurvey.mockResolvedValue(undefined);
 });
 
 describe('AdminKabSurveysPage — gerbang Salin', () => {
@@ -100,5 +105,75 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     fireEvent.click(screen.getByRole('button', { name: /ya, salin/i }));
 
     await waitFor(() => expect(getSurveys).toHaveBeenCalledTimes(2));
+  });
+});
+
+/**
+ * DIALOG BUANG KE SAMPAH (permintaan pengguna 11 September 2026). Bunyinya
+ * mengikuti KEADAAN barisnya, bukan satu kalimat untuk semua: yang perlu
+ * diketahui sebelum menekan tombol memang berbeda antara draf kosong dan
+ * survei aktif yang sudah menampung ratusan jawaban.
+ */
+describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
+  const surveiAktif = { ...SURVEI, status: 'AKTIF', respondentsCount: 142 };
+
+  it('dialognya menyebut bahwa survei aktif ditutup lebih dulu, dan masih dapat dipulihkan', async () => {
+    getSurveys.mockResolvedValue({ data: [surveiAktif], meta: { total: 1 } });
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+
+    expect(await screen.findByText(/ditutup lebih dulu/i)).toBeInTheDocument();
+    expect(screen.getByText(/dipulihkan/i)).toBeInTheDocument();
+    expect(deleteSurvey).not.toHaveBeenCalled();
+  });
+
+  it('dialognya menyebut jumlah jawaban yang ikut terbawa', async () => {
+    getSurveys.mockResolvedValue({ data: [surveiAktif], meta: { total: 1 } });
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+
+    expect(await screen.findByText(/142 jawaban/i)).toBeInTheDocument();
+  });
+
+  it('KONTROL: draf tanpa jawaban tidak diberi dua kalimat yang tak berlaku baginya', async () => {
+    // Tanpa uji ini, penyusun pesannya boleh saja selalu menempelkan seluruh
+    // kalimat dan kedua uji di atas tetap hijau -- padahal draf tak pernah
+    // ditutup dan tak punya jawaban yang terbawa.
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+
+    expect(await screen.findByText(/dipulihkan/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ditutup lebih dulu/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/jawaban yang sudah masuk/i)).not.toBeInTheDocument();
+  });
+
+  it('sesudah dikonfirmasi, deleteSurvey terpanggil dengan id barisnya', async () => {
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ya, pindahkan/i }));
+
+    await waitFor(() => expect(deleteSurvey).toHaveBeenCalledWith('1'));
+  });
+});
+
+describe('AdminKabSurveysPage — pintu masuk Sampah', () => {
+  it('punya tautan ke halaman Sampah', async () => {
+    // Halaman Sampah yang tak tertaut dari mana pun sama saja dengan tak ada:
+    // survei yang terlanjur dibuang akan terlihat seperti hilang.
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    expect(screen.getByRole('link', { name: /sampah/i })).toHaveAttribute(
+      'href',
+      '/admin-kab/surveys/sampah',
+    );
   });
 });

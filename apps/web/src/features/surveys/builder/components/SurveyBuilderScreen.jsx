@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Lock } from 'lucide-react';
 import BuilderLayout from './BuilderLayout';
 import BuilderToolbar from './BuilderToolbar';
 import BuilderCanvas from './BuilderCanvas';
@@ -9,6 +10,7 @@ import FloatingStatus from './FloatingStatus';
 import QuestionOptionsModal from './QuestionOptionsModal';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
+import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { useAsync } from '@/hooks/useAsync';
 import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
 import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
@@ -65,6 +67,13 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     return buildPeriode(now.getFullYear(), currentQuarter);
   });
   const [status, setStatus] = useState('DRAF');
+  // Jumlah jawaban yang sudah masuk. Dikirim GET /surveys/:id sejak 11
+  // September 2026; sebelum itu endpoint ini tak pernah mengisinya.
+  const [jumlahJawaban, setJumlahJawaban] = useState(0);
+  const [konfirmasiTerbit, setKonfirmasiTerbit] = useState(false);
+  // Dibaca HANYA untuk naskah konfirmasi publikasi; saklarnya sendiri ada di
+  // formulir kelola survei, bukan di builder.
+  const [izinkanAnonim, setIzinkanAnonim] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -100,6 +109,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       setTitle(loaded.survey.title);
       setPeriode(loaded.survey.period);
       setStatus(loaded.survey.status);
+      setJumlahJawaban(loaded.survey.respondentsCount ?? 0);
+      setIzinkanAnonim(loaded.survey.izinkanAnonim === true);
       setQuestions(loaded.loadedQuestions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,14 +135,31 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     return created.id;
   }, [surveyId, title, periode]);
 
+  /**
+   * Susunan pertanyaan terkunci begitu jawaban pertama masuk (aturan §2.4
+   * spec), BUKAN begitu surveinya terbit. Dihitung di sini lalu diturunkan,
+   * bukan diperiksa ulang di tiap komponen anak: satu sumber kebenaran, dan
+   * penjaga sesungguhnya tetap di backend (assertSurveyEditable) -- yang di
+   * layar ini hanya supaya pengguna tak menekan tombol yang pasti ditolak.
+   *
+   * Survei DITUTUP terkunci seluruhnya: hasil IKM-nya sudah terbit.
+   */
+  const susunanTerkunci = status === 'DITUTUP' || (status !== 'DRAF' && jumlahJawaban > 0);
+  const alasanTerkunci =
+    status === 'DITUTUP'
+      ? 'Survei ini sudah ditutup dan hasil IKM-nya sudah terbit, jadi isinya tidak dapat diubah. Aktifkan kembali lebih dulu bila memang perlu diubah.'
+      : susunanTerkunci
+        ? `Susunan pertanyaan tidak dapat diubah karena survei ini sudah menerima ${jumlahJawaban} jawaban. Teks pertanyaan masih dapat diperbaiki.`
+        : null;
+
   const assertDraftOrThrow = () => {
-    if (status !== 'DRAF') {
-      throw new Error('Survei sudah tidak berstatus draf -- pertanyaan tidak dapat diubah lagi.');
+    if (susunanTerkunci) {
+      throw new Error(alasanTerkunci);
     }
   };
 
   const handleTitleBlur = async () => {
-    if (!surveyId || status !== 'DRAF') return;
+    if (!surveyId || susunanTerkunci) return;
     setIsSaving(true);
     try {
       await updateSurvey(surveyId, { title, period: periode });
@@ -145,7 +173,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   /** Dipicu langsung saat dropdown Tahun/Triwulan berubah (commit diskret, bukan blur). */
   const handlePeriodeCommit = async (newPeriode) => {
     setPeriode(newPeriode);
-    if (!surveyId || status !== 'DRAF') return;
+    if (!surveyId || susunanTerkunci) return;
     setIsSaving(true);
     try {
       await updateSurvey(surveyId, { title, period: newPeriode });
@@ -178,7 +206,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
 
   /** Persist teks on-blur (bukan tiap keystroke) -- lihat QuestionBlock.jsx. */
   const handleTextCommit = async (id, text) => {
-    if (status !== 'DRAF') return;
+    if (susunanTerkunci) return;
     setIsSaving(true);
     try {
       await updateQuestionText(id, text);
@@ -201,8 +229,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
    */
   const moveQuestion = async (fromIndex, toSlot) => {
     setActionError(null);
-    if (status !== 'DRAF') {
-      setActionError('Survei sudah tidak berstatus draf -- urutan pertanyaan tidak dapat diubah.');
+    if (susunanTerkunci) {
+      setActionError(alasanTerkunci);
       return;
     }
     if (!surveyId) return;
@@ -390,12 +418,25 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
-  const handlePublish = async () => {
+  /**
+   * Membuka konfirmasi, BUKAN langsung menerbitkan (11 September 2026).
+   * Sesudah terbit dan jawaban pertama masuk, susunan pertanyaan terkunci --
+   * jadi publikasi karena salah tekan tak dapat dibatalkan diam-diam.
+   *
+   * Pemeriksaan "minimal satu pertanyaan" tetap di DEPAN konfirmasi: tak ada
+   * gunanya meminta persetujuan atas sesuatu yang pasti ditolak.
+   */
+  const handlePublishClick = () => {
     setActionError(null);
     if (questions.length === 0) {
       setActionError('Tambahkan minimal satu pertanyaan sebelum memublikasikan survei.');
       return;
     }
+    setKonfirmasiTerbit(true);
+  };
+
+  const handlePublish = async () => {
+    setActionError(null);
     setIsPublishing(true);
     try {
       const id = await ensureSurveyExists();
@@ -429,7 +470,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       onAddCustom={handleAddCustom}
       onDragTypeStart={(type) => setDrag({ kind: 'new', type })}
       onDragEnd={() => setDrag(null)}
-      canDrag={status === 'DRAF'}
+      canDrag={!susunanTerkunci}
+      alasanTerkunci={alasanTerkunci}
     >
       {/* Judul & periode TIDAK lagi dikirim ke bilah atas (2026-08-20) --
           keduanya disunting di kartu putih pada kanvas. State-nya tetap di sini,
@@ -437,13 +479,26 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       <BuilderToolbar
         status={status}
         isSaving={isSaving}
-        onPublish={handlePublish}
+        onPublish={handlePublishClick}
         isPublishing={isPublishing}
         backHref={listHref}
       />
       {actionError && (
         <div className="mx-lg mt-lg p-md rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
           {actionError}
+        </div>
+      )}
+
+      {/* Sebab penguncian ditampilkan SEKALI di atas kanvas, bukan pada tiap
+          kendali yang mati: pada survei berisi 9 unsur, kalimat yang sama akan
+          terulang belasan kali di satu layar dan justru berhenti dibaca. */}
+      {alasanTerkunci && (
+        <div
+          role="status"
+          className="mx-lg mt-lg p-md rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm leading-relaxed flex items-start gap-sm"
+        >
+          <Lock size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
+          <span>{alasanTerkunci}</span>
         </div>
       )}
       <BuilderCanvas
@@ -458,7 +513,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         periode={periode}
         onPeriodeCommit={handlePeriodeCommit}
         drag={drag}
-        canReorder={status === 'DRAF'}
+        canReorder={!susunanTerkunci}
+        alasanTerkunci={alasanTerkunci}
         onQuestionDragStart={(index) => setDrag({ kind: 'reorder', index })}
         onDragEnd={() => setDrag(null)}
         onDropAt={handleDropAt}
@@ -466,6 +522,23 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onEditOptions={handleEditOptions}
       />
       <FloatingStatus questionCount={questions.length} />
+
+      {/* Gerbang publikasi. Menyebut dua hal yang paling sering luput diperiksa
+          sebelum terbit -- berapa pertanyaannya dan siapa yang boleh mengisi --
+          beserta akibat yang tak dapat dibatalkan diam-diam sesudahnya. */}
+      <ConfirmActionModal
+        isOpen={konfirmasiTerbit}
+        title="Publikasikan Survei"
+        description={`Survei ini akan terbit dengan ${questions.length} pertanyaan dan ${
+          izinkanAnonim ? 'dapat diisi tanpa login' : 'hanya dapat diisi setelah login'
+        }. Setelah terbit dan jawaban pertama masuk, susunan pertanyaan tidak dapat diubah lagi -- hanya teksnya yang masih dapat diperbaiki.`}
+        confirmLabel="Ya, Publikasikan"
+        onConfirm={() => {
+          setKonfirmasiTerbit(false);
+          handlePublish();
+        }}
+        onCancel={() => setKonfirmasiTerbit(false)}
+      />
 
       {/* Satu komponen modal, dua mode & dua bentuk. Keduanya tak pernah terbuka
           bersamaan: "Ubah Opsi/Label" cuma bisa diklik dari blok pertanyaan yang
