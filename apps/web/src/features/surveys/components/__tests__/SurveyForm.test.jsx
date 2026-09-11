@@ -198,3 +198,44 @@ describe('SurveyForm — pesan menurut keadaan sesi', () => {
     expect(await screen.findByText(/daftar instansi gagal dimuat/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * PENCARIAN INSTANSI (11 September 2026). Dropdown ini memuat daftar OPD yang
+ * sama persis dengan formulir pengaduan -- 62 instansi aktif, terukur di basis
+ * data lokal -- dan keduanya berdiri di halaman beranda yang sama. Membedakan
+ * keduanya berarti pengguna harus menghafal dropdown mana yang dapat dicari.
+ *
+ * Perilaku penyaringannya diuji di components/ui/__tests__/Dropdown.test.jsx.
+ */
+describe('SurveyForm — pencarian instansi', () => {
+  const opdDropdown = () => screen.getByLabelText(/pilih instansi \/ opd/i);
+  const medanCari = () => screen.queryByRole('textbox', { name: /cari pilih instansi/i });
+
+  beforeEach(() => {
+    useRouter.mockReturnValue({ push: jest.fn() });
+  });
+
+  it('dropdown OPD punya medan cari yang menyaring daftarnya', async () => {
+    isAuthenticated.mockReturnValue(true);
+    render(<SurveyForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.change(medanCari(), { target: { value: 'pendidikan' } });
+
+    expect(screen.getByRole('button', { name: 'Dinas Pendidikan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dinas Kesehatan' })).not.toBeInTheDocument();
+  });
+
+  it('tanpa sesi, medan carinya tidak muncul', async () => {
+    // `GET /opd` menjawab 401 tanpa sesi, jadi daftarnya kosong. Medan cari di
+    // atas daftar kosong menjanjikan sesuatu yang tak dapat ditepati.
+    isAuthenticated.mockReturnValue(false);
+    render(<SurveyForm />);
+    await screen.findByText(/masuk untuk melihat daftar instansi/i);
+
+    fireEvent.click(opdDropdown());
+
+    expect(medanCari()).not.toBeInTheDocument();
+  });
+});

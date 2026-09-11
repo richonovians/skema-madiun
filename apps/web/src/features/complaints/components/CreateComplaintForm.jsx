@@ -187,6 +187,17 @@ export default function CreateComplaintForm() {
             ]}
             value={formData.department}
             onChange={(val) => setFormData((prev) => ({ ...prev, department: val }))}
+            /* Medan cari, atas permintaan pengguna 11 September 2026. Daftar
+               OPD berisi 62 instansi aktif (terukur), sementara panel dropdown
+               hanya setinggi 240px.
+
+               DUA syarat, bukan satu. `adaSesi` karena `GET /opd` menjawab 401
+               tanpa sesi, dan `length > 0` karena daftar yang masih dimuat atau
+               gagal dimuat juga tak punya apa pun untuk dicari. Medan cari di
+               atas daftar kosong menjanjikan sesuatu yang tak dapat ditepati. */
+            searchable={adaSesi && departmentOptions.length > 0}
+            searchPlaceholder="Cari nama instansi..."
+            emptySearchLabel="Tidak ada instansi yang cocok"
           />
           <Dropdown
             label="Kategori Pengaduan"
