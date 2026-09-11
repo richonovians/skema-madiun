@@ -98,14 +98,43 @@ describe('/survei/:id', () => {
     expect(screen.queryByText(/sudah mengisi survei ini/i)).not.toBeInTheDocument();
   });
 
-  it('galat dari backend (mis. survei tak mengizinkan anonim) ditampilkan, bukan formulir', async () => {
+  /**
+   * LAYAR GALAT DITULIS ULANG 11 September 2026 atas permintaan pengguna:
+   * kalimat galat dari backend dan tombol "Coba Lagi" dihapus, judulnya
+   * menjadi "Survei tidak dapat ditemukan".
+   *
+   * Kalimat backend ("Survei anonim dengan id 28 tidak ditemukan") memang tak
+   * berguna bagi yang membacanya: ia menyebut id internal dan istilah "survei
+   * anonim" yang hanya dikenal di dalam kode. Tombol ulangnya pun menjanjikan
+   * yang tak dapat ditepati -- survei yang tidak ada tak akan ada juga pada
+   * percobaan kedua.
+   *
+   * Tautan beranda menggantikan tombol itu, dan itu bukan tambahan kosmetik:
+   * rute ini berada di luar `config.matcher` proxy.js dan halamannya tidak
+   * memuat navbar sama sekali, jadi layar tanpa satu pun tautan benar-benar
+   * menjadi jalan buntu bagi pengunjung yang datang dari QR.
+   */
+  it('galat backend diganti satu kalimat sendiri, tanpa tombol ulang', async () => {
     isAuthenticated.mockReturnValue(false);
     getPublicSurveyFill.mockRejectedValue(new Error('Survei anonim dengan id 5 tidak ditemukan'));
 
     render(<IsiSurveiPage />);
 
-    expect(await screen.findByText(/tidak dapat diisi/i)).toBeInTheDocument();
-    expect(screen.getByText(/tidak ditemukan/i)).toBeInTheDocument();
+    expect(await screen.findByText('Survei tidak dapat ditemukan')).toBeInTheDocument();
+    expect(screen.queryByText(/survei anonim dengan id/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /coba lagi/i })).not.toBeInTheDocument();
+  });
+
+  it('menyediakan jalan keluar ke beranda', async () => {
+    isAuthenticated.mockReturnValue(false);
+    getPublicSurveyFill.mockRejectedValue(new Error('Survei anonim dengan id 5 tidak ditemukan'));
+
+    render(<IsiSurveiPage />);
+
+    expect(await screen.findByRole('link', { name: /kembali ke beranda/i })).toHaveAttribute(
+      'href',
+      '/',
+    );
   });
 });
 
