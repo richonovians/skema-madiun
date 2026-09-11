@@ -19,6 +19,7 @@ import { AnswerEntity } from './entities/answer.entity';
 import { MyResponseEntity } from './entities/my-response.entity';
 import { ResponseEntity } from './entities/response.entity';
 import { SurveyFillEntity } from './entities/survey-fill.entity';
+import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 @Injectable()
 export class ResponsesService {
@@ -29,8 +30,8 @@ export class ResponsesService {
 
   /** Ambil survei aktif beserta pertanyaannya untuk diisi responden (BE-22). */
   async getFill(surveyId: number, user: CurrentUser): Promise<SurveyFillEntity> {
-    const survey = await this.prisma.survey.findUnique({
-      where: { id: surveyId },
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
       include: {
         questions: {
           orderBy: { urutan: 'asc' },
@@ -79,8 +80,8 @@ export class ResponsesService {
     // soal persetujuan, bukan soal survei yang tak ditemukan.
     await this.consent.assertConsented(user);
 
-    const survey = await this.prisma.survey.findUnique({
-      where: { id: surveyId },
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
       include: { questions: { include: { options: true } } },
     });
     if (!survey || survey.status !== SurveyStatus.aktif) {
@@ -230,8 +231,8 @@ export class ResponsesService {
    * tak perlu dibocorkan kepada pemanggil tanpa sesi.
    */
   private async findAnonimSurveyOrThrow(surveyId: number) {
-    const survey = await this.prisma.survey.findUnique({
-      where: { id: surveyId },
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
       include: {
         questions: {
           orderBy: { urutan: 'asc' },
@@ -284,7 +285,9 @@ export class ResponsesService {
     query: PaginationQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<ResponseEntity>> {
-    const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
+    });
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }

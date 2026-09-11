@@ -21,6 +21,7 @@ export default function BuilderLayout({
   onDragTypeStart,
   onDragEnd,
   canDrag,
+  alasanTerkunci,
 }) {
   return (
     <div className="fixed inset-0 md:left-64 z-50 flex flex-col bg-background overflow-hidden">
@@ -31,6 +32,7 @@ export default function BuilderLayout({
           onDragTypeStart={onDragTypeStart}
           onDragEnd={onDragEnd}
           canDrag={canDrag}
+          alasanTerkunci={alasanTerkunci}
         />
         <div className="flex-1 overflow-y-auto w-full">{children}</div>
       </div>

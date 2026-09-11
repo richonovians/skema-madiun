@@ -164,6 +164,8 @@ export default function QuestionBlock({
   onUpdate,
   onTextCommit,
   onEditOptions,
+  /** Sebab susunan terkunci, atau `null` bila bebas diubah. */
+  alasanTerkunci = null,
 }) {
   const cardRef = useRef(null);
   const [isCardDraggable, setIsCardDraggable] = useState(false);
@@ -292,10 +294,16 @@ export default function QuestionBlock({
         </div>
         <div className="flex items-center gap-sm shrink-0">
           {controls}
+          {/* Ikut mati saat susunan terkunci (11 September 2026). Sebelumnya
+              tombol ini tak pernah dikunci sama sekali: pada survei berjawaban
+              ia tetap hidup dan penekanannya pasti dijawab 400 oleh backend --
+              pengguna menanggung galat atas tombol yang seharusnya tak
+              ditawarkan. */}
           <button
             onClick={() => onDelete(question.id)}
-            className={`${CONTROL_CLASS} text-error border-error/30 hover:bg-error-container hover:border-error`}
-            title="Hapus Pertanyaan"
+            disabled={alasanTerkunci != null}
+            className={`${CONTROL_CLASS} text-error border-error/30 hover:bg-error-container hover:border-error disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:border-error/30`}
+            title={alasanTerkunci ?? 'Hapus Pertanyaan'}
             aria-label="Hapus pertanyaan"
           >
             <Trash2 size={20} />

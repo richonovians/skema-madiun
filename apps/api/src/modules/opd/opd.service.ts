@@ -13,6 +13,7 @@ import { OpdEntity } from './entities/opd.entity';
 import { OpdSyncReport } from './entities/opd-sync-report.entity';
 import { HelpdeskOpd, OpdSource } from './interfaces/opd-source.interface';
 import { OPD_SOURCE } from './opd.constants';
+import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 @Injectable()
 export class OpdService {
@@ -76,7 +77,7 @@ export class OpdService {
     const [surveyCounts, complaintCounts] = await Promise.all([
       this.prisma.survey.groupBy({
         by: ['opdId'],
-        where: { opdId: { in: opdIds }, status: SurveyStatus.aktif },
+        where: { opdId: { in: opdIds }, status: SurveyStatus.aktif, ...TIDAK_DIBUANG },
         _count: { _all: true },
       }),
       this.prisma.complaint.groupBy({

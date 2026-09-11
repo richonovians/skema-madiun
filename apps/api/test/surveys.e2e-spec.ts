@@ -87,7 +87,7 @@ describe('Surveys (e2e)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('lifecycle: create → update → status draft→aktif → update ditolak', async () => {
+  it('lifecycle: create → update → status draft→aktif → judul MASIH boleh diubah', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
@@ -108,12 +108,27 @@ describe('Surveys (e2e)', () => {
     expect(pub.status).toBe(200);
     expect(pub.body.data.status).toBe('aktif');
 
-    // setelah aktif, update ditolak (bukan draft)
+    // ATURAN BERGANTI 11 September 2026: sesudah aktif, judul & izin pengisian
+    // TETAP boleh diubah selama belum ada yang menjawab. Yang terkunci begitu
+    // jawaban masuk adalah periode & susunan pertanyaan (lihat
+    // surveys-trash.e2e-spec.ts dan survey-scope.util.spec.ts).
     const updAfter = await request(app.getHttpServer())
       .patch(`/api/v1/surveys/${id}`)
       .set(opdHeaders())
+      .send({ judul: 'Lifecycle setelah terbit' });
+    expect(updAfter.status).toBe(200);
+    expect(updAfter.body.data.judul).toBe('Lifecycle setelah terbit');
+
+    // Menutupnya mengunci seluruhnya: hasil IKM-nya sudah terbit.
+    await request(app.getHttpServer())
+      .patch(`/api/v1/surveys/${id}/status`)
+      .set(opdHeaders())
+      .send({ status: 'ditutup' });
+    const updSesudahTutup = await request(app.getHttpServer())
+      .patch(`/api/v1/surveys/${id}`)
+      .set(opdHeaders())
       .send({ judul: 'nope' });
-    expect(updAfter.status).toBe(400);
+    expect(updSesudahTutup.status).toBe(400);
   });
 
   it('POST /surveys/:id/duplicate -> 201 status draft', async () => {

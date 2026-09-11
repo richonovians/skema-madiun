@@ -44,6 +44,7 @@ export default function BuilderCanvas({
   // Seret-lepas
   drag = null,
   canReorder = false,
+  alasanTerkunci = null,
   onQuestionDragStart,
   onDragEnd,
   onDropAt,
@@ -168,6 +169,7 @@ export default function BuilderCanvas({
                 total={questions.length}
                 isDragging={drag?.kind === 'reorder' && drag.index === index}
                 canReorder={canReorder}
+                alasanTerkunci={alasanTerkunci}
                 onDragStart={onQuestionDragStart}
                 onDragEnd={handleDragEnd}
                 onMove={onMove}

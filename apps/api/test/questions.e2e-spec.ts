@@ -35,6 +35,14 @@ describe('Questions (e2e)', () => {
   }, 60000);
 
   afterAll(async () => {
+    // DARI DAUN KE AKAR. `answers.question_id` RESTRICT, jadi menghapus survei
+    // lebih dulu gagal begitu satu uji meninggalkan jawaban -- dan uji aturan
+    // ubah di bawah memang membuatnya.
+    await prisma.answer.deleteMany({ where: { response: { survey: { opdId } } } });
+    await prisma.surveyResponse.deleteMany({ where: { survey: { opdId } } });
+    await prisma.questionOption.deleteMany({ where: { question: { survey: { opdId } } } });
+    await prisma.question.deleteMany({ where: { survey: { opdId } } });
+    await prisma.ikmResult.deleteMany({ where: { survey: { opdId } } });
     await prisma.survey.deleteMany({ where: { opdId } });
     await prisma.opd.deleteMany({ where: { kode: 'E2EQ' } });
     await app.close();
@@ -155,14 +163,49 @@ describe('Questions (e2e)', () => {
     expect(del.status).toBe(200);
   });
 
-  it('POST question pada survei aktif -> 400 (bukan draft)', async () => {
+  /**
+   * ATURAN BERGANTI 11 September 2026. Yang mengunci susunan pertanyaan bukan
+   * lagi STATUS, melainkan JAWABAN yang sudah masuk: survei terbit yang belum
+   * dijawab siapa pun masih boleh dibenahi, dan itulah keadaan tersering
+   * sesudah publikasi tak sengaja.
+   */
+  it('POST question pada survei aktif yang SUDAH dijawab -> 400', async () => {
     const aktif = await prisma.survey.create({
-      data: { opdId, judul: 'Survei Aktif', periode: '2026-Q1', status: 'aktif' },
+      data: {
+        opdId,
+        judul: 'Survei Aktif Terjawab',
+        periode: '2026-Q1',
+        status: 'aktif',
+        questions: { create: [{ teks: 'Pelayanan', tipe: 'skala', urutan: 1 }] },
+      },
+      include: { questions: true },
     });
+    await prisma.surveyResponse.create({
+      data: {
+        surveyId: aktif.id,
+        answers: { create: [{ questionId: aktif.questions[0].id, nilai: 4 }] },
+      },
+    });
+
     const res = await request(app.getHttpServer())
       .post(`/api/v1/surveys/${aktif.id}/questions`)
       .set(opdHeaders())
       .send({ teks: 'X', tipe: 'skala' });
+
     expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/1 jawaban/);
+  });
+
+  it('POST question pada survei aktif TANPA jawaban -> 201', async () => {
+    const aktif = await prisma.survey.create({
+      data: { opdId, judul: 'Survei Aktif Kosong', periode: '2026-Q1', status: 'aktif' },
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${aktif.id}/questions`)
+      .set(opdHeaders())
+      .send({ teks: 'X', tipe: 'skala' });
+
+    expect(res.status).toBe(201);
   });
 });

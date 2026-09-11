@@ -1,4 +1,6 @@
 import React from 'react';
+import Link from 'next/link';
+import { Trash2 } from 'lucide-react';
 
 export default function SurveyPageHeader() {
   return (
@@ -7,6 +9,16 @@ export default function SurveyPageHeader() {
         <h1 className="font-h1 text-h1 text-text-primary tracking-tight">Paket Survei Kepuasan Masyarakat</h1>
         <p className="text-text-secondary font-body mt-2">Kelola seluruh instrumen survei unit layanan di bawah naungan OPD Anda.</p>
       </div>
+
+      {/* Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali --
+          survei yang terlanjur dibuang akan terlihat seperti hilang. */}
+      <Link
+        href="/admin-opd/surveys/sampah"
+        className="px-lg py-sm border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
+      >
+        <Trash2 size={16} />
+        Sampah
+      </Link>
     </div>
   );
 }

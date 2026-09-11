@@ -73,3 +73,62 @@ describe('SurveyMonitoringTable — Salin', () => {
     expect(screen.getByRole('button', { name: /^salin$/i })).toBeDisabled();
   });
 });
+
+/**
+ * TOMBOL AKSI SURVEI TERBIT (permintaan pengguna 11 September 2026). Sebelumnya
+ * Ubah, Pertanyaan, dan Hapus hanya muncul pada baris DRAF, sehingga survei yang
+ * terlanjur dipublikasikan tak punya jalan perbaikan sama sekali.
+ */
+describe('SurveyMonitoringTable — aksi survei terbit', () => {
+  const barisAktif = (over = {}) =>
+    barisSurvei({ id: 5, title: 'Survei Aktif', status: 'AKTIF', respondentsCount: 0, ...over });
+
+  it('survei AKTIF kini punya tombol Ubah, Pertanyaan, dan Hapus', () => {
+    render(<SurveyMonitoringTable surveys={[barisAktif()]} />);
+
+    expect(screen.getByRole('button', { name: /^ubah$/i })).toBeEnabled();
+    expect(screen.getByRole('link', { name: /pertanyaan/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^hapus$/i })).toBeEnabled();
+  });
+
+  it('survei aktif yang SUDAH dijawab: Pertanyaan tetap ada, Hapus tetap hidup', () => {
+    // Tombolnya tetap ada karena teks pertanyaan masih boleh diperbaiki; yang
+    // terkunci adalah SUSUNANNYA, dan penjaganya di backend
+    // (assertSurveyEditable), bukan hilangnya tombol ini.
+    render(<SurveyMonitoringTable surveys={[barisAktif({ respondentsCount: 142 })]} />);
+
+    expect(screen.getByRole('link', { name: /pertanyaan/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^hapus$/i })).toBeEnabled();
+  });
+
+  it('survei DITUTUP: Ubah mati beserta sebabnya, Pertanyaan hilang, Hapus tetap hidup', () => {
+    // Hasil IKM survei tertutup sudah terbit, jadi isinya terkunci penuh --
+    // tetapi membuangnya ke Sampah tetap boleh, dan dapat dipulihkan.
+    render(<SurveyMonitoringTable surveys={[barisAktif({ status: 'DITUTUP' })]} />);
+
+    const ubah = screen.getByRole('button', { name: /^ubah$/i });
+    expect(ubah).toBeDisabled();
+    expect(ubah).toHaveAttribute('title', expect.stringMatching(/ditutup/i));
+    expect(screen.queryByRole('link', { name: /pertanyaan/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^hapus$/i })).toBeEnabled();
+  });
+
+  it('Hapus meneruskan baris yang benar, dan ikut mati saat baris itu sibuk', () => {
+    const onDelete = jest.fn();
+    const { rerender } = render(
+      <SurveyMonitoringTable surveys={[barisAktif({ id: 9 })]} onDelete={onDelete} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    expect(onDelete.mock.calls[0][0].id).toBe(9);
+
+    rerender(
+      <SurveyMonitoringTable
+        surveys={[barisAktif({ id: 9 })]}
+        onDelete={onDelete}
+        busySurveyId={9}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /^hapus$/i })).toBeDisabled();
+  });
+});

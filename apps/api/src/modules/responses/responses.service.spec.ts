@@ -43,7 +43,7 @@ const aktifSurvey = (over: Record<string, unknown> = {}) => ({
 
 describe('ResponsesService', () => {
   const prisma = {
-    survey: { findUnique: jest.fn() },
+    survey: { findUnique: jest.fn(), findFirst: jest.fn() },
     // Dibaca `submit` untuk menyalin data diri akun ke respons (8 September
     // 2026). Bakunya diisi di `beforeEach` supaya seluruh uji `submit` yang
     // sudah ada tidak perlu menyebut akun yang bukan urusan mereka.
@@ -91,7 +91,7 @@ describe('ResponsesService', () => {
     });
 
     it('sudah menyetujui -> submit berjalan seperti biasa', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
         id: 1,
@@ -119,7 +119,7 @@ describe('ResponsesService', () => {
 
   describe('getFill', () => {
     it('survei non-aktif → NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue({
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({
         ...aktifSurvey(),
         status: SurveyStatus.draft,
       });
@@ -127,7 +127,7 @@ describe('ResponsesService', () => {
     });
 
     it('survei aktif → kembalikan fill + flag sudahMengisi', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
 
       const fill = await service.getFill(1, responden());
@@ -139,21 +139,21 @@ describe('ResponsesService', () => {
 
   describe('submit', () => {
     it('survei tidak aktif → NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(
         service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden()),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('jawaban untuk pertanyaan di luar survei → BadRequest', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       await expect(
         service.submit(1, { answers: [{ questionId: 999, nilai: 4 }] }, responden()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('pertanyaan skala wajib tidak dijawab → BadRequest', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       // hanya menjawab pertanyaan teks (102), skala (101) terlewat
       await expect(
         service.submit(1, { answers: [{ questionId: 102, teks: 'saran' }] }, responden()),
@@ -161,7 +161,7 @@ describe('ResponsesService', () => {
     });
 
     it('single-submit yang sudah mengisi → Conflict (409)', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue({ id: 77 });
       await expect(
         service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden()),
@@ -169,7 +169,7 @@ describe('ResponsesService', () => {
     });
 
     it('happy path → buat respons dengan dedupeUserId terisi', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
         id: 1,
@@ -199,7 +199,7 @@ describe('ResponsesService', () => {
     });
 
     it('multi-submit → dedupeUserId null (boleh berulang)', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
         aktifSurvey({ allowMultipleSubmit: true }),
       );
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
@@ -222,14 +222,14 @@ describe('ResponsesService', () => {
         aktifSurvey({ questions: [skalaQ(101), pilihanQ(201, [301, 302])] });
 
       it('pilihan wajib memilih opsi → BadRequest bila kosong', async () => {
-        (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithPilihan());
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithPilihan());
         await expect(
           service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden()),
         ).rejects.toThrow(BadRequestException);
       });
 
       it('selectedOptionId bukan milik pertanyaan tsb → BadRequest', async () => {
-        (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithPilihan());
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithPilihan());
         await expect(
           service.submit(
             1,
@@ -245,7 +245,7 @@ describe('ResponsesService', () => {
       });
 
       it('sukses → Answer dibuat dengan selectedOption terhubung', async () => {
-        (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithPilihan());
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithPilihan());
         (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
         (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
           id: 1,
@@ -290,7 +290,7 @@ describe('ResponsesService', () => {
 
   describe('findAllForSurvey', () => {
     it('Admin OPD lain → Forbidden', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
       await expect(
         service.findAllForSurvey(
           1,
@@ -306,7 +306,7 @@ describe('ResponsesService', () => {
     });
 
     it('survei tidak ada → NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(
         service.findAllForSurvey(
           1,
@@ -331,7 +331,7 @@ describe('ResponsesService', () => {
       aktifSurvey({ izinkanAnonim: true, judul: 'SKM Loket', periode: '2026-Q3', ...over });
 
     it('getPublicFill menolak survei yang tidak mengizinkan anonim -> NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
         surveiAnonim({ izinkanAnonim: false }),
       );
 
@@ -339,7 +339,7 @@ describe('ResponsesService', () => {
     });
 
     it('getPublicFill menolak survei non-aktif -> NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
         surveiAnonim({ status: SurveyStatus.draft }),
       );
 
@@ -347,7 +347,7 @@ describe('ResponsesService', () => {
     });
 
     it('getPublicFill pada survei anonim aktif -> kuesioner, sudahMengisi selalu false', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
 
       const hasil = await service.getPublicFill(1);
 
@@ -359,7 +359,7 @@ describe('ResponsesService', () => {
     });
 
     it('submitPublic menolak survei yang tidak mengizinkan anonim -> NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
         surveiAnonim({ izinkanAnonim: false }),
       );
 
@@ -370,7 +370,7 @@ describe('ResponsesService', () => {
     });
 
     it('submitPublic menulis userId & dedupeUserId null', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
         id: 9,
         surveyId: 1,
@@ -392,7 +392,7 @@ describe('ResponsesService', () => {
     });
 
     it('submitPublic tetap memvalidasi kelengkapan jawaban', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
 
       // Pertanyaan skala (101) wajib dijawab; membuka jalur publik tidak boleh
       // melonggarkan validasi isinya.
@@ -403,7 +403,7 @@ describe('ResponsesService', () => {
     });
 
     it('submitPublic tidak memanggil assertConsented, sebab penjaganya di DTO', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
         id: 9,
         surveyId: 1,
@@ -437,7 +437,7 @@ describe('ResponsesService', () => {
       (prisma.surveyResponse.create as jest.Mock).mock.calls[0][0].data as Record<string, unknown>;
 
     it('submitPublic menulis consentAt saat pengiriman diterima', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
 
       await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
@@ -446,7 +446,7 @@ describe('ResponsesService', () => {
     });
 
     it('submitPublic menulis demografis yang dikirim', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
 
       await service.submitPublic(1, {
@@ -466,7 +466,7 @@ describe('ResponsesService', () => {
       // kolomnya", dan pada `create` itu menyisakan nilai baku. `null`
       // menyatakan tersurat bahwa pengisi memilih tidak memberi datanya, dan
       // itu yang membedakan "memilih anonim" dari "medannya lupa dikirim".
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
 
       await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
@@ -480,7 +480,7 @@ describe('ResponsesService', () => {
       // Perubahan ini tak boleh diam-diam menautkan respons publik ke sebuah
       // akun, dan tak boleh menyalakan anti-duplikat yang memang mati di jalur
       // ini (tak ada pegangan tanpa sesi; penandanya di peramban).
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
 
       await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
@@ -491,7 +491,7 @@ describe('ResponsesService', () => {
     });
 
     it('KONTROL: submit bersesi TETAP menuntut persetujuan & menulis userId', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
         id: 10,
@@ -509,7 +509,7 @@ describe('ResponsesService', () => {
     });
 
     it('submitPublic menulis nama & nomor HP yang dikirim', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
 
       await service.submitPublic(1, {
@@ -529,7 +529,7 @@ describe('ResponsesService', () => {
       // seperti yang dikatakan pilihannya, bukan seperti yang dikatakan sisa
       // payloadnya. Gerbang di frontend memang sudah menghilangkan medannya,
       // tapi permintaan langsung tak melewati gerbang itu.
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveiAnonim());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiAnonim());
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
 
       await service.submitPublic(1, {
@@ -564,7 +564,7 @@ describe('ResponsesService', () => {
       (prisma.surveyResponse.create as jest.Mock).mock.calls[0][0].data as Record<string, unknown>;
 
     const siapkan = () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsBaru());
     };
@@ -644,7 +644,7 @@ describe('ResponsesService', () => {
     it('KONTROL: pra-cek duplikat menolak SEBELUM akun dibaca', async () => {
       // Urutan kueri. Permintaan yang sudah pasti berakhir 409 tak perlu
       // membayar satu kueri tambahan.
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(aktifSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(aktifSurvey());
       (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue({ id: 5 });
 
       await expect(

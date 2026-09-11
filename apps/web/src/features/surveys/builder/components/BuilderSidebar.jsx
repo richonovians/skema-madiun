@@ -34,8 +34,15 @@ export default function BuilderSidebar({
   onDragTypeStart,
   onDragEnd,
   canDrag = null,
+  /**
+   * Sebab susunan terkunci (11 September 2026), atau `null` bila bebas diubah.
+   * Dipakai sebagai `title` kendali yang mati -- keterangan panjangnya
+   * ditampilkan sekali di atas kanvas, bukan diulang di tiap tombol.
+   */
+  alasanTerkunci = null,
 }) {
   const isDraggable = canDrag === true;
+  const terkunci = alasanTerkunci != null;
   return (
     // `max-h-[38vh]` di ponsel (2026-08-24, laporan user "ada tampilan yang
     // tertumpuk/rusak"). BuilderLayout mengunci tinggi builder ke layar (`fixed
@@ -55,7 +62,9 @@ export default function BuilderSidebar({
         </h3>
         <button
           onClick={onAddBaku}
-          className="w-full bg-primary-container/10 hover:bg-primary-container/20 text-primary border-2 border-dashed border-primary-container/30 rounded-xl p-lg text-left group transition-all duration-300 active:scale-[0.98]"
+          disabled={terkunci}
+          title={alasanTerkunci ?? undefined}
+          className="w-full bg-primary-container/10 hover:bg-primary-container/20 text-primary border-2 border-dashed border-primary-container/30 rounded-xl p-lg text-left group transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <div className="flex flex-col gap-xs">
             <span className="font-headline-md text-[14px]">Tambah 9 Unsur Baku</span>
@@ -109,7 +118,13 @@ export default function BuilderSidebar({
             <p className="text-xs text-on-surface-variant leading-relaxed">
               {isDraggable
                 ? 'Klik komponen untuk menambahkannya di akhir daftar, atau seret ke posisi yang diinginkan. Urutan pertanyaan bisa diubah dengan menyeret kartunya dari mana saja, atau lewat tombol panah. Untuk Pilihan Ganda, opsi jawaban diisi lewat jendela yang muncul.'
-                : 'Survei sudah terbit -- pertanyaan dan urutannya tidak dapat diubah lagi.'}
+                : /* KEADAANNYA saja, bukan sebabnya. Alasan lengkap beserta
+                     jumlah jawabannya ditampilkan sekali di atas kanvas;
+                     mengulangnya di sini membuat satu layar memuat kalimat yang
+                     sama dua kali. Kalimat lama "survei sudah terbit" dibuang
+                     karena sejak 11 September 2026 tidak selalu benar: survei
+                     terbit tanpa jawaban masih bebas disusun ulang. */
+                  'Susunan pertanyaan sedang terkunci. Teks pertanyaan masih dapat diperbaiki.'}
             </p>
           </div>
         </div>
