@@ -54,7 +54,11 @@ describe('IkmService', () => {
   const prisma = {
     // `findMany` default [] -- getDashboard (2026-08-05) ikut query survei
     // `aktif` utk live-compute; tes yg tak peduli survei aktif tak perlu tahu ini.
-    survey: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    survey: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     question: { findMany: jest.fn() },
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
@@ -73,17 +77,17 @@ describe('IkmService', () => {
 
   describe('getResults', () => {
     it('survei tidak ada → NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(service.getResults(1, kabupatenUser())).rejects.toThrow(NotFoundException);
     });
 
     it('Admin OPD lain → Forbidden', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey({ opdId: 99 }));
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey({ opdId: 99 }));
       await expect(service.getResults(1, opdUser(5))).rejects.toThrow(ForbiddenException);
     });
 
     it('belum ada responden → nilaiIkm & mutu null', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
       (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[], [], []]));
       (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
 
@@ -96,7 +100,7 @@ describe('IkmService', () => {
     });
 
     it('tanpa pertanyaan unsur → nilaiIkm null meski ada responden', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
       (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(5);
 
@@ -105,7 +109,7 @@ describe('IkmService', () => {
     });
 
     it('semua nilai 4 (maksimal) → IKM=100, mutu A', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
       // 9 unsur, 2 responden, keduanya menilai 4
       (prisma.question.findMany as jest.Mock).mockResolvedValue(
         unsurQuestions(Array.from({ length: 9 }, () => [4, 4])),
@@ -121,7 +125,7 @@ describe('IkmService', () => {
     });
 
     it('semua nilai 1 (minimal) → IKM=25, mutu D', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
       (prisma.question.findMany as jest.Mock).mockResolvedValue(
         unsurQuestions(Array.from({ length: 9 }, () => [1, 1])),
       );
@@ -134,7 +138,7 @@ describe('IkmService', () => {
     });
 
     it('nilai campuran → NRR & IKM dihitung sesuai rumus PermenPANRB 14/2017', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(survey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
       // 1 unsur saja, 4 responden: nilai 3,3,4,4 → NRR=3.5, bobot=1 (hanya 1 unsur)
       // IKM = 3.5 * 1 * 25 = 87.5 → mutu B (76.61-88.30)
       (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[3, 3, 4, 4]]));
@@ -221,19 +225,19 @@ describe('IkmService', () => {
     });
 
     it('survei tidak ada → NotFound', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(service.exportResults(1, 'csv', kabupatenUser())).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('Admin OPD lain → Forbidden', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd({ opdId: 99 }));
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithOpd({ opdId: 99 }));
       await expect(service.exportResults(1, 'csv', opdUser(5))).rejects.toThrow(ForbiddenException);
     });
 
     it('format csv → memanggil IkmExportService.toCsv', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithOpd());
       (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[4, 4]]));
       (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
 
@@ -250,7 +254,7 @@ describe('IkmService', () => {
     });
 
     it('format excel → memanggil IkmExportService.toExcel', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithOpd());
       (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[4, 4]]));
       (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
 
@@ -261,7 +265,7 @@ describe('IkmService', () => {
     });
 
     it('format pdf → memanggil IkmExportService.toPdf', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(surveyWithOpd());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyWithOpd());
       (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions([[4, 4]]));
       (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
 

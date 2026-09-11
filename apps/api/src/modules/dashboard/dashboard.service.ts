@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
 import { periodeFromDate } from '../surveys/utils/periode.util';
+import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 import { UpdateInsightDto } from './dto/update-insight.dto';
 import {
   OpdDashboardEntity,
@@ -72,7 +73,11 @@ export class DashboardService {
       ikmHistory,
     ] = await Promise.all([
       this.prisma.survey.findFirst({
-        where: { opdId, status: { in: [SurveyStatus.aktif, SurveyStatus.ditutup] } },
+        where: {
+          opdId,
+          status: { in: [SurveyStatus.aktif, SurveyStatus.ditutup] },
+          ...TIDAK_DIBUANG,
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.surveyResponse.count({ where: { survey: { opdId } } }),

@@ -8,6 +8,7 @@ import type { ExportFormat } from './dto/export-results-query.dto';
 import { IkmDashboardEntity, IkmDashboardItemEntity } from './entities/ikm-dashboard.entity';
 import { IkmResultEntity, IkmUnsurEntity } from './entities/ikm-result.entity';
 import { EXPORT_CONTENT_TYPES, ExportedFile, IkmExportService } from './ikm-export.service';
+import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
@@ -36,7 +37,9 @@ export class IkmService {
 
   /** Hasil IKM survei (live-compute) — Admin OPD (miliknya) & Admin Kabupaten. */
   async getResults(surveyId: number, user: CurrentUser): Promise<IkmResultEntity> {
-    const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
+    });
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }
@@ -49,6 +52,11 @@ export class IkmService {
    * Tidak melakukan apa pun bila belum ada responden — tidak ada yang bermakna untuk disimpan.
    */
   async snapshot(surveyId: number): Promise<void> {
+    // SENGAJA tanpa penyaring TIDAK_DIBUANG. Pemanggilnya sudah memastikan
+    // surveinya sah, dan saat survei aktif dibuang ke Sampah penutupannya
+    // justru berjalan SESUDAH `deleted_at` terisi. Menyaring di sini membuat
+    // snapshot IKM terakhir diam-diam gagal, tepat pada survei yang angkanya
+    // paling perlu diselamatkan.
     const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
     if (!survey) {
       return;
@@ -94,8 +102,8 @@ export class IkmService {
     format: ExportFormat,
     user: CurrentUser,
   ): Promise<ExportedFile> {
-    const survey = await this.prisma.survey.findUnique({
-      where: { id: surveyId },
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
       include: { opd: true },
     });
     if (!survey) {
@@ -173,7 +181,10 @@ export class IkmService {
         status: SurveyStatus.ditutup,
       }));
 
-    const activeSurveyWhere: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
+    const activeSurveyWhere: Prisma.SurveyWhereInput = {
+      status: SurveyStatus.aktif,
+      ...TIDAK_DIBUANG,
+    };
     if (query.periode) {
       activeSurveyWhere.periode = query.periode;
     }

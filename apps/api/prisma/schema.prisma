@@ -129,6 +129,7 @@ model User {
   complaintReplies  ComplaintReply[]
   auditLogs         AuditLog[]
   notifications     Notification[]
+  deletedSurveys    Survey[]           @relation("SurveyDeletedBy")
 
   @@index([opdId])
   // @@index([role]) DIBUANG bersama kolomnya. Tanpa pengganti: tabel `users`
@@ -194,14 +195,25 @@ model Survey {
   izinkanAnonim       Boolean      @default(false) @map("izinkan_anonim")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
+  // SOFT DELETE (11 September 2026). `deletedAt` terisi = survei ada di Sampah:
+  // tak tampil di mana pun kecuali halaman Sampah, dan jalur pengisiannya --
+  // termasuk QR publik -- menolaknya 404.
+  //
+  // `deletedById` ada supaya halaman Sampah dapat menyebut siapa yang membuang
+  // tanpa menelusuri log audit. ON DELETE SET NULL disebut tersurat karena
+  // DELETE /users memang ada: menghapus akun tak boleh mengunci baris sampah.
+  deletedAt           DateTime?    @map("deleted_at")
+  deletedById         Int?         @map("deleted_by_id")
 
   opd        Opd              @relation(fields: [opdId], references: [id])
+  deletedBy  User?            @relation("SurveyDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   questions  Question[]
   responses  SurveyResponse[]
   ikmResults IkmResult[]
 
   @@index([opdId])
   @@index([status])
+  @@index([deletedAt])
   @@map("surveys")
 }
 
