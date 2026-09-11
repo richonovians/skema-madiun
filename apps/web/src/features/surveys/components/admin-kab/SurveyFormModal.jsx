@@ -30,6 +30,16 @@ const MAX_TITLE_LENGTH = 100; // CreateSurveyDto/UpdateSurveyDto backend: @MaxLe
  * Triwulan/Tahun cuma 4-5 opsi pendek.
  */
 const MENU_MAX_HEIGHT_OPD = 'max-h-[200px]';
+/**
+ * Jatah daftar OPD saat medan cari menyala (11 September 2026).
+ *
+ * Kepala pencarian menempati ~61px DI ATAS daftar (medan 44px + jarak 8px atas
+ * bawah + garis). Tanpa pemendekan ini panel totalnya menjadi ~261px, yakni
+ * melewati batas 200px yang justru dihitung supaya daftar tak menimpa tombol
+ * "Batal"/"Buat Survei" di footer. 140 + 61 = 201, jadi tinggi panelnya praktis
+ * sama seperti sebelum ada pencarian.
+ */
+const MENU_MAX_HEIGHT_OPD_DENGAN_CARI = 'max-h-[140px]';
 const MENU_MAX_HEIGHT_PERIODE = 'max-h-[120px]';
 
 /**
@@ -206,7 +216,14 @@ export default function SurveyFormModal({
               options={opdOptions}
               value={opdId}
               onChange={setOpdId}
-              menuMaxHeight={MENU_MAX_HEIGHT_OPD}
+              // Daftar TERPANJANG di halaman ini: seluruh OPD aktif, bukan yang
+              // diderivasi dari survei yang sudah ada seperti pada penyaring.
+              searchable={opdOptions.length > 1}
+              searchPlaceholder="Cari nama OPD..."
+              emptySearchLabel="Tidak ada OPD yang cocok"
+              menuMaxHeight={
+                opdOptions.length > 1 ? MENU_MAX_HEIGHT_OPD_DENGAN_CARI : MENU_MAX_HEIGHT_OPD
+              }
             />
           )}
 

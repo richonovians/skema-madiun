@@ -99,6 +99,18 @@ export default function SurveyForm() {
           onChange={handleChange}
           error={error ?? (adaSesi && gagalMuat ? gagalMuat.message : null)}
           options={[{ value: '', label: labelPenampung() }, ...opdOptions]}
+          /* Medan cari yang sama seperti pada formulir pengaduan (11 September
+             2026). Daftarnya memang daftar yang sama -- 62 instansi aktif --
+             dan kedua formulir berdiri di halaman beranda yang sama, jadi
+             membedakan keduanya berarti pengguna harus menghafal dropdown mana
+             yang dapat dicari.
+
+             Syaratnya ikut membedakan keempat keadaan `labelPenampung()`:
+             tanpa sesi, sedang memuat, dan gagal memuat sama-sama berujung
+             daftar kosong, dan medan cari di atasnya tak menjanjikan apa pun. */
+          searchable={adaSesi && opdOptions.length > 0}
+          searchPlaceholder="Cari nama instansi..."
+          emptySearchLabel="Tidak ada instansi yang cocok"
         />
 
         <Button type="submit" className="w-full py-4 text-xl">

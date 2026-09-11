@@ -90,7 +90,9 @@ export default function IsiSurveiPage() {
     if (ditandaiPeramban) return Promise.resolve(null);
     return adaSesi ? getSurveyFill(id) : getPublicSurveyFill(id);
   }, [adaSesi, ditandaiPeramban, id]);
-  const { data: fillData, isLoading, error, refetch } = useAsync(fetchFill);
+  // `refetch` tak lagi diambil sejak tombol "Coba Lagi" dihapus dari layar
+  // galat di bawah (11 September 2026).
+  const { data: fillData, isLoading, error } = useAsync(fetchFill);
 
   useEffect(() => {
     if (fillData && !fillData.sudahMengisi && !perluGerbang) {
@@ -135,13 +137,41 @@ export default function IsiSurveiPage() {
     );
   }
 
+  /**
+   * LAYAR GALAT, ditulis ulang 11 September 2026 atas permintaan pengguna.
+   *
+   * Kalimat dari backend TIDAK lagi ditampilkan. Bunyinya "Survei anonim dengan
+   * id 28 tidak ditemukan": ia menyebut id internal dan istilah "survei anonim"
+   * yang hanya dikenal di dalam kode, sehingga tak memberi pembacanya satu pun
+   * langkah yang dapat ia ambil.
+   *
+   * Tombol "Coba Lagi" ikut dihapus. Hampir seluruh galat di sini berarti
+   * surveinya tidak ada atau tidak mengizinkan pengisian tanpa sesi, dan
+   * keduanya tak berubah pada percobaan kedua.
+   *
+   * Tautan beranda menggantikannya, dan itu bukan tambahan kosmetik: rute ini
+   * berada di luar `config.matcher` proxy.js dan halamannya tak memuat navbar
+   * sama sekali, jadi layar tanpa satu pun tautan benar-benar menjadi jalan
+   * buntu bagi pengunjung yang datang dari QR. Polanya sama persis dengan layar
+   * "Anda Sudah Mengisi Survei Ini" di atas -- kecuali satu hal: tautannya di
+   * sini TIDAK membungkus `<button>`. Tampilannya sama persis (kelas yang sama),
+   * tetapi tombol di dalam tautan adalah dua kontrol bersarang, yang dibaca
+   * ganda oleh pembaca layar dan tak sah menurut HTML.
+   */
   if (error) {
     return (
       <main className={wadah}>
         <ErrorState
-          title="Survei tidak dapat diisi"
-          description={error.message}
-          onRetry={refetch}
+          title="Survei tidak dapat ditemukan"
+          description={null}
+          action={
+            <Link
+              href="/"
+              className="inline-block px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors"
+            >
+              Kembali ke Beranda
+            </Link>
+          }
         />
       </main>
     );

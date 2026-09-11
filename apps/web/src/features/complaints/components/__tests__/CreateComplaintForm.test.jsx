@@ -304,3 +304,59 @@ describe('CreateComplaintForm — tanpa sesi', () => {
     expect(await screen.findByText('Lainnya (belum tahu tujuannya)')).toBeInTheDocument();
   });
 });
+
+/**
+ * PENCARIAN INSTANSI (permintaan pengguna 11 September 2026: "tambah fitur
+ * search untuk mencari data opd pada tampilan pengaduan warga").
+ *
+ * Daftar OPD nyata berisi 62 instansi aktif (terukur di basis data lokal),
+ * sementara panel dropdown hanya setinggi 240px -- menggulir seluruhnya untuk
+ * menemukan satu nama adalah pekerjaan yang tak perlu.
+ *
+ * Perilaku penyaringannya sendiri diuji di components/ui/__tests__/
+ * Dropdown.test.jsx. Yang diuji di sini adalah dropdown MANA yang
+ * mendapatkannya, dan pada keadaan sesi yang mana.
+ */
+describe('CreateComplaintForm — pencarian instansi', () => {
+  const opdDropdown = () => screen.getByLabelText(/opd \/ instansi tujuan/i);
+  const medanCari = () => screen.queryByRole('textbox', { name: /cari opd/i });
+
+  it('dropdown OPD punya medan cari yang menyaring daftarnya', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.change(medanCari(), { target: { value: 'pendidikan' } });
+
+    expect(screen.getByRole('button', { name: 'Dinas Pendidikan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dinas Kesehatan' })).not.toBeInTheDocument();
+    // Jalan pintas "Lainnya" ikut tersaring. Kalau ia bertahan di antara hasil
+    // pencarian, pengisi yang tak menemukan instansinya akan memilihnya karena
+    // kebetulan itulah satu-satunya yang tersisa di layar.
+    expect(screen.queryByText(/belum tahu tujuannya/i)).not.toBeInTheDocument();
+  });
+
+  it('dropdown Kategori TIDAK ikut mendapat medan cari', async () => {
+    // Hanya tiga kategori. Medan cari di sana menambah langkah tanpa menghemat
+    // satu pun gulir.
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    fireEvent.click(kategoriDropdown());
+
+    expect(screen.queryByRole('textbox', { name: /cari/i })).not.toBeInTheDocument();
+  });
+
+  it('tanpa sesi, medan carinya tidak muncul', async () => {
+    // `GET /opd` menjawab 401 tanpa sesi, jadi daftarnya kosong dan dropdown
+    // hanya berisi penampung himbauan masuk. Medan cari di atas daftar kosong
+    // menjanjikan sesuatu yang tak dapat ditepati.
+    isAuthenticated.mockReturnValue(false);
+    render(<CreateComplaintForm />);
+    await screen.findByText(/masuk untuk melihat daftar instansi/i);
+
+    fireEvent.click(opdDropdown());
+
+    expect(medanCari()).not.toBeInTheDocument();
+  });
+});

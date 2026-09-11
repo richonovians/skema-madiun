@@ -167,7 +167,24 @@ export default function SurveyFilterBar({
       >
         {/* Opsi pertama tiap dropdown ("Semua ...") sekaligus jadi label saat
             belum ada filter dipilih -- Dropdown.jsx jatuh ke options[0]. */}
-        <Dropdown options={opdOptions} value={filters.opd} onChange={(val) => handleChange('opd', val)} />
+        {/* Medan cari, 11 September 2026. Daftar ini sepanjang jumlah instansi
+            yang pernah membuat survei -- menuju 62 di data nyata, sementara
+            panelnya cuma 240px. Syaratnya `> 1` sebab isi terkecilnya adalah
+            "Semua OPD" seorang diri: sebelum ada survei sama sekali, tak ada
+            yang dapat dicari.
+
+            `searchAriaLabel` ditulis tersurat karena dropdown ini tak berlabel
+            tampak, dan bawaan "Cari pilihan" tak membedakannya dari dua
+            dropdown di sebelahnya. */}
+        <Dropdown
+          options={opdOptions}
+          value={filters.opd}
+          onChange={(val) => handleChange('opd', val)}
+          searchable={opdOptions.length > 1}
+          searchAriaLabel="Cari OPD"
+          searchPlaceholder="Cari nama OPD..."
+          emptySearchLabel="Tidak ada OPD yang cocok"
+        />
         <Dropdown
           options={statusOptions}
           value={filters.status}
