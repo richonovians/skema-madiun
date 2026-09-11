@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Tr, Td } from '@/components/ui/Table';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 export default function ComplaintRow({ id, date, department, title, status, isAnonim = false }) {
   const statusStyles = {
@@ -28,7 +29,7 @@ export default function ComplaintRow({ id, date, department, title, status, isAn
       </Td>
       <Td>
         <span className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${currentStyle}`}>
-          {status}
+          {COMPLAINT_STATUS_LABEL[status] ?? status}
         </span>
       </Td>
       <Td className="text-right">

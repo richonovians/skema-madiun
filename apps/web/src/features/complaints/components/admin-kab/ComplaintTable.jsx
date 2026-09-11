@@ -1,6 +1,7 @@
 import React from 'react';
 import Badge from '@/components/ui/Badge';
 import Link from 'next/link';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Kolom Prioritas/SLA/Progress% DIHAPUS -- tak ada field ini di backend
@@ -81,7 +82,9 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                 </td>
 
                 <td className="px-lg py-lg">
-                  <Badge variant={getStatusVariant(complaint.status)}>{complaint.status}</Badge>
+                  <Badge variant={getStatusVariant(complaint.status)}>
+                    {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
+                  </Badge>
                 </td>
 
                 <td className="px-lg py-lg text-left">

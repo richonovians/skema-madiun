@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button';
 import { Search, Download, FileText, ChevronDown, Filter } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Filter "Prioritas" & "Kecamatan" DIHAPUS -- tak ada field ini di backend
@@ -43,7 +44,7 @@ export default function ComplaintFilterBar({
 
   const statusOptions = [
     { value: '', label: 'Semua Status' },
-    { value: 'Diterima', label: 'Diterima' },
+    { value: 'Diterima', label: COMPLAINT_STATUS_LABEL.Diterima },
     { value: 'Diproses', label: 'Diproses' },
     { value: 'Selesai', label: 'Selesai' },
     { value: 'Ditolak', label: 'Ditolak' },

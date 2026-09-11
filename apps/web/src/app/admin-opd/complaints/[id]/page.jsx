@@ -76,12 +76,13 @@ export default function AdminComplaintDetailPage() {
     // terkirim. Backend (CreateReplyDto) kini terima salah satu.
     if (!data || (!text?.trim() && !file)) return;
     setActionError(null);
-    try {
-      await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
-      await refetch();
-    } catch (err) {
-      setActionError(err.message);
-    }
+    // Galat pengiriman TIDAK ditangkap di sini. Spanduk galat halaman berada di
+    // puncak, jauh di luar pandangan admin yang sedang berada di kolom balasan,
+    // sehingga kegagalan lewat tanpa terlihat. AdminResolutionWorkspace yang
+    // menangkapnya, menahan teks yang sudah diketik, dan menampilkan sebabnya
+    // tepat di atas tombol kirim.
+    await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
+    await refetch();
   };
 
   const handleCloseTicket = () => {
@@ -118,7 +119,12 @@ export default function AdminComplaintDetailPage() {
         </h2>
       </div>
 
-      {isLoading ? (
+      {/* Pemuat penuh HANYA saat belum ada yang bisa ditampilkan. Pada muat
+          ulang sesudah balasan terkirim, isi halaman dibiarkan terpasang:
+          menggantinya dengan pemuat meruntuhkan tinggi dokumen, dan peramban
+          menjepit posisi gulir ke nol -- admin terlempar ke puncak halaman
+          tiap kali membalas. */}
+      {isLoading && !data ? (
         <LoadingState label="Memuat detail pengaduan..." />
       ) : error ? (
         <ErrorState title="Gagal memuat pengaduan" description={error.message} onRetry={refetch} />

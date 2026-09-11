@@ -2,6 +2,7 @@
 import React from 'react';
 import Dropdown from '@/components/ui/Dropdown';
 import { Info } from 'lucide-react';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Transisi status yang diizinkan backend (ComplaintsService.ALLOWED_TRANSITIONS,
@@ -20,7 +21,7 @@ const ALLOWED_NEXT_STATUS = {
 export default function ComplaintStatusControl({ currentStatus, onStatusChangeRequest }) {
   const isTerminal = (ALLOWED_NEXT_STATUS[currentStatus] ?? []).length === 0;
   const statusOptions = [currentStatus, ...(ALLOWED_NEXT_STATUS[currentStatus] ?? [])].map(
-    (value) => ({ value, label: value }),
+    (value) => ({ value, label: COMPLAINT_STATUS_LABEL[value] ?? value }),
   );
 
   const handleDropdownChange = (newStatus) => {
