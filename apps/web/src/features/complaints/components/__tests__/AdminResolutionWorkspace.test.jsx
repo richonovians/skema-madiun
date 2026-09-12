@@ -57,4 +57,65 @@ describe('AdminResolutionWorkspace', () => {
     await waitFor(() => expect(tombolKirim()).toBeEnabled());
     expect(onSendUpdate).toHaveBeenCalledTimes(1);
   });
+  describe('Enter untuk mengirim', () => {
+    const ketik = (teks = 'Sudah kami tindak lanjuti.') => {
+      const kotak = screen.getByPlaceholderText(/tulis jawaban solusi/i);
+      fireEvent.change(kotak, { target: { value: teks } });
+      return kotak;
+    };
+
+    it('Enter mengirim pesannya', async () => {
+      const onSendUpdate = jest.fn().mockResolvedValue(undefined);
+      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+
+      fireEvent.keyDown(ketik(), { key: 'Enter' });
+
+      await waitFor(() => expect(onSendUpdate).toHaveBeenCalledTimes(1));
+      expect(onSendUpdate).toHaveBeenCalledWith('Sudah kami tindak lanjuti.', null);
+    });
+
+    it('Shift+Enter tidak mengirim, supaya balasan panjang tetap bisa berparagraf', () => {
+      const onSendUpdate = jest.fn().mockResolvedValue(undefined);
+      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+
+      fireEvent.keyDown(ketik(), { key: 'Enter', shiftKey: true });
+
+      expect(onSendUpdate).not.toHaveBeenCalled();
+    });
+
+    it('Enter pada kotak kosong tidak mengirim apa-apa', () => {
+      const onSendUpdate = jest.fn().mockResolvedValue(undefined);
+      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+
+      fireEvent.keyDown(screen.getByPlaceholderText(/tulis jawaban solusi/i), { key: 'Enter' });
+
+      expect(onSendUpdate).not.toHaveBeenCalled();
+    });
+
+    it('Enter saat aksara sedang disusun papan ketik tidak mengirim', () => {
+      // Papan ketik beraksara majemuk memakai Enter untuk MEMILIH calon aksara.
+      // Tanpa penjagaan ini, pemilihan itu ikut mengirim pesan yang belum jadi.
+      const onSendUpdate = jest.fn().mockResolvedValue(undefined);
+      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+
+      fireEvent.keyDown(ketik(), { key: 'Enter', isComposing: true });
+
+      expect(onSendUpdate).not.toHaveBeenCalled();
+    });
+
+    it('Enter berulang selagi pengiriman berjalan tidak mengirim dua kali', async () => {
+      let lepaskan;
+      const onSendUpdate = jest.fn(() => new Promise((r) => { lepaskan = r; }));
+      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+
+      const kotak = ketik();
+      fireEvent.keyDown(kotak, { key: 'Enter' });
+      await waitFor(() => expect(onSendUpdate).toHaveBeenCalledTimes(1));
+      fireEvent.keyDown(kotak, { key: 'Enter' });
+
+      expect(onSendUpdate).toHaveBeenCalledTimes(1);
+      lepaskan();
+      await waitFor(() => expect(tombolKirim()).toBeEnabled());
+    });
+  });
 });

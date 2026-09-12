@@ -42,4 +42,39 @@ describe('ShareSurveyModal', () => {
     expect(screen.getByText(/SSO/i)).toBeInTheDocument();
     expect(screen.queryByText(/tanpa login/i)).not.toBeInTheDocument();
   });
+  /**
+   * Panel keterangan biru menggambarkan tautan yang BERFUNGSI ("dapat diisi
+   * tanpa login" / "perlu masuk lewat SSO"). Pada survei yang belum aktif ia
+   * terpasang tepat di bawah spanduk kuning yang mengatakan tautannya belum
+   * dapat diisi -- dua pernyataan berlawanan dalam satu layar, dan yang bawah
+   * terdengar lebih meyakinkan karena berbicara soal cara kerja.
+   */
+  describe('keterangan cara pengisian', () => {
+    it('disembunyikan pada survei draf, menyisakan peringatannya saja', () => {
+      render(
+        <ShareSurveyModal survey={survei({ status: 'DRAF', izinkanAnonim: true })} onClose={() => {}} />,
+      );
+
+      expect(screen.getByText(/masih berstatus draf/i)).toBeInTheDocument();
+      expect(screen.queryByText(/dapat diisi tanpa login/i)).not.toBeInTheDocument();
+    });
+
+    it('disembunyikan pula pada survei yang sudah ditutup', () => {
+      render(
+        <ShareSurveyModal survey={survei({ status: 'DITUTUP', izinkanAnonim: false })} onClose={() => {}} />,
+      );
+
+      expect(screen.getByText(/sudah ditutup/i)).toBeInTheDocument();
+      expect(screen.queryByText(/SSO/i)).not.toBeInTheDocument();
+    });
+
+    it('tetap tampil pada survei aktif, sebab di sanalah ia benar (kontrol)', () => {
+      render(
+        <ShareSurveyModal survey={survei({ status: 'AKTIF', izinkanAnonim: true })} onClose={() => {}} />,
+      );
+
+      expect(screen.getByText(/dapat diisi tanpa login/i)).toBeInTheDocument();
+      expect(screen.queryByText(/masih berstatus draf/i)).not.toBeInTheDocument();
+    });
+  });
 });
