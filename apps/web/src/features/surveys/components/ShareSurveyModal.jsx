@@ -173,14 +173,22 @@ export default function ShareSurveyModal({ survey, onClose }) {
             </div>
           </div>
 
-          <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-            <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-blue-700 font-medium leading-relaxed">
-              {survey.izinkanAnonim
-                ? 'Survei ini dapat diisi tanpa login. Satu tautan/QR berlaku untuk semua orang; responden yang sudah masuk tetap tercatat atas namanya.'
-                : 'Responden perlu masuk lewat SSO terlebih dahulu; tautan ini akan mengarahkan mereka ke halaman masuk bila belum ada sesi.'}
-            </p>
-          </div>
+          {/* HANYA saat survei aktif. Keterangan ini menggambarkan tautan yang
+              berfungsi ("dapat diisi tanpa login" / "perlu masuk lewat SSO");
+              pada survei draf maupun yang sudah ditutup ia terpasang tepat di
+              bawah spanduk kuning yang mengatakan tautannya belum/tidak dapat
+              diisi. Dua pernyataan berlawanan dalam satu layar, dan yang bawah
+              terdengar lebih meyakinkan karena berbicara soal cara kerja. */}
+          {isActive && (
+            <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+              <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                {survey.izinkanAnonim
+                  ? 'Survei ini dapat diisi tanpa login. Satu tautan/QR berlaku untuk semua orang; responden yang sudah masuk tetap tercatat atas namanya.'
+                  : 'Responden perlu masuk lewat SSO terlebih dahulu; tautan ini akan mengarahkan mereka ke halaman masuk bila belum ada sesi.'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 border-t border-slate-100 pt-4">
