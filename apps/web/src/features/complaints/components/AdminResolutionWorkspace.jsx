@@ -17,6 +17,26 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
     }
   }, [chatHistory]);
 
+  /**
+   * Enter mengirim, Shift+Enter menyisipkan baris baru.
+   *
+   * TIDAK berlaku pada peranti sentuh: papan ketik layar tak punya Shift+Enter,
+   * sehingga Enter-mengirim akan membuat balasan berparagraf mustahil ditulis
+   * dari ponsel -- padahal di sana tombol Kirim Pesan sudah selebar layar.
+   */
+  const enterMengirim = () => !window.matchMedia?.('(pointer: coarse)')?.matches;
+
+  const handleKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    // Papan ketik beraksara majemuk memakai Enter untuk MEMILIH calon aksara.
+    // Tanpa penjagaan ini, pemilihan itu ikut mengirim pesan yang belum jadi.
+    // `keyCode 229` adalah penanda peramban lama untuk keadaan yang sama.
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+    if (!enterMengirim()) return;
+    e.preventDefault();
+    handleSend();
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setAttachedFile(e.target.files[0]);
@@ -64,6 +84,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
   };
 
   const handleSend = async () => {
+    if (sedangMengirim) return;
     if (!replyText.trim() && !attachedFile) return;
     setGalatKirim(null);
     setSedangMengirim(true);
@@ -169,6 +190,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
           <textarea 
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="w-full min-h-[128px] sm:min-h-[160px] p-md sm:p-lg pb-14 border border-outline-variant rounded-xl bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none font-body-md text-body-md" 
             placeholder="Tulis jawaban solusi atau update status di sini..."
           />
@@ -184,6 +206,11 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
               <span className="text-label-md hidden sm:inline">Lampirkan Dokumen/Foto</span>
             </label>
           </div>
+          {/* Hanya pada layar lebar: di peranti sentuh Enter memang menyisipkan
+              baris baru, jadi petunjuk ini akan menyesatkan di sana. */}
+          <span className="hidden sm:block absolute bottom-md right-md text-xs text-text-secondary">
+            Enter untuk mengirim, Shift + Enter baris baru
+          </span>
         </div>
 
         {galatKirim && (
