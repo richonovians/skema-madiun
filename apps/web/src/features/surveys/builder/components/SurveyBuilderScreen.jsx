@@ -71,8 +71,11 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   // September 2026; sebelum itu endpoint ini tak pernah mengisinya.
   const [jumlahJawaban, setJumlahJawaban] = useState(0);
   const [konfirmasiTerbit, setKonfirmasiTerbit] = useState(false);
-  // Dibaca HANYA untuk naskah konfirmasi publikasi; saklarnya sendiri ada di
-  // formulir kelola survei, bukan di builder.
+  // Saklarnya ada DI SINI sejak 11 September 2026. Sebelumnya hanya di
+  // SurveyFormModal -- formulir milik Admin Kabupaten -- sementara setiap jalur
+  // Admin OPD, membuat maupun mengubah survei, bermuara ke builder ini. Peran
+  // itu jadi tak punya cara apa pun menyalakannya, dan surveinya selamanya
+  // lahir tertutup.
   const [izinkanAnonim, setIzinkanAnonim] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -129,11 +132,12 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     const created = await createSurvey({
       title: title.trim() || 'Survei Tanpa Judul',
       period: periode,
+      izinkanAnonim,
     });
     setSurveyId(created.id);
     setStatus(created.status);
     return created.id;
-  }, [surveyId, title, periode]);
+  }, [surveyId, title, periode, izinkanAnonim]);
 
   /**
    * Susunan pertanyaan terkunci begitu jawaban pertama masuk (aturan §2.4
@@ -145,6 +149,11 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
    * Survei DITUTUP terkunci seluruhnya: hasil IKM-nya sudah terbit.
    */
   const susunanTerkunci = status === 'DITUTUP' || (status !== 'DRAF' && jumlahJawaban > 0);
+  // Judul & izin pengisian berada pada tingkat 'meta': backend mengizinkannya
+  // sepanjang survei belum ditutup, SEKALIPUN jawaban sudah masuk -- keduanya
+  // tak mengubah arti jawaban yang sudah terkumpul. Dipisahkan dari
+  // `susunanTerkunci` supaya layar ini tidak menolak apa yang backend terima.
+  const metaTerkunci = status === 'DITUTUP';
   const alasanTerkunci =
     status === 'DITUTUP'
       ? 'Survei ini sudah ditutup dan hasil IKM-nya sudah terbit, jadi isinya tidak dapat diubah. Aktifkan kembali lebih dulu bila memang perlu diubah.'
@@ -159,10 +168,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   };
 
   const handleTitleBlur = async () => {
-    if (!surveyId || susunanTerkunci) return;
+    if (!surveyId || metaTerkunci) return;
     setIsSaving(true);
     try {
-      await updateSurvey(surveyId, { title, period: periode });
+      await updateSurvey(surveyId, { title, period: periode, izinkanAnonim });
     } catch (err) {
       setActionError(err.message);
     } finally {
@@ -176,8 +185,33 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     if (!surveyId || susunanTerkunci) return;
     setIsSaving(true);
     try {
-      await updateSurvey(surveyId, { title, period: newPeriode });
+      await updateSurvey(surveyId, { title, period: newPeriode, izinkanAnonim });
     } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Disimpan SEKETIKA saat saklarnya diubah, bukan menunggu blur seperti judul:
+   * kotak centang tak punya momen blur yang wajar, dan admin yang menyalakannya
+   * lalu langsung berpindah halaman berhak menemukannya tetap menyala.
+   *
+   * Pada survei yang belum benar-benar ada di basis data, nilainya cukup
+   * disimpan di state -- `ensureSurveyExists` mengirimkannya saat survei dibuat.
+   */
+  const handleIzinkanAnonimCommit = async (nilai) => {
+    setIzinkanAnonim(nilai);
+    if (!surveyId || metaTerkunci) return;
+    setIsSaving(true);
+    setActionError(null);
+    try {
+      await updateSurvey(surveyId, { title, period: periode, izinkanAnonim: nilai });
+    } catch (err) {
+      // Dikembalikan ke keadaan semula: saklar yang tetap menyala padahal
+      // backend menolak akan membuat admin mengira survei sudah terbuka.
+      setIzinkanAnonim(!nilai);
       setActionError(err.message);
     } finally {
       setIsSaving(false);
@@ -512,6 +546,9 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onTitleBlur={handleTitleBlur}
         periode={periode}
         onPeriodeCommit={handlePeriodeCommit}
+        izinkanAnonim={izinkanAnonim}
+        onIzinkanAnonimCommit={handleIzinkanAnonimCommit}
+        canEditMeta={!metaTerkunci}
         drag={drag}
         canReorder={!susunanTerkunci}
         alasanTerkunci={alasanTerkunci}

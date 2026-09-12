@@ -41,6 +41,12 @@ export default function BuilderCanvas({
   onTitleBlur,
   periode,
   onPeriodeCommit,
+  izinkanAnonim = false,
+  onIzinkanAnonimCommit,
+  // Judul & izin pengisian ikut aturan 'meta' (boleh sampai survei ditutup),
+  // terpisah dari `canReorder` yang mengunci periode & susunan begitu ada
+  // jawaban. Lihat SurveyBuilderScreen.
+  canEditMeta = true,
   // Seret-lepas
   drag = null,
   canReorder = false,
@@ -58,6 +64,7 @@ export default function BuilderCanvas({
   // sama persis untuk menyunting judul/periode: keduanya ditolak backend di luar
   // status draf. Dipakai apa adanya, bukan prop baru yang bisa tak sinkron.
   const isEditable = canReorder && typeof onTitleChange === 'function';
+  const isEditableMeta = canEditMeta && typeof onTitleChange === 'function';
 
   const clearOver = () => setOverSlot(null);
 
@@ -124,7 +131,7 @@ export default function BuilderCanvas({
             keduanya read-only -- `PATCH /surveys/:id` backend menolaknya
             (assertDraft), jadi jangan mengundang perubahan yang pasti gagal. */}
         <div className="bg-white border border-border rounded-xl p-lg md:p-2xl shadow-sm mb-xl flex flex-col items-center gap-sm">
-          {isEditable ? (
+          {isEditableMeta ? (
             <input
               type="text"
               value={title}
@@ -156,6 +163,40 @@ export default function BuilderCanvas({
               {periode ? `Periode ${formatPeriodeLabel(periode)}` : 'Periode belum diatur'}
             </p>
           )}
+
+          {/* Kotak centang dibungkus labelnya sendiri (pola sama SurveyFormModal
+              & ConsentGate): kotaknya 20px, tapi bidang sentuhnya seluruh label
+              -- itulah yang memenuhi target 44px. */}
+          <label
+            htmlFor="builder-izinkan-anonim"
+            className={`mt-sm flex items-start gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60 text-left transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary-container/20 ${
+              isEditableMeta ? 'cursor-pointer hover:bg-surface-container-low' : 'opacity-60'
+            }`}
+          >
+            <input
+              id="builder-izinkan-anonim"
+              type="checkbox"
+              checked={izinkanAnonim}
+              disabled={!isEditableMeta}
+              onChange={(e) => onIzinkanAnonimCommit?.(e.target.checked)}
+              aria-describedby="builder-izinkan-anonim-bantuan"
+              className="w-5 h-5 mt-0.5 shrink-0 accent-primary disabled:cursor-not-allowed"
+            />
+            <span className="text-sm text-text-primary leading-relaxed">
+              Izinkan pengisian <strong className="font-semibold">tanpa login</strong> (tautan/QR
+              publik)
+              {/* Keterangan ini WAJIB ada: admin yang menyalakan saklar berhak
+                  tahu bahwa integritas hitungannya bertumpu pada kejujuran
+                  responden, bukan pada penegakan sistem. */}
+              <span
+                id="builder-izinkan-anonim-bantuan"
+                className="block mt-1 text-xs text-text-secondary font-normal"
+              >
+                Cocok untuk QR di loket layanan. Pengisian berulang hanya dicegah lewat penanda di
+                peramban responden, bukan ditegakkan sistem.
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Questions List */}
