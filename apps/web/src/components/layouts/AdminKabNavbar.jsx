@@ -265,7 +265,7 @@ export default function AdminKabNavbar() {
           jaminan kedua bahwa kelompok ini rapat ke tepi kanan, bahkan bila
           judulnya kelak tak lagi `flex-1`. Polanya kini identik AdminNavbar. */}
       <div className="ml-auto flex shrink-0 items-center gap-2 xl:order-4 lg:gap-md">
-        <NotificationDropdown />
+        <NotificationDropdown allHref="/admin-kab/notifications" />
 
         <div className="flex items-center gap-2 lg:gap-md lg:border-l lg:border-border lg:pl-lg">
           {isLoading ? (

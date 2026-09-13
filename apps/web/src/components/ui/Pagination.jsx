@@ -19,8 +19,14 @@ export default function Pagination({
       <span className="font-body text-sm font-medium text-text-secondary">
         Menampilkan {startItem}-{endItem} dari {totalItems} {itemName}
       </span>
+      {/* Kedua tombol di bawah HANYA berisi ikon, jadi tanpa `aria-label` ia tak
+          punya nama yang bisa dibacakan sama sekali -- pembaca layar cuma
+          menyebut "tombol", persis cacat yang dulu ditemukan pada bel
+          notifikasi. Ditemukan 13 September 2026 saat menulis uji halaman
+          riwayat notifikasi; berlaku untuk SETIAP halaman berpaginasi. */}
       <div className="flex gap-2">
         <button 
+          aria-label="Halaman sebelumnya"
           onClick={() => onPageChange && onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
           className={`p-1 rounded flex items-center justify-center transition-colors ${
@@ -32,6 +38,7 @@ export default function Pagination({
           <ChevronLeft size={20} />
         </button>
         <button 
+          aria-label="Halaman berikutnya"
           onClick={() => onPageChange && onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
           className={`p-1 rounded flex items-center justify-center transition-colors ${

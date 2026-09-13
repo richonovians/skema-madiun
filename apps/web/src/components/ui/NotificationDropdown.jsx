@@ -24,7 +24,15 @@ const LIST_LIMIT = 10;
  * di mana pun) -- lencana & daftar hanya refresh saat mount ulang atau
  * setelah aksi tandai-dibaca.
  */
-export default function NotificationDropdown({ className = '' }) {
+/**
+ * `allHref` -- alamat halaman riwayat lengkap (13 September 2026).
+ *
+ * Dioper pemanggil, tidak disimpulkan dari `usePathname`: komponen ini dipakai
+ * empat navbar di tiga area rute yang berbeda, dan menebak area dari alamat
+ * halaman berarti satu daftar awalan yang harus diburu ulang setiap kali ada
+ * rute baru. Bakunya rute warga, sebab `Navbar` juga tampil di halaman publik.
+ */
+export default function NotificationDropdown({ className = '', allHref = '/notifications' }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -196,6 +204,17 @@ export default function NotificationDropdown({ className = '' }) {
                 })}
               </ul>
             )}
+
+            {/* Di luar percabangan kosong/berisi: justru saat panel kosong
+                pengguna paling perlu jalan ke riwayat lama, dan menaruhnya di
+                dalam cabang "berisi" akan menyembunyikannya persis di situ. */}
+            <Link
+              href={allHref}
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-3 text-center text-xs font-bold text-primary border-t border-slate-100 hover:bg-slate-50 transition-colors"
+            >
+              Lihat semua notifikasi
+            </Link>
           </div>
         </>
       )}
