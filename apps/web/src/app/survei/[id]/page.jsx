@@ -16,6 +16,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
+import { usePetikanPerambanSekali } from '@/features/authentication/hooks/useSesiAktif';
 import { sudahMengisiDiPeramban } from '@/utils/surveyFillMarker';
 import { getPublicSurveyFill, getSurveyFill } from '@/features/surveys/services/surveys.api';
 
@@ -52,7 +53,16 @@ export default function IsiSurveiPage() {
   // state dari dalam effect memicu render berjenjang dan dilanggar aturan
   // react-hooks/set-state-in-effect (catatan sama di ShareSurveyModal.jsx).
   const [adaSesi] = useState(() => isAuthenticated());
-  const [ditandaiPeramban] = useState(() =>
+
+  // Penanda peramban TIDAK boleh dibaca lewat inisialisasi useState seperti
+  // `adaSesi` di atas. Keduanya sama-sama hanya terbaca di peramban, tetapi
+  // akibatnya berbeda: `adaSesi` baru berpengaruh setelah kuesioner termuat,
+  // sedangkan penanda ini memotong halaman lebih awal (lihat `return` layar
+  // "Anda Sudah Mengisi Survei Ini" di bawah). Server selalu merender pemintal,
+  // klien langsung merender layar terima kasih, dan React melaporkan hydration
+  // failed. Petikan server hook ini `false`, lalu nilai sebenarnya dibaca sekali
+  // sesudah hidrasi dan dibekukan -- sama awetnya dengan cara lama.
+  const ditandaiPeramban = usePetikanPerambanSekali(() =>
     isAuthenticated() ? false : sudahMengisiDiPeramban(id),
   );
 

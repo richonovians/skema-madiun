@@ -67,7 +67,7 @@ export default function AdminSurveysPage() {
 
   return (
     <div className="w-full">
-      <SurveyPageHeader />
+      <SurveyPageHeader surveys={filteredSurveys} />
       <SurveyTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       {actionError && (

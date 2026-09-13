@@ -5,6 +5,7 @@ import IsiSurveiPage from '../[id]/page';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import { sudahMengisiDiPeramban } from '@/utils/surveyFillMarker';
 import { getPublicSurveyFill, getSurveyFill } from '@/features/surveys/services/surveys.api';
+import { keluhanHidrasi } from '@/mocks/hidrasi';
 
 /**
  * Rute `/survei/:id` melayani DUA keadaan dengan satu tautan. Yang diuji di sini
@@ -217,5 +218,40 @@ describe('/survei/:id - gerbang persetujuan', () => {
 
     expect(await screen.findByText(/sudah mengisi survei ini/i)).toBeInTheDocument();
     expect(screen.queryByText('Persetujuan Pemrosesan Data Pribadi')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Halaman ini dirender lebih dulu di server, yang tak dapat melihat localStorage.
+ * Baik ada-tidaknya sesi maupun penanda "sudah mengisi di perangkat ini" hanya
+ * terbaca di peramban, dan keduanya mengubah pohon yang dirender: yang pertama
+ * memilih gerbang, yang kedua mengganti seluruh halaman dengan layar terima
+ * kasih. Render pertama di klien karenanya harus tetap sama dengan HTML server.
+ */
+describe('hidrasi halaman pengisian survei', () => {
+  // Lolos BUKAN karena `adaSesi` aman secara umum, melainkan karena render
+  // pertama halaman ini selalu pemintal `isLoading`: gerbang yang dipilih
+  // `adaSesi` baru muncul sesudah kuesioner termuat, jauh sesudah hidrasi.
+  // Ditulis apa adanya supaya tak ada yang membacanya sebagai bukti bahwa
+  // membaca sesi lewat inisialisasi useState di sini tidak apa-apa.
+  it('render pertama tidak bergantung sesi, sebab masih memuat', async () => {
+    const keluhan = await keluhanHidrasi(<IsiSurveiPage />, {
+      diServer: () => isAuthenticated.mockReturnValue(false),
+      diKlien: () => isAuthenticated.mockReturnValue(true),
+    });
+
+    expect(keluhan).toEqual([]);
+  });
+
+  it('tak ada selisih server-klien bila survei sudah ditandai terisi di peramban', async () => {
+    const keluhan = await keluhanHidrasi(<IsiSurveiPage />, {
+      diServer: () => {
+        isAuthenticated.mockReturnValue(false);
+        sudahMengisiDiPeramban.mockReturnValue(false);
+      },
+      diKlien: () => sudahMengisiDiPeramban.mockReturnValue(true),
+    });
+
+    expect(keluhan).toEqual([]);
   });
 });

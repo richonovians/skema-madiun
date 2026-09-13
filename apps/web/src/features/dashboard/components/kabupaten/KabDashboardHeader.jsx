@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, FileText } from 'lucide-react';
 import { downloadTablePdf } from '@/utils/pdf';
+import { KOLOM_LAPORAN_RINGKAS, LEBAR_TABEL_RINGKAS } from '@/utils/pdfKolom';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 
 /**
@@ -65,10 +66,8 @@ export default function KabDashboardHeader({ summary }) {
         filename: 'Laporan_Tahunan.pdf',
         title: 'Laporan Tahunan Kinerja Kabupaten',
         subtitle: 'Ringkasan indikator utama',
-        columns: [
-          { header: 'INDIKATOR', width: 3 },
-          { header: 'NILAI', width: 2 },
-        ],
+        columns: KOLOM_LAPORAN_RINGKAS,
+        lebarTabel: LEBAR_TABEL_RINGKAS,
         rows: rows.map(([label, value]) => [label, value]),
       });
     } catch (err) {
