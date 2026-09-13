@@ -5,6 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
 
 /**
  * Bukti DECISIF untuk `@Public()` pada endpoint pengisian survei anonim.
@@ -74,6 +75,9 @@ describe('Public Surveys dengan SessionAuthProvider aktif (e2e)', () => {
       return;
     }
     await prisma.surveyResponse.deleteMany({ where: { survey: { opdId } } });
+    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
+    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.survey.deleteMany({ where: { opdId } });
     await prisma.opd.deleteMany({ where: { kode: 'E2EPUBS' } });
     await app.close();

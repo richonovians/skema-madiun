@@ -41,6 +41,16 @@ const STATUS_LABEL: Record<string, string> = {
  * menggagalkan aksi utama (ubah status/kirim balasan), sama semangatnya dgn
  * AuditInterceptor yg juga toleran thd kegagalan pencatatan.
  */
+/**
+ * Jumlah jawaban yang memicu notifikasi survei. Sesudah 100, hanya kelipatan
+ * 100 -- survei bertarget ratusan responden tak boleh membanjiri lonceng
+ * kabupaten & superuser, yang juga menerima notifikasi pengaduan.
+ */
+const TONGGAK_AWAL: readonly number[] = [1, 10, 25, 50];
+
+const adalahTonggak = (jumlah: number): boolean =>
+  jumlah > 0 && (TONGGAK_AWAL.includes(jumlah) || jumlah % 100 === 0);
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -133,6 +143,53 @@ export class NotificationsService {
   }
 
   /**
+   * Jawaban survei masuk -> beri tahu Admin OPD pemilik survei + kabupaten
+   * (oversight). Pengisinya sendiri tak diberi tahu.
+   *
+   * Jumlahnya dihitung DI SINI, bukan diterima dari pemanggil: kegagalan
+   * kueri hitung pun harus ditelan seperti kegagalan notifikasi lainnya, dan
+   * itu hanya terjamin kalau kueri itu berada di dalam kelas ini.
+   *
+   * Pesannya TAK PERNAH menyebut siapa pengisinya. Survei boleh diisi anonim,
+   * dan identitas responden IKM memang bukan hal yang perlu diketahui admin.
+   */
+  async notifySurveyResponse(
+    survey: { id: number; judul: string; opdId: number },
+    pengisiUserId: number | null,
+  ): Promise<void> {
+    let jumlah: number;
+    try {
+      jumlah = await this.prisma.surveyResponse.count({ where: { surveyId: survey.id } });
+    } catch (err) {
+      this.logger.warn(`Gagal menghitung jawaban survei #${survey.id}: ${String(err)}`);
+      return;
+    }
+    if (!adalahTonggak(jumlah)) return;
+
+    const pertama = jumlah === 1;
+    const title = pertama ? 'Survei Mulai Menerima Jawaban' : 'Jawaban Survei Bertambah';
+    const message = pertama
+      ? `Survei "${survey.judul}" menerima jawaban pertama`
+      : `Survei "${survey.judul}" telah menerima ${jumlah} jawaban`;
+
+    await this.notifyRole(
+      Role.opd,
+      survey.opdId,
+      NotificationType.survey_response_created,
+      title,
+      message,
+      `/admin-opd/surveys/${survey.id}/responses`,
+    );
+    await this.notifyKabupaten(
+      pengisiUserId,
+      NotificationType.survey_response_created,
+      title,
+      message,
+      `/admin-kab/surveys/${survey.id}/responses`,
+    );
+  }
+
+  /**
    * Broadcast ke semua akun aktif berperan `role` (opsional terikat `opdId`).
    * Query pencarian penerima DIBUNGKUS try/catch di sini juga (2026-08-06) --
    * SEBELUMNYA cuma `safeCreate` (baris DB per-notifikasi) yg aman, TAPI
@@ -165,9 +222,16 @@ export class NotificationsService {
     }
   }
 
-  /** Broadcast ke semua Admin Kabupaten aktif, kecuali pelaku aksi itu sendiri. */
+  /**
+   * Broadcast ke semua Admin Kabupaten aktif, kecuali pelaku aksi itu sendiri.
+   *
+   * `null` berarti pelakunya tak punya baris `users` sama sekali -- pengisi
+   * survei tanpa sesi (13 September 2026). Klausa `id` lalu DIHILANGKAN, bukan
+   * diisi id semu: `{ not: <id palsu> }` diam-diam mengecualikan akun sungguhan
+   * yang kebetulan bernomor itu.
+   */
   private async notifyKabupaten(
-    excludeUserId: number,
+    excludeUserId: number | null,
     type: NotificationType,
     title: string,
     message: string,
@@ -180,7 +244,7 @@ export class NotificationsService {
         where: {
           roles: { hasSome: [...FULL_ACCESS_ROLES] },
           isActive: true,
-          id: { not: excludeUserId },
+          ...(excludeUserId === null ? {} : { id: { not: excludeUserId } }),
         },
         select: { id: true },
       });

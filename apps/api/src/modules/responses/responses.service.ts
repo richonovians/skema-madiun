@@ -11,6 +11,7 @@ import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
 import { SubmitPublicResponseDto } from './dto/submit-public-response.dto';
@@ -26,6 +27,7 @@ export class ResponsesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly consent: ConsentService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Ambil survei aktif beserta pertanyaannya untuk diisi responden (BE-22). */
@@ -128,6 +130,13 @@ export class ResponsesService {
         },
         include: { answers: true },
       });
+      // SESUDAH baris tersimpan: jumlah jawaban dihitung di dalam
+      // NotificationsService, jadi memanggilnya lebih awal membuat tonggak
+      // "jawaban pertama" tak pernah berbunyi.
+      await this.notifications.notifySurveyResponse(
+        { id: survey.id, judul: survey.judul, opdId: survey.opdId },
+        user.userId,
+      );
       return this.toResponseEntity(created, created.answers);
     } catch (err) {
       // Jaga-jaga balapan (race) menembus pra-cek → langgar unique constraint.
@@ -220,6 +229,12 @@ export class ResponsesService {
       },
       include: { answers: true },
     });
+    // `null`: pengisi tanpa sesi tak punya baris `users`, jadi tak ada siapa
+    // pun yang perlu dikecualikan dari broadcast pengawasan.
+    await this.notifications.notifySurveyResponse(
+      { id: survey.id, judul: survey.judul, opdId: survey.opdId },
+      null,
+    );
     return this.toResponseEntity(created, created.answers);
   }
 
