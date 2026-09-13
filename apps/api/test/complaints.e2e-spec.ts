@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+import { bersihkanAuditAkunUji } from './helpers/audit.helper';
 
 /**
  * PNG SUNGGUHAN (8 bita tanda tangan + isi apa saja).
@@ -106,6 +107,10 @@ describe('Complaints (e2e)', () => {
     await prisma.complaintAttachment.deleteMany({ where: { complaint: { userId: pelapor } } });
     await prisma.complaint.deleteMany({ where: { userId: pelapor } });
     await prisma.complaint.deleteMany({ where: { opdId } });
+    // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat
+    // dihapus selama baris auditnya masih ada (aksi warga teraudit sejak
+    // 13 September 2026).
+    await bersihkanAuditAkunUji(prisma, ['e2e-cmp-resp-1', 'e2e-cmp-resp-2']);
     await prisma.user.deleteMany({
       where: { ssoSubject: { in: ['e2e-cmp-resp-1', 'e2e-cmp-resp-2'] } },
     });

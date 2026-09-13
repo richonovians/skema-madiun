@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+import { bersihkanAuditAkunUji } from './helpers/audit.helper';
 import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
 
 /**
@@ -95,6 +96,10 @@ describe('Notifikasi jawaban survei (e2e)', () => {
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.surveyResponse.deleteMany({ where: { survey: { opdId } } });
     await prisma.survey.deleteMany({ where: { opdId } });
+    // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat
+    // dihapus selama baris auditnya masih ada (aksi warga teraudit sejak
+    // 13 September 2026).
+    await bersihkanAuditAkunUji(prisma, ['e2e-notif-responden', 'e2e-notif-opd']);
     await prisma.user.deleteMany({
       where: { ssoSubject: { in: ['e2e-notif-responden', 'e2e-notif-opd'] } },
     });

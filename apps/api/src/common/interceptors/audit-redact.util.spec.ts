@@ -38,6 +38,57 @@ describe('redactAuditBody', () => {
     expect(hasil).toEqual({ catatan: PENANDA_DISUNTING });
   });
 
+  /**
+   * 13 September 2026, sebelum `POST /surveys/:id/responses` diaudit. Payload
+   * survei memakai kunci `answers`/`teks` (dan `nomorHp` pada jalur publik) --
+   * tak satu pun ada di daftar tolak, sehingga mengaudit endpoint itu akan
+   * menyalin jawaban warga utuh ke tabel yang dibaca superuser. Persis temuan
+   * T8, hanya pada endpoint yang berbeda.
+   *
+   * Kunci `answers` SENGAJA dipertahankan: auditnya harus tetap berbunyi
+   * "warga mengirim jawaban survei ini", tanpa isinya -- cakupan yang
+   * disetujui pengguna.
+   */
+  it('menyunting jawaban survei, tapi kunci `answers` tetap terbaca', () => {
+    const hasil = redactAuditBody({
+      answers: [
+        { questionId: 101, nilai: 4 },
+        { questionId: 102, teks: 'Petugasnya lambat dan saya menunggu 3 jam' },
+      ],
+    });
+
+    expect(Object.keys(hasil as object)).toEqual(['answers']);
+    expect(hasil).toEqual({ answers: PENANDA_DISUNTING });
+  });
+
+  it('menyunting `teks` jawaban walau dikirim di luar pembungkus answers', () => {
+    expect(redactAuditBody({ teks: 'Cerita pribadi pelapor' })).toEqual({
+      teks: PENANDA_DISUNTING,
+    });
+  });
+
+  it('menyunting nomor HP pengisi survei publik', () => {
+    const hasil = redactAuditBody({ nama: 'Siti', nomorHp: '081234567890', setuju: true });
+
+    // `setuju` DIBIARKAN: bukti persetujuan PDP justru harus terbaca.
+    expect(hasil).toEqual({
+      nama: PENANDA_DISUNTING,
+      nomorHp: PENANDA_DISUNTING,
+      setuju: true,
+    });
+  });
+
+  /**
+   * Batas cakupan yang disetujui pengguna: audit menjawab "survei mana", bukan
+   * "dijawab apa". `surveyId` ada di `params`, bukan `body`, tapi keduanya
+   * dilewatkan fungsi yang sama -- jadi aturan ini harus berlaku di sini juga.
+   */
+  it('MEMBIARKAN id survei & pertanyaan, yang tak memuat data pribadi', () => {
+    const params = { surveyId: 24 };
+    expect(redactAuditBody(params)).toEqual(params);
+    expect(redactAuditBody({ questionId: 101 })).toEqual({ questionId: 101 });
+  });
+
   it('menyunting kredensial walau hari ini belum ada yang mengirimnya', () => {
     // Asuransi murah: begitu ada endpoint yang menerima token/rahasia, ia tak
     // ikut tercetak ke tabel yang dapat dibaca manusia.
