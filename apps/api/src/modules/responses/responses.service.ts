@@ -312,7 +312,12 @@ export class ResponsesService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.surveyResponse.findMany({
         where: { surveyId },
-        include: { answers: true },
+        // Terurut mengikuti urutan pertanyaan survei (13 September 2026,
+        // laporan pengguna "nomornya terbalik"). Tanpa `orderBy`, Postgres tak
+        // menjanjikan urutan apa pun: dua dari tiga respons di basis data lokal
+        // kembali persis terbalik, yang ketiga kebetulan benar -- karena itu
+        // gejalanya terlihat muncul-hilang.
+        include: { answers: { orderBy: { question: { urutan: 'asc' } } } },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { submittedAt: 'desc' },

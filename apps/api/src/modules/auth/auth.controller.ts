@@ -23,6 +23,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { AllowUnselectedRole } from '../../common/decorators/allow-unselected-role.decorator';
+import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuditService } from '../audit/audit.service';
@@ -298,8 +299,17 @@ export class AuthController {
     return this.authService.getMe(user);
   }
 
-  /** Ubah profil/data diri (demografis khusus responden). */
+  /**
+   * Ubah profil/data diri (demografis khusus responden).
+   *
+   * Teraudit sejak 13 September 2026. Aksinya DITULIS TERSURAT
+   * (`update_profile`), bukan dibiarkan disimpulkan `update` dari metode PATCH:
+   * entitasnya `user`, sama dengan penyuntingan akun oleh admin lewat
+   * `PATCH /users/:id`, dan tanpa pembeda ini keduanya tak dapat dibedakan di
+   * halaman log aktivitas. Isi datanya disunting lewat kunci `nama`.
+   */
   @Patch('profile')
+  @Audit('user', 'update_profile')
   @ApiOkResponse({ type: MeEntity })
   updateProfile(
     @CurrentUser() user: CurrentUser,

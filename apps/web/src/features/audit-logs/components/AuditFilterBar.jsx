@@ -1,6 +1,7 @@
 import React from 'react';
 import Dropdown from '@/components/ui/Dropdown';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
+import { entitasLabel } from '../adapters/auditLog.adapter';
 
 /**
  * HANYA filter "Modul" (entitas) -- satu-satunya yg didukung backend
@@ -9,13 +10,19 @@ import ResetFilterButton from '@/components/ui/ResetFilterButton';
  * (bukan disembunyikan) krn tak ada dukungan backend sama sekali --
  * membiarkannya tampil berarti berpura-pura menyaring padahal tidak.
  */
-const MODULE_OPTIONS = [
+/**
+ * Diekspor supaya satu uji dapat menjaga daftar ini tetap selengkap
+ * `ENTITAS_LABEL` -- saringan yang tak memuat entitas yang benar-benar tercatat
+ * membuat baris itu mustahil ditemukan di halaman berisi ribuan entri.
+ *
+ * Labelnya diambil dari `entitasLabel`, bukan diketik ulang: dua daftar yang
+ * mengeja hal sama adalah dua daftar yang kelak berbeda.
+ */
+export const MODULE_OPTIONS = [
   { value: '', label: 'Semua Modul' },
-  { value: 'complaint', label: 'Pengaduan' },
-  { value: 'opd', label: 'OPD' },
-  { value: 'question', label: 'Pertanyaan' },
-  { value: 'survey', label: 'Survei' },
-  { value: 'user', label: 'Pengguna' },
+  ...['auth', 'complaint', 'complaint_reply', 'opd', 'question', 'response', 'survey', 'user'].map(
+    (value) => ({ value, label: entitasLabel(value) }),
+  ),
 ];
 
 export default function AuditFilterBar({ entitas, onEntitasChange, onReset }) {

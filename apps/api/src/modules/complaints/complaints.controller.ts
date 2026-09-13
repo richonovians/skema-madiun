@@ -43,9 +43,17 @@ const MULTER_HARD_CEILING_BYTES = 20 * 1024 * 1024;
 export class ComplaintsController {
   constructor(private readonly complaintsService: ComplaintsService) {}
 
-  /** Ajukan pengaduan (Responden) — dapat nomor tiket. Lampiran opsional (multipart). */
+  /**
+   * Ajukan pengaduan (Responden) — dapat nomor tiket. Lampiran opsional (multipart).
+   *
+   * `@Audit` ditambahkan 13 September 2026 (laporan pengguna: aktivitas warga
+   * tak pernah masuk audit log). Isi keluhan disunting `redactAuditBody`
+   * lewat kunci `uraian`; yang tercatat "warga mengajukan pengaduan", bukan
+   * keluhannya.
+   */
   @Post()
   @Roles(Role.responden)
+  @Audit('complaint')
   @UseInterceptors(
     FilesInterceptor('lampiran', 5, {
       storage: memoryStorage(),
@@ -135,9 +143,16 @@ export class ComplaintsController {
     return this.complaintsService.listReplies(id, user);
   }
 
-  /** Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). Lampiran opsional (multipart). */
+  /**
+   * Tambah tanggapan (Admin OPD pemilik atau Responden pengaju). Lampiran opsional (multipart).
+   *
+   * Teraudit sejak 13 September 2026. Berlaku untuk SEMUA peran di daftar
+   * `@Roles` di bawah, bukan hanya warga: balasan Admin OPD pun sebelumnya tak
+   * pernah tercatat, dan itu celah yang sama.
+   */
   @Post(':id/replies')
   @Roles(Role.kabupaten, Role.superuser, Role.opd, Role.responden)
+  @Audit('complaint_reply')
   @UseInterceptors(
     FilesInterceptor('lampiran', 5, {
       storage: memoryStorage(),

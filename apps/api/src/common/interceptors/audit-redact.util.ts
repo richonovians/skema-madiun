@@ -29,10 +29,16 @@ export const PENANDA_DISUNTING = '[disunting]';
  * Nama kunci yang nilainya tak boleh masuk audit log.
  *
  * Tiga kelompok:
- *  - identitas orang (`nama`, `email`, `ssoSubject`);
+ *  - identitas orang (`nama`, `email`, `ssoSubject`, `nomorHp`);
  *  - teks bebas yang dapat memuat cerita pribadi (`catatan`, `uraian`, `pesan`,
  *    `jawaban`, `komentar`, `saran`) — di sistem pengaduan, isi keluhan justru
  *    bagian paling pribadinya;
+ *  - jawaban survei (`answers`, `teks`) — ditambahkan 13 September 2026 SEBELUM
+ *    `POST /surveys/:id/responses` diaudit. Payload survei memakai kunci
+ *    berbahasa Inggris yang tak tercakup daftar lama, sehingga mengauditnya akan
+ *    menyalin jawaban warga utuh ke tabel yang dibaca superuser. Kuncinya tetap
+ *    terbaca, jadi auditnya berbunyi "warga mengirim jawaban survei ini" tanpa
+ *    isinya — cakupan yang disetujui pengguna;
  *  - kredensial (`password`, `token`, `secret`, `sig`, `authorization`) —
  *    belum ada endpoint teraudit yang menerimanya, dan itulah gunanya: begitu
  *    ada, ia tak ikut tercetak ke tabel yang dibaca manusia.
@@ -45,6 +51,9 @@ const KUNCI_SENSITIF = new Set([
   'nama',
   'email',
   'ssosubject',
+  'nomorhp',
+  'answers',
+  'teks',
   'catatan',
   'uraian',
   'pesan',

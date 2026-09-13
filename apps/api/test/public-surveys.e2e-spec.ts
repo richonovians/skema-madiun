@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+import { bersihkanAuditAkunUji } from './helpers/audit.helper';
 import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
 
 /**
@@ -130,6 +131,10 @@ describe('Public Surveys (e2e)', () => {
     // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.survey.deleteMany({ where: { opdId } });
+    // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat
+    // dihapus selama baris auditnya masih ada (aksi warga teraudit sejak
+    // 13 September 2026).
+    await bersihkanAuditAkunUji(prisma, ['e2e-pub-resp-1']);
     await prisma.user.deleteMany({ where: { ssoSubject: 'e2e-pub-resp-1' } });
     await prisma.opd.deleteMany({ where: { kode: 'E2EPUB' } });
     await app.close();

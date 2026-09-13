@@ -309,6 +309,33 @@ describe('ResponsesService', () => {
       ).rejects.toThrow(/akses/i);
     });
 
+    /**
+     * Laporan pengguna 13 September 2026: "nomornya terbalik dengan nomor soal
+     * di survei".
+     *
+     * `include: { answers: true }` tanpa `orderBy` membuat urutannya tak
+     * ditentukan, dan layar detail menomori jawaban dari POSISI ARRAY. Pada
+     * basis data lokal, dua dari tiga respons kembali dalam urutan soal
+     * [9,8,7,6,5,4,3,2,1] -- persis terbalik; yang ketiga kebetulan benar,
+     * itulah sebabnya gejalanya tak selalu muncul.
+     */
+    it('jawaban diminta terurut mengikuti urutan pertanyaan survei', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+
+      await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(prisma.surveyResponse.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: { answers: { orderBy: { question: { urutan: 'asc' } } } },
+        }),
+      );
+    });
+
     it('survei tidak ada → NotFound', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(

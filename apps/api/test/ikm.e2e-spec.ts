@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+import { bersihkanAuditAkunUji } from './helpers/audit.helper';
 import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
 
 describe('IKM (e2e)', () => {
@@ -154,6 +155,10 @@ describe('IKM (e2e)', () => {
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await bersihkanNotifikasiSurvei(prisma, opdId2);
     await prisma.survey.deleteMany({ where: { opdId: { in: [opdId, opdId2] } } });
+    // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat
+    // dihapus selama baris auditnya masih ada (aksi warga teraudit sejak
+    // 13 September 2026).
+    await bersihkanAuditAkunUji(prisma, ['e2e-ikm-resp-1', 'e2e-ikm-resp-2', 'e2e-ikm-resp-3']);
     await prisma.user.deleteMany({
       where: { ssoSubject: { in: ['e2e-ikm-resp-1', 'e2e-ikm-resp-2', 'e2e-ikm-resp-3'] } },
     });

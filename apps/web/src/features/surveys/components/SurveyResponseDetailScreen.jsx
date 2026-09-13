@@ -38,8 +38,10 @@ export default function SurveyResponseDetailScreen({
       getQuestions(surveyId),
       getSurveyResponses(surveyId, { limit: RESPONSES_LIMIT }),
     ]);
-    const questionsById = new Map(questions.map((q) => [q.id, q]));
-    const responses = adaptSurveyResponseList(responsesResult.data, questionsById);
+    // Daftar pertanyaan diteruskan UTUH & TERURUT, bukan sebagai peta id:
+    // nomor soal pada jawaban diambil dari posisinya di survei, dan posisi itu
+    // hilang begitu daftarnya diubah menjadi peta (13 September 2026).
+    const responses = adaptSurveyResponseList(responsesResult.data, questions);
     const response = responses.find((r) => String(r.id) === String(responseId));
     if (!response) {
       // Pesan lama cuma "Respons tidak ditemukan", padahal penyebab paling
