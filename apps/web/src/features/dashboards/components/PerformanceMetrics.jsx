@@ -4,7 +4,7 @@ export default function PerformanceMetrics({ metrics }) {
   if (!metrics || metrics.length === 0) return null;
 
   return (
-    <div className="lg:col-span-2 bg-surface p-lg rounded-xl shadow-sm border border-outline-variant">
+    <div className="bg-surface p-lg rounded-xl shadow-sm border border-outline-variant">
       <div className="flex justify-between items-center mb-lg">
         <h3 className="font-headline-md text-headline-md text-primary">NRR Per 9 Unsur Pelayanan</h3>
         <div className="flex gap-2">
