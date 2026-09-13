@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
 
 /**
  * Alur end-to-end lintas peran (INT-29) -- BEDA dari spec per-modul lain
@@ -130,6 +131,9 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       await prisma.question.deleteMany({ where: { surveyId } });
       await prisma.ikmResult.deleteMany({ where: { surveyId } });
     }
+    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
+    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.survey.deleteMany({ where: { opdId } });
     if (complaintId) {
       await prisma.complaintReply.deleteMany({ where: { complaintId } });

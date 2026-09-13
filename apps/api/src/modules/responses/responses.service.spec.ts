@@ -8,6 +8,7 @@ import { JenisKelamin, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { ConsentService } from '../auth/consent.service';
+import type { NotificationsService } from '../notifications/notifications.service';
 import { ResponsesService } from './responses.service';
 
 const responden = (userId = 10): CurrentUser => ({
@@ -59,7 +60,10 @@ describe('ResponsesService', () => {
   const consent = {
     assertConsented: jest.fn().mockResolvedValue(undefined),
   } as unknown as ConsentService;
-  const service = new ResponsesService(prisma, consent);
+  const notifications = {
+    notifySurveyResponse: jest.fn().mockResolvedValue(undefined),
+  } as unknown as NotificationsService;
+  const service = new ResponsesService(prisma, consent, notifications);
 
   const AKUN_BERPROFIL = {
     nama: 'Siti Aminah',
@@ -652,6 +656,98 @@ describe('ResponsesService', () => {
       ).rejects.toThrow(ConflictException);
 
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Pemberitahuan jawaban survei (13 September 2026). Modul ini SEBELUMNYA tak
+   * menyinggung notifikasi sama sekali -- fitur yang belum ada, bukan kiriman
+   * yang gagal sampai.
+   *
+   * Keputusan tonggak (jawaban pertama, lalu 10/25/50/100) ada di
+   * NotificationsService dan diuji di sana. Di sini yang dijaga hanya
+   * sambungannya: dipanggil, dengan survei & pengisi yang benar, dan hanya
+   * ketika satu jawaban benar-benar tersimpan.
+   */
+  describe('pemberitahuan jawaban survei', () => {
+    const responsTersimpan = {
+      id: 1,
+      surveyId: 1,
+      submittedAt: new Date(),
+      answers: [],
+    };
+
+    it('submit bersesi -> memberi tahu, membawa survei & id pengisinya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ judul: 'SKM Loket', questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      expect(notifications.notifySurveyResponse).toHaveBeenCalledWith(
+        { id: 1, judul: 'SKM Loket', opdId: 5 },
+        10,
+      );
+    });
+
+    /**
+     * Urutan ini menentukan isi notifikasinya: jumlah jawaban dihitung di
+     * dalam NotificationsService, jadi memanggilnya SEBELUM baris tersimpan
+     * membuat "jawaban pertama" tak pernah berbunyi.
+     */
+    it('dipanggil SESUDAH respons tersimpan, bukan sebelumnya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      const urutanSimpan = (prisma.surveyResponse.create as jest.Mock).mock.invocationCallOrder[0];
+      const urutanKabar = (notifications.notifySurveyResponse as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(urutanKabar).toBeGreaterThan(urutanSimpan);
+    });
+
+    it('submitPublic -> memberi tahu dengan pengisi null (tanpa sesi, tak ada baris users)', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ izinkanAnonim: true, judul: 'SKM Loket', questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      expect(notifications.notifySurveyResponse).toHaveBeenCalledWith(
+        { id: 1, judul: 'SKM Loket', opdId: 5 },
+        null,
+      );
+    });
+
+    it('pengiriman yang DITOLAK (duplikat 409) tidak memberi tahu siapa pun', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
+
+      await expect(
+        service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10)),
+      ).rejects.toThrow(ConflictException);
+      expect(notifications.notifySurveyResponse).not.toHaveBeenCalled();
+    });
+
+    it('pengiriman yang DITOLAK (jawaban tak lengkap) tidak memberi tahu siapa pun', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.submit(1, { answers: [] }, responden(10))).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(notifications.notifySurveyResponse).not.toHaveBeenCalled();
     });
   });
 });

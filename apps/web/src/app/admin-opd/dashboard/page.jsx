@@ -7,7 +7,6 @@ import TrendChart from '@/features/statistics/components/charts/TrendChart';
 import PeriodSurveyPerformance from '@/features/dashboards/components/PeriodSurveyPerformance';
 import ComplaintStatusBreakdown from '@/features/dashboards/components/ComplaintStatusBreakdown';
 import PerformanceMetrics from '@/features/dashboards/components/PerformanceMetrics';
-import RecentFeedback from '@/features/dashboards/components/RecentFeedback';
 import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
@@ -101,10 +100,7 @@ export default function AdminDashboardPage() {
         <TrendChart data={ikmTrendData} title="Tren Nilai IKM per Triwulan" dataKey="nilaiIkm" yMin={0} yMax={100} />
       )}
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
-        <PerformanceMetrics metrics={data.dashboard.performanceMetrics} />
-        <RecentFeedback feedbacks={data.dashboard.recentFeedback} />
-      </section>
+      <PerformanceMetrics metrics={data.dashboard.performanceMetrics} />
     </>
   );
 }

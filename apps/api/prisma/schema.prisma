@@ -87,6 +87,11 @@ enum NotificationType {
   // pernah tahu ada tiket baru kecuali lewat balasan susulan) -- beri tahu
   // Admin OPD tujuan + kabupaten (oversight), TIDAK beri tahu pelapor sendiri.
   complaint_created
+  // Jawaban survei masuk (13 September 2026, laporan pengguna). Dikirim pada
+  // TONGGAK saja, bukan tiap jawaban: survei IKM bertarget ratusan responden
+  // akan menenggelamkan notifikasi pengaduan yang butuh tindakan. Pesannya
+  // tak pernah menyebut siapa pengisinya.
+  survey_response_created
 
   @@map("notification_type")
 }
