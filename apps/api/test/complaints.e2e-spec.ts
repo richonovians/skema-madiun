@@ -524,6 +524,51 @@ describe('Complaints (e2e)', () => {
     expect(list.body.data[1].pesan).toBe('Sedang kami proses');
   });
 
+  /**
+   * Akun yang melaporkan pengaduan lalu MENANGANINYA sebagai petugas.
+   *
+   * Lazim di sistem ini: empat dari tujuh akun memegang lebih dari satu peran,
+   * dan layar masuk justru meminta penggunanya memilih peran. Karena `authorId`
+   * kedua balasan sama persis, tak ada satu pun cara membedakannya dari baris
+   * yang tersimpan -- yang membedakan hanya peran yang sedang dipakai saat
+   * menulis, dan itulah yang kini dicatat.
+   *
+   * Gejalanya di layar: balasan petugas muncul di sisi pelapor, pada halaman
+   * warga MAUPUN halaman admin sekaligus.
+   */
+  it('balasan dari akun pelapor yang sedang BERTUGAS ditandai bukan dari pelapor', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lainnya')
+      .field('judul', 'Peran ganda')
+      .field('uraian', 'Dilaporkan dan ditangani akun yang sama');
+    const id = created.body.data.id;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${id}/replies`)
+      .set(asResponden(respondenId))
+      .send({ pesan: 'Saya yang melapor' });
+
+    // Akun YANG SAMA, tetapi sesinya sedang berperan OPD.
+    const sebagaiPetugas = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${id}/replies`)
+      .set(devHeaders({ role: Role.opd, userId: respondenId, opdId }))
+      .send({ pesan: 'Saya yang menangani' });
+    expect(sebagaiPetugas.status).toBe(201);
+
+    const list = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${id}/replies`)
+      .set(asResponden(respondenId));
+
+    expect(list.body.data[0].dariPelapor).toBe(true);
+    expect(list.body.data[1].dariPelapor).toBe(false);
+    // Inti perkaranya: id penulis KEDUANYA sama, jadi perbandingan id memang
+    // tak pernah bisa memisahkan keduanya.
+    expect(list.body.data[0].authorId).toBe(list.body.data[1].authorId);
+  });
+
   it('POST replies dengan lampiran TANPA pesan -> 201 (2026-08-06, laporan bug user)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/complaints')

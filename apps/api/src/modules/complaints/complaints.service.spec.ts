@@ -467,7 +467,12 @@ describe('ComplaintsService', () => {
         expect.objectContaining({ data: { status: ComplaintStatus.ditolak } }),
       );
       expect(prisma.complaintReply.create).toHaveBeenCalledWith({
-        data: { complaintId: 1, authorId: 1, pesan: 'Bukan wewenang OPD ini' },
+        data: {
+          complaintId: 1,
+          authorId: 1,
+          pesan: 'Bukan wewenang OPD ini',
+          dariPelapor: false,
+        },
       });
     });
 
@@ -522,6 +527,58 @@ describe('ComplaintsService', () => {
       });
       const result = await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
       expect(result.pesan).toBe('Halo');
+    });
+
+    /**
+     * SIAPA penulisnya tak cukup untuk menentukan ia menulis sebagai apa.
+     *
+     * Satu akun di sini lazim memegang beberapa peran sekaligus, dan layar
+     * masuk justru meminta penggunanya MEMILIH peran. Akun yang melaporkan
+     * pengaduan lalu menanganinya sebagai petugas karena itu punya `userId`
+     * yang sama persis dengan pelapor -- sehingga perbandingan id menggolongkan
+     * balasan petugasnya sebagai balasan pelapor. Yang menentukan adalah peran
+     * yang SEDANG DIPAKAI saat menulis, dan itu hanya diketahui di sini.
+     */
+    describe('penanda penulis balasan', () => {
+      const balasanTersimpan = () =>
+        (prisma.complaintReply.create as jest.Mock).mock.calls[0][0].data;
+
+      beforeEach(() => {
+        (prisma.complaintReply.create as jest.Mock).mockResolvedValue({
+          id: 1,
+          complaintId: 1,
+          authorId: 10,
+          pesan: 'Halo',
+          createdAt: new Date(),
+          attachments: [],
+        });
+      });
+
+      it('ditulis dengan peran responden -> ditandai dari pelapor', async () => {
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ userId: 10 }));
+
+        await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
+
+        expect(balasanTersimpan().dariPelapor).toBe(true);
+      });
+
+      it('ditulis dengan peran OPD -> ditandai bukan dari pelapor', async () => {
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ opdId: 5 }));
+
+        await service.addReply(1, { pesan: 'Halo' }, undefined, opdUser(5));
+
+        expect(balasanTersimpan().dariPelapor).toBe(false);
+      });
+
+      it('akun pelapor yang menjawab SEBAGAI PETUGAS -> ditandai bukan dari pelapor', async () => {
+        // Inilah kondisi yang selama ini keliru: id penulis sama dengan id
+        // pelapor, tetapi ia sedang bertugas, bukan sedang mengadu.
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ userId: 3 }));
+
+        await service.addReply(1, { pesan: 'Halo' }, undefined, superUser());
+
+        expect(balasanTersimpan().dariPelapor).toBe(false);
+      });
     });
 
     it('(D9) addReply memicu notifyComplaintReply dgn baris pengaduan & authorId pembalas', async () => {

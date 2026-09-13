@@ -267,7 +267,14 @@ export class ComplaintsService {
       ...(dto.catatan
         ? [
             this.prisma.complaintReply.create({
-              data: { complaintId: id, authorId: user.userId, pesan: dto.catatan },
+              // Catatan penolakan selalu ditulis petugas -- pelapor tak
+              // dapat mengubah status pengaduannya sendiri.
+              data: {
+                complaintId: id,
+                authorId: user.userId,
+                pesan: dto.catatan,
+                dariPelapor: false,
+              },
             }),
           ]
         : []),
@@ -326,6 +333,12 @@ export class ComplaintsService {
           complaintId,
           authorId: user.userId,
           pesan: dto.pesan ?? '',
+          // Peran yang SEDANG DIPAKAI, bukan perbandingan id. Satu akun lazim
+          // memegang beberapa peran sekaligus, sehingga akun pelapor yang
+          // menangani pengaduannya sendiri memiliki `userId` yang sama persis
+          // dengan pelapor -- perbandingan id menggolongkan balasan petugasnya
+          // sebagai balasan pelapor, di kedua halaman sekaligus.
+          dariPelapor: user.actingRole === Role.responden,
           attachments: {
             create: saved.map(({ fileUrl, mimeType, sizeBytes }) => ({
               complaintId,
