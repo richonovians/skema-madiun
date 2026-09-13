@@ -41,7 +41,7 @@ export default function ComplaintDetailPage() {
       getComplaintCategories(),
     ]);
     const chatHistory = rawReplies.map((r) =>
-      adaptComplaintReplyToChatMessage(r, complaint.userId, { isAnonim: complaint.isAnonim }),
+      adaptComplaintReplyToChatMessage(r, { isAnonim: complaint.isAnonim }),
     );
     return { complaint, chatHistory, categories };
   }, [ticketNo]);
@@ -56,7 +56,7 @@ export default function ComplaintDetailPage() {
 
   const handleSendReply = async (text, file) => {
     const reply = await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
-    return adaptComplaintReplyToChatMessage(reply, data.complaint.userId, {
+    return adaptComplaintReplyToChatMessage(reply, {
       isAnonim: data.complaint.isAnonim,
     });
   };

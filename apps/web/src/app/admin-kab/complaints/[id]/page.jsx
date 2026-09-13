@@ -76,7 +76,7 @@ export default function AdminKabComplaintDetailPage() {
       getComplaintCategories(),
     ]);
     const chatHistory = rawReplies.map((r) =>
-      adaptComplaintReplyToChatMessage(r, complaint.userId, { isAnonim: complaint.isAnonim }),
+      adaptComplaintReplyToChatMessage(r, { isAnonim: complaint.isAnonim }),
     );
     return { complaint, chatHistory, categories };
   }, [ticketNo]);
@@ -164,7 +164,7 @@ export default function AdminKabComplaintDetailPage() {
 
   return (
     <div id="complaint-detail-container" className="p-lg w-full max-w-6xl mx-auto space-y-md pb-24">
-      <ComplaintDetailHeader complaint={complaintView} />
+      <ComplaintDetailHeader complaint={complaintView} chatHistory={data.chatHistory} />
 
       {actionError && (
         <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700">

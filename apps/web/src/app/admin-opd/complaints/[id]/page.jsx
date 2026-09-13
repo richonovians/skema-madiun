@@ -8,6 +8,7 @@ import ComplaintStatusControl from '@/features/complaints/components/ComplaintSt
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
+import ComplaintExportMenu from '@/features/complaints/components/ComplaintExportMenu';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
 import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import LoadingState from '@/components/ui/LoadingState';
@@ -38,12 +39,20 @@ export default function AdminComplaintDetailPage() {
       getComplaintCategories(),
     ]);
     const chatHistory = rawReplies.map((r) =>
-      adaptComplaintReplyToChatMessage(r, complaint.userId, { isAnonim: complaint.isAnonim }),
+      adaptComplaintReplyToChatMessage(r, { isAnonim: complaint.isAnonim }),
     );
     return { complaint, chatHistory, categories };
   }, [ticketNo]);
 
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
+
+  // Sebelumnya di-resolve di dalam JSX kartu ringkasan. Diangkat ke sini karena
+  // ekspor PDF memerlukan nilai yang sama; dua tempat menghitungnya sendiri
+  // membuka peluang keduanya berbeda.
+  const categoryLabel = data
+    ? ((data.categories ?? []).find((c) => c.kode === data.complaint.kategori)?.nama ??
+      data.complaint.kategori)
+    : null;
 
   const handleStatusChangeRequest = (newStatus) => {
     if (!data || newStatus === data.complaint.status) return;
@@ -117,6 +126,17 @@ export default function AdminComplaintDetailPage() {
         <h2 className="font-headline-md text-headline-md font-black text-on-surface tracking-tight">
           Detail Pengaduan #{ticketNo}
         </h2>
+
+        {/* Baru tampil setelah datanya ada: tombol ekspor yang menghasilkan
+            dokumen kosong lebih membingungkan daripada tombol yang belum ada. */}
+        {data && (
+          <div className="ml-auto">
+            <ComplaintExportMenu
+              complaint={{ ...data.complaint, categoryLabel }}
+              chatHistory={data.chatHistory}
+            />
+          </div>
+        )}
       </div>
 
       {/* Pemuat penuh HANYA saat belum ada yang bisa ditampilkan. Pada muat
@@ -153,15 +173,7 @@ export default function AdminComplaintDetailPage() {
                   sama seperti tampilan admin-kab. Data sudah tersedia dari
                   fetchDetail; categoryLabel di-resolve dari daftar kategori
                   referensi yang di-fetch bersamaan. */}
-              <ComplaintSummaryCard
-                complaint={{
-                  ...data.complaint,
-                  categoryLabel:
-                    (data.categories ?? []).find(
-                      (c) => c.kode === data.complaint.kategori,
-                    )?.nama ?? data.complaint.kategori,
-                }}
-              />
+              <ComplaintSummaryCard complaint={{ ...data.complaint, categoryLabel }} />
               <ComplaintContentCard complaint={data.complaint} />
               <AdminResolutionWorkspace
                 currentStatus={data.complaint.status}

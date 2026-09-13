@@ -434,6 +434,11 @@ model ComplaintReply {
   complaintId Int      @map("complaint_id")
   authorId    Int      @map("author_id")
   pesan       String   @db.Text
+  /// Ditulis sebagai pelapor, atau sebagai petugas? Ditentukan dari peran yang
+  /// SEDANG DIPAKAI sesi penulisnya. Tidak dapat diturunkan dari author_id:
+  /// satu akun lazim memegang beberapa peran, sehingga akun pelapor yang
+  /// menangani pengaduannya sendiri punya id yang sama dengan pelapor.
+  dariPelapor Boolean  @map("dari_pelapor")
   createdAt   DateTime @default(now()) @map("created_at")
 
   complaint   Complaint             @relation(fields: [complaintId], references: [id], onDelete: Cascade)

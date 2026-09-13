@@ -12,6 +12,9 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
+import { downloadTablePdf } from '@/utils/pdf';
+import { KOLOM_MONITORING_SURVEI } from '@/utils/pdfKolom';
+import { SURVEY_STATUS_LABEL } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getSurveys,
@@ -348,8 +351,27 @@ export default function AdminKabSurveysPage() {
     downloadBlob([headers.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;', 'monitoring_survei.csv');
   };
 
-  const handleExportPDF = () => {
-    window.print();
+  /**
+    * SEBELUMNYA `window.print()`, yang mencetak seluruh halaman berikut sidebar,
+    * tab, dan tombol -- bukan laporannya. Kini tabel sungguhan berisi baris yang
+    * SEDANG tersaring, sama persis dengan ekspor Excel di atas.
+    */
+  const handleExportPDF = async () => {
+    await downloadTablePdf({
+      filename: 'monitoring-survei.pdf',
+      title: 'Monitoring Survei Kepuasan Masyarakat',
+      subtitle: `${filteredSurveys.length} survei`,
+      columns: KOLOM_MONITORING_SURVEI,
+      rows: filteredSurveys.map((survey) => [
+        survey.title,
+        survey.opdName,
+        formatPeriodeLabel(survey.period),
+        SURVEY_STATUS_LABEL[survey.status] ?? survey.status,
+        survey.status === 'DRAF' ? '-' : survey.respondentsCount,
+        survey.ikmScore != null ? survey.ikmScore.toFixed(2).replace('.', ',') : '-',
+      ]),
+      emptyLabel: 'Tidak ada survei yang cocok dengan filter saat ini.',
+    });
   };
 
   if (isLoading) {

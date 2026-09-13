@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { isAuthenticated } from '@/features/authentication/services/authStorage';
+import { useSesiAktif } from '@/features/authentication/hooks/useSesiAktif';
 import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 
@@ -21,11 +21,11 @@ export default function CreateComplaintForm() {
   const [submitError, setSubmitError] = useState(null);
   const [files, setFiles] = useState([]);
 
-  // Dihitung lewat inisialisasi useState, BUKAN di dalam useEffect: menyetel
-  // state dari dalam effect memicu render berjenjang dan dilanggar aturan
-  // react-hooks/set-state-in-effect (catatan sama di SurveyForm.jsx).
-  // `isAuthenticated()` sudah menjaga SSR sendiri (false di server).
-  const [adaSesi] = useState(() => isAuthenticated());
+  // Beranda dirender di server, yang tak dapat melihat localStorage. Sesi
+  // karenanya dibaca lewat useSesiAktif, bukan inisialisasi useState: yang
+  // terakhir menghasilkan render pertama berbeda dari HTML server bagi pengguna
+  // yang sudah masuk. Alasan lengkapnya di hooks/useSesiAktif.js.
+  const adaSesi = useSesiAktif();
 
   const [formData, setFormData] = useState({
     department: '',

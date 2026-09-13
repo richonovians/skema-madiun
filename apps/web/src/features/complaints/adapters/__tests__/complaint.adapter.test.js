@@ -43,33 +43,60 @@ describe('adaptComplaint — pengaduan anonim', () => {
   });
 });
 
-describe('adaptComplaintReplyToChatMessage — pengaduan anonim', () => {
-  const balasanPelapor = { id: 1, pesan: 'dari pelapor', createdAt: '2026-09-04T02:00:00.000Z' };
-  const balasanAdmin = {
-    id: 2,
+/**
+ * Sisi gelembung percakapan ditentukan `dariPelapor` dari backend, BUKAN
+ * perbandingan id penulis terhadap id pelapor.
+ *
+ * Perbandingan id itu keliru sejak awal dan baru terlihat 12 September 2026:
+ * satu akun di sistem ini lazim memegang beberapa peran, dan layar masuk
+ * meminta penggunanya memilih peran. Akun yang melaporkan pengaduan lalu
+ * menanganinya sebagai petugas karena itu punya id yang sama persis dengan
+ * pelapor -- seluruh balasan petugasnya digolongkan sebagai balasan pelapor,
+ * sehingga muncul di sisi yang salah pada halaman warga MAUPUN halaman admin.
+ */
+describe('adaptComplaintReplyToChatMessage', () => {
+  const balasan = (over = {}) => ({
+    id: 1,
     authorId: 3,
-    pesan: 'dari admin',
+    pesan: 'halo',
     createdAt: '2026-09-04T02:00:00.000Z',
-  };
+    dariPelapor: false,
+    ...over,
+  });
 
-  it('balasan tanpa authorId pada pengaduan anonim = balasan pelapor, berlabel', () => {
-    const hasil = adaptComplaintReplyToChatMessage(balasanPelapor, undefined, { isAnonim: true });
+  it('balasan pelapor pada pengaduan anonim: dikenali pelapor, dan diberi label', () => {
+    // Pelapor anonim DIBERI label; tanpanya percakapan di mata admin tampak
+    // seolah ditulis pihak yang tak dikenal.
+    const hasil = adaptComplaintReplyToChatMessage(
+      balasan({ dariPelapor: true, authorId: undefined }),
+      { isAnonim: true },
+    );
 
     expect(hasil.role).toBe('user');
     expect(hasil.senderName).toBe('Pelapor (anonim)');
   });
 
   it('balasan admin pada pengaduan anonim tetap dikenali admin', () => {
-    const hasil = adaptComplaintReplyToChatMessage(balasanAdmin, undefined, { isAnonim: true });
+    const hasil = adaptComplaintReplyToChatMessage(balasan(), { isAnonim: true });
 
     expect(hasil.role).toBe('admin');
     expect(hasil.senderName).toBe('Admin');
   });
 
-  it('pengaduan biasa: pembandingan authorId lama tetap berlaku (kontrol)', () => {
-    expect(adaptComplaintReplyToChatMessage({ ...balasanAdmin, authorId: 7 }, 7).role).toBe('user');
-    expect(adaptComplaintReplyToChatMessage(balasanAdmin, 7).role).toBe('admin');
-    expect(adaptComplaintReplyToChatMessage({ ...balasanAdmin, authorId: 7 }, 7).senderName).toBeUndefined();
+  it('balasan pelapor pada pengaduan biasa tidak diberi label', () => {
+    const hasil = adaptComplaintReplyToChatMessage(balasan({ dariPelapor: true, authorId: 7 }));
+
+    expect(hasil.role).toBe('user');
+    expect(hasil.senderName).toBeUndefined();
+  });
+
+  it('akun pelapor yang menjawab SEBAGAI PETUGAS tetap dikenali admin', () => {
+    // Kondisi yang selama ini keliru: id penulis sama dengan id pelapor.
+    // Dahulu ini menghasilkan 'user', dan uji lama justru menguncinya demikian.
+    const hasil = adaptComplaintReplyToChatMessage(balasan({ authorId: 7, dariPelapor: false }));
+
+    expect(hasil.role).toBe('admin');
+    expect(hasil.senderName).toBe('Admin');
   });
 });
 
@@ -151,5 +178,21 @@ describe('adaptComplaintAttachment', () => {
     // Balasan lama / data uji bisa saja belum bertanda tangan.
     const hasil = adaptComplaintAttachment({ ...lampiran, fileUrl: '/uploads/complaints/a.png' });
     expect(hasil.alt).toBe('a.png');
+  });
+});
+
+describe('adaptComplaintReplyToChatMessage — waktu untuk arsip', () => {
+  it('meneruskan createdAt mentah, sebab timestamp di layar hanya berisi jam', () => {
+    const pesan = adaptComplaintReplyToChatMessage({
+      id: 1,
+      pesan: 'Halo',
+      dariPelapor: true,
+      createdAt: '2026-09-03T03:15:00.000Z',
+    });
+
+    // Gelembung chat cukup jam, tetapi ekspor PDF tiket perlu tanggalnya juga
+    // (utils/pdf.js -> downloadComplaintPdf). Tanpa medan ini arsipnya tak
+    // dapat dirunut.
+    expect(pesan.createdAt).toBe('2026-09-03T03:15:00.000Z');
   });
 });

@@ -8,6 +8,12 @@ export class ComplaintReplyEntity extends BaseEntity<ComplaintReplyEntity> {
   /** Dihilangkan pada balasan yang ditulis pelapor anonim; balasan admin tetap membawanya. */
   authorId?: number;
   pesan: string;
+  /**
+   * Ditulis sebagai pelapor, atau sebagai petugas. Dicatat saat balasan dibuat
+   * dari peran yang sedang dipakai sesi penulisnya; TIDAK dapat diturunkan dari
+   * `authorId`, sebab satu akun lazim memegang beberapa peran sekaligus.
+   */
+  dariPelapor: boolean;
   createdAt: Date;
   // Lampiran opsional pada balasan (2026-08-06, laporan bug user "tidak bisa
   // mengirim dokumen/foto di chat") -- selalu array, kosong bila tak ada.

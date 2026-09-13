@@ -8,6 +8,8 @@ import ForwardComplaintModal from '@/features/complaints/components/admin-kab/Fo
 import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
+import { downloadTablePdf } from '@/utils/pdf';
+import { KOLOM_MONITORING_PENGADUAN } from '@/utils/pdfKolom';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
@@ -141,8 +143,29 @@ export default function AdminKabComplaintsPage() {
     downloadBlob([headers.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;', 'data_pengaduan.csv');
   };
 
-  const handleExportPDF = () => {
-    window.print();
+  /**
+    * SEBELUMNYA `window.print()`, yang mencetak seluruh halaman berikut sidebar
+    * dan tombolnya. Kini tabel sungguhan, dicetak MENDATAR: tujuh kolomnya butuh
+    * sekitar 760pt sedangkan A4 tegak hanya menyediakan 515pt.
+    */
+  const handleExportPDF = async () => {
+    await downloadTablePdf({
+      filename: 'monitoring-pengaduan.pdf',
+      title: 'Monitoring Pengaduan Masyarakat',
+      subtitle: `${filteredComplaints.length} pengaduan`,
+      columns: KOLOM_MONITORING_PENGADUAN,
+      mendatar: true,
+      rows: filteredComplaints.map((c) => [
+        `#${c.id}`,
+        c.target ?? '-',
+        categoryMap[c.kategori] ?? c.kategori ?? '-',
+        c.title,
+        c.reporter?.name ?? '-',
+        c.status,
+        c.dateStr,
+      ]),
+      emptyLabel: 'Tidak ada pengaduan yang cocok dengan filter saat ini.',
+    });
   };
 
   if (isLoading) {

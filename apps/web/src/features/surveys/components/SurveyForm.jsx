@@ -6,7 +6,7 @@ import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { isAuthenticated } from '@/features/authentication/services/authStorage';
+import { useSesiAktif } from '@/features/authentication/hooks/useSesiAktif';
 
 /**
  * SEBELUMNYA (bug ditemukan 2026-08-06, pola sama dgn ComplaintForm.jsx yg
@@ -28,11 +28,11 @@ export default function SurveyForm() {
   const [opdId, setOpdId] = useState('');
   const [error, setError] = useState(null);
 
-  // Dihitung lewat inisialisasi useState, BUKAN di dalam useEffect: menyetel
-  // state dari dalam effect memicu render berjenjang dan dilanggar aturan
-  // react-hooks/set-state-in-effect (catatan sama di app/survei/[id]/page.jsx).
-  // `isAuthenticated()` sudah menjaga SSR sendiri (false di server).
-  const [adaSesi] = useState(() => isAuthenticated());
+  // Sesi dibaca lewat useSesiAktif, bukan inisialisasi useState: beranda
+  // dirender di server yang tak melihat localStorage, sehingga cara lama
+  // membuat render pertama di klien berbeda dari HTML server. Alasan
+  // lengkapnya di hooks/useSesiAktif.js.
+  const adaSesi = useSesiAktif();
 
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
   const { data: opdResponse, isLoading, error: gagalMuat } = useAsync(fetchOpd);

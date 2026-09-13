@@ -10,6 +10,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
 import { downloadTablePdf } from '@/utils/pdf';
+import { KOLOM_DAFTAR_PENGADUAN } from '@/utils/pdfKolom';
 
 const ITEMS_PER_PAGE = 5;
 // Backend TIDAK punya parameter pencarian bebas teks (lihat ListComplaintQueryDto
@@ -110,13 +111,7 @@ export default function AdminOPDComplaintsPage() {
         filename: 'Data_Pengaduan.pdf',
         title: 'Laporan Pengaduan Masyarakat',
         subtitle: `${filteredComplaints.length} pengaduan`,
-        columns: [
-          { header: 'NO. TIKET', width: 2 },
-          { header: 'JUDUL KELUHAN', width: 5 },
-          { header: 'PELAPOR', width: 3 },
-          { header: 'STATUS', width: 2 },
-          { header: 'TANGGAL', width: 2 },
-        ],
+        columns: KOLOM_DAFTAR_PENGADUAN,
         rows: filteredComplaints.map((c) => [
           `#${c.id}`,
           c.title,

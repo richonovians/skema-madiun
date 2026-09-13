@@ -176,8 +176,23 @@ export function toCreateComplaintPayload({ opdId, kategori, title, description, 
  * dasar. Yang diperiksa di sini ADA-TIDAKNYA `authorId`, tepat seperti yang
  * dijanjikan kontrak backend.
  */
-export function adaptComplaintReplyToChatMessage(reply, complaintUserId, { isAnonim = false } = {}) {
-  const isReporter = isAnonim ? reply.authorId == null : reply.authorId === complaintUserId;
+/**
+ * Sisi gelembung ditentukan `dariPelapor` dari backend, BUKAN perbandingan id
+ * penulis terhadap id pelapor.
+ *
+ * Perbandingan id itu keliru sejak awal (ketahuan 12 September 2026): satu akun
+ * di sistem ini lazim memegang beberapa peran sekaligus, dan layar masuk justru
+ * meminta penggunanya MEMILIH peran. Akun yang melaporkan pengaduan lalu
+ * menanganinya sebagai petugas karena itu punya id yang sama persis dengan
+ * pelapor, sehingga balasan petugasnya digolongkan sebagai balasan pelapor --
+ * muncul di sisi yang salah pada halaman warga MAUPUN halaman admin sekaligus.
+ * Yang menentukan adalah peran yang dipakai saat menulis, dan hanya backend
+ * mengetahuinya (lihat kolom `dari_pelapor`).
+ *
+ * `isAnonim` tetap diperlukan, tapi hanya untuk LABEL pengirimnya.
+ */
+export function adaptComplaintReplyToChatMessage(reply, { isAnonim = false } = {}) {
+  const isReporter = reply.dariPelapor === true;
   const time = reply.createdAt
     ? new Date(reply.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -193,10 +208,14 @@ export function adaptComplaintReplyToChatMessage(reply, complaintUserId, { isAno
     // persis dgn attachments tingkat-pengaduan (adaptComplaintAttachment).
     attachments: (reply.attachments ?? []).map(adaptComplaintAttachment),
     timestamp: time ? `${time} WIB` : '',
+    // Tanggal mentah diteruskan apa adanya. Gelembung chat cukup menampilkan
+    // jam, tetapi ekspor PDF tiket menyusun tanggal lengkap darinya -- arsip
+    // tanpa tanggal tak dapat dirunut.
+    createdAt: reply.createdAt ?? null,
     status: 'Terkirim',
   };
 }
 
-export function adaptComplaintRepliesToChatMessages(replies, complaintUserId, opsi) {
-  return replies.map((r) => adaptComplaintReplyToChatMessage(r, complaintUserId, opsi));
+export function adaptComplaintRepliesToChatMessages(replies, opsi) {
+  return replies.map((r) => adaptComplaintReplyToChatMessage(r, opsi));
 }
