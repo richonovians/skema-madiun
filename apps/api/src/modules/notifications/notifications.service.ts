@@ -256,20 +256,41 @@ export class NotificationsService {
     }
   }
 
-  /** Daftar notifikasi milik pengguna saat ini, terbaru dulu. */
+  /**
+   * Daftar notifikasi milik pengguna saat ini. Terbaru dulu KECUALI diminta
+   * lain (13 September 2026).
+   *
+   * `where` yang sama dipakai `findMany` DAN `count`, jadi `meta.pagination
+   * .total` selalu menggambarkan kumpulan yang sedang disaring. Halaman riwayat
+   * membaca angka itu untuk pil "Semua"/"Belum dibaca"; total yang tak ikut
+   * menyaring akan membuat pilnya menyebut angka yang tak ada hubungannya
+   * dengan daftar di bawahnya.
+   *
+   * Rentang waktunya ditopang `@@index([userId, createdAt])` yang memang sudah
+   * ada di schema, jadi tak ada indeks baru yang perlu ditambahkan.
+   */
   async findMine(
     query: ListNotificationQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<NotificationEntity>> {
-    const { page, limit, unreadOnly } = query;
-    const where = { userId: user.userId, ...(unreadOnly ? { isRead: false } : {}) };
+    const { page, limit, unreadOnly, sort, from, to } = query;
+
+    const rentang = {
+      ...(from ? { gte: new Date(from) } : {}),
+      ...(to ? { lte: new Date(to) } : {}),
+    };
+    const where = {
+      userId: user.userId,
+      ...(unreadOnly ? { isRead: false } : {}),
+      ...(Object.keys(rentang).length > 0 ? { createdAt: rentang } : {}),
+    };
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.notification.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: sort ?? 'desc' },
       }),
       this.prisma.notification.count({ where }),
     ]);

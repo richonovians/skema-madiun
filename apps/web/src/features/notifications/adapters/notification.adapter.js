@@ -14,6 +14,11 @@ export function adaptNotification(notification) {
     link: notification.link,
     isRead: notification.isRead,
     timeLabel: formatRelativeTime(notification.createdAt),
+    // Waktu MENTAH ikut diteruskan (13 September 2026): `timeLabel` sudah
+    // berupa kalimat ("Kemarin", "18 Agu 2026") sehingga tak dapat dipakai
+    // mengelompokkan baris per tanggal. Mengurai kembali kalimat itu jelas
+    // keliru; sumbernya yang diteruskan.
+    createdAt: notification.createdAt,
   };
 }
 
