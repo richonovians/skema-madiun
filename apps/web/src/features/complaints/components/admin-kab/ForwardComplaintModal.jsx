@@ -55,7 +55,16 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[480px] overflow-hidden">
+      {/* TANPA `overflow-hidden` (14 September 2026). Panel daftar OPD berdiri
+          absolut di dalam kartu ini, sehingga pemotongan apa pun di sini
+          memenggalnya: terukur hanya 2 dari 63 pilihan yang muat, sisanya
+          terpotong 149px di bawah dasar kartu bersama tombol Batal/Teruskan.
+          Panelnya kini boleh melewati batas kartu seperti dropdown lazimnya,
+          dan menutup sendiri begitu satu OPD dipilih.
+
+          640px, bukan 480px: nama instansi terpanjang 97 karakter dan terpotong
+          pada lebar lama. */}
+      <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px]">
         <div className="px-6 pt-6 pb-4 border-b border-border relative">
           <button
             onClick={onClose}
@@ -94,6 +103,10 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
             searchable={opdOptions.length > 1}
             searchPlaceholder="Cari nama OPD..."
             emptySearchLabel="Tidak ada OPD yang cocok"
+            /* 320px, bukan 240px bawaan: petugas yang belum tahu nama persis
+               instansinya menggulir daftar, dan delapan baris sekaligus lebih
+               mudah disapu mata daripada enam. */
+            menuMaxHeight="max-h-80"
           />
 
           <p className="text-xs text-text-secondary">
