@@ -122,11 +122,17 @@ test.describe('Matriks proteksi route (A.5.1)', () => {
     await sapuMatriks(page, KOLOM.opd);
   });
 
-  test('admin kabupaten — dapat menengok area OPD kecuali dashboard-nya', async ({ page }) => {
-    // Bukan kekhilafan: Admin Kabupaten memang berhak melihat data per-OPD,
-    // TETAPI `/admin-opd/dashboard` dikecualikan karena endpoint di baliknya
-    // menuntut `Role.opd` murni dengan `opdId` terisi — halaman itu pasti gagal
-    // memuat baginya, jadi ia diarahkan ke dashboard globalnya sendiri.
+  test('admin kabupaten — terkurung di areanya sendiri, seluruh area OPD tertutup', async ({
+    page,
+  }) => {
+    // BERUBAH 15 September 2026 bersama peran jamak. Sampai `62e9cdc`, peran
+    // `kabupaten` boleh menengok `/admin-opd/*` kecuali dashboard-nya
+    // (keputusan 6 Agustus 2026); kini `ROLE_PREFIXES` di `proxy.js`
+    // mengurungnya pada `/admin-kab` dan SELURUH area OPD memantul ke
+    // `/admin-kab/dashboard`.
+    //
+    // Sejalan dengan rancangan peran jamak: yang butuh area OPD berganti peran,
+    // bukan menembus batas areanya. Lihat matriks di `support/rute.js`.
     await masukSebagai(page, AKUN.adminKabupaten, '/admin-kab/dashboard');
     await sapuMatriks(page, KOLOM.kabupaten);
   });
