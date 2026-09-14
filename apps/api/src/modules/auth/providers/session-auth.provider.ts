@@ -115,6 +115,25 @@ export class SessionAuthProvider implements AuthProvider {
   }
 
   /**
+   * Id pemilik sesi dari tanda tangan tokennya saja -- TANPA kueri basis data
+   * (14 September 2026). Lihat alasannya di `AuthProvider.identitasRingan`.
+   *
+   * Memakai `extractToken` dan `sessionService.verify` YANG SAMA dengan
+   * `bacaSesi`, sehingga tak ada jalur kedua yang bisa diam-diam berbeda. Yang
+   * TIDAK diperiksa di sini: akun aktif, soft-delete, kepemilikan peran. Untuk
+   * kunci penghitung hal itu tak diperlukan -- token bertanda tangan sah dari
+   * akun yang baru dinonaktifkan tetap layak dihitung sebagai satu pengirim,
+   * dan permintaannya toh ditolak RolesGuard beberapa milidetik kemudian.
+   */
+  identitasRingan(request: AuthRequestLike): number | null {
+    const token = this.extractToken(request);
+    if (!token) {
+      return null;
+    }
+    return this.sessionService.verify(token)?.sub ?? null;
+  }
+
+  /**
    * DUA jalur penyerahan token, dan keduanya memang dibutuhkan (2026-08-27):
    *
    * - Header `Authorization: Bearer` — jalur `dev-login`. Frontend menyimpan

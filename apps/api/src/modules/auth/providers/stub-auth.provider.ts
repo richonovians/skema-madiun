@@ -68,4 +68,28 @@ export class StubAuthProvider implements AuthProvider {
   resolveUserWithoutActingRole(request: AuthRequestLike): Promise<CurrentUser | null> {
     return this.resolveUser(request);
   }
+
+  /**
+   * `null` bila TAK SATU PUN header dev hadir -- berbeda dari `resolveUser` di
+   * atas yang memperlakukan permintaan telanjang sebagai `kabupaten` #1.
+   *
+   * Bedanya disengaja. Pemakainya adalah kunci batas laju, dan memperlakukan
+   * permintaan tanpa kredensial sebagai satu pengguna yang sama akan
+   * menjatuhkan SELURUH pemanggil anonim ke satu penghitung bersama -- persis
+   * cacat yang perubahan ini hendak buang.
+   */
+  identitasRingan(request: AuthRequestLike): number | null {
+    const ambil = (name: string): string | undefined => {
+      const value = request.headers[name];
+      return Array.isArray(value) ? value[0] : value;
+    };
+    const id = ambil('x-dev-user-id');
+    if (id) {
+      const angka = Number(id);
+      return Number.isFinite(angka) ? angka : null;
+    }
+    // Tanpa `x-dev-user-id` tapi ada header dev lain: samakan dengan baku
+    // `resolveUser`, yaitu pengguna #1.
+    return ambil('x-dev-role') || ambil('x-dev-roles') ? 1 : null;
+  }
 }

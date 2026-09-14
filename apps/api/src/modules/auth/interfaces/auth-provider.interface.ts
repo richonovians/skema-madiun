@@ -30,4 +30,18 @@ export interface AuthProvider {
    * boleh dipakai untuk keputusan hak akses apa pun.
    */
   resolveUserWithoutActingRole(request: AuthRequestLike): Promise<CurrentUser | null>;
+
+  /**
+   * Id pengguna dari kredensial yang dibawa permintaan, TANPA menyentuh basis
+   * data dan tanpa memutuskan peran (14 September 2026).
+   *
+   * Ada karena satu pemakai: kunci penghitung batas laju, yang dipilih SEBELUM
+   * identitas lengkap tersedia. Dua metode di atas masing-masing melakukan satu
+   * kueri per permintaan; memanggil salah satunya dari sana akan menggandakan
+   * beban basis data pada SETIAP permintaan demi sebuah kunci penghitung.
+   *
+   * `null` bila permintaan tak membawa kredensial -- pemanggilnya lalu kembali
+   * memakai IP.
+   */
+  identitasRingan(request: AuthRequestLike): number | null;
 }
