@@ -15,14 +15,30 @@ export default function ComplaintSuccessCard() {
   const today = new Date().toLocaleDateString('id-ID', {
     day: 'numeric',
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
   });
 
   const infos = [
-    { icon: <Ticket size={18} className="text-primary" />, label: 'Nomor Tiket', value: complaintId },
-    { icon: <Building2 size={18} className="text-blue-500" />, label: 'Instansi Tujuan', value: opdName },
-    { icon: <Calendar size={18} className="text-orange-500" />, label: 'Tanggal Pengiriman', value: today },
-    { icon: <Clock size={18} className="text-amber-500" />, label: 'Status Awal', value: 'Menunggu Verifikasi' },
+    {
+      icon: <Ticket size={18} className="text-primary" />,
+      label: 'Nomor Tiket',
+      value: complaintId,
+    },
+    {
+      icon: <Building2 size={18} className="text-blue-500" />,
+      label: 'Instansi Tujuan',
+      value: opdName,
+    },
+    {
+      icon: <Calendar size={18} className="text-orange-500" />,
+      label: 'Tanggal Pengiriman',
+      value: today,
+    },
+    {
+      icon: <Clock size={18} className="text-amber-500" />,
+      label: 'Status Awal',
+      value: 'Menunggu Verifikasi',
+    },
   ];
 
   return (
@@ -40,8 +56,7 @@ export default function ComplaintSuccessCard() {
       </h1>
       <p className="text-sm sm:text-base text-slate-500 leading-relaxed mb-8 max-w-[480px] mx-auto">
         Terima kasih. Pengaduan Anda telah berhasil dikirim kepada{' '}
-        <strong className="text-slate-900">{opdName}</strong>{' '}
-        dan akan segera diproses oleh petugas.
+        <strong className="text-slate-900">{opdName}</strong> dan akan segera diproses oleh petugas.
       </p>
 
       {/* Summary Box */}
@@ -66,7 +81,7 @@ export default function ComplaintSuccessCard() {
       <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
         <button
           type="button"
-          onClick={() => router.push(opdId ? `/surveys/${opdId}` : '/surveys')}
+          onClick={() => router.push(opdId ? `/surveys?opdId=${opdId}` : '/surveys')}
           className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 hover:from-blue-700 hover:to-blue-800 transition-all"
         >
           Lanjut Isi Survei
@@ -89,7 +104,8 @@ export default function ComplaintSuccessCard() {
 
       {/* Footer note */}
       <p className="text-xs text-slate-400 mt-8 pt-6 border-t border-slate-100">
-        Pendapat Anda sangat berarti untuk membantu Pemerintah Kabupaten Madiun meningkatkan kualitas pelayanan publik.
+        Pendapat Anda sangat berarti untuk membantu Pemerintah Kabupaten Madiun meningkatkan
+        kualitas pelayanan publik.
       </p>
     </div>
   );
