@@ -45,7 +45,7 @@ jest.mock('next/navigation', () => ({
 const sebagai = (role) =>
   server.use(
     http.get(`${API_BASE}/auth/me`, () =>
-      ok(userFixture({ id: 1, nama: 'Petugas Uji', role, opdId: null }), '/auth/me'),
+      ok(userFixture({ id: 1, nama: 'Petugas Uji', roles: [role], actingRole: role, opdId: null }), '/auth/me'),
     ),
   );
 
@@ -126,7 +126,7 @@ describe('Sidebar Admin Kabupaten (TC-FE-005)', () => {
     server.use(
       http.get(`${API_BASE}/auth/me`, async () => {
         await tertahan;
-        return ok(userFixture({ id: 1, role: 'kabupaten', opdId: null }), '/auth/me');
+        return ok(userFixture({ id: 1, roles: ['kabupaten'], actingRole: 'kabupaten', opdId: null }), '/auth/me');
       }),
     );
 

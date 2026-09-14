@@ -87,10 +87,30 @@ async function panggil(token, method, path, body) {
   return json?.data;
 }
 
-/** @returns {Promise<{token: string, user: object}>} */
-export async function masukApi(identifier) {
+/**
+ * Masuk lewat dev-login, lalu PASTIKAN sesinya sudah berperan.
+ *
+ * Sejak peran jamak (5 September 2026) `dev-login` TIDAK lagi selalu
+ * menghasilkan sesi yang siap pakai. Akun ber-peran satu (warga, admin
+ * kabupaten) memang langsung ber-`actingRole`, tetapi akun ber-peran banyak
+ * (`admin.opd` → `['opd','responden']`, superuser → empat peran) pulang dengan
+ * `actingRole: null`, dan setiap endpoint terlindung menjawab
+ * **401 "Peran yang ingin dipakai belum dipilih"**.
+ *
+ * Kegagalannya menyesatkan kalau tak ditangani di sini: yang meledak adalah
+ * `globalSetup`, jauh dari spec mana pun, dengan pesan yang terbaca seolah
+ * akunnya tak berhak — padahal ia hanya belum memilih peran.
+ *
+ * @param {string} identifier email akun seed
+ * @param {string} [peran] peran yang ingin dipakai; bila dihilangkan dipakai
+ *   peran pertama yang dimiliki akun itu (urutannya dari backend: yang paling
+ *   berwenang lebih dulu)
+ * @returns {Promise<{token: string, user: object}>}
+ */
+export async function masukApi(identifier, peran) {
+  let sesi;
   try {
-    return await panggil(null, 'POST', '/auth/dev-login', { identifier });
+    sesi = await panggil(null, 'POST', '/auth/dev-login', { identifier });
   } catch (err) {
     throw new Error(
       `Gagal masuk sebagai "${identifier}" lewat ${API}/auth/dev-login.\n` +
@@ -98,6 +118,21 @@ export async function masukApi(identifier) {
         `Penyebab asli: ${err.message}`,
     );
   }
+
+  if (sesi?.user?.actingRole) return sesi;
+
+  const dipilih = peran ?? sesi?.user?.roles?.[0];
+  if (!dipilih) {
+    throw new Error(
+      `Akun "${identifier}" masuk tanpa peran satu pun (roles kosong). ` +
+        `Seed basis data kemungkinan belum diperbarui.`,
+    );
+  }
+
+  // Backend menerbitkan token BARU; token dev-login tadi tetap tanpa peran,
+  // jadi ia harus ditinggalkan, bukan dipakai berdampingan.
+  const hasil = await panggil(sesi.token, 'POST', '/auth/acting-role', { role: dipilih });
+  return { ...sesi, token: hasil.token ?? sesi.token, user: { ...sesi.user, actingRole: dipilih } };
 }
 
 /** Nama variabel lingkungan tempat globalSetup menitipkan id survei uji. */

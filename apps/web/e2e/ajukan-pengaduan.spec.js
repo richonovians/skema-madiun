@@ -10,23 +10,32 @@ import { masukSebagai } from './support/masuk';
  * laporan masyarakat tak pernah sampai ke OPD.
  *
  * Kerusakan yang ditangkap berkas ini:
- *  - dropdown sub-kategori disaring dengan field yang salah (`kategori` alih-alih
- *    `kategoriKode`, bentuk kerusakan CAT-008) → pilihannya tak pernah muncul;
- *  - `handleCategoryChange` berhenti mengosongkan sub-kategori → pengaduan
- *    terkirim membawa sub-kategori milik kategori LAIN;
  *  - `opdId` tak ikut terkirim atau terkirim sebagai nama, bukan id → pengaduan
  *    mendarat di OPD yang salah, atau ditolak backend;
  *  - halaman sukses menampilkan nomor tiket bawaan `COM-2026-00000` karena
  *    `result.id` tak diteruskan — warga memegang nomor yang tak pernah ada;
+ *  - centang "kirim sebagai anonim" tak sampai ke basis data → identitas warga
+ *    tersimpan padahal ia diberi janji sebaliknya;
  *  - pengaduan tampak terkirim di layar tetapi tak pernah tersimpan.
+ *
+ * ── Penyesuaian 15 September 2026 ─────────────────────────────────────────
+ * Taksonomi sub-kategori DIHAPUS dari produk (4 September 2026): endpoint
+ * `/ref/complaint-sub-categories` tak ada lagi, dan kategorinya menyusut
+ * menjadi tiga yang umum (`aduan`, `lapor`, `lainnya`). Dua hal di berkas ini
+ * ikut berubah karenanya:
+ *  - seluruh langkah sub-kategori dibuang — menguji dropdown yang tak pernah
+ *    dirender hanya menghasilkan merah yang tak berarti;
+ *  - uji "mengganti kategori membuang sub-kategori" DIGANTI seluruhnya oleh uji
+ *    pengiriman anonim. Penggantinya bukan tambal-sulam: yang hilang adalah
+ *    aturan turunan antar-dropdown, dan yang paling pantas menggantikannya
+ *    adalah janji yang paling mahal bila diingkari — anonimitas pelapor.
  */
 
 const API = `${BASE_URL}/api/v1`;
 
-/** Kategori & sub-kategori HARFIAH, bukan dibaca balik dari API — kalau dibaca
- *  balik, pengujiannya membandingkan jawaban dengan dirinya sendiri. */
-const KATEGORI = { kode: 'infrastruktur', label: 'Infrastruktur' };
-const SUB_KATEGORI = { kode: 'infrastruktur_jalan', label: 'Infrastruktur Jalan & Jembatan' };
+/** Kategori HARFIAH, bukan dibaca balik dari API — kalau dibaca balik,
+ *  pengujiannya membandingkan jawaban dengan dirinya sendiri. */
+const KATEGORI = { kode: 'aduan', label: 'Aduan' };
 
 /** Dropdown kustom: klik pemicunya (`button#<id>`), lalu pilihan di panelnya. */
 async function pilihDropdown(page, id, label) {
@@ -75,11 +84,10 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     await pilihDropdown(page, 'department', opd.nama);
     await pilihDropdown(page, 'category', KATEGORI.label);
 
-    // Sub-kategori hanya muncul SESUDAH kategori dipilih, dan hanya yang
-    // `kategoriKode`-nya cocok. Kalau penyaringnya rusak, dropdown ini tak
-    // pernah ada dan baris berikut gagal di sini — bukan di tempat lain.
-    await expect(page.locator('#subCategory')).toBeVisible();
-    await pilihDropdown(page, 'subCategory', SUB_KATEGORI.label);
+    // Tak ada lagi dropdown sub-kategori sesudah kategori dipilih. Diperiksa
+    // di sini supaya sisa taksonomi lama yang kembali diam-diam ketahuan dari
+    // jalur yang benar-benar dipakai warga, bukan hanya dari uji komponen.
+    await expect(page.locator('#subCategory')).toHaveCount(0);
 
     await page.getByLabel('Judul Laporan').fill(judul);
     await page.getByLabel('Uraian Detail Kejadian').fill(uraian);
@@ -106,27 +114,47 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     // memastikan terjemahan itu benar-benar terjadi.
     expect(tersimpan.uraian).toBe(uraian);
     expect(tersimpan.kategori).toBe(KATEGORI.kode);
-    expect(tersimpan.subKategori).toBe(SUB_KATEGORI.kode);
     // `opdId` harus id numeriknya, bukan namanya — pengaduan yang salah OPD
     // tak pernah sampai ke petugas yang berwenang menanganinya.
     expect(String(tersimpan.opdId)).toBe(String(opd.id));
+    // Pengaduan biasa TETAP membawa identitas; tanpa pasangan ini, uji anonim
+    // di bawah akan tetap hijau seandainya seluruh pengaduan jadi anonim.
+    expect(tersimpan.isAnonim).toBe(false);
   });
 
-  test('mengganti kategori membuang sub-kategori yang tak lagi berlaku', async ({ page }) => {
-    // Sub-kategori terikat pada kategorinya. Kalau `handleCategoryChange`
-    // berhenti mengosongkannya, pengaduan terkirim membawa sub-kategori milik
-    // kategori lain — dan backend menerimanya, jadi tak ada yang menahannya.
+  test('centang anonim benar-benar sampai ke basis data, bukan berhenti di layar', async ({
+    page,
+  }) => {
+    // Janji anonimitas hanya berarti bila ia bertahan sampai baris tersimpan.
+    // Centang yang hilang di tengah jalan adalah kerusakan yang tak terlihat
+    // sama sekali dari sisi warga: layarnya tetap mengaku berhasil, sementara
+    // identitasnya ikut tercatat.
+    const judul = `[UJI E2E] Laporan anonim ${Date.now()}`;
+
     await masukSebagai(page, AKUN.warga, '/dashboard');
+    const sesi = await masukApi(AKUN.warga);
+
     await page.goto('/complaints/new');
-
     await pilihDropdown(page, 'category', KATEGORI.label);
-    await pilihDropdown(page, 'subCategory', SUB_KATEGORI.label);
-    await expect(page.locator('#subCategory')).toHaveText(new RegExp(SUB_KATEGORI.label));
+    await page.getByLabel('Judul Laporan').fill(judul);
+    await page
+      .getByLabel('Uraian Detail Kejadian')
+      .fill('Dikirim tanpa identitas untuk menguji janji anonimitas.');
+    await page.locator('#isAnonim').check();
 
-    await pilihDropdown(page, 'category', 'Kesehatan');
+    await page.getByRole('button', { name: 'Kirim Laporan' }).click();
+    await page.waitForURL('**/complaints/success**', { timeout: 30000 });
+    const tiket = new URL(page.url()).searchParams.get('complaintId');
+    expect(tiket).toMatch(/^PGD\d{8}[A-Z0-9]{4}$/);
 
-    // Pilihan lama tak boleh tertinggal di layar maupun di state.
-    await expect(page.locator('#subCategory')).not.toHaveText(new RegExp(SUB_KATEGORI.label));
+    const tersimpan = await ambilPengaduan(sesi.token, tiket);
+    expect(tersimpan, `Pengaduan bertiket ${tiket} tidak ditemukan di backend`).not.toBeNull();
+    expect(tersimpan.isAnonim).toBe(true);
+    // `userId` DIHILANGKAN seluruhnya pada pengaduan anonim, bukan dikosongkan
+    // (ComplaintEntity menyebutnya terus terang: nilai apa pun yang tetap
+    // dikirim membuka celah bagi kode klien yang membacanya tanpa memeriksa
+    // `isAnonim`). Karena itu yang diperiksa ketiadaan medannya, bukan nilainya.
+    expect(tersimpan.userId).toBeUndefined();
   });
 
   test('pengaduan yang gagal terkirim tidak menghapus isian warga', async ({ page }) => {

@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ChatMessageList from '../chat/ChatMessageList';
 import ChatReplyForm from '../chat/ChatReplyForm';
-import { adaptComplaintReplyToChatMessage } from '../../adapters/complaint.adapter';
 
 /**
  * TC-FE-040 — Percakapan pengaduan.
@@ -18,48 +17,15 @@ import { adaptComplaintReplyToChatMessage } from '../../adapters/complaint.adapt
  *  - teks yang sudah diketik hilang saat pengiriman gagal.
  */
 
-describe('adaptComplaintReplyToChatMessage (TC-FE-040)', () => {
-  const ID_PELAPOR = 23;
-  const balasan = (over = {}) => ({
-    id: 1,
-    authorId: ID_PELAPOR,
-    pesan: 'Terima kasih atas laporannya.',
-    createdAt: '2026-09-02T07:05:00.000Z',
-    ...over,
-  });
-
-  it('menandai balasan pelapor sebagai pesan warga tanpa nama pengirim', () => {
-    const pesan = adaptComplaintReplyToChatMessage(balasan(), ID_PELAPOR);
-
-    expect(pesan.role).toBe('user');
-    // Nama pengirim sengaja kosong: warga tak perlu diberi label atas pesannya sendiri.
-    expect(pesan.senderName).toBeUndefined();
-  });
-
-  it('menandai balasan bukan-pelapor sebagai admin', () => {
-    const pesan = adaptComplaintReplyToChatMessage(balasan({ authorId: 99 }), ID_PELAPOR);
-
-    expect(pesan.role).toBe('admin');
-    // Label generik "Admin", bukan "Admin OPD": backend tak mengirim peran
-    // penulis, jadi menyebut peran tertentu berarti mengarang. Lihat CAT-005.
-    expect(pesan.senderName).toBe('Admin');
-  });
-
-  it('membawa teks, waktu berzona WIB, dan status terkirim', () => {
-    const pesan = adaptComplaintReplyToChatMessage(balasan(), ID_PELAPOR);
-
-    expect(pesan.text).toBe('Terima kasih atas laporannya.');
-    expect(pesan.timestamp).toMatch(/^\d{2}[.:]\d{2} WIB$/);
-    expect(pesan.status).toBe('Terkirim');
-  });
-
-  it('tidak menampilkan waktu palsu ketika backend tak mengirim tanggal', () => {
-    const pesan = adaptComplaintReplyToChatMessage(balasan({ createdAt: null }), ID_PELAPOR);
-
-    // Kosong, bukan "Invalid Date" atau waktu sekarang yang mengarang.
-    expect(pesan.timestamp).toBe('');
-  });
-});
+/**
+ * CATATAN 15 September 2026. Berkas ini dulu membuka dengan empat kasus atas
+ * `adaptComplaintReplyToChatMessage`. Keempatnya DIBUANG, bukan diperbaiki:
+ * `complaint.adapter.test.js` (milik tim dev) kini menguji adapter yang sama
+ * lebih dalam — termasuk label pelapor anonim dan akun pelapor yang menjawab
+ * sebagai petugas — dan menduakan cakupan hanya menggandakan biaya perawatan.
+ * Yang tersisa di sini adalah dua permukaan yang belum diuji siapa pun:
+ * `ChatMessageList` dan sisi `ChatReplyForm` di luar tombol Enter.
+ */
 
 describe('ChatMessageList (TC-FE-040)', () => {
   it('membedakan pesan warga dari balasan admin', () => {

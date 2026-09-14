@@ -61,7 +61,7 @@ describe('AdminNavbar — Admin OPD (TC-FE-028)', () => {
             id: 7,
             nama: 'Budi Santoso',
             email: 'budi@madiunkab.go.id',
-            role: 'opd',
+            roles: ['opd'], actingRole: 'opd',
             opdId: 3,
             respondentProfile: null,
           }),
@@ -85,7 +85,7 @@ describe('AdminNavbar — Admin OPD (TC-FE-028)', () => {
     let opdDiminta = null;
     server.use(
       http.get(`${API_BASE}/auth/me`, () =>
-        ok(userFixture({ id: 7, nama: 'Budi Santoso', role: 'opd', opdId: 3 }), '/auth/me'),
+        ok(userFixture({ id: 7, nama: 'Budi Santoso', roles: ['opd'], actingRole: 'opd', opdId: 3 }), '/auth/me'),
       ),
       http.get(`${API_BASE}/opd/:id`, ({ params }) => {
         opdDiminta = params.id;
@@ -107,7 +107,7 @@ describe('AdminNavbar — Admin OPD (TC-FE-028)', () => {
     let dipanggil = 0;
     server.use(
       http.get(`${API_BASE}/auth/me`, () =>
-        ok(userFixture({ id: 1, nama: 'Siti Aminah', role: 'kabupaten', opdId: null }), '/auth/me'),
+        ok(userFixture({ id: 1, nama: 'Siti Aminah', roles: ['kabupaten'], actingRole: 'kabupaten', opdId: null }), '/auth/me'),
       ),
       http.get(`${API_BASE}/opd/:id`, ({ params }) => {
         dipanggil += 1;
@@ -126,7 +126,7 @@ describe('AdminNavbar — Admin OPD (TC-FE-028)', () => {
   it('tidak menampilkan satu pun identitas karangan lama', async () => {
     server.use(
       http.get(`${API_BASE}/auth/me`, () =>
-        ok(userFixture({ id: 7, nama: 'Budi Santoso', role: 'opd', opdId: 3 }), '/auth/me'),
+        ok(userFixture({ id: 7, nama: 'Budi Santoso', roles: ['opd'], actingRole: 'opd', opdId: 3 }), '/auth/me'),
       ),
     );
 
@@ -148,7 +148,7 @@ describe('AdminKabNavbar — Admin Kabupaten (TC-FE-028)', () => {
             id: 1,
             nama: 'Siti Aminah',
             email: 'siti@madiunkab.go.id',
-            role: 'kabupaten',
+            roles: ['kabupaten'], actingRole: 'kabupaten',
             opdId: null,
             respondentProfile: null,
           }),
@@ -169,7 +169,7 @@ describe('AdminKabNavbar — Admin Kabupaten (TC-FE-028)', () => {
     // disunting di peramban.
     server.use(
       http.get(`${API_BASE}/auth/me`, () =>
-        ok(userFixture({ id: 2, nama: 'Rahmat Hidayat', role: 'superuser', opdId: null }), '/auth/me'),
+        ok(userFixture({ id: 2, nama: 'Rahmat Hidayat', roles: ['superuser'], actingRole: 'superuser', opdId: null }), '/auth/me'),
       ),
     );
 
@@ -182,7 +182,7 @@ describe('AdminKabNavbar — Admin Kabupaten (TC-FE-028)', () => {
   it('tidak menampilkan satu pun identitas karangan lama', async () => {
     server.use(
       http.get(`${API_BASE}/auth/me`, () =>
-        ok(userFixture({ id: 1, nama: 'Siti Aminah', role: 'kabupaten', opdId: null }), '/auth/me'),
+        ok(userFixture({ id: 1, nama: 'Siti Aminah', roles: ['kabupaten'], actingRole: 'kabupaten', opdId: null }), '/auth/me'),
       ),
     );
 

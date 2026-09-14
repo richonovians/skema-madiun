@@ -33,6 +33,28 @@ const opsi = (page, label) =>
 const tombolLanjut = (page) => page.getByRole('button', { name: 'Pertanyaan Selanjutnya' });
 const tombolKirim = (page) => page.getByRole('button', { name: 'Kirim Survei' });
 
+/**
+ * Buka survei dan lewati gerbang "Sebelum Anda Mulai Mengisi".
+ *
+ * Gerbang ini (`GerbangPengisianBersesi`, September 2026) berdiri SEBELUM soal
+ * pertama dan menawarkan kotak "kirim sebagai anonim". Tanpa melewatinya,
+ * `Pertanyaan 1 dari 3` memang tak pernah dirender — dan kegagalannya terbaca
+ * seolah wizard-nya yang rusak, bukan sekadar satu layar yang belum dilewati.
+ *
+ * Tombolnya ditunggu, bukan diharuskan: survei yang tak berpintu (atau
+ * perubahan rancangan berikutnya) tetap boleh lewat tanpa membuat spec ini
+ * merah karena alasan yang salah.
+ */
+async function bukaSurvei(page, surveyId) {
+  await page.goto(`/surveys/${surveyId}`);
+  const mulai = page.getByRole('button', { name: 'Mulai Isi Survei' });
+  const berpintu = await mulai
+    .waitFor({ state: 'visible', timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  if (berpintu) await mulai.click();
+}
+
 test.describe('Pengisian survei oleh responden', () => {
   let surveyId;
   /** Bentuk backend `{id, teks, tipe, options}` — dibaca sekali, dipakai
@@ -51,7 +73,7 @@ test.describe('Pengisian survei oleh responden', () => {
     const saran = `[UJI E2E] saran otomatis ${Date.now()}`;
 
     await masukSebagai(page, AKUN.warga, '/dashboard');
-    await page.goto(`/surveys/${surveyId}`);
+    await bukaSurvei(page, surveyId);
 
     // --- Pertanyaan 1: skala berlabel tersuai ---
     await expect(page.getByRole('heading', { name: 'Pertanyaan 1 dari 3' })).toBeVisible();
@@ -104,7 +126,7 @@ test.describe('Pengisian survei oleh responden', () => {
     // pertanyaan uraian yang dikosongkan membuat responden mentok tak bisa
     // menyelesaikan survei (lihat catatan di SurveyNavigation.jsx).
     await masukSebagai(page, AKUN.warga, '/dashboard');
-    await page.goto(`/surveys/${surveyId}`);
+    await bukaSurvei(page, surveyId);
 
     await opsi(page, KE_1.opsi[0]).click();
     await tombolLanjut(page).click();
