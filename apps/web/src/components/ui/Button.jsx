@@ -19,7 +19,19 @@ export default function Button({
     primary: "bg-primary hover:bg-primary-hover text-on-primary py-md px-lg rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 shadow-primary/30 transition-all duration-300 font-bold text-lg justify-center",
     "primary-box": "bg-primary hover:bg-primary-hover text-on-primary py-md px-lg rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-1 shadow-primary/30 transition-all duration-300 font-bold text-lg justify-center",
     secondary: "bg-white text-primary py-sm px-md rounded-full font-bold text-sm hover:bg-primary-hover hover:text-white transition-all duration-300 flex items-center justify-center gap-xs border border-primary/20 hover:border-transparent hover:shadow-md",
-    navLogin: "bg-primary hover:bg-primary-hover text-on-primary px-lg py-sm rounded-full font-label-md text-label-md shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300",
+    // Ukurannya sengaja sama dengan RegistrasiHelpdeskLink (14 September 2026,
+    // permintaan pengguna): px-5/py-2.5 + font-bold menghasilkan tinggi 40px,
+    // terukur di peramban. Keduanya kini berdampingan -- tombol masuk di hero
+    // dan tombol registrasi di navbar -- dan beda tinggi 7px di antara dua pil
+    // sejenis terbaca sebagai ketidaksengajaan.
+    //
+    // `leading-5` WAJIB ikut, dan itu temuan pengukuran: `text-label-md` cuma
+    // menetapkan ukuran huruf, sehingga tinggi barisnya jatuh ke `normal`
+    // (16,8px) sedangkan `text-sm` milik tombol registrasi membawa 20px.
+    // Tanpa baris ini padding-nya sudah sama persis tapi tombolnya tetap
+    // lebih pendek 3,2px.
+    navLogin:
+      "bg-primary hover:bg-primary-hover text-on-primary px-5 py-2.5 rounded-full font-label-md text-label-md font-bold leading-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300",
   };
 
   const variantClass = variants[variant] || variants.primary;

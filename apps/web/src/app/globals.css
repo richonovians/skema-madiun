@@ -162,6 +162,30 @@
      Arahnya berlawanan jarum jam supaya sejalan dengan ikonnya (RotateCcw)
      dan dengan makna "kembali ke awal". */
   --animate-spin-once: spin-once 600ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Kartu status yang melayang di atas ilustrasi hero (14 September 2026,
+     permintaan pengguna). DUA irama yang sengaja tak habis dibagi satu sama
+     lain: 6 dtk dan 7,5 dtk tak pernah bertemu di puncak yang sama, sehingga
+     kedua kartu terbaca sebagai dua lapisan yang berdiri sendiri, bukan satu
+     blok yang naik-turun bersama.
+     Ayunannya 14px dan iramanya dipercepat (14 September 2026): pada 8px/6dtk
+     geraknya terukur hanya 4,7px dalam 2,5 detik -- ada, tetapi terlalu halus
+     untuk tertangkap mata, sehingga kartunya dikira diam. */
+  --animate-melayang: melayang 4.5s ease-in-out infinite;
+  --animate-melayang-lambat: melayang 5.8s ease-in-out infinite;
+
+  /* Cincin yang memancar dari titik sinyal. Ini SATU-SATUNYA gerak yang boleh
+     menarik mata di kartu itu, dan ia membawa arti: denyut adalah bahasa visual
+     untuk "sambungan hidup", persis yang dinyatakan teksnya. Tanpa makna itu ia
+     cuma kelap-kelip. */
+
+  /* Batang tren tumbuh dari bawah saat pertama tampil (14 September 2026,
+     permintaan pengguna). Memakai `scaleY`, bukan `height`: tingginya sudah
+     ditetapkan oleh NILAI datanya lewat gaya sebaris, dan menganimasikan
+     properti yang sama berarti animasinya menimpa angka yang justru ingin
+     disampaikan. `both` menahan batangnya rata di bawah sebelum gilirannya
+     tiba, supaya tak berkedip pada tinggi penuh lebih dulu. */
+  --animate-tumbuh-batang: tumbuh-batang 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Memakai properti mandiri `rotate`, bukan `transform`: keduanya bertumpuk,
@@ -188,6 +212,34 @@
   }
 }
 
+/* Berakhir di posisi semula (100% sama dengan 0%). Itu yang membuatnya aman di
+   bawah blok `prefers-reduced-motion` di bawah: blok itu memangkas durasinya
+   jadi 0,01ms dan iterasinya jadi satu, sehingga kartunya langsung mendarat di
+   keadaan akhir. Kalau keadaan akhirnya bukan posisi semula, kartu itu akan
+   tergeser permanen bagi pengguna yang meminta gerakan dikurangi. */
+@keyframes melayang {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+@keyframes tumbuh-batang {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Puncaknya 1,75x, bukan lebih. Diukur di peramban: pada 2,3x bentuk
+   kotak-membulatnya mengembang jauh melewati tepi kartu dan terbaca sebagai
+   bongkahan hijau yang bocor, bukan sebagai sinyal. Denyut yang tetap berada di
+   sekitar ubinnya justru lebih terbaca sebagai "hidup". */
 /* Pendamping WAJIB bagi keyframes di atas. Sebelum ini proyek tak punya blok
    ini sama sekali, dan itu tak terasa selama animasinya mati. Begitu animasinya
    hidup, menghidupkannya TANPA blok ini berarti memaksa gerakan pada pengguna
