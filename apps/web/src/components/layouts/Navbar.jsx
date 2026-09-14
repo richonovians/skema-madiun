@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
-import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
+import RegistrasiHelpdeskLink from '@/features/authentication/components/RegistrasiHelpdeskLink';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import { isAuthenticated, SESSION_CHANGED_EVENT } from '@/features/authentication/services/authStorage';
@@ -120,8 +120,11 @@ export default function Navbar() {
                 <ProfileAvatarDropdown />
               </>
             ) : (
+              /* Tombol masuk SSO tak lagi di sini: sejak 14 September 2026 ia
+                 berada di hero, tepat di bawah kalimat pembuka. Yang tinggal di
+                 navbar adalah jalan bagi orang yang BELUM punya akun. */
               <div className="hidden sm:block">
-                <SSOLoginButton />
+                <RegistrasiHelpdeskLink />
               </div>
             )}
 
@@ -174,9 +177,12 @@ export default function Navbar() {
                 );
               })}
 
+              {/* Ikut dipasang di drawer: tanpa ini pengguna ponsel kehilangan
+                  satu-satunya jalan mendaftar, sebab tombol di baris navbar
+                  disembunyikan di bawah `sm`. */}
               {!isLoggedIn && (
-                <div className="pt-2 mt-1 border-t border-border/50">
-                  <SSOLoginButton />
+                <div className="pt-3 mt-1 border-t border-border/50">
+                  <RegistrasiHelpdeskLink className="w-full" />
                 </div>
               )}
             </div>
