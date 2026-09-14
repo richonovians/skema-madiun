@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.1                                                     |
-| **Tanggal**            | 15 September 2026 (v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.2                                                     |
+| **Tanggal**            | 15 September 2026 (v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -56,8 +56,7 @@ docker compose up -d db
 # 2. Backend (terminal sendiri)
 cd apps/api
 pnpm prisma:migrate    # menyiapkan skema
-pnpm db:seed           # PAKAI INI — `prisma db seed` gagal, tidak ada blok
-                       # `prisma.seed` di package.json
+pnpm db:seed           # ⚠️ RUSAK per 15 Sep 2026 — lihat peringatan di bawah
 pnpm dev               # nest start --watch
 
 # 3. Frontend (terminal sendiri)
@@ -81,6 +80,15 @@ mendadak 404. Hentikan dev dulu bila perlu build.
 Akun uji: lihat **TEST_PLAN.md §3.3**. Login lewat tombol "Masuk via SSO Helpdesk"
 di beranda, isi **email saja** — tidak ada kata sandi.
 
+> ⛔ **`pnpm db:seed` TIDAK DAPAT DIJALANKAN per 15 September 2026.** `seed.ts`
+> masih menulis `role: Role.x` (tunggal) sedangkan skema sudah memakai
+> `roles Role[]` sejak peran jamak 5 September — kolom `role` **sudah dibuang**.
+> Lima galat tipe, dan `prisma/` berada di luar `include` tsconfig sehingga
+> `tsc` proyek tetap hijau. Akibatnya **titik awal yang dapat direproduksi tidak
+> tersedia**: basis data dev yang ada sekarang tak bisa disetel ulang, dan
+> lingkungan baru tak bisa disiapkan sama sekali. Lihat
+> [CAT-014](BUG_REPORTS.md#cat-014) — pekerjaan tim backend, bukan penguji.
+
 > ⚠️ Basis data dev bisa menyimpang dari `seed.ts` (per 10 Agustus 2026 sudah berbeda:
 > akun `warga@gmail.com`, 54 OPD hasil sinkronisasi Helpdesk). Sebelum sesi, jalankan
 > ulang seed bila ingin titik awal yang dapat direproduksi, dan **catat di laporan**
@@ -96,12 +104,20 @@ pengembangan lokal.
 
 ```
 DATABASE_URL  postgresql://skm:***@localhost:5432/skm_db   (apps/api/.env)
-server        skm_db @ 172.18.0.3 — PostgreSQL 18.4, container Docker lokal
+server        skm_db @ 172.18.0.x — PostgreSQL 18.4, container Docker lokal
 ```
 
-Alamat `172.18.0.3` itu jaringan bridge Docker di mesin penguji — bukan alamat
-yang dapat dicapai dari luar. Baris `DATABASE_URL` pada `.env` akar yang menunjuk
+Alamat itu jaringan bridge Docker di mesin penguji — bukan alamat yang dapat
+dicapai dari luar. Baris `DATABASE_URL` pada `.env` akar yang menunjuk
 `db:5432` **dinonaktifkan** (berawalan `#`) dan tak dipakai.
+
+> ⚠️ **Jangan menjadikan angka terakhirnya sebagai tanda pengenal.** Versi
+> dokumen ini sebelumnya menulis `172.18.0.3`; pada 15 September 2026 container
+> yang sama menjawab dari `172.18.0.2` — Docker membagikan ulang alamat bridge
+> setiap kali container disusun ulang. Yang menentukan **bukan** angka
+> persisnya, melainkan bahwa alamatnya berada di rentang privat/loopback **dan**
+> nama basisnya `skm_db`. Palang di skrip pembersih memang memeriksa kedua hal
+> itu, bukan mencocokkan alamat harfiah.
 
 **Yang harus diperiksa sebelum menjalankan apa pun yang menulis:**
 
@@ -354,8 +370,9 @@ yang TIDAK ADA" di backend.
 FR-AUTH-05 punya dua sisi, dan keduanya berakhir berbeda.
 
 **Sisi "tidak isi ulang" — terpenuhi.** Formulir survei tak meminta satu pun
-label identitas; formulir pengaduan hanya meminta OPD, kategori, sub-kategori,
-judul, uraian. Respons survei yang tersimpan bahkan tak memuat `userId` — SKM
+label identitas; formulir pengaduan hanya meminta OPD, kategori, judul, uraian
+(sub-kategori masih ada saat sesi ini dijalankan; taksonomi itu **dihapus dari
+produk 4 September 2026**). Respons survei yang tersimpan bahkan tak memuat `userId` — SKM
 memang anonim.
 
 **Sisi "data profil" — tak ada apa pun untuk dipakai ulang.** Halaman profil

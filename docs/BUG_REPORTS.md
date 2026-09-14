@@ -2,8 +2,8 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.0                                                                                                        |
-| **Tanggal**         | 3 September 2026                                                                                           |
+| **Versi**           | 3.1                                                                                                        |
+| **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
 | **Dokumen terkait** | [TEST_PLAN.md](TEST_PLAN.md) · [TEST_CASES.md](TEST_CASES.md) · [TEST_EXPLORATORY.md](TEST_EXPLORATORY.md) |
@@ -1934,6 +1934,58 @@ yang membacanya akan menyimpulkan matriks A.5.1 sedang jebol — persis kesimpul
 yang hampir saya tulis. Matriks di TEST_CASES §A.5.1 sudah disesuaikan dengan
 perilaku sebenarnya.
 
+### CAT-014 — `pnpm db:seed` tak dapat dijalankan sejak peran jamak
+
+**Ditemukan:** 15 September 2026 (saat mencocokkan dokumen pengujian dengan kode)
+
+`apps/api/prisma/seed.ts` masih menulis peran dalam bentuk tunggal:
+
+```ts
+create: { ssoSubject: 'seed-admin-kabupaten', /* … */ role: Role.kabupaten }
+```
+
+Kolomnya sudah tidak ada. Sejak peran jamak (5 September 2026) `schema.prisma`
+memakai `roles Role[]`, dan komentarnya menyatakan pencabutannya terus terang:
+`// @@index([role]) DIBUANG bersama kolomnya`.
+
+**Bukti:**
+
+```
+$ tsc --noEmit prisma/seed.ts
+prisma/seed.ts(23,7):  error TS2561: 'role' does not exist … Did you mean 'roles'?
+prisma/seed.ts(36,15): error TS2561: …
+prisma/seed.ts(41,7):  error TS2561: …
+prisma/seed.ts(116,7): error TS2561: …
+prisma/seed.ts(134,7): error TS2561: …
+```
+
+Lima kemunculan, seluruhnya pada pembuatan akun. `seed.ts` terakhir disentuh
+**31 Agustus**; `schema.prisma` bergerak terus sampai **13 September**.
+
+**Kenapa tak ada yang menyadarinya.** `tsconfig.json` milik `apps/api`
+ber-`include` `["src/**/*", "test/**/*"]` — direktori `prisma/` berada di
+luarnya, jadi `tsc` proyek tetap hijau dan CI tak pernah menyentuh berkas ini.
+Ia hanya pecah saat benar-benar dijalankan.
+
+**Dampaknya bagi pengujian, dan inilah alasan ia dicatat di sini.** Seluruh
+dokumen pengujian bersandar pada seed sebagai **titik awal yang dapat
+direproduksi**: TEST_PLAN §3.3 mendaftar empat akun uji "yang dihasilkan seed",
+§5.1 menjadikannya kriteria masuk, dan TEST_EXPLORATORY §3 menyuruh
+menjalankannya ulang sebelum sesi. Ketiganya kini tak dapat dipenuhi:
+
+- basis data dev yang sudah menyimpang **tak bisa disetel ulang**;
+- lingkungan baru (mesin penguji lain, CI, staging) **tak bisa disiapkan sama
+  sekali**;
+- setiap kasus uji yang bergantung pada data seed menjadi tak terreproduksi —
+  yang ada hanyalah keadaan basis data dev hari ini, apa adanya.
+
+**Pekerjaan tim backend, bukan penguji.** Yang dibutuhkan bukan hanya mengganti
+`role:` menjadi `roles: [...]`, melainkan juga memutuskan peran apa yang
+dimiliki tiap akun seed pada model baru — `admin.opd@example.go.id` di dev
+sekarang ber-`roles` `['opd','responden']`, dan seed tak tahu-menahu soal itu.
+Sekalian: masukkan `prisma/` ke dalam jangkauan `tsc` agar kejadian yang sama
+tertangkap sebelum sampai ke mesin siapa pun.
+
 ---
 
 ## 6. Riwayat revisi
@@ -1953,3 +2005,4 @@ perilaku sebenarnya.
 | 2.8   | 3 September 2026   | **Dua belas kasus uji terakhir Modul Y ditutup** (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047) — Jest 80 → **195** di 24 berkas, E2E 6 → **9**. Nol temuan baru, tetapi **tiga premis kasus uji ternyata usang** dan dikoreksi alih-alih dipaksakan: TC-FE-006 menuntut toast pada aplikasi yang tak punya sistem toast, TC-FE-012 menuntut tooltip pada grafik SVG yang nilainya selalu terlihat, dan satu temuan mobile TC-FE-007 (guliran mendatar 809 px) **dibatalkan sendiri** setelah terbukti berasal dari gambar `w-auto` yang diukur sebelum dimuat — masuk §Y.5 sebagai butir keempat. Ditambah **pembersihan data uji dari basis data dev** atas permintaan penguji: 6 pengaduan, 43 respons, 2 survei mati, 30 notifikasi tanpa FK, 2 akun karangan, dan 22 berkas unggahan yatim dihapus — `/statistics` publik jujur kembali (responden 44 → 3, pengaduan 11 → 6). Survei 332/333 sengaja dipertahankan karena BUG-005 masih terbuka, dan `consentAt` `warga@gmail.com` dikembalikan `null` sehingga fixture responden tanpa persetujuan tersedia lagi. |
 | 2.9   | 4 September 2026   | **Tiga survei uji tersisa dihapus paksa** atas permintaan penguji: 332 & 333 (reproduksi hidup BUG-005) dan 336 (fixture E2E). Keberatan sudah disampaikan — BUG-005 masih terbuka dan peragaannya jadi hilang — tetapi keputusan tetap di penguji. Bukti tertulis BUG-005 utuh di laporan ini dan dapat dibangun ulang dalam hitungan menit; baris aslinya dicadangkan lebih dulu. Fixture E2E dibuat ulang sendiri oleh `globalSetup` pada jalan berikutnya. Basis data dev kini **nol baris bertanda `[UJI `**. |
 | 3.0   | 15 September 2026  | **`main` ditarik ke `tester`** (85 commit, 11 hari). 16 kasus uji merah di 4 berkas — **nol di antaranya cacat produk**: seluruhnya pengujian yang masih berbicara dengan kontrak yang sudah tidak ada (`role` tunggal → `roles`+`actingRole`, callback membaca `/auth/roles`, `reply.dariPelapor`, taksonomi sub-kategori dihapus, gerbang pengisian survei, peran jamak pada dev-login). Rinciannya di TEST_CASES §Y.7. Dua berkas uji penguji dibuang karena menguji antarmuka yang tak pernah lagi dirender; dua konflik merge diselesaikan dengan versi `main` yang lebih dalam. Tambah **CAT-013** (keterangan `proxy.js` menerangkan aturan yang sudah tidak berlaku) dan matriks A.5.1 disesuaikan. Suite: Jest **663/663 di 89 berkas**, eslint 0 galat. Basis data dev dibersihkan, termasuk **7.986 notifikasi yatim** yang menunjuk tiket pengaduan yang sudah lenyap. |
+| 3.1   | 15 September 2026  | Dokumen pengujian dicocokkan ulang dengan kode, bukan dengan versi sebelumnya. Tambah **CAT-014** — `pnpm db:seed` tak dapat dijalankan sejak peran jamak (`seed.ts` menulis `role` tunggal; kolomnya sudah dibuang), sehingga titik awal yang dapat direproduksi tak tersedia bagi siapa pun. Peta otomatisasi TEST_CASES §Y.1 dibaca ulang dari `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada. TEST_PLAN dinaikkan ke v1.3 setelah tertinggal 13 hari di belakang model peran jamak. |

@@ -5,8 +5,8 @@
 |                   |                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
-| **Versi Dokumen** | 1.2                                                                                    |
-| **Tanggal**       | 2 September 2026 (revisi §1.1, §3.2, §3.3, §4.1 — SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
+| **Versi Dokumen** | 1.3                                                                                    |
+| **Tanggal**       | 15 September 2026 (revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
 | **Stack**         | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Prisma (ORM) · Docker |
 | **Cakupan Uji**   | Backend REST API · Frontend UI · Integrasi End-to-End                                  |
 
@@ -21,6 +21,26 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 1. Seluruh kebutuhan fungsional (FR) dalam PRD terimplementasi dan berfungsi sesuai spesifikasi.
 2. Aturan bisnis kritis — terutama **isolasi data OPD**, **batasan nilai IKM skala 1–4**, dan **pembuatan nomor tiket unik pengaduan** — berjalan benar.
 3. Hak akses berbasis peran (RBAC) untuk **empat peran** (Superuser, Admin Kabupaten, Admin OPD, Responden) ditegakkan secara konsisten. _Direvisi 2 Sep 2026: `superuser` sempat digabung ke `kabupaten` pada 5 Agustus, lalu dipisahkan kembali pada 26 Agustus (`e1eb8b1`)._
+
+> **Direvisi 15 September 2026 — satu akun kini dapat memiliki beberapa peran.**
+> `User.role` (tunggal) **dihapus** dan diganti `roles Role[]`. Yang menentukan
+> hak akses bukan lagi kepemilikan peran, melainkan **peran yang sedang dipakai
+> pada sesi** — klaim `act` di dalam token, dikembalikan `/auth/me` sebagai
+> `actingRole`. Konsekuensinya bagi pengujian, dan semuanya sudah terbukti
+> mematahkan pengujian yang ditulis atas model lama:
+>
+> - `GET /auth/me` **tidak lagi** mengembalikan `role`; pemakainya harus membaca
+>   `roles` (kepemilikan) dan `actingRole` (yang dipakai). Alias `role` sengaja
+>   tidak dipertahankan.
+> - `POST /auth/dev-login` pada akun ber-peran lebih dari satu pulang dengan
+>   `actingRole: null`. Seluruh endpoint terlindung menjawab **401 "Peran yang
+>   ingin dipakai belum dipilih"** sampai `POST /auth/acting-role { role }`
+>   menerbitkan token berperan. Skrip pengujian yang langsung memakai token
+>   `dev-login` akan gagal dengan pesan yang terbaca seolah akunnya tak berhak.
+> - Setiap peran kini terkurung pada areanya sendiri (`ROLE_PREFIXES` di
+>   `proxy.js`), termasuk `kabupaten` yang sebelumnya boleh menengok
+>   `/admin-opd/*`. Yang membutuhkan area lain **berganti peran**, bukan
+>   menembus batasnya.
 4. Perhitungan IKM sesuai metodologi PermenPANRB No. 14 Tahun 2017.
 5. Kebutuhan non-fungsional (keamanan, performa, privasi data) terpenuhi.
 
@@ -103,7 +123,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Seed Data**     | `apps/api/prisma/seed.ts` — idempoten, aman dijalankan berulang. **Diperiksa ulang 2 Sep 2026.** Isi: **4 akun** (lihat §3.3), **3 OPD** (`DINKES` Dinas Kesehatan · `DINDIK` Dinas Pendidikan dan Kebudayaan · `DUKCAPIL` Disdukcapil) yang kini ber-`externalId` **UUID asli dari Helpdesk**, bukan lagi HD-001…HD-003 karangan — diubah agar e2e tidak merusak data nyata (`c001590`). **2 survei** berisi template 9 unsur: "Survei Kepuasan Masyarakat Layanan Puskesmas" (`draft`, Dinkes, `2026-Q1`) dan "Survei Kepuasan Masyarakat Layanan Pendidikan Dasar" (`aktif`, Dindik, `2026-Q3`, sengaja **tanpa respons** agar alur pengisian bisa dicoba sendiri). **1 pengaduan** bernomor **`PGD20260811KT4E`** (warga → Disdukcapil, status `diterima`) — penanda `[SEED]` dan format `PGD-SEED-0001` sudah **tidak dipakai lagi** (`ecb8640`) |
 | **Test Fixtures** | Helper pembuatan entitas secara programatik di `apps/api/test/helpers/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **Cleanup**       | Setiap suite test membersihkan data setelah selesai (transactional rollback atau truncate)                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Cleanup**       | **Direvisi 15 Sep 2026 — pernyataan lama ("setiap suite membersihkan data setelah selesai, transactional rollback atau truncate") TIDAK BENAR untuk lapisan E2E.** Suite Playwright berjalan melawan backend & basis data sungguhan lewat HTTP; ia tak punya transaksi untuk digulung balik, dan aplikasinya sendiri tak menyediakan penghapusan (pengaduan tanpa endpoint `DELETE`; survei hanya terhapus saat `draft`). Tiap jalannya meninggalkan ± 1 pengaduan, 2 respons, dan beberapa notifikasi. Sebelas hari tanpa pembersihan menghasilkan **7.986 notifikasi yatim** di lonceng akun admin sungguhan. Pembersihan karena itu **eksplisit, bukan otomatis**: jalankan `node apps/web/e2e/support/bersihkan-data-uji.mjs` sesudah suite (`--dry` untuk melihat lebih dulu). Klaim lama tetap berlaku bagi integration test backend yang memakai basis data ephemeral. |
 
 ### 3.3 Akun Uji
 
@@ -131,6 +151,33 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 | **Admin Kabupaten** | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | Mem-bypass seluruh `@Roles` lewat `RolesGuard`, berakses penuh lintas-OPD      |
 | **Admin OPD**       | `admin.opd@example.go.id`       | `seed-admin-opd`       | Terikat ke OPD **Dinas Kesehatan** (`DINKES`)                                  |
 | **Responden**       | `warga@example.go.id`           | `seed-responden`       | Sudah punya profil demografis (perempuan · 26-35 · S1 · Wiraswasta)            |
+
+> ⛔ **Tabel di atas menggambarkan seed yang SAAT INI TIDAK DAPAT DIJALANKAN**
+> (15 September 2026). `seed.ts` masih menulis `role:` tunggal sedangkan skema
+> sudah memakai `roles Role[]` — lima galat tipe, dan `prisma/` berada di luar
+> `include` tsconfig sehingga `tsc` proyek tetap hijau. Rinciannya di
+> [BUG_REPORTS CAT-014](BUG_REPORTS.md#cat-014). Sampai diperbaiki tim backend,
+> **tak ada titik awal yang dapat direproduksi**: pakai apa adanya isi basis
+> data dev, dan catat di laporan keadaan mana yang dipakai.
+>
+**Akun yang benar-benar ada di basis data dev — dibaca langsung 15 September 2026.**
+Lima dari tujuh ber-peran lebih dari satu, jadi jalur "wajib memilih peran"
+(§1.1) adalah jalur yang **biasa**, bukan kekecualian:
+
+| `identifier` (email)            | `roles`                                    | `opdId` |
+| ------------------------------- | ------------------------------------------ | ------: |
+| `admin.kabupaten@example.go.id` | `kabupaten`                                |       — |
+| `superuser@example.go.id`       | `superuser`, `kabupaten`, `opd`, `responden` |      16 |
+| `admin.opd@example.go.id`       | `opd`, `responden`                         |       1 |
+| `warga@example.go.id`           | `responden`                                |       — |
+| `opd@gmail.com`                 | `opd`, `responden`                         |      28 |
+| `warga@gmail.com`               | `responden`, `kabupaten`                   |       — |
+| `budi@gmail.com`                | `opd`, `kabupaten`, `responden`            |      24 |
+
+Hanya `admin.kabupaten@example.go.id` dan `warga@example.go.id` yang masuk
+langsung tanpa memilih peran. Untuk sisanya: tekan tombol peran pada pemilih
+yang muncul sesudah "Masuk", atau panggil
+`POST /auth/acting-role { role }` bila masuk lewat API.
 
 > **Alamat pengujian:** sejak reverse proxy satu origin dipasang (`83d4230`), aplikasi
 > diakses lewat **`http://skema.local`** (port 80), bukan `localhost:3000`. Frontend dan
@@ -248,7 +295,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 
 - [ ] Kode sudah ter-compile tanpa error (`pnpm build` sukses).
 - [ ] Database migration terbaru sudah dijalankan (`prisma migrate deploy`).
-- [ ] Seed data tersedia dan dapat dijalankan (`prisma db seed`).
+- [ ] ~~Seed data tersedia dan dapat dijalankan (`prisma db seed`).~~ ⛔ **Tidak terpenuhi sejak 15 Sep 2026** — [CAT-014](BUG_REPORTS.md#cat-014). Kriteria ini tak dapat dicentang siapa pun sampai `seed.ts` disesuaikan dengan `roles Role[]`. Jangan dilewati diam-diam: catat keadaan basis data yang dipakai sebagai gantinya.
 - [ ] Lingkungan Docker Compose berjalan normal (api, db, frontend).
 - [ ] Semua unit test yang ada lulus (`pnpm test`).
 
@@ -259,7 +306,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 - [ ] Tidak ada bug severity **Critical** atau **High** yang belum ditangani.
 - [ ] Coverage unit test ≥ 80% untuk service layer (Backend).
 - [ ] Coverage component test ≥ 80% untuk UI Components (Frontend).
-- [ ] Coverage integration test mencakup seluruh 49 endpoint API.
+- [ ] Coverage integration test mencakup seluruh **67 endpoint** API (dihitung ulang 15 Sep 2026 dari dekorator rute di 14 controller; angka lama 49 berasal dari 29 Juli).
 - [ ] Isolasi data OPD tervalidasi pada semua modul.
 - [ ] Perhitungan IKM menghasilkan output identik dengan perhitungan manual.
 
@@ -311,7 +358,8 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 | Unit Test Code            | TypeScript (Jest)             | `apps/api/src/**/*.spec.ts`       |
 | Integration Test Code     | TypeScript (Jest + Supertest) | `apps/api/test/**/*.e2e-spec.ts`  |
 | Component Test Code       | JSX/TSX (Jest + RTL)          | `apps/web/src/**/__tests__/*.jsx` |
-| E2E Test Code             | TypeScript (Playwright)       | `apps/web/e2e/**/*.spec.ts`       |
+| E2E Test Code             | JavaScript & TypeScript (Playwright) | `apps/web/e2e/**/*.spec.{js,ts}` — 11 pengujian di 4 berkas |
+| Perkakas pembersih data uji | JavaScript (Node, ESM)      | `apps/web/e2e/support/bersihkan-data-uji.mjs` |
 | Test Coverage Report      | HTML/LCOV                     | CI artifacts                      |
 | Bug Reports               | Issue                         | GitLab Issues                     |
 
