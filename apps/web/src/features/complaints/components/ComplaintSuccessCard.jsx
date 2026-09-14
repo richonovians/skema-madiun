@@ -12,6 +12,14 @@ export default function ComplaintSuccessCard() {
   const opdId = searchParams.get('opdId') || '';
   const opdName = decodeURIComponent(searchParams.get('opdName') || 'Instansi Terkait');
 
+  /**
+   * Ada-tidaknya tujuan dibaca dari `opdId`, BUKAN dari ada-tidaknya nama.
+   * `opdName` punya cadangan sendiri di CreateComplaintForm ketika pencarian
+   * namanya meleset, sehingga pengaduan yang sebenarnya bertujuan bisa salah
+   * terbaca sebagai tanpa tujuan.
+   */
+  const adaTujuan = opdId !== '';
+
   const today = new Date().toLocaleDateString('id-ID', {
     day: 'numeric',
     month: 'long',
@@ -24,10 +32,13 @@ export default function ComplaintSuccessCard() {
       label: 'Nomor Tiket',
       value: complaintId,
     },
+    // "Belum ditentukan", bukan '-': alasannya sama dengan lencana "Belum
+    // bertujuan" di ComplaintTable.jsx -- tanda hubung tak dapat dibedakan dari
+    // nama instansi yang gagal dimuat.
     {
       icon: <Building2 size={18} className="text-blue-500" />,
       label: 'Instansi Tujuan',
-      value: opdName,
+      value: adaTujuan ? opdName : 'Belum ditentukan',
     },
     {
       icon: <Calendar size={18} className="text-orange-500" />,
@@ -55,8 +66,22 @@ export default function ComplaintSuccessCard() {
         Pengaduan Berhasil Dikirim
       </h1>
       <p className="text-sm sm:text-base text-slate-500 leading-relaxed mb-8 max-w-[480px] mx-auto">
-        Terima kasih. Pengaduan Anda telah berhasil dikirim kepada{' '}
-        <strong className="text-slate-900">{opdName}</strong> dan akan segera diproses oleh petugas.
+        {adaTujuan ? (
+          <>
+            Terima kasih. Pengaduan Anda telah berhasil dikirim kepada{' '}
+            <strong className="text-slate-900">{opdName}</strong> dan akan segera diproses oleh
+            petugas.
+          </>
+        ) : (
+          // Tanpa tujuan, kalimat lama menjanjikan dua hal yang belum terjadi:
+          // tiketnya sudah sampai ke suatu instansi, dan petugas instansi itu
+          // akan memprosesnya. Keduanya baru benar sesudah Admin Kabupaten
+          // meneruskannya.
+          <>
+            Terima kasih. Pengaduan Anda telah kami terima dan sedang menunggu penentuan instansi
+            yang berwenang menanganinya.
+          </>
+        )}
       </p>
 
       {/* Summary Box */}

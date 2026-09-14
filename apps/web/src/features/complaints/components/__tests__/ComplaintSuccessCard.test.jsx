@@ -68,3 +68,46 @@ describe('ComplaintSuccessCard -- tombol "Lanjut Isi Survei"', () => {
     expect(push).toHaveBeenCalledWith('/surveys');
   });
 });
+
+/**
+ * Pengaduan "Lainnya (belum tahu tujuannya)" dikirim tanpa `opdId`, dan baru
+ * mendapat instansi ketika Admin Kabupaten meneruskannya lewat
+ * ForwardComplaintModal. Sampai saat itu tiketnya belum menuju ke mana pun.
+ */
+describe('ComplaintSuccessCard -- pengaduan tanpa tujuan', () => {
+  it('tidak menyebut instansi mana pun sebagai tujuan', () => {
+    renderKartu('complaintId=PGD3');
+
+    expect(screen.queryByText(/instansi terkait/i)).toBeNull();
+  });
+
+  /**
+   * "Belum ditentukan", bukan tanda hubung: alasannya sama dengan lencana
+   * "Belum bertujuan" di ComplaintTable.jsx -- tanda hubung tak dapat dibedakan
+   * dari nama instansi yang gagal dimuat.
+   */
+  it('menyatakan instansinya belum ditentukan', () => {
+    renderKartu('complaintId=PGD3');
+
+    expect(screen.getByText('Belum ditentukan')).toBeInTheDocument();
+  });
+
+  it('tidak menjanjikan pengaduannya sudah sampai ke suatu instansi', () => {
+    renderKartu('complaintId=PGD3');
+
+    expect(
+      screen.getByText(/menunggu penentuan instansi yang berwenang menanganinya/i),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * Kendali. Cabang bertujuan adalah yang paling mudah ikut rusak saat
+   * percabangannya ditulis, dan rusaknya tak terlihat dari layar tanpa tujuan.
+   */
+  it('pengaduan yang bertujuan tetap menyebut nama instansinya', () => {
+    renderKartu('complaintId=PGD4&opdId=22&opdName=Dinas%20Kesehatan');
+
+    expect(screen.getAllByText('Dinas Kesehatan').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Belum ditentukan')).toBeNull();
+  });
+});
