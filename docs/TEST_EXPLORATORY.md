@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.0                                                     |
-| **Tanggal**            | 15 September 2026 (v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.1                                                     |
+| **Tanggal**            | 15 September 2026 (v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -115,6 +115,19 @@ yang dapat dicapai dari luar. Baris `DATABASE_URL` pada `.env` akar yang menunju
 Skrip pembersih data uji memikul palang keselamatan yang menegakkan syarat 1 & 2
 dan **menolak jalan** bila salah satunya tak terpenuhi — diuji dua arah: URL
 berhost publik ditolak, dan `localhost` dengan nama basis lain juga ditolak.
+
+**Letaknya: `apps/web/e2e/support/bersihkan-data-uji.mjs`** (versi 15 September
+2026; sebelumnya hidup di direktori sementara dan dua kali hilang bersamanya).
+
+```bash
+node apps/web/e2e/support/bersihkan-data-uji.mjs --dry   # lihat dulu apa yang kena
+node apps/web/e2e/support/bersihkan-data-uji.mjs         # hapus
+```
+
+Ia hanya menyentuh baris berpenanda `[UJI `, membaca `DATABASE_URL` dari
+`apps/api/.env` bila belum disetel, dan **tidak pernah menyentuh `audit_logs`** —
+jejak itu wajib menurut rancangan. Jalankan sesudah suite E2E: fixture survei
+pun ikut terhapus, sebab `globalSetup` membuatnya kembali pada jalan berikutnya.
 
 > **Catatan tentang layanan luar.** `HELPDESK_OPD_API_URL` menunjuk
 > `https://api.madiunkab.go.id/api/tenants`, sebuah **layanan pemerintah
