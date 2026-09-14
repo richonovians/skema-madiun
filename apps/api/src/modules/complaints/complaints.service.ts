@@ -12,7 +12,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BATAS_HARIAN_PENGADUAN_BAKU, BATAS_HARIAN_TERCAPAI } from './complaints.constants';
+import {
+  BATAS_HARIAN_PENGADUAN_BAKU,
+  BATAS_HARIAN_TERCAPAI,
+  BATAS_UKURAN_LAMPIRAN_BYTES,
+  BATAS_UKURAN_LAMPIRAN_LABEL,
+} from './complaints.constants';
 import {
   Complaint,
   ComplaintAttachment,
@@ -47,7 +52,8 @@ const ALLOWED_TRANSITIONS: Record<ComplaintStatus, ComplaintStatus[]> = {
   [ComplaintStatus.ditolak]: [],
 };
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB — batas bisnis (dicek di sini, bukan di multer).
+// Satu sumber dengan langit-langit multer (complaints.constants.ts).
+const MAX_FILE_SIZE_BYTES = BATAS_UKURAN_LAMPIRAN_BYTES;
 const MAX_FILES = 5;
 
 interface SavedFile {
@@ -586,7 +592,9 @@ export class ComplaintsService {
     }
     for (const file of list) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        throw new BadRequestException(`Ukuran berkas "${file.originalname}" melebihi 5MB`);
+        throw new BadRequestException(
+          `Ukuran berkas "${file.originalname}" melebihi ${BATAS_UKURAN_LAMPIRAN_LABEL}`,
+        );
       }
       // Memeriksa ISI berkas, bukan hanya header `Content-Type` kiriman (temuan
       // audit T2, 7 September 2026 — serangan SVG-mengaku-PNG yang terbukti
