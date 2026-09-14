@@ -24,6 +24,14 @@ import {
 import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 
+/**
+ * Penolakan batas harian per akun, dikirim backend sebagai 429 berkode
+ * (complaints.constants.ts). Diketik ulang di sini karena frontend tak
+ * mengimpor apa pun dari apps/api; pasangannya dijaga uji e2e yang menembak
+ * endpoint sungguhan.
+ */
+const KODE_BATAS_HARIAN = 'BATAS_HARIAN_PENGADUAN';
+
 export default function CreateComplaintForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -169,10 +177,14 @@ export default function CreateComplaintForm() {
       const kode = kodeGalat(err);
       setSubmitError(err.message || 'Gagal mengirim pengaduan. Silakan coba lagi.');
       setSubmitErrorCode(kode);
-      // HANYA pada penolakan persetujuan, bukan pada galat apa pun: menyimpan
-      // karena jaringan sempat putus berarti isi pengaduan warga menetap di
-      // peramban demi masalah yang tak pernah menuntutnya pergi ke mana-mana.
-      if (kode === KODE_PERSETUJUAN_DIBUTUHKAN) {
+      // HANYA pada penolakan yang menuntut pelapornya pergi lalu kembali,
+      // bukan pada galat apa pun: menyimpan karena jaringan sempat putus
+      // berarti isi pengaduan warga menetap di peramban demi masalah yang tak
+      // pernah menuntutnya pergi ke mana-mana.
+      //
+      // Dua keadaan itu: persetujuan PDP (pergi ke halaman persetujuan) dan
+      // batas harian (kembali besok).
+      if (kode === KODE_PERSETUJUAN_DIBUTUHKAN || kode === KODE_BATAS_HARIAN) {
         simpanDrafPengaduan(formData);
       }
       setIsSubmitting(false);

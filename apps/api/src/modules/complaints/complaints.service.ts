@@ -5,11 +5,14 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BATAS_HARIAN_PENGADUAN_BAKU, BATAS_HARIAN_TERCAPAI } from './complaints.constants';
 import {
   Complaint,
   ComplaintAttachment,
@@ -81,6 +84,7 @@ export class ComplaintsService {
   // setiap respons, jadi membaca ConfigService per baris hanya kerja berulang.
   private readonly urlSecret: string;
   private readonly urlTtl: number;
+  private readonly batasHarianPengaduan: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -96,6 +100,8 @@ export class ComplaintsService {
     // (pemisahan domain), jadi rahasia ini tak dipakai apa adanya.
     this.urlSecret = config.get<string>('session.jwtSecret') ?? '';
     this.urlTtl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
+    this.batasHarianPengaduan =
+      config.get<number>('complaint.batasHarian') ?? BATAS_HARIAN_PENGADUAN_BAKU;
   }
 
   /**
@@ -129,6 +135,9 @@ export class ComplaintsService {
     // 2026-08-27): menulis berkas lalu menolak akan meninggalkan lampiran yatim
     // untuk pengaduan yang tak pernah ada.
     await this.consent.assertConsented(user);
+
+    // Sebelum lampiran ditulis, dengan alasan yang sama seperti di atas.
+    await this.assertBelumMelewatiBatasHarian(user.userId);
 
     // Hanya bila tujuannya disertakan. Pengaduan "belum tahu tujuannya"
     // (6 September 2026) sengaja tak punya OPD untuk diperiksa; memanggil
@@ -456,6 +465,44 @@ export class ComplaintsService {
     await this.notificationsService.notifyComplaintCreated(updated);
 
     return this.toEntity(updated as ComplaintWithAttachments);
+  }
+
+  /**
+   * Batas harian per akun (14 September 2026). Lihat complaints.constants.ts
+   * untuk alasan angkanya.
+   *
+   * Dihitung dari BASIS DATA, bukan dari penghitung ThrottlerGuard: penghitung
+   * itu hidup di memori dan hilang setiap proses dimulai ulang, sehingga batas
+   * yang bersandar padanya dapat disetel ulang cukup dengan menunggu deploy.
+   *
+   * Batas HARI KALENDER menurut waktu server, bukan 24 jam bergulir. Pilihan
+   * ini demi pesannya: "silakan kirim lagi besok" dapat dimengerti siapa pun,
+   * sedangkan "tunggu 7 jam 12 menit lagi" menuntut pelapornya mengingat kapan
+   * ia mengirim yang pertama.
+   */
+  private async assertBelumMelewatiBatasHarian(userId: number): Promise<void> {
+    const awalHari = new Date();
+    awalHari.setHours(0, 0, 0, 0);
+
+    const batas = this.batasHarianPengaduan;
+
+    const jumlah = await this.prisma.complaint.count({
+      where: { userId, createdAt: { gte: awalHari } },
+    });
+    if (jumlah < batas) {
+      return;
+    }
+
+    // 429, bukan 403: yang terjadi adalah "terlalu sering", bukan "tak berhak".
+    // Kodenya membedakannya dari 429 batas laju per menit, yang pemulihannya
+    // hitungan detik dan tak perlu menyelamatkan apa pun.
+    throw new HttpException(
+      {
+        message: `Anda sudah mengirim ${batas} pengaduan hari ini. Silakan kirim lagi besok.`,
+        code: BATAS_HARIAN_TERCAPAI,
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   private async assertOpdExists(opdId: number): Promise<void> {

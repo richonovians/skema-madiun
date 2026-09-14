@@ -61,6 +61,17 @@ class EnvironmentVariables {
   @Min(1)
   THROTTLE_LIMIT: number = 100;
 
+  /**
+   * Batas harian pengaduan per akun (14 September 2026). Dapat disetel karena
+   * angkanya kebijakan, bukan tetapan teknis -- dan karena e2e yang menguji
+   * ALUR pengaduan perlu menaikkannya agar tak terhenti oleh batas yang bukan
+   * pokok ujinya.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  COMPLAINT_DAILY_LIMIT: number = 10;
+
   @IsOptional()
   @IsString()
   UPLOAD_DIR: string = 'uploads';
