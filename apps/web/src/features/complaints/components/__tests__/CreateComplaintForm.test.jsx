@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { http } from 'msw';
 import { useRouter } from 'next/navigation';
-import { handlers, ok } from '@/mocks/handlers';
+import { handlers, ok, failWithCode } from '@/mocks/handlers';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import CreateComplaintForm from '../CreateComplaintForm';
 
@@ -48,6 +48,12 @@ afterAll(() => server.close());
 beforeEach(() => {
   useRouter.mockReturnValue({ push: jest.fn() });
   isAuthenticated.mockReturnValue(true);
+  // Sejak formulir ini memulihkan draf dari sessionStorage (14 September 2026),
+  // draf sisa satu uji akan mengisi formulir uji BERIKUTNYA. Gejalanya menyesatkan:
+  // kategori yang terlanjur terisi membuat pemicu dropdown dan opsinya
+  // sama-sama berbunyi "Lainnya", dan yang terlihat cuma "Found multiple
+  // elements" pada uji yang sama sekali tak berurusan dengan draf.
+  sessionStorage.clear();
 });
 
 const kategoriDropdown = () => screen.getByLabelText(/kategori pengaduan/i);
@@ -358,5 +364,215 @@ describe('CreateComplaintForm — pencarian instansi', () => {
     fireEvent.click(opdDropdown());
 
     expect(medanCari()).not.toBeInTheDocument();
+  });
+
+  /**
+   * Permintaan pengguna 14 September 2026: kalimat "Buka halaman Persetujuan
+   * terlebih dahulu" pada penolakan 403 jadi TOMBOL.
+   *
+   * Backend menandai penolakan itu dengan `error.code = 'CONSENT_REQUIRED'`,
+   * dan layar mengenalinya lewat kode itu -- bukan lewat bunyi pesan, yang
+   * dapat diubah kapan saja tanpa ada yang memerah.
+   */
+  describe('penolakan karena persetujuan PDP', () => {
+    const PESAN = 'Anda perlu memberikan persetujuan pemrosesan data pribadi sebelum mengirim data.';
+
+    const isiDanKirim = async () => {
+      render(<CreateComplaintForm />);
+      await screen.findByText('Pilih Kategori');
+
+      fireEvent.click(kategoriDropdown());
+      fireEvent.click(await screen.findByText('Lainnya'));
+      fireEvent.change(screen.getByLabelText(/judul laporan/i), {
+        target: { value: 'Judul pengaduan uji' },
+      });
+      fireEvent.change(screen.getByLabelText(/uraian/i), {
+        target: { value: 'Uraian pengaduan yang cukup panjang' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+    };
+
+    it('menawarkan tombol menuju halaman persetujuan', async () => {
+      server.use(
+        http.post(`${API_BASE}/complaints`, () =>
+          failWithCode(403, PESAN, 'CONSENT_REQUIRED'),
+        ),
+      );
+
+      await isiDanKirim();
+
+      const tombol = await screen.findByRole('link', { name: /persetujuan/i });
+      expect(tombol).toHaveAttribute('href', '/persetujuan');
+      expect(screen.getByText(PESAN)).toBeInTheDocument();
+    });
+
+    /**
+     * PASANGAN yang membuat uji di atas berarti. Tanpa ini, tombol yang selalu
+     * muncul pada galat APA PUN akan tetap hijau -- dan menyuruh warga membuka
+     * halaman persetujuan ketika masalahnya sebenarnya jaringan putus.
+     */
+    it('galat biasa TIDAK menawarkan tombol itu', async () => {
+      server.use(
+        http.post(`${API_BASE}/complaints`, () =>
+          failWithCode(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR'),
+        ),
+      );
+
+      await isiDanKirim();
+
+      expect(await screen.findByText(/kesalahan pada server/i)).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /persetujuan/i })).not.toBeInTheDocument();
+    });
+  });
+});
+
+/**
+ * Penyelamatan draf (permintaan pengguna 14 September 2026).
+ *
+ * Cakupannya sempit dengan sengaja, dan batasnya disepakati: disimpan HANYA
+ * saat ditolak karena persetujuan PDP, dan LAMPIRAN DIKECUALIKAN -- objek File
+ * tak dapat disimpan di sessionStorage, dan memindahkannya ke IndexedDB berarti
+ * menaruh berkas milik warga di disk peramban.
+ */
+describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
+  const PESAN_PDP =
+    'Anda perlu memberikan persetujuan pemrosesan data pribadi sebelum mengirim data.';
+
+  const isiDanKirim = async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Lainnya'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
+      target: { value: 'Lampu jalan mati' },
+    });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Sudah tiga malam lampu di depan balai desa tidak menyala.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+  };
+
+  const draf = () => JSON.parse(sessionStorage.getItem('skema:draf-pengaduan') ?? 'null');
+
+  it('menyimpan isian saat ditolak karena persetujuan', async () => {
+    server.use(
+      http.post(`${API_BASE}/complaints`, () => failWithCode(403, PESAN_PDP, 'CONSENT_REQUIRED')),
+    );
+
+    await isiDanKirim();
+
+    await waitFor(() => expect(draf()).not.toBeNull());
+    expect(draf().title).toBe('Lampu jalan mati');
+    expect(draf().category).toBe('lainnya');
+  });
+
+  /**
+   * PASANGAN yang membuat uji di atas berarti. Menyimpan pada galat APA PUN
+   * berarti isi pengaduan warga menetap di peramban karena jaringan sempat
+   * putus -- persis yang tak diinginkan.
+   */
+  it('galat biasa TIDAK menyimpan apa pun', async () => {
+    server.use(
+      http.post(`${API_BASE}/complaints`, () =>
+        failWithCode(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR'),
+      ),
+    );
+
+    await isiDanKirim();
+
+    await screen.findByText(/kesalahan pada server/i);
+    expect(draf()).toBeNull();
+  });
+
+  it('memulihkan isian saat formulir dibuka kembali', async () => {
+    sessionStorage.setItem(
+      'skema:draf-pengaduan',
+      JSON.stringify({
+        department: '',
+        category: 'lainnya',
+        title: 'Lampu jalan mati',
+        description: 'Sudah tiga malam lampu di depan balai desa tidak menyala.',
+        isAnonim: false,
+      }),
+    );
+
+    render(<CreateComplaintForm />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
+    );
+    expect(screen.getByLabelText(/uraian/i)).toHaveValue(
+      'Sudah tiga malam lampu di depan balai desa tidak menyala.',
+    );
+  });
+
+  /**
+   * Kehilangan yang DIBERITAHUKAN. Lampiran memang tak ikut terselamatkan, dan
+   * membiarkan pelapor menekan Kirim tanpa tahu itu berarti pengaduannya
+   * terkirim tanpa bukti yang ia kira masih terpasang.
+   */
+  it('memberi tahu bahwa lampirannya perlu dipilih ulang', async () => {
+    sessionStorage.setItem(
+      'skema:draf-pengaduan',
+      JSON.stringify({ category: 'lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
+    );
+
+    render(<CreateComplaintForm />);
+
+    // `/lampiran/i` saja TIDAK cukup: formulirnya sudah punya label "Lampiran"
+    // untuk kotak unggahnya, sehingga uji itu hijau bahkan tanpa pemberitahuan
+    // apa pun. Yang dicari kalimat pemberitahuannya sendiri.
+    expect(await screen.findByText(/perlu dipilih ulang/i)).toBeInTheDocument();
+  });
+
+  it('formulir tanpa draf TIDAK menampilkan pemberitahuan itu', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    expect(screen.queryByText(/perlu dipilih ulang/i)).not.toBeInTheDocument();
+  });
+
+  it('draf dibuang begitu dipulihkan, jadi tak muncul lagi di formulir berikutnya', async () => {
+    sessionStorage.setItem(
+      'skema:draf-pengaduan',
+      JSON.stringify({ category: 'lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
+    );
+
+    render(<CreateComplaintForm />);
+    await waitFor(() =>
+      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
+    );
+
+    expect(sessionStorage.getItem('skema:draf-pengaduan')).toBeNull();
+  });
+
+  /**
+   * Urutan yang benar-benar terjadi: ditolak persetujuan (draf tersimpan),
+   * pelapor menyetujui, lalu menekan Kirim lagi pada formulir yang SAMA. Draf
+   * yang tertinggal di situ akan mengisi pengaduan berikutnya dengan kalimat
+   * yang sudah terkirim.
+   *
+   * Versi pertama uji ini menaruh draf lalu langsung mengirim, dan itu HAMPA:
+   * formulirnya memulihkan draf itu saat mount dan menghapusnya di sana, jadi
+   * jalur suksesnya tak pernah tersentuh. Mutasinya lolos hijau karena itu.
+   */
+  it('pengiriman yang berhasil membuang draf dari penolakan sebelumnya', async () => {
+    server.use(
+      http.post(`${API_BASE}/complaints`, () => failWithCode(403, PESAN_PDP, 'CONSENT_REQUIRED')),
+    );
+
+    await isiDanKirim();
+    await waitFor(() => expect(draf()).not.toBeNull());
+
+    // Pelapor menyetujui, lalu menekan Kirim lagi tanpa meninggalkan formulir.
+    server.use(
+      http.post(`${API_BASE}/complaints`, () =>
+        ok({ id: 99, ticketNo: 'PGD20260914AAAA', opdId: null }, '/complaints'),
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+
+    await waitFor(() => expect(sessionStorage.getItem('skema:draf-pengaduan')).toBeNull());
   });
 });

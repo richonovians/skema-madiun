@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { tandaiSudahMengisi } from '@/utils/surveyFillMarker';
 import { submitPublicSurveyResponse, submitSurveyResponse } from '../services/surveys.api';
+import { kodeGalat } from '@/services/api';
 
 const useSurveyStore = create((set, get) => ({
   surveyData: null,
@@ -10,6 +11,7 @@ const useSurveyStore = create((set, get) => ({
   isSurveyInProgress: false,
   isSubmitting: false,
   submitError: null,
+  submitErrorCode: null,
   // Pengisian tanpa sesi (rute /survei/:id). Menentukan endpoint pengiriman, bukan
   // tampilan.
   isAnonimMode: false,
@@ -85,7 +87,7 @@ const useSurveyStore = create((set, get) => ({
     if (!surveyData) {
       return { success: false, error: 'Survei belum dimuat' };
     }
-    set({ isSubmitting: true, submitError: null });
+    set({ isSubmitting: true, submitError: null, submitErrorCode: null });
     try {
       // Parameter keempat berbeda arti per jalur, dan tiap fungsi hanya
       // menerima yang menjadi urusannya: jalur publik menerima persetujuan PDP
@@ -104,7 +106,10 @@ const useSurveyStore = create((set, get) => ({
       set({ isCompleted: true, isSurveyInProgress: false, isSubmitting: false });
       return { success: true };
     } catch (err) {
-      set({ isSubmitting: false, submitError: err.message });
+      // Kodenya disimpan terpisah dari pesannya supaya layar dapat menawarkan
+      // jalan keluar yang tepat -- mis. tombol menuju halaman persetujuan --
+      // tanpa mencocokkan bunyi pesan yang dapat berubah kapan saja.
+      set({ isSubmitting: false, submitError: err.message, submitErrorCode: kodeGalat(err) });
       return { success: false, error: err.message };
     }
   },
@@ -118,6 +123,7 @@ const useSurveyStore = create((set, get) => ({
       isSurveyInProgress: false,
       isSubmitting: false,
       submitError: null,
+      submitErrorCode: null,
       isAnonimMode: false,
       dataPublik: null,
       tanpaDataDiri: false,

@@ -57,6 +57,27 @@ export const paginated = (items, path = '', { page = 1, limit = 20, total = item
 export const fail = (status, message) =>
   HttpResponse.json({ statusCode: status, message, error: true }, { status });
 
+/**
+ * Amplop galat SEPERTI YANG BENAR-BENAR DIKIRIM AllExceptionsFilter, lengkap
+ * dengan `error.code` (14 September 2026).
+ *
+ * `fail` di atas menyederhanakan `error` jadi `true`, sehingga uji yang
+ * bergantung pada kode galat akan hijau bahkan ketika kodenya tak pernah
+ * dibaca. Yang ini menirukan bentuk aslinya: `{ success, statusCode, message,
+ * error: { code, details }, meta }`.
+ */
+export const failWithCode = (status, message, code) =>
+  HttpResponse.json(
+    {
+      success: false,
+      statusCode: status,
+      message,
+      error: { code, details: null },
+      meta: meta(''),
+    },
+    { status },
+  );
+
 // ---------------------------------------------------------------------------
 // Fixture — nama field mengikuti hasil rekaman.
 // ---------------------------------------------------------------------------

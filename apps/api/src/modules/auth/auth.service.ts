@@ -127,10 +127,21 @@ export class AuthService {
    * pada permintaan ini (lihat SessionAuthProvider) -- bukan dari klaim token,
    * yang bisa saja menyebut role yang sudah dicabut.
    *
-   * Mengembalikan tokennya saja; masa berlakunya dihitung controller lewat
-   * SessionCookieService yang sudah ada di sana.
+   * Mengembalikan token beserta `consentRequired` UNTUK PERAN YANG BARU; masa
+   * berlakunya dihitung controller lewat SessionCookieService.
+   *
+   * `consentRequired` ditambahkan 14 September 2026 (laporan pengguna: akun
+   * warga ber-peran banyak yang belum menyetujui PDP tetap dipantulkan dari
+   * /persetujuan). Saat login, akun ber-peran banyak belum punya `actingRole`
+   * sehingga `consentRequired` bernilai false -- artinya "belum dapat
+   * ditentukan", BUKAN "sudah menyetujui". Frontend menulis cookie `consent`
+   * dari nilai itu, dan tanpa medan ini tak ada apa pun yang mengoreksinya
+   * ketika perannya akhirnya dipilih.
    */
-  async setActingRole(user: CurrentUser, role: Role): Promise<{ token: string }> {
+  async setActingRole(
+    user: CurrentUser,
+    role: Role,
+  ): Promise<{ token: string; consentRequired: boolean }> {
     if (!user.roles.includes(role)) {
       throw new ForbiddenException('Akun Anda tidak memiliki peran tersebut');
     }
@@ -140,7 +151,20 @@ export class AuthService {
       );
     }
 
-    return { token: this.sessionService.issue(user.userId, role) };
+    // Peran non-responden keluar SEBELUM kueri apa pun, sama seperti
+    // ConsentService.assertConsented: mereka tak pernah dimintai persetujuan,
+    // jadi tak ada alasan membebani perpindahan peran dengan satu perjalanan
+    // ke basis data.
+    let consentRequired = false;
+    if (role === Role.responden) {
+      const row = await this.prisma.user.findFirst({
+        where: { id: user.userId, deletedAt: null },
+        select: { consentAt: true },
+      });
+      consentRequired = ConsentService.isRequired(role, row?.consentAt ?? null);
+    }
+
+    return { token: this.sessionService.issue(user.userId, role), consentRequired };
   }
 
   /** Profil pengguna aktif + profil demografis (bila responden). */

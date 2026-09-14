@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn } from 'lucide-react';
 import Input from '@/components/ui/Input';
@@ -12,6 +12,15 @@ import Card from '@/components/ui/Card';
 import { useAsync } from '@/hooks/useAsync';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { useSesiAktif } from '@/features/authentication/hooks/useSesiAktif';
+import ConsentRequiredAction, {
+  KODE_PERSETUJUAN_DIBUTUHKAN,
+} from '@/features/authentication/components/ConsentRequiredAction';
+import { kodeGalat } from '@/services/api';
+import {
+  ambilDrafPengaduan,
+  hapusDrafPengaduan,
+  simpanDrafPengaduan,
+} from '@/utils/drafPengaduan';
 import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 
@@ -19,6 +28,10 @@ export default function CreateComplaintForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  // Kode galatnya disimpan terpisah dari pesannya supaya layar dapat menawarkan
+  // jalan keluar yang tepat tanpa mencocokkan bunyi pesan -- yang akan berhenti
+  // bekerja pada penyuntingan teks berikutnya tanpa ada uji yang memerah.
+  const [submitErrorCode, setSubmitErrorCode] = useState(null);
   const [files, setFiles] = useState([]);
 
   // Beranda dirender di server, yang tak dapat melihat localStorage. Sesi
@@ -34,6 +47,34 @@ export default function CreateComplaintForm() {
     description: '',
     isAnonim: false,
   });
+
+  // Draf yang tertahan karena persetujuan PDP belum diberikan (14 September
+  // 2026). Dibaca di EFEK, bukan saat inisialisasi state: halaman ini dirender
+  // di server, yang tak dapat melihat sessionStorage -- alasan yang sama
+  // dengan useSesiAktif di atas.
+  //
+  // Dibuang begitu dipulihkan. Draf yang bertahan sesudah dituangkan akan
+  // muncul lagi pada pengaduan BERIKUTNYA, mengisi formulir kosong dengan
+  // kalimat yang sudah lama terkirim.
+  const [drafDipulihkan, setDrafDipulihkan] = useState(false);
+  useEffect(() => {
+    const draf = ambilDrafPengaduan();
+    if (!draf) return;
+    /* eslint-disable react-hooks/set-state-in-effect --
+       `set-state-in-effect` menyarankan menurunkan nilainya saat render, dan
+       itu memang benar untuk keadaan yang dapat DIHITUNG dari props/state.
+       Di sini sumbernya `sessionStorage`, yang tak terlihat oleh render di
+       server: membacanya saat render menghasilkan render pertama klien yang
+       berbeda dari HTML server. Pembacaannya pun sekali dan berefek samping
+       (drafnya dibuang di baris terakhir), sehingga `useSyncExternalStore`
+       pun tak cocok -- getSnapshot-nya wajib murni.
+
+       Pola yang sama dipakai `useSesiAktif` dengan alasan yang sama. */
+    setFormData((prev) => ({ ...prev, ...draf }));
+    setDrafDipulihkan(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    hapusDrafPengaduan();
+  }, []);
 
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
   const { data: opdResponse } = useAsync(fetchOpd);
@@ -86,6 +127,7 @@ export default function CreateComplaintForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError(null);
+    setSubmitErrorCode(null);
     // Ditahan SEBELUM permintaan dikirim. Tanpa sesi, `POST /complaints`
     // menjawab 401 dan pengirim hanya melihat pesan galat teknis, padahal
     // sebabnya sederhana dan dapat ia perbaiki sendiri.
@@ -107,6 +149,9 @@ export default function CreateComplaintForm() {
         },
         files,
       );
+      // Sudah terkirim: draf sisa apa pun kehilangan gunanya, dan membiarkannya
+      // berarti pengaduan berikutnya dibuka dengan kalimat yang sudah dikirim.
+      hapusDrafPengaduan();
       if (formData.department === TANPA_TUJUAN) {
         // Tanpa `opdId`/`opdName` di URL: halaman sukses menampilkan tujuan
         // pengaduan, dan mengarang nama instansi di sini berarti memberi tahu
@@ -121,7 +166,15 @@ export default function CreateComplaintForm() {
         `/complaints/success?complaintId=${result.id}&opdId=${formData.department}&opdName=${encodeURIComponent(opdName)}`,
       );
     } catch (err) {
+      const kode = kodeGalat(err);
       setSubmitError(err.message || 'Gagal mengirim pengaduan. Silakan coba lagi.');
+      setSubmitErrorCode(kode);
+      // HANYA pada penolakan persetujuan, bukan pada galat apa pun: menyimpan
+      // karena jaringan sempat putus berarti isi pengaduan warga menetap di
+      // peramban demi masalah yang tak pernah menuntutnya pergi ke mana-mana.
+      if (kode === KODE_PERSETUJUAN_DIBUTUHKAN) {
+        simpanDrafPengaduan(formData);
+      }
       setIsSubmitting(false);
     }
   };
@@ -154,9 +207,31 @@ export default function CreateComplaintForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+        {/* Kehilangan yang DIBERITAHUKAN. Lampiran memang tak ikut
+            terselamatkan -- objek File tak dapat disimpan di sessionStorage,
+            dan memindahkannya ke IndexedDB berarti menaruh berkas milik warga
+            di disk peramban. Membiarkan pelapor menekan Kirim tanpa tahu itu
+            berarti pengaduannya terkirim tanpa bukti yang ia kira masih
+            terpasang. */}
+        {drafDipulihkan && (
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+            Isian Anda sebelumnya dipulihkan. Berkas lampiran{' '}
+            <span className="font-semibold">perlu dipilih ulang</span> karena tidak ikut tersimpan.
+          </div>
+        )}
+
         {submitError && (
           <div className="p-4 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
             {submitError}
+            {/* Jalan keluarnya, bukan sekadar keterangan bahwa ada jalan
+                keluar. Sebelumnya pesannya sendiri yang menyuruh "Buka halaman
+                Persetujuan terlebih dahulu" -- menyebut tujuan tanpa memberi
+                jalan ke sana, tepat saat pengirimannya baru saja gagal. */}
+            {submitErrorCode === KODE_PERSETUJUAN_DIBUTUHKAN && (
+              <div className="mt-3">
+                <ConsentRequiredAction />
+              </div>
+            )}
           </div>
         )}
 

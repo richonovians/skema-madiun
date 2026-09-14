@@ -277,19 +277,19 @@ export class AuthController {
     @Body() dto: SetActingRoleDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ role: Role; expiresAt: number; token?: string }> {
-    const { token } = await this.authService.setActingRole(user, dto.role);
+  ): Promise<{ role: Role; expiresAt: number; consentRequired: boolean; token?: string }> {
+    const { token, consentRequired } = await this.authService.setActingRole(user, dto.role);
     const expiresAt = this.sessionCookie.expiresAt(token);
 
     const value = req.headers['authorization'];
     const header = Array.isArray(value) ? value[0] : value;
     if (header?.startsWith('Bearer ')) {
       // Jalur dev-login: frontend memegang tokennya sendiri di localStorage.
-      return { role: dto.role, expiresAt, token };
+      return { role: dto.role, expiresAt, consentRequired, token };
     }
 
     res.setHeader('Set-Cookie', this.sessionCookie.build(token));
-    return { role: dto.role, expiresAt };
+    return { role: dto.role, expiresAt, consentRequired };
   }
 
   /** Profil pengguna aktif (semua peran terautentikasi). */
