@@ -20,6 +20,14 @@ const useSurveyStore = create((set, get) => ({
   // keputusannya diambil SEKALI sebelum pengisian, bukan diperiksa ulang saat
   // mengirim. `null` pada jalur bersesi, yang tak memakainya.
   dataPublik: null,
+  /**
+   * Token Cloudflare Turnstile (14 September 2026). TERPISAH dari `dataPublik`
+   * yang diisi sekali di gerbang awal: token ini baru datang setelah widget-nya
+   * selesai menilai pengunjung, dan ia kedaluwarsa dalam hitungan menit --
+   * sedangkan mengisi survei bisa lebih lama, sehingga widget menyegarkannya
+   * sendiri dan memanggil penyetel ini lagi.
+   */
+  captchaToken: null,
   // Pilihan anonim pada GerbangPengisianBersesi, jalur BERSESI (8 September
   // 2026). Terpisah dari `dataPublik` karena isinya bukan data, melainkan satu
   // pilihan: data dirinya disalin backend dari akunnya, tak pernah dikirim dari
@@ -82,8 +90,10 @@ const useSurveyStore = create((set, get) => ({
    * jalur berpenjaga (POST /surveys/:id/responses) bagi pengguna bersesi, jalur
    * publik (POST /public/surveys/:id/responses) bagi pengunjung tanpa sesi.
    */
+  setCaptchaToken: (captchaToken) => set({ captchaToken }),
+
   submitSurvey: async () => {
-    const { surveyData, answers, isAnonimMode, dataPublik, tanpaDataDiri } = get();
+    const { surveyData, answers, isAnonimMode, dataPublik, tanpaDataDiri, captchaToken } = get();
     if (!surveyData) {
       return { success: false, error: 'Survei belum dimuat' };
     }
@@ -96,7 +106,10 @@ const useSurveyStore = create((set, get) => ({
       // dikirim dari sini). Persetujuan pengguna bersesi sudah tercatat di
       // `users.consentAt` dan ditegakkan `assertConsented` di backend.
       await (isAnonimMode
-        ? submitPublicSurveyResponse(surveyData.id, surveyData.questions, answers, dataPublik)
+        ? submitPublicSurveyResponse(surveyData.id, surveyData.questions, answers, {
+            ...(dataPublik ?? {}),
+            captchaToken,
+          })
         : submitSurveyResponse(surveyData.id, surveyData.questions, answers, tanpaDataDiri));
       // Penanda peramban ditulis HANYA sesudah server menerima -- menandainya
       // lebih dulu akan mengunci responden dari survei yang belum tersimpan.
@@ -126,6 +139,7 @@ const useSurveyStore = create((set, get) => ({
       submitErrorCode: null,
       isAnonimMode: false,
       dataPublik: null,
+      captchaToken: null,
       tanpaDataDiri: false,
     });
   },

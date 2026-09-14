@@ -224,6 +224,11 @@ export default function IsiSurveiPage() {
 
           <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-5 sm:p-8 md:p-10 border border-outline-variant/20">
             <QuestionCard />
+
+            {/* Captcha tidak di sini, melainkan di dalam ModalKirimSurvei yang
+                dibuka SurveyNavigation pada pertanyaan terakhir jalur tanpa
+                akun. Token Turnstile berumur sekitar lima menit; diminta sejak
+                pertanyaan pertama, ia sudah basi saat tombol kirim ditekan. */}
             <SurveyNavigation />
           </div>
         </div>

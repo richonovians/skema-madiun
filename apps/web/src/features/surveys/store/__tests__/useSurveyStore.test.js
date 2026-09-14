@@ -45,6 +45,22 @@ describe('useSurveyStore — mode anonim', () => {
     expect(tandaiSudahMengisi).toHaveBeenCalledWith(5);
   });
 
+  /**
+   * Token captcha (14 September 2026). Ia diperoleh belakangan -- widget-nya
+   * memanggil balik sesudah pengunjung lolos -- jadi ia TIDAK boleh ikut
+   * `dataPublik` yang diisi sekali di gerbang awal. Token Turnstile juga
+   * kedaluwarsa dalam hitungan menit, sedangkan mengisi survei bisa lebih lama.
+   */
+  it('token captcha ikut terkirim pada jalur publik', async () => {
+    useSurveyStore.getState().initSurvey(survei, { anonim: true });
+    useSurveyStore.getState().setCaptchaToken('token-dari-widget');
+
+    await useSurveyStore.getState().submitSurvey();
+
+    const argumen = submitPublicSurveyResponse.mock.calls[0];
+    expect(argumen[3].captchaToken).toBe('token-dari-widget');
+  });
+
   it('pengiriman anonim yang GAGAL tidak menandai peramban', async () => {
     submitPublicSurveyResponse.mockRejectedValueOnce(new Error('jaringan'));
     useSurveyStore.getState().initSurvey(survei, { anonim: true });
