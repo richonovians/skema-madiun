@@ -3,6 +3,8 @@
  * Dimuat oleh ConfigModule (`load: [configuration]`) sehingga dapat diakses lewat
  * `ConfigService.get('app.port')`, dsb. Nilai env sudah divalidasi oleh validateEnv.
  */
+import { BATAS_HARIAN_PENGADUAN_BAKU } from '../modules/complaints/complaints.constants';
+
 export default () => ({
   app: {
     nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -57,6 +59,19 @@ export default () => ({
   throttle: {
     ttlMs: parseInt(process.env.THROTTLE_TTL_MS ?? '60000', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT ?? '100', 10),
+  },
+  turnstile: {
+    // Kosong = verifikasi MATI (lihat TurnstileService untuk penjaganya di
+    // produksi). Site key-nya ada di sisi web, bukan di sini: ia memang untuk
+    // dipajang di HTML.
+    secretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
+  },
+  complaint: {
+    // Bakunya di complaints.constants.ts, bersama alasan angkanya.
+    batasHarian: parseInt(
+      process.env.COMPLAINT_DAILY_LIMIT ?? String(BATAS_HARIAN_PENGADUAN_BAKU),
+      10,
+    ),
   },
   upload: {
     // Path lokal (relatif ke cwd proses) — storage lokal via volume Docker dulu (keputusan

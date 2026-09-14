@@ -33,6 +33,12 @@ describe('Complaints (e2e)', () => {
   let respondenId2: number;
 
   beforeAll(async () => {
+    // Batas harian pengaduan dinaikkan (14 September 2026): suite ini menguji
+    // ALUR pengaduan dan membuat lebih dari sepuluh pengaduan dari satu akun
+    // dalam satu jalannya. Batasnya sendiri diuji di
+    // pengaduan-batas-harian.e2e-spec.ts, yang justru memakunya ke nilai baku.
+    process.env.COMPLAINT_DAILY_LIMIT = '1000';
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

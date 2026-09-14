@@ -1,7 +1,8 @@
 import { ClassSerializerInterceptor, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlePenggunaGuard } from './common/guards/throttle-pengguna.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -64,7 +65,10 @@ import { UsersModule } from './modules/users/users.module';
     AppService,
     // Rate limiting global (anti-DoS/brute-force dasar) — didaftarkan terpisah dari
     // RolesGuard (AuthModule) agar keduanya tetap berjalan independen sebagai guard global.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    //
+    // ThrottlePenggunaGuard, bukan ThrottlerGuard bawaan: penghitungnya dikunci
+    // ke id pengguna bila sesinya ada. Alasannya ada di berkas guard itu.
+    { provide: APP_GUARD, useClass: ThrottlePenggunaGuard },
     // Urutan penting — fase respons berjalan TERBALIK dari urutan daftar ini:
     // ResponseInterceptor didaftarkan TERAKHIR agar BERJALAN LEBIH DULU, sehingga sempat
     // melihat instance PaginatedResult (mengangkat items + meta.pagination) SEBELUM

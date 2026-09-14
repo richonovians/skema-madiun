@@ -215,6 +215,10 @@ export async function submitPublicSurveyResponse(surveyId, questions, answers, d
   const response = await api.post(`/public/surveys/${surveyId}/responses`, {
     answers: toSubmitAnswers(questions, answers),
     setuju: dataPublik?.setuju === true,
+    // Dihilangkan bila kosong, bukan dikirim null: backend menolak token kosong
+    // tanpa menghubungi Cloudflare, dan payload yang tak memuatnya menyatakan
+    // keadaan itu dengan jujur.
+    ...(dataPublik?.captchaToken ? { captchaToken: dataPublik.captchaToken } : {}),
     // Medan data diri DIHILANGKAN dari payload bila kosong, bukan dikirim
     // null. Backend menerima keduanya (`@IsOptional`), tetapi payload yang
     // tidak memuatnya menyatakan lebih jujur bahwa pengisi memilih tidak

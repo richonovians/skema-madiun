@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ComplaintStatus, Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BATAS_HARIAN_PENGADUAN_BAKU } from './complaints.constants';
 import type { AuditService } from '../audit/audit.service';
 import type { ConsentService } from '../auth/consent.service';
 import type { NotificationsService } from '../notifications/notifications.service';
@@ -72,7 +73,19 @@ describe('ComplaintsService', () => {
     complaintReply: { create: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
-  const config = { get: jest.fn().mockReturnValue('uploads') } as unknown as ConfigService;
+  /**
+   * Dijawab PER KUNCI, bukan satu nilai untuk semua (14 September 2026).
+   * Sebelumnya tiruan ini mengembalikan 'uploads' untuk kunci apa pun, dan
+   * begitu service membaca kunci kedua yang bertipe angka, nilai string itu
+   * diam-diam ikut terpakai -- perbandingan `10 < 'uploads'` bernilai false dan
+   * SELURUH pembuatan pengaduan tertolak dengan pesan yang menyebut "uploads"
+   * sebagai jumlah.
+   */
+  const config = {
+    get: jest.fn((kunci: string) =>
+      kunci === 'complaint.batasHarian' ? BATAS_HARIAN_PENGADUAN_BAKU : 'uploads',
+    ),
+  } as unknown as ConfigService;
   const notificationsService = {
     notifyComplaintCreated: jest.fn(),
     notifyComplaintStatusChanged: jest.fn(),
@@ -115,7 +128,14 @@ describe('ComplaintsService', () => {
     });
   });
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Batas harian membaca `complaint.count` pada setiap pembuatan. Tanpa nilai
+    // baku, tiruannya mengembalikan `undefined` dan perbandingannya bernilai
+    // false -- SETIAP uji `create` di bawah lalu gagal dengan 429, bukan dengan
+    // galat yang sedang diujinya.
+    (prisma.complaint.count as jest.Mock).mockResolvedValue(0);
+  });
 
   describe('create', () => {
     it('OPD tujuan tidak ada → BadRequest', async () => {

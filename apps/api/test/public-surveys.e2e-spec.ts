@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
 import { bersihkanAuditAkunUji } from './helpers/audit.helper';
 import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
+import { lewatiCaptcha } from './helpers/turnstile.helper';
 
 /**
  * Pengisian survei TANPA sesi lewat `/public/surveys/*`.
@@ -35,9 +36,9 @@ describe('Public Surveys (e2e)', () => {
   let qTeks: number;
 
   beforeAll(async () => {
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    const moduleRef: TestingModule = await lewatiCaptcha(
+      Test.createTestingModule({ imports: [AppModule] }),
+    ).compile();
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();

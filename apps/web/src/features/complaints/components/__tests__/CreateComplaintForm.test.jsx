@@ -485,6 +485,29 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     expect(draf()).toBeNull();
   });
 
+  /**
+   * Batas harian per akun (14 September 2026). Penolakannya 429 dengan kode
+   * sendiri, bukan 403 -- dan isian yang sudah diketik warga tak boleh hilang
+   * hanya karena ia mengadu terlalu sering hari itu. Besok ia akan kembali.
+   */
+  it('menyimpan isian saat ditolak karena batas harian', async () => {
+    server.use(
+      http.post(`${API_BASE}/complaints`, () =>
+        failWithCode(
+          429,
+          'Anda sudah mengirim 10 pengaduan hari ini. Silakan kirim lagi besok.',
+          'BATAS_HARIAN_PENGADUAN',
+        ),
+      ),
+    );
+
+    await isiDanKirim();
+
+    await screen.findByText(/10 pengaduan hari ini/i);
+    await waitFor(() => expect(draf()).not.toBeNull());
+    expect(draf().title).toBe('Lampu jalan mati');
+  });
+
   it('memulihkan isian saat formulir dibuka kembali', async () => {
     sessionStorage.setItem(
       'skema:draf-pengaduan',

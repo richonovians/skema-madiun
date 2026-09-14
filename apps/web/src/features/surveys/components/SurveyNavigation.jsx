@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
-import { ArrowLeft, ArrowRight, Send } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, ArrowRight, Send, ClipboardCheck } from 'lucide-react';
 import ConsentRequiredAction, {
   KODE_PERSETUJUAN_DIBUTUHKAN,
 } from '@/features/authentication/components/ConsentRequiredAction';
+import ModalKirimSurvei from './ModalKirimSurvei';
 import useSurveyStore from '../store/useSurveyStore';
 
 export default function SurveyNavigation() {
@@ -18,7 +19,10 @@ export default function SurveyNavigation() {
     isSubmitting,
     submitError,
     submitErrorCode,
+    isAnonimMode,
   } = useSurveyStore();
+
+  const [modalTerbuka, setModalTerbuka] = useState(false);
 
   if (!surveyData || !surveyData.questions) return null;
 
@@ -35,13 +39,45 @@ export default function SurveyNavigation() {
   const hasAnswer = String(answers[currentQuestion.id] ?? '').trim() !== '';
   const isNextDisabled = isSubmitting || (!isOptional && !hasAnswer);
 
+  /**
+   * Jalur TANPA AKUN berhenti dulu di modal verifikasi (14 September 2026, atas
+   * permintaan pengguna): tombolnya berbunyi "Selesaikan" dan pengirimannya
+   * baru terjadi dari dalam modal, sesudah captcha diselesaikan.
+   *
+   * Jalur berlogin tak ikut berubah. Captcha memang tak pernah berlaku baginya,
+   * jadi modal di sana hanya akan menjadi satu klik tambahan tanpa isi.
+   */
+  const lewatModal = isLastStep && isAnonimMode;
+
   const handleNextOrSubmit = async () => {
-    if (isLastStep) {
+    if (lewatModal) {
+      setModalTerbuka(true);
+    } else if (isLastStep) {
       await submitSurvey();
     } else {
       nextStep();
     }
   };
+
+  const labelPanjang = lewatModal
+    ? 'Selesaikan'
+    : isLastStep
+      ? isSubmitting
+        ? 'Mengirim...'
+        : 'Kirim Survei'
+      : 'Pertanyaan Selanjutnya';
+
+  const labelPendek = lewatModal
+    ? 'Selesaikan'
+    : isLastStep
+      ? isSubmitting
+        ? 'Mengirim...'
+        : 'Kirim'
+      : 'Selanjutnya';
+
+  // Pesawat kertas menjanjikan pengiriman yang belum terjadi: "Selesaikan"
+  // hanya membuka modal.
+  const Ikon = lewatModal ? ClipboardCheck : isLastStep ? Send : ArrowRight;
 
   return (
     <div className="pt-8 border-t border-outline-variant/30 mt-12">
@@ -70,17 +106,13 @@ export default function SurveyNavigation() {
           onClick={handleNextOrSubmit}
           disabled={isNextDisabled}
         >
-          <span className="hidden sm:inline">
-            {isLastStep ? (isSubmitting ? 'Mengirim...' : 'Kirim Survei') : 'Pertanyaan Selanjutnya'}
-          </span>
-          <span className="sm:hidden">
-            {isLastStep ? (isSubmitting ? 'Mengirim...' : 'Kirim') : 'Selanjutnya'}
-          </span>
-          {isLastStep ? <Send className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> : <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
+          <span className="hidden sm:inline">{labelPanjang}</span>
+          <span className="sm:hidden">{labelPendek}</span>
+          <Ikon className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
         </button>
       </div>
 
-      {submitError && (
+      {submitError && !modalTerbuka && (
         <div className="mt-4 text-center text-error text-sm font-semibold">
           <p>{submitError}</p>
           {/* Jalan keluarnya, bukan sekadar keterangan bahwa ada jalan keluar.
@@ -96,6 +128,8 @@ export default function SurveyNavigation() {
       <p className="mt-8 text-center text-text-secondary text-sm">
         Jawaban Anda disimpan secara otomatis. Anda dapat kembali ke pertanyaan sebelumnya jika diperlukan.
       </p>
+
+      <ModalKirimSurvei isOpen={modalTerbuka} onBatal={() => setModalTerbuka(false)} />
     </div>
   );
 }

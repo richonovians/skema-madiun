@@ -47,6 +47,18 @@ import { SubmitResponseDto } from './submit-response.dto';
  * berlaku sebagai catatan, bukan sebagai penghalang.
  */
 export class SubmitPublicResponseDto extends SubmitResponseDto {
+  @ApiPropertyOptional({
+    description:
+      'Token Cloudflare Turnstile dari widget di halaman. Wajib bila verifikasi captcha aktif.',
+  })
+  @IsOptional()
+  @IsString()
+  // OPSIONAL di DTO, WAJIB di gerbangnya. Menjadikannya wajib di sini akan
+  // memaksa lingkungan pengembangan yang captcha-nya sengaja mati ikut
+  // mengirim token karangan, dan menolaknya dengan 400 yang menyesatkan
+  // ("captchaToken should not be empty") alih-alih 403 yang menyebut sebabnya.
+  captchaToken?: string;
+
   @ApiProperty({
     description: 'Persetujuan pemrosesan data pribadi (UU PDP No. 27/2022). Wajib true.',
   })

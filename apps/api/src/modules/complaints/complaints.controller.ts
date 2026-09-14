@@ -30,12 +30,14 @@ import { ForwardComplaintDto } from './dto/forward-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
+import { BATAS_UKURAN_LAMPIRAN_BYTES } from './complaints.constants';
 import { ComplaintEntity } from './entities/complaint.entity';
 import { ComplaintReplyEntity } from './entities/complaint-reply.entity';
 
-// Ceiling multer murni pertahanan (anti abuse); batas bisnis nyata (5MB/tipe) dicek di service
-// agar pelanggaran wajar menghasilkan 400 yang jelas, bukan error multer mentah.
-const MULTER_HARD_CEILING_BYTES = 20 * 1024 * 1024;
+// Langit-langit multer kini MENYAMAI batas bisnis (14 September 2026). Lihat
+// complaints.constants.ts untuk alasannya, termasuk kenapa dulu empat kali
+// lebih longgar dan kenapa itu tak lagi sepadan.
+const MULTER_HARD_CEILING_BYTES = BATAS_UKURAN_LAMPIRAN_BYTES;
 
 @ApiTags('complaints')
 @ApiBearerAuth()

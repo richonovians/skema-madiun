@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ApiErrorResponse } from '../interfaces/api-response.interface';
+import { BATAS_UKURAN_LAMPIRAN_LABEL } from '../../modules/complaints/complaints.constants';
 
 interface HttpResponseLike {
   status(code: number): { json(body: unknown): void };
@@ -65,6 +66,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
+    }
+
+    /**
+     * Penolakan multer karena berkas melebihi `limits.fileSize`
+     * (14 September 2026). @nestjs/platform-express memetakannya menjadi
+     * PayloadTooLargeException berpesan "File too large" -- benar statusnya,
+     * tetapi pesannya bahasa Inggris dan tak menyebut batas yang dilanggar,
+     * sedangkan yang membacanya warga yang baru saja gagal mengunggah foto.
+     *
+     * Dicocokkan pada teks tetap milik multer, dan itu memang kopling yang
+     * rapuh. Penjaganya test/lampiran-batas-ukuran.e2e-spec.ts, yang menuntut
+     * pesannya menyebut batasnya -- jadi bila multer kelak mengubah kalimatnya,
+     * yang terjadi adalah uji yang memerah, bukan pesan yang diam-diam kembali
+     * menjadi "File too large".
+     */
+    if (statusCode === HttpStatus.PAYLOAD_TOO_LARGE && message === 'File too large') {
+      message = `Ukuran berkas melebihi ${BATAS_UKURAN_LAMPIRAN_LABEL}. Perkecil berkasnya lalu coba lagi.`;
+      code = 'LAMPIRAN_TERLALU_BESAR';
     }
 
     const body: ApiErrorResponse = {

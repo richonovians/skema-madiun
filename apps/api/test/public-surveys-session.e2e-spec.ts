@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
+import { lewatiCaptcha } from './helpers/turnstile.helper';
 
 /**
  * Bukti DECISIF untuk `@Public()` pada endpoint pengisian survei anonim.
@@ -31,9 +32,9 @@ describe('Public Surveys dengan SessionAuthProvider aktif (e2e)', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'development'; // paksa binding AUTH_PROVIDER -> SessionAuthProvider
 
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    const moduleRef: TestingModule = await lewatiCaptcha(
+      Test.createTestingModule({ imports: [AppModule] }),
+    ).compile();
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
