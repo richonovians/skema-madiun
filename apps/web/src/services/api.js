@@ -127,4 +127,21 @@ export function isUnauthorizedError(error) {
   return error?.response?.status === 401;
 }
 
+/**
+ * Kode galat dari backend (`error.code` pada amplopnya), atau `null`.
+ *
+ * Tinggal di sini karena alasan yang sama seperti `isUnauthorizedError`:
+ * bentuk amplop respons adalah urusan layer service, dan komponen cukup
+ * bertanya "penolakan jenis apa ini?" tanpa tahu bentuk HTTP-nya.
+ *
+ * Dipakai untuk menawarkan JALAN KELUAR yang tepat -- mis. `CONSENT_REQUIRED`
+ * memunculkan tombol menuju halaman persetujuan. Mencocokkan bunyi pesan akan
+ * bekerja hari ini dan diam-diam berhenti bekerja pada penyuntingan teks
+ * berikutnya, tanpa ada satu uji pun yang memerah.
+ */
+export function kodeGalat(error) {
+  const kode = error?.response?.data?.error?.code;
+  return typeof kode === 'string' ? kode : null;
+}
+
 export default api;

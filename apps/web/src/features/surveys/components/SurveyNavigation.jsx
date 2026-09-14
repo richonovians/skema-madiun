@@ -2,6 +2,9 @@
 
 import React from 'react';
 import { ArrowLeft, ArrowRight, Send } from 'lucide-react';
+import ConsentRequiredAction, {
+  KODE_PERSETUJUAN_DIBUTUHKAN,
+} from '@/features/authentication/components/ConsentRequiredAction';
 import useSurveyStore from '../store/useSurveyStore';
 
 export default function SurveyNavigation() {
@@ -14,6 +17,7 @@ export default function SurveyNavigation() {
     submitSurvey,
     isSubmitting,
     submitError,
+    submitErrorCode,
   } = useSurveyStore();
 
   if (!surveyData || !surveyData.questions) return null;
@@ -77,7 +81,16 @@ export default function SurveyNavigation() {
       </div>
 
       {submitError && (
-        <p className="mt-4 text-center text-error text-sm font-semibold">{submitError}</p>
+        <div className="mt-4 text-center text-error text-sm font-semibold">
+          <p>{submitError}</p>
+          {/* Jalan keluarnya, bukan sekadar keterangan bahwa ada jalan keluar.
+              Sebelumnya pesannya sendiri yang menyuruh "Buka halaman
+              Persetujuan terlebih dahulu" -- menyebut tujuan tanpa memberi
+              jalan ke sana, tepat saat pengirimannya baru saja gagal. */}
+          {submitErrorCode === KODE_PERSETUJUAN_DIBUTUHKAN && (
+            <ConsentRequiredAction className="mt-3" />
+          )}
+        </div>
       )}
 
       <p className="mt-8 text-center text-text-secondary text-sm">
