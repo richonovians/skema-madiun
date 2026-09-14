@@ -60,6 +60,12 @@ export default () => ({
     ttlMs: parseInt(process.env.THROTTLE_TTL_MS ?? '60000', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT ?? '100', 10),
   },
+  turnstile: {
+    // Kosong = verifikasi MATI (lihat TurnstileService untuk penjaganya di
+    // produksi). Site key-nya ada di sisi web, bukan di sini: ia memang untuk
+    // dipajang di HTML.
+    secretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
+  },
   complaint: {
     // Bakunya di complaints.constants.ts, bersama alasan angkanya.
     batasHarian: parseInt(

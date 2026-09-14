@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import {
   ThrottlerGuard,
@@ -8,6 +8,7 @@ import {
   getStorageToken,
 } from '@nestjs/throttler';
 import { AUTH_PROVIDER } from '../../modules/auth/auth.constants';
+import { BATAS_PER_SURVEI_KEY } from '../decorators/batas-per-survei.decorator';
 import type {
   AuthProvider,
   AuthRequestLike,
@@ -63,5 +64,33 @@ export class ThrottlePenggunaGuard extends ThrottlerGuard {
 
     // Berawalan, supaya id pengguna 5 dan IP "5" tak mungkin bertabrakan.
     return Promise.resolve(userId != null ? `pengguna:${userId}` : `ip:${String(req.ip)}`);
+  }
+
+  /**
+   * Pisahkan penghitung per survei pada rute berdekorator `@BatasPerSurvei()`.
+   * Lihat dekoratornya untuk alasannya.
+   *
+   * Ditambahkan pada kunci bawaan, bukan menggantikannya: kunci bawaan sudah
+   * memisahkan tiap handler dan tiap penyetelan throttle, dan menimpanya akan
+   * menyatukan hal-hal yang sengaja dipisah di tempat lain.
+   */
+  protected generateKey(context: ExecutionContext, suffix: string, name: string): string {
+    const kunci = super.generateKey(context, suffix, name);
+
+    const perSurvei = this.reflector.getAllAndOverride<boolean>(BATAS_PER_SURVEI_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!perSurvei) {
+      return kunci;
+    }
+
+    const req = context.switchToHttp().getRequest<{ params?: Record<string, string> }>();
+    const surveyId = req.params?.surveyId;
+    // Tanpa id -- rute berdekorator yang ruasnya berubah, misalnya -- kunci
+    // bawaanlah yang dipakai. Menambahkan penanda yang berbeda tiap permintaan
+    // akan menghasilkan ember baru terus-menerus, yaitu tak ada batas sama
+    // sekali.
+    return surveyId ? `${kunci}:survei-${surveyId}` : kunci;
   }
 }

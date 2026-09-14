@@ -72,6 +72,15 @@ class EnvironmentVariables {
   @Min(1)
   COMPLAINT_DAILY_LIMIT: number = 10;
 
+  /**
+   * Rahasia Turnstile. Opsional di sini supaya pengembangan tak menuntut akun
+   * Cloudflare; yang mewajibkannya di produksi adalah TurnstileService, yang
+   * menolak menyala tanpa ini.
+   */
+  @IsOptional()
+  @IsString()
+  TURNSTILE_SECRET_KEY: string = '';
+
   @IsOptional()
   @IsString()
   UPLOAD_DIR: string = 'uploads';
