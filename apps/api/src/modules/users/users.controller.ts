@@ -20,18 +20,21 @@ import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UserEntity } from './entities/user.entity';
+import { UserStatsEntity } from './entities/user-stats.entity';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
 @ApiBearerAuth()
 /**
- * @Roles TETAP `Role.kabupaten` walau seluruh endpoint di sini kini khusus
- * superuser. Bukan kelalaian: RolesGuard meloloskan `kabupaten` DAN `superuser`
- * lewat bypass peran berhak penuh, jadi dekorator ini tak bisa membedakan
- * keduanya sama sekali. Yang menegakkan batasnya adalah
- * `UsersService.assertSuperuser` (403) -- lihat catatan panjang di sana.
+ * `@Roles(Role.superuser)` -- dan dekorator ini kini JUJUR. Sampai T6 dibereskan
+ * (7 September 2026) ia tertulis `Role.kabupaten` justru karena isinya tak
+ * berarti apa-apa: RolesGuard meloloskan `kabupaten` DAN `superuser` lewat
+ * bypass menyeluruh, jadi nilai apa pun di sini sama saja.
+ *
+ * `UsersService.assertSuperuser` (403) DIPERTAHANKAN sebagai lapis kedua --
+ * lihat catatan panjang di sana.
  */
-@Roles(Role.kabupaten)
+@Roles(Role.superuser)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -52,6 +55,19 @@ export class UsersController {
   @ApiOkResponse({ type: UserEntity })
   create(@Body() dto: CreateUserDto, @CurrentUser() actor: CurrentUser): Promise<UserEntity> {
     return this.usersService.create(dto, actor);
+  }
+
+  /**
+   * Jumlah akun aktif & total. Khusus superuser.
+   *
+   * DIDEKLARASIKAN SEBELUM `@Get(':id')`, dan urutannya bukan selera: Nest
+   * memadankan rute berurutan, jadi bila ia di bawah, '/users/stats' tertangkap
+   * sebagai ':id' dan ParseIntPipe menjawab 400 untuk kata "stats".
+   */
+  @Get('stats')
+  @ApiOkResponse({ type: UserStatsEntity })
+  getStats(@CurrentUser() actor: CurrentUser): Promise<UserStatsEntity> {
+    return this.usersService.getStats(actor);
   }
 
   /** Detail akun. Khusus superuser. */

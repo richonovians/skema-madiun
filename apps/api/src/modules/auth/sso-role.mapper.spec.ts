@@ -1,5 +1,5 @@
 import { Role } from '@prisma/client';
-import { parseClaimValues, parseRoleMap, resolveRoleFromClaims } from './sso-role.mapper';
+import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
 
 describe('parseClaimValues', () => {
   /**
@@ -44,82 +44,117 @@ describe('parseClaimValues', () => {
   });
 });
 
-describe('parseRoleMap', () => {
-  it('membaca pasangan nilaiKlaim:peran', () => {
-    const map = parseRoleMap('admin-kab:kabupaten,admin-opd:opd');
+describe('parseRolePackages', () => {
+  it('membaca bentuk LAMA nilaiKlaim:peran sebagai paket berisi satu peran', () => {
+    const map = parseRolePackages('admin-kab:kabupaten,admin-opd:opd');
 
-    expect(map.get('admin-kab')).toBe(Role.kabupaten);
-    expect(map.get('admin-opd')).toBe(Role.opd);
+    // Bentuk lama HARUS tetap sah: env yang sudah terpasang di lingkungan mana
+    // pun tak boleh rusak hanya karena format paket ditambahkan.
+    expect(map.get('admin-kab')).toEqual([Role.kabupaten]);
+    expect(map.get('admin-opd')).toEqual([Role.opd]);
     expect(map.size).toBe(2);
   });
 
-  it('memaafkan spasi berlebih & huruf besar pada kunci', () => {
-    const map = parseRoleMap('  Admin-Kab : kabupaten ,  admin-opd:opd  ');
+  it('membaca paket berisi beberapa peran, dipisah tanda tambah', () => {
+    const map = parseRolePackages('pegawai-dinas:opd+responden,admin:superuser+opd+responden');
 
-    expect(map.get('admin-kab')).toBe(Role.kabupaten);
-    expect(map.size).toBe(2);
+    expect(map.get('pegawai-dinas')).toEqual([Role.opd, Role.responden]);
+    expect(map.get('admin')).toEqual([Role.superuser, Role.opd, Role.responden]);
+  });
+
+  it('memaafkan spasi berlebih & huruf besar', () => {
+    const map = parseRolePackages('  Pegawai-Dinas : OPD + Responden  ');
+
+    expect(map.get('pegawai-dinas')).toEqual([Role.opd, Role.responden]);
+  });
+
+  it('membuang peran ganda di dalam satu paket', () => {
+    expect(parseRolePackages('a:opd+opd+responden').get('a')).toEqual([Role.opd, Role.responden]);
   });
 
   /**
-   * INI PEMERIKSAAN KEAMANAN, bukan sekadar validasi bentuk. `superuser`
-   * memegang log aktivitas & manajemen pengguna; membiarkannya dipetakan dari
-   * klaim berarti menyerahkan penetapan hak tertinggi kepada sistem di luar
-   * kendali kita.
+   * PEMBALIKAN YANG DISENGAJA (keputusan pengguna 6 September 2026): sebelum ini
+   * `superuser` sengaja TIDAK dapat dipetakan dari klaim, karena peran itu
+   * memegang log aktivitas & manajemen pengguna. Pengguna meminta tipe "admin"
+   * dari Helpdesk menjadi superuser di SKEMA, jadi larangan itu dicabut.
+   *
+   * Pengamannya BUKAN di sini melainkan tiga hal di luar fungsi ini: baku tetap
+   * `responden` bila env kosong, penetapan hanya saat akun dibuat, dan
+   * pembuatannya tercatat di audit_logs. Lihat spec Bagian A.3.
    */
-  it('MENOLAK pemetaan ke superuser', () => {
-    const map = parseRoleMap('bos:superuser,admin-opd:opd');
+  it('MENERIMA pemetaan ke superuser -- larangan lama sudah dicabut', () => {
+    const map = parseRolePackages('admin:superuser');
 
-    expect(map.has('bos')).toBe(false);
-    expect(map.get('admin-opd')).toBe(Role.opd);
+    expect(map.get('admin')).toEqual([Role.superuser]);
   });
 
   it.each([
     ['peran tak dikenal', 'x:raja'],
     ['tanpa titik dua', 'admin-kab'],
-    ['peran kosong', 'admin-kab:'],
+    ['paket kosong', 'admin-kab:'],
     ['kunci kosong', ':kabupaten'],
+    ['seluruh isi paket tak dikenal', 'a:raja+kaisar'],
   ])('mengabaikan entri cacat (%s)', (_n, raw) => {
-    expect(parseRoleMap(raw).size).toBe(0);
+    expect(parseRolePackages(raw).size).toBe(0);
+  });
+
+  it('paket separuh cacat: peran yang sah tetap terpakai', () => {
+    // Entri cacat diabaikan DIAM-DIAM alih-alih menggagalkan boot -- env salah
+    // tulis sebaiknya membuat pemetaan tak berlaku, bukan mematikan API.
+    expect(parseRolePackages('a:opd+raja').get('a')).toEqual([Role.opd]);
   });
 
   it.each([[undefined], ['']])('tanpa konfigurasi -> map kosong', (raw) => {
-    expect(parseRoleMap(raw as string | undefined).size).toBe(0);
+    expect(parseRolePackages(raw as string | undefined).size).toBe(0);
   });
 
   it('kunci ganda: entri terakhir menang', () => {
-    expect(parseRoleMap('a:opd,a:kabupaten').get('a')).toBe(Role.kabupaten);
+    expect(parseRolePackages('a:opd,a:kabupaten').get('a')).toEqual([Role.kabupaten]);
   });
 });
 
-describe('resolveRoleFromClaims', () => {
-  const map = parseRoleMap('admin-kab:kabupaten,admin-opd:opd,warga:responden');
+describe('resolveRolesFromClaims', () => {
+  const map = parseRolePackages(
+    'pegawai-dinas:opd+responden,admin:superuser+opd+responden,warga:responden',
+  );
 
-  it('satu nilai cocok -> peran itu', () => {
-    expect(resolveRoleFromClaims(['admin-opd'], map)).toBe(Role.opd);
+  it('satu nilai cocok -> seluruh paketnya', () => {
+    expect(resolveRolesFromClaims(['pegawai-dinas'], map)).toEqual([Role.opd, Role.responden]);
   });
 
-  it('tak ada yang cocok -> null (pemanggil yang menentukan bakunya)', () => {
-    expect(resolveRoleFromClaims(['tak-dikenal'], map)).toBeNull();
+  it('tak ada yang cocok -> array kosong (pemanggil yang menentukan bakunya)', () => {
+    expect(resolveRolesFromClaims(['tak-dikenal'], map)).toEqual([]);
   });
 
-  it('nilai kosong -> null', () => {
-    expect(resolveRoleFromClaims([], map)).toBeNull();
+  it('nilai kosong -> array kosong', () => {
+    expect(resolveRolesFromClaims([], map)).toEqual([]);
   });
 
-  it('map kosong -> null walau nilainya ada', () => {
-    expect(resolveRoleFromClaims(['admin-kab'], new Map())).toBeNull();
+  it('map kosong -> array kosong walau nilainya ada', () => {
+    expect(resolveRolesFromClaims(['admin'], new Map())).toEqual([]);
   });
 
   /**
-   * Urutan kemenangan DITETAPKAN (kabupaten > opd > responden), bukan "yang
-   * pertama ditemukan": urutan klaim dari Helpdesk tak dijamin stabil, dan peran
-   * yang berubah-ubah antar login jauh lebih membingungkan daripada satu aturan
-   * yang selalu sama. Batas atasnya tetap `kabupaten` karena `superuser` tak
-   * pernah bisa dipetakan.
+   * UNION, bukan peringkat. `ROLE_PRECEDENCE` dibuang bersama pemetaan tunggal:
+   * begitu satu klaim dapat membawa beberapa peran, "peran mana yang menang"
+   * tak lagi bermakna. Union dapat diramalkan karena tiap entri ditulis manusia
+   * di env -- ia tak bergantung pada urutan klaim, yang memang tak dijamin.
    */
-  it('beberapa cocok -> peran paling tinggi, apa pun urutan klaimnya', () => {
-    expect(resolveRoleFromClaims(['admin-opd', 'admin-kab'], map)).toBe(Role.kabupaten);
-    expect(resolveRoleFromClaims(['admin-kab', 'admin-opd'], map)).toBe(Role.kabupaten);
-    expect(resolveRoleFromClaims(['warga', 'admin-opd'], map)).toBe(Role.opd);
+  it('beberapa paket cocok -> gabungan, tanpa duplikat, apa pun urutan klaimnya', () => {
+    expect(resolveRolesFromClaims(['pegawai-dinas', 'warga'], map)).toEqual([
+      Role.opd,
+      Role.responden,
+    ]);
+    expect(resolveRolesFromClaims(['warga', 'pegawai-dinas'], map)).toEqual([
+      Role.responden,
+      Role.opd,
+    ]);
+  });
+
+  it('paket bertumpang tindih tidak menghasilkan role ganda', () => {
+    const hasil = resolveRolesFromClaims(['admin', 'pegawai-dinas'], map);
+
+    expect([...hasil].sort()).toEqual([Role.opd, Role.responden, Role.superuser].sort());
+    expect(hasil.length).toBe(3);
   });
 });

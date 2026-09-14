@@ -25,33 +25,36 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('pengaduan');
 
   return (
-    <>
+    <div className="bg-white min-h-screen flex flex-col">
       <Navbar />
       
       <HeroSection />
 
-      <main className="max-w-[1280px] mx-auto -mt-16 sm:-mt-24 md:-mt-32 relative z-30 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start px-4 sm:px-6 mb-16">
-        <aside className="lg:col-span-4 flex flex-col gap-4">
-          <ServiceSelector 
-            activeTab={activeTab} 
-            onTabChange={setActiveTab} 
-          />
-          <HelpBox />
-        </aside>
+      {/* Bagian Layanan / Form dengan background berbeda agar terpisah visual dari Hero */}
+      <div className="w-full bg-slate-50 flex-1">
+        <main className="max-w-[1280px] mx-auto relative z-30 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start px-4 sm:px-6 py-16 lg:py-20 w-full">
+          <aside className="lg:col-span-4 flex flex-col gap-4">
+            <ServiceSelector 
+              activeTab={activeTab} 
+              onTabChange={setActiveTab} 
+            />
+            <HelpBox />
+          </aside>
 
-        {/* Feature content conditionally rendered based on selected service tab */}
-        <div className="lg:col-span-8 w-full">
-          {activeTab === 'pengaduan' ? (
-            <CreateComplaintForm />
-          ) : (
-            <SurveyForm />
-          )}
-        </div>
-      </main>
+          {/* Feature content conditionally rendered based on selected service tab */}
+          <div className="lg:col-span-8 w-full">
+            {activeTab === 'pengaduan' ? (
+              <CreateComplaintForm />
+            ) : (
+              <SurveyForm />
+            )}
+          </div>
+        </main>
+      </div>
 
       <ServiceFlow />
 
       <Footer />
-    </>
+    </div>
   );
 }

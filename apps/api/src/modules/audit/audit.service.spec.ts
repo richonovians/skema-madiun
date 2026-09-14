@@ -6,9 +6,19 @@ import { AuditService } from './audit.service';
 
 // Log aktivitas HANYA untuk superuser (2026-08-20) -- kabupaten pun ditolak,
 // meski RolesGuard meloloskannya. Karena itu setiap pemanggilan butuh user.
-const SUPERUSER = { userId: 1, role: Role.superuser, opdId: null } as CurrentUser;
-const KABUPATEN = { userId: 2, role: Role.kabupaten, opdId: null } as CurrentUser;
-const OPD = { userId: 3, role: Role.opd, opdId: 7 } as CurrentUser;
+const SUPERUSER = {
+  userId: 1,
+  roles: [Role.superuser],
+  actingRole: Role.superuser,
+  opdId: null,
+} as CurrentUser;
+const KABUPATEN = {
+  userId: 2,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+} as CurrentUser;
+const OPD = { userId: 3, roles: [Role.opd], actingRole: Role.opd, opdId: 7 } as CurrentUser;
 
 describe('AuditService', () => {
   const prisma = {
@@ -72,9 +82,10 @@ describe('AuditService', () => {
     });
   });
 
-  // Inti pemisahan superuser vs kabupaten (2026-08-20). Diperiksa di service,
-  // BUKAN via @Roles, karena RolesGuard memberi kabupaten bypass penuh --
-  // dekorator saja tak akan pernah menahannya.
+  // Inti pemisahan superuser vs kabupaten (2026-08-20). Sejak T6 (7 Sep 2026)
+  // `@Roles(Role.superuser)` di controller juga menahannya; yang diuji di sini
+  // lapis service -- yang tetap berlaku bila daftar dekorator kelak diperluas
+  // keliru. Gerbang guard-nya diuji di test/audit.e2e-spec.ts.
   describe('pembatasan superuser', () => {
     it('kabupaten (bukan superuser) → Forbidden, query TAK dijalankan', async () => {
       await expect(service.findAll({ page: 1, limit: 20 }, KABUPATEN)).rejects.toThrow(

@@ -37,6 +37,12 @@ class StubSsoSource implements SsoSource {
     nama: 'Warga SSO',
     groups: undefined,
     role: undefined,
+    // Wajib sejak sinkronisasi OPD (8 September 2026). Kosong = profil warga
+    // biasa tanpa klaim OPD, yang memang keadaan yang diuji berkas ini.
+    klaim: {},
+    // Keadaan normal penyedia identitas. Wajib tersurat sejak T5 (7 September
+    // 2026): penautan akun lama lewat email menolak klaim yang hilang.
+    emailVerified: true,
   };
   lastCode: string | null = null;
   /** Disetel satu tes untuk meniru Helpdesk yang tak dapat dihubungi. */
@@ -226,7 +232,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
 
       const user = await prisma.user.findFirst({ where: { ssoSubject: SUB } });
       expect(user?.email).toBe(EMAIL);
-      expect(user?.role).toBe(Role.responden);
+      expect(user?.roles).toEqual([Role.responden]);
       // consentAt SENGAJA null: persetujuan PDP bukan efek samping login.
       expect(user?.consentAt).toBeNull();
     });
@@ -292,7 +298,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
         .post('/api/v1/complaints')
         .set('Cookie', `${SESSION_COOKIE}=${sesi}`)
         .field('opdId', '1')
-        .field('kategori', 'infrastruktur')
+        .field('kategori', 'aduan')
         .field('judul', 'Uji persetujuan')
         // `uraian`, BUKAN `deskripsi`: ValidationPipe memakai
         // forbidNonWhitelisted, jadi nama field yang salah menghasilkan 400
@@ -323,7 +329,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
         .post('/api/v1/complaints')
         .set(auth)
         .field('opdId', '999999') // OPD sengaja tak ada
-        .field('kategori', 'infrastruktur')
+        .field('kategori', 'aduan')
         .field('judul', 'Uji persetujuan')
         .field('uraian', 'Persetujuan sudah ada, jadi yang menolak bukan lagi PDP');
 

@@ -8,6 +8,10 @@ const createJestConfig = nextJest({
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // `e2e/` berisi spec Playwright, dan namanya (`*.spec.ts`) juga cocok dengan
+  // testMatch baku Jest -- tanpa pengecualian ini Jest ikut menjalankannya dan
+  // suite-nya gagal seketika (`test` milik Playwright, bukan Jest).
+  testPathIgnorePatterns: ['<rootDir>/e2e/', '<rootDir>/node_modules/', '<rootDir>/.next/'],
   testEnvironment: 'jest-environment-jsdom',
   // Spec Playwright di `e2e/` juga berakhiran `.spec.js`, sehingga tanpa
   // pengecualian ini Jest ikut memungutnya lalu gagal — `test`/`expect` di sana

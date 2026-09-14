@@ -57,6 +57,27 @@ export const paginated = (items, path = '', { page = 1, limit = 20, total = item
 export const fail = (status, message) =>
   HttpResponse.json({ statusCode: status, message, error: true }, { status });
 
+/**
+ * Amplop galat SEPERTI YANG BENAR-BENAR DIKIRIM AllExceptionsFilter, lengkap
+ * dengan `error.code` (14 September 2026).
+ *
+ * `fail` di atas menyederhanakan `error` jadi `true`, sehingga uji yang
+ * bergantung pada kode galat akan hijau bahkan ketika kodenya tak pernah
+ * dibaca. Yang ini menirukan bentuk aslinya: `{ success, statusCode, message,
+ * error: { code, details }, meta }`.
+ */
+export const failWithCode = (status, message, code) =>
+  HttpResponse.json(
+    {
+      success: false,
+      statusCode: status,
+      message,
+      error: { code, details: null },
+      meta: meta(''),
+    },
+    { status },
+  );
+
 // ---------------------------------------------------------------------------
 // Fixture — nama field mengikuti hasil rekaman.
 // ---------------------------------------------------------------------------
@@ -84,6 +105,7 @@ export const surveyFixture = (over = {}) => ({
   periode: '2026-Q1',
   status: 'draft',
   allowMultipleSubmit: false,
+  izinkanAnonim: false,
   createdAt: '2026-08-06T08:10:04.832Z',
   updatedAt: '2026-08-06T08:12:26.861Z',
   respondentsCount: 0,
@@ -124,8 +146,8 @@ export const complaintFixture = (over = {}) => ({
   ticketNo: 'PGD20260806CDPH',
   userId: 21,
   opdId: 1,
-  kategori: 'keamanan_ketertiban',
-  subKategori: 'rambu',
+  kategori: 'aduan',
+  isAnonim: false,
   judul: 'Rambu lalu lintas rusak',
   uraian: 'Rambu di perempatan sudah tidak terbaca sejak bulan lalu.',
   status: 'diterima',
@@ -152,7 +174,9 @@ export const userFixture = (over = {}) => ({
   ssoSubject: 'seed-responden',
   nama: 'Warga Contoh',
   email: 'warga@example.go.id',
-  role: 'responden',
+  // `roles` (array) menggantikan `role` tunggal, 5 September 2026.
+  roles: ['responden'],
+  actingRole: 'responden',
   opdId: null,
   isActive: true,
   lastLoginAt: '2026-08-10T07:57:10.033Z',
@@ -251,6 +275,30 @@ export const handlers = [
 
   // [TURUN] persetujuan PDP (SSO Helpdesk, 2026-08-27). Dipanggil sekali oleh
   // responden baru; membalas HANYA stempel waktunya, bukan seluruh profil.
+  /**
+   * [TURUN] ganti peran yang sedang dipakai (5 September 2026). Mengembalikan
+   * token baru seperti jalur dev-login sungguhan; pada jalur SSO backend hanya
+   * memasang cookie dan body-nya tak memuat token.
+   */
+  /**
+   * [TURUN] role yang dimiliki akun (6 September 2026). Terpisah dari
+   * `/auth/me` karena endpoint itu menolak 401 saat peran belum dipilih.
+   */
+  http.get(`${API_BASE}/auth/roles`, () =>
+    ok(
+      { nama: 'Admin Kabupaten (Contoh)', roles: ['kabupaten'], opdId: null, consentRequired: false },
+      '/auth/roles',
+    ),
+  ),
+
+  http.post(`${API_BASE}/auth/acting-role`, async ({ request }) => {
+    const body = (await request.json()) as { role: string };
+    return ok(
+      { role: body.role, expiresAt: 0, token: 'token-uji-acting-role' },
+      '/auth/acting-role',
+    );
+  }),
+
   http.post(`${API_BASE}/auth/consent`, () =>
     created({ consentAt: '2026-09-02T02:00:00.000Z' }, '/auth/consent'),
   ),
@@ -263,7 +311,7 @@ export const handlers = [
         ssoSubject: 'seed-admin-kabupaten',
         nama: 'Admin Kabupaten (Contoh)',
         email: 'admin.kabupaten@example.go.id',
-        role: 'kabupaten',
+        roles: ['kabupaten'], actingRole: 'kabupaten',
         respondentProfile: null,
       }),
       '/auth/me',
@@ -273,7 +321,7 @@ export const handlers = [
   // [TURUN] mengembalikan profil terbaru, bentuk sama dengan GET /auth/me.
   http.patch(`${API_BASE}/auth/profile`, async ({ request }) => {
     const body = (await request.json()) as JsonBody;
-    return ok(userFixture({ ...body, role: 'responden' }), '/auth/profile');
+    return ok(userFixture({ ...body, roles: ['responden'], actingRole: 'responden' }), '/auth/profile');
   }),
 
   // ===================== OPD =====================
@@ -357,6 +405,31 @@ export const handlers = [
     ),
   ),
 
+  // [TURUN] jalur publik (tanpa sesi) -- rute /survei/:id. Terpisah dari handler
+  // berpenjaga di bawah, persis seperti di backend.
+  http.get(`${API_BASE}/public/surveys/:id/fill`, ({ params }) =>
+    ok(
+      {
+        id: Number(params.id),
+        judul: 'Survei IKM Loket',
+        periode: '2026-Q3',
+        status: 'aktif',
+        allowMultipleSubmit: false,
+        izinkanAnonim: true,
+        sudahMengisi: false,
+        questions: QUESTION_LIST,
+      },
+      `/public/surveys/${params.id}/fill`,
+    ),
+  ),
+
+  http.post(`${API_BASE}/public/surveys/:id/responses`, ({ params }) =>
+    created(
+      { id: 1, surveyId: Number(params.id), submittedAt: new Date().toISOString() },
+      `/public/surveys/${params.id}/responses`,
+    ),
+  ),
+
   // [TURUN] form pengisian untuk responden.
   http.get(`${API_BASE}/surveys/:id/fill`, ({ params }) =>
     ok(
@@ -364,12 +437,42 @@ export const handlers = [
         id: Number(params.id),
         judul: 'Survei IKM 2025',
         periode: '2025-Q4',
+        status: 'aktif',
+        allowMultipleSubmit: false,
+        izinkanAnonim: false,
         sudahMengisi: false,
         questions: QUESTION_LIST,
       },
       `/surveys/${params.id}/fill`,
     ),
   ),
+
+  // [REKAM] isi Sampah. Didaftarkan SEBELUM '/surveys/:id' -- MSW mencocokkan
+  // sesuai urutan, dan 'trash' akan tertangkap ':id' bila ditaruh sesudahnya.
+  http.get(`${API_BASE}/surveys/trash`, () =>
+    paginated(
+      [
+        {
+          id: 91,
+          judul: 'Survei IKM 2026 (dibuang)',
+          periode: '2026-Q2',
+          status: 'ditutup',
+          opdId: 1,
+          opdNama: 'Dinas Kesehatan',
+          deletedAt: '2026-09-10T02:00:00.000Z',
+          deletedByNama: 'Admin Kabupaten (Contoh)',
+          jumlahJawaban: 12,
+        },
+      ],
+      '/surveys/trash',
+    ),
+  ),
+
+  http.post(`${API_BASE}/surveys/:id/restore`, ({ params }) =>
+    ok(surveyFixture({ id: Number(params.id) }), `/surveys/${params.id}/restore`),
+  ),
+
+  http.delete(`${API_BASE}/surveys/:id/purge`, () => ok(null, '/surveys/purge')),
 
   http.get(`${API_BASE}/surveys/:id`, ({ params }) =>
     ok(surveyFixture({ id: Number(params.id) }), `/surveys/${params.id}`),
@@ -507,12 +610,18 @@ export const handlers = [
     const role = url.searchParams.get('role');
     const list = [
       userFixture(),
-      userFixture({ id: 22, ssoSubject: 'seed-admin-opd', nama: 'Admin OPD (Contoh)', email: 'admin.opd@example.go.id', role: 'opd', opdId: 1 }),
-      userFixture({ id: 1, ssoSubject: 'seed-admin-kabupaten', nama: 'Admin Kabupaten (Contoh)', email: 'admin.kabupaten@example.go.id', role: 'kabupaten' }),
+      userFixture({ id: 22, ssoSubject: 'seed-admin-opd', nama: 'Admin OPD (Contoh)', email: 'admin.opd@example.go.id', roles: ['opd'], actingRole: 'opd', opdId: 1 }),
+      userFixture({ id: 1, ssoSubject: 'seed-admin-kabupaten', nama: 'Admin Kabupaten (Contoh)', email: 'admin.kabupaten@example.go.id', roles: ['kabupaten'], actingRole: 'kabupaten' }),
     ];
     const filtered = role ? list.filter((u) => u.role === role) : list;
     return paginated(filtered, '/users', { total: filtered.length });
   }),
+
+  // Jumlah akun aktif untuk Manajemen User (6 September 2026). HARUS di atas
+  // handler `/users/:id`: MSW memadankan berurutan, sama seperti Nest.
+  http.get(`${API_BASE}/users/stats`, () =>
+    ok({ totalUsers: 7, activeUsers: 5 }, '/users/stats'),
+  ),
 
   http.get(`${API_BASE}/users/:id`, ({ params }) => ok(userFixture({ id: Number(params.id) }), `/users/${params.id}`)),
 
@@ -533,7 +642,7 @@ export const handlers = [
   }),
 
   // ===================== PENGADUAN =====================
-  // [REKAM] berpaginasi; item punya `subKategori` dan `attachments`.
+  // [REKAM] berpaginasi; item punya `kategori` dan `attachments`.
   http.get(`${API_BASE}/complaints`, ({ request }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -549,6 +658,12 @@ export const handlers = [
   http.post(`${API_BASE}/complaints`, async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as JsonBody;
     return created(complaintFixture({ id: 99, ...body, status: 'diterima' }), '/complaints');
+  }),
+
+  // Teruskan pengaduan belum bertujuan ke OPD berwenang (6 September 2026).
+  http.patch(`${API_BASE}/complaints/:id/opd`, async ({ request, params }) => {
+    const { opdId } = (await request.json()) as JsonBody;
+    return ok(complaintFixture({ opdId: Number(opdId) }), `/complaints/${params.id}/opd`);
   }),
 
   http.patch(`${API_BASE}/complaints/:id/status`, async ({ request, params }) => {
@@ -592,35 +707,17 @@ export const handlers = [
   http.get(`${API_BASE}/ref/complaint-categories`, () =>
     ok(
       [
-        { kode: 'infrastruktur', nama: 'Infrastruktur' },
-        { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban' },
+        { kode: 'aduan', nama: 'Aduan' },
+        { kode: 'lapor', nama: 'Lapor' },
         { kode: 'lainnya', nama: 'Lainnya' },
       ],
       '/ref/complaint-categories',
     ),
   ),
 
-  // [REKAM] Field induknya bernama `kategoriKode`, BUKAN `kategori` — lihat
-  // ComplaintSubCategoryEntity di backend, dan diverifikasi langsung terhadap
-  // `GET /ref/complaint-sub-categories` di lingkungan pengembangan (2 Sep 2026).
-  //
-  // Fixture ini sebelumnya menulis `kategori`, dan penyimpangan sekecil itu
-  // menyesatkan dengan cara yang mahal: `CreateComplaintForm` menyaring dengan
-  // `s.kategoriKode === kategori terpilih`, sehingga dropdown sub-kategori tak
-  // pernah muncul di bawah mock lama. Uji yang bersandar padanya akan melaporkan
-  // fitur yang sebenarnya sehat sebagai rusak. Mock harus mencerminkan bentuk
-  // sungguhan, bukan bentuk yang kebetulan mudah ditulis.
-  http.get(`${API_BASE}/ref/complaint-sub-categories`, ({ request }) => {
-    const kategori = new URL(request.url).searchParams.get('kategori');
-    const all = [
-      { kode: 'rambu', nama: 'Rambu Lalu Lintas', kategoriKode: 'keamanan_ketertiban' },
-      { kode: 'jalan_rusak', nama: 'Jalan Rusak', kategoriKode: 'infrastruktur' },
-    ];
-    return ok(
-      kategori ? all.filter((s) => s.kategoriKode === kategori) : all,
-      '/ref/complaint-sub-categories',
-    );
-  }),
+  // Handler `/ref/complaint-sub-categories` DIBUANG 4 September 2026 bersama
+  // taksonomi sub-kategori: endpointnya sudah tak ada di backend, dan mock yang
+  // masih melayaninya akan menyembunyikan pemanggil yang lupa dibersihkan.
 
   // ===================== DASBOR & STATISTIK =====================
   // [REKAM] objek tunggal, bukan array.
@@ -657,6 +754,7 @@ export const handlers = [
           completionRate: 92,
           avgSlaDays: 3.4,
           activeOpd: 54,
+          activeUsers: 5,
         },
         ikmTrend: [
           { periode: '2026-Q1', value: 78.2 },
@@ -675,8 +773,8 @@ export const handlers = [
           { status: 'ditolak', count: 2 },
         ],
         complaintCategories: [
-          { kode: 'keamanan_ketertiban', nama: 'Keamanan dan Ketertiban', count: 18 },
-          { kode: 'infrastruktur', nama: 'Infrastruktur', count: 11 },
+          { kode: 'aduan', nama: 'Aduan', count: 18 },
+          { kode: 'lapor', nama: 'Lapor', count: 11 },
           { kode: 'lainnya', nama: 'Lainnya', count: 5 },
         ],
         // `avgNrr` berskala 1-4; adapter mengalikannya 25 menjadi skala 0-100.

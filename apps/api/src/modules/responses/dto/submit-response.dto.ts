@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -49,4 +50,27 @@ export class SubmitResponseDto {
   @ValidateNested({ each: true })
   @Type(() => AnswerInputDto)
   answers: AnswerInputDto[];
+
+  /**
+   * Pengisi memilih tidak merekam data dirinya (8 September 2026).
+   *
+   * Diletakkan di DTO INDUK, bukan hanya di DTO publik, karena kedua jalur
+   * mengenal pilihan yang sama. Yang berbeda adalah cara pilihan itu terbaca:
+   *
+   *   - bersesi    : medan INILAH satu-satunya isyaratnya, sebab data dirinya
+   *                  tak ikut di payload melainkan disalin dari akun.
+   *   - tanpa sesi : berlebihan, sebab ketiadaan `nama`, `nomorHp`,
+   *                  `jenisKelamin`, dan `kelompokUmur` sudah menyatakannya.
+   *                  Tetap diterima supaya kedua gerbang boleh mengirim bentuk
+   *                  payload yang sama.
+   *
+   * Tidak diisi berarti false: pengiriman lama yang tak mengenal medan ini
+   * tetap merekam data diri seperti sebelumnya.
+   */
+  @ApiPropertyOptional({
+    description: 'true bila pengisi memilih tidak merekam data dirinya pada respons ini',
+  })
+  @IsOptional()
+  @IsBoolean()
+  tanpaDataDiri?: boolean;
 }

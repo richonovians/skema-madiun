@@ -15,10 +15,10 @@ import { hasFullAccess } from './role.util';
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException (fail-safe)
  */
 export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
-  if (hasFullAccess(user.role)) {
+  if (hasFullAccess(user.actingRole)) {
     return {};
   }
-  if (user.role === Role.opd) {
+  if (user.actingRole === Role.opd) {
     if (user.opdId == null) {
       throw new ForbiddenException('Akun OPD tidak tertaut ke OPD mana pun');
     }
@@ -32,12 +32,25 @@ export function opdWhereFilter(user: CurrentUser): { opdId?: number } {
  * - `kabupaten` (= superuser, 2026-08-05) → selalu boleh
  * - `opd` → hanya bila `targetOpdId === user.opdId`
  * - peran lain / akun OPD tanpa `opdId` → ForbiddenException
+ *
+ * `targetOpdId === null` berarti sumber dayanya BELUM BERTUJUAN — pengaduan
+ * yang pengirimnya tak tahu harus ditujukan ke mana (6 September 2026). Hanya
+ * peran berhak penuh yang boleh menyentuhnya; merekalah yang meneruskannya.
+ *
+ * Penolakan untuk null itu EKSPLISIT dan harus tetap begitu: tanpa cabang ini,
+ * akun `opd` yang `opdId`-nya juga null lolos lewat `null === null` dan membaca
+ * sumber daya yang bukan haknya.
  */
-export function assertOpdAccess(user: CurrentUser, targetOpdId: number): void {
-  if (hasFullAccess(user.role)) {
+export function assertOpdAccess(user: CurrentUser, targetOpdId: number | null): void {
+  if (hasFullAccess(user.actingRole)) {
     return;
   }
-  if (user.role === Role.opd) {
+  if (targetOpdId == null) {
+    throw new ForbiddenException(
+      'Pengaduan ini belum diteruskan ke OPD mana pun, jadi belum menjadi tanggung jawab OPD',
+    );
+  }
+  if (user.actingRole === Role.opd) {
     if (user.opdId == null) {
       throw new ForbiddenException('Akun OPD tidak tertaut ke OPD mana pun');
     }

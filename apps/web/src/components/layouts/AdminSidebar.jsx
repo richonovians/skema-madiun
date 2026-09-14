@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminLayout } from './AdminLayoutProvider';
-import { useActingOpd } from '@/hooks/useActingOpd';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
@@ -26,7 +25,6 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminLayout();
-  const actingOpd = useActingOpd();
 
   // Laci mobile: latarnya menutupi layar, tapi tanpa kunci halaman di belakangnya
   // tetap ikut bergulir saat jari diusap di atas latar itu. `isMobileSidebarOpen`
@@ -58,18 +56,14 @@ export default function AdminSidebar() {
         <div className="mb-xl px-md flex items-center justify-between">
           <div className="min-w-0">
             <h1 className="font-headline-md text-headline-md font-bold text-blue-400">Admin OPD</h1>
-            {/* OPD yang diperankan superuser (2026-08-20). Ditampilkan supaya ia
-                selalu tahu data OPD MANA yang sedang dilihatnya -- tanpa ini
-                daftar survei/pengaduan yang tersaring bisa disalahpahami sebagai
-                "OPD ini tidak punya data". Untuk Admin OPD sungguhan tak ada
-                apa pun yang berubah (nilainya null). */}
-            {actingOpd ? (
-              <p className="text-sm opacity-70 truncate" title={actingOpd.nama}>
-                {actingOpd.nama}
-              </p>
-            ) : (
-              <p className="text-sm opacity-60">Portal Analitik</p>
-            )}
+            {/* Nama OPD yang "diperankan" DIBUANG 5 September 2026 bersama
+                mekanismenya. Sejak hak mengikuti peran yang dipakai, siapa pun
+                di area ini bertindak sebagai `opd` untuk instansi yang
+                tercantum di akunnya sendiri -- tak ada lagi kemungkinan
+                melihat data OPD lain, jadi tak ada lagi yang perlu
+                ditegaskan. Admin OPD sungguhan memang tak pernah melihat
+                label ini (nilainya selalu null baginya). */}
+            <p className="text-sm opacity-60">Portal Analitik</p>
           </div>
           <button 
             className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"

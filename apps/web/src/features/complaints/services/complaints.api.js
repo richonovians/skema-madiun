@@ -9,16 +9,23 @@ import {
 /**
  * Ajukan pengaduan baru (Responden). Multipart -- lampiran field `lampiran`,
  * maks 5 berkas (JPEG/PNG/WEBP/PDF, maks 5MB masing-masing, ditegakkan backend).
- * @param {{opdId: number|string, kategori: string, subKategori?: string, title: string, description: string}} payload bentuk form (lihat CreateComplaintForm.jsx)
+ * @param {{opdId: number|string, kategori: string, title: string, description: string, isAnonim?: boolean}} payload bentuk form (lihat CreateComplaintForm.jsx)
  * @param {File[]} [files]
  */
 export async function createComplaint(payload, files = []) {
   const dto = toCreateComplaintPayload(payload);
   const formData = new FormData();
-  formData.append('opdId', String(dto.opdId));
+  // Hanya bila tujuannya diketahui. `String(undefined)` menghasilkan "undefined"
+  // dan `String(NaN)` menghasilkan "NaN" -- keduanya lolos sebagai medan yang
+  // ADA lalu ditolak backend 400, kegagalan yang sama sekali tak menjelaskan
+  // sebabnya kepada pelapor.
+  if (dto.opdId != null) {
+    formData.append('opdId', String(dto.opdId));
+  }
   formData.append('kategori', dto.kategori);
-  if (dto.subKategori) {
-    formData.append('subKategori', dto.subKategori);
+  // Hanya dikirim bila benar-benar anonim -- backend sudah berbaku `false`.
+  if (dto.isAnonim) {
+    formData.append('isAnonim', 'true');
   }
   formData.append('judul', dto.judul);
   formData.append('uraian', dto.uraian);
@@ -82,4 +89,16 @@ export async function addComplaintReply(complaintId, pesan, files = []) {
     headers: { 'Content-Type': undefined },
   });
   return response.data;
+}
+
+/**
+ * Teruskan pengaduan yang belum bertujuan ke OPD berwenang
+ * (`PATCH /complaints/:id/opd`, 6 September 2026).
+ *
+ * Haknya (Superuser & Admin Kabupaten) ditegakkan backend di dalam
+ * ComplaintsService.forward, bukan di sini.
+ */
+export async function forwardComplaint(id, opdId) {
+  const response = await api.patch(`/complaints/${id}/opd`, { opdId: Number(opdId) });
+  return adaptComplaint(response.data);
 }

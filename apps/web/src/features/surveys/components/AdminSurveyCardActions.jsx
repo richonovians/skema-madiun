@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { Eye, Edit2, Copy, Check, BarChart3 } from 'lucide-react';
+import { Eye, Edit2, Copy, Check, BarChart3, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import ShareSurveyButton from './ShareSurveyButton';
 
-export default function AdminSurveyCardActions({ isDraft, surveyId, survey, onDuplicate, onDelete }) {
+export default function AdminSurveyCardActions({
+  isDraft,
+  surveyId,
+  survey,
+  onDuplicate,
+  onDelete,
+}) {
   const [copied, setCopied] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const actionButtonClass = "px-md py-sm border border-outline rounded-lg text-label-md font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors";
+  const actionButtonClass =
+    'px-md py-sm border border-outline rounded-lg text-label-md font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors';
 
   /**
    * Tombol "Salin" = MENGGANDAKAN survei (POST duplicate), bukan menyalin ke
@@ -45,6 +52,32 @@ export default function AdminSurveyCardActions({ isDraft, surveyId, survey, onDu
     setTimeout(() => setCopied(false), 2000);
   };
 
+  /**
+   * Bunyinya mengikuti keadaan survei. BERUBAH ARTI 11 September 2026: tak ada
+   * lagi penghapusan permanen dari kartu ini -- barisnya pindah ke Sampah, dan
+   * penghapusan permanennya hanya dapat dilakukan Admin Kabupaten dari halaman Sampah.
+   */
+  const deskripsiHapus = isDraft
+    ? `Draf "${survey?.title ?? 'ini'}" akan dipindahkan ke Sampah dan dapat dipulihkan kembali.`
+    : `"${survey?.title ?? 'Survei ini'}" akan ditutup lalu dipindahkan ke Sampah. Tautan dan QR yang sudah tersebar berhenti menerima jawaban. Survei beserta jawabannya dapat dipulihkan dari Sampah.`;
+
+  // Satu modal untuk kedua cabang, dirender di bawah. Menyalinnya ke tiap
+  // cabang berarti dua naskah yang bisa berbeda diam-diam.
+  const modalHapus = (
+    <ConfirmActionModal
+      isOpen={showDeleteModal}
+      title="Pindahkan Survei ke Sampah"
+      description={deskripsiHapus}
+      confirmLabel="Ya, Pindahkan ke Sampah"
+      danger
+      onConfirm={() => {
+        setShowDeleteModal(false);
+        onDelete?.(surveyId);
+      }}
+      onCancel={() => setShowDeleteModal(false)}
+    />
+  );
+
   if (isDraft) {
     return (
       <>
@@ -68,46 +101,59 @@ export default function AdminSurveyCardActions({ isDraft, surveyId, survey, onDu
           </button>
         </div>
 
-        {/* Modal konfirmasi hapus draft */}
-        <ConfirmActionModal
-          isOpen={showDeleteModal}
-          title="Hapus Survei Draft"
-          description="Survei draft ini akan dihapus secara permanen. Semua pertanyaan yang sudah dibuat akan hilang dan tidak dapat dipulihkan."
-          confirmLabel="Ya, Hapus Draft"
-          danger
-          onConfirm={() => {
-            setShowDeleteModal(false);
-            onDelete?.(surveyId);
-          }}
-          onCancel={() => setShowDeleteModal(false)}
-        />
+        {modalHapus}
       </>
     );
   }
 
   return (
-    <div className="flex flex-wrap gap-md pt-lg border-t border-border">
-      <button className={actionButtonClass} onClick={handleCopy}>
-        {copied ? <Check size={18} className="text-emerald-600" /> : <Copy size={18} />}
-        {copied ? 'Tersalin!' : 'Salin'}
-      </button>
-
-      <ShareSurveyButton survey={survey} className={actionButtonClass} />
-
-      <Link href={`/admin-opd/surveys/${surveyId}/responses`}>
-        <button className={actionButtonClass}>
-          <Eye size={18} />
-          Daftar Respons Survei
+    <>
+      <div className="flex flex-wrap gap-md pt-lg border-t border-border">
+        <button className={actionButtonClass} onClick={handleCopy}>
+          {copied ? <Check size={18} className="text-emerald-600" /> : <Copy size={18} />}
+          {copied ? 'Tersalin!' : 'Salin'}
         </button>
-      </Link>
 
-      <Link href={`/admin-opd/analytics?surveyId=${surveyId}`}>
-        <button className={actionButtonClass}>
-          <BarChart3 size={18} />
-          Lihat Hasil
+        <ShareSurveyButton survey={survey} className={actionButtonClass} />
+
+        <Link href={`/admin-opd/surveys/${surveyId}/responses`}>
+          <button className={actionButtonClass}>
+            <Eye size={18} />
+            Daftar Respons Survei
+          </button>
+        </Link>
+
+        <Link href={`/admin-opd/analytics?surveyId=${surveyId}`}>
+          <button className={actionButtonClass}>
+            <BarChart3 size={18} />
+            Lihat Hasil
+          </button>
+        </Link>
+
+        {/* Survei terbit kini dapat diubah & dibuang (11 September 2026). Yang
+          terkunci begitu ada jawaban adalah SUSUNAN pertanyaannya, dan
+          penjaganya di backend -- bukan hilangnya tombol ini, yang justru
+          menyembunyikan perbaikan teks pertanyaan yang masih sah.
+
+          Tautan bergaya tombol, TANPA <button> di dalamnya: kendali interaktif
+          bersarang membuat pembaca layar mengumumkan dua kendali untuk satu
+          sasaran. Tetangganya di atas masih memakai pola lama; yang baru tak
+          ikut menambahnya. */}
+        <Link href={`/admin-opd/surveys/builder/${surveyId}`} className={actionButtonClass}>
+          <Pencil size={18} />
+          Ubah
+        </Link>
+
+        <button
+          className={`${actionButtonClass} text-error hover:bg-error-container ml-auto`}
+          onClick={() => setShowDeleteModal(true)}
+        >
+          <Trash2 size={18} />
+          Hapus
         </button>
-      </Link>
-    </div>
+      </div>
+
+      {modalHapus}
+    </>
   );
 }
-

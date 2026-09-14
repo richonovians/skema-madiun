@@ -16,7 +16,20 @@ export class MeEntity extends BaseEntity<MeEntity> {
   ssoSubject: string;
   nama: string;
   email: string;
-  role: Role;
+  /**
+   * SELURUH role yang dimiliki akun (5 September 2026). Dipakai frontend untuk
+   * menyusun pemilih peran -- BUKAN untuk menyimpulkan hak akses.
+   */
+  roles: Role[];
+
+  /**
+   * Peran yang SEDANG DIPAKAI pada sesi ini.
+   *
+   * `null` berarti akun ber-role banyak yang BELUM memilih. Frontend
+   * memakainya sebagai aba-aba mengarahkan ke /pilih-peran; akun ber-role
+   * tunggal tak pernah bernilai null.
+   */
+  actingRole: Role | null;
   opdId: number | null;
   isActive: boolean;
   lastLoginAt: Date | null;

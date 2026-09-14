@@ -60,7 +60,7 @@ export default function AdminNavbar() {
   const gagalIdentitas = error != null;
   const alasanGagal = isUnauthorizedError(error) ? 'expired' : 'offline';
 
-  const titleText = opd?.name ?? (user?.role === 'ADMIN_KABUPATEN' ? 'Lintas OPD' : 'Panel Admin OPD');
+  const titleText = opd?.name ?? (user?.actingRole === 'ADMIN_KABUPATEN' ? 'Lintas OPD' : 'Panel Admin OPD');
 
   /**
    * Tinggi nyata bilah ini dilaporkan ke `--tinggi-navbar-opd`, yang dipakai
@@ -195,7 +195,7 @@ export default function AdminNavbar() {
           penuh. Sama dengan AdminKabNavbar. */}
       <div className="ml-auto flex items-center gap-2 xl:order-4 xl:gap-lg shrink-0">
         <div className="flex gap-1 md:gap-md">
-          <NotificationDropdown />
+          <NotificationDropdown allHref="/admin-opd/notifications" />
         </div>
 
         <div className="flex items-center gap-2 lg:gap-md lg:border-l border-outline-variant lg:pl-lg">

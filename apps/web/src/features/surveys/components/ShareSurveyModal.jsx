@@ -15,10 +15,19 @@ const QR_PIXEL_SIZE = 512; // resolusi berkas unduhan; tampilannya dikecilkan le
  * produksi) sehingga QR tak pernah menunjuk host yang salah karena env lupa
  * diisi. Karena itu pula seluruh isi modal dirender di klien.
  *
- * Rute tujuan `/surveys/:id` dijaga proxy.js khusus peran `responden` -- warga
- * yang belum masuk akan diarahkan ke beranda untuk login dulu. Itu perilaku yang
- * memang dirancang (SKM tak menerima jawaban anonim tanpa sesi), jadi di sini
- * hanya diberi keterangan supaya admin tak menyangka tautannya rusak.
+ * Rute tujuannya `/survei/:id` (8 September 2026), sebelumnya `/isi/:id`
+ * (4 September 2026) dan sebelum itu `/surveys/:id`. Catatan lama di sini
+ * menyatakan "SKM tak menerima jawaban anonim tanpa sesi" -- itu sudah tidak
+ * berlaku. `/survei/*` berada di luar `config.matcher` milik proxy.js,
+ * sehingga proxy tak berjalan untuk rute itu dan pengunjung tanpa sesi tidak
+ * dipantulkan ke beranda. Satu tautan/QR karena itu berlaku untuk semua orang:
+ * yang bersesi tercatat atas namanya, yang tidak dikirim anonim (hanya bila
+ * survei ini `izinkanAnonim`).
+ *
+ * Yang DIBAGIKAN selalu alamat baru, bukan yang lama. `/isi/:id` masih hidup
+ * sebagai pengalihan permanen bagi QR yang sudah tercetak, tetapi tautan baru
+ * yang lewat pengalihan menambah satu perjalanan jaringan pada setiap
+ * pemindaian.
  */
 export default function ShareSurveyModal({ survey, onClose }) {
   // Dihitung saat inisialisasi state, BUKAN di dalam useEffect: menyetel state
@@ -27,7 +36,7 @@ export default function ShareSurveyModal({ survey, onClose }) {
   // diklik, jadi `window` pasti sudah ada; penjagaan `typeof window` tetap
   // dipasang agar aman bila kelak dirender saat prerender.
   const [url] = useState(() =>
-    typeof window === 'undefined' ? '' : `${window.location.origin}/surveys/${survey.id}`,
+    typeof window === 'undefined' ? '' : `${window.location.origin}/survei/${survey.id}`,
   );
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrError, setQrError] = useState(null);
@@ -164,13 +173,22 @@ export default function ShareSurveyModal({ survey, onClose }) {
             </div>
           </div>
 
-          <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-            <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-blue-700 font-medium leading-relaxed">
-              Responden perlu masuk lewat SSO terlebih dahulu; tautan ini akan mengarahkan mereka ke
-              halaman masuk bila belum ada sesi.
-            </p>
-          </div>
+          {/* HANYA saat survei aktif. Keterangan ini menggambarkan tautan yang
+              berfungsi ("dapat diisi tanpa login" / "perlu masuk lewat SSO");
+              pada survei draf maupun yang sudah ditutup ia terpasang tepat di
+              bawah spanduk kuning yang mengatakan tautannya belum/tidak dapat
+              diisi. Dua pernyataan berlawanan dalam satu layar, dan yang bawah
+              terdengar lebih meyakinkan karena berbicara soal cara kerja. */}
+          {isActive && (
+            <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+              <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                {survey.izinkanAnonim
+                  ? 'Survei ini dapat diisi tanpa login. Satu tautan/QR berlaku untuk semua orang; responden yang sudah masuk tetap tercatat atas namanya.'
+                  : 'Responden perlu masuk lewat SSO terlebih dahulu; tautan ini akan mengarahkan mereka ke halaman masuk bila belum ada sesi.'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 border-t border-slate-100 pt-4">

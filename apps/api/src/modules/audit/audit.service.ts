@@ -42,19 +42,20 @@ export class AuditService {
    * Log aktivitas HANYA untuk `superuser` (2026-08-20, atas permintaan user):
    * Admin Kabupaten biasa tidak boleh melihatnya.
    *
-   * Diperiksa DI SINI, bukan lewat `@Roles(Role.superuser)` di controller --
-   * dan itu bukan kelalaian. RolesGuard memberi `kabupaten` BYPASS PENUH atas
-   * seluruh @Roles (lihat roles.guard.ts), jadi dekorator apa pun di controller
-   * akan dilewati kabupaten dan pembatasan ini tak akan pernah berlaku.
-   * Pola yang sama sudah dipakai `DashboardService.getOpdDashboard`, yang juga
-   * harus menolak peran meski guard-nya meloloskan.
+   * Dulu pemeriksaan ini SATU-SATUNYA gerbang, karena RolesGuard memberi
+   * `kabupaten` bypass penuh atas seluruh @Roles sehingga
+   * `@Roles(Role.superuser)` di controller tak berlaku sama sekali. Bypass itu
+   * dibongkar T6 (7 September 2026) dan dekoratornya kini ditegakkan apa adanya,
+   * jadi controller sudah menolak kabupaten lebih dahulu.
    *
-   * Bypass itu SENGAJA tidak dipersempit: banyak endpoint hanya ber-@Roles(opd)
-   * dan kabupaten mengandalkan bypass untuk mencapainya (buat/ubah/hapus survei,
-   * builder pertanyaan) -- mempersempitnya akan mematikan area admin-kab.
+   * Pemeriksaan ini TETAP ADA sebagai lapis kedua, dan itu keputusan: gerbang
+   * peran hanyalah satu baris daftar yang mudah diperluas keliru, sementara
+   * fungsi ini menyatakan batasnya di tempat aturannya berlaku. Konsekuensinya
+   * satu penolakan dapat datang dari dua tempat -- karena itu PESANnya berbeda,
+   * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    */
   private assertSuperuser(user: CurrentUser): void {
-    if (user.role !== Role.superuser) {
+    if (user.actingRole !== Role.superuser) {
       throw new ForbiddenException('Log aktivitas hanya dapat diakses oleh Superuser');
     }
   }

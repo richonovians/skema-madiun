@@ -31,15 +31,25 @@ describe('Session Auth end-to-end — SessionAuthProvider aktif (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
+    // OPD tautan WAJIB sejak multi-role (5 September 2026): bertindak sebagai
+    // Admin OPD menuntut `opdId` terisi -- akun ber-role `opd` tanpa tautan OPD
+    // kini ditolak di gerbang (resolveActingRole -> OPD_WITHOUT_OPDID), bukan
+    // dibiarkan masuk lalu gagal 403 di tengah jalan. Sebelumnya fixture ini
+    // ber-`opdId: null`, keadaan yang memang tak lagi sah.
+    const opd = await prisma.opd.upsert({
+      where: { kode: 'E2ESESS' },
+      update: {},
+      create: { kode: 'E2ESESS', nama: 'OPD E2E Sesi', isActive: true },
+    });
     const user = await prisma.user.upsert({
       where: { ssoSubject: 'e2e-session-auth' },
-      update: { isActive: true },
+      update: { isActive: true, roles: [Role.opd], opdId: opd.id },
       create: {
         ssoSubject: 'e2e-session-auth',
         nama: 'Sesi E2E',
         email: 'sesi@auth.e2e.test',
-        role: Role.opd,
-        opdId: null,
+        roles: [Role.opd],
+        opdId: opd.id,
         isActive: true,
       },
     });
@@ -51,6 +61,9 @@ describe('Session Auth end-to-end — SessionAuthProvider aktif (e2e)', () => {
     // penghapusan penggunanya lewat RESTRICT -- lihat catatan di auth.e2e-spec.ts.
     await prisma.auditLog.deleteMany({ where: { actorId: userId } });
     await prisma.user.deleteMany({ where: { ssoSubject: 'e2e-session-auth' } });
+    // OPD tautan dibuat berkas ini juga, jadi ia yang membersihkannya --
+    // sesudah barisnya pengguna, karena user.opd_id menahannya.
+    await prisma.opd.deleteMany({ where: { kode: 'E2ESESS' } });
     await app.close();
     process.env.NODE_ENV = originalNodeEnv;
   }, 30000);
@@ -91,7 +104,12 @@ describe('Session Auth end-to-end — SessionAuthProvider aktif (e2e)', () => {
     expect(me.status).toBe(200);
     expect(me.body.data.id).toBe(userId);
     expect(me.body.data.email).toBe('sesi@auth.e2e.test');
-    expect(me.body.data.role).toBe('opd');
+    // Kontrak /auth/me berubah bersama multi-role: `role` (tunggal) diganti
+    // `roles` (kepemilikan) + `actingRole` (yang sedang dipakai). Akun ini
+    // ber-role tunggal, jadi keduanya menunjuk 'opd' -- dan itu sekaligus
+    // membuktikan cabang "tanpa klaim act & role tunggal" bekerja.
+    expect(me.body.data.roles).toEqual(['opd']);
+    expect(me.body.data.actingRole).toBe('opd');
   });
 
   it('akun dinonaktifkan SETELAH token diterbitkan -> token lama langsung ditolak (401)', async () => {

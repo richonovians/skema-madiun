@@ -1,6 +1,7 @@
 import React from 'react';
 import Badge from '@/components/ui/Badge';
 import Link from 'next/link';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Kolom Prioritas/SLA/Progress% DIHAPUS -- tak ada field ini di backend
@@ -9,7 +10,7 @@ import Link from 'next/link';
  * mentah jadi label ramah-baca, tanggung jawab halaman pemanggil (di luar
  * adapter sinkron -- lihat catatan di complaint.adapter.js).
  */
-export default function ComplaintTable({ complaints, categoryMap = {} }) {
+export default function ComplaintTable({ complaints, categoryMap = {}, onForward }) {
   const getStatusVariant = (status) => {
     switch (status) {
       case 'Selesai':
@@ -53,9 +54,16 @@ export default function ComplaintTable({ complaints, categoryMap = {} }) {
                 </td>
 
                 <td className="px-lg py-lg">
-                  <div className="font-body-md text-body-md font-bold text-slate-800">
-                    {complaint.target || '-'}
-                  </div>
+                  {/* "Belum bertujuan" sebagai LENCANA, bukan '-': tanda hubung
+                      tak dapat dibedakan dari nama OPD yang gagal dimuat,
+                      sedangkan baris inilah yang justru menuntut tindakan. */}
+                  {complaint.opdId == null ? (
+                    <Badge variant="warning">Belum bertujuan</Badge>
+                  ) : (
+                    <div className="font-body-md text-body-md font-bold text-slate-800">
+                      {complaint.target || '-'}
+                    </div>
+                  )}
                   <div className="text-xs text-slate-500 mt-0.5">
                     {categoryMap[complaint.kategori] ?? complaint.kategori ?? '-'}
                   </div>
@@ -74,15 +82,29 @@ export default function ComplaintTable({ complaints, categoryMap = {} }) {
                 </td>
 
                 <td className="px-lg py-lg">
-                  <Badge variant={getStatusVariant(complaint.status)}>{complaint.status}</Badge>
+                  <Badge variant={getStatusVariant(complaint.status)}>
+                    {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
+                  </Badge>
                 </td>
 
                 <td className="px-lg py-lg text-left">
-                  <Link href={`/admin-kab/complaints/${complaint.id}`}>
-                    <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all">
-                      Monitor Tiket
-                    </button>
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/admin-kab/complaints/${complaint.id}`}>
+                      <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all">
+                        Monitor Tiket
+                      </button>
+                    </Link>
+                    {/* Hanya pada baris yang BELUM bertujuan: backend menolak
+                        400 bila tiketnya sudah menjadi tanggung jawab OPD. */}
+                    {complaint.opdId == null && onForward && (
+                      <button
+                        onClick={() => onForward(complaint)}
+                        className="px-md py-1.5 text-white bg-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all"
+                      >
+                        Teruskan
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))

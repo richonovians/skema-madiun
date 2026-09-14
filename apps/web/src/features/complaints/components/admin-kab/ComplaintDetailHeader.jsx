@@ -3,9 +3,18 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, Printer, Download, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import { downloadComplaintPdf } from '@/utils/pdf';
 
-/** Badge Prioritas & SLA DIHAPUS -- tak ada field ini di backend (lihat gap complaint.adapter.js). */
-export default function ComplaintDetailHeader({ complaint }) {
+/**
+ * Badge Prioritas & SLA DIHAPUS -- tak ada field ini di backend (lihat gap
+ * complaint.adapter.js).
+ *
+ * `chatHistory` dipakai ekspor PDF, bukan tampilan kepala halaman ini. Riwayat
+ * percakapan ikut dicetak karena arsip satu tiket tanpa percakapannya hanya
+ * memuat separuh perkaranya.
+ */
+export default function ComplaintDetailHeader({ complaint, chatHistory = [] }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef(null);
 
@@ -67,27 +76,12 @@ export default function ComplaintDetailHeader({ complaint }) {
               <ul className="py-1">
                 <li>
                   <button 
-                    onClick={async () => { 
+                    onClick={async () => {
                       try {
                         setIsExportOpen(false);
-                        const { toPng } = await import('html-to-image');
-                        const { jsPDF } = await import('jspdf');
-                        
-                        const element = document.getElementById('complaint-detail-container');
-                        if (!element) return;
-                        
-                        const dataUrl = await toPng(element, { quality: 0.95, backgroundColor: '#ffffff' });
-                        
-                        const pdf = new jsPDF({
-                          orientation: 'portrait',
-                          unit: 'px',
-                          format: [element.offsetWidth, element.offsetHeight]
-                        });
-                        
-                        pdf.addImage(dataUrl, 'PNG', 0, 0, element.offsetWidth, element.offsetHeight);
-                        pdf.save(`tiket_pengaduan_${complaint.id}.pdf`);
+                        await downloadComplaintPdf({ complaint, chatHistory });
                       } catch (err) {
-                        console.error('Failed to generate PDF', err);
+                        console.error('Gagal membuat PDF tiket', err);
                         alert('Gagal menghasilkan PDF.');
                       }
                     }}
@@ -118,7 +112,9 @@ export default function ComplaintDetailHeader({ complaint }) {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-lg font-bold text-primary">#{complaint.id}</span>
-              <Badge variant={getStatusVariant(complaint.status)}>{complaint.status}</Badge>
+              <Badge variant={getStatusVariant(complaint.status)}>
+                {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
+              </Badge>
             </div>
             <h1 className="text-headline-sm font-bold text-slate-900 leading-tight">
               {complaint.title}

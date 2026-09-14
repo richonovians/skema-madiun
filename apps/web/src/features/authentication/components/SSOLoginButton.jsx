@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { authApi, getSsoLoginUrl } from '../services/sso.api';
-import { saveSession, clearSession, clearSuperuserArea } from '../services/authStorage';
+import { saveSession, clearSession } from '../services/authStorage';
 import { ROLE_HOME } from '@/constants/roleHome';
 import RoleLoginPicker from './RoleLoginPicker';
 
@@ -25,6 +26,7 @@ import RoleLoginPicker from './RoleLoginPicker';
  *   kolomnya supaya tak menimbulkan salah paham di layar publik.
  */
 const IS_DEV = process.env.NODE_ENV !== 'production';
+const ID_GALAT = 'galat-dev-login';
 
 export default function SSOLoginButton() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -47,8 +49,10 @@ export default function SSOLoginButton() {
   // pada beberapa permintaan pertama.
   const handleSsoLogin = () => {
     setIsRedirecting(true);
+    // `clearSession()` sudah membuang cookie `role` (peran yang dipakai);
+    // `clearSuperuserArea()` yang dulu dipanggil di sini ikut hilang bersama
+    // cookie `area`/`opd` (5 September 2026).
     clearSession();
-    clearSuperuserArea();
     // `location.assign` (bukan router.push): tujuannya di luar aplikasi ini.
     window.location.assign(getSsoLoginUrl());
   };
@@ -59,19 +63,22 @@ export default function SSOLoginButton() {
     setIsLoading(true);
     try {
       const res = await authApi.devLogin(identifier);
-      const role = res.data.user?.role;
-      saveSession(res.data.token, role, res.data.user?.consentRequired);
-      // Buang pilihan area sesi SEBELUMNYA (bisa jadi akun lain di peramban yang
-      // sama) -- superuser menuliskannya lagi lewat pemilih peran di bawah.
-      clearSuperuserArea();
+      const pengguna = res.data.user;
+      const roles = pengguna?.roles ?? [];
+      // `actingRole` null berarti akun ber-role banyak yang belum memilih --
+      // backend sengaja tak memilihkannya (lihat resolveActingRole).
+      const actingRole = pengguna?.actingRole ?? null;
+      saveSession(res.data.token, actingRole, pengguna?.consentRequired);
 
-      // HANYA `superuser` yang boleh memilih peran (2026-08-20). Admin
-      // Kabupaten TIDAK: ia langsung ke /admin-kab/dashboard lewat ROLE_HOME di
-      // bawah, sama seperti Admin OPD dan Warga. Sesi superuser sendiri yang
-      // terus dipakai -- pemilihnya cuma menentukan area mana yang dibuka, tak
-      // ada login ulang dan tak ada akun lain yang dipinjam.
-      if (role === 'superuser') {
-        setRolePicker({ name: res.data.user?.nama ?? '' });
+      // Pemilih peran kini untuk SIAPA PUN ber-role lebih dari satu, bukan
+      // khusus superuser (5 September 2026). Akun ber-role tunggal tak melihat
+      // langkah ini sama sekali -- backend pun tak menuntutnya memilih.
+      if (roles.length > 1) {
+        setRolePicker({
+          name: pengguna?.nama ?? '',
+          roles,
+          opdId: pengguna?.opdId ?? null,
+        });
         return; // `finally` di bawah tetap mematikan status memuat
       }
 
@@ -85,7 +92,7 @@ export default function SSOLoginButton() {
       // Tujuannya tetap ROLE_HOME walau warga belum menyetujui PDP: proxy yang
       // memantulkannya ke /persetujuan. Menyalin keputusan itu ke sini berarti
       // dua tempat harus mengingat aturan yang sama.
-      window.location.href = ROLE_HOME[role] ?? '/';
+      window.location.href = ROLE_HOME[actingRole ?? roles[0]] ?? '/';
     } catch (err) {
       setError(err.message || 'Login gagal');
     } finally {
@@ -104,7 +111,14 @@ export default function SSOLoginButton() {
   };
 
   if (rolePicker) {
-    return <RoleLoginPicker superuserName={rolePicker.name} onCancel={handleCancelRolePicker} />;
+    return (
+      <RoleLoginPicker
+        userName={rolePicker.name}
+        roles={rolePicker.roles}
+        opdId={rolePicker.opdId}
+        onCancel={handleCancelRolePicker}
+      />
+    );
   }
 
   if (!isFormOpen) {
@@ -127,8 +141,26 @@ export default function SSOLoginButton() {
     );
   }
 
+  // `relative` di sini cuma jadi JANGKAR bagi galat di bawah -- itu inti
+  // perbaikan 7 September 2026.
+  //
+  // Dulu galatnya sekadar `<span>` yang menjadi anggota flex keempat pada baris
+  // ini. Begitu backend menjawab (pesannya panjang -- "Pengguna dengan
+  // email/ssoSubject "..." tidak ditemukan"), barisnya kelebihan lebar dan
+  // `flex-wrap` menurunkannya ke baris kedua. Baris kedua tak punya tempat sama
+  // sekali: navbar bertinggi mati `h-16` (64 px) sementara kolom emailnya
+  // sendiri sudah 56 px (`p-md` 16 px x2 + tinggi baris ~24 px). Jadi galatnya
+  // tergambar DI LUAR latar navbar, menimpa hero di bawahnya, dan karena navbar
+  // `z-50` ia menang gambar.
+  //
+  // `flex-wrap` tetap DIPERTAHANKAN, dan itu disengaja. Komponen ini juga
+  // dipakai di drawer mobile (Navbar.jsx), dan di sana barisnya memang tak muat:
+  // kolomnya `w-56` (224 px) sementara drawer di layar 390 px cuma menyisakan
+  // ~342 px setelah `px-6`. Tanpa pembungkusan, tombolnya yang menjebol ke
+  // samping dan halaman jadi bisa digeser horizontal. Yang harus keluar dari
+  // baris ini cuma GALATNYA, bukan kemampuan barisnya membungkus.
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+    <form onSubmit={handleSubmit} className="relative flex flex-wrap items-center gap-2">
       <Input
         type="text"
         placeholder="Email akun (dev-login)"
@@ -136,6 +168,11 @@ export default function SSOLoginButton() {
         onChange={(e) => setIdentifier(e.target.value)}
         className="w-56"
         required
+        // Galatnya bukan cuma diwarnai merah: kolomnya ditandai tak sah dan
+        // ditautkan ke pesannya, supaya pembaca layar menyebut sebabnya saat
+        // fokus kembali ke kolom itu -- bukan cuma "kotak isian, wajib".
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error ? ID_GALAT : undefined}
       />
       <Button type="submit" variant="navLogin" disabled={isLoading}>
         {isLoading ? 'Memproses...' : 'Masuk'}
@@ -150,7 +187,43 @@ export default function SSOLoginButton() {
       >
         pakai SSO
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && (
+        // `absolute` = keluar dari alur baris navbar. Ini inti perbaikannya:
+        // elemen di luar alur tak bisa lagi menjadi baris kedua yang menjebol
+        // tinggi navbar, sepanjang apa pun pesannya.
+        //
+        // `right-0` (bukan `left-0`): form ini duduk di ujung kanan navbar, jadi
+        // menjangkarkannya ke kanan menahannya tetap di dalam layar.
+        //
+        // Lebarnya PASTI (`w-[min(20rem,...)]`), bukan menyusut-ke-isi, dan
+        // JANGAN diganti `max-w-xs`. Repo ini mendaftarkan `--spacing-xs: 4px`
+        // di `@theme` (globals.css), dan pada Tailwind v4 skala spacing itulah
+        // yang dipakai utilitas `max-w-<nama>` -- jadi `max-w-xs` di sini
+        // bernilai 4 px, bukan 20 rem. Terukur: kartunya runtuh jadi 26 px dan
+        // pesannya tercetak satu huruf per baris. Sebelumnya dicoba `w-max`, dan
+        // itu gagal ke arah sebaliknya: `width: max-content` ditetapkan SEBELUM
+        // `max-width` membatasinya, sehingga `<p>`-nya terbentang ~500 px dan
+        // menjebol 42 px ke luar layar pada 1440 px (terbukti lewat kontrol:
+        // geser horizontal itu tak ada saat form tertutup MAUPUN terbuka tanpa
+        // galat). Lebar pasti menutup kedua arah sekaligus.
+        //
+        // Bagian `calc(100vw-3rem)` menjaga kartunya tetap muat di drawer mobile
+        // 390 px; `min-w-0` + `break-words` pada `<p>`-nya kini aman justru
+        // KARENA lebar kartunya pasti -- tugasnya cuma memecah alamat email
+        // panjang yang satu token tak terpotong.
+        //
+        // role="alert" -- galat kiriman form harus terdengar, bukan hanya
+        // terlihat. Tak dipasangi `aria-live` lagi: role ini sudah bermakna
+        // assertive, dan menambahkan `polite` justru saling membatalkan.
+        <div
+          id={ID_GALAT}
+          role="alert"
+          className="absolute top-full right-0 z-10 mt-2 flex w-[min(20rem,calc(100vw-3rem))] items-start gap-2 rounded-xl border border-error/30 bg-error-container p-3 text-left text-on-error-container shadow-md"
+        >
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 break-words text-xs font-medium">{error}</p>
+        </div>
+      )}
     </form>
   );
 }

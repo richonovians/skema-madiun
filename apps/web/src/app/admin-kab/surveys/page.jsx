@@ -2,6 +2,8 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Trash2 } from 'lucide-react';
 import SurveyOverviewCards from '@/features/surveys/components/admin-kab/SurveyOverviewCards';
 import SurveyFilterBar from '@/features/surveys/components/admin-kab/SurveyFilterBar';
 import SurveyMonitoringTable from '@/features/surveys/components/admin-kab/SurveyMonitoringTable';
@@ -10,6 +12,9 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
+import { downloadTablePdf } from '@/utils/pdf';
+import { KOLOM_MONITORING_SURVEI } from '@/utils/pdfKolom';
+import { SURVEY_STATUS_LABEL } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getSurveys,
@@ -17,6 +22,7 @@ import {
   updateSurvey,
   updateSurveyStatus,
   deleteSurvey,
+  duplicateSurvey,
 } from '@/features/surveys/services/surveys.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
@@ -55,14 +61,43 @@ const CONFIRM_COPY = {
     confirmLabel: 'Ya, Aktifkan Kembali',
     tone: 'primary',
   },
-  delete: {
-    title: 'Hapus survei draf ini?',
+  duplicate: {
+    title: 'Salin survei ini?',
     description: (survey) =>
-      `"${survey.title}" beserta seluruh pertanyaan di dalamnya akan dihapus permanen dan tidak dapat dikembalikan.`,
-    confirmLabel: 'Ya, Hapus Survei',
+      `Salinan "${survey.title}" akan dibuat sebagai draf baru pada ${survey.opdName} beserta seluruh pertanyaannya. Jawaban responden tidak ikut disalin.`,
+    confirmLabel: 'Ya, Salin',
+    tone: 'primary',
+  },
+  delete: {
+    title: 'Pindahkan survei ini ke Sampah?',
+    description: (survey) => pesanHapus(survey),
+    confirmLabel: 'Ya, Pindahkan ke Sampah',
     tone: 'danger',
   },
 };
+
+/**
+ * Bunyi dialog buang mengikuti KEADAAN barisnya, bukan satu kalimat untuk
+ * semua. Yang perlu diketahui sebelum menekan tombol memang berbeda: survei
+ * aktif akan ditutup, dan survei yang sudah dijawab membawa serta jawabannya.
+ *
+ * BERUBAH ARTI 11 September 2026: dahulu pesan ini mengumumkan penghapusan
+ * permanen, yang kini tidak lagi benar -- barisnya pindah ke Sampah.
+ */
+function pesanHapus(survey) {
+  const bagian = [`"${survey.title}" akan dipindahkan ke Sampah dan dapat dipulihkan kembali.`];
+  if (survey.status === 'AKTIF') {
+    bagian.push(
+      'Survei ini ditutup lebih dulu, sehingga tautan dan QR yang sudah tersebar berhenti menerima jawaban.',
+    );
+  }
+  if (survey.respondentsCount > 0) {
+    bagian.push(
+      `${survey.respondentsCount} jawaban yang sudah masuk ikut terbawa ke Sampah.`,
+    );
+  }
+  return bagian.join(' ');
+}
 
 function downloadBlob(content, mimeType, filename) {
   const blob = new Blob([content], { type: mimeType });
@@ -259,7 +294,19 @@ export default function AdminKabSurveysPage() {
       );
       return;
     }
-    await runRowAction(survey.id, () => deleteSurvey(survey.id), 'Survei draf berhasil dihapus.');
+    if (type === 'duplicate') {
+      await runRowAction(
+        survey.id,
+        () => duplicateSurvey(survey.id),
+        'Salinan survei dibuat sebagai draf baru. Judulnya diberi akhiran "(Salinan)".',
+      );
+      return;
+    }
+    await runRowAction(
+      survey.id,
+      () => deleteSurvey(survey.id),
+      'Survei dipindahkan ke Sampah. Anda dapat memulihkannya dari halaman Sampah.',
+    );
   };
 
   const filteredSurveys = useMemo(() => {
@@ -304,8 +351,27 @@ export default function AdminKabSurveysPage() {
     downloadBlob([headers.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;', 'monitoring_survei.csv');
   };
 
-  const handleExportPDF = () => {
-    window.print();
+  /**
+    * SEBELUMNYA `window.print()`, yang mencetak seluruh halaman berikut sidebar,
+    * tab, dan tombol -- bukan laporannya. Kini tabel sungguhan berisi baris yang
+    * SEDANG tersaring, sama persis dengan ekspor Excel di atas.
+    */
+  const handleExportPDF = async () => {
+    await downloadTablePdf({
+      filename: 'monitoring-survei.pdf',
+      title: 'Monitoring Survei Kepuasan Masyarakat',
+      subtitle: `${filteredSurveys.length} survei`,
+      columns: KOLOM_MONITORING_SURVEI,
+      rows: filteredSurveys.map((survey) => [
+        survey.title,
+        survey.opdName,
+        formatPeriodeLabel(survey.period),
+        SURVEY_STATUS_LABEL[survey.status] ?? survey.status,
+        survey.status === 'DRAF' ? '-' : survey.respondentsCount,
+        survey.ikmScore != null ? survey.ikmScore.toFixed(2).replace('.', ',') : '-',
+      ]),
+      emptyLabel: 'Tidak ada survei yang cocok dengan filter saat ini.',
+    });
   };
 
   if (isLoading) {
@@ -318,6 +384,18 @@ export default function AdminKabSurveysPage() {
 
   return (
     <div className="p-lg w-full space-y-6">
+      <div className="flex justify-end">
+        {/* Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali --
+            survei yang terlanjur dibuang akan terlihat seperti hilang. */}
+        <Link
+          href="/admin-kab/surveys/sampah"
+          className="px-lg py-sm border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
+        >
+          <Trash2 size={16} />
+          Sampah
+        </Link>
+      </div>
+
       <SurveyOverviewCards surveys={surveys} />
 
       {actionNotice && (
@@ -350,6 +428,7 @@ export default function AdminKabSurveysPage() {
           onClose={(survey) => setConfirmAction({ type: 'close', survey })}
           onReopen={(survey) => setConfirmAction({ type: 'reopen', survey })}
           onDelete={(survey) => setConfirmAction({ type: 'delete', survey })}
+          onDuplicate={(survey) => setConfirmAction({ type: 'duplicate', survey })}
           busySurveyId={busySurveyId}
         />
 

@@ -1,0 +1,12 @@
+-- Pengaduan yang pengirimnya tidak tahu harus ditujukan ke OPD mana
+-- (permintaan pengguna 6 September 2026). `opd_id` menjadi opsional; Superuser
+-- atau Admin Kabupaten mengisinya kemudian lewat PATCH /complaints/:id/opd.
+--
+-- SEARAH & TANPA KEHILANGAN DATA: melepas NOT NULL tidak mengubah satu pun
+-- baris yang sudah ada. Membalikkannya kelak menuntut seluruh baris ber-NULL
+-- diberi tujuan lebih dulu.
+--
+-- Indeks `complaints_opd_id_idx` DIBIARKAN: PostgreSQL menyertakan baris NULL
+-- pada indeks B-tree, jadi penyaring "opd_id IS NULL" milik kotak masuk triase
+-- tetap terlayani indeks yang sama.
+ALTER TABLE "complaints" ALTER COLUMN "opd_id" DROP NOT NULL;

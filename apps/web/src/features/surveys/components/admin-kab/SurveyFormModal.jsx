@@ -30,6 +30,16 @@ const MAX_TITLE_LENGTH = 100; // CreateSurveyDto/UpdateSurveyDto backend: @MaxLe
  * Triwulan/Tahun cuma 4-5 opsi pendek.
  */
 const MENU_MAX_HEIGHT_OPD = 'max-h-[200px]';
+/**
+ * Jatah daftar OPD saat medan cari menyala (11 September 2026).
+ *
+ * Kepala pencarian menempati ~61px DI ATAS daftar (medan 44px + jarak 8px atas
+ * bawah + garis). Tanpa pemendekan ini panel totalnya menjadi ~261px, yakni
+ * melewati batas 200px yang justru dihitung supaya daftar tak menimpa tombol
+ * "Batal"/"Buat Survei" di footer. 140 + 61 = 201, jadi tinggi panelnya praktis
+ * sama seperti sebelum ada pencarian.
+ */
+const MENU_MAX_HEIGHT_OPD_DENGAN_CARI = 'max-h-[140px]';
 const MENU_MAX_HEIGHT_PERIODE = 'max-h-[120px]';
 
 /**
@@ -70,6 +80,7 @@ export default function SurveyFormModal({
   const [opdId, setOpdId] = useState(initialValues?.opdId != null ? String(initialValues.opdId) : '');
   const [tahun, setTahun] = useState(initialPeriode.tahun);
   const [triwulan, setTriwulan] = useState(initialPeriode.triwulan);
+  const [izinkanAnonim, setIzinkanAnonim] = useState(initialValues?.izinkanAnonim ?? false);
   const [validationError, setValidationError] = useState(null);
 
   useEffect(() => {
@@ -111,6 +122,7 @@ export default function SurveyFormModal({
     onSubmit({
       title: trimmedTitle,
       period: buildPeriode(tahun, triwulan),
+      izinkanAnonim,
       ...(isEdit ? {} : { opdId: Number(opdId) }),
     });
   };
@@ -204,7 +216,14 @@ export default function SurveyFormModal({
               options={opdOptions}
               value={opdId}
               onChange={setOpdId}
-              menuMaxHeight={MENU_MAX_HEIGHT_OPD}
+              // Daftar TERPANJANG di halaman ini: seluruh OPD aktif, bukan yang
+              // diderivasi dari survei yang sudah ada seperti pada penyaring.
+              searchable={opdOptions.length > 1}
+              searchPlaceholder="Cari nama OPD..."
+              emptySearchLabel="Tidak ada OPD yang cocok"
+              menuMaxHeight={
+                opdOptions.length > 1 ? MENU_MAX_HEIGHT_OPD_DENGAN_CARI : MENU_MAX_HEIGHT_OPD
+              }
             />
           )}
 
@@ -235,6 +254,34 @@ export default function SurveyFormModal({
               menuMaxHeight={MENU_MAX_HEIGHT_PERIODE}
             />
           </div>
+
+          {/* Kotak centang dibungkus labelnya sendiri (pola sama ConsentGate.jsx):
+              kotaknya 20px, tapi bidang sentuhnya seluruh label -- itulah yang
+              memenuhi target 44px. */}
+          <label
+            htmlFor="survey-izinkan-anonim"
+            className="flex items-start gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60 cursor-pointer hover:bg-surface-container-low transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary-container/20"
+          >
+            <input
+              id="survey-izinkan-anonim"
+              type="checkbox"
+              checked={izinkanAnonim}
+              onChange={(e) => setIzinkanAnonim(e.target.checked)}
+              aria-describedby="survey-izinkan-anonim-bantuan"
+              className="w-5 h-5 mt-0.5 shrink-0 accent-primary cursor-pointer"
+            />
+            <span className="text-sm text-text-primary leading-relaxed">
+              Izinkan pengisian <strong className="font-semibold">tanpa login</strong> (tautan/QR
+              publik)
+            </span>
+          </label>
+          {/* Keterangan ini WAJIB ada: admin yang menyalakan saklar berhak tahu
+              bahwa integritas hitungannya bertumpu pada kejujuran responden,
+              bukan pada penegakan sistem. */}
+          <p id="survey-izinkan-anonim-bantuan" className="text-xs text-text-secondary px-1">
+            Cocok untuk QR di loket layanan. Pengisian berulang hanya dicegah lewat penanda di
+            peramban responden, bukan ditegakkan sistem.
+          </p>
 
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">

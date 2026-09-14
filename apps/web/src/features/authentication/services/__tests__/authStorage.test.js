@@ -1,217 +1,165 @@
-import {
-  saveSession,
-  saveSsoSession,
-  saveConsentFlag,
-  clearSession,
-  isAuthenticated,
-  selaraskanCookieSesi,
-} from '../authStorage';
+import { clearSession, isAuthenticated, saveSession, saveSsoSession } from '../authStorage';
 
 /**
- * TC-FE-032 — Cookie sesi bertahan sesudah peramban ditutup.
+ * SESI HANTU (laporan pengguna 8 September 2026).
  *
- * MENGUNCI [BUG-006](../../../../../../docs/BUG_REPORTS.md#bug-006) yang sudah
- * diperbaiki. Cacatnya: cookie `token`/`role` ditulis sebagai **cookie sesi**
- * (tanpa `max-age`), sehingga hilang setiap kali peramban ditutup — sementara
- * token di localStorage tetap hidup. Hasilnya "sesi hantu": antarmuka mengaku
- * sudah masuk, tombol-tombolnya berfungsi, tetapi proxy.js tak melihat cookie
- * apa pun dan memantulkan setiap halaman terlindung ke beranda publik.
+ * Gejalanya: "meskipun kondisi belum login tetapi data opd dan kategori
+ * pengaduan tetap terlihat". Diukur dengan Chrome pada konteks nol cookie,
+ * beranda TIDAK membocorkan apa pun — kedua panggilan API menjawab 401. Jadi
+ * yang terjadi bukan kebocoran endpoint: sesinya memang masih hidup.
  *
- * Ada DUA arah yang harus dijaga, dan keduanya pernah rusak:
- *   1. cookie mati lebih cepat daripada token → sesi hantu (BUG-006);
- *   2. cookie hidup lebih lama daripada token → proxy membukakan halaman yang
- *      seluruh panggilan API-nya sudah pasti 401, sama membingungkannya.
+ * SEBABNYA: pada jalur SSO tokennya ada di cookie `session` HttpOnly milik
+ * backend, dan `clearSession()` berjalan di JavaScript — yang TIDAK DAPAT
+ * menghapus cookie HttpOnly. Begitu `localStorage` hilang tanpa logout
+ * (dibersihkan tangan, "clear site data" yang menyisakan cookie, atau
+ * interceptor 401 di api.js), antarmuka menyatakan sesi mati sementara cookienya
+ * masih sah: setiap panggilan API tetap 200, dan dropdown OPD pun terisi.
  *
- * Karena itu yang diuji bukan "ada cookie", melainkan **umurnya berasal dari
- * `exp` token itu sendiri**.
+ * Arahnya sengaja CONDONG KE LOGOUT: bila `sso_expires_at` hilang padahal sesi
+ * sah, pengguna diminta masuk lagi. Di sistem pengaduan dengan gerbang UU PDP,
+ * salah ke arah "keluar" jauh lebih murah daripada seseorang menyangka dirinya
+ * anonim padahal aplikasi masih dapat bertindak sebagai dirinya — di komputer
+ * bersama itu masalah nyata.
  */
+const URL_LOGOUT = /\/auth\/logout$/;
 
-/** JWT palsu — hanya bagian payload yang dibaca `decodeJwtPayload`. */
-const buatToken = (expDetik) => {
-  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
-  return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: 1, exp: expDetik })}.tandatangan`;
-};
-
-const detikSekarang = () => Math.floor(Date.now() / 1000);
-
-const bacaCookie = (nama) => {
-  const bagian = document.cookie.split('; ').find((c) => c.startsWith(`${nama}=`));
-  return bagian ? bagian.slice(nama.length + 1) : null;
-};
-
-/**
- * jsdom TIDAK menerapkan `max-age`: ia menyimpan nilainya lalu melupakan
- * atributnya, jadi `document.cookie` tak pernah bisa membuktikan cookienya
- * bermasa hidup. Setter-nya karena itu diintip di sini — string yang DITULIS
- * aplikasi itulah satu-satunya bukti yang tersedia, dan justru string itulah
- * yang dikirim ke peramban sungguhan.
- */
-let cookieDitulis = [];
-let cookieAsli;
-
-beforeAll(() => {
-  cookieAsli = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
-  Object.defineProperty(document, 'cookie', {
-    configurable: true,
-    get: () => cookieAsli.get.call(document),
-    set: (nilai) => {
-      cookieDitulis.push(nilai);
-      cookieAsli.set.call(document, nilai);
-    },
-  });
-});
-
-afterAll(() => {
-  delete document.cookie;
-  Object.defineProperty(Document.prototype, 'cookie', cookieAsli);
-});
+const panggilanLogout = () =>
+  (global.fetch.mock.calls ?? []).filter(([url]) => URL_LOGOUT.test(String(url)));
 
 beforeEach(() => {
   localStorage.clear();
-  cookieDitulis = [];
-  for (const nama of ['token', 'role', 'area', 'opd', 'consent']) {
-    document.cookie = `${nama}=; path=/; max-age=0`;
-  }
-  cookieDitulis = [];
+  // Cookie non-HttpOnly saja yang terlihat di sini; cookie `session` justru
+  // TIDAK dapat disimulasikan jsdom, dan itu inti masalahnya.
+  document.cookie.split(';').forEach((c) => {
+    const nama = c.split('=')[0].trim();
+    if (nama) document.cookie = `${nama}=; path=/; max-age=0`;
+  });
+  global.fetch = jest.fn().mockResolvedValue({ ok: true });
 });
 
-/** Nilai `max-age` yang benar-benar dituliskan untuk sebuah cookie. */
-const maxAgeDitulis = (nama) => {
-  const baris = [...cookieDitulis].reverse().find((c) => c.startsWith(`${nama}=`));
-  if (!baris) return null;
-  const cocok = baris.match(/max-age=(-?\d+)/);
-  return cocok ? Number(cocok[1]) : null;
-};
+describe('clearSession mematikan sesi di SERVER, bukan cuma di peramban', () => {
+  it('menembakkan POST ke /auth/logout', () => {
+    clearSession();
 
-describe('saveSession — umur cookie mengikuti `exp` token (TC-FE-032)', () => {
-  it('memberi cookie token & role masa hidup, bukan cookie sesi', () => {
-    const exp = detikSekarang() + 3600;
-    saveSession(buatToken(exp), 'kabupaten');
-
-    // Inilah BUG-006: tanpa `max-age`, keduanya mati saat peramban ditutup.
-    expect(maxAgeDitulis('token')).not.toBeNull();
-    expect(maxAgeDitulis('role')).not.toBeNull();
+    expect(panggilanLogout()).toHaveLength(1);
+    const [, opsi] = panggilanLogout()[0];
+    expect(opsi.method).toBe('POST');
   });
 
-  it('menyamakan umur cookie dengan sisa umur token, bukan angka tetap', () => {
-    const exp = detikSekarang() + 3600;
-    saveSession(buatToken(exp), 'kabupaten');
+  it('mengirim cookie — tanpa itu backend tak tahu sesi mana yang dimatikan', () => {
+    clearSession();
 
-    // Toleransi 5 detik: perhitungannya memakai `Date.now()` dua kali.
-    expect(maxAgeDitulis('token')).toBeGreaterThan(3595);
-    expect(maxAgeDitulis('token')).toBeLessThanOrEqual(3600);
-    // `role` harus mati BERSAMAAN dengan `token`. Kalau ia hidup lebih lama,
-    // proxy melihat peran tanpa sesi; kalau lebih pendek, sesi tanpa peran —
-    // dan admin dipantulkan dari areanya sendiri.
-    expect(maxAgeDitulis('role')).toBe(maxAgeDitulis('token'));
+    const [, opsi] = panggilanLogout()[0];
+    // `credentials: 'include'` WAJIB: frontend dan API beda origin, dan cookie
+    // `session` tak ikut terkirim pada permintaan lintas-origin kecuali diminta.
+    expect(opsi.credentials).toBe('include');
   });
 
-  it('memakai umur cadangan ketika token tak punya klaim `exp`', () => {
-    saveSession(buatToken(undefined), 'opd');
+  it('memakai keepalive supaya tetap terkirim walau halamannya langsung pindah', () => {
+    clearSession();
 
-    // Tak boleh 0 (mati seketika) dan tak boleh tanpa max-age (cookie sesi).
-    expect(maxAgeDitulis('token')).toBeGreaterThan(0);
+    const [, opsi] = panggilanLogout()[0];
+    // Beberapa pemanggil `clearSession()` segera menavigasi. Tanpa `keepalive`,
+    // permintaannya dibatalkan peramban dan sesi server tetap hidup —
+    // memulihkan bug yang sedang ditutup ini.
+    expect(opsi.keepalive).toBe(true);
   });
 
-  it('memberi cookie umur 0 untuk token yang sudah kedaluwarsa', () => {
-    saveSession(buatToken(detikSekarang() - 60), 'opd');
+  it('TIDAK melempar walau jaringannya mati', () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
 
-    // Bukan angka negatif dan bukan umur cadangan: token mati tak boleh
-    // menghasilkan cookie yang hidup satu detik pun.
-    expect(maxAgeDitulis('token')).toBe(0);
+    // Membersihkan sesi lokal tak boleh gagal gara-gara jaringan: kalau ia
+    // melempar, artefak lokalnya tetap ada dan pengguna terjebak "setengah
+    // login" — keadaan yang lebih buruk daripada keadaan awalnya.
+    expect(() => clearSession()).not.toThrow();
   });
 
-  it('menandai warga yang belum menyetujui dengan consent=0', () => {
-    saveSession(buatToken(detikSekarang() + 3600), 'responden', true);
-    expect(bacaCookie('consent')).toBe('0');
+  it('tetap membersihkan artefak lokal', () => {
+    localStorage.setItem('token', 'abc');
+    localStorage.setItem('role', 'responden');
 
-    saveSession(buatToken(detikSekarang() + 3600), 'responden', false);
-    expect(bacaCookie('consent')).toBe('1');
+    clearSession();
+
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('role')).toBeNull();
   });
 });
 
-describe('saveSsoSession — jalur tanpa token (TC-FE-032)', () => {
-  it('memberi cookie `role` masa hidup dari `expiresAt`, bukan cookie sesi', () => {
-    // Cookie `session` milik backend BERTAHAN karena punya Max-Age sendiri;
-    // kalau cookie `role` di sini mati saat peramban ditutup, proxy melihat
-    // sesi hidup TANPA peran dan memantulkan admin dari areanya sendiri.
-    saveSsoSession('kabupaten', detikSekarang() + 7200);
-
-    expect(maxAgeDitulis('role')).toBeGreaterThan(7195);
-    expect(maxAgeDitulis('role')).toBeLessThanOrEqual(7200);
-  });
-});
-
-describe('isAuthenticated — dua arah keadaan setengah login (TC-FE-032)', () => {
-  it('menganggap sesi hidup selama token belum kedaluwarsa', () => {
-    saveSession(buatToken(detikSekarang() + 3600), 'kabupaten');
-    expect(isAuthenticated()).toBe(true);
-  });
-
-  it('membuang token kedaluwarsa beserta cookienya, bukan sekadar menjawab false', () => {
-    // Membiarkan cookienya berarti proxy tetap membukakan halaman /admin-*
-    // padahal seluruh panggilan API-nya sudah pasti 401.
-    saveSession(buatToken(detikSekarang() - 60), 'kabupaten');
+describe('isAuthenticated pada sesi SSO yang kedaluwarsa', () => {
+  it('menyatakan tidak masuk DAN mematikan sesi server (inti sesi hantu)', () => {
+    // Sesi SSO yang waktunya sudah lewat: inilah keadaan yang dulu meninggalkan
+    // cookie `session` hidup sementara antarmuka menyatakan logout.
+    saveSsoSession('responden', Math.floor(Date.now() / 1000) - 60, false);
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
 
     expect(isAuthenticated()).toBe(false);
-    expect(localStorage.getItem('token')).toBeNull();
-    expect(bacaCookie('token')).toBeNull();
-    expect(bacaCookie('role')).toBeNull();
-  });
-
-  it('memulihkan cookie yang hilang selagi tokennya masih sah', () => {
-    // Peramban yang cookienya terhapus tangan (atau warisan versi lama) harus
-    // sembuh sendiri; tanpa ini UI bilang sudah masuk sementara proxy
-    // memantulkan setiap halaman terlindung.
-    saveSession(buatToken(detikSekarang() + 3600), 'kabupaten');
-    document.cookie = 'token=; path=/; max-age=0';
-    expect(bacaCookie('token')).toBeNull();
-
-    expect(isAuthenticated()).toBe(true);
-    expect(bacaCookie('token')).not.toBeNull();
-    expect(bacaCookie('role')).toBe('kabupaten');
+    expect(panggilanLogout()).toHaveLength(1);
   });
 });
 
-describe('clearSession — tak meninggalkan warisan bagi pengguna berikutnya (TC-FE-032)', () => {
-  it('membuang seluruh cookie navigasi, termasuk penanda persetujuan', () => {
-    saveSession(buatToken(detikSekarang() + 3600), 'responden', false);
-    saveConsentFlag(true);
-    expect(bacaCookie('consent')).toBe('1');
+/**
+ * Laporan pengguna 14 September 2026: akun warga ber-peran banyak yang belum
+ * menyetujui PDP tetap dipantulkan dari /persetujuan.
+ *
+ * Backend melaporkan `consentRequired: false` selama peran BELUM dipilih --
+ * lihat AuthService.getRoles & getMe, yang keduanya memakai
+ * `actingRole ? isRequired(...) : false`. Nilai itu berarti "belum dapat
+ * ditentukan", BUKAN "sudah menyetujui". Menulisnya sebagai penanda "sudah
+ * setuju" membukakan seluruh area warga bagi orang yang belum pernah melihat
+ * gerbangnya, dan sekaligus memantulkannya dari satu-satunya halaman yang
+ * dapat memperbaiki keadaan itu.
+ *
+ * Ini lapis kedua: `setActingRole` sudah mengoreksi penanda begitu perannya
+ * dipilih, tetapi jendela sebelum pilihan itu tak boleh dibuka lebar.
+ */
+const b64urlPenanda = (o) =>
+  Buffer.from(JSON.stringify(o))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 
-    clearSession();
+const tokenPenanda = () =>
+  `${b64urlPenanda({ alg: 'HS256', typ: 'JWT' })}.${b64urlPenanda({
+    sub: '21',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  })}.uji`;
 
-    for (const nama of ['token', 'role', 'area', 'opd', 'consent']) {
-      expect(bacaCookie(nama)).toBeNull();
-    }
+describe('penanda persetujuan tidak mendahului pilihan peran', () => {
+  const detikDepan = () => Math.floor(Date.now() / 1000) + 3600;
+
+  it('dev-login akun ber-peran banyak TIDAK mengaku sudah menyetujui', () => {
+    saveSession(tokenPenanda(), null, false);
+
+    expect(localStorage.getItem('consent')).toBe('0');
   });
 
-  it('membuang cerminan localStorage sehingga persetujuan tak dapat dipulihkan', () => {
-    // Kalau cerminannya tertinggal, `selaraskanCookieSesi()` akan menuliskan
-    // kembali persetujuan milik warga SEBELUMNYA di peramban yang sama —
-    // gerbang PDP terlewati atas nama orang lain.
-    saveSession(buatToken(detikSekarang() + 3600), 'responden', false);
-    clearSession();
+  it('SSO akun ber-peran banyak juga tidak', () => {
+    saveSsoSession(null, detikDepan(), false);
 
-    selaraskanCookieSesi();
-
-    expect(localStorage.getItem('consent')).toBeNull();
-    expect(bacaCookie('consent')).toBeNull();
+    expect(localStorage.getItem('consent')).toBe('0');
   });
 
-  it('memberi tahu pendengar sesudah seluruh artefak benar-benar hilang', () => {
-    saveSession(buatToken(detikSekarang() + 3600), 'kabupaten');
-    let sesiSaatDiberitahu = 'belum dipanggil';
-    const pendengar = () => {
-      sesiSaatDiberitahu = localStorage.getItem('token');
-    };
-    window.addEventListener('skema:sesi-berubah', pendengar);
+  /**
+   * Pasangan yang membuat kedua uji di atas berarti: peran TUNGGAL memang sudah
+   * dapat ditentukan, jadi jawabannya dipercaya apa adanya. Tanpa pasangan ini,
+   * "selalu 0" pun akan lolos.
+   */
+  it('peran tunggal yang sudah menyetujui tetap ditandai beres', () => {
+    saveSession(tokenPenanda(), 'responden', false);
 
-    clearSession();
+    expect(localStorage.getItem('consent')).toBe('1');
+  });
 
-    // Pendengar yang memanggil isAuthenticated() harus membaca keadaan yang
-    // sudah bersih — bukan setengah bersih.
-    expect(sesiSaatDiberitahu).toBeNull();
-    window.removeEventListener('skema:sesi-berubah', pendengar);
+  it('peran tunggal yang belum menyetujui ditandai belum', () => {
+    saveSession(tokenPenanda(), 'responden', true);
+
+    expect(localStorage.getItem('consent')).toBe('0');
+  });
+
+  it('admin ber-peran tunggal tetap ditandai beres', () => {
+    saveSsoSession('kabupaten', detikDepan(), false);
+
+    expect(localStorage.getItem('consent')).toBe('1');
   });
 });

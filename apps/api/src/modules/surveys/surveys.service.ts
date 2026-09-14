@@ -11,6 +11,8 @@ import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
+import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
+import { assertSurveyEditable, TIDAK_DIBUANG } from './survey-scope.util';
 
 /** Transisi status yang diizinkan. */
 const ALLOWED_TRANSITIONS: Record<SurveyStatus, SurveyStatus[]> = {
@@ -32,7 +34,7 @@ export class SurveysService {
     user: CurrentUser,
   ): Promise<PaginatedResult<SurveyEntity>> {
     const { page, limit, status, opdId } = query;
-    const where: Prisma.SurveyWhereInput = { ...opdWhereFilter(user) };
+    const where: Prisma.SurveyWhereInput = { ...opdWhereFilter(user), ...TIDAK_DIBUANG };
     if (status) {
       where.status = status;
     }
@@ -67,7 +69,7 @@ export class SurveysService {
    */
   async findActive(query: ListActiveSurveyQueryDto): Promise<PaginatedResult<SurveyEntity>> {
     const { page, limit, opdId } = query;
-    const where: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif };
+    const where: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif, ...TIDAK_DIBUANG };
     if (opdId) {
       where.opdId = opdId;
     }
@@ -92,7 +94,13 @@ export class SurveysService {
   }
 
   async findOne(id: number, user: CurrentUser): Promise<SurveyEntity> {
-    return new SurveyEntity(await this.getAccessibleOrThrow(id, user));
+    const survey = await this.getAccessibleOrThrow(id, user);
+    // `respondentsCount` ikut dikirim sejak 11 September 2026 (sebelumnya hanya
+    // GET /surveys yang mengisinya). Builder survei memakainya untuk mengunci
+    // susunan pertanyaan; tanpa angka ini ia selalu membaca 0 dan penguncian
+    // tak pernah menyala -- pengguna baru tahu aturannya dari galat backend.
+    const summary = await this.ikmService.getSummary(survey);
+    return new SurveyEntity({ ...survey, ...summary });
   }
 
   /** Buat paket survei. Admin OPD → OPD-nya sendiri; kabupaten (=superuser) → wajib `opdId`. */
@@ -106,6 +114,7 @@ export class SurveysService {
         judul: dto.judul,
         periode: dto.periode,
         allowMultipleSubmit: dto.allowMultipleSubmit ?? false,
+        izinkanAnonim: dto.izinkanAnonim ?? false,
       },
     });
     return new SurveyEntity(created);
@@ -114,7 +123,14 @@ export class SurveysService {
   /** Ubah survei — hanya saat status `draft`. */
   async update(id: number, dto: UpdateSurveyDto, user: CurrentUser): Promise<SurveyEntity> {
     const survey = await this.getAccessibleOrThrow(id, user);
-    this.assertDraft(survey, 'diubah');
+    const jumlahJawaban = await this.prisma.surveyResponse.count({ where: { surveyId: id } });
+
+    // Periode diperiksa TERPISAH, dan hanya bila benar-benar berganti nilai:
+    // mengirim periode yang sama persis bukan perubahan, dan menolaknya akan
+    // membuat penyuntingan judul ikut gagal hanya karena formulir mengirim
+    // seluruh medannya.
+    const periodeBerganti = dto.periode !== undefined && dto.periode !== survey.periode;
+    assertSurveyEditable(survey, jumlahJawaban, periodeBerganti ? 'periode' : 'meta');
 
     const updated = await this.prisma.survey.update({
       where: { id },
@@ -122,16 +138,125 @@ export class SurveysService {
         judul: dto.judul,
         periode: dto.periode,
         allowMultipleSubmit: dto.allowMultipleSubmit,
+        // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
+        izinkanAnonim: dto.izinkanAnonim,
       },
     });
     return new SurveyEntity(updated);
   }
 
-  /** Hapus survei — hanya saat status `draft`. */
+  /** Isi Sampah — Kabupaten semua OPD, Admin OPD hanya miliknya. */
+  async findTrashed(
+    query: ListSurveyQueryDto,
+    user: CurrentUser,
+  ): Promise<PaginatedResult<TrashedSurveyEntity>> {
+    const { page, limit } = query;
+    const where: Prisma.SurveyWhereInput = {
+      ...opdWhereFilter(user),
+      deletedAt: { not: null },
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.survey.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { deletedAt: 'desc' },
+        include: {
+          opd: { select: { nama: true } },
+          deletedBy: { select: { nama: true } },
+          _count: { select: { responses: true } },
+        },
+      }),
+      this.prisma.survey.count({ where }),
+    ]);
+
+    const items = rows.map(
+      (row) =>
+        new TrashedSurveyEntity({
+          id: row.id,
+          judul: row.judul,
+          periode: row.periode,
+          status: row.status,
+          opdId: row.opdId,
+          opdNama: row.opd.nama,
+          deletedAt: row.deletedAt as Date,
+          deletedByNama: row.deletedBy?.nama ?? null,
+          jumlahJawaban: row._count.responses,
+        }),
+    );
+
+    return paginate(items, total, page, limit);
+  }
+
+  /**
+   * Buang survei ke Sampah (11 September 2026). BUKAN lagi penghapusan
+   * permanen: barisnya tetap ada dengan `deletedAt` terisi, dan pemusnahannya
+   * punya rutenya sendiri (`purge`) yang hanya dapat dijalankan dari Sampah.
+   *
+   * SELURUH STATUS boleh dibuang, atas keputusan pengguna. Survei `aktif`
+   * ditutup lebih dulu supaya tautan & QR yang sudah tersebar berhenti
+   * menerima jawaban pada saat yang sama ia masuk sampah; penutupan itu
+   * sekaligus menerbitkan snapshot IKM final lewat jalur yang sudah ada.
+   */
   async remove(id: number, user: CurrentUser): Promise<void> {
     const survey = await this.getAccessibleOrThrow(id, user);
-    this.assertDraft(survey, 'dihapus');
-    await this.prisma.survey.delete({ where: { id } });
+    const perluDitutup = survey.status === SurveyStatus.aktif;
+
+    await this.prisma.survey.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        deletedById: user.userId,
+        ...(perluDitutup ? { status: SurveyStatus.ditutup } : {}),
+      },
+    });
+
+    if (perluDitutup) {
+      // SESUDAH baris diperbarui: snapshot menghitung dari jawaban yang sudah
+      // masuk, dan tak ada yang dapat menambahnya lagi setelah statusnya
+      // ditutup. Urutan sebaliknya membuka celah satu jawaban terakhir yang
+      // tak ikut terhitung.
+      await this.ikmService.snapshot(id);
+    }
+  }
+
+  /**
+   * Pulihkan survei dari Sampah. Statusnya TIDAK disentuh: survei yang dibuang
+   * dalam keadaan aktif sudah ditutup saat dibuang, dan membukanya kembali
+   * adalah keputusan tersendiri yang sudah punya tombolnya sendiri
+   * (`PATCH /surveys/:id/status`). Memulihkan sekaligus mengaktifkan berarti
+   * diam-diam membuka survei untuk diisi lagi.
+   */
+  async restore(id: number, user: CurrentUser): Promise<SurveyEntity> {
+    const survey = await this.getTrashedOrThrow(id, user);
+    const updated = await this.prisma.survey.update({
+      where: { id: survey.id },
+      data: { deletedAt: null, deletedById: null },
+    });
+    return new SurveyEntity(updated);
+  }
+
+  /**
+   * Musnahkan permanen. Hanya dari Sampah, dan hanya peran berhak penuh --
+   * penjaga perannya ada di `@Roles` controller.
+   *
+   * URUTANNYA DITULIS TERSURAT, dan itu bukan kehati-hatian berlebih:
+   * `answers.question_id` TANPA `onDelete` alias RESTRICT, sehingga penghapusan
+   * berjenjang dari `surveys` dapat gagal ketika pertanyaan dibuang sementara
+   * jawabannya masih ada. Satu transaksi, dari daun ke akar.
+   */
+  async purge(id: number, user: CurrentUser): Promise<void> {
+    const survey = await this.getTrashedOrThrow(id, user);
+
+    await this.prisma.$transaction([
+      this.prisma.answer.deleteMany({ where: { response: { surveyId: survey.id } } }),
+      this.prisma.surveyResponse.deleteMany({ where: { surveyId: survey.id } }),
+      this.prisma.questionOption.deleteMany({ where: { question: { surveyId: survey.id } } }),
+      this.prisma.question.deleteMany({ where: { surveyId: survey.id } }),
+      this.prisma.ikmResult.deleteMany({ where: { surveyId: survey.id } }),
+      this.prisma.survey.delete({ where: { id: survey.id } }),
+    ]);
   }
 
   /** Publikasikan / tutup survei (transisi tervalidasi). */
@@ -167,8 +292,8 @@ export class SurveysService {
   /** Duplikasi survei (beserta pertanyaannya) sebagai draft baru. */
   async duplicate(id: number, user: CurrentUser): Promise<SurveyEntity> {
     await this.getAccessibleOrThrow(id, user);
-    const original = await this.prisma.survey.findUnique({
-      where: { id },
+    const original = await this.prisma.survey.findFirst({
+      where: { id, ...TIDAK_DIBUANG },
       include: { questions: true },
     });
     if (!original) {
@@ -181,6 +306,7 @@ export class SurveysService {
         judul: `${original.judul} (Salinan)`,
         periode: original.periode,
         allowMultipleSubmit: original.allowMultipleSubmit,
+        izinkanAnonim: original.izinkanAnonim,
         status: SurveyStatus.draft,
         questions: {
           create: original.questions.map((q) => ({
@@ -197,13 +323,13 @@ export class SurveysService {
   }
 
   private resolveOpdId(dto: CreateSurveyDto, user: CurrentUser): number {
-    if (user.role === Role.opd) {
+    if (user.actingRole === Role.opd) {
       if (user.opdId == null) {
         throw new BadRequestException('Akun OPD tidak tertaut ke OPD mana pun');
       }
       return user.opdId; // Admin OPD selalu membuat untuk OPD-nya sendiri
     }
-    // kabupaten (=superuser, lolos guard) atau lainnya
+    // kabupaten & superuser (terdaftar di @Roles sejak T6) atau lainnya
     if (dto.opdId == null) {
       throw new BadRequestException('opdId wajib diisi');
     }
@@ -217,14 +343,26 @@ export class SurveysService {
     }
   }
 
-  private assertDraft(survey: Survey, aksi: string): void {
-    if (survey.status !== SurveyStatus.draft) {
-      throw new BadRequestException(`Survei hanya dapat ${aksi} saat berstatus draft`);
+  /**
+   * Survei yang ADA DI SAMPAH dan boleh disentuh pengguna ini. Dipakai
+   * `restore` maupun `purge` -- keduanya hanya sah atas baris terbuang, dan
+   * membedakan "tak ada" dari "tidak di sampah" membantu pemanggilnya
+   * memperbaiki keadaan.
+   */
+  private async getTrashedOrThrow(id: number, user: CurrentUser): Promise<Survey> {
+    const survey = await this.prisma.survey.findUnique({ where: { id } });
+    if (!survey) {
+      throw new NotFoundException(`Survei dengan id ${id} tidak ditemukan`);
     }
+    assertOpdAccess(user, survey.opdId);
+    if (survey.deletedAt === null) {
+      throw new BadRequestException('Survei ini tidak berada di Sampah');
+    }
+    return survey;
   }
 
   private async getAccessibleOrThrow(id: number, user: CurrentUser): Promise<Survey> {
-    const survey = await this.prisma.survey.findUnique({ where: { id } });
+    const survey = await this.prisma.survey.findFirst({ where: { id, ...TIDAK_DIBUANG } });
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${id} tidak ditemukan`);
     }

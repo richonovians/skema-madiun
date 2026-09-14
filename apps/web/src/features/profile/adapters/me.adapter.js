@@ -33,7 +33,19 @@ const ROLE_TO_FRONTEND = {
  * Menyalin aturan itu ke sini berarti dua tempat harus mengingat hal yang sama.
  */
 export function adaptMe(me) {
-  const frontendRole = ROLE_TO_FRONTEND[me.role] ?? me.role;
+  // `role` tunggal DIGANTI dua nilai (5 September 2026):
+  // - `roles`      : KEPEMILIKAN, dipakai menyusun pemilih peran.
+  // - `actingRole` : peran yang SEDANG DIPAKAI, dan inilah yang mencerminkan
+  //                  hak akses -- setiap keputusan tampilan yang meniru
+  //                  penjagaan backend harus memakai nilai ini.
+  //
+  // Kunci `role` SENGAJA tidak dipertahankan sebagai alias: membiarkannya
+  // berarti tempat-tempat yang seharusnya berpindah ke `actingRole` tetap
+  // bekerja "seperti biasa" dan salahnya tak terlihat.
+  const frontendRoles = (me.roles ?? []).map((r) => ROLE_TO_FRONTEND[r] ?? r);
+  const frontendRole = me.actingRole
+    ? (ROLE_TO_FRONTEND[me.actingRole] ?? me.actingRole)
+    : null;
   return {
     id: me.id,
     name: me.nama,
@@ -44,8 +56,9 @@ export function adaptMe(me) {
     nikMasked: null, // gap
     address: null, // gap
     occupation: me.respondentProfile?.pekerjaan ?? null,
-    role: frontendRole,
-    roleLabel: ROLE_LABEL[frontendRole] ?? frontendRole,
+    roles: frontendRoles,
+    actingRole: frontendRole,
+    roleLabel: frontendRole ? (ROLE_LABEL[frontendRole] ?? frontendRole) : null,
     // OPD tempat akun ini bertugas. Backend cuma mengirim ID-nya (MeEntity tak
     // memuat nama OPD), jadi pemanggil yang butuh namanya menyandingkan sendiri
     // lewat GET /opd/:id -- lihat AdminNavbar.jsx. `null` untuk kabupaten &

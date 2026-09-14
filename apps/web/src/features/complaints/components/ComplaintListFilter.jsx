@@ -4,6 +4,7 @@ import Dropdown from '@/components/ui/Dropdown';
 import { Search, Download, FileText, ChevronDown } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 export default function ComplaintListFilter({
   searchQuery,
@@ -37,7 +38,7 @@ export default function ComplaintListFilter({
   }, []);
   const statusOptions = [
     { value: 'Semua Status', label: 'Semua Status' },
-    { value: 'Diterima', label: 'Diterima' },
+    { value: 'Diterima', label: COMPLAINT_STATUS_LABEL.Diterima },
     { value: 'Diproses', label: 'Diproses' },
     { value: 'Selesai', label: 'Selesai' },
     { value: 'Ditolak', label: 'Ditolak' },

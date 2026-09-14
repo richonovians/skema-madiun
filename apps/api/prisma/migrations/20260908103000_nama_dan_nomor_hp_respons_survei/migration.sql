@@ -1,0 +1,23 @@
+-- Nama & nomor HP pengisi survei (permintaan pengguna 8 September 2026, yang
+-- membalik keputusan hari yang sama untuk membuang keduanya).
+--
+-- NULLABLE, jadi tak ada baris lama yang perlu diisi dan tak ada penulisan
+-- ulang tabel. "nama" VARCHAR(50) menyamai "users"."nama" supaya nilai yang
+-- disalin dari akun tak pernah terpotong; "nomor_hp" VARCHAR(20) cukup untuk
+-- bentuk terpanjang yang divalidasi (+62 diikuti 13 angka).
+--
+-- "nomor_hp" hanya pernah terisi dari jalur TANPA sesi, tempat pengisi
+-- mengetiknya sendiri. Pada jalur bersesi kolom ini selalu NULL karena tak ada
+-- sumbernya: Helpdesk tak mengirim nomor telepon dan "users" tak punya
+-- kolomnya. Itu keadaan terukur, bukan cacat migrasi ini.
+--
+-- DITULIS TANGAN dengan alasan yang sama seperti
+-- 20260908040616_demografi_dan_persetujuan_respons_publik: `prisma migrate dev`
+-- di repo ini sekalian membereskan drift lama, yaitu mengubah
+-- "complaints_opd_id_fkey" dan "survey_responses_user_id_fkey" dari RESTRICT
+-- menjadi SET NULL, dan membuang default '{}'::user_role[] pada
+-- "users"."roles". Keduanya drift yang SUDAH ADA sebelum pekerjaan ini.
+-- Menumpangkannya di sini akan menyelundupkan perubahan perilaku referensial ke
+-- dalam commit yang judulnya soal dua kolom data diri.
+ALTER TABLE "survey_responses" ADD COLUMN "nama" VARCHAR(50);
+ALTER TABLE "survey_responses" ADD COLUMN "nomor_hp" VARCHAR(20);

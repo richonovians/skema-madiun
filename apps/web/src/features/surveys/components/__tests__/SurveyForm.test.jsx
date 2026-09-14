@@ -1,8 +1,10 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { useRouter } from 'next/navigation';
 import { handlers } from '@/mocks/handlers';
+import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import SurveyForm from '../SurveyForm';
 
 /**
@@ -30,6 +32,22 @@ jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
+/**
+ * `isAuthenticated` dimock dengan `requireActual` untuk ekspor lainnya, BUKAN
+ * seluruh modulnya: `services/api.js` memakai `clearSession` dan `getToken`
+ * dari modul yang sama pada interseptornya, dan mengosongkan keduanya membuat
+ * interseptor itu meledak alih-alih menguji apa pun.
+ *
+ * Bakunya `true` di `beforeEach`, dan itu bukan kemalasan: seluruh uji yang
+ * sudah ada di berkas ini ditulis ketika komponennya belum sadar sesi. Tanpa
+ * baku itu, mereka semua akan mendapat pesan "masuk terlebih dahulu" dan
+ * berhenti menguji hal yang mereka maksud.
+ */
+jest.mock('@/features/authentication/services/authStorage', () => ({
+  ...jest.requireActual('@/features/authentication/services/authStorage'),
+  isAuthenticated: jest.fn(),
+}));
+
 const server = setupServer(...handlers);
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
@@ -42,6 +60,7 @@ describe('SurveyForm (TC-FE-016: Validasi Wajib Pilih OPD)', () => {
   beforeEach(() => {
     useRouter.mockReturnValue({ push: mockPush });
     mockPush.mockClear();
+    isAuthenticated.mockReturnValue(true);
   });
 
   /** Kueri berbasis peran & label — tahan terhadap perubahan styling/struktur DOM. */
@@ -96,5 +115,127 @@ describe('SurveyForm (TC-FE-016: Validasi Wajib Pilih OPD)', () => {
     await waitFor(() =>
       expect(screen.queryByText(/silakan pilih instansi \/ opd/i)).not.toBeInTheDocument(),
     );
+  });
+});
+
+/**
+ * PESAN MENURUT KEADAAN SESI (permintaan pengguna 8 September 2026).
+ *
+ * Sebabnya terukur: `getOpdList()` menuntut sesi, dan `GET /api/v1/opd`
+ * menjawab 401 tanpa sesi. Jadi pengunjung beranda yang belum masuk SELALU
+ * melihat dropdown kosong, lalu menekan tombolnya memunculkan "Silakan pilih
+ * Instansi / OPD" yaitu menyuruhnya melakukan hal yang tak mungkin.
+ *
+ * Kasus "gagal memuat" dibuat dengan 500, BUKAN 401: interseptor 401 di
+ * services/api.js membuang sesi lalu menavigasi, dan keduanya cuma menambah
+ * kebisingan yang tak berhubungan dengan yang diuji di sini.
+ */
+describe('SurveyForm — pesan menurut keadaan sesi', () => {
+  const mockPush = jest.fn();
+
+  beforeEach(() => {
+    useRouter.mockReturnValue({ push: mockPush });
+    mockPush.mockClear();
+  });
+
+  const submitButton = () => screen.getByRole('button', { name: /lihat survei tersedia/i });
+
+  it('TANPA sesi: menyuruh masuk lebih dahulu, bukan menyuruh memilih instansi', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<SurveyForm />);
+
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText(/masuk terlebih dahulu/i)).toBeInTheDocument();
+    expect(screen.queryByText(/silakan pilih instansi \/ opd/i)).not.toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  /**
+   * DIBALIK 8 September 2026. Sebelumnya uji ini menuntut tautan "Masuk
+   * sekarang" ADA di layar; pengguna kemudian meminta paragraf beserta
+   * tautannya dihapus, dan cukup penampung dropdown yang menghimbau masuk.
+   *
+   * Uji ini bukan dibuang melainkan dibalik arahnya, sebab yang perlu dijaga
+   * justru bertambah: himbauannya harus tetap terbaca DI SUATU TEMPAT. Uji yang
+   * hanya dihapus akan membiarkan keadaan tanpa sesi kembali bisu tanpa satu
+   * pun uji memerah.
+   */
+  it('TANPA sesi: himbauan masuk hanya di penampung dropdown, tanpa paragraf & tautan', async () => {
+    isAuthenticated.mockReturnValue(false);
+    render(<SurveyForm />);
+
+    expect(await screen.findByText(/masuk untuk melihat daftar instansi/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /masuk sekarang/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/hanya tersedia bagi pengguna yang sudah masuk/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * KONTROL. Tanpa uji ini, perbaikan di atas dapat lulus dengan cara membuang
+   * pesan "silakan pilih instansi" dari SEMUA keadaan, termasuk keadaan yang
+   * pesannya memang sudah benar.
+   */
+  it('KONTROL: dengan sesi dan tanpa pilihan, pesannya tetap yang lama', async () => {
+    isAuthenticated.mockReturnValue(true);
+    render(<SurveyForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText(/silakan pilih instansi \/ opd/i)).toBeInTheDocument();
+    expect(screen.queryByText(/masuk terlebih dahulu/i)).not.toBeInTheDocument();
+  });
+
+  it('dengan sesi tapi gagal memuat: penampungnya menyatakan gagal, bukan "Pilih Instansi"', async () => {
+    // 500, bukan 401: interseptor 401 di services/api.js membuang sesi lalu
+    // menavigasi, dan keduanya cuma kebisingan bagi yang diuji di sini.
+    isAuthenticated.mockReturnValue(true);
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    server.use(http.get(`${API_BASE}/opd`, () => new HttpResponse(null, { status: 500 })));
+
+    render(<SurveyForm />);
+
+    expect(await screen.findByText(/daftar instansi gagal dimuat/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * PENCARIAN INSTANSI (11 September 2026). Dropdown ini memuat daftar OPD yang
+ * sama persis dengan formulir pengaduan -- 62 instansi aktif, terukur di basis
+ * data lokal -- dan keduanya berdiri di halaman beranda yang sama. Membedakan
+ * keduanya berarti pengguna harus menghafal dropdown mana yang dapat dicari.
+ *
+ * Perilaku penyaringannya diuji di components/ui/__tests__/Dropdown.test.jsx.
+ */
+describe('SurveyForm — pencarian instansi', () => {
+  const opdDropdown = () => screen.getByLabelText(/pilih instansi \/ opd/i);
+  const medanCari = () => screen.queryByRole('textbox', { name: /cari pilih instansi/i });
+
+  beforeEach(() => {
+    useRouter.mockReturnValue({ push: jest.fn() });
+  });
+
+  it('dropdown OPD punya medan cari yang menyaring daftarnya', async () => {
+    isAuthenticated.mockReturnValue(true);
+    render(<SurveyForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.change(medanCari(), { target: { value: 'pendidikan' } });
+
+    expect(screen.getByRole('button', { name: 'Dinas Pendidikan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dinas Kesehatan' })).not.toBeInTheDocument();
+  });
+
+  it('tanpa sesi, medan carinya tidak muncul', async () => {
+    // `GET /opd` menjawab 401 tanpa sesi, jadi daftarnya kosong. Medan cari di
+    // atas daftar kosong menjanjikan sesuatu yang tak dapat ditepati.
+    isAuthenticated.mockReturnValue(false);
+    render(<SurveyForm />);
+    await screen.findByText(/masuk untuk melihat daftar instansi/i);
+
+    fireEvent.click(opdDropdown());
+
+    expect(medanCari()).not.toBeInTheDocument();
   });
 });

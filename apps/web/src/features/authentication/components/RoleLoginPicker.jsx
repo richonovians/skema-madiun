@@ -1,176 +1,122 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import {
-  Building2,
-  ShieldCheck,
-  User,
-  History,
-  X,
-  Info,
-  Lock,
-  ArrowLeft,
-  Check,
-} from 'lucide-react';
-import { SUPERUSER_AREA_HOME, SUPERUSER_OPD_ENTRY } from '@/constants/roleHome';
-import { useAsync } from '@/hooks/useAsync';
-import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { getOpdList } from '@/features/opd/services/opd.api';
-import LoadingState from '@/components/ui/LoadingState';
-import ErrorState from '@/components/ui/ErrorState';
-import { saveSuperuserArea, saveActingOpd } from '../services/authStorage';
+import React, { useState } from 'react';
+// `History` dibuang bersama tombol Superuser (8 September 2026).
+import { Building2, Info, Lock, ShieldCheck, User, X } from 'lucide-react';
+import useBodyScrollLock from '@/hooks/useBodyScrollLock';
+import { ROLE_HOME } from '@/constants/roleHome';
+import { setActingRole } from '../services/actingRole.api';
+import { KUNCI_TOMBOL, peranUntukTombol, tombolUntukRoles } from '../utils/tombolPeran';
 
 /**
- * Pemilih PERAN (area kerja) -- hanya untuk `superuser`.
+ * Pemilih peran. Sejak 5 September 2026 BUKAN lagi khusus superuser: siapa pun
+ * yang akunnya memegang lebih dari satu role melihatnya, dan pilihannya
+ * menentukan HAK AKSES sesi itu -- bukan cuma halaman mana yang dibukakan.
  *
- * Peran lain tak pernah melihat ini: Admin Kabupaten, Admin OPD, dan Warga
- * langsung diarahkan ke berandanya masing-masing seperti sebelumnya.
+ * Dua hal yang HILANG dari versi sebelumnya, dan keduanya disengaja:
  *
- * Yang dipilih adalah PERAN, BUKAN akun. Sesi yang dipakai tetap sesi superuser
- * itu sendiri -- tak ada login ulang dan tak ada akun lain yang dipinjam.
- *
- * KURUNGAN AREA (2026-08-20, permintaan user: "jika superuser login sebagai
- * warga hanya dapat mengakses semua halaman warga, ... opd ... kabupaten"):
- * pilihan di sini disimpan sebagai cookie `area` dan proxy.js MEMBATASI navigasi
- * pada area itu saja sampai diganti. Sifatnya perlu dinyatakan terus terang, dan
- * karena itu tertulis di kotak bawah: ini pembatas NAVIGASI, bukan pembatas hak.
- * Backend tetap memperlakukan superuser setara kabupaten (`hasFullAccess`), jadi
- * memilih "Warga" tidak mengurangi apa yang boleh dilakukan token-nya.
- *
- * PILIH OPD (2026-08-20, permintaan user: "saat role superuser ingin login
- * sebagai admin opd, dapat memilih opd yang ingin digunakan"): memilih Admin OPD
- * membuka langkah kedua berisi daftar OPD sungguhan (`GET /opd`). OPD terpilih
- * dipakai menyaring daftar survei & pengaduan (`?opdId=`) dan menjadi OPD tujuan
- * saat membuat survei baru dari area itu -- tanpanya area OPD menampilkan data
- * SELURUH OPD dan pembuatan survei gagal ("opdId wajib diisi"), karena akun
- * superuser tak tertaut OPD mana pun.
- *
- * Sejak OPD dapat dipilih, dashboard OPD ikut terbuka untuk superuser (keputusan
- * user 2026-08-20: "hanya superuser yang bisa membuka dashboard opd") -- backend
- * menerima `?opdId=` darinya, lihat DashboardService.resolveDashboardOpdId. Itulah
- * sebabnya pilihan ini mendarat di dashboard, bukan lagi di daftar survei. Admin
- * Kabupaten tetap TIDAK bisa membukanya.
+ * 1. Langkah "pilih OPD". Dulu superuser dapat memerankan OPD mana pun karena
+ *    backend memberinya cakupan penuh. Sekarang bertindak sebagai Admin OPD
+ *    memakai instansi yang tercantum di AKUNNYA (keputusan pengguna
+ *    5 September 2026), jadi tak ada yang perlu dipilih.
+ * 2. Kalimat "pembatasan ini mengatur NAVIGASI, bukan hak akses di server".
+ *    Itu sudah tidak benar lagi: `POST /auth/acting-role` menerbitkan sesi baru
+ *    yang benar-benar membatasi hak (klaim `act`, lihat acting-role.util.ts).
+ *    Membiarkannya berarti menjanjikan hal yang berlawanan dengan kenyataan.
  */
 const ROLE_CHOICES = [
   {
-    key: 'kabupaten',
+    // SATU tombol untuk DUA role (8 September 2026). Yang menentukan haknya
+    // `peranUntukTombol()`, bukan label di sini: akun bersuperuser masuk dengan
+    // `act=superuser`, akun kabupaten biasa dengan `act=kabupaten`.
+    key: KUNCI_TOMBOL.KABUPATEN,
     label: 'Admin Kabupaten',
     icon: ShieldCheck,
     tone: 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800',
-    description: 'Dashboard eksekutif, monitoring survei lintas OPD, manajemen pengguna.',
-    note: 'Log aktivitas & manajemen pengguna ikut terbuka karena Anda superuser.',
-    noteIcon: History,
+    description: 'Dashboard eksekutif dan monitoring survei serta pengaduan lintas OPD.',
+    note: 'Log aktivitas & manajemen pengguna TIDAK terbuka pada peran ini.',
+    // Dipakai bila akunnya memegang role `superuser`. Keterangannya WAJIB
+    // berbeda: tombolnya satu, tapi haknya benar-benar tidak sama, dan
+    // menjanjikan hal yang salah di sini berarti pengguna mengira fiturnya
+    // rusak ketika manajemen pengguna tak terbuka -- atau sebaliknya.
+    deskripsiSuper:
+      'Dashboard eksekutif, monitoring lintas OPD, ditambah log aktivitas & manajemen pengguna.',
+    noteSuper: 'Akun Anda bersuperuser, jadi log aktivitas & manajemen pengguna ikut terbuka.',
   },
   {
-    key: 'opd',
+    key: KUNCI_TOMBOL.OPD,
     label: 'Admin OPD',
     icon: Building2,
     tone: 'border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800',
     description: 'Dashboard OPD, daftar survei, pertanyaan, respons, dan pengaduan.',
-    note: 'Berikutnya: pilih OPD yang ingin Anda pakai.',
+    note: 'Instansinya mengikuti OPD yang tercantum di akun Anda.',
   },
   {
-    key: 'responden',
-    label: 'Warga',
+    key: KUNCI_TOMBOL.WARGA,
+    label: 'Masyarakat',
     icon: User,
     tone: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800',
     description: 'Tampilan warga: dashboard, pengaduan, dan pengisian survei.',
-    note: 'Data yang tampil mencakup seluruh sistem, bukan milik satu warga.',
+    note: 'Peran ini terkena gerbang persetujuan UU PDP seperti warga lainnya.',
   },
 ];
 
 /**
- * Langkah kedua: pilih OPD. Dipisah jadi komponen tingkat modul (bukan dibuat di
- * dalam render induk) sesuai react-hooks/static-components, dan supaya
- * `GET /opd` hanya dipanggil ketika langkah ini benar-benar dibuka.
+ * @param {object} props
+ * @param {string} [props.userName] nama pemilik akun, untuk judul
+ * @param {string[]} props.roles role BACKEND yang dimiliki akun
+ * @param {string|null} [props.currentRole] peran yang sedang dipakai
+ * @param {number|null} [props.opdId] tautan OPD akun; menentukan boleh-tidaknya
+ *   peran `opd` dipakai
+ * @param {'login'|'switch'} [props.context] 'login' = menutup berarti
+ *   membatalkan login; 'switch' = menutup berarti kembali ke peran sekarang
+ * @param {() => void} props.onCancel
  */
-function OpdStep({ onPick, onBack, currentOpdId }) {
-  const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
-  const { data: response, isLoading, error, refetch } = useAsync(fetchOpd);
-  const opdList = response?.data ?? [];
-
-  if (isLoading) return <LoadingState label="Memuat daftar OPD..." />;
-  if (error) {
-    return <ErrorState title="Gagal memuat daftar OPD" description={error.message} onRetry={refetch} />;
-  }
-
-  return (
-    <div className="space-y-2">
-      <button
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors mb-1"
-      >
-        <ArrowLeft size={14} />
-        Kembali ke daftar peran
-      </button>
-
-      {opdList.length === 0 ? (
-        <p className="text-sm text-slate-500 py-4">
-          Belum ada OPD aktif. Sinkronkan dulu dari Helpdesk di area Admin Kabupaten.
-        </p>
-      ) : (
-        opdList.map((opd) => {
-          const isCurrent = opd.id === currentOpdId;
-          return (
-            <button
-              key={opd.id}
-              onClick={() => onPick({ id: opd.id, nama: opd.name })}
-              className={`w-full text-left px-4 py-3 rounded-xl border transition-colors border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-900 ${
-                isCurrent ? 'ring-2 ring-offset-1 ring-blue-400' : ''
-              }`}
-            >
-              <span className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2.5 min-w-0">
-                  <Building2 size={16} className="shrink-0" />
-                  <span className="font-bold text-sm truncate">{opd.name}</span>
-                </span>
-                {isCurrent && <Check size={16} className="shrink-0" />}
-              </span>
-              <span className="block text-xs mt-1 opacity-80">
-                {opd.code}
-                {opd.serviceType ? ` · ${opd.serviceType}` : ''} · {opd.activeSurveys} survei aktif ·{' '}
-                {opd.openComplaints} pengaduan terbuka
-              </span>
-            </button>
-          );
-        })
-      )}
-    </div>
-  );
-}
-
 export default function RoleLoginPicker({
-  superuserName,
-  // 'login' = baru masuk (menutup = membatalkan login); 'switch' = berpindah area
-  // dari dalam aplikasi (menutup = kembali ke area yang sedang dipakai).
+  userName,
+  roles = [],
+  currentRole = null,
+  opdId = null,
   context = 'login',
-  currentArea = null,
-  currentOpd = null,
   onCancel,
 }) {
   const isSwitch = context === 'switch';
-  const [step, setStep] = useState('role');
+  const [sedangGanti, setSedangGanti] = useState(null);
+  const [galat, setGalat] = useState('');
 
   // Komponen ini hanya di-mount selagi pemilih terbuka, jadi tanpa syarat.
-  // Daftar OPD-nya bisa panjang & bergulir di dalam kartu -- justru di situ
-  // guliran latar paling terasa mengganggu.
   useBodyScrollLock();
 
-  const enterAs = (roleKey, opd = null) => {
-    // Ditulis SEBELUM navigasi: proxy.js membaca cookie `area` pada permintaan
-    // berikutnya untuk menentukan area mana yang boleh dibuka, dan halaman area
-    // OPD membaca `acting_opd` untuk menyaring daftarnya.
-    saveSuperuserArea(roleKey);
-    saveActingOpd(roleKey === 'opd' ? opd : null);
-    // Area OPD mendarat di dashboard-nya (kini berfungsi karena OPD sudah
-    // dipilih); area lain memakai berandanya masing-masing.
-    const target = roleKey === 'opd' ? SUPERUSER_OPD_ENTRY : SUPERUSER_AREA_HOME[roleKey];
-    // Navigasi HARD (bukan router.push) SENGAJA -- proxy.js membaca cookie lewat
-    // full request, jadi cookie yang baru ditulis harus ikut terkirim pada
-    // permintaan berikutnya. `location.assign()` dipakai alih-alih menugaskan
-    // `location.href`: efeknya sama, tapi ia pemanggilan metode, bukan mutasi
-    // properti objek di luar komponen (react-hooks/immutability).
-    window.location.assign(target);
+  // Hanya tombol yang BENAR-BENAR dapat dipakai akun ini. Bukan sekadar
+  // kerapian: menawarkan peran yang tak dimiliki hanya menghasilkan 403 dari
+  // backend (AuthService.setActingRole), dan itu terasa seperti aplikasi rusak.
+  //
+  // Penyaringnya `tombolUntukRoles`, BUKAN `roles.includes(c.key)` seperti dulu:
+  // tombol Admin Kabupaten mewakili DUA role, sehingga penyaring lama memberi
+  // akun ber-role `[superuser]` nol tombol -- terkunci di luar tanpa pesan apa
+  // pun. Ada uji khusus untuk kasus itu di utils/__tests__/tombolPeran.test.js.
+  const kunciTampil = tombolUntukRoles(roles);
+  const pilihan = ROLE_CHOICES.filter((c) => kunciTampil.includes(c.key));
+  const punyaSuperuser = roles.includes('superuser');
+
+  const enterAs = async (tombolKey) => {
+    setGalat('');
+    // `sedangGanti` memegang kunci TOMBOL, bukan peran hasil pemetaan, supaya
+    // penanda "berpindah..." tetap menempel pada tombol yang benar-benar diklik.
+    setSedangGanti(tombolKey);
+    const peran = peranUntukTombol(tombolKey, roles);
+    try {
+      await setActingRole(peran);
+      // Navigasi HARD (bukan router.push) SENGAJA -- proxy.js membaca cookie
+      // lewat full request, jadi cookie `role` yang baru ditulis harus ikut
+      // terkirim pada permintaan berikutnya. `location.assign()` dipakai
+      // alih-alih menugaskan `location.href`: efeknya sama, tapi ia pemanggilan
+      // metode, bukan mutasi properti objek di luar komponen.
+      window.location.assign(ROLE_HOME[peran] ?? '/');
+    } catch (err) {
+      setSedangGanti(null);
+      setGalat(err.message || 'Gagal berpindah peran. Silakan coba lagi.');
+    }
   };
 
   return (
@@ -185,75 +131,92 @@ export default function RoleLoginPicker({
           >
             <X size={18} />
           </button>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Superuser</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            {/* Jumlah TOMBOL, bukan jumlah role: akun ber-role
+                `[superuser, kabupaten]` memegang dua role tapi melihat satu
+                tombol, dan "2 peran" di atas satu tombol hanya membingungkan. */}
+            {pilihan.length} pilihan peran
+          </p>
           <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1">
-            {step === 'opd' ? 'Pilih OPD' : isSwitch ? 'Ganti peran' : 'Masuk sebagai'}
-            {step === 'opd' || !superuserName ? '' : ` — ${superuserName}`}
+            {isSwitch ? 'Ganti peran' : 'Masuk sebagai'}
+            {userName ? ` — ${userName}` : ''}
           </h3>
           <p className="text-sm text-slate-500 mt-1">
-            {step === 'opd'
-              ? 'OPD yang dipilih menentukan dashboard, survei, & pengaduan mana yang tampil, dan menjadi OPD tujuan saat Anda membuat survei baru.'
-              : 'Pilih peran yang ingin Anda buka. Hanya superuser yang mendapat pilihan ini.'}
+            Pilih peran yang ingin Anda pakai. Hak akses sesi ini mengikuti pilihan tersebut.
           </p>
         </div>
 
         <div className="px-6 py-5 space-y-3 flex-1 min-h-0 overflow-y-auto">
-          {step === 'opd' ? (
-            <OpdStep
-              onPick={(opd) => enterAs('opd', opd)}
-              onBack={() => setStep('role')}
-              currentOpdId={currentOpd?.id ?? null}
-            />
-          ) : (
-            <>
-              {ROLE_CHOICES.map((choice) => {
-                const Icon = choice.icon;
-                const NoteIcon = choice.noteIcon;
-                const isCurrent = choice.key === currentArea;
-                return (
-                  <button
-                    key={choice.key}
-                    onClick={() =>
-                      choice.key === 'opd' ? setStep('opd') : enterAs(choice.key)
-                    }
-                    className={`w-full text-left px-4 py-3.5 rounded-xl border transition-colors ${choice.tone} ${
-                      isCurrent ? 'ring-2 ring-offset-1 ring-slate-400' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <Icon size={18} className="shrink-0" />
-                      <span className="font-bold text-sm">{choice.label}</span>
-                      {isCurrent && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-                          sedang dipakai
-                          {choice.key === 'opd' && currentOpd ? ` · ${currentOpd.nama}` : ''}
-                        </span>
-                      )}
-                    </span>
-                    <span className="block text-xs mt-1.5 opacity-90">{choice.description}</span>
-                    <span className="flex items-start gap-1.5 text-[11px] mt-2 opacity-80">
-                      {NoteIcon ? (
-                        <NoteIcon size={12} className="mt-0.5 shrink-0" />
-                      ) : (
-                        <Info size={12} className="mt-0.5 shrink-0" />
-                      )}
-                      <span>{choice.note}</span>
-                    </span>
-                  </button>
-                );
-              })}
-
-              <div className="flex items-start gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                <Lock size={15} className="text-slate-400 mt-0.5 shrink-0" />
-                <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                  Selama peran ini dipakai, halaman di luar areanya akan dialihkan kembali ke sini.
-                  Anda tetap masuk memakai akun superuser sendiri -- tak ada akun lain yang
-                  dipinjam, dan pembatasan ini mengatur NAVIGASI, bukan hak akses di server. Peran
-                  bisa diganti kapan saja lewat menu &quot;Ganti Peran&quot;.
-                </p>
-              </div>
-            </>
+          {galat && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+              {galat}
+            </div>
           )}
+
+          {pilihan.map((choice) => {
+            const Icon = choice.icon;
+            // Dibandingkan LEWAT PEMETAAN: peran yang sedang dipakai seorang
+            // superuser adalah `superuser`, sementara kunci tombolnya
+            // `kabupaten`. Tanpa ini penanda "sedang dipakai" tak pernah muncul
+            // bagi mereka.
+            const isCurrent = peranUntukTombol(choice.key, roles) === currentRole;
+            // Admin OPD tanpa tautan OPD tak dapat dipakai -- backend menolaknya
+            // 400. Ditampilkan NONAKTIF beserta sebabnya, bukan disembunyikan:
+            // pemiliknya berhak tahu mengapa peran yang ia miliki tak bisa dibuka.
+            const terhalang = choice.key === KUNCI_TOMBOL.OPD && opdId == null;
+            const sibuk = sedangGanti !== null;
+
+            return (
+              <button
+                key={choice.key}
+                type="button"
+                disabled={terhalang || sibuk}
+                onClick={() => enterAs(choice.key)}
+                className={`w-full text-left px-4 py-3.5 rounded-xl border transition-colors ${choice.tone} ${
+                  isCurrent ? 'ring-2 ring-offset-1 ring-slate-400' : ''
+                } ${terhalang || sibuk ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <Icon size={18} className="shrink-0" />
+                  <span className="font-bold text-sm">{choice.label}</span>
+                  {isCurrent && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                      sedang dipakai
+                    </span>
+                  )}
+                  {sedangGanti === choice.key && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                      berpindah...
+                    </span>
+                  )}
+                </span>
+                <span className="block text-xs mt-1.5 opacity-90">
+                  {punyaSuperuser && choice.deskripsiSuper
+                    ? choice.deskripsiSuper
+                    : choice.description}
+                </span>
+                <span className="flex items-start gap-1.5 text-[11px] mt-2 opacity-80">
+                  <Info size={12} className="mt-0.5 shrink-0" />
+                  <span>
+                    {terhalang
+                      ? 'Akun Anda belum ditautkan ke OPD mana pun, jadi peran ini belum dapat dipakai. Hubungi Superuser untuk menautkannya.'
+                      : punyaSuperuser && choice.noteSuper
+                        ? choice.noteSuper
+                        : choice.note}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+
+          <div className="flex items-start gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <Lock size={15} className="text-slate-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Peran yang dipilih menentukan hak akses sesi ini di server, bukan cuma menu yang
+              tampil: hal yang di luar peran itu akan ditolak walau akun Anda memilikinya. Peran
+              bisa diganti kapan saja lewat menu &quot;Ganti Peran&quot;, tanpa keluar dan masuk lagi.
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -25,7 +25,10 @@ export function adaptUser(user) {
     name: user.nama,
     email: user.email,
     initials: getInitials(user.nama),
-    role: ROLE_MAP[user.role] ?? user.role,
+    // `roles` (5 September 2026) menggantikan `role` tunggal. Dipetakan
+    // elemen-per-elemen dengan tabel yang SAMA -- tak ada aturan baru yang
+    // perlu diingat di dua tempat.
+    roles: (user.roles ?? []).map((r) => ROLE_MAP[r] ?? r),
     opdId: user.opdId ?? null,
     organization: user.opdNama ?? null,
     createdAt: formatDateId(user.createdAt),
@@ -55,25 +58,34 @@ const ROLE_TO_BACKEND = {
  * nonaktif sejak awal, panggil updateUserStatus terpisah setelah create.
  * `phone` murni tak punya tempat di skema User sama sekali.
  */
-export function toCreateUserPayload({ fullName, email, role, opdId }) {
+export function toCreateUserPayload({ fullName, email, roles, opdId }) {
   return {
     nama: fullName,
     email,
-    role: ROLE_TO_BACKEND[role] ?? role,
+    roles: (roles ?? []).map((r) => ROLE_TO_BACKEND[r] ?? r),
     opdId: opdId ? Number(opdId) : undefined,
   };
 }
 
 /**
- * Terjemahkan payload edit akun -> UpdateUserDto backend (nama+opdId+role).
- * `role` opsional (2026-08-05, kabupaten bisa ubah role user lain) -- kirim
- * undefined bila tak disertakan pemanggil, class-validator `@IsOptional`
- * mengabaikannya.
+ * Terjemahkan payload edit akun -> UpdateUserDto backend — HANYA `roles`.
+ *
+ * KEPEMILIKAN DATA (8 September 2026): `nama` & `opdId` berasal dari Helpdesk,
+ * dan `UpdateUserDto` kini MENOLAK keduanya. Karena `ValidationPipe` backend
+ * memakai `forbidNonWhitelisted`, mengirimkannya bukan lagi "diabaikan
+ * `@IsOptional`" seperti dulu, melainkan 400 untuk seluruh permintaan.
+ *
+ * Field-nya dibuang DI SINI, bukan hanya di halaman pemanggilnya. Sebelum ini
+ * halaman "Ubah Role Admin" sengaja tak mengirim `nama` sementara adapter tetap
+ * menerimanya — aturan yang hidup di pemanggil, bukan di batas. Halaman
+ * berikutnya yang memakai adapter ini tak perlu lagi mengingat aturannya.
+ *
+ * `fullName` & `opdId` sengaja TIDAK diterima lagi sebagai parameter, supaya
+ * pemanggil yang masih mengirimkannya terlihat saat ESLint/uji berjalan, bukan
+ * diam-diam dibuang di sini.
  */
-export function toUpdateUserPayload({ fullName, opdId, role }) {
+export function toUpdateUserPayload({ roles }) {
   return {
-    nama: fullName,
-    opdId: opdId ? Number(opdId) : undefined,
-    role: role ? (ROLE_TO_BACKEND[role] ?? role) : undefined,
+    roles: roles ? roles.map((r) => ROLE_TO_BACKEND[r] ?? r) : undefined,
   };
 }

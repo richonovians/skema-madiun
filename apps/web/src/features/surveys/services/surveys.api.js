@@ -7,6 +7,7 @@ import {
   adaptSurvey,
   adaptSurveyFill,
   adaptSurveyList,
+  adaptTrashedSurveyList,
   toBackendStatus,
   toCreateQuestionPayload,
   toCreateSurveyPayload,
@@ -46,8 +47,29 @@ export async function updateSurvey(surveyId, payload) {
   return adaptSurvey(response.data);
 }
 
+/**
+ * Buang survei ke Sampah. BERUBAH ARTI 11 September 2026: bukan lagi
+ * penghapusan permanen, melainkan soft delete yang dapat dipulihkan.
+ */
 export async function deleteSurvey(surveyId) {
   await api.delete(`/surveys/${surveyId}`);
+}
+
+/** Isi Sampah (Admin Kabupaten: semua; Admin OPD: miliknya sendiri). */
+export async function getTrashedSurveys(params = {}) {
+  const response = await api.get('/surveys/trash', { params });
+  return { data: adaptTrashedSurveyList(response.data), meta: response.meta };
+}
+
+/** Pulihkan dari Sampah. Statusnya tidak berubah -- lihat SurveysService.restore. */
+export async function restoreSurvey(surveyId) {
+  const response = await api.post(`/surveys/${surveyId}/restore`);
+  return adaptSurvey(response.data);
+}
+
+/** Hapus permanen. Hanya Admin Kabupaten; backend menolak peran lain 403. */
+export async function purgeSurvey(surveyId) {
+  await api.delete(`/surveys/${surveyId}/purge`);
 }
 
 /** @param {string} status Nilai frontend ('AKTIF'/'DRAF'/'DITUTUP'). */
@@ -79,7 +101,10 @@ export async function getQuestions(surveyId) {
  *   dihitung ulang secara terpisah di sini (lihat adaptBuilderQuestions).
  */
 export async function createCustomQuestion(surveyId, payload) {
-  const response = await api.post(`/surveys/${surveyId}/questions`, toCreateQuestionPayload(payload));
+  const response = await api.post(
+    `/surveys/${surveyId}/questions`,
+    toCreateQuestionPayload(payload),
+  );
   const q = response.data;
   return {
     id: q.id,
@@ -152,10 +177,56 @@ export async function getSurveyFill(surveyId) {
  * Kirim jawaban. `questions` & `answers` bentuk dari useSurveyStore
  * (getSurveyFill().questions + store.answers) -- toSubmitAnswers menerjemahkan
  * ke AnswerInputDto[] backend berdasar tipe tiap pertanyaan.
+ *
+ * @param {boolean} tanpaDataDiri Pilihan anonim dari GerbangPengisianBersesi.
+ *   Data dirinya TIDAK dikirim dari sini: backend menyalinnya dari akun
+ *   pengirim, jadi isinya tak dapat dikarang oleh pemanggil.
  */
-export async function submitSurveyResponse(surveyId, questions, answers) {
+export async function submitSurveyResponse(surveyId, questions, answers, tanpaDataDiri = false) {
   const response = await api.post(`/surveys/${surveyId}/responses`, {
     answers: toSubmitAnswers(questions, answers),
+    // Dikirim hanya bila benar. Backend memperlakukan medan yang tak ada sama
+    // dengan false (`@IsOptional`), dan payload yang tak memuatnya menjaga
+    // bentuk permintaan lama tetap apa adanya.
+    ...(tanpaDataDiri ? { tanpaDataDiri: true } : {}),
+  });
+  return response.data;
+}
+
+/**
+ * Struktur kuesioner untuk pengunjung TANPA sesi (rute /survei/:id). Endpoint
+ * TERPISAH dari yang berpenjaga: backend menolaknya 404 kecuali survei aktif
+ * DAN mengizinkan anonim.
+ */
+export async function getPublicSurveyFill(surveyId) {
+  const response = await api.get(`/public/surveys/${surveyId}/fill`);
+  return adaptSurveyFill(response.data);
+}
+
+/**
+ * Kirim jawaban tanpa sesi. Backend selalu mencatatnya dengan userId null, dan
+ * MENOLAK 400 tanpa `setuju: true` (persetujuan UU PDP, 8 September 2026).
+ *
+ * @param {{setuju: boolean, nama: string|null, nomorHp: string|null,
+ *   jenisKelamin: string|null, kelompokUmur: string|null}} dataPublik
+ *   Hasil GerbangPengisianPublik.
+ */
+export async function submitPublicSurveyResponse(surveyId, questions, answers, dataPublik) {
+  const response = await api.post(`/public/surveys/${surveyId}/responses`, {
+    answers: toSubmitAnswers(questions, answers),
+    setuju: dataPublik?.setuju === true,
+    // Dihilangkan bila kosong, bukan dikirim null: backend menolak token kosong
+    // tanpa menghubungi Cloudflare, dan payload yang tak memuatnya menyatakan
+    // keadaan itu dengan jujur.
+    ...(dataPublik?.captchaToken ? { captchaToken: dataPublik.captchaToken } : {}),
+    // Medan data diri DIHILANGKAN dari payload bila kosong, bukan dikirim
+    // null. Backend menerima keduanya (`@IsOptional`), tetapi payload yang
+    // tidak memuatnya menyatakan lebih jujur bahwa pengisi memilih tidak
+    // memberi datanya.
+    ...(dataPublik?.nama ? { nama: dataPublik.nama } : {}),
+    ...(dataPublik?.nomorHp ? { nomorHp: dataPublik.nomorHp } : {}),
+    ...(dataPublik?.jenisKelamin ? { jenisKelamin: dataPublik.jenisKelamin } : {}),
+    ...(dataPublik?.kelompokUmur ? { kelompokUmur: dataPublik.kelompokUmur } : {}),
   });
   return response.data;
 }

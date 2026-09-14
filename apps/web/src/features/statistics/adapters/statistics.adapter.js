@@ -54,6 +54,11 @@ function adaptComplaintStatus(rows) {
     status: rows.map((r) => ({
       id: r.status,
       label: STATUS_META[r.status]?.label ?? r.status,
+      // `count` ikut dibawa sejak 14 September 2026. Sebelumnya hanya
+      // persentasenya yang selamat, sehingga pemakai yang butuh jumlahnya
+      // terpaksa menghitung mundur dari persen -- dan hasilnya meleset begitu
+      // pembulatannya bergeser (31% dari 13 memberi 4,03, bukan 4).
+      count: r.count,
       percentage: total > 0 ? Math.round((r.count / total) * 100) : 0,
       color: STATUS_META[r.status]?.color ?? '#94a3b8',
     })),

@@ -25,12 +25,14 @@ export default function ChatReplyForm({ onSubmit }) {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const kirim = async () => {
     // Boleh kirim lampiran saja tanpa teks (2026-08-06, laporan bug user
     // "kirim foto tanpa teks tidak terkirim") -- backend (CreateReplyDto)
     // kini terima salah satu (pesan/lampiran), bukan wajib keduanya.
     if ((!reply.trim() && !file) || !onSubmit) return;
+    // Enter dapat ditekan berkali-kali jauh lebih cepat daripada tombol dapat
+    // diklik, jadi penjagaan ini bukan pengulangan dari `disabled` tombolnya.
+    if (isSending) return;
     setIsSending(true);
     try {
       await onSubmit(reply, file);
@@ -42,6 +44,29 @@ export default function ChatReplyForm({ onSubmit }) {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    kirim();
+  };
+
+  /**
+   * TIDAK berlaku pada peranti sentuh: papan ketik layar tak punya Shift+Enter,
+   * sehingga Enter-mengirim membuat tanggapan berparagraf mustahil ditulis dari
+   * ponsel. Penjagaan yang sama dipakai AdminResolutionWorkspace.jsx.
+   */
+  const enterMengirim = () => !window.matchMedia?.('(pointer: coarse)')?.matches;
+
+  const handleKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    // Papan ketik beraksara majemuk memakai Enter untuk MEMILIH calon aksara.
+    // Tanpa penjagaan ini, pemilihan itu ikut mengirim pesan yang belum jadi.
+    // `keyCode 229` adalah penanda peramban lama untuk keadaan yang sama.
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+    if (!enterMengirim()) return;
+    e.preventDefault();
+    kirim();
   };
 
   return (
@@ -72,6 +97,7 @@ export default function ChatReplyForm({ onSubmit }) {
             <textarea
               value={reply}
               onChange={(e) => setReply(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="w-full p-3 md:p-4 border border-border rounded-xl bg-surface focus:ring-2 focus:ring-primary outline-none resize-none transition-all text-body-md"
               placeholder="Tulis tanggapan Anda di sini..."
               rows={1}

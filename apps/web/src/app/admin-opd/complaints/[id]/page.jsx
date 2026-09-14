@@ -8,6 +8,7 @@ import ComplaintStatusControl from '@/features/complaints/components/ComplaintSt
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
+import ComplaintExportMenu from '@/features/complaints/components/ComplaintExportMenu';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
 import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import LoadingState from '@/components/ui/LoadingState';
@@ -38,12 +39,20 @@ export default function AdminComplaintDetailPage() {
       getComplaintCategories(),
     ]);
     const chatHistory = rawReplies.map((r) =>
-      adaptComplaintReplyToChatMessage(r, complaint.userId),
+      adaptComplaintReplyToChatMessage(r, { isAnonim: complaint.isAnonim }),
     );
     return { complaint, chatHistory, categories };
   }, [ticketNo]);
 
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
+
+  // Sebelumnya di-resolve di dalam JSX kartu ringkasan. Diangkat ke sini karena
+  // ekspor PDF memerlukan nilai yang sama; dua tempat menghitungnya sendiri
+  // membuka peluang keduanya berbeda.
+  const categoryLabel = data
+    ? ((data.categories ?? []).find((c) => c.kode === data.complaint.kategori)?.nama ??
+      data.complaint.kategori)
+    : null;
 
   const handleStatusChangeRequest = (newStatus) => {
     if (!data || newStatus === data.complaint.status) return;
@@ -76,12 +85,13 @@ export default function AdminComplaintDetailPage() {
     // terkirim. Backend (CreateReplyDto) kini terima salah satu.
     if (!data || (!text?.trim() && !file)) return;
     setActionError(null);
-    try {
-      await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
-      await refetch();
-    } catch (err) {
-      setActionError(err.message);
-    }
+    // Galat pengiriman TIDAK ditangkap di sini. Spanduk galat halaman berada di
+    // puncak, jauh di luar pandangan admin yang sedang berada di kolom balasan,
+    // sehingga kegagalan lewat tanpa terlihat. AdminResolutionWorkspace yang
+    // menangkapnya, menahan teks yang sudah diketik, dan menampilkan sebabnya
+    // tepat di atas tombol kirim.
+    await addComplaintReply(data.complaint.numericId, text, file ? [file] : []);
+    await refetch();
   };
 
   const handleCloseTicket = () => {
@@ -116,9 +126,25 @@ export default function AdminComplaintDetailPage() {
         <h2 className="font-headline-md text-headline-md font-black text-on-surface tracking-tight">
           Detail Pengaduan #{ticketNo}
         </h2>
+
+        {/* Baru tampil setelah datanya ada: tombol ekspor yang menghasilkan
+            dokumen kosong lebih membingungkan daripada tombol yang belum ada. */}
+        {data && (
+          <div className="ml-auto">
+            <ComplaintExportMenu
+              complaint={{ ...data.complaint, categoryLabel }}
+              chatHistory={data.chatHistory}
+            />
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
+      {/* Pemuat penuh HANYA saat belum ada yang bisa ditampilkan. Pada muat
+          ulang sesudah balasan terkirim, isi halaman dibiarkan terpasang:
+          menggantinya dengan pemuat meruntuhkan tinggi dokumen, dan peramban
+          menjepit posisi gulir ke nol -- admin terlempar ke puncak halaman
+          tiap kali membalas. */}
+      {isLoading && !data ? (
         <LoadingState label="Memuat detail pengaduan..." />
       ) : error ? (
         <ErrorState title="Gagal memuat pengaduan" description={error.message} onRetry={refetch} />
@@ -147,15 +173,7 @@ export default function AdminComplaintDetailPage() {
                   sama seperti tampilan admin-kab. Data sudah tersedia dari
                   fetchDetail; categoryLabel di-resolve dari daftar kategori
                   referensi yang di-fetch bersamaan. */}
-              <ComplaintSummaryCard
-                complaint={{
-                  ...data.complaint,
-                  categoryLabel:
-                    (data.categories ?? []).find(
-                      (c) => c.kode === data.complaint.kategori,
-                    )?.nama ?? data.complaint.kategori,
-                }}
-              />
+              <ComplaintSummaryCard complaint={{ ...data.complaint, categoryLabel }} />
               <ComplaintContentCard complaint={data.complaint} />
               <AdminResolutionWorkspace
                 currentStatus={data.complaint.status}

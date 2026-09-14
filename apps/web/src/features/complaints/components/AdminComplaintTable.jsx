@@ -2,6 +2,7 @@ import React from 'react';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import Link from 'next/link';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 export default function AdminComplaintTable({ complaints }) {
   const getStatusVariant = (status) => {
@@ -61,7 +62,7 @@ export default function AdminComplaintTable({ complaints }) {
                 <td className="px-lg py-lg font-body-md text-body-md text-on-surface-variant">{complaint.dateStr}</td>
                 <td className="px-lg py-lg">
                   <Badge variant={getStatusVariant(complaint.status)}>
-                    {complaint.status}
+                    {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
                   </Badge>
                 </td>
                 <td className="px-lg py-lg text-right">

@@ -20,7 +20,8 @@ import { X, Save, Loader2 } from 'lucide-react';
 const INITIAL_FORM = {
   fullName: '',
   email: '',
-  role: '',
+  // Array sejak 5 September 2026: satu akun boleh memegang beberapa role.
+  roles: [],
   opdId: '',
   isActive: true,
 };
@@ -40,11 +41,11 @@ function validate(formData) {
     errors.email = 'Format email tidak valid.';
   }
 
-  if (!formData.role) {
-    errors.role = 'Silakan pilih role administrator.';
+  if (!formData.roles.length) {
+    errors.roles = 'Silakan pilih minimal satu role administrator.';
   }
 
-  if (formData.role === USER_ROLES.ADMIN_OPD && !formData.opdId) {
+  if (formData.roles.includes(USER_ROLES.ADMIN_OPD) && !formData.opdId) {
     errors.opdId = 'Silakan pilih instansi / OPD.';
   }
 
@@ -75,17 +76,22 @@ export default function CreateUserPage() {
     if (errors[id]) setErrors((prev) => ({ ...prev, [id]: null }));
   };
 
-  // Handler untuk Dropdown component
+  // Handler untuk Dropdown component (kini hanya OPD -- role memakai kotak centang)
   const handleDropdownChange = (field, value) => {
-    setFormData((prev) => {
-      const updated = { ...prev, [field]: value };
-      // Reset OPD jika role diganti bukan ke ADMIN_OPD
-      if (field === 'role' && value !== USER_ROLES.ADMIN_OPD) {
-        updated.opdId = '';
-      }
-      return updated;
-    });
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
+  };
+
+  const handleRolesChange = (roles) => {
+    setFormData((prev) => ({
+      ...prev,
+      roles,
+      // Tautan OPD dilepas begitu Admin OPD tak lagi tercentang: tanpa role itu
+      // nilainya tak punya arti, dan backend pun mengosongkannya
+      // (UsersService.normalisasiRoles).
+      opdId: roles.includes(USER_ROLES.ADMIN_OPD) ? prev.opdId : '',
+    }));
+    if (errors.roles) setErrors((prev) => ({ ...prev, roles: null }));
   };
 
   // Handler untuk Switch status
@@ -112,8 +118,8 @@ export default function CreateUserPage() {
       const created = await createUser({
         fullName: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
-        role: formData.role,
-        opdId: formData.role === USER_ROLES.ADMIN_OPD ? formData.opdId : undefined,
+        roles: formData.roles,
+        opdId: formData.roles.includes(USER_ROLES.ADMIN_OPD) ? formData.opdId : undefined,
       });
 
       // Akun baru SELALU dibuat aktif di backend (UsersService.create hardcode
@@ -160,6 +166,7 @@ export default function CreateUserPage() {
             />
             <RoleAssignmentCard
               formData={formData}
+              onRolesChange={handleRolesChange}
               onDropdownChange={handleDropdownChange}
               errors={errors}
               opdOptions={opdOptions}

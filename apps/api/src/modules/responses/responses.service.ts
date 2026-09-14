@@ -11,25 +11,29 @@ import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
+import { SubmitPublicResponseDto } from './dto/submit-public-response.dto';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { AnswerEntity } from './entities/answer.entity';
 import { MyResponseEntity } from './entities/my-response.entity';
 import { ResponseEntity } from './entities/response.entity';
 import { SurveyFillEntity } from './entities/survey-fill.entity';
+import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 @Injectable()
 export class ResponsesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly consent: ConsentService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Ambil survei aktif beserta pertanyaannya untuk diisi responden (BE-22). */
   async getFill(surveyId: number, user: CurrentUser): Promise<SurveyFillEntity> {
-    const survey = await this.prisma.survey.findUnique({
-      where: { id: surveyId },
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
       include: {
         questions: {
           orderBy: { urutan: 'asc' },
@@ -78,8 +82,8 @@ export class ResponsesService {
     // soal persetujuan, bukan soal survei yang tak ditemukan.
     await this.consent.assertConsented(user);
 
-    const survey = await this.prisma.survey.findUnique({
-      where: { id: surveyId },
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
       include: { questions: { include: { options: true } } },
     });
     if (!survey || survey.status !== SurveyStatus.aktif) {
@@ -101,16 +105,38 @@ export class ResponsesService {
       }
     }
 
+    // Data diri DISALIN DARI AKUN, tidak diterima dari payload (8 September
+    // 2026). Pengisi bersesi hanya memilih ya/tidak pada gerbangnya, jadi
+    // isinya tak dapat dikarang lewat permintaan langsung.
+    //
+    // Diambil SESUDAH pra-cek duplikat, bukan sebelumnya: permintaan yang sudah
+    // pasti berakhir 409 tak perlu membayar satu kueri tambahan.
+    const dataDiri = dto.tanpaDataDiri ? null : await this.ambilDataDiriAkun(user.userId);
+
     try {
       const created = await this.prisma.surveyResponse.create({
         data: {
           surveyId,
           userId: user.userId,
           dedupeUserId,
+          // `nomorHp` TIDAK disebut di sini, dan ketiadaannya disengaja: tak ada
+          // sumbernya untuk pengguna bersesi. Helpdesk tak mengirim nomor
+          // telepon dan `users` tak punya kolomnya, jadi menyebutkannya di sini
+          // hanya menulis null yang menyamar sebagai data yang dicoba diambil.
+          nama: dataDiri?.nama ?? null,
+          jenisKelamin: dataDiri?.jenisKelamin ?? null,
+          kelompokUmur: dataDiri?.kelompokUmur ?? null,
           answers: { create: answerData },
         },
         include: { answers: true },
       });
+      // SESUDAH baris tersimpan: jumlah jawaban dihitung di dalam
+      // NotificationsService, jadi memanggilnya lebih awal membuat tonggak
+      // "jawaban pertama" tak pernah berbunyi.
+      await this.notifications.notifySurveyResponse(
+        { id: survey.id, judul: survey.judul, opdId: survey.opdId },
+        user.userId,
+      );
       return this.toResponseEntity(created, created.answers);
     } catch (err) {
       // Jaga-jaga balapan (race) menembus pra-cek → langgar unique constraint.
@@ -121,13 +147,162 @@ export class ResponsesService {
     }
   }
 
+  /**
+   * Survei untuk diisi TANPA sesi (rute /survei/:id).
+   *
+   * TERPISAH dari `getFill`, bukan pelonggaran atasnya: `getFill` menuntut
+   * `CurrentUser` dan memakainya untuk anti-duplikat, sedangkan di sini tak ada
+   * pengguna sama sekali. Menyatukan keduanya berarti satu parameter opsional
+   * yang menentukan seluruh perilaku keamanan -- persis bentuk kode yang kelak
+   * longgar karena kelalaian.
+   */
+  async getPublicFill(surveyId: number): Promise<SurveyFillEntity> {
+    const survey = await this.findAnonimSurveyOrThrow(surveyId);
+
+    return new SurveyFillEntity({
+      id: survey.id,
+      judul: survey.judul,
+      periode: survey.periode,
+      status: survey.status,
+      allowMultipleSubmit: survey.allowMultipleSubmit,
+      // Tanpa sesi, `dedupeUserId` tak punya pegangan apa pun. Penanda
+      // pengisian ada di peramban (localStorage) -- penghalang kejujuran,
+      // BUKAN penegakan, dan batasnya dinyatakan terus terang di sana.
+      sudahMengisi: false,
+      questions: survey.questions.map(
+        (q) =>
+          new QuestionEntity({
+            ...q,
+            options: q.options.map((o) => new QuestionOptionEntity(o)),
+          }),
+      ),
+    });
+  }
+
+  /**
+   * Kirim jawaban tanpa sesi. SELALU menulis `userId: null`.
+   *
+   * `ConsentService.assertConsented` tetap TIDAK dipanggil di jalur ini, dan
+   * sebabnya teknis: ia membaca `users.consentAt`, sedangkan pengirim tanpa
+   * sesi tak punya baris `users`. Penggantinya kini BERLAKU (8 September 2026,
+   * sesudah tim mengonfirmasi bahwa aplikasi ini memang memerlukan persetujuan
+   * UU PDP): `setuju: true` wajib pada `SubmitPublicResponseDto`, ditolak 400
+   * oleh ValidationPipe sebelum satu baris pun tertulis, dan waktunya direkam
+   * per respons di `consentAt`.
+   *
+   * Penegakannya memang harus di sini, bukan di layar: gerbang di frontend
+   * dapat dilewati dengan satu permintaan langsung, jadi tanpa penjaga ini
+   * gerbang PDP-nya hanya hiasan. Alasan yang sama sudah tertulis di
+   * ConsentGate.jsx bagi jalur yang berpenjaga.
+   *
+   * `consentAt` diisi waktu SERVER, bukan waktu kiriman klien: waktu
+   * persetujuan yang boleh ditentukan pengirim bukan bukti apa pun.
+   *
+   * Validasi isi jawaban tetap sama ketat: `validateAnswers` yang sama dipakai
+   * di sini.
+   */
+  async submitPublic(surveyId: number, dto: SubmitPublicResponseDto): Promise<ResponseEntity> {
+    const survey = await this.findAnonimSurveyOrThrow(surveyId);
+    const answerData = this.validateAnswers(survey.questions, dto);
+
+    const created = await this.prisma.surveyResponse.create({
+      data: {
+        surveyId,
+        userId: null,
+        dedupeUserId: null,
+        consentAt: new Date(),
+        // `?? null`, BUKAN dibiarkan undefined: pada `create` Prisma,
+        // `undefined` berarti "pakai nilai baku", sedangkan `null` menyatakan
+        // tersurat bahwa pengisi memilih tidak memberi datanya. Bedanya yang
+        // membedakan "memilih anonim" dari "medannya lupa dikirim".
+        //
+        // `tanpaDataDiri` DIHORMATI walau pada jalur ini ia berlebihan: gerbang
+        // publik sudah menghilangkan medannya saat pengisi memilih anonim.
+        // Menghormatinya tetap membuat payload yang mengirim keduanya sekaligus
+        // (anonim DAN data diri) berperilaku seperti yang dikatakan pilihannya,
+        // bukan seperti yang dikatakan sisa payloadnya.
+        nama: dto.tanpaDataDiri ? null : (dto.nama ?? null),
+        nomorHp: dto.tanpaDataDiri ? null : (dto.nomorHp ?? null),
+        jenisKelamin: dto.tanpaDataDiri ? null : (dto.jenisKelamin ?? null),
+        kelompokUmur: dto.tanpaDataDiri ? null : (dto.kelompokUmur ?? null),
+        answers: { create: answerData },
+      },
+      include: { answers: true },
+    });
+    // `null`: pengisi tanpa sesi tak punya baris `users`, jadi tak ada siapa
+    // pun yang perlu dikecualikan dari broadcast pengawasan.
+    await this.notifications.notifySurveyResponse(
+      { id: survey.id, judul: survey.judul, opdId: survey.opdId },
+      null,
+    );
+    return this.toResponseEntity(created, created.answers);
+  }
+
+  /**
+   * Survei aktif YANG MENGIZINKAN anonim, atau 404. Dua syarat, satu tempat --
+   * dipakai kedua endpoint publik supaya tak mungkin salah satunya kelewat.
+   *
+   * 404 (bukan 403) mengikuti `getFill`: keberadaan survei yang tak boleh diisi
+   * tak perlu dibocorkan kepada pemanggil tanpa sesi.
+   */
+  private async findAnonimSurveyOrThrow(surveyId: number) {
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
+      include: {
+        questions: {
+          orderBy: { urutan: 'asc' },
+          include: { options: { orderBy: { urutan: 'asc' } } },
+        },
+      },
+    });
+    if (!survey || survey.status !== SurveyStatus.aktif || !survey.izinkanAnonim) {
+      throw new NotFoundException(`Survei anonim dengan id ${surveyId} tidak ditemukan`);
+    }
+    return survey;
+  }
+
+  /**
+   * Data diri pengguna bersesi, untuk direkam pada respons (8 September 2026).
+   *
+   * DISALIN, tidak diterima dari payload: gerbang bagi pengguna bersesi hanya
+   * menampilkan kotak anonim, sesuai permintaan pengguna, jadi isinya harus
+   * berasal dari sumber yang tak dapat dikarang pemanggil.
+   *
+   * Yang diambil hanya yang BENAR-BENAR ADA, dan batasnya sudah diukur:
+   * Helpdesk mengirim `sub`, `email`, `email_verified`, dan `nama` saja, jadi
+   * `nama` satu-satunya yang datang dari sana. Demografisnya diambil dari
+   * `respondent_profiles`, yang barisnya jarang ada karena belum ada satu pun
+   * UI yang menulis tabel itu. Akun tanpa baris itu menghasilkan respons yang
+   * demografisnya null, dan itu keadaan normal, bukan galat.
+   *
+   * Nomor HP tak ada di sini karena tak ada di mana pun: bukan di klaim
+   * Helpdesk, bukan di kolom `users`.
+   */
+  private async ambilDataDiriAkun(userId: number) {
+    const akun = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        nama: true,
+        respondentProfile: { select: { jenisKelamin: true, kelompokUmur: true } },
+      },
+    });
+    if (!akun) return null;
+    return {
+      nama: akun.nama,
+      jenisKelamin: akun.respondentProfile?.jenisKelamin ?? null,
+      kelompokUmur: akun.respondentProfile?.kelompokUmur ?? null,
+    };
+  }
+
   /** Daftar respons sebuah survei untuk admin (BE-24). Isolasi data per-OPD. */
   async findAllForSurvey(
     surveyId: number,
     query: PaginationQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<ResponseEntity>> {
-    const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
+    });
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }
@@ -137,7 +312,12 @@ export class ResponsesService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.surveyResponse.findMany({
         where: { surveyId },
-        include: { answers: true },
+        // Terurut mengikuti urutan pertanyaan survei (13 September 2026,
+        // laporan pengguna "nomornya terbalik"). Tanpa `orderBy`, Postgres tak
+        // menjanjikan urutan apa pun: dua dari tiga respons di basis data lokal
+        // kembali persis terbalik, yang ketiga kebetulan benar -- karena itu
+        // gejalanya terlihat muncul-hilang.
+        include: { answers: { orderBy: { question: { urutan: 'asc' } } } },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { submittedAt: 'desc' },

@@ -60,6 +60,15 @@ export class OpdDashboardEntity extends BaseEntity<OpdDashboardEntity> {
   @ApiProperty({ description: 'Jumlah tiket pengaduan belum selesai (status diterima/diproses)' })
   activeTickets: number;
 
+  /**
+   * Jumlah AKUN aktif yang tertaut OPD ini (6 September 2026) -- yaitu para
+   * Admin OPD-nya sendiri, biasanya 1-2 orang. Keputusan pengguna: yang
+   * dihitung akun, BUKAN warga yang pernah dilayani OPD ini. Karena itu
+   * labelnya di antarmuka berbunyi "Akun aktif tertaut OPD ini".
+   */
+  @ApiProperty({ description: 'Jumlah akun aktif yang tertaut OPD ini' })
+  activeOpdUsers: number;
+
   @ApiPropertyOptional({
     description:
       'Rata-rata waktu penyelesaian pengaduan (jam), dihitung dari createdAt->updatedAt pengaduan berstatus selesai (D3). Null bila belum ada pengaduan selesai.',

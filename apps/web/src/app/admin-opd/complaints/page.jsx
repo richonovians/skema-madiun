@@ -9,8 +9,8 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
-import { getActingOpd } from '@/features/authentication/services/authStorage';
 import { downloadTablePdf } from '@/utils/pdf';
+import { KOLOM_DAFTAR_PENGADUAN } from '@/utils/pdfKolom';
 
 const ITEMS_PER_PAGE = 5;
 // Backend TIDAK punya parameter pencarian bebas teks (lihat ListComplaintQueryDto
@@ -38,12 +38,14 @@ export default function AdminOPDComplaintsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [exportError, setExportError] = useState(null);
 
-  // Dipersempit ke OPD yang diperankan superuser bila ada -- lihat catatan yang
-  // sama di app/admin-opd/surveys/page.jsx.
-  const fetchComplaints = useCallback(() => {
-    const actingOpd = getActingOpd();
-    return getComplaints({ limit: FETCH_LIMIT, ...(actingOpd ? { opdId: actingOpd.id } : {}) });
-  }, []);
+  // Penyaring `?opdId=` DIBUANG 5 September 2026. Dulu diperlukan karena
+  // superuser bisa "memerankan" OPD mana pun sementara backend memberinya
+  // cakupan penuh, jadi daftarnya harus dipersempit dari sisi klien. Sekarang
+  // hak mengikuti peran yang DIPAKAI: siapa pun yang membuka area ini sedang
+  // bertindak sebagai `opd`, dan backend menurunkan instansinya sendiri dari
+  // `users.opd_id` (opd-scope.util.ts). Mengirimnya dari klien hanya menambah
+  // sumber kebenaran kedua yang bisa basi.
+  const fetchComplaints = useCallback(() => getComplaints({ limit: FETCH_LIMIT }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchComplaints);
 
   const filteredComplaints = useMemo(() => {
@@ -109,13 +111,7 @@ export default function AdminOPDComplaintsPage() {
         filename: 'Data_Pengaduan.pdf',
         title: 'Laporan Pengaduan Masyarakat',
         subtitle: `${filteredComplaints.length} pengaduan`,
-        columns: [
-          { header: 'NO. TIKET', width: 2 },
-          { header: 'JUDUL KELUHAN', width: 5 },
-          { header: 'PELAPOR', width: 3 },
-          { header: 'STATUS', width: 2 },
-          { header: 'TANGGAL', width: 2 },
-        ],
+        columns: KOLOM_DAFTAR_PENGADUAN,
         rows: filteredComplaints.map((c) => [
           `#${c.id}`,
           c.title,

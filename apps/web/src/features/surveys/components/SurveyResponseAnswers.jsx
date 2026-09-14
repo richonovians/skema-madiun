@@ -27,7 +27,13 @@ export default function SurveyResponseAnswers({ answers }) {
           <div key={answer.questionId} className="pb-md border-b border-outline-variant last:border-0 last:pb-0">
             <div className="flex items-start justify-between gap-md mb-sm">
               <p className="font-medium text-on-surface text-lg">
-                <span className="text-on-surface-variant mr-xs">{index + 1}.</span>
+                {/* Nomor soal DI SURVEI (adaptSurveyResponseAnswer), bukan
+                    posisi jawaban di array. Posisi array sempat menjadi
+                    nomornya, dan karena backend tak mengurutkan jawaban, nomor
+                    itu terbaca terbalik pada dua dari tiga respons. Cadangan
+                    `index + 1` hanya terpakai bila pertanyaannya sudah dihapus
+                    dari survei. */}
+                <span className="text-on-surface-variant mr-xs">{answer.nomor ?? index + 1}.</span>
                 {answer.questionText}
               </p>
               {answer.questionType && (

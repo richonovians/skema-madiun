@@ -1,12 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  Prisma,
-  Question,
-  QuestionOption,
-  QuestionType,
-  Survey,
-  SurveyStatus,
-} from '@prisma/client';
+import { Prisma, Question, QuestionOption, QuestionType, Survey } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -16,6 +9,7 @@ import { ReorderQuestionsDto } from './dto/reorder-questions.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { QuestionEntity } from './entities/question.entity';
 import { QuestionOptionEntity } from './entities/question-option.entity';
+import { AksiUbah, assertSurveyEditable, TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 type QuestionWithOptions = Question & { options: QuestionOption[] };
 
@@ -50,7 +44,7 @@ export class QuestionsService {
     user: CurrentUser,
   ): Promise<QuestionEntity> {
     const survey = await this.getSurveyOrThrow(surveyId, user);
-    this.assertDraft(survey);
+    await this.assertEditable(survey, 'susunan');
     this.assertValidOptionsForType(dto.tipe, dto.options, dto.isIkmUnsur);
 
     const created = await this.prisma.question.create({
@@ -71,7 +65,7 @@ export class QuestionsService {
   /** Terapkan template 9 unsur baku (skip kode yang sudah ada). Hanya saat draft. */
   async applyTemplate(surveyId: number, user: CurrentUser): Promise<QuestionEntity[]> {
     const survey = await this.getSurveyOrThrow(surveyId, user);
-    this.assertDraft(survey);
+    await this.assertEditable(survey, 'susunan');
 
     const existing = await this.prisma.question.findMany({ where: { surveyId } });
     const existingCodes = new Set(existing.map((q) => q.kodeUnsur).filter(Boolean));
@@ -107,14 +101,14 @@ export class QuestionsService {
    * daftar utuh dari modalnya.
    *
    * Menghapus opsi lama aman terhadap jawaban responden BUKAN karena kebetulan:
-   * `assertDraft` memastikan survei masih draf, dan survei draf tak pernah bisa
-   * diisi (`ResponsesService.getFill` menuntut status `aktif`), sementara status
-   * tak punya transisi kembali ke draf (lihat ALLOWED_TRANSITIONS di
-   * SurveysService). Jadi tak mungkin ada baris `answers` yang menunjuk opsi ini.
+   * mengirim `options` dihitung sebagai perubahan SUSUNAN, dan sejak 11
+   * September 2026 `assertSurveyEditable` menolaknya begitu survei punya satu
+   * jawaban pun. Memperbaiki TEKS pertanyaan tidak kena penjaga itu, dan memang
+   * tak perlu: teks tak disalin ke baris `answers`.
    */
   async update(id: number, dto: UpdateQuestionDto, user: CurrentUser): Promise<QuestionEntity> {
     const { question, survey } = await this.getQuestionSurveyOrThrow(id, user);
-    this.assertDraft(survey);
+    await this.assertEditable(survey, dto.options ? 'susunan' : 'teks');
     if (question.tipe === QuestionType.pilihan && dto.isIkmUnsur) {
       throw new BadRequestException(
         'Pertanyaan pilihan ganda tidak dapat ditandai sebagai unsur IKM (unsur IKM hanya tipe skala)',
@@ -147,7 +141,7 @@ export class QuestionsService {
   /** Hapus pertanyaan (beserta opsinya, cascade). Hanya saat survei draft. */
   async remove(id: number, user: CurrentUser): Promise<void> {
     const { survey } = await this.getQuestionSurveyOrThrow(id, user);
-    this.assertDraft(survey);
+    await this.assertEditable(survey, 'susunan');
     await this.prisma.question.delete({ where: { id } });
   }
 
@@ -158,7 +152,7 @@ export class QuestionsService {
     user: CurrentUser,
   ): Promise<QuestionEntity[]> {
     const survey = await this.getSurveyOrThrow(surveyId, user);
-    this.assertDraft(survey);
+    await this.assertEditable(survey, 'susunan');
 
     const questions = await this.prisma.question.findMany({
       where: { surveyId },
@@ -188,14 +182,22 @@ export class QuestionsService {
     return (agg._max.urutan ?? 0) + 1;
   }
 
-  private assertDraft(survey: Survey): void {
-    if (survey.status !== SurveyStatus.draft) {
-      throw new BadRequestException('Pertanyaan hanya dapat diubah saat survei berstatus draft');
-    }
+  /**
+   * Penjaga tunggal aturan ubah, menggantikan `assertDraft` (11 September
+   * 2026). Pertanyaan survei terbit kini boleh diperbaiki teksnya; yang
+   * terkunci begitu ada jawaban adalah SUSUNANNYA.
+   */
+  private async assertEditable(survey: Survey, aksi: AksiUbah): Promise<void> {
+    const jumlahJawaban = await this.prisma.surveyResponse.count({
+      where: { surveyId: survey.id },
+    });
+    assertSurveyEditable(survey, jumlahJawaban, aksi);
   }
 
   private async getSurveyOrThrow(surveyId: number, user: CurrentUser): Promise<Survey> {
-    const survey = await this.prisma.survey.findUnique({ where: { id: surveyId } });
+    const survey = await this.prisma.survey.findFirst({
+      where: { id: surveyId, ...TIDAK_DIBUANG },
+    });
     if (!survey) {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }

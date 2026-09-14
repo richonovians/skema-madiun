@@ -5,6 +5,20 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
 /**
+ * Kode penolakan karena persetujuan PDP belum diberikan (14 September 2026).
+ *
+ * Ada supaya klien dapat menawarkan JALAN KELUARNYA -- tombol menuju halaman
+ * persetujuan -- tanpa mencocokkan bunyi pesan. Presedennya
+ * `ROLE_SELECTION_REQUIRED`, dan alasannya tertulis di api.js: "pesan bisa
+ * diubah kapan saja tanpa ada yang memerah".
+ *
+ * Karena itu pesannya sendiri berhenti menyuruh membuka halaman: yang
+ * mengatakan APA YANG SALAH adalah pesan, yang mengatakan APA YANG HARUS
+ * DILAKUKAN adalah kode ini.
+ */
+export const CONSENT_REQUIRED = 'CONSENT_REQUIRED';
+
+/**
  * Persetujuan pemrosesan data pribadi (UU PDP) — kolom `users.consent_at`.
  *
  * KOLOMNYA SUDAH ADA SEJAK AWAL tapi TAK PERNAH PUNYA JALUR TULIS sampai
@@ -46,7 +60,7 @@ export class ConsentService {
    * permintaan mereka dengan satu perjalanan ke basis data.
    */
   async assertConsented(user: CurrentUser): Promise<void> {
-    if (user.role !== Role.responden) {
+    if (user.actingRole !== Role.responden) {
       return;
     }
 
@@ -57,10 +71,11 @@ export class ConsentService {
 
     // Baris hilang diperlakukan sebagai BELUM menyetujui, bukan diloloskan:
     // ketiadaan bukti persetujuan bukan bukti adanya persetujuan.
-    if (!row || ConsentService.isRequired(user.role, row.consentAt)) {
-      throw new ForbiddenException(
-        'Anda perlu memberikan persetujuan pemrosesan data pribadi sebelum mengirim data. Buka halaman Persetujuan terlebih dahulu.',
-      );
+    if (!row || ConsentService.isRequired(user.actingRole, row.consentAt)) {
+      throw new ForbiddenException({
+        message: 'Anda perlu memberikan persetujuan pemrosesan data pribadi sebelum mengirim data.',
+        code: CONSENT_REQUIRED,
+      });
     }
   }
 

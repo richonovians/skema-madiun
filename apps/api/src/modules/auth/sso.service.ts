@@ -13,7 +13,9 @@ import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
-import { parseClaimValues, parseRoleMap, resolveRoleFromClaims } from './sso-role.mapper';
+import { bentukKlaim } from './sso-claim-shape';
+import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
+import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
 import { SsoStateService } from './sso-state.service';
 
 /** Batas kolom `users.nama` (VarChar(50)) & `users.email` (VarChar(100)). */
@@ -23,6 +25,17 @@ const EMAIL_MAX = 100;
 @Injectable()
 export class SsoService {
   private readonly logger = new Logger(SsoService.name);
+
+  /**
+   * Penanda bahwa bentuk klaim sudah dicatat pada proses ini (9 September
+   * 2026). Lihat `catatBentukKlaimSekali`.
+   *
+   * Medan INSTANS, bukan modul: SsoService memang singleton di Nest, jadi
+   * keduanya berperilaku sama saat berjalan. Bedanya di pengujian, tempat tiap
+   * uji membuat instans baru; penanda tingkat modul akan membuat uji kedua
+   * bergantung pada uji pertama yang pernah berjalan lebih dahulu.
+   */
+  private bentukKlaimSudahDicatat = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -65,6 +78,11 @@ export class SsoService {
     }
 
     const profile = await this.ssoSource.exchangeCodeForProfile(code);
+    // SEBELUM `provision`, dan urutannya inti dari gunanya: `provision` dapat
+    // melempar 403 pada login pertama seorang admin (penjaga penautan
+    // `email_verified`), dan justru login itulah yang bentuk klaimnya paling
+    // ingin diketahui. Dicatat sesudahnya berarti tak pernah tercatat.
+    this.catatBentukKlaimSekali(profile);
     const user = await this.provision(profile);
 
     // `sub` ikut dicatat karena itulah satu-satunya identitas yang dapat
@@ -75,6 +93,45 @@ export class SsoService {
       token: this.sessionService.issue(user.id),
       clearCookie: this.stateService.clearCookie(),
     };
+  }
+
+  /**
+   * Catat BENTUK payload klaim Helpdesk sekali per proses (9 September 2026).
+   *
+   * MENGAPA PERLU, padahal `opdIdUntukSinkron` sudah mencatat nama klaim.
+   * Pencatatan itu punya empat batas yang justru mengenai kasus yang sedang
+   * diselidiki: ia hanya berjalan pada jalur sinkronisasi (akun yang sudah
+   * dikenal lewat `sub`), sehingga bungkam pada login pertama; ia mencatat NAMA
+   * klaim tanpa bentuk nilainya, padahal yang menghalangi pengisian
+   * `HELPDESK_SSO_OPD_CLAIM` adalah pertanyaan apakah `groups` berisi string
+   * atau objek; ia tak pernah menyebut ada atau tidaknya `email_verified`; dan
+   * ia di tingkat `debug`.
+   *
+   * SEKALI PER PROSES, bukan setiap login: yang dicari struktur, dan struktur
+   * tidak berubah antar login. Mencatatnya berulang hanya membanjiri log dengan
+   * baris yang sama. Restart mempersenjatainya kembali, dan itu disengaja,
+   * sebab login pertama sesudah tiap deploy pantas mencatat bentuk terbarunya.
+   *
+   * TINGKAT `log`, bukan `debug`: ia harus benar-benar terbaca tanpa menyetel
+   * apa pun lebih dahulu. Karena hanya sekali per proses, ia tak memboroskan
+   * apa-apa.
+   *
+   * TANPA NILAI. Lihat sso-claim-shape.ts untuk apa saja yang boleh keluar dan
+   * apa yang tidak.
+   */
+  private catatBentukKlaimSekali(profile: SsoProfile): void {
+    if (this.bentukKlaimSudahDicatat) {
+      return;
+    }
+    this.bentukKlaimSudahDicatat = true;
+    try {
+      this.logger.log(`Bentuk klaim Helpdesk (sekali per proses): ${bentukKlaim(profile.klaim)}`);
+    } catch (err) {
+      // Alat bantu diagnosis TIDAK BOLEH menjadi sebab orang gagal masuk.
+      // Payload dari jaringan dapat berbentuk apa pun, termasuk objek yang
+      // pengaksesan propertinya sendiri melempar.
+      this.logger.warn(`Gagal mencatat bentuk klaim: ${(err as Error)?.message ?? err}`);
+    }
   }
 
   /**
@@ -108,6 +165,36 @@ export class SsoService {
     if (email) {
       const byEmail = await this.prisma.user.findFirst({ where: { email, deletedAt: null } });
       if (byEmail) {
+        // TEMUAN AUDIT T5 (7 September 2026). Ini SATU-SATUNYA tempat sebuah
+        // klaim SSO membuat pemegangnya MEWARISI peran akun yang sudah ada.
+        // Sebelum penjaga ini, klaim `email` dipercaya tanpa syarat: siapa pun
+        // yang dapat membuat akun Helpdesk ber-email `superuser@...` akan
+        // ditautkan ke akun superuser SKEMA beserta seluruh haknya.
+        //
+        // Gagal TERTUTUP, termasuk saat klaimnya hilang: "tak ada bukti
+        // terverifikasi" bukan berarti "terverifikasi" (pola yang sama dipakai
+        // ConsentService.assertConsented). Pemeriksaannya di SINI, bukan di awal
+        // fungsi — pencocokan lewat `sub` tak melibatkan email sama sekali, dan
+        // memeriksanya lebih awal akan memutus login setiap pengguna yang sudah
+        // dikenal.
+        const bolehTanpaVerifikasi = this.config.get<boolean>(
+          'helpdesk.ssoAllowUnverifiedEmailLink',
+        );
+        // `false` ditolak walau sakelarnya hidup: penyedia sudah menyatakan
+        // tidak, dan tak ada tafsir lain untuk pernyataan itu.
+        const lolos =
+          profile.emailVerified === true ||
+          (profile.emailVerified === null && bolehTanpaVerifikasi === true);
+        if (!lolos) {
+          this.logger.warn(
+            `Penautan akun id=${byEmail.id} DITOLAK — email_verified=${String(profile.emailVerified)}`,
+          );
+          throw new ForbiddenException(
+            'Alamat email pada akun Helpdesk Anda belum terverifikasi, sehingga tidak dapat ' +
+              'ditautkan ke akun SKEMA yang sudah ada. Hubungi Admin Kabupaten.',
+          );
+        }
+
         this.logger.log(
           `Menyelaraskan akun lama id=${byEmail.id} — sso_subject "${byEmail.ssoSubject}" dinaikkan ke sub Helpdesk`,
         );
@@ -115,6 +202,23 @@ export class SsoService {
           where: { id: byEmail.id },
           data: { ssoSubject: profile.sub },
         });
+
+        // Penautan adalah peristiwa PEMBAWA HAK — ia harus meninggalkan jejak
+        // yang dapat diperiksa, bukan hanya baris log yang ikut hilang bersama
+        // rotasi log. Aksinya dibedakan supaya pemakaian sakelar darurat dapat
+        // dicari sendiri di audit.
+        await this.audit.record(
+          upgraded.id,
+          profile.emailVerified === true ? 'sso_link_email' : 'sso_link_email_unverified',
+          'auth',
+          {
+            sub: profile.sub,
+            ssoSubjectLama: byEmail.ssoSubject,
+            emailVerified: profile.emailVerified,
+            roles: byEmail.roles,
+          },
+        );
+
         return this.acceptLogin(upgraded, profile);
       }
 
@@ -140,16 +244,20 @@ export class SsoService {
     }
 
     // Peran & OPD ditentukan dari klaim HANYA di sini, yaitu saat akun dibuat.
-    // Lihat resolveRoleAndOpd() untuk aturannya dan alasan ia tak pernah
+    // Lihat resolveRolesAndOpd() untuk aturannya dan alasan ia tak pernah
     // berjalan pada akun yang sudah ada.
-    const { role, opdId } = await this.resolveRoleAndOpd(profile);
+    const { roles, opdId } = await this.resolveRolesAndOpd(profile);
 
     const created = await this.prisma.user.create({
       data: {
         ssoSubject: profile.sub,
         email,
         nama: truncate(profile.nama ?? email, NAMA_MAX),
-        role,
+        // Akun baru dari SSO dapat lahir memegang BEBERAPA role sekaligus
+        // (6 September 2026): satu nilai klaim Helpdesk memetakan ke satu PAKET
+        // peran. Inilah yang memunculkan pemilih peran saat login -- dengan satu
+        // role, pemilih itu tak pernah tampil.
+        roles,
         ...(opdId === null ? {} : { opdId }),
         lastLoginAt: new Date(),
         // `consentAt` SENGAJA dibiarkan null. Kolom itu catatan persetujuan UU
@@ -159,9 +267,24 @@ export class SsoService {
       },
     });
     this.logger.log(
-      `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.role}` +
+      `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.roles.join(',')}` +
         (created.opdId === null ? '' : ` opdId=${created.opdId}`),
     );
+
+    // Pengaman KETIGA atas dicabutnya larangan memetakan `superuser` dari klaim
+    // (6 September 2026; dua lainnya: baku `responden` bila env kosong, dan
+    // penetapan hanya saat akun dibuat). Hak tertinggi yang diberikan sistem di
+    // luar SKEMA harus meninggalkan jejak -- tanpa ini, Helpdesk yang salah
+    // kirim memberi hak itu tanpa ada yang pernah tahu.
+    if (created.roles.includes(Role.superuser)) {
+      this.logger.warn(
+        `Akun baru id=${created.id} lahir memegang superuser dari klaim Helpdesk (sub=${profile.sub})`,
+      );
+      await this.audit.record(created.id, 'sso_grant_superuser', 'auth', {
+        sub: profile.sub,
+        roles: created.roles,
+      });
+    }
     return created;
   }
 
@@ -178,51 +301,93 @@ export class SsoService {
    * Tanpa `HELPDESK_SSO_ROLE_MAP` hasilnya selalu `responden` — persis perilaku
    * sebelum pemetaan ini ada.
    */
-  private async resolveRoleAndOpd(
+  private async resolveRolesAndOpd(
     profile: SsoProfile,
-  ): Promise<{ role: Role; opdId: number | null }> {
+  ): Promise<{ roles: Role[]; opdId: number | null }> {
     const values = parseClaimValues(profile.groups, profile.role);
-    const resolved = resolveRoleFromClaims(
+    const resolved = resolveRolesFromClaims(
       values,
-      parseRoleMap(this.config.get<string>('helpdesk.ssoRoleMap')),
+      parseRolePackages(this.config.get<string>('helpdesk.ssoRoleMap')),
     );
 
-    if (resolved === null || resolved === Role.responden) {
-      return { role: Role.responden, opdId: null };
+    if (resolved.length === 0) {
+      return { roles: [Role.responden], opdId: null };
     }
-    if (resolved !== Role.opd) {
-      // `kabupaten`. Tak tertaut OPD mana pun -- sama seperti akun seed-nya.
-      return { role: resolved, opdId: null };
+    if (!resolved.includes(Role.opd)) {
+      // Tak tertaut OPD mana pun -- sama seperti akun seed Admin Kabupaten.
+      return { roles: resolved, opdId: null };
     }
 
-    const opd = await this.findOpdFromClaims(values);
-    if (!opd) {
-      // Peran `opd` TANPA opdId adalah keadaan setengah jadi: dashboard OPD-nya
-      // pasti gagal karena DashboardService.resolveDashboardOpdId menuntut
-      // opdId terisi. Lebih baik jadi warga biasa yang berfungsi penuh, dan
-      // biarkan Admin Kabupaten menautkannya lewat Manajemen User.
-      this.logger.warn(
-        `Klaim menunjuk peran OPD tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ') || '-'}) — akun dibuat sebagai responden`,
-      );
-      return { role: Role.responden, opdId: null };
+    const opd = await this.findOpdFromClaims(profile);
+    if (opd) {
+      return { roles: resolved, opdId: opd.id };
     }
-    return { role: Role.opd, opdId: opd.id };
+
+    // Peran `opd` TANPA opdId adalah keadaan setengah jadi: dashboard OPD-nya
+    // pasti gagal (DashboardService.resolveDashboardOpdId menuntut opdId
+    // terisi) dan pemilih peran menampilkannya nonaktif.
+    //
+    // Yang dibuang HANYA `opd`, bukan seluruh paket (6 September 2026).
+    // Sebelumnya seluruh akun jatuh menjadi `responden`, yang berarti pemegang
+    // paket `superuser+opd+responden` kehilangan hak tertingginya hanya karena
+    // OPD-nya belum terdaftar -- kegagalan yang jauh lebih besar daripada
+    // sebabnya.
+    const tanpaOpd = resolved.filter((role) => role !== Role.opd);
+    this.logger.warn(
+      `Klaim menunjuk peran OPD tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ') || '-'}) — peran opd tidak diberikan, sisa paket: ${tanpaOpd.join(',') || 'kosong'}`,
+    );
+    return {
+      // Paket yang isinya HANYA `opd` menjadi kosong di sini; `responden`
+      // adalah jaring pengamannya, bukan pilihan sewenang-wenang -- akun tanpa
+      // satu pun role tak dapat masuk ke mana pun.
+      roles: tanpaOpd.length > 0 ? tanpaOpd : [Role.responden],
+      opdId: null,
+    };
   }
 
   /**
-   * Cari OPD dari nilai klaim, dicocokkan ke `externalId` (UUID tenant Helpdesk)
-   * ATAU `kode`. Keduanya diperiksa karena tak diketahui mana yang dibawa klaim.
+   * Nilai kandidat OPD dari sebuah profil.
    *
-   * `mode: 'insensitive'` BUKAN kehati-hatian berlebihan: `parseClaimValues`
-   * mengubah semuanya ke huruf kecil, sementara `opd.kode` tersimpan huruf besar
-   * ("DINKES", "DISKOMINFO"). Tanpa ini pencocokan lewat kode tak akan pernah
+   * DUA sumber, dan urutannya berarti: field khusus OPD lebih dulu
+   * (`HELPDESK_SSO_OPD_CLAIM`), lalu klaim `groups`/`role` yang sejak awal
+   * dipakai. Sumber kedua DIPERTAHANKAN supaya perilaku yang sudah jalan tak
+   * berubah -- kalau ada instalasi yang OPD-nya memang tertulis di `groups`, ia
+   * tetap ketemu.
+   */
+  private nilaiKandidatOpd(profile: SsoProfile): string[] {
+    const fields = parseOpdClaimFields(this.config.get<string>('helpdesk.ssoOpdClaim'));
+    return [
+      ...new Set([
+        ...extractOpdClaimValues(profile.klaim, fields),
+        ...parseClaimValues(profile.groups, profile.role),
+      ]),
+    ];
+  }
+
+  /**
+   * Cari OPD dari klaim, BERTINGKAT (8 September 2026):
+   *
+   *   1. `externalId` (UUID tenant Helpdesk) -- paling tepat.
+   *   2. `kode` ("DINKES") -- juga tepat.
+   *   3. `nama` yang dinormalkan -- jalan terakhir, dan yang paling rapuh.
+   *
+   * Tingkat ketiga DITAMBAHKAN karena pengguna menyatakan userinfo membawa
+   * "data nama opdnya", sementara dua tingkat pertama tak akan pernah cocok
+   * dengan sebuah nama panjang. Bentuk klaimnya belum dikonfirmasi, jadi
+   * ketiganya dicoba dan bentuk apa pun tertangani.
+   *
+   * `mode: 'insensitive'` pada tingkat 1-2 BUKAN kehati-hatian berlebihan:
+   * `parseClaimValues` mengubah semuanya ke huruf kecil, sementara `opd.kode`
+   * tersimpan huruf besar. Tanpa ini pencocokan lewat kode tak akan pernah
    * berhasil, dan setiap Admin OPD diam-diam jatuh menjadi warga.
    */
-  private async findOpdFromClaims(values: string[]): Promise<{ id: number } | null> {
+  private async findOpdFromClaims(profile: SsoProfile): Promise<{ id: number } | null> {
+    const values = this.nilaiKandidatOpd(profile);
     if (values.length === 0) {
       return null;
     }
-    return this.prisma.opd.findFirst({
+
+    const tepat = await this.prisma.opd.findFirst({
       where: {
         isActive: true,
         OR: values.flatMap((value) => [
@@ -232,6 +397,97 @@ export class SsoService {
       },
       select: { id: true },
     });
+    if (tepat) {
+      return tepat;
+    }
+
+    return this.cocokkanNamaOpd(values);
+  }
+
+  /**
+   * Tingkat ketiga: cocokkan NAMA, dan hanya bila hasilnya TEPAT SATU.
+   *
+   * Menuntut satu-satunya kecocokan adalah inti keamanan fungsi ini. Nama OPD
+   * saling bersarang di daftar nyata ("Dinas Kesehatan" vs "Dinas Kesehatan dan
+   * Keluarga Berencana"), dan `findFirst` akan mengambil baris pertama yang
+   * kebetulan ditemukan -- menautkan seseorang ke instansi yang bukan tempatnya,
+   * tanpa satu pun galat. Yang mendua DITOLAK dan dicatat, tidak diterka.
+   *
+   * Seluruh OPD aktif dimuat (puluhan baris) karena normalisasinya tak dapat
+   * dinyatakan sebagai kueri SQL; ini hanya berjalan bila tingkat 1-2 gagal.
+   */
+  private async cocokkanNamaOpd(values: string[]): Promise<{ id: number } | null> {
+    const dicari = new Set(values.map(normalkanNamaOpd).filter(Boolean));
+    if (dicari.size === 0) {
+      return null;
+    }
+
+    const semua = await this.prisma.opd.findMany({
+      where: { isActive: true },
+      select: { id: true, nama: true },
+    });
+    const cocok = semua.filter((opd) => dicari.has(normalkanNamaOpd(opd.nama)));
+
+    if (cocok.length === 1) {
+      return { id: cocok[0].id };
+    }
+    if (cocok.length > 1) {
+      this.logger.warn(
+        `Nama OPD dari klaim cocok ke ${cocok.length} instansi sekaligus ` +
+          `(${cocok.map((o) => o.nama).join(' | ')}) -- DITOLAK, bukan diterka. ` +
+          `Isi HELPDESK_SSO_OPD_CLAIM dengan field yang membawa kode atau UUID.`,
+      );
+    }
+    return null;
+  }
+
+  /**
+   * `opdId` yang perlu ditulis saat login, atau `null` bila TAK ADA yang perlu
+   * diubah (8 September 2026).
+   *
+   * Permintaan pengguna: data yang berasal dari Helpdesk harus tetap sinkron dan
+   * tak dapat diacak-acak dari SKEMA. Karena itu login menjadi satu-satunya
+   * penulis kolom ini -- `PATCH /users/:id` sudah tak menerimanya.
+   *
+   * KLAIM TIDAK ADA -> JANGAN SENTUH, jangan pernah mengosongkan. Ini menghormati
+   * keputusan 27 Agustus 2026 yang menolak sinkronisasi PERAN pada setiap login:
+   * bila Helpdesk suatu saat berhenti mengirim klaim -- konfigurasi berubah,
+   * scope dicabut, bentuknya bergeser -- yang mengosongkan tautan akan mencabut
+   * hak setiap Admin OPD sekaligus, dan kegagalan itu SENYAP. Peran pun tetap
+   * TIDAK disinkronkan di sini; yang disinkronkan hanya OPD.
+   */
+  private async opdIdUntukSinkron(user: User, profile: SsoProfile): Promise<number | null> {
+    const values = this.nilaiKandidatOpd(profile);
+    if (values.length === 0) {
+      // Lazim & benar bagi non-ASN. Nama-nama field dicatat di tingkat debug
+      // supaya bentuk klaim yang sebenarnya dapat ditemukan dari log sendiri
+      // ketika `HELPDESK_SSO_OPD_CLAIM` ternyata salah nama -- tanpa menebak,
+      // dan tanpa menyalin NILAI klaim (data pribadi) ke log.
+      this.logger.debug(
+        `Tak ada klaim OPD pada profil ${profile.sub}; field yang diterima: ` +
+          `${Object.keys(profile.klaim).join(', ') || '(tak ada)'}`,
+      );
+      return null;
+    }
+
+    const opd = await this.findOpdFromClaims(profile);
+    if (!opd) {
+      this.logger.warn(
+        `Klaim OPD ada tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ')}); ` +
+          `field yang diterima: ${Object.keys(profile.klaim).join(', ') || '(tak ada)'} -- ` +
+          `tautan OPD akun dibiarkan apa adanya.`,
+      );
+      return null;
+    }
+    if (opd.id === user.opdId) {
+      return null;
+    }
+
+    this.logger.log(
+      `Tautan OPD akun ${user.id} disinkronkan dari Helpdesk: ` +
+        `${user.opdId ?? '(kosong)'} -> ${opd.id}`,
+    );
+    return opd.id;
   }
 
   /** Tolak akun nonaktif, lalu segarkan nama & waktu login. */
@@ -241,10 +497,14 @@ export class SsoService {
     }
 
     const nama = profile.nama ? truncate(profile.nama, NAMA_MAX) : null;
+    // OPD ikut disegarkan setiap login (8 September 2026), dengan sifat yang
+    // sama seperti nama di bawah: hanya bila Helpdesk benar-benar mengirimnya.
+    const opdId = await this.opdIdUntukSinkron(user, profile);
     return this.prisma.user.update({
       where: { id: user.id },
       data: {
         lastLoginAt: new Date(),
+        ...(opdId === null ? {} : { opdId }),
         // Nama disegarkan dari Helpdesk (sumbernya di sana), tapi EMAIL TIDAK.
         // Alasannya: `users.email` unik, sehingga menyalin email baru bisa
         // bertabrakan dengan akun lain dan menggagalkan login karena hal yang

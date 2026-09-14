@@ -235,4 +235,46 @@ describe('NotificationDropdown', () => {
       );
     });
   });
+
+  /**
+   * Permintaan pengguna 13 September 2026: dropdown hanya memuat 10 teratas dan
+   * tak punya satu pun jalan menuju sisanya, sehingga notifikasi lama praktis
+   * tak terjangkau.
+   */
+  describe('jalan menuju riwayat lengkap', () => {
+    it('menawarkan tautan lihat semua ke alamat yang diberikan pemanggil', async () => {
+      givenNotifications([BELUM_DIBACA], 1);
+
+      render(<NotificationDropdown allHref="/admin-opd/notifications" />);
+      fireEvent.click(lonceng());
+
+      const tautan = await screen.findByRole('link', { name: /lihat semua notifikasi/i });
+      expect(tautan).toHaveAttribute('href', '/admin-opd/notifications');
+    });
+
+    /**
+     * Bakunya rute warga: `Navbar` dipakai juga di halaman publik, dan
+     * DashboardNavbar.jsx (kini tak terpakai) tak meneruskan prop apa pun.
+     */
+    it('tanpa prop, mengarah ke rute notifikasi warga', async () => {
+      givenNotifications([BELUM_DIBACA], 1);
+
+      render(<NotificationDropdown />);
+      fireEvent.click(lonceng());
+
+      expect(await screen.findByRole('link', { name: /lihat semua notifikasi/i })).toHaveAttribute(
+        'href',
+        '/notifications',
+      );
+    });
+
+    it('tetap tampil saat daftar kosong -- justru di situ riwayat lama dicari', async () => {
+      givenNotifications([], 0);
+
+      render(<NotificationDropdown />);
+      fireEvent.click(lonceng());
+
+      expect(await screen.findByRole('link', { name: /lihat semua notifikasi/i })).toBeInTheDocument();
+    });
+  });
 });

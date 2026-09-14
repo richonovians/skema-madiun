@@ -1,11 +1,13 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Headset, Paperclip, CheckCircle, X, FileText } from 'lucide-react';
+import { User, Headset, Paperclip, CheckCircle, X, FileText, AlertTriangle } from 'lucide-react';
 import ImageViewer from '@/components/ui/ImageViewer';
 
 export default function AdminResolutionWorkspace({ currentStatus, chatHistory = [], onSendUpdate, onCloseTicket }) {
   const [replyText, setReplyText] = useState('');
   const [attachedFile, setAttachedFile] = useState(null);
+  const [sedangMengirim, setSedangMengirim] = useState(false);
+  const [galatKirim, setGalatKirim] = useState(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -14,6 +16,26 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [chatHistory]);
+
+  /**
+   * Enter mengirim, Shift+Enter menyisipkan baris baru.
+   *
+   * TIDAK berlaku pada peranti sentuh: papan ketik layar tak punya Shift+Enter,
+   * sehingga Enter-mengirim akan membuat balasan berparagraf mustahil ditulis
+   * dari ponsel -- padahal di sana tombol Kirim Pesan sudah selebar layar.
+   */
+  const enterMengirim = () => !window.matchMedia?.('(pointer: coarse)')?.matches;
+
+  const handleKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    // Papan ketik beraksara majemuk memakai Enter untuk MEMILIH calon aksara.
+    // Tanpa penjagaan ini, pemilihan itu ikut mengirim pesan yang belum jadi.
+    // `keyCode 229` adalah penanda peramban lama untuk keadaan yang sama.
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+    if (!enterMengirim()) return;
+    e.preventDefault();
+    handleSend();
+  };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -61,11 +83,23 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
     );
   };
 
-  const handleSend = () => {
-    if (replyText.trim() || attachedFile) {
-      onSendUpdate(replyText, attachedFile);
+  const handleSend = async () => {
+    if (sedangMengirim) return;
+    if (!replyText.trim() && !attachedFile) return;
+    setGalatKirim(null);
+    setSedangMengirim(true);
+    try {
+      await onSendUpdate(replyText, attachedFile);
       setReplyText('');
       removeFile();
+    } catch (err) {
+      // Teks SENGAJA dibiarkan utuh: tulisan admin adalah satu-satunya
+      // salinan yang ada, dan mengosongkannya saat pengiriman gagal berarti
+      // membuangnya. Sebabnya ditampilkan di sini, bukan di puncak halaman,
+      // karena di sinilah admin sedang melihat.
+      setGalatKirim(err?.message || 'Pesan gagal terkirim. Coba lagi.');
+    } finally {
+      setSedangMengirim(false);
     }
   };
 
@@ -80,7 +114,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
     <div className="bg-surface rounded-xl shadow-2xl border border-border flex flex-col h-[70vh] min-h-[420px] lg:h-[750px]">
       
       {/* Chat History */}
-      <div ref={scrollRef} className="flex-1 p-lg overflow-y-auto space-y-lg scrollbar-hide bg-slate-50/50">
+      <div ref={scrollRef} className="flex-1 p-md sm:p-lg overflow-y-auto space-y-lg scrollbar-hide bg-slate-50/50">
         {chatHistory.map((msg, idx) => (
           msg.role === 'admin' ? (
             <div key={idx} className="flex items-start gap-md max-w-[85%] ml-auto flex-row-reverse">
@@ -101,6 +135,14 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
                 <User size={20} className="text-on-surface-variant" />
               </div>
               <div className="space-y-xs">
+                {/* Label pengirim untuk pihak-lawan. Gelembung ini SEBELUMNYA tak
+                    pernah menampilkan nama sama sekali, sehingga balasan pelapor
+                    anonim akan tampak seolah ditulis pihak yang tak dikenal. */}
+                {msg.senderName && (
+                  <span className="block text-label-md font-bold text-text-secondary">
+                    {msg.senderName}
+                  </span>
+                )}
                 <div className="bg-white border border-border p-md rounded-2xl rounded-tl-none shadow-sm">
                   {msg.text && (
                     <p className="font-body-md text-body-md text-text-primary leading-relaxed">{msg.text}</p>
@@ -121,7 +163,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
       </div>
 
       {/* Response Editor */}
-      <div className="p-lg border-t border-border bg-white rounded-b-xl">
+      <div className="p-md sm:p-lg border-t border-border bg-white rounded-b-xl">
         {/* File Attachment Preview */}
         {attachedFile && (
           <div className="mb-3">
@@ -148,7 +190,8 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
           <textarea 
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
-            className="w-full min-h-[160px] p-lg border border-outline-variant rounded-xl bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none font-body-md text-body-md" 
+            onKeyDown={handleKeyDown}
+            className="w-full min-h-[128px] sm:min-h-[160px] p-md sm:p-lg pb-14 border border-outline-variant rounded-xl bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none font-body-md text-body-md" 
             placeholder="Tulis jawaban solusi atau update status di sini..."
           />
           <div className="absolute bottom-md left-md flex items-center gap-sm">
@@ -163,25 +206,46 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
               <span className="text-label-md hidden sm:inline">Lampirkan Dokumen/Foto</span>
             </label>
           </div>
+          {/* Hanya pada layar lebar: di peranti sentuh Enter memang menyisipkan
+              baris baru, jadi petunjuk ini akan menyesatkan di sana. */}
+          <span className="hidden sm:block absolute bottom-md right-md text-xs text-text-secondary">
+            Enter untuk mengirim, Shift + Enter baris baru
+          </span>
         </div>
 
-        {/* Action Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-end gap-md">
-          <button 
-            onClick={handleSend}
-            className="w-full sm:w-auto px-lg py-3 rounded-lg border border-outline text-text-primary font-bold hover:bg-surface-variant/20 transition-all active:scale-95"
-          >
-            Kirim pesan
-          </button>
+        {galatKirim && (
+          <div className="mb-md flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700">
+            <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+            <p className="text-sm font-medium">{galatKirim}</p>
+          </div>
+        )}
+
+        {/* Menutup tiket dipisahkan dari mengirim pesan (11 September 2026,
+            laporan salah klik). Sebelumnya tombol penutup tiket-lah yang paling
+            menonjol -- hijau terisi, di ujung kanan, tempat kursor mendarat --
+            padahal ia jarang ditekan dan tak dapat dibatalkan, sementara
+            tindakan sehari-harinya justru tampil pucat di sebelahnya.
+            Bobotnya kini ditukar: yang sering ditekan menjadi tombol utama di
+            kanan, yang menutup tiket turun menjadi garis tepi dan didorong ke
+            ujung kiri. Di layar sempit keduanya bertumpuk, dan urutan ini
+            menaruh tombol penutup tiket di posisi terjauh dari ibu jari. */}
+        <div className="flex flex-col sm:flex-row sm:justify-end items-center gap-md">
           {currentStatus === 'Diproses' && (
-            <button 
+            <button
               onClick={onCloseTicket}
-              className="w-full sm:w-auto px-lg py-3 rounded-lg bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all active:scale-95 flex items-center justify-center gap-sm"
+              className="w-full sm:w-auto sm:mr-auto px-md sm:px-lg py-3 rounded-lg border border-green-600/50 text-green-700 font-bold whitespace-nowrap hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-sm"
             >
-              <CheckCircle size={20} />
-              Simpan & Selesai
+              <CheckCircle size={20} className="hidden sm:block" />
+              Selesaikan Pengaduan
             </button>
           )}
+          <button
+            onClick={handleSend}
+            disabled={sedangMengirim}
+            className="w-full sm:w-auto px-md sm:px-lg py-3 rounded-lg bg-primary text-white font-bold whitespace-nowrap shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
+            {sedangMengirim ? 'Mengirim...' : 'Kirim Pesan'}
+          </button>
         </div>
       </div>
     </div>

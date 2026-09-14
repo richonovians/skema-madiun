@@ -6,6 +6,8 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+import { bersihkanAuditAkunUji } from './helpers/audit.helper';
+import { bersihkanNotifikasiSurvei } from './helpers/notifikasi.helper';
 
 describe('IKM (e2e)', () => {
   let app: INestApplication;
@@ -96,7 +98,7 @@ describe('IKM (e2e)', () => {
             ssoSubject,
             nama: `Responden IKM ${i + 1}`,
             email: `${ssoSubject}@example.go.id`,
-            role: Role.responden,
+            roles: [Role.responden],
             consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
           },
         }),
@@ -136,7 +138,7 @@ describe('IKM (e2e)', () => {
         ssoSubject: 'e2e-ikm-resp-3',
         nama: 'Responden IKM 3',
         email: 'e2e-ikm-resp-3@example.go.id',
-        role: Role.responden,
+        roles: [Role.responden],
         consentAt: new Date(), // celah 2: warga tanpa persetujuan PDP ditolak 403 saat mengirim data
       },
     });
@@ -148,7 +150,15 @@ describe('IKM (e2e)', () => {
     await prisma.surveyResponse.deleteMany({
       where: { survey: { opdId: { in: [opdId, opdId2] } } },
     });
+    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
+    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    await bersihkanNotifikasiSurvei(prisma, opdId);
+    await bersihkanNotifikasiSurvei(prisma, opdId2);
     await prisma.survey.deleteMany({ where: { opdId: { in: [opdId, opdId2] } } });
+    // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat
+    // dihapus selama baris auditnya masih ada (aksi warga teraudit sejak
+    // 13 September 2026).
+    await bersihkanAuditAkunUji(prisma, ['e2e-ikm-resp-1', 'e2e-ikm-resp-2', 'e2e-ikm-resp-3']);
     await prisma.user.deleteMany({
       where: { ssoSubject: { in: ['e2e-ikm-resp-1', 'e2e-ikm-resp-2', 'e2e-ikm-resp-3'] } },
     });

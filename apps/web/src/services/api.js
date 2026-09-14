@@ -2,13 +2,17 @@ import axios from 'axios';
 // Sengaja memakai ulang clearSession() alih-alih menghapus key di sini: daftar
 // artefak sesi (token & role, masing-masing di localStorage DAN cookie) hanya
 // boleh punya satu definisi. Menyalinnya ke sini persis yang dulu bikin
-// pembersihan tak sinkron. authStorage tak mengimpor apa pun, jadi tak ada
-// impor sirkular.
+// pembersihan tak sinkron.
+//
+// TIDAK ADA impor berputar: sejak 8 September 2026 authStorage mengimpor satu
+// modul, `services/apiBase.js`, dan modul itu tak mengimpor apa pun. Arah
+// impornya tetap satu arah -- api.js -> authStorage -> apiBase.
 import { clearSession } from '@/features/authentication/services/authStorage';
+import { API_BASE_URL } from './apiBase';
 
 // Konfigurasi instance Axios
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -63,6 +67,24 @@ api.interceptors.response.use(
         error.message = envelope.message;
       }
       if (error.response.status === 401) {
+        // SATU pengecualian, ditambahkan bersama multi-role (5 September 2026):
+        // "peran belum dipilih" BUKAN sesi mati. Sesinya masih sah sepenuhnya;
+        // yang dibutuhkan hanya satu pilihan peran. Membuang sesi di sini
+        // memaksa akun ber-role banyak login ulang tanpa sebab, dan justru
+        // menghalanginya mencapai halaman pemilih peran.
+        //
+        // Dibedakan lewat `error.code` dari backend, bukan lewat pencocokan
+        // pesan: pesan bisa diubah kapan saja tanpa ada yang memerah.
+        const kode = envelope?.error?.code;
+        if (kode === 'ROLE_SELECTION_REQUIRED') {
+          if (typeof window !== 'undefined' && window.location.pathname !== '/pilih-peran') {
+            // Halaman pemilih peran sendiri memanggil GET /auth/me, jadi
+            // mengarahkannya ke dirinya sendiri = pemuatan ulang tanpa henti.
+            window.location.assign('/pilih-peran');
+          }
+          return Promise.reject(error);
+        }
+
         if (typeof window !== 'undefined') {
           // SEBELUMNYA hanya `localStorage.removeItem('token')` -- `role` di
           // localStorage dan KEDUA cookie (`token`, `role`) dibiarkan utuh,
@@ -70,9 +92,10 @@ api.interceptors.response.use(
           // dan tetap membuka /admin-* padahal seluruh API-nya 401. Kini seluruh
           // artefak sesi dibersihkan sekaligus.
           //
-          // Aman untuk SEMUA 401: backend memakai 401 khusus "Autentikasi
-          // diperlukan" (sesi tak sah), sedangkan penolakan karena peran/akses
-          // dikembalikan sebagai 403 -- lihat RolesGuard & opd-scope.util.ts.
+          // Aman untuk 401 SELAIN yang di atas: backend memakainya khusus
+          // "Autentikasi diperlukan" (sesi tak sah), sedangkan penolakan karena
+          // peran/akses dikembalikan sebagai 403 -- lihat RolesGuard &
+          // opd-scope.util.ts.
           clearSession();
         }
       }
@@ -102,6 +125,23 @@ api.interceptors.response.use(
  */
 export function isUnauthorizedError(error) {
   return error?.response?.status === 401;
+}
+
+/**
+ * Kode galat dari backend (`error.code` pada amplopnya), atau `null`.
+ *
+ * Tinggal di sini karena alasan yang sama seperti `isUnauthorizedError`:
+ * bentuk amplop respons adalah urusan layer service, dan komponen cukup
+ * bertanya "penolakan jenis apa ini?" tanpa tahu bentuk HTTP-nya.
+ *
+ * Dipakai untuk menawarkan JALAN KELUAR yang tepat -- mis. `CONSENT_REQUIRED`
+ * memunculkan tombol menuju halaman persetujuan. Mencocokkan bunyi pesan akan
+ * bekerja hari ini dan diam-diam berhenti bekerja pada penyuntingan teks
+ * berikutnya, tanpa ada satu uji pun yang memerah.
+ */
+export function kodeGalat(error) {
+  const kode = error?.response?.data?.error?.code;
+  return typeof kode === 'string' ? kode : null;
 }
 
 export default api;

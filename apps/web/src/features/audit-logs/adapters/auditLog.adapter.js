@@ -13,16 +13,32 @@
  *     payload permintaan, bukan dikarang jadi oldValue/newValue.
  * Adapter ini SENGAJA tidak mengarang nilai untuk field-field itu.
  */
+/**
+ * `auth`, `response`, dan `complaint_reply` ditambahkan 13 September 2026.
+ *
+ * `auth` bukan entitas baru: 315 baris login/logout/consent warga SUDAH ada di
+ * basis data sejak lama, tapi tak pernah punya label sehingga tampil sebagai
+ * teks mentah "auth" -- dan tak dapat disaring, karena dropdown Modul pun tak
+ * memuatnya. Dua yang lain menyusul dekorator `@Audit` yang baru dipasang pada
+ * endpoint yang dipakai warga.
+ */
 const ENTITAS_LABEL = {
+  auth: 'Autentikasi',
   complaint: 'Pengaduan',
+  complaint_reply: 'Balasan Pengaduan',
   opd: 'OPD',
   question: 'Pertanyaan',
+  response: 'Jawaban Survei',
   survey: 'Survei',
   user: 'Pengguna',
 };
 
 const AKSI_LABEL = {
   create: 'CREATE',
+  login: 'LOGIN',
+  logout: 'LOGOUT',
+  consent: 'PERSETUJUAN PDP',
+  update_profile: 'UBAH PROFIL',
   update: 'UPDATE',
   delete: 'DELETE',
   update_status: 'UPDATE STATUS',

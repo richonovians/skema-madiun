@@ -71,31 +71,11 @@ describe('Reference (e2e)', () => {
     expect(response.status).toBe(200);
   });
 
-  it('GET /api/v1/ref/complaint-sub-categories (responden) -> 200, semua 18 sub-kategori', async () => {
+  it('GET /api/v1/ref/complaint-sub-categories -> 404 (endpoint dihapus)', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/ref/complaint-sub-categories')
       .set(devHeaders({ role: Role.responden }));
 
-    expect(response.status).toBe(200);
-    expect(response.body.data).toHaveLength(18);
-    expect(response.body.data[0]).toEqual(
-      expect.objectContaining({
-        kode: expect.any(String),
-        nama: expect.any(String),
-        kategoriKode: expect.any(String),
-      }),
-    );
-  });
-
-  it('GET /api/v1/ref/complaint-sub-categories?kategori=kesehatan -> hanya sub-kategori kesehatan', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/api/v1/ref/complaint-sub-categories?kategori=kesehatan')
-      .set(devHeaders({ role: Role.responden }));
-
-    expect(response.status).toBe(200);
-    expect(response.body.data.length).toBeGreaterThan(0);
-    expect(
-      response.body.data.every((s: { kategoriKode: string }) => s.kategoriKode === 'kesehatan'),
-    ).toBe(true);
+    expect(response.status).toBe(404);
   });
 });

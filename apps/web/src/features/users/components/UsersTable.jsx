@@ -15,8 +15,15 @@ import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
  * (`PATCH /users/:id/status`), link Ubah Role (`PATCH /users/:id`,
  * 2026-08-05), dan Hapus (`DELETE /users/:id`, soft delete, 2026-08-05 --
  * sebelumnya `deletedAt` ada di skema tapi tak ada endpoint/UI sama sekali).
+ *
+ * SEJAK 8 SEPTEMBER 2026 tabel ini TIDAK lagi memanggil endpoint apa pun. Ia
+ * cuma MEMINTA aksi lewat `onRequestAction(user, tipe)`; halaman pemanggil yang
+ * memegang ConfirmDialog lalu memutuskan. Dua sebabnya: sebelum ini
+ * Nonaktifkan mengubah status tanpa konfirmasi sama sekali dan Hapus memakai
+ * `window.confirm()` bawaan peramban, dan dialog yang dipasang di dalam tabel
+ * akan membuat tiap baris punya salinan dialognya sendiri.
  */
-export default function UsersTable({ data, onUpdateStatus, onDelete, pagination }) {
+export default function UsersTable({ data, onRequestAction, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
       // Warna dibedakan dari Admin Kabupaten: keduanya kini peran berbeda, dan
@@ -72,7 +79,10 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
         </Thead>
         <Tbody className="divide-y divide-outline-variant">
           {data.map((user) => {
-            const roleConfig = getRoleBadgeConfig(user.role);
+            // Satu akun bisa memegang beberapa role (5 September 2026), jadi
+            // beberapa lencana -- bukan satu. Avatar memakai role PERTAMA;
+            // warnanya sekadar pembeda visual, bukan pernyataan hak.
+            const roleConfigs = (user.roles ?? []).map(getRoleBadgeConfig);
             const isActive = user.status === 'ACTIVE';
 
             return (
@@ -82,7 +92,7 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                     <Avatar
                       initials={user.initials}
                       size="md"
-                      variant={getAvatarVariant(user.role)}
+                      variant={getAvatarVariant((user.roles ?? [])[0])}
                     />
                     <div>
                       <div className="font-label-md text-text-primary">{user.name}</div>
@@ -91,9 +101,22 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                   </div>
                 </Td>
                 <Td>
-                  <span className={`inline-block whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold ${roleConfig.className}`}>
-                    {roleConfig.label}
-                  </span>
+                  {/* `flex-wrap`, bukan sebaris: akun ber-tiga role akan
+                      melebarkan tabel dan memaksa halaman bergeser horizontal. */}
+                  <div className="flex flex-wrap gap-1">
+                    {roleConfigs.length ? (
+                      roleConfigs.map((cfg) => (
+                        <span
+                          key={cfg.label}
+                          className={`inline-block whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold ${cfg.className}`}
+                        >
+                          {cfg.label}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-text-secondary">-</span>
+                    )}
+                  </div>
                 </Td>
                 <Td className="text-body-md text-text-secondary">
                   {user.organization}
@@ -106,29 +129,33 @@ export default function UsersTable({ data, onUpdateStatus, onDelete, pagination 
                 </Td>
                 <Td>
                   <div className="flex items-center gap-2">
-                    {/* Ubah Role hanya utk akun admin (opd/kabupaten) -- UpdateUserDto.role
-                        divalidasi @IsIn(ADMIN_ROLES), tak menerima responden sama sekali. */}
-                    {user.role !== USER_ROLES.RESPONDENT && (
-                      <Link
-                        href={`/admin-kab/users/${user.id}/edit`}
-                        className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
-                      >
-                        <Pencil size={12} />
-                        Ubah Role
-                      </Link>
-                    )}
+                    {/* TANPA SYARAT, termasuk untuk warga (permintaan pengguna
+                        6 September 2026). Backend menerimanya sejak
+                        5 September 2026: `ASSIGNABLE_ROLES` pada CreateUserDto
+                        memuat `responden`.
+
+                        Syarat `user.role !== USER_ROLES.RESPONDENT` yang dulu
+                        ada di sini SUDAH MATI sejak adapter beralih ke `roles`:
+                        `user.role` tak ada lagi, jadi `undefined !==
+                        'responden'` selalu benar dan tombolnya sebenarnya sudah
+                        tampil untuk semua orang -- di bawah komentar yang
+                        menyatakan kebalikannya. Dihapus supaya yang tersurat
+                        sama dengan yang terjadi. */}
+                    <Link
+                      href={`/admin-kab/users/${user.id}/edit`}
+                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
+                    >
+                      <Pencil size={12} />
+                      Ubah Role
+                    </Link>
                     <button
-                      onClick={() => onUpdateStatus?.(user.id, !isActive)}
+                      onClick={() => onRequestAction?.(user, isActive ? 'deactivate' : 'activate')}
                       className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
                     >
                       {isActive ? 'Nonaktifkan' : 'Aktifkan'}
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm(`Hapus akun "${user.name}"? Akun tidak bisa login lagi setelah dihapus.`)) {
-                          onDelete?.(user.id);
-                        }
-                      }}
+                      onClick={() => onRequestAction?.(user, 'delete')}
                       className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-error hover:bg-error-container transition-colors h-[32px] flex items-center justify-center gap-1"
                     >
                       <Trash2 size={12} />

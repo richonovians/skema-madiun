@@ -41,6 +41,16 @@ const STATUS_LABEL: Record<string, string> = {
  * menggagalkan aksi utama (ubah status/kirim balasan), sama semangatnya dgn
  * AuditInterceptor yg juga toleran thd kegagalan pencatatan.
  */
+/**
+ * Jumlah jawaban yang memicu notifikasi survei. Sesudah 100, hanya kelipatan
+ * 100 -- survei bertarget ratusan responden tak boleh membanjiri lonceng
+ * kabupaten & superuser, yang juga menerima notifikasi pengaduan.
+ */
+const TONGGAK_AWAL: readonly number[] = [1, 10, 25, 50];
+
+const adalahTonggak = (jumlah: number): boolean =>
+  jumlah > 0 && (TONGGAK_AWAL.includes(jumlah) || jumlah % 100 === 0);
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -49,14 +59,20 @@ export class NotificationsService {
 
   /** Pengaduan baru masuk -> beri tahu Admin OPD tujuan + kabupaten (oversight). Pelapor TIDAK diberi tahu (dia sendiri pelakunya). */
   async notifyComplaintCreated(complaint: Complaint): Promise<void> {
-    await this.notifyRole(
-      Role.opd,
-      complaint.opdId,
-      NotificationType.complaint_created,
-      'Pengaduan Baru Masuk',
-      `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
-      `/admin-opd/complaints/${complaint.ticketNo}`,
-    );
+    // Pengaduan "belum bertujuan" (6 September 2026) tak punya OPD untuk
+    // diberi tahu. Meneruskan `null` ke notifyRole bukan sekadar sia-sia: ia
+    // akan mencari akun ber-`opdId: null` -- yaitu Admin Kabupaten & warga --
+    // dan mengabari mereka bahwa ada tiket "masuk ke OPD Anda".
+    if (complaint.opdId != null) {
+      await this.notifyRole(
+        Role.opd,
+        complaint.opdId,
+        NotificationType.complaint_created,
+        'Pengaduan Baru Masuk',
+        `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
+        `/admin-opd/complaints/${complaint.ticketNo}`,
+      );
+    }
     await this.notifyKabupaten(
       complaint.userId,
       NotificationType.complaint_created,
@@ -93,14 +109,20 @@ export class NotificationsService {
    */
   async notifyComplaintReply(complaint: Complaint, replyAuthorUserId: number): Promise<void> {
     if (replyAuthorUserId === complaint.userId) {
-      await this.notifyRole(
-        Role.opd,
-        complaint.opdId,
-        NotificationType.complaint_reply,
-        'Balasan Baru pada Pengaduan',
-        `Ada balasan baru dari pelapor pada pengaduan ${complaint.ticketNo}`,
-        `/admin-opd/complaints/${complaint.ticketNo}`,
-      );
+      // `opdId != null`: pengaduan yang belum bertujuan (6 September 2026)
+      // tak punya OPD untuk dikabari. Pelapornya TIDAK kehilangan perhatian --
+      // notifyKabupaten di akhir metode ini tetap berjalan, dan Superuser
+      // beserta Admin Kabupaten justru pihak yang bertugas menriasenya.
+      if (complaint.opdId != null) {
+        await this.notifyRole(
+          Role.opd,
+          complaint.opdId,
+          NotificationType.complaint_reply,
+          'Balasan Baru pada Pengaduan',
+          `Ada balasan baru dari pelapor pada pengaduan ${complaint.ticketNo}`,
+          `/admin-opd/complaints/${complaint.ticketNo}`,
+        );
+      }
     } else {
       await this.safeCreate({
         userId: complaint.userId,
@@ -117,6 +139,53 @@ export class NotificationsService {
       'Balasan Baru pada Pengaduan',
       `Ada balasan baru pada pengaduan ${complaint.ticketNo}`,
       `/admin-kab/complaints/${complaint.ticketNo}`,
+    );
+  }
+
+  /**
+   * Jawaban survei masuk -> beri tahu Admin OPD pemilik survei + kabupaten
+   * (oversight). Pengisinya sendiri tak diberi tahu.
+   *
+   * Jumlahnya dihitung DI SINI, bukan diterima dari pemanggil: kegagalan
+   * kueri hitung pun harus ditelan seperti kegagalan notifikasi lainnya, dan
+   * itu hanya terjamin kalau kueri itu berada di dalam kelas ini.
+   *
+   * Pesannya TAK PERNAH menyebut siapa pengisinya. Survei boleh diisi anonim,
+   * dan identitas responden IKM memang bukan hal yang perlu diketahui admin.
+   */
+  async notifySurveyResponse(
+    survey: { id: number; judul: string; opdId: number },
+    pengisiUserId: number | null,
+  ): Promise<void> {
+    let jumlah: number;
+    try {
+      jumlah = await this.prisma.surveyResponse.count({ where: { surveyId: survey.id } });
+    } catch (err) {
+      this.logger.warn(`Gagal menghitung jawaban survei #${survey.id}: ${String(err)}`);
+      return;
+    }
+    if (!adalahTonggak(jumlah)) return;
+
+    const pertama = jumlah === 1;
+    const title = pertama ? 'Survei Mulai Menerima Jawaban' : 'Jawaban Survei Bertambah';
+    const message = pertama
+      ? `Survei "${survey.judul}" menerima jawaban pertama`
+      : `Survei "${survey.judul}" telah menerima ${jumlah} jawaban`;
+
+    await this.notifyRole(
+      Role.opd,
+      survey.opdId,
+      NotificationType.survey_response_created,
+      title,
+      message,
+      `/admin-opd/surveys/${survey.id}/responses`,
+    );
+    await this.notifyKabupaten(
+      pengisiUserId,
+      NotificationType.survey_response_created,
+      title,
+      message,
+      `/admin-kab/surveys/${survey.id}/responses`,
     );
   }
 
@@ -139,7 +208,10 @@ export class NotificationsService {
   ): Promise<void> {
     try {
       const recipients = await this.prisma.user.findMany({
-        where: { role, opdId, isActive: true },
+        // `roles: { has }` (5 September 2026): pemberitahuan menyasar
+        // KEPEMILIKAN role, bukan peran yang sedang dipakai seseorang --
+        // penerimanya belum tentu sedang membuka aplikasi sama sekali.
+        where: { roles: { has: role }, opdId, isActive: true },
         select: { id: true },
       });
       await Promise.all(
@@ -150,9 +222,16 @@ export class NotificationsService {
     }
   }
 
-  /** Broadcast ke semua Admin Kabupaten aktif, kecuali pelaku aksi itu sendiri. */
+  /**
+   * Broadcast ke semua Admin Kabupaten aktif, kecuali pelaku aksi itu sendiri.
+   *
+   * `null` berarti pelakunya tak punya baris `users` sama sekali -- pengisi
+   * survei tanpa sesi (13 September 2026). Klausa `id` lalu DIHILANGKAN, bukan
+   * diisi id semu: `{ not: <id palsu> }` diam-diam mengecualikan akun sungguhan
+   * yang kebetulan bernomor itu.
+   */
   private async notifyKabupaten(
-    excludeUserId: number,
+    excludeUserId: number | null,
     type: NotificationType,
     title: string,
     message: string,
@@ -163,9 +242,9 @@ export class NotificationsService {
       // jadi tak masuk akal kalau justru tak diberi tahu perkara yang sama.
       const kabupatenUsers = await this.prisma.user.findMany({
         where: {
-          role: { in: [...FULL_ACCESS_ROLES] },
+          roles: { hasSome: [...FULL_ACCESS_ROLES] },
           isActive: true,
-          id: { not: excludeUserId },
+          ...(excludeUserId === null ? {} : { id: { not: excludeUserId } }),
         },
         select: { id: true },
       });
@@ -177,20 +256,41 @@ export class NotificationsService {
     }
   }
 
-  /** Daftar notifikasi milik pengguna saat ini, terbaru dulu. */
+  /**
+   * Daftar notifikasi milik pengguna saat ini. Terbaru dulu KECUALI diminta
+   * lain (13 September 2026).
+   *
+   * `where` yang sama dipakai `findMany` DAN `count`, jadi `meta.pagination
+   * .total` selalu menggambarkan kumpulan yang sedang disaring. Halaman riwayat
+   * membaca angka itu untuk pil "Semua"/"Belum dibaca"; total yang tak ikut
+   * menyaring akan membuat pilnya menyebut angka yang tak ada hubungannya
+   * dengan daftar di bawahnya.
+   *
+   * Rentang waktunya ditopang `@@index([userId, createdAt])` yang memang sudah
+   * ada di schema, jadi tak ada indeks baru yang perlu ditambahkan.
+   */
   async findMine(
     query: ListNotificationQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<NotificationEntity>> {
-    const { page, limit, unreadOnly } = query;
-    const where = { userId: user.userId, ...(unreadOnly ? { isRead: false } : {}) };
+    const { page, limit, unreadOnly, sort, from, to } = query;
+
+    const rentang = {
+      ...(from ? { gte: new Date(from) } : {}),
+      ...(to ? { lte: new Date(to) } : {}),
+    };
+    const where = {
+      userId: user.userId,
+      ...(unreadOnly ? { isRead: false } : {}),
+      ...(Object.keys(rentang).length > 0 ? { createdAt: rentang } : {}),
+    };
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.notification.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: sort ?? 'desc' },
       }),
       this.prisma.notification.count({ where }),
     ]);

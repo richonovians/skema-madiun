@@ -23,6 +23,7 @@ import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
+import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
 import { SurveysService } from './surveys.service';
 
 @ApiTags('surveys')
@@ -33,7 +34,7 @@ export class SurveysController {
 
   /** Daftar survei (Kabupaten: semua; Admin OPD: milik OPD-nya). */
   @Get()
-  @Roles(Role.kabupaten, Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
   findAll(
     @Query() query: ListSurveyQueryDto,
@@ -44,7 +45,7 @@ export class SurveysController {
 
   /** Buat paket survei (Admin OPD). */
   @Post()
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   create(@Body() dto: CreateSurveyDto, @CurrentUser() user: CurrentUser): Promise<SurveyEntity> {
@@ -63,9 +64,24 @@ export class SurveysController {
     return this.surveysService.findActive(query);
   }
 
+  /**
+   * Isi Sampah. WAJIB dideklarasikan sebelum `@Get(':id')` -- Express 5
+   * mencocokkan rute sesuai urutan registrasi, jadi literal `trash` harus
+   * mendahului param `:id`. Alasan yang sama berlaku bagi `active` di atas.
+   */
+  @Get('trash')
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @ApiOkResponse({ type: TrashedSurveyEntity, isArray: true })
+  findTrashed(
+    @Query() query: ListSurveyQueryDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<PaginatedResult<TrashedSurveyEntity>> {
+    return this.surveysService.findTrashed(query, user);
+  }
+
   /** Detail survei. */
   @Get(':id')
-  @Roles(Role.kabupaten, Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @ApiOkResponse({ type: SurveyEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,
@@ -76,7 +92,7 @@ export class SurveysController {
 
   /** Ubah survei (draft, Admin OPD). */
   @Patch(':id')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   update(
@@ -87,18 +103,46 @@ export class SurveysController {
     return this.surveysService.update(id, dto, user);
   }
 
-  /** Hapus survei (draft, Admin OPD). */
+  /**
+   * Buang survei ke Sampah. BERUBAH ARTI 11 September 2026: dahulu penghapusan
+   * permanen khusus draf, kini soft delete untuk semua status. Pemusnahan
+   * permanennya ada di `DELETE /surveys/:id/purge`.
+   */
   @Delete(':id')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
     return this.surveysService.remove(id, user);
   }
 
+  /** Pulihkan survei dari Sampah. */
+  @Post(':id/restore')
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Audit('survey', 'restore')
+  @ApiOkResponse({ type: SurveyEntity })
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<SurveyEntity> {
+    return this.surveysService.restore(id, user);
+  }
+
+  /**
+   * Musnahkan permanen dari Sampah. TANPA Role.opd, dan itu keputusan tersurat:
+   * tindakan ini tak dapat dibatalkan dan ikut membawa jawaban responden.
+   */
+  @Delete(':id/purge')
+  @Roles(Role.kabupaten, Role.superuser)
+  @Audit('survey', 'purge')
+  @HttpCode(HttpStatus.OK)
+  purge(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
+    return this.surveysService.purge(id, user);
+  }
+
   /** Publikasikan / tutup survei (Admin OPD). */
   @Patch(':id/status')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey', 'update_status')
   @ApiOkResponse({ type: SurveyEntity })
   updateStatus(
@@ -111,7 +155,7 @@ export class SurveysController {
 
   /** Duplikasi survei periode sebelumnya (Admin OPD). */
   @Post(':id/duplicate')
-  @Roles(Role.opd)
+  @Roles(Role.kabupaten, Role.superuser, Role.opd)
   @Audit('survey', 'duplicate')
   @ApiOkResponse({ type: SurveyEntity })
   duplicate(

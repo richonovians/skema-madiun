@@ -1,8 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
 
 export interface SessionPayload {
   sub: number; // userId
+  /**
+   * Peran yang DIPILIH pemilik sesi (5 September 2026). Opsional: akun ber-role
+   * tunggal tak perlu memilih apa pun.
+   *
+   * Menyimpan pilihan ini di token TIDAK melanggar keputusan "payload minimal"
+   * di bawah. Yang tak boleh dipercaya dari token adalah KEPEMILIKAN role, dan
+   * itu tetap dibaca ulang dari basis data pada setiap permintaan; klaim ini
+   * hanya menyatakan PILIHAN, lalu disaring oleh kepemilikan itu
+   * (`resolveActingRole`). Karena itu mencabut role tetap berlaku seketika.
+   */
+  act?: Role;
 }
 
 /**
@@ -21,8 +33,8 @@ export class SessionService {
 
   constructor(private readonly jwtService: JwtService) {}
 
-  issue(userId: number): string {
-    return this.jwtService.sign({ sub: userId });
+  issue(userId: number, act?: Role): string {
+    return this.jwtService.sign(act ? { sub: userId, act } : { sub: userId });
   }
 
   /**
@@ -41,7 +53,15 @@ export class SessionService {
         this.logger.debug('Token bertanda-tangan sah tapi bukan token sesi (sub bukan angka)');
         return null;
       }
-      return { sub: payload.sub };
+      // `act` yang bukan anggota enum DIABAIKAN, bukan membatalkan tokennya.
+      // Hasilnya sama dengan "belum memilih" -- keadaan yang sudah ditangani
+      // resolveActingRole dengan jujur -- sedangkan menolak seluruh tokennya
+      // akan melaporkan "sesi tak sah" untuk sesi yang sebenarnya sah.
+      const act =
+        typeof payload.act === 'string' && (Object.values(Role) as string[]).includes(payload.act)
+          ? (payload.act as Role)
+          : undefined;
+      return act ? { sub: payload.sub, act } : { sub: payload.sub };
     } catch (err) {
       this.logger.debug(`Token sesi tidak valid/kedaluwarsa: ${String(err)}`);
       return null;

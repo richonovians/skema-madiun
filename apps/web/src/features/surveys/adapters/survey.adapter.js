@@ -85,12 +85,41 @@ export function adaptSurvey(survey) {
     period: survey.periode,
     respondentsCount: survey.respondentsCount ?? 0,
     ikmScore: survey.nilaiIkm ?? null,
+    // Dipakai formulir kelola survei (saklar "izinkan tanpa login") dan modal
+    // bagikan (keterangan tautannya menyesuaikan diri).
+    izinkanAnonim: survey.izinkanAnonim === true,
     isClosed: survey.status === 'ditutup',
   };
 }
 
 export function adaptSurveyList(surveys) {
   return surveys.map(adaptSurvey);
+}
+
+/**
+ * Baris halaman Sampah -- bentuk TrashedSurveyEntity backend.
+ *
+ * `id` dijadikan string dan statusnya diterjemahkan lewat `STATUS_MAP`, persis
+ * seperti `adaptSurvey` di atas: dua bentuk id yang berbeda pada satu fitur
+ * adalah sumber bug perbandingan yang sulit dilacak.
+ */
+export function adaptTrashedSurvey(row) {
+  return {
+    id: String(row.id),
+    title: row.judul,
+    period: row.periode,
+    status: STATUS_MAP[row.status] ?? row.status,
+    opdId: row.opdId,
+    opdName: row.opdNama,
+    deletedAt: row.deletedAt,
+    // `null` bila akun yang membuangnya sudah dihapus (FK ON DELETE SET NULL).
+    deletedByName: row.deletedByNama ?? null,
+    responsesCount: row.jumlahJawaban,
+  };
+}
+
+export function adaptTrashedSurveyList(rows) {
+  return (rows ?? []).map(adaptTrashedSurvey);
 }
 
 const STATUS_TO_BACKEND = {
@@ -100,13 +129,19 @@ const STATUS_TO_BACKEND = {
 };
 
 /** Terjemahkan payload buat-survei (bentuk komponen) -> CreateSurveyDto backend. */
-export function toCreateSurveyPayload({ title, period, allowMultipleSubmit, opdId }) {
-  return { judul: title, periode: period, allowMultipleSubmit, opdId };
+export function toCreateSurveyPayload({
+  title,
+  period,
+  allowMultipleSubmit,
+  izinkanAnonim,
+  opdId,
+}) {
+  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim, opdId };
 }
 
 /** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
-export function toUpdateSurveyPayload({ title, period, allowMultipleSubmit }) {
-  return { judul: title, periode: period, allowMultipleSubmit };
+export function toUpdateSurveyPayload({ title, period, allowMultipleSubmit, izinkanAnonim }) {
+  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim };
 }
 
 /** Terjemahkan status frontend ('AKTIF' dkk) -> enum backend ('aktif' dkk). */
@@ -178,6 +213,7 @@ export function adaptSurveyFill(fill) {
     title: fill.judul,
     periode: fill.periode,
     allowMultipleSubmit: fill.allowMultipleSubmit,
+    izinkanAnonim: fill.izinkanAnonim === true,
     sudahMengisi: fill.sudahMengisi,
     questions: fill.questions.map(adaptFillQuestion),
   };
@@ -300,9 +336,14 @@ export function toUpdateQuestionOptionsPayload({ text, options }) {
  * jadi bentuk siap tampil, dgn `question` (dari GET /surveys/:id/questions,
  * di-Map-kan pemanggil) utk tampilkan teks+tipe pertanyaan di sebelah jawaban.
  */
-export function adaptSurveyResponseAnswer(answer, question) {
+export function adaptSurveyResponseAnswer(answer, question, nomor = null) {
   return {
     questionId: answer.questionId,
+    // Nomor soal DI DALAM SURVEI, bukan posisi jawaban di array (13 September
+    // 2026, laporan pengguna "nomornya terbalik dengan nomor soal di survei").
+    // `null` bila pertanyaannya sudah tak ada di survei -- lebih jujur daripada
+    // memberi nomor yang tak merujuk apa pun.
+    nomor,
     questionText: question?.text ?? `Pertanyaan #${answer.questionId}`,
     questionType: question?.type ?? null, // 'Skala Penilaian 1-4' | 'Isian Teks' | 'Pilihan Ganda'
     nilai: answer.nilai,
@@ -336,9 +377,10 @@ export function adaptSurveyResponseAnswer(answer, question) {
  * rata-rata `nilai` jawaban skala PADA RESPONS INI SAJA (bukan field backend),
  * beda dari `nilaiIkm` survei (itu rata-rata SELURUH responden, dihitung IkmService).
  */
-export function adaptSurveyResponse(response, questionsById) {
+export function adaptSurveyResponse(response, questions) {
+  const urutan = petaNomorPertanyaan(questions);
   const answers = (response.answers ?? []).map((a) =>
-    adaptSurveyResponseAnswer(a, questionsById.get(a.questionId)),
+    adaptSurveyResponseAnswer(a, urutan.get(a.questionId)?.question, urutan.get(a.questionId)?.nomor ?? null),
   );
   const scaleValues = answers.filter((a) => a.nilai != null).map((a) => a.nilai);
   const averageScore =
@@ -353,8 +395,25 @@ export function adaptSurveyResponse(response, questionsById) {
   };
 }
 
-export function adaptSurveyResponseList(responses, questionsById) {
-  return responses.map((r) => adaptSurveyResponse(r, questionsById));
+export function adaptSurveyResponseList(responses, questions) {
+  return responses.map((r) => adaptSurveyResponse(r, questions));
+}
+
+/**
+ * Peta id pertanyaan -> { nomor, question }, dengan `nomor` adalah POSISI
+ * pertanyaan di dalam survei (1-based).
+ *
+ * Posisi, bukan kolom `urutan` mentah: itulah angka yang benar-benar dilihat
+ * orang. Responden membaca "Pertanyaan N dari M" yang dihitung dari posisi
+ * (SurveyProgress.jsx), dan builder menomori kanvasnya dengan cara yang sama.
+ * Memakai `urutan` mentah akan menyimpang begitu ada lompatan nilai.
+ *
+ * `GET /surveys/:id/questions` sudah mengirim pertanyaannya terurut
+ * (QuestionEntity: "Terurut sesuai `urutan`"), jadi posisi array di sini memang
+ * urutan survei -- bukan kebetulan.
+ */
+function petaNomorPertanyaan(questions) {
+  return new Map((questions ?? []).map((q, i) => [q.id, { nomor: i + 1, question: q }]));
 }
 
 /**

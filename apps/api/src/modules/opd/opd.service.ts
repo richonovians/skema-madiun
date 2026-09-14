@@ -13,6 +13,7 @@ import { OpdEntity } from './entities/opd.entity';
 import { OpdSyncReport } from './entities/opd-sync-report.entity';
 import { HelpdeskOpd, OpdSource } from './interfaces/opd-source.interface';
 import { OPD_SOURCE } from './opd.constants';
+import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 @Injectable()
 export class OpdService {
@@ -76,7 +77,7 @@ export class OpdService {
     const [surveyCounts, complaintCounts] = await Promise.all([
       this.prisma.survey.groupBy({
         by: ['opdId'],
-        where: { opdId: { in: opdIds }, status: SurveyStatus.aktif },
+        where: { opdId: { in: opdIds }, status: SurveyStatus.aktif, ...TIDAK_DIBUANG },
         _count: { _all: true },
       }),
       this.prisma.complaint.groupBy({
@@ -91,7 +92,16 @@ export class OpdService {
 
     return {
       activeSurveysByOpd: new Map(surveyCounts.map((c) => [c.opdId, c._count._all])),
-      openComplaintsByOpd: new Map(complaintCounts.map((c) => [c.opdId, c._count._all])),
+      // `flatMap` + penjagaan null, bukan `map`: sejak `complaints.opd_id`
+      // boleh NULL (6 September 2026) groupBy mengembalikan `number | null`.
+      // Penyaring `where` di atas sudah membatasi ke opdIds yang ada, jadi ini
+      // tak pernah terpakai -- tapi membiarkannya berarti pengaduan tanpa
+      // tujuan kelak terhitung sebagai milik "OPD null".
+      openComplaintsByOpd: new Map(
+        complaintCounts.flatMap((c) =>
+          c.opdId == null ? [] : [[c.opdId, c._count._all] as [number, number]],
+        ),
+      ),
     };
   }
 

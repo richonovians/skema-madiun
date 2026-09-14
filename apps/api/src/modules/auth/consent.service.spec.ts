@@ -5,7 +5,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { ConsentService } from './consent.service';
 
-const cu = (role: Role, userId = 5): CurrentUser => ({ userId, role, opdId: null });
+const cu = (actingRole: Role, userId = 5): CurrentUser => ({
+  userId,
+  roles: [actingRole],
+  actingRole,
+  opdId: null,
+});
 
 function buat() {
   const prisma = {
@@ -66,6 +71,37 @@ describe('ConsentService.assertConsented', () => {
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
     },
   );
+
+  /**
+   * Permintaan pengguna 14 September 2026: kalimat "Buka halaman Persetujuan
+   * terlebih dahulu" jadi TOMBOL di layar. Frontend mengenalinya lewat KODE,
+   * bukan bunyi pesan -- alasannya sudah tertulis di api.js untuk kasus
+   * ROLE_SELECTION_REQUIRED: "pesan bisa diubah kapan saja tanpa ada yang
+   * memerah".
+   */
+  it('penolakannya membawa kode CONSENT_REQUIRED, bukan sekadar pesan', async () => {
+    const { service, prisma } = buat();
+    prisma.user.findUnique.mockResolvedValue({ consentAt: null });
+
+    const galat = await service.assertConsented(cu(Role.responden)).catch((e) => e);
+
+    expect(galat).toBeInstanceOf(ForbiddenException);
+    expect((galat.getResponse() as { code?: string }).code).toBe('CONSENT_REQUIRED');
+  });
+
+  /**
+   * Kalimat perintahnya DIBUANG dari pesan: tombol di layar yang melakukannya,
+   * dan menyisakan keduanya berarti menyuruh hal yang sama dua kali.
+   */
+  it('pesannya tak lagi menyuruh membuka halaman sendiri', async () => {
+    const { service, prisma } = buat();
+    prisma.user.findUnique.mockResolvedValue({ consentAt: null });
+
+    const galat = await service.assertConsented(cu(Role.responden)).catch((e) => e);
+
+    expect(galat.message).toMatch(/persetujuan/i);
+    expect(galat.message).not.toMatch(/buka halaman/i);
+  });
 
   it('pengguna hilang dari DB -> Forbidden, bukan lolos diam-diam', async () => {
     const { service, prisma } = buat();

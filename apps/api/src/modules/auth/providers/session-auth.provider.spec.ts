@@ -10,7 +10,7 @@ const req = (authorization?: string) => ({ headers: { authorization } });
 
 const userRow = (over: Record<string, unknown> = {}) => ({
   id: 42,
-  role: Role.opd,
+  roles: [Role.opd],
   opdId: 5,
   ssoSubject: 'seed-opd',
   isActive: true,
@@ -69,7 +69,17 @@ describe('SessionAuthProvider', () => {
 
     const result = await provider.resolveUser(req('Bearer valid-token'));
 
-    expect(result).toEqual({ userId: 42, role: Role.opd, opdId: 5, ssoSubject: 'seed-opd' });
+    // `roles` (kepemilikan) DAN `actingRole` (yang dipakai) dua-duanya
+    // diperiksa: akun ber-role tunggal tak perlu memilih, jadi keduanya
+    // menunjuk role yang sama -- dan itulah yang membuktikan cabang "tanpa
+    // klaim act & role tunggal" pada resolveActingRole benar-benar dilalui.
+    expect(result).toEqual({
+      userId: 42,
+      roles: [Role.opd],
+      actingRole: Role.opd,
+      opdId: 5,
+      ssoSubject: 'seed-opd',
+    });
     expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 42 } });
   });
 

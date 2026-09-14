@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button';
 import { Search, Download, FileText, ChevronDown, Filter } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Filter "Prioritas" & "Kecamatan" DIHAPUS -- tak ada field ini di backend
@@ -43,7 +44,7 @@ export default function ComplaintFilterBar({
 
   const statusOptions = [
     { value: '', label: 'Semua Status' },
-    { value: 'Diterima', label: 'Diterima' },
+    { value: 'Diterima', label: COMPLAINT_STATUS_LABEL.Diterima },
     { value: 'Diproses', label: 'Diproses' },
     { value: 'Selesai', label: 'Selesai' },
     { value: 'Ditolak', label: 'Ditolak' },
@@ -148,11 +149,18 @@ export default function ComplaintFilterBar({
       <div
         className={`grid grid-cols-1 sm:grid-cols-3 gap-md ${isMobileFilterOpen ? 'block' : 'hidden md:grid'}`}
       >
+        {/* Medan cari, 11 September 2026 -- kembar dengan SurveyFilterBar.jsx,
+            termasuk alasannya. Syarat `> 1` sebab isi terkecil daftar ini
+            adalah "Semua OPD" seorang diri. */}
         <Dropdown
           options={opdOptions}
           value={filters.opd}
           onChange={(val) => handleChange('opd', val)}
           placeholder="Semua OPD"
+          searchable={opdOptions.length > 1}
+          searchAriaLabel="Cari OPD"
+          searchPlaceholder="Cari nama OPD..."
+          emptySearchLabel="Tidak ada OPD yang cocok"
         />
         <Dropdown
           options={statusOptions}

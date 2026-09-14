@@ -3,6 +3,7 @@ import Link from 'next/link';
 import EmptyState from '@/components/ui/EmptyState';
 import { Inbox, ArrowRight, AlertTriangle } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 // Empat status ComplaintStatus backend, dalam urutan alur penanganan.
 // Label sudah bentuk frontend (lihat STATUS_MAP di complaint.adapter.js).
@@ -78,7 +79,7 @@ export default function ComplaintStatusBreakdown({
                   <div className="flex justify-between items-center text-xs">
                     <span className="flex items-center gap-1.5 font-medium text-on-surface-variant">
                       <span className={`w-2 h-2 rounded-full ${row.dot}`}></span>
-                      {row.key}
+                      {COMPLAINT_STATUS_LABEL[row.key] ?? row.key}
                     </span>
                     <span className="font-bold text-on-surface">
                       {row.count}

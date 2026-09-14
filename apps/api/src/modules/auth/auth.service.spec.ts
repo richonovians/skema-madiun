@@ -7,14 +7,20 @@ import type { AuditService } from '../audit/audit.service';
 import { AuthService } from './auth.service';
 import type { SessionService } from './session/session.service';
 
-const cu = (role: Role, userId = 1): CurrentUser => ({ userId, role, opdId: null });
+const cu = (actingRole: Role, userId = 1, over: Partial<CurrentUser> = {}): CurrentUser => ({
+  userId,
+  roles: [actingRole],
+  actingRole,
+  opdId: null,
+  ...over,
+});
 
 const userRow = (overrides: Record<string, unknown> = {}) => ({
   id: 1,
   ssoSubject: 'x',
   nama: 'A',
   email: 'a@x.go.id',
-  role: Role.kabupaten,
+  roles: [Role.kabupaten],
   opdId: null,
   isActive: true,
   lastLoginAt: null,
@@ -100,7 +106,7 @@ describe('AuthService', () => {
      */
     it('devLogin melaporkan consentRequired & ssoLinked, sama seperti getMe', async () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(
-        userRow({ role: Role.responden, consentAt: null, ssoSubject: 'seed-responden' }),
+        userRow({ roles: [Role.responden], consentAt: null, ssoSubject: 'seed-responden' }),
       );
       (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
 
@@ -112,7 +118,7 @@ describe('AuthService', () => {
 
     it('consentAt sendiri TIDAK ikut keluar', async () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(
-        userRow({ role: Role.responden, consentAt: new Date() }),
+        userRow({ roles: [Role.responden], consentAt: new Date() }),
       );
 
       const me = await service.getMe(cu(Role.responden));
@@ -224,7 +230,9 @@ describe('AuthService', () => {
 
       expect(result.token).toBe('signed.jwt.token');
       expect(result.user.email).toBe('a@x.go.id');
-      expect(sessionService.issue).toHaveBeenCalledWith(1);
+      // Argumen kedua (peran yang dipilih) `undefined` di sini: akun uji ini
+      // ber-role tunggal dan permintaannya tak menyebut peran apa pun.
+      expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 1 } }),
       );
@@ -241,6 +249,76 @@ describe('AuthService', () => {
   describe('logout', () => {
     it('mengembalikan konfirmasi sukses (stateless — tak ada state server yang diubah)', () => {
       expect(service.logout()).toEqual({ success: true });
+    });
+  });
+
+  /**
+   * Ganti peran tanpa logout (5 September 2026). Kepemilikan diperiksa dari
+   * `user.roles` -- hasil pembacaan basis data pada permintaan ini
+   * (SessionAuthProvider), BUKAN dari klaim token yang bisa saja sudah basi.
+   */
+  describe('setActingRole', () => {
+    it('menerbitkan sesi baru berisi klaim act yang diminta', async () => {
+      (sessionService.issue as jest.Mock).mockReturnValue('token-baru');
+
+      const hasil = await service.setActingRole(
+        cu(Role.superuser, 9, { roles: [Role.superuser, Role.opd], opdId: 1 }),
+        Role.opd,
+      );
+
+      expect(sessionService.issue).toHaveBeenCalledWith(9, Role.opd);
+      expect(hasil.token).toBe('token-baru');
+    });
+
+    it('MENOLAK role yang tidak dimiliki akun, tanpa menerbitkan apa pun', async () => {
+      await expect(
+        service.setActingRole(cu(Role.opd, 9, { roles: [Role.opd], opdId: 1 }), Role.superuser),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(sessionService.issue).not.toHaveBeenCalled();
+    });
+
+    it('MENOLAK role opd bila akun tak tertaut OPD', async () => {
+      await expect(
+        service.setActingRole(
+          cu(Role.superuser, 9, { roles: [Role.superuser, Role.opd], opdId: null }),
+          Role.opd,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('devLogin memilih peran', () => {
+    it('meneruskan peran yang diminta ke penerbit token', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        userRow({ roles: [Role.superuser, Role.opd], opdId: 1 }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
+
+      await service.devLogin({ identifier: 'a@x.go.id', role: Role.opd });
+
+      expect(sessionService.issue).toHaveBeenCalledWith(1, Role.opd);
+    });
+
+    /**
+     * Jalur dev TIDAK boleh menjadi jalan memperoleh hak yang tak dimiliki --
+     * ia menerbitkan sesi untuk email mana pun tanpa kata sandi.
+     */
+    it('MENOLAK peran yang tak dimiliki akun', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ roles: [Role.opd] }));
+
+      await expect(
+        service.devLogin({ identifier: 'a@x.go.id', role: Role.superuser }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('tanpa peran diminta & role TUNGGAL -> token tanpa klaim act', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ roles: [Role.kabupaten] }));
+      (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
+
+      await service.devLogin({ identifier: 'a@x.go.id' });
+
+      expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
     });
   });
 });

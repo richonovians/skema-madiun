@@ -20,6 +20,15 @@ export const SURVEY_STATUS_BADGE_VARIANT = {
   DITUTUP: 'secondary',
 };
 
+/**
+ * Kunci di sini adalah status internal frontend (hasil STATUS_MAP di
+ * complaint.adapter.js), nilainya kata yang dibaca orang.
+ *
+ * SEMUA komponen wajib mengambil katanya dari sini. Sebelum 11 September 2026
+ * peta ini sudah ada namun tak satu pun komponen memakainya -- dua belas
+ * komponen menyalin labelnya sendiri-sendiri, sehingga mengganti satu kata
+ * berarti menyunting dua belas berkas dan berharap tak ada yang terlewat.
+ */
 export const COMPLAINT_STATUS_LABEL = {
   Diterima: 'Diterima',
   Diproses: 'Diproses',

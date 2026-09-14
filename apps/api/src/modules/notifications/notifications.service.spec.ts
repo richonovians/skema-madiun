@@ -6,7 +6,12 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from './notifications.service';
 
-const respondenUser = (userId = 10): CurrentUser => ({ userId, role: Role.responden, opdId: null });
+const respondenUser = (userId = 10): CurrentUser => ({
+  userId,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+});
 
 /**
  * Sejak superuser dipisah kembali (2026-08-20), broadcast pengawasan menyasar
@@ -14,8 +19,8 @@ const respondenUser = (userId = 10): CurrentUser => ({ userId, role: Role.respon
  * di bawah membedakan kueri itu lewat bentuknya, bukan mencocokkan nilai persis,
  * supaya penambahan peran berhak penuh tak perlu menyunting tiap mock lagi.
  */
-const isFullAccessQuery = (where: { role?: unknown }): boolean =>
-  typeof where.role === 'object' && where.role !== null && 'in' in where.role;
+const isFullAccessQuery = (where: { roles?: unknown }): boolean =>
+  typeof where.roles === 'object' && where.roles !== null && 'hasSome' in where.roles;
 
 const complaint = (over: Partial<Complaint> = {}): Complaint =>
   ({
@@ -24,7 +29,6 @@ const complaint = (over: Partial<Complaint> = {}): Complaint =>
     userId: 10,
     opdId: 5,
     kategori: 'lainnya',
-    subKategori: null,
     judul: 'Jalan rusak',
     uraian: 'Uraian',
     status: ComplaintStatus.diterima,
@@ -44,6 +48,7 @@ describe('NotificationsService', () => {
       updateMany: jest.fn(),
     },
     user: { findMany: jest.fn() },
+    surveyResponse: { count: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const service = new NotificationsService(prisma);
@@ -59,7 +64,7 @@ describe('NotificationsService', () => {
   describe('notifyComplaintCreated', () => {
     it('membuat notifikasi utk Admin OPD tujuan (link admin-opd), TIDAK utk pelapor', async () => {
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
-        if (where.role === Role.opd) return Promise.resolve([{ id: 200 }]);
+        if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
         return Promise.resolve([]);
       });
 
@@ -129,7 +134,9 @@ describe('NotificationsService', () => {
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: {
-          role: { in: [...FULL_ACCESS_ROLES] },
+          // `hasSome`, bukan `in`: kolomnya kini array (5 September 2026), dan
+          // yang dicari adalah akun yang MEMILIKI salah satu role berhak penuh.
+          roles: { hasSome: [...FULL_ACCESS_ROLES] },
           isActive: true,
           id: { not: 999 },
         },
@@ -154,14 +161,14 @@ describe('NotificationsService', () => {
   describe('notifyComplaintReply', () => {
     it('responden membalas -> semua Admin OPD aktif pemilik diberi tahu (link admin-opd)', async () => {
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
-        if (where.role === Role.opd) return Promise.resolve([{ id: 100 }, { id: 101 }]);
+        if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 100 }, { id: 101 }]);
         return Promise.resolve([]);
       });
 
       await service.notifyComplaintReply(complaint({ userId: 10, opdId: 5 }), 10);
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
-        where: { role: Role.opd, opdId: 5, isActive: true },
+        where: { roles: { has: Role.opd }, opdId: 5, isActive: true },
         select: { id: true },
       });
       expect(prisma.notification.create).toHaveBeenCalledWith(
@@ -204,6 +211,175 @@ describe('NotificationsService', () => {
           }),
         }),
       );
+    });
+  });
+
+  /**
+   * Jawaban survei masuk (13 September 2026, laporan pengguna: notifikasinya
+   * "belum masuk ke admin OPD dan admin kabupaten/superuser").
+   *
+   * Dikirim pada TONGGAK saja. Uji "jawaban ke-2 s.d. ke-9" di bawah itulah
+   * yang membedakan keputusan ini dari "satu jawaban satu notifikasi": survei
+   * IKM bertarget ratusan responden akan mengubur notifikasi pengaduan yang
+   * benar-benar butuh tindakan.
+   */
+  describe('notifySurveyResponse', () => {
+    const survei = (over: Record<string, unknown> = {}) => ({
+      id: 7,
+      judul: 'Survei Kepuasan Layanan',
+      opdId: 5,
+      ...over,
+    });
+    const jumlahJawaban = (n: number) =>
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(n);
+
+    it('jawaban pertama -> Admin OPD pemilik survei diberi tahu (link halaman responden)', async () => {
+      jumlahJawaban(1);
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
+        return Promise.resolve([]);
+      });
+
+      await service.notifySurveyResponse(survei(), 10);
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        where: { roles: { has: Role.opd }, opdId: 5, isActive: true },
+        select: { id: true },
+      });
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 200,
+          type: NotificationType.survey_response_created,
+          title: 'Survei Mulai Menerima Jawaban',
+          message: 'Survei "Survei Kepuasan Layanan" menerima jawaban pertama',
+          link: '/admin-opd/surveys/7/responses',
+        },
+      });
+    });
+
+    it('jawaban ke-2 sampai ke-9 TIDAK memicu notifikasi apa pun', async () => {
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 200 }]);
+
+      for (const n of [2, 3, 4, 5, 6, 7, 8, 9]) {
+        jumlahJawaban(n);
+        await service.notifySurveyResponse(survei(), 10);
+      }
+
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+    });
+
+    it.each([10, 25, 50, 100])(
+      'tonggak ke-%i memicu notifikasi yang menyebut jumlahnya',
+      async (n) => {
+        jumlahJawaban(n);
+        (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+          if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
+          return Promise.resolve([]);
+        });
+
+        await service.notifySurveyResponse(survei(), 10);
+
+        expect(prisma.notification.create).toHaveBeenCalledWith({
+          data: {
+            userId: 200,
+            type: NotificationType.survey_response_created,
+            title: 'Jawaban Survei Bertambah',
+            message: `Survei "Survei Kepuasan Layanan" telah menerima ${n} jawaban`,
+            link: '/admin-opd/surveys/7/responses',
+          },
+        });
+      },
+    );
+
+    it('sesudah 100, hanya kelipatan 100 yang memicu -- 150 diam, 200 berbunyi', async () => {
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 200 }]);
+
+      jumlahJawaban(150);
+      await service.notifySurveyResponse(survei(), 10);
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+
+      jumlahJawaban(200);
+      await service.notifySurveyResponse(survei(), 10);
+      expect(prisma.notification.create).toHaveBeenCalled();
+    });
+
+    it('juga memberi tahu kabupaten & superuser (link admin-kab)', async () => {
+      jumlahJawaban(1);
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
+        return Promise.resolve([]);
+      });
+
+      await service.notifySurveyResponse(survei(), 10);
+
+      expect(prisma.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 300,
+            link: '/admin-kab/surveys/7/responses',
+          }),
+        }),
+      );
+    });
+
+    /**
+     * Kerahasiaan responden. Survei boleh diisi anonim, dan identitas pengisi
+     * IKM memang bukan hal yang perlu diketahui admin -- jadi nomor pengguna
+     * pengisi tak boleh bocor lewat pesan notifikasi.
+     */
+    it('pesan & judul tak pernah menyebut identitas pengisi', async () => {
+      jumlahJawaban(1);
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 200 }]);
+
+      await service.notifySurveyResponse(survei(), 4242);
+
+      expect(prisma.notification.create).toHaveBeenCalled();
+      for (const [arg] of (prisma.notification.create as jest.Mock).mock.calls) {
+        expect(`${arg.data.title} ${arg.data.message}`).not.toContain('4242');
+      }
+    });
+
+    it('pengisi yang kebetulan berhak penuh dikecualikan dari broadcast kabupaten', async () => {
+      jumlahJawaban(1);
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.notifySurveyResponse(survei(), 42);
+
+      const kueriKab = (prisma.user.findMany as jest.Mock).mock.calls
+        .map(([arg]) => arg.where)
+        .filter((where) => isFullAccessQuery(where));
+      expect(kueriKab).toHaveLength(1);
+      expect(kueriKab[0].id).toEqual({ not: 42 });
+    });
+
+    /**
+     * Pengisi tanpa sesi (rute /survei/:id) tak punya baris `users` sama
+     * sekali. Tak ada yang perlu dikecualikan, dan yang penting: kueri
+     * penerimanya tetap berjalan, bukan tersaring habis oleh id semu.
+     */
+    it('pengisi tanpa sesi (null) -> kabupaten tetap dikabari, tanpa pengecualian id', async () => {
+      jumlahJawaban(1);
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
+        return Promise.resolve([]);
+      });
+
+      await service.notifySurveyResponse(survei(), null);
+
+      const kueriKab = (prisma.user.findMany as jest.Mock).mock.calls
+        .map(([arg]) => arg.where)
+        .filter((where) => isFullAccessQuery(where));
+      expect(kueriKab).toHaveLength(1);
+      expect(kueriKab[0]).not.toHaveProperty('id');
+      expect(prisma.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 300 }) }),
+      );
+    });
+
+    it('gagal menghitung jawaban TIDAK melempar error (efek samping, bukan aksi utama)', async () => {
+      (prisma.surveyResponse.count as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
+      await expect(service.notifySurveyResponse(survei(), 10)).resolves.toBeUndefined();
+      expect(prisma.notification.create).not.toHaveBeenCalled();
     });
   });
 

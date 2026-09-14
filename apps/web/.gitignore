@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+# Artefak `playwright test`: laporan HTML, plus jejak/tangkapan layar/
+# video per percobaan. Ditulis ulang tiap kali suite dijalankan dan
+# ukurannya besar, jadi tak ada gunanya masuk riwayat.
+/playwright-report/
+/test-results/
 
 # playwright (hasil jalan & laporan, bukan berkas sumber)
 /test-results/

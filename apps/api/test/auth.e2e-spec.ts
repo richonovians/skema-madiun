@@ -29,7 +29,7 @@ describe('Auth me/profile (e2e)', () => {
         ssoSubject: 'e2e-responden',
         nama: 'Responden E2E',
         email: 'responden@auth.e2e.test',
-        role: Role.responden,
+        roles: [Role.responden],
         isActive: true,
       },
     });
@@ -127,7 +127,7 @@ describe('Auth me/profile (e2e)', () => {
           ssoSubject: 'e2e-devlogin-inactive',
           nama: 'Nonaktif E2E',
           email: 'nonaktif@auth.e2e.test',
-          role: Role.responden,
+          roles: [Role.responden],
           isActive: false,
         },
       });

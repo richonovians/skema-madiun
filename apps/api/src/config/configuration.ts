@@ -3,6 +3,8 @@
  * Dimuat oleh ConfigModule (`load: [configuration]`) sehingga dapat diakses lewat
  * `ConfigService.get('app.port')`, dsb. Nilai env sudah divalidasi oleh validateEnv.
  */
+import { BATAS_HARIAN_PENGADUAN_BAKU } from '../modules/complaints/complaints.constants';
+
 export default () => ({
   app: {
     nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -58,10 +60,33 @@ export default () => ({
     ttlMs: parseInt(process.env.THROTTLE_TTL_MS ?? '60000', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT ?? '100', 10),
   },
+  turnstile: {
+    // Kosong = verifikasi MATI (lihat TurnstileService untuk penjaganya di
+    // produksi). Site key-nya ada di sisi web, bukan di sini: ia memang untuk
+    // dipajang di HTML.
+    secretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
+  },
+  complaint: {
+    // Bakunya di complaints.constants.ts, bersama alasan angkanya.
+    batasHarian: parseInt(
+      process.env.COMPLAINT_DAILY_LIMIT ?? String(BATAS_HARIAN_PENGADUAN_BAKU),
+      10,
+    ),
+  },
   upload: {
     // Path lokal (relatif ke cwd proses) — storage lokal via volume Docker dulu (keputusan
     // arsitektur), siap dipindah ke S3 nanti tanpa mengubah kontrak `fileUrl` di DB.
     dir: process.env.UPLOAD_DIR ?? 'uploads',
+
+    // Masa berlaku URL lampiran bertanda tangan (T1, 7 September 2026).
+    //
+    // 1 jam adalah kompromi yang disengaja. Lebih pendek berarti gambar pada
+    // halaman yang dibuka lama akan gagal dimuat ulang dan pengguna melihat
+    // lampiran rusak tanpa sebab yang jelas; lebih panjang memperlebar jendela
+    // di mana URL yang bocor (log, riwayat peramban, tangkapan layar, `Referer`)
+    // masih dapat dipakai. URL-nya SENDIRI adalah kredensialnya, jadi angka ini
+    // yang menentukan seberapa lama kebocoran itu berguna.
+    signedUrlTtlSeconds: parseInt(process.env.UPLOAD_SIGNED_URL_TTL_SECONDS ?? '3600', 10),
   },
   session: {
     jwtSecret: process.env.SESSION_JWT_SECRET,
@@ -108,5 +133,29 @@ export default () => ({
     // satu baris env. Lihat sso-role.mapper.ts untuk aturan penguraiannya --
     // termasuk kenapa `superuser` tak pernah bisa dipetakan dari sini.
     ssoRoleMap: process.env.HELPDESK_SSO_ROLE_MAP,
+
+    // Nama field klaim userinfo yang membawa OPD seorang ASN, dipisah koma
+    // (8 September 2026). Dikonfigurasi, bukan dipaku di kode, karena bentuk
+    // maupun nama field-nya belum dikonfirmasi Helpdesk.
+    //
+    // Kosong = pakai daftar baku (lihat sso-opd.mapper.ts). Bila tak ada yang
+    // cocok, SsoService mencatat NAMA-NAMA field yang benar-benar diterima —
+    // dari situlah nilai env ini diisi, tanpa perlu menebak.
+    ssoOpdClaim: process.env.HELPDESK_SSO_OPD_CLAIM,
+
+    // JALAN KELUAR DARURAT, baku MATI (temuan audit T5, 7 September 2026).
+    //
+    // Penautan akun lama lewat email menuntut `email_verified === true`. Bentuk
+    // klaim Helpdesk belum dikonfirmasi (butir 04 dokumen permintaan), jadi bila
+    // ternyata mereka tak mengirimkan klaim itu sama sekali, SELURUH akun lama
+    // gagal ditautkan pada hari go-live dan satu-satunya jalan adalah mengubah
+    // kode. Sakelar ini menjadikannya keputusan operasional yang tercatat:
+    // memakainya menulis baris audit `sso_link_email_unverified` pada SETIAP
+    // penautan, bukan diam-diam melewati pemeriksaan.
+    //
+    // Ia HANYA melonggarkan klaim yang HILANG. `email_verified: false` tetap
+    // ditolak walau sakelar ini hidup -- penyedia sudah menyatakan tidak, dan
+    // tak ada tafsir lain untuk itu.
+    ssoAllowUnverifiedEmailLink: process.env.HELPDESK_SSO_ALLOW_UNVERIFIED_EMAIL_LINK === 'true',
   },
 });

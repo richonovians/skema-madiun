@@ -7,6 +7,7 @@ import IkmLeaderboard from '@/features/dashboard/components/kabupaten/IkmLeaderb
 import ComplaintStatusDonut from '@/features/dashboard/components/kabupaten/ComplaintStatusDonut';
 import RecentActivities from '@/features/dashboard/components/kabupaten/RecentActivities';
 import LoadingState from '@/components/ui/LoadingState';
+import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { useAdminKabLayout } from '@/components/layouts/AdminKabLayoutProvider';
@@ -77,7 +78,7 @@ export default function AdminKabDashboardPage() {
     // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
     // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
     const profile = await getMyProfile();
-    const isSuperuser = profile.role === USER_ROLES.SUPERUSER;
+    const isSuperuser = profile.actingRole === USER_ROLES.SUPERUSER;
 
     const [statistics, auditLogs] = await Promise.all([
       getStatistics(),
@@ -146,6 +147,11 @@ export default function AdminKabDashboardPage() {
           <TrendingUp size={24} className="text-primary" />
           Ringkasan Kinerja Terkini (Detail Lengkap)
         </h2>
+        {/* Strip, bukan kartu ke-7: grid di bawah berisi 6 kartu pada 3 kolom
+            (dua baris penuh), dan kartu ketujuh akan yatim di baris terakhir. */}
+        <div className="mb-6">
+          <ActiveAccountsInfo activeCount={summary.activeUsers ?? null} scope="all" />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <MetricCard
             title="Indeks Kepuasan Masyarakat"

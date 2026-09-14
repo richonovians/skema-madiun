@@ -115,9 +115,20 @@ export class HelpdeskSsoClient implements SsoSource {
     return {
       sub,
       email: typeof claims.email === 'string' ? claims.email : null,
+      // Hanya boolean sejati yang dipercaya. Beberapa penyedia mengirimkannya
+      // sebagai string "true"/"false"; itu diterima juga, tapi bentuk lain
+      // (angka, kosong, tak ada) menjadi `null` = belum diketahui, BUKAN false
+      // -- pembedaan itu yang menentukan apakah sakelar darurat berlaku.
+      emailVerified: normalizeVerified(claims.email_verified),
       nama: pickName(claims),
       groups: claims.groups,
       role: claims.role,
+      // Seluruh klaim dibawa apa adanya (8 September 2026): field yang memuat
+      // OPD seorang ASN belum diketahui namanya, dan `HELPDESK_SSO_OPD_CLAIM`
+      // yang menentukannya perlu sesuatu untuk dibaca. Tak ada penyaringan di
+      // sini supaya field yang belum terpikir pun tetap dapat dikonfigurasi
+      // tanpa mengubah kode.
+      klaim: claims,
     };
   }
 
@@ -197,6 +208,20 @@ export class HelpdeskSsoClient implements SsoSource {
  * — ketiganya tercantum pada `claims_supported` Helpdesk, tapi tak ada jaminan
  * mana yang benar-benar terisi.
  */
+/** `true`/`false` bila klaimnya tegas, `null` bila tak ada atau tak dikenali. */
+function normalizeVerified(value: unknown): boolean | null {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  return null;
+}
+
 function pickName(claims: Record<string, unknown>): string | null {
   for (const key of ['name', 'preferred_username', 'nickname']) {
     const value = claims[key];

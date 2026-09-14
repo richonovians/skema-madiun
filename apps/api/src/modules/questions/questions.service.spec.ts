@@ -5,13 +5,28 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { QuestionsService } from './questions.service';
 
-const opdUser = (opdId: number | null): CurrentUser => ({ userId: 1, role: Role.opd, opdId });
+const opdUser = (opdId: number | null): CurrentUser => ({
+  userId: 1,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId,
+});
 
-const draftSurvey = (opdId = 5) => ({ id: 1, opdId, status: SurveyStatus.draft });
+// `deletedAt: null` WAJIB ada di tiap fixture survei: `assertSurveyEditable`
+// memeriksanya dengan `!== null`, sehingga fixture yang menghilangkan medan itu
+// akan ditolak sebagai "survei di Sampah" -- galat yang menyesatkan, dan bukan
+// aturan yang sedang diuji.
+const draftSurvey = (opdId = 5) => ({
+  id: 1,
+  opdId,
+  status: SurveyStatus.draft,
+  deletedAt: null,
+});
 
 describe('QuestionsService', () => {
   const prisma = {
-    survey: { findUnique: jest.fn() },
+    survey: { findUnique: jest.fn(), findFirst: jest.fn() },
+    surveyResponse: { count: jest.fn() },
     question: {
       findMany: jest.fn(),
       create: jest.fn(),
@@ -24,10 +39,16 @@ describe('QuestionsService', () => {
   } as unknown as PrismaService;
   const service = new QuestionsService(prisma);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Bakunya NOL jawaban -- keadaan seluruh uji lama, yang memang dibuat
+    // sebelum aturan bertingkat ada. Uji yang menguji penguncian menyebut
+    // angkanya sendiri.
+    (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+  });
 
   it('create menambah pertanyaan di urutan berikutnya (survei draft)', async () => {
-    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
     (prisma.question.aggregate as jest.Mock).mockResolvedValue({ _max: { urutan: 2 } });
     (prisma.question.create as jest.Mock).mockResolvedValue({
       id: 3,
@@ -51,24 +72,29 @@ describe('QuestionsService', () => {
     );
   });
 
-  it('create pada survei non-draft → BadRequest', async () => {
-    (prisma.survey.findUnique as jest.Mock).mockResolvedValue({
+  // ATURAN BERGANTI 11 September 2026: bukan lagi "hanya draf", melainkan
+  // bertingkat menurut ada-tidaknya jawaban. Survei aktif TANPA jawaban masih
+  // boleh disusun ulang; yang mengunci adalah jawaban yang sudah masuk.
+  it('create pada survei aktif yang SUDAH dijawab → BadRequest', async () => {
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue({
       id: 1,
       opdId: 5,
       status: SurveyStatus.aktif,
+      deletedAt: null,
     });
+    (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
     const dto: CreateQuestionDto = { teks: 'Q', tipe: QuestionType.skala };
-    await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
+    await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(/142 jawaban/);
   });
 
   it('create pada survei OPD lain → Forbidden', async () => {
-    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey(99));
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey(99));
     const dto: CreateQuestionDto = { teks: 'Q', tipe: QuestionType.skala };
     await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(ForbiddenException);
   });
 
   it('applyTemplate membuat 9 unsur (belum ada)', async () => {
-    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
     (prisma.question.findMany as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     (prisma.question.create as jest.Mock).mockResolvedValue({});
 
@@ -78,30 +104,30 @@ describe('QuestionsService', () => {
   });
 
   it('reorder dengan id tidak lengkap → BadRequest', async () => {
-    (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
     (prisma.question.findMany as jest.Mock).mockResolvedValue([{ id: 1 }, { id: 2 }]);
     await expect(service.reorder(1, { orderedIds: [1] }, opdUser(5))).rejects.toThrow(
       BadRequestException,
     );
   });
 
-  it('update pertanyaan pada survei non-draft → BadRequest', async () => {
+  it('update pertanyaan pada survei DITUTUP → BadRequest (hasil IKM sudah terbit)', async () => {
     (prisma.question.findUnique as jest.Mock).mockResolvedValue({
       id: 7,
-      survey: { opdId: 5, status: SurveyStatus.aktif },
+      survey: { opdId: 5, status: SurveyStatus.ditutup, deletedAt: null },
     });
     await expect(service.update(7, { teks: 'X' }, opdUser(5))).rejects.toThrow(BadRequestException);
   });
 
   describe('tipe pilihan', () => {
     it('create pilihan tanpa opsi → BadRequest', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
       const dto: CreateQuestionDto = { teks: 'Q', tipe: QuestionType.pilihan };
       await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(BadRequestException);
     });
 
     it('create pilihan dengan 1 opsi saja → BadRequest (minimal 2)', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
       const dto: CreateQuestionDto = {
         teks: 'Q',
         tipe: QuestionType.pilihan,
@@ -111,7 +137,7 @@ describe('QuestionsService', () => {
     });
 
     it('create pilihan dengan isIkmUnsur=true → BadRequest (unsur IKM hanya skala)', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
       const dto: CreateQuestionDto = {
         teks: 'Q',
         tipe: QuestionType.pilihan,
@@ -122,7 +148,7 @@ describe('QuestionsService', () => {
     });
 
     it('create skala dengan 2 opsi → BadRequest (skala butuh TEPAT 4 label skor)', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
       const dto: CreateQuestionDto = {
         teks: 'Q',
         tipe: QuestionType.skala,
@@ -132,7 +158,7 @@ describe('QuestionsService', () => {
     });
 
     it('create teks dengan options → BadRequest (isian teks tak punya opsi)', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
       const dto: CreateQuestionDto = {
         teks: 'Q',
         tipe: QuestionType.teks,
@@ -142,7 +168,7 @@ describe('QuestionsService', () => {
     });
 
     it('create pilihan valid (≥2 opsi) → sukses, opsi tersimpan nested', async () => {
-      (prisma.survey.findUnique as jest.Mock).mockResolvedValue(draftSurvey());
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
       (prisma.question.aggregate as jest.Mock).mockResolvedValue({ _max: { urutan: 0 } });
       (prisma.question.create as jest.Mock).mockResolvedValue({
         id: 5,
@@ -190,7 +216,7 @@ describe('QuestionsService', () => {
       (prisma.question.findUnique as jest.Mock).mockResolvedValue({
         id: 5,
         tipe: QuestionType.pilihan,
-        survey: { opdId: 5, status: SurveyStatus.draft },
+        survey: { opdId: 5, status: SurveyStatus.draft, deletedAt: null },
       });
       await expect(service.update(5, { isIkmUnsur: true }, opdUser(5))).rejects.toThrow(
         BadRequestException,
@@ -205,7 +231,7 @@ describe('QuestionsService', () => {
     const draftQuestion = (tipe: QuestionType) => ({
       id: 5,
       tipe,
-      survey: { opdId: 5, status: SurveyStatus.draft },
+      survey: { opdId: 5, status: SurveyStatus.draft, deletedAt: null },
     });
 
     const updatedRow = (tipe: QuestionType, options: unknown[]) => ({
@@ -331,12 +357,13 @@ describe('QuestionsService', () => {
       expect(call.data.options).toBeUndefined();
     });
 
-    it('survei non-draft → BadRequest sebelum opsi disentuh', async () => {
+    it('survei aktif yang sudah dijawab → BadRequest sebelum opsi disentuh', async () => {
       (prisma.question.findUnique as jest.Mock).mockResolvedValue({
         id: 5,
         tipe: QuestionType.skala,
-        survey: { opdId: 5, status: SurveyStatus.aktif },
+        survey: { opdId: 5, status: SurveyStatus.aktif, deletedAt: null },
       });
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
       await expect(
         service.update(
           5,
@@ -347,6 +374,78 @@ describe('QuestionsService', () => {
         ),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.question.update).not.toHaveBeenCalled();
+    });
+  });
+  /**
+   * ATURAN UBAH BERTINGKAT (11 September 2026). Tiga baris tabel §2.4 spec yang
+   * paling menentukan, termasuk yang BOLEH -- tanpa uji yang mengizinkan,
+   * penjaga yang terlanjur terlalu ketat tak akan memerahkan apa pun.
+   */
+  describe('aturan ubah survei terbit', () => {
+    it('memperbaiki teks pertanyaan survei aktif yang sudah dijawab: BOLEH', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue({
+        id: 9,
+        surveyId: 1,
+        tipe: QuestionType.skala,
+        survey: { opdId: 5, status: SurveyStatus.aktif, deletedAt: null },
+      });
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+      (prisma.question.update as jest.Mock).mockResolvedValue({
+        id: 9,
+        surveyId: 1,
+        teks: 'Persyaratan pelayanan',
+        tipe: QuestionType.skala,
+        isIkmUnsur: true,
+        kodeUnsur: 'U1',
+        urutan: 1,
+        createdAt: new Date(),
+        options: [],
+      });
+
+      await expect(
+        service.update(9, { teks: 'Persyaratan pelayanan' }, opdUser(5)),
+      ).resolves.toBeDefined();
+    });
+
+    it('mengubah OPSI pertanyaan survei aktif yang sudah dijawab: DITOLAK', async () => {
+      (prisma.question.findUnique as jest.Mock).mockResolvedValue({
+        id: 9,
+        surveyId: 1,
+        tipe: QuestionType.pilihan,
+        survey: { opdId: 5, status: SurveyStatus.aktif, deletedAt: null },
+      });
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+
+      await expect(
+        service.update(9, { options: [{ label: 'Ya' }, { label: 'Tidak' }] }, opdUser(5)),
+      ).rejects.toThrow(/142 jawaban/);
+      expect(prisma.question.update).not.toHaveBeenCalled();
+    });
+
+    it('menambah pertanyaan pada survei aktif TANPA jawaban: BOLEH', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({
+        id: 1,
+        opdId: 5,
+        status: SurveyStatus.aktif,
+        deletedAt: null,
+      });
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+      (prisma.question.aggregate as jest.Mock).mockResolvedValue({ _max: { urutan: 0 } });
+      (prisma.question.create as jest.Mock).mockResolvedValue({
+        id: 3,
+        surveyId: 1,
+        teks: 'Pertanyaan baru',
+        tipe: QuestionType.teks,
+        isIkmUnsur: false,
+        kodeUnsur: null,
+        urutan: 1,
+        createdAt: new Date(),
+        options: [],
+      });
+
+      await expect(
+        service.create(1, { teks: 'Pertanyaan baru', tipe: QuestionType.teks }, opdUser(5)),
+      ).resolves.toBeDefined();
     });
   });
 });

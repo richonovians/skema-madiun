@@ -34,11 +34,14 @@ export async function getUserById(userId) {
 }
 
 /**
- * Mengubah nama/OPD tautan/role akun (2026-08-05: role kini bisa diubah
- * kabupaten, PATCH /users/:id -- backend menolak 403 bila userId == diri
- * sendiri, cegah self-lockout).
+ * Mengubah ROLE akun (`PATCH /users/:id`).
+ *
+ * HANYA role, sejak 8 September 2026: `nama` & `opdId` berasal dari Helpdesk
+ * dan backend menolak keduanya dengan 400 (UpdateUserDto). Sejak 2026-08-20
+ * hanya superuser yang boleh memanggilnya, dan backend menolak 403 bila
+ * userId == diri sendiri (cegah self-lockout).
  * @param {number|string} userId
- * @param {{fullName?: string, opdId?: number, role?: string}} payload
+ * @param {{roles?: string[]}} payload
  * @returns {Promise<Object>}
  */
 export async function updateUser(userId, payload) {
@@ -67,4 +70,16 @@ export async function updateUserStatus(userId, isActive) {
 export async function deleteUser(userId) {
   const response = await api.delete(`/users/${userId}`);
   return adaptUser(response.data);
+}
+
+/**
+ * Jumlah akun aktif & total (`GET /users/stats`, 6 September 2026).
+ *
+ * Dipisah dari `getUsers` walau halaman ini memuat keduanya: daftar akun
+ * dipaginasi, jadi jumlah barisnya BUKAN jumlah akun -- memakai `meta.total`
+ * akan menghitung yang aktif dan yang nonaktif sekaligus.
+ */
+export async function getUserStats() {
+  const response = await api.get('/users/stats');
+  return response.data;
 }
