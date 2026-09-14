@@ -7,7 +7,7 @@
 | **Dokumen Acuan**      | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Dokumen Pendamping** | TEST_PLAN.md                                                                           |
 | **Versi**              | 2.2                                                                                    |
-| **Tanggal**            | 4 September 2026 (v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
+| **Tanggal**            | 15 September 2026 (v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
 
 **Konvensi:**
 
@@ -146,7 +146,17 @@ Referensi: PRD §8.1, Routes §A.1, kode `apps/api/src/modules/auth/**`
 | `/dashboard`, `/complaints`, `/surveys`, `/profile` |   ↪️ `/`    |       ✅        | ↪️ `/admin-opd/dashboard` | ↪️ `/admin-kab/dashboard` |
 | `/admin-kab/**`                                     |   ↪️ `/`    | ↪️ `/dashboard` | ↪️ `/admin-opd/dashboard` |            ✅             |
 | `/admin-opd/dashboard`                              |   ↪️ `/`    | ↪️ `/dashboard` |            ✅             | ↪️ `/admin-kab/dashboard` |
-| `/admin-opd/**` (selain `dashboard`)                |   ↪️ `/`    | ↪️ `/dashboard` |            ✅             |            ✅             |
+| `/admin-opd/**` (selain `dashboard`)                |   ↪️ `/`    | ↪️ `/dashboard` |            ✅             | ↪️ `/admin-kab/dashboard` |
+
+> **Kolom `kabupaten` pada baris terakhir BERUBAH 15 September 2026.** Sampai
+> peran jamak (`62e9cdc`), tabel area di `proxy.js` bernama
+> `SUPERUSER_AREA_PREFIXES` dan hanya berlaku bagi superuser yang sudah memilih
+> area; peran `kabupaten` biasa boleh menengok `/admin-opd/*` kecuali
+> dashboard-nya (keputusan 6 Agustus 2026). Tabel itu kini bernama
+> `ROLE_PREFIXES`, berlaku bagi SETIAP peran, dan berisi
+> `kabupaten: ['/admin-kab']` — seluruh area OPD tertutup baginya. Sejalan
+> dengan rancangan peran jamak: yang butuh area OPD **berganti peran**, bukan
+> menembus batas areanya.
 
 > Dua perilaku yang mudah disalahpahami sebagai bug, padahal disengaja:
 >
@@ -575,13 +585,28 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | `features/dashboard/components/__tests__/GrafikDashboard.test.jsx`     |   **11**    | **TC-FE-012**                              |
 | `features/dashboard/components/__tests__/RingkasanDashboard.test.jsx`  |   **14**    | **TC-FE-045**                              |
 | `features/surveys/components/__tests__/SurveyResponses.test.jsx`       |   **10**    | **TC-FE-042**                              |
-| **Total (Jest — `pnpm test`)**                                         |   **195**   | 24 berkas                                  |
+| **Total (Jest — `pnpm test`)**                                         |   **663**   | 89 berkas                                  |
 
 > Sepuluh berkas terbawah ditambahkan 3 September 2026 (**+115 test**, 80 → 195;
 > 14 → 24 berkas). Angkanya dibaca dari keluaran `--json` Jest, bukan dijumlah
 > dengan tangan. **Tiap berkas dibuktikan bisa merah** lewat mutasi sengaja pada
 > kode produksi yang kemudian dikembalikan — dua belas siklus mutasi, dan
 > `git diff apps/web/src` bersih dari perubahan non-uji sesudahnya.
+>
+> **15 September 2026 — tabel di atas tak lagi menggambarkan seluruh suite.**
+> Menarik `main` ke `tester` membawa 65 berkas uji baru: **tim pengembang kini
+> ikut menulis uji sendiri**, dan totalnya menjadi **663 test di 89 berkas**.
+> Tabel ini sengaja TIDAK dipanjangkan menjadi 89 baris — ia dibuat untuk
+> menjawab "kasus uji mana yang sudah terotomatisasi", dan pertanyaan itu
+> sekarang dijawab oleh berkasnya sendiri. Yang masih berguna dicatat di sini
+> adalah **berkas milik penguji** yang berubah pada tarikan itu:
+>
+> | Berkas | Yang terjadi |
+> | ------ | ------------ |
+> | `AdminNavbarIdentitas`, `NavigasiPeran` | fixture `/auth/me` disesuaikan: `role` tunggal DIGANTI `roles` + `actingRole` |
+> | `ComplaintChat` | blok adapter dibuang — `complaint.adapter.test.js` milik tim dev mengujinya lebih dalam |
+> | `PemilihPeranDanCallback` | **dibuang**, diganti `AuthCallbackLoader.test.jsx`; pemilih AREA superuser tak ada lagi |
+> | `CreateComplaintForm`, `authStorage` | konflik merge diselesaikan dengan **versi `main`** — versi penguji menguji fitur yang sudah dihapus |
 
 Sejak 2 September 2026 ada lapisan kedua yang berjalan di peramban sungguhan
 (`pnpm test:e2e`, terpisah dari Jest):
@@ -591,7 +616,8 @@ Sejak 2 September 2026 ada lapisan kedua yang berjalan di peramban sungguhan
 | `e2e/isi-survei.spec.js`      |      2      | **TC-FE-009**, TC-FE-029 (E2E)             |
 | `e2e/proteksi-route.spec.js`  |      4      | **TC-FE-002**, **TC-AUTH-055**             |
 | `e2e/ajukan-pengaduan.spec.js` |   **3**     | **TC-FE-010**                              |
-| **Total**                     |    **9**    |                                            |
+| `e2e/isi-survei-anonim.spec.ts` | **2**     | milik tim dev (rute publik `/isi/:id`)     |
+| **Total**                     |   **11**    |                                            |
 
 **Perubahan 2 September 2026 (setelah 81 commit):** dua suite pecah dan sudah
 diperbaiki, keduanya karena produknya membaik — bukan karena produknya rusak.
@@ -718,7 +744,27 @@ tiap rute menjawab dalam **21–105 ms**.
 Yang perlu diketahui penguji berikutnya: **kegagalan E2E yang berpindah-pindah
 hampir tak pernah berarti produknya rusak.** Jalankan ulang dengan `--workers=1`
 sebelum menulis temuan apa pun — serial memang tiga kali lebih lambat, tetapi ia
-menjawab pertanyaan "produk atau perkakas?" dalam satu jalan. Cookie yang dipakai pemanasan sengaja **palsu** — `proxy.js`
+menjawab pertanyaan "produk atau perkakas?" dalam satu jalan.
+
+> **Diperbarui 15 September 2026: serial pun kini tak cukup.** Sesudah `main`
+> ditarik, suite E2E tumbuh menjadi 11 pengujian dan kegagalan berpindah-pindah
+> itu muncul **walau `--workers=1`** — tiga jalan penuh berturut-turut
+> menghasilkan 3, lalu 1, lalu 1 kegagalan, dengan kasus yang berbeda tiap kali,
+> sementara tiap berkas lulus penuh bila dijalankan sendirian.
+>
+> Dua dugaan yang paling masuk akal sudah **dipatahkan dengan bukti**, dan itu
+> sebabnya bagian ini tak menyimpulkan lebih jauh:
+>
+> | Dugaan | Bukti yang mematahkannya |
+> | ------ | ------------------------ |
+> | Batas laju backend (100/60 dtk) | log API: **nol** balasan 429 sepanjang jalan penuh |
+> | Server dev kewalahan | navigasi paling lambat di log Next.js: **1,8 detik**, jauh dari batas 60 detik |
+>
+> Seluruh kegagalannya berbentuk `page.goto`/`waitForURL` menunggu `load` sampai
+> lewat batas — yaitu **di sisi peramban**, bukan di server. Sebabnya belum
+> ditemukan, dan mengarang kesimpulan di sini lebih berbahaya daripada
+> mengakuinya. Sampai itu terjawab: **jalankan per berkas** bila hasilnya hendak
+> dipakai untuk menilai produk. Cookie yang dipakai pemanasan sengaja **palsu** — `proxy.js`
 hanya memeriksa ada-tidaknya cookie sesi, jadi itu cukup untuk melewati penjaga
 navigasi agar halamannya benar-benar dirender dan terkompilasi. Tak satu pun
 pernyataan uji bergantung padanya.
@@ -891,6 +937,70 @@ Perubahan itu **belum diterapkan** — ia menyentuh perkakas build milik tim
 pengembang, di luar cakupan penguji.
 
 ---
+
+### Y.7 Kontrak yang berubah di bawah kaki pengujian (tarikan `main`, 15 September 2026)
+
+Menarik 85 commit `main` ke `tester` membuat **16 kasus uji merah di 4 berkas**.
+Tak satu pun ternyata cacat produk. Semuanya satu jenis kegagalan yang sama:
+**pengujian masih berbicara dengan kontrak yang sudah tidak ada.**
+
+Bagian ini mencatat kontrak-kontrak itu, karena ia akan menagih lagi pada tarikan
+berikutnya — dan karena tanpa catatan ini, kegagalan serupa mudah sekali dibaca
+sebagai "produknya rusak".
+
+| Kontrak lama | Kontrak sekarang | Yang patah karenanya |
+| ------------ | ---------------- | -------------------- |
+| `GET /auth/me` → `role` tunggal | `roles` (kepemilikan) + `actingRole` (yang sedang dipakai) | navbar & sidebar merender `-`; menu superuser hilang |
+| Callback SSO membaca `/auth/me` | membaca **`/auth/roles`** | tiruan `/auth/me` tak berpengaruh; handler bawaan yang menjawab |
+| Pemilih AREA superuser (`roleHome.js`) | pemilih **PERAN** untuk siapa pun ber-peran > 1 | `SUPERUSER_AREA_HOME` & `SUPERUSER_OPD_ENTRY` `undefined` |
+| Balasan pengaduan dikenali dari `authorId` | `reply.dariPelapor` (kolom `dari_pelapor`) | balasan pelapor tampil sebagai balasan admin |
+| Kategori pengaduan bertopik + sub-kategori | tiga kategori umum: `aduan`, `lapor`, `lainnya` | dropdown `Infrastruktur` tak pernah muncul |
+| `dev-login` langsung menghasilkan sesi siap pakai | akun ber-peran banyak pulang `actingRole: null` | **401 "Peran yang ingin dipakai belum dipilih"** pada setiap endpoint terlindung |
+| `/surveys/:id` langsung menampilkan soal 1 | ada gerbang "Sebelum Anda Mulai Mengisi" | `Pertanyaan 1 dari 3` tak pernah dirender |
+| `kabupaten` boleh menengok `/admin-opd/*` | `ROLE_PREFIXES` mengurungnya di `/admin-kab` | satu sel matriks A.5.1 menyimpang |
+
+**Aturan yang dipakai memutuskan tiap kasus.** Untuk setiap kegagalan ditanyakan
+satu hal lebih dulu: *apakah perilaku barunya masuk akal bagi penggunanya?* Bila
+ya — pengujiannya yang disesuaikan, dan alasannya ditulis di berkas itu. Bila
+tidak — barulah ia menjadi temuan. Tak ada satu pun yang jatuh ke kelompok kedua
+kali ini, dan itu perlu dikatakan terus terang: pengujian yang "diperbaiki" tanpa
+pertanyaan itu hanya akan mengesahkan apa pun yang kebetulan sedang berlaku.
+
+**Dua berkas uji penguji DIBUANG, bukan diperbaiki.** Menambal uji yang menguji
+antarmuka yang tak pernah lagi dirender menghasilkan sesuatu yang lebih buruk
+daripada tak ada uji: merah palsu hari ini, dan hijau palsu begitu tambalannya
+"diperbaiki" sampai lulus.
+- blok adapter di `ComplaintChat.test.jsx` — `complaint.adapter.test.js` milik
+  tim dev mengujinya lebih dalam, termasuk kasus yang tak terpikir sebelumnya
+  (akun pelapor yang menjawab **sebagai petugas** tetap dikenali admin);
+- `PemilihPeranDanCallback.test.jsx` — pemilih AREA sudah tak ada. Bagian
+  callback-nya yang masih hidup dipindah ke `AuthCallbackLoader.test.jsx`.
+
+**Dua konflik merge diselesaikan dengan memakai versi `main`.**
+`CreateComplaintForm.test.jsx` (7 kasus milik penguji vs **30** milik tim dev
+yang sudah menguji ketiadaan sub-kategori) dan `authStorage.test.js` (12 vs 15,
+milik tim dev menguji "sesi hantu" jalur SSO). Dalam kedua kasus versi penguji
+menguji fitur yang sudah dihapus.
+
+**Perkakas E2E yang ikut diperbaiki** — ketiganya tak terlihat dari uji komponen
+mana pun:
+1. `support/api.js` — `masukApi()` kini memanggil `POST /auth/acting-role` bila
+   akunnya ber-peran banyak. Tanpa ini `globalSetup` meledak jauh dari spec mana
+   pun, dengan pesan yang terbaca seolah akunnya tak berhak.
+2. `support/masuk.js` — menekan tombol peran bila pemilihnya muncul. Dua jebakan
+   sekaligus di sini, dan keduanya sempat menipu:
+   - `isVisible()` menjawab **seketika** dan tak menerima batas waktu, jadi ia
+     selalu `false` sebelum pemilihnya sempat dirender → dipakai `waitFor`;
+   - `getByRole('button', { name })` mencocokkan **substring**, dan beranda
+     publik memuat tombol "Survei Kepuasan **Masyarakat**" → tombol itu tertekan
+     dan sapuan matriks melaporkan area admin "terbuka" bagi responden, seolah
+     proxy jebol. Diperiksa terpisah dengan cookie sungguhan, proxy-nya justru
+     benar. Diperbaiki dengan pola berjangkar (`/^Masyarakat\b/`).
+3. `isi-survei.spec.js` — `bukaSurvei()` melewati gerbang pengisian.
+
+Jebakan kedua pada butir 2 pantas diingat melebihi perbaikannya: **sebuah
+pengujian yang salah tekan dapat menuduh penjaga keamanan yang sebenarnya
+bekerja.** Lihat juga §Y.5.
 
 ## Ringkasan Statistik Test Cases
 

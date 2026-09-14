@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 1.9                                                     |
-| **Tanggal**            | 4 September 2026 (v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.0                                                     |
+| **Tanggal**            | 15 September 2026 (v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -684,6 +684,35 @@ Penghapusan tanpa cadangan bukan "rollback", melainkan sekadar hilang.
 notifikasi, dan 2 respons. Skrip pembersih yang dapat dijalankan ulang (bermode
 `--dry` untuk melihat dulu tanpa menghapus) tersedia; jalankan sesudah suite,
 bukan sesudah menumpuk berhari-hari.
+
+### Putaran ketiga — 15 September 2026, notifikasi yatim
+
+Sebelas hari tanpa pembersihan menunjukkan berapa cepat sisanya menumpuk, dan
+satu bentuk sisa yang sebelumnya luput sama sekali:
+
+| Objek | Jumlah |
+| ----- | -----: |
+| Pengaduan `[UJI E2E]` + survei fixture + responsnya | 5 + 1 + 6 |
+| Notifikasi bertaut data uji | 25 |
+| Berkas unggahan yatim | 50 |
+| **Notifikasi menunjuk tiket yang sudah lenyap** | **7.986** |
+
+Angka terakhir itu pelajarannya. Notifikasi pengaduan **disiarkan ke setiap akun
+kabupaten, superuser, dan admin OPD** — jadi satu pengaduan uji melahirkan
+beberapa baris notifikasi, dan baris itu **milik akun sungguhan**. Menghapus
+pengaduannya tidak menyentuh mereka: tautannya berupa TEKS pada kolom `link`,
+bukan kunci asing. Hasilnya 7.986 tautan mati di lonceng notifikasi para admin,
+menumpuk diam-diam sejak akhir Agustus.
+
+Dua aturan yang lahir dari situ:
+1. **Saring notifikasi lewat `link`, dan lakukan SEBELUM induknya dihapus** —
+   sesudah pengaduannya hilang, nomor tiketnya tak dapat dicari lagi.
+2. **Periksa juga yang sudah telanjur yatim**: cocokkan `link` tiap notifikasi
+   dengan tiket & id survei yang benar-benar masih ada. Itu satu-satunya cara
+   menemukan sisa dari pembersihan-pembersihan sebelumnya yang belum tahu aturan
+   nomor 1.
+
+Sesudahnya tersisa 254 notifikasi, seluruhnya menunjuk pengaduan yang ada.
 
 ## 5. Format laporan temuan
 

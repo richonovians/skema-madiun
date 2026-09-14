@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 2.9                                                                                                        |
+| **Versi**           | 3.0                                                                                                        |
 | **Tanggal**         | 3 September 2026                                                                                           |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -1903,6 +1903,39 @@ generik, karena itu akan mengembalikan cacat yang sudah diperbaiki.
 
 ---
 
+### CAT-013 — Keterangan `proxy.js` menerangkan aturan yang sudah tidak berlaku
+
+**Ditemukan:** 15 September 2026 (saat menarik `main` ke `tester`)
+
+Blok keterangan di `apps/web/src/proxy.js` baris 16–26 masih menuliskan
+kelonggaran 6 Agustus 2026:
+
+> kabupaten … SEBELUMNYA diblokir total dari /admin-opd — padahal kabupaten
+> memang berhak lihat pengaduan/survei per-OPD … **Kini diizinkan**, KECUALI
+> /admin-opd/dashboard …
+
+Kodenya tak lagi berbunyi begitu. Sejak `62e9cdc` (pemilih peran untuk akun
+ber-role banyak), tabel `SUPERUSER_AREA_PREFIXES` berganti nama menjadi
+`ROLE_PREFIXES`, berlaku bagi **setiap** peran, dan berisi:
+
+```js
+kabupaten: ['/admin-kab'],
+```
+
+— seluruh area OPD tertutup bagi `kabupaten`. Diperiksa langsung: permintaan
+`/admin-opd/complaints` dengan cookie `role=kabupaten` dijawab
+`307 → /admin-kab/dashboard`.
+
+**Bukan cacat perilaku.** Perubahannya sejalan dengan rancangan peran jamak:
+yang butuh area OPD berganti peran, bukan menembus batas areanya. Yang perlu
+dibereskan hanyalah keterangannya, dan alasannya bukan kerapian: keterangan di
+berkas inilah satu-satunya tempat aturan area dijelaskan, dan penguji berikutnya
+yang membacanya akan menyimpulkan matriks A.5.1 sedang jebol — persis kesimpulan
+yang hampir saya tulis. Matriks di TEST_CASES §A.5.1 sudah disesuaikan dengan
+perilaku sebenarnya.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -1919,3 +1952,4 @@ generik, karena itu akan mengembalikan cacat yang sudah diperbaiki.
 | 2.7   | 3 September 2026   | **Formulir C-13 akhirnya dapat diuji** — user menyediakan `warga@gmail.com`, responden ber-`consentAt` kosong yang selama ini tak ada. 10 probe, **nol temuan**, TC-FE-038 ditutup lulus. Penegakan berlapisnya terbukti: kiriman tanpa persetujuan ditolak 403, dan **tetap 403 walau cookie `consent` dipalsukan** — gerbangnya memang pembatas navigasi, backend yang menegakkan. Fixture-nya sekali pakai (tak ada endpoint reset), jadi sembilan probe yang tak menghabiskannya dikerjakan lebih dulu dan penerimaan sungguhan paling akhir. Ditambah **§Y.6** di TEST_CASES: `.next` tercemar build produksi membuat 37 dari 37 rute 404 — insiden lingkungan, bukan cacat produk. |
 | 2.8   | 3 September 2026   | **Dua belas kasus uji terakhir Modul Y ditutup** (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047) — Jest 80 → **195** di 24 berkas, E2E 6 → **9**. Nol temuan baru, tetapi **tiga premis kasus uji ternyata usang** dan dikoreksi alih-alih dipaksakan: TC-FE-006 menuntut toast pada aplikasi yang tak punya sistem toast, TC-FE-012 menuntut tooltip pada grafik SVG yang nilainya selalu terlihat, dan satu temuan mobile TC-FE-007 (guliran mendatar 809 px) **dibatalkan sendiri** setelah terbukti berasal dari gambar `w-auto` yang diukur sebelum dimuat — masuk §Y.5 sebagai butir keempat. Ditambah **pembersihan data uji dari basis data dev** atas permintaan penguji: 6 pengaduan, 43 respons, 2 survei mati, 30 notifikasi tanpa FK, 2 akun karangan, dan 22 berkas unggahan yatim dihapus — `/statistics` publik jujur kembali (responden 44 → 3, pengaduan 11 → 6). Survei 332/333 sengaja dipertahankan karena BUG-005 masih terbuka, dan `consentAt` `warga@gmail.com` dikembalikan `null` sehingga fixture responden tanpa persetujuan tersedia lagi. |
 | 2.9   | 4 September 2026   | **Tiga survei uji tersisa dihapus paksa** atas permintaan penguji: 332 & 333 (reproduksi hidup BUG-005) dan 336 (fixture E2E). Keberatan sudah disampaikan — BUG-005 masih terbuka dan peragaannya jadi hilang — tetapi keputusan tetap di penguji. Bukti tertulis BUG-005 utuh di laporan ini dan dapat dibangun ulang dalam hitungan menit; baris aslinya dicadangkan lebih dulu. Fixture E2E dibuat ulang sendiri oleh `globalSetup` pada jalan berikutnya. Basis data dev kini **nol baris bertanda `[UJI `**. |
+| 3.0   | 15 September 2026  | **`main` ditarik ke `tester`** (85 commit, 11 hari). 16 kasus uji merah di 4 berkas — **nol di antaranya cacat produk**: seluruhnya pengujian yang masih berbicara dengan kontrak yang sudah tidak ada (`role` tunggal → `roles`+`actingRole`, callback membaca `/auth/roles`, `reply.dariPelapor`, taksonomi sub-kategori dihapus, gerbang pengisian survei, peran jamak pada dev-login). Rinciannya di TEST_CASES §Y.7. Dua berkas uji penguji dibuang karena menguji antarmuka yang tak pernah lagi dirender; dua konflik merge diselesaikan dengan versi `main` yang lebih dalam. Tambah **CAT-013** (keterangan `proxy.js` menerangkan aturan yang sudah tidak berlaku) dan matriks A.5.1 disesuaikan. Suite: Jest **663/663 di 89 berkas**, eslint 0 galat. Basis data dev dibersihkan, termasuk **7.986 notifikasi yatim** yang menunjuk tiket pengaduan yang sudah lenyap. |
