@@ -175,7 +175,7 @@ export function saveSession(token, role, consentRequired) {
     localStorage.setItem(ROLE_KEY, role);
     tulisCookieSesi(ROLE_KEY, role, umur);
   }
-  saveConsentFlag(!consentRequired);
+  simpanPenandaPersetujuan(role, consentRequired);
 }
 
 /**
@@ -187,6 +187,27 @@ export function saveSession(token, role, consentRequired) {
  * itu memang memeriksa ulang lewat GET /auth/me dan memantulkannya kembali,
  * tapi berarti satu putaran alihan yang tak perlu.
  */
+/**
+ * Tulis penanda persetujuan dari jawaban login, dengan satu syarat penting.
+ *
+ * `consentRequired: false` dari backend hanya BERARTI "sudah menyetujui" bila
+ * perannya memang sudah ditentukan. Selama belum -- akun ber-peran banyak yang
+ * belum memilih -- `AuthService.getRoles` & `getMe` sama-sama memakai
+ * `actingRole ? isRequired(...) : false`, sehingga `false` di sana berarti
+ * "belum dapat ditentukan".
+ *
+ * Menulisnya sebagai "sudah setuju" membukakan seluruh area warga bagi orang
+ * yang belum pernah melihat gerbangnya, DAN memantulkannya dari /persetujuan --
+ * satu-satunya halaman yang dapat memperbaiki keadaan itu (laporan pengguna
+ * 14 September 2026).
+ *
+ * Lapis pertamanya ada di `setActingRole`, yang mengoreksi penanda ini begitu
+ * perannya dipilih. Yang di sini menjaga jendela sebelum pilihan itu.
+ */
+function simpanPenandaPersetujuan(role, consentRequired) {
+  saveConsentFlag(role ? !consentRequired : false);
+}
+
 export function saveConsentFlag(sudahMenyetujui) {
   if (typeof window === 'undefined') return;
   const nilai = sudahMenyetujui ? '1' : '0';
@@ -229,7 +250,7 @@ export function saveSsoSession(role, expiresAt, consentRequired) {
     // `hasFullAccess` false dan admin dipantulkan dari areanya sendiri ke '/'.
     tulisCookieSesi(ROLE_KEY, role, umurDariEpoch(expiresAt));
   }
-  saveConsentFlag(!consentRequired);
+  simpanPenandaPersetujuan(role, consentRequired);
 }
 
 /**

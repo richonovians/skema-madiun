@@ -1,4 +1,4 @@
-import { clearSession, isAuthenticated, saveSsoSession } from '../authStorage';
+import { clearSession, isAuthenticated, saveSession, saveSsoSession } from '../authStorage';
 
 /**
  * SESI HANTU (laporan pengguna 8 September 2026).
@@ -94,5 +94,72 @@ describe('isAuthenticated pada sesi SSO yang kedaluwarsa', () => {
 
     expect(isAuthenticated()).toBe(false);
     expect(panggilanLogout()).toHaveLength(1);
+  });
+});
+
+/**
+ * Laporan pengguna 14 September 2026: akun warga ber-peran banyak yang belum
+ * menyetujui PDP tetap dipantulkan dari /persetujuan.
+ *
+ * Backend melaporkan `consentRequired: false` selama peran BELUM dipilih --
+ * lihat AuthService.getRoles & getMe, yang keduanya memakai
+ * `actingRole ? isRequired(...) : false`. Nilai itu berarti "belum dapat
+ * ditentukan", BUKAN "sudah menyetujui". Menulisnya sebagai penanda "sudah
+ * setuju" membukakan seluruh area warga bagi orang yang belum pernah melihat
+ * gerbangnya, dan sekaligus memantulkannya dari satu-satunya halaman yang
+ * dapat memperbaiki keadaan itu.
+ *
+ * Ini lapis kedua: `setActingRole` sudah mengoreksi penanda begitu perannya
+ * dipilih, tetapi jendela sebelum pilihan itu tak boleh dibuka lebar.
+ */
+const b64urlPenanda = (o) =>
+  Buffer.from(JSON.stringify(o))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+const tokenPenanda = () =>
+  `${b64urlPenanda({ alg: 'HS256', typ: 'JWT' })}.${b64urlPenanda({
+    sub: '21',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  })}.uji`;
+
+describe('penanda persetujuan tidak mendahului pilihan peran', () => {
+  const detikDepan = () => Math.floor(Date.now() / 1000) + 3600;
+
+  it('dev-login akun ber-peran banyak TIDAK mengaku sudah menyetujui', () => {
+    saveSession(tokenPenanda(), null, false);
+
+    expect(localStorage.getItem('consent')).toBe('0');
+  });
+
+  it('SSO akun ber-peran banyak juga tidak', () => {
+    saveSsoSession(null, detikDepan(), false);
+
+    expect(localStorage.getItem('consent')).toBe('0');
+  });
+
+  /**
+   * Pasangan yang membuat kedua uji di atas berarti: peran TUNGGAL memang sudah
+   * dapat ditentukan, jadi jawabannya dipercaya apa adanya. Tanpa pasangan ini,
+   * "selalu 0" pun akan lolos.
+   */
+  it('peran tunggal yang sudah menyetujui tetap ditandai beres', () => {
+    saveSession(tokenPenanda(), 'responden', false);
+
+    expect(localStorage.getItem('consent')).toBe('1');
+  });
+
+  it('peran tunggal yang belum menyetujui ditandai belum', () => {
+    saveSession(tokenPenanda(), 'responden', true);
+
+    expect(localStorage.getItem('consent')).toBe('0');
+  });
+
+  it('admin ber-peran tunggal tetap ditandai beres', () => {
+    saveSsoSession('kabupaten', detikDepan(), false);
+
+    expect(localStorage.getItem('consent')).toBe('1');
   });
 });
