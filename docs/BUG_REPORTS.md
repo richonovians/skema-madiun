@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.8                                                                                                        |
+| **Versi**           | 3.9                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -86,11 +86,27 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
 
-**BUG-013 terkunci uji otomatis sejak 15 September 2026** — satu-satunya di
-antara enam temuan C-14…C-19 yang punya pagar regresi
-(`apps/web/e2e/statistik-sampah.spec.js`). Cacatnya sendiri **belum diperbaiki**;
-yang dikunci adalah momen perbaikannya: uji itu memerah begitu penyaringnya
-dipasang. Lima temuan lain (BUG-014 s/d BUG-018) masih terdokumentasi saja.
+**Keenam temuan C-14…C-19 kini terkunci uji otomatis (15 September 2026).**
+Tak satu pun dari cacatnya sudah diperbaiki; yang dikunci adalah **momen
+perbaikannya** — tiap pagar ditulis sebagai gagal-yang-diharapkan, sehingga
+suite tetap hijau selama cacatnya ada dan MERAH begitu seseorang
+memperbaikinya, menuntut anotasinya dicabut. Sejak saat itu ia jadi pagar
+regresi sungguhan.
+
+| Temuan | Pagar | Lapisan |
+| ------ | ----- | ------- |
+| [BUG-013](#bug-013) | `e2e/statistik-sampah.spec.js` | E2E (API) |
+| [BUG-014](#bug-014) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
+| [BUG-015](#bug-015) | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL |
+| [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL |
+| [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL |
+| [BUG-018](#bug-018) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
+
+Tiap pagar didahului **uji kendali yang wajib lulus**, dan tiap-tiap dibuktikan
+**dua arah**: cacatnya diperbaiki sementara di kode produksi, pagarnya diamati
+memerah, lalu mutasinya dikembalikan. Tanpa langkah itu, gagal-yang-diharapkan
+hanyalah uji yang gagal karena sebab apa pun. Rinciannya di
+[TEST_CASES.md §Y.8](TEST_CASES.md).
 
 BUG-006 dilaporkan **dan** diperbaiki pada 2 September 2026. Ia bersaudara
 dekat dengan keluhan 18 Agustus ("baru akses localhost sudah terlihat login"):
@@ -1173,6 +1189,13 @@ bawaan: yang tersapu bukan hanya milik data uji, melainkan jejak setiap survei
 yang pernah dimusnahkan siapa pun. Itu **menambal akibatnya di lingkungan dev,
 bukan cacatnya** — pengguna sungguhan tak punya skrip semacam itu.
 
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`apps/web/e2e/notifikasi-siklus.spec.js`](../apps/web/e2e/notifikasi-siklus.spec.js).
+Uji kendali yang wajib lulus membuktikan notifikasinya memang terbit saat survei
+dijawab; pagar `test.fail()` menuntut tak ada lagi yang menautnya sesudah survei
+dimusnahkan. Dibuktikan dua arah dengan menambahkan `notification.deleteMany`
+pada transaksi `purge` sementara, lalu mengembalikannya.
+
 ---
 
 ### BUG-015 — Dialog konfirmasi tindakan destruktif tak dapat dipakai pembaca layar
@@ -1230,6 +1253,17 @@ karena itu sayang bila tak terbaca.
 **Catatan** — ini bukan cacat yang lahir bersama fitur Sampah; `ConfirmActionModal`
 sudah lama ada. Yang baru adalah dipakainya pola ini untuk menjaga tindakan yang
 tak dapat dibatalkan.
+
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`pagar-bug-015-dialog-konfirmasi.test.jsx`](../apps/web/src/components/ui/__tests__/pagar-bug-015-dialog-konfirmasi.test.jsx).
+Tiga `test.failing()`: `role="dialog"` + `aria-modal`, nama aksesibel yang
+berisi judulnya, dan tombol tutup yang punya nama terbaca — didahului satu uji
+kendali yang wajib lulus. Dibuktikan dua arah dengan memasang ketiga atribut
+sementara, lalu mengembalikannya.
+
+**Bukti bahwa ini kelalaian, bukan gaya rumah.** `ModalKirimSurvei.jsx` memasang
+`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, DAN `aria-label="Tutup"`
+pada tombol silangnya — lengkap. Polanya sudah dikuasai tim di berkas sebelah.
 
 ---
 
@@ -2440,6 +2474,27 @@ menolong selama tokennya tak pernah terbit.
 
 Nomor 2 yang paling mendekati keadaan produksi tanpa membuka lubang.
 
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`pagar-bug-016-captcha-gagal.test.jsx`](../apps/web/src/features/surveys/components/__tests__/pagar-bug-016-captcha-gagal.test.jsx).
+
+**Pagarnya sengaja TIDAK dipasang di `ModalKirimSurvei`.** Godaannya di sana:
+render dengan `captchaToken: null`, lalu tuntut sebuah pesan. Itu pagar yang
+bohong — keadaan "token null" juga keadaan dua detik pertama setiap pengisian
+yang normal, jadi uji itu menuntut peringatan muncul saat tak ada yang salah,
+dan perbaikan yang benar (pesan muncul hanya sesudah galat atau sesudah tenggat)
+tetap membuatnya merah. Pagar yang tak pernah bisa hijau bukan pagar.
+
+Yang dikunci karena itu **jalur pelaporannya**, satu tingkat di bawah:
+`TurnstileWidget` harus melaporkan kegagalan lewat saluran yang terpisah dari
+token. Selama galat hanya menjelma jadi `null`, antarmuka mana pun di atasnya
+mustahil membedakan "gagal" dari "belum". Dibuktikan dua arah dengan menambahkan
+prop `onError` sementara, lalu mengembalikannya.
+
+> **Bila perbaikannya memilih saluran lain** — misalnya keadaan `captchaError` di
+> store, atau `onStatus('error')` — pagar itu **wajib disesuaikan**, bukan
+> dibiarkan hijau sebagai gagal-yang-diharapkan. Anotasi `test.failing()` yang
+> ditinggalkan pada kontrak yang sudah berubah adalah pagar yang diam-diam mati.
+
 ---
 
 ### BUG-017 — Dropdown menyebutkan namanya, tak pernah menyebutkan pilihannya
@@ -2504,6 +2559,20 @@ tak mungkin dibedakan pembaca layar. Yang keliru hanyalah menganggap pertukaran
 itu perlu terjadi: `aria-labelledby` yang menunjuk **label DAN nilainya
 sekaligus** memberi keduanya — "Rentang waktu, Semua waktu".
 
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`pagar-bug-017-dropdown.test.jsx`](../apps/web/src/components/ui/__tests__/pagar-bug-017-dropdown.test.jsx).
+Tiga `test.failing()`: nama terbaca memuat nilai terpilih, `aria-haspopup` ada,
+dan `aria-expanded` mengikuti keadaan panel — didahului satu uji kendali yang
+wajib lulus (nilai itu memang TAMPAK di layar). Dibuktikan dua arah dengan
+memasang ketiga atribut sementara, lalu mengembalikannya.
+
+**Satu hal yang tersingkap saat pagarnya ditulis.** `Dropdown.test.jsx` milik
+tim dev mencari pemicunya dengan `screen.getByLabelText('Instansi')` — dan itu
+berhasil **justru karena cacat ini**. Uji yang sudah ada diam-diam bersandar
+pada perilaku yang salah. Ia tetap lulus sesudah diperbaiki (labelnya masih
+menjadi bagian namanya), jadi bukan penghalang perbaikan — tetapi pantas
+diketahui sebelum seseorang menyimpulkan bahwa nama aksesibelnya sudah teruji.
+
 ---
 
 ### BUG-018 — Meneruskan pengaduan menyiarkan ulang "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya
@@ -2551,6 +2620,22 @@ kabar bahwa laporannya akhirnya ditangani OPD tertentu. Ia diberi tahu saat
 *status* berubah, tetapi penugasan OPD bukan perubahan status. Apakah itu perlu
 diberitahukan adalah keputusan rancangan, bukan cacat — dicatat di sini supaya
 keputusannya diambil sadar, bukan terlewat.
+
+**Sebabnya kini pasti, dan bukan kelalaian melainkan pertukaran yang terlewat.**
+`ComplaintsService.forward` diakhiri dengan `notifyComplaintCreated(updated)` —
+jalur penyiaran yang sama persis dengan pengaduan baru. Komentar di atasnya
+menyatakannya terang-terangan dan alasannya sah: *"bagi OPD tujuan, inilah saat
+tiket itu benar-benar masuk"*. Yang terlewat adalah bahwa jalur itu menyiarkan
+ke **setiap akun admin**, bukan ke OPD tujuan saja. Perbaikannya karena itu
+bukan membuang panggilannya, melainkan mempersempit penerimanya.
+
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`apps/web/e2e/notifikasi-siklus.spec.js`](../apps/web/e2e/notifikasi-siklus.spec.js).
+Uji kendali yang wajib lulus menghitung **1** kabar "Pengaduan Baru Masuk" bagi
+Admin Kabupaten saat pengaduan dibuat; pagar `test.fail()` menuntut angka itu
+tetap 1 sesudah diteruskan. Dibuktikan dua arah dengan menonaktifkan panggilan
+itu sementara — pagarnya langsung melapor `Expected to fail, but passed` — lalu
+mutasinya dikembalikan.
 
 ---
 

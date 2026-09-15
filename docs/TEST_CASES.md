@@ -6,8 +6,8 @@
 | ---------------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan**      | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Dokumen Pendamping** | TEST_PLAN.md                                                                           |
-| **Versi**              | 2.8                                                                                    |
-| **Tanggal**            | 15 September 2026 (v2.8 — §Y.3 dapat pembaruan: satu jalan E2E penuh 4 worker bersih (11 lulus, 2 dilewati, nol gagal), anjuran "per berkas" diturunkan tetapi tak dicabut; v2.7 — §Y.8 baru: pagar regresi `test.fail()` untuk BUG-013, peta E2E 11 → 13 pengujian di 5 berkas; v2.6 — peta otomatisasi §Y.1 dicocokkan ulang dengan `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada; TC-FE-010 tak lagi menyebut sub-kategori; v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
+| **Versi**              | 2.9                                                                                    |
+| **Tanggal**            | 15 September 2026 (v2.9 — lima pagar regresi berikutnya (BUG-014 s/d BUG-018) masuk §Y.8; Jest 663 → **673 di 92 berkas**, E2E 13 → **17 di 6 berkas**; v2.8 — §Y.3 dapat pembaruan: satu jalan E2E penuh 4 worker bersih (11 lulus, 2 dilewati, nol gagal), anjuran "per berkas" diturunkan tetapi tak dicabut; v2.7 — §Y.8 baru: pagar regresi `test.fail()` untuk BUG-013, peta E2E 11 → 13 pengujian di 5 berkas; v2.6 — peta otomatisasi §Y.1 dicocokkan ulang dengan `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada; TC-FE-010 tak lagi menyebut sub-kategori; v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
 
 **Konvensi:**
 
@@ -592,7 +592,10 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | `features/dashboard/components/__tests__/GrafikDashboard.test.jsx`     |     11      | **TC-FE-012**                              |
 | `features/dashboard/components/__tests__/RingkasanDashboard.test.jsx`  |     14      | **TC-FE-045**                              |
 | `features/surveys/components/__tests__/SurveyResponses.test.jsx`       |     10      | **TC-FE-042**                              |
-| **Total (Jest — `pnpm test`)**                                         |   **663**   | 89 berkas                                  |
+| `components/ui/__tests__/pagar-bug-015-dialog-konfirmasi.test.jsx`     |   **4**     | pagar regresi **BUG-015** (lihat §Y.8)     |
+| `components/ui/__tests__/pagar-bug-017-dropdown.test.jsx`              |   **4**     | pagar regresi **BUG-017** (lihat §Y.8)     |
+| `features/surveys/components/__tests__/pagar-bug-016-captcha-gagal.test.jsx` | **2** | pagar regresi **BUG-016** (lihat §Y.8) |
+| **Total (Jest — `pnpm test`)**                                         |   **673**   | 92 berkas                                  |
 
 > Sepuluh berkas terbawah ditambahkan 3 September 2026 (**+115 test**, 80 → 195;
 > 14 → 24 berkas). Angkanya dibaca dari keluaran `--json` Jest, bukan dijumlah
@@ -625,7 +628,8 @@ Sejak 2 September 2026 ada lapisan kedua yang berjalan di peramban sungguhan
 | `e2e/ajukan-pengaduan.spec.js` |   **3**     | **TC-FE-010**                              |
 | `e2e/isi-survei-anonim.spec.ts` | **2**     | milik tim dev (rute publik `/isi/:id`)     |
 | `e2e/statistik-sampah.spec.js` | **2**     | pagar regresi **BUG-013** (bukan TC — lihat §Y.8) |
-| **Total**                     |   **13**    |                                            |
+| `e2e/notifikasi-siklus.spec.js` | **4**    | pagar regresi **BUG-014** & **BUG-018** (§Y.8) |
+| **Total**                     |   **17**    |                                            |
 
 **Perubahan 2 September 2026 (setelah 81 commit):** dua suite pecah dan sudah
 diperbaiki, keduanya karena produknya membaik — bukan karena produknya rusak.
@@ -1072,6 +1076,65 @@ karena itu mendapat bendera opt-in `--yatim`, yang menyapu notifikasi bertaut
 `/surveys/<id>` yang id-nya sudah tiada. Opt-in dan bukan bawaan: yang tersapu
 bukan hanya milik data uji.
 
+
+#### Lima pagar berikutnya — BUG-014 s/d BUG-018 (15 September 2026, sore)
+
+Keenam temuan C-14…C-19 kini berpagar. Dua di lapisan E2E, tiga di Jest, dan
+**pemilihan lapisannya bukan selera**: yang dapat dibuktikan hanya oleh tumpukan
+sungguhan tinggal di E2E — di Jest, MSW menjawab apa pun yang fixture-nya
+katakan, jadi cacat backend mustahil tertangkap di sana.
+
+| Temuan | Pagar | Lapisan | Yang dikunci |
+| ------ | ----- | ------- | ------------ |
+| BUG-014 | `e2e/notifikasi-siklus.spec.js` | E2E (API) | sesudah `purge`, tak ada notifikasi yang masih menaut surveinya |
+| BUG-018 | `e2e/notifikasi-siklus.spec.js` | E2E (API) | meneruskan pengaduan tidak menambah kabar "Pengaduan Baru Masuk" kedua |
+| BUG-015 | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL | `role="dialog"`, nama aksesibel, nama tombol tutup |
+| BUG-017 | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL | nama terbaca memuat nilai; `aria-haspopup`; `aria-expanded` |
+| BUG-016 | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL | kegagalan widget dilaporkan lewat jalur tersendiri |
+
+**Jest punya anotasinya sendiri: `test.failing()`** (Jest ≥ 29.6), yang
+berperilaku sama persis dengan `test.fail()` milik Playwright — lulus selama
+badannya gagal, dan **gagal dengan pesan `Failing test passed even though it was
+supposed to fail`** begitu cacatnya diperbaiki.
+
+**Tiap pagar dibuktikan dua arah, seluruhnya enam siklus mutasi.** Cacatnya
+diperbaiki sementara di kode produksi, pagarnya diamati memerah, lalu mutasinya
+dikembalikan dengan `git checkout` dan `git status` diperiksa bersih. Yang
+dimutasikan: penyaring `deletedAt` pada `getStatistics`, `notification.deleteMany`
+pada transaksi `purge`, panggilan `notifyComplaintCreated` di `forward`, tiga
+atribut ARIA pada `ConfirmActionModal`, tiga pada `Dropdown`, dan prop `onError`
+pada `TurnstileWidget`. **Tak satu pun perbaikan itu ditinggalkan** — peran di
+sini penguji, bukan pengembang.
+
+**Satu pagar sengaja TIDAK ditulis di tempat yang paling menggoda.** Untuk
+BUG-016, godaannya memasangnya di `ModalKirimSurvei`: render dengan
+`captchaToken: null`, lalu tuntut sebuah pesan. Itu pagar yang bohong — keadaan
+"token null" juga keadaan dua detik pertama setiap pengisian yang normal, jadi
+uji itu menuntut peringatan muncul saat tak ada yang salah, dan perbaikan yang
+benar (pesan hanya sesudah galat atau sesudah tenggat) tetap membuatnya merah.
+**Pagar yang tak pernah bisa hijau bukan pagar.** Yang dikunci karena itu satu
+tingkat di bawah: jalur pelaporan `TurnstileWidget`, tempat kegagalan hari ini
+menjelma jadi `null` yang tak dapat dibedakan dari "belum".
+
+**Satu jebakan struktur yang baru terlihat saat pagarnya memerah.**
+`test.describe.configure({ mode: 'serial' })` semula dipasang di tingkat berkas
+`notifikasi-siklus.spec.js`. Saat mutasi BUG-014 membuat pagar pertama memerah,
+kedua uji BUG-018 **tidak dijalankan sama sekali** — terbaca di laporan sebagai
+`did not run`, bukan hijau maupun merah. Serial lalu dipindahkan ke dalam
+masing-masing `describe`. Jebakan ini hanya muncul pada keadaan yang justru
+paling penting: saat cacatnya diperbaiki.
+
+**Peringatan yang berlaku bagi keenamnya.** Anotasi gagal-yang-diharapkan yang
+ditinggalkan pada kontrak yang sudah berubah adalah **pagar yang diam-diam
+mati**. Bila perbaikan memilih jalur berbeda dari yang diandaikan pagar —
+misalnya BUG-016 dilaporkan lewat keadaan store alih-alih prop `onError` —
+pagarnya wajib disesuaikan, bukan dibiarkan hijau.
+
+**Satu uji yang lama diam-diam bersandar pada cacat.** `Dropdown.test.jsx` milik
+tim dev mencari pemicunya dengan `screen.getByLabelText('Instansi')`, dan itu
+berhasil justru karena BUG-017. Ia tetap lulus sesudah diperbaiki, jadi bukan
+penghalang — tetapi pantas diketahui sebelum seseorang menyimpulkan nama
+aksesibelnya sudah teruji.
 ## Ringkasan Statistik Test Cases
 
 > **DIHITUNG ULANG 2 September 2026 dari baris tabelnya sendiri, bukan disalin dari
