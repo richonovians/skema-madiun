@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.6                                                                                                        |
+| **Versi**           | 3.7                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -2107,6 +2107,8 @@ perilaku sebenarnya.
 
 ### CAT-014 — `pnpm db:seed` tak dapat dijalankan sejak peran jamak
 
+> ✅ **DIPERBAIKI & DIVERIFIKASI 15 September 2026** — lihat blok penutup entri ini.
+
 **Ditemukan:** 15 September 2026 (saat mencocokkan dokumen pengujian dengan kode)
 
 `apps/api/prisma/seed.ts` masih menulis peran dalam bentuk tunggal:
@@ -2156,6 +2158,59 @@ dimiliki tiap akun seed pada model baru — `admin.opd@example.go.id` di dev
 sekarang ber-`roles` `['opd','responden']`, dan seed tak tahu-menahu soal itu.
 Sekalian: masukkan `prisma/` ke dalam jangkauan `tsc` agar kejadian yang sama
 tertangkap sebelum sampai ke mesin siapa pun.
+
+---
+
+#### Perbaikan — 15 September 2026, atas permintaan penguji
+
+Dikerjakan menyimpang dari aturan biasa (penguji tidak menyentuh `apps/api`)
+karena penguji memintanya secara tersurat. Tiga berkas, delapan baris:
+
+| Berkas | Perubahan |
+| ------ | --------- |
+| `prisma/seed.ts` | lima `role: Role.x` → `roles: [Role.x]` |
+| `tsconfig.json` | `prisma/**/*` masuk `include` |
+| `tsconfig.build.json` | `prisma` masuk `exclude` |
+
+**Berkas ketiga itu tidak ada dalam rencana, dan justru itu bagian
+terpentingnya.** Memasukkan `prisma/` ke `include` mematahkan `nest build`:
+`tsconfig.build.json` menetapkan `rootDir: ./src`, sehingga seed yang kini ikut
+terbaca menghasilkan `error TS6059: File 'prisma/seed.ts' is not under rootDir
+'src'`. Perbaikan yang dihentikan pada dua berkas pertama akan menukar satu
+kerusakan dengan kerusakan lain yang lebih parah — build produksi gagal.
+
+**Yang dibuktikan, bukan diandaikan:**
+
+1. **Penjaganya dapat memerah.** Satu baris dikembalikan ke bentuk lamanya, dan
+   `tsc` langsung menolak dengan TS2561 — diuji dua kali pada baris berbeda,
+   lalu dikembalikan. Tanpa langkah ini, `include` yang ditambahkan mungkin saja
+   tak berpengaruh apa-apa dan hijaunya palsu.
+2. **Seed benar-benar jalan pada lingkungan yang benar-benar baru.** Basis data
+   sekali pakai `skm_seed_uji` dibuat, `prisma migrate deploy` dijalankan
+   penuh, lalu `pnpm db:seed`:
+
+   ```
+   Seed selesai: admin kabupaten (id=1), superuser (id=2, + akses log aktivitas),
+   admin OPD (id=3), responden (id=4), 3 OPD, template 9 unsur
+   (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.
+   ```
+
+   Isinya diperiksa: 4 pengguna ber-`roles` `{kabupaten}`, `{superuser}`,
+   `{opd}`, `{responden}`; 3 OPD; 2 survei; 18 pertanyaan; 1 pengaduan.
+3. **Idempoten.** Dijalankan kedua kalinya tanpa galat, dan seluruh jumlahnya
+   tak bergerak.
+4. **`skm_db` tak tersentuh sama sekali.** Basis data sekali pakai itu dipakai
+   justru supaya `update: { roles: [Role.superuser] }` tak menimpa akun
+   `superuser@example.go.id` di dev, yang kini ber-peran empat. Sesudah selesai
+   ia dihapus; `skm_db` tetap 7 pengguna, 5 survei, 13 pengaduan, 254 notifikasi
+   — persis seperti sebelum perbaikan dikerjakan.
+5. **708 uji unit backend tetap lulus** di 46 berkas.
+
+**Satu keputusan yang sengaja TIDAK diambil di sini.** Seed dipulihkan persis
+seperti maksud aslinya — satu peran per akun. Apakah akun seed sebaiknya
+mencerminkan peran jamak seperti keadaan dev sekarang adalah keputusan rancangan
+tim backend, bukan penguji, dan mengubahnya diam-diam akan menyelundupkan
+keputusan itu ke dalam perbaikan yang seharusnya mekanis.
 
 ---
 
@@ -2527,3 +2582,4 @@ bukan gaya rumah: polanya sudah dikuasai di berkas sebelah.
 | 3.4   | 15 September 2026  | **Sesi C-16 (rute publik tanpa sesi & captcha) dijalankan.** Sepuluh pemeriksaan lulus — termasuk gerbang PDP bagi pengunjung tanpa akun, penolakan **404** atas survei non-anonim, **400** atas kiriman tanpa `setuju`, dan **403** `CAPTCHA_TIDAK_SAH` atas token karangan maupun token yang tak ada. **BUG-016 (Medium)**: ketika Turnstile gagal menerbitkan token, tombol "Kirim Survei" terkunci selamanya tanpa satu pun pesan — `error-callback` hanya mengosongkan token, dan satu-satunya jalur pesan (`submitError`) baru hidup sesudah pengiriman dicoba. **CAT-018**: pengiriman publik tak dapat diuji ujung-ke-ujung di lingkungan ini karena site key Turnstile tak memuat hostname `skema.local`; ini pula sebab dua pengujian E2E milik tim dev dilewati, bukan lulus. Satu probe keliru (mencentang kotak yang salah) hampir menghasilkan laporan "jalan buntu" yang palsu, dan dibatalkan sesudah struktur gerbangnya didaftar ulang. |
 | 3.5   | 15 September 2026  | **Sesi C-17 (riwayat notifikasi) dijalankan.** Enam pemeriksaan lulus, termasuk satu dugaan yang sengaja diuji dan **gugur**: penyaringan & paginasi halaman ini dikerjakan backend, bukan diambil semua lalu disaring di peramban seperti halaman OPD yang melahirkan BUG-011. **BUG-017 (Medium)**: pemicu `Dropdown` dilabeli `<label for>` sehingga nama terbacanya adalah labelnya, bukan nilainya — pemakai awas melihat "Aduan", pembaca layar mendengar "Kategori Pengaduan". Berlaku pada **17 berkas**, terburuk di formulir pengaduan warga: pelapor tunanetra tak dapat memastikan OPD tujuan sebelum mengirim. `aria-haspopup` dan `aria-expanded` juga tak ada di mana pun. |
 | 3.6   | 15 September 2026  | **Sesi C-18 & C-19 dijalankan — seluruh charter baru sesudah tarikan `main` tuntas.** C-18 (teruskan pengaduan antar-OPD): enam pemeriksaan lulus, termasuk isolasi sebelum & sesudah penugasan, **403** bagi Admin OPD, **404** bagi OPD yang tak ada, dan **400** pada peneruskan kedua. **BUG-018 (Low)**: meneruskan menyiarkan ulang "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya — dibuktikan dengan dua kendali (5/5 dan 4/4 berbanding 9 notifikasi untuk 5 penerima); pelapornya sendiri justru tak diberi tahu. C-19 (tiga menu ekspor): **nihil cacat** — CSV dan PDF benar-benar diunduh dan isinya diperiksa, dan menu ekspor ternyata komponen paling lengkap aksesibilitasnya di antara semua yang diperiksa hari ini. **CAT-019**: ekspor daftar survei mewarisi batas `limit: 100` sisi klien (belum terjangkau hari ini) dan pilihan "Ekspor Excel" sebenarnya menghasilkan `.csv`. |
+| 3.7   | 15 September 2026  | **CAT-014 diperbaiki dan diverifikasi** atas permintaan penguji — menyimpang dari aturan biasa bahwa penguji tak menyentuh `apps/api`. Tiga berkas: lima baris `role:` menjadi `roles: [...]` pada `seed.ts`, `prisma/**/*` masuk `include` tsconfig, dan `prisma` masuk `exclude` tsconfig.build. Berkas ketiga tidak ada dalam rencana dan justru terpenting: tanpa itu `nest build` patah dengan TS6059 karena `rootDir: ./src`. Dibuktikan berlapis — penjaganya dibuat memerah lewat mutasi sengaja dua kali, seed dijalankan penuh pada basis data sekali pakai yang dibuat dari nol (`migrate deploy` + `db:seed`, idempoten pada jalan kedua), `skm_db` dipastikan tak tersentuh, dan 708 uji unit backend tetap lulus. |

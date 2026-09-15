@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.7                                                     |
-| **Tanggal**            | 15 September 2026 (v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.8                                                     |
+| **Tanggal**            | 15 September 2026 (v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -56,7 +56,8 @@ docker compose up -d db
 # 2. Backend (terminal sendiri)
 cd apps/api
 pnpm prisma:migrate    # menyiapkan skema
-pnpm db:seed           # ⚠️ RUSAK per 15 Sep 2026 — lihat peringatan di bawah
+pnpm db:seed           # PAKAI INI — `prisma db seed` gagal, tak ada blok
+                       # `prisma.seed` di package.json
 pnpm dev               # nest start --watch
 
 # 3. Frontend (terminal sendiri)
@@ -80,14 +81,18 @@ mendadak 404. Hentikan dev dulu bila perlu build.
 Akun uji: lihat **TEST_PLAN.md §3.3**. Login lewat tombol "Masuk via SSO Helpdesk"
 di beranda, isi **email saja** — tidak ada kata sandi.
 
-> ⛔ **`pnpm db:seed` TIDAK DAPAT DIJALANKAN per 15 September 2026.** `seed.ts`
-> masih menulis `role: Role.x` (tunggal) sedangkan skema sudah memakai
-> `roles Role[]` sejak peran jamak 5 September — kolom `role` **sudah dibuang**.
-> Lima galat tipe, dan `prisma/` berada di luar `include` tsconfig sehingga
-> `tsc` proyek tetap hijau. Akibatnya **titik awal yang dapat direproduksi tidak
-> tersedia**: basis data dev yang ada sekarang tak bisa disetel ulang, dan
-> lingkungan baru tak bisa disiapkan sama sekali. Lihat
-> [CAT-014](BUG_REPORTS.md#cat-014) — pekerjaan tim backend, bukan penguji.
+> ✅ **`pnpm db:seed` DAPAT DIJALANKAN LAGI sejak 15 September 2026.** Ia sempat
+> patah sepuluh hari: `seed.ts` masih menulis `role:` tunggal sedangkan kolomnya
+> sudah diganti `roles Role[]` pada peran jamak 5 September, dan `prisma/` berada
+> di luar jangkauan `tsc` sehingga tak ada yang memerah. Sudah diperbaiki dan
+> diverifikasi pada basis data yang dibuat dari nol — lihat
+> [CAT-014](BUG_REPORTS.md#cat-014).
+>
+> Sekalian diketahui: seed kini **menimpa** `roles` akun `superuser` bila
+> dijalankan atas basis data yang sudah ada (`update: { roles: [Role.superuser] }`).
+> Di `skm_db` akun itu ber-peran empat, jadi menjalankan seed di sana akan
+> menurunkannya menjadi satu peran. Jalankan seed pada basis data bersih, bukan
+> di atas dev yang sudah menyimpang.
 
 > ⚠️ Basis data dev bisa menyimpang dari `seed.ts` (per 10 Agustus 2026 sudah berbeda:
 > akun `warga@gmail.com`, 54 OPD hasil sinkronisasi Helpdesk). Sebelum sesi, jalankan

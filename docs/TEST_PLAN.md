@@ -5,8 +5,8 @@
 |                   |                                                                                        |
 | ----------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
-| **Versi Dokumen** | 1.3                                                                                    |
-| **Tanggal**       | 15 September 2026 (revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
+| **Versi Dokumen** | 1.4                                                                                    |
+| **Tanggal**       | 15 September 2026 (v1.4 — seed dapat dijalankan lagi (CAT-014 diperbaiki), §3.3 & §5.1 disesuaikan; v1.3 — revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
 | **Stack**         | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Prisma (ORM) · Docker |
 | **Cakupan Uji**   | Backend REST API · Frontend UI · Integrasi End-to-End                                  |
 
@@ -152,13 +152,15 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 | **Admin OPD**       | `admin.opd@example.go.id`       | `seed-admin-opd`       | Terikat ke OPD **Dinas Kesehatan** (`DINKES`)                                  |
 | **Responden**       | `warga@example.go.id`           | `seed-responden`       | Sudah punya profil demografis (perempuan · 26-35 · S1 · Wiraswasta)            |
 
-> ⛔ **Tabel di atas menggambarkan seed yang SAAT INI TIDAK DAPAT DIJALANKAN**
-> (15 September 2026). `seed.ts` masih menulis `role:` tunggal sedangkan skema
-> sudah memakai `roles Role[]` — lima galat tipe, dan `prisma/` berada di luar
-> `include` tsconfig sehingga `tsc` proyek tetap hijau. Rinciannya di
-> [BUG_REPORTS CAT-014](BUG_REPORTS.md#cat-014). Sampai diperbaiki tim backend,
-> **tak ada titik awal yang dapat direproduksi**: pakai apa adanya isi basis
-> data dev, dan catat di laporan keadaan mana yang dipakai.
+> ✅ **Seed dapat dijalankan lagi sejak 15 September 2026.** Ia sempat patah
+> sepuluh hari — `seed.ts` menulis `role:` tunggal sesudah kolomnya diganti
+> `roles Role[]` — dan sudah diperbaiki serta diverifikasi pada basis data yang
+> dibuat dari nol ([CAT-014](BUG_REPORTS.md#cat-014)). Tabel di atas kembali
+> menjadi titik awal yang dapat direproduksi.
+>
+> ⚠️ Jalankan seed pada basis data **bersih**, bukan di atas dev yang sudah
+> menyimpang: `update: { roles: [Role.superuser] }` akan menimpa `roles` akun
+> `superuser@example.go.id`, yang di `skm_db` kini ber-peran empat.
 >
 **Akun yang benar-benar ada di basis data dev — dibaca langsung 15 September 2026.**
 Lima dari tujuh ber-peran lebih dari satu, jadi jalur "wajib memilih peran"
@@ -295,7 +297,7 @@ yang muncul sesudah "Masuk", atau panggil
 
 - [ ] Kode sudah ter-compile tanpa error (`pnpm build` sukses).
 - [ ] Database migration terbaru sudah dijalankan (`prisma migrate deploy`).
-- [ ] ~~Seed data tersedia dan dapat dijalankan (`prisma db seed`).~~ ⛔ **Tidak terpenuhi sejak 15 Sep 2026** — [CAT-014](BUG_REPORTS.md#cat-014). Kriteria ini tak dapat dicentang siapa pun sampai `seed.ts` disesuaikan dengan `roles Role[]`. Jangan dilewati diam-diam: catat keadaan basis data yang dipakai sebagai gantinya.
+- [ ] Seed data tersedia dan dapat dijalankan (`pnpm db:seed` — **bukan** `prisma db seed`, yang gagal karena tak ada blok `prisma.seed` di package.json). Sempat tak terpenuhi 5–15 Sep 2026, lihat [CAT-014](BUG_REPORTS.md#cat-014).
 - [ ] Lingkungan Docker Compose berjalan normal (api, db, frontend).
 - [ ] Semua unit test yang ada lulus (`pnpm test`).
 
