@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 4.3                                                                                                        |
+| **Versi**           | 4.4                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -2836,6 +2836,15 @@ Bila `api=502` sementara `web=200`, jalankan `docker exec skm-proxy nginx -s rel
 lalu ulangi. Kegagalan E2E yang dikumpulkan dalam keadaan itu **tidak berarti
 apa-apa tentang produk** — dan sebaliknya, kegagalan yang dilaporkan tanpa
 pemeriksaan ini tak dapat dipercaya.
+
+**Terulang, dan obatnya terbukti dua kali.** Gejala yang sama muncul lagi pada
+15 September 2026 pukul 03.30 — `api=502` sementara `web=200` — di tengah jalan
+Jest yang membebani mesin. `docker exec skm-proxy nginx -s reload` kembali
+menyembuhkannya seketika. Jadi ini **bukan kejadian sekali**, melainkan pola
+yang berulang tiap kali API sempat tak menjawab: satu-satunya yang dibutuhkan
+adalah jeda cukup panjang pada upstream, dan beban mesin sudah cukup
+menyediakannya. Pemeriksaan `curl` dua baris di atas karena itu pantas dijadikan
+kebiasaan sebelum menjalankan suite, bukan hanya saat ada yang mencurigakan.
 
 **Bukan cacat produk.** nginx di sini hanya perkakas pengembangan; di produksi
 frontend dan backend tak dilayani lewat `host.docker.internal`. Dicatat sebagai
