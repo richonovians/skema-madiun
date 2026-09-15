@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.8                                                     |
-| **Tanggal**            | 15 September 2026 (v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.9                                                     |
+| **Tanggal**            | 15 September 2026 (v2.9 — **C-09 TIDAK LAGI TERKUNCI**: kredensial SSO Helpdesk sudah turun, charter dijalankan sebagian (separuh pertama alur terverifikasi, BUG-019 ditemukan); sisanya menunggu akun pengguna Helpdesk, bukan kredensial aplikasi; v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -441,17 +441,45 @@ Sejak itu setiap probe menghitung permintaan yang benar-benar terkirim, lalu
 
 ---
 
-### C-09 — Masuk lewat SSO Helpdesk & persetujuan PDP `P0` — ⛔ TERKUNCI
+### C-09 — Masuk lewat SSO Helpdesk & persetujuan PDP `P0` — 🟡 dijalankan sebagian 15 September 2026
 
-> **TIDAK DAPAT DIJALANKAN SIAPA PUN per 2 September 2026.** `HELPDESK_SSO_CLIENT_ID`
-> dan `HELPDESK_SSO_CLIENT_SECRET` masih dikomentari di `apps/api/.env` — menunggu
-> kredensial dari tim Helpdesk/Diskominfo. `SsoService` menolak dengan
-> `ServiceUnavailableException` ("SSO Helpdesk belum dikonfigurasi") bila salah satu
-> kunci kosong, sehingga menekan tombol SSO hanya menghasilkan 503.
+> **TIDAK LAGI TERKUNCI.** Kredensialnya sudah turun: `HELPDESK_SSO_CLIENT_ID`,
+> `HELPDESK_SSO_CLIENT_SECRET`, `HELPDESK_SSO_ISSUER`, dan
+> `HELPDESK_SSO_REDIRECT_URI` kini terisi di `apps/api/.env` — tak satu pun masih
+> dikomentari. Menekan tombol masuk **tidak lagi menghasilkan 503**.
 >
-> Ini hambatan eksternal, bukan pekerjaan yang tertunda. Charter dibiarkan utuh
-> supaya siap dijalankan begitu kredensialnya turun. Sementara itu jalankan
-> **[C-10](#c-10--area-superuser-p0)** yang bisa diuji lewat `dev-login`.
+> Ditemukan tanpa sengaja saat menyiapkan pekerjaan lain; charter ini masih
+> tercatat "terkunci" di seluruh laporan sebelumnya. **Pantas diperiksa ulang
+> sebelum charter mana pun dinyatakan terkunci: hambatannya mungkin sudah
+> hilang tanpa ada yang mengabarkan.**
+
+**Hasil: 1 temuan (Medium).** Rincian di [BUG-019](BUG_REPORTS.md#bug-019).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Tombol masuk mengalihkan ke Helpdesk | ✅ **302** ke `https://api.madiunkab.go.id/api/oauth/authorize` dengan `response_type`, `client_id`, `redirect_uri`, `scope`, dan `state` lengkap |
+| Issuer dapat dihubungi dari lingkungan ini | ✅ `/.well-known/openid-configuration` membalas **200** |
+| Kredensial klien diterima Helpdesk | ✅ penukaran `code` karangan ditolak dengan **`invalid authorization code`**, bukan `invalid_client` — artinya identitas aplikasinya sendiri sudah sah |
+| Cookie `state` | ✅ `HttpOnly`, `SameSite=Lax`, `Max-Age=600`, ber-`Path=/api/v1/auth/sso`, dan `Secure` dipasang bersyarat (`sso-state.service.ts:133`) |
+| Callback tanpa `state` | ✅ ditolak, cookie-nya ikut dibuang (`Max-Age=0`) |
+| Callback ber-`state` karangan | ✅ ditolak |
+| **Callback ber-`state` yang sah tetapi TANPA cookie-nya** | ✅ ditolak — state benar-benar diikat ke cookie, bukan sekadar ada |
+| Warga membatalkan di Helpdesk | ✅ mendarat di layar galat berbahasa Indonesia dengan dua jalan keluar |
+| **Kalimat galat yang ditampilkan** | ❌ [BUG-019](BUG_REPORTS.md#bug-019) |
+
+**Yang masih belum dapat dijalankan, dan ini jujur bukan kelalaian.** Keempat
+kunci itu mengautentikasi **aplikasinya**, bukan seseorang. Untuk menembus
+halaman login Helpdesk tetap dibutuhkan **akun pengguna Helpdesk yang sungguhan**,
+dan penguji tidak memilikinya. Karena itu bagian charter berikut belum tersentuh:
+
+- layar persetujuan PDP bagi responden baru,
+- cookie `session` HttpOnly & ketiadaan token di `localStorage` sesudah masuk,
+- sesi bertahan setelah peramban ditutup, dan perilakunya sesudah `expiresAt`,
+- tombol Keluar beserta halaman admin yang mungkin tertinggal di cache,
+- berganti peran antar-akun dalam satu peramban.
+
+Yang sudah dapat dipastikan: **seluruh separuh pertama alurnya benar**, dan
+penjagaan CSRF-nya bukan sekadar ada melainkan benar-benar mengikat.
 
 **Misi:** telusuri alur masuk yang sesungguhnya — bukan `dev-login` yang selama ini
 dipakai untuk menguji — dari klik pertama sampai berada di dalam aplikasi.

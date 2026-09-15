@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 4.0                                                                                                        |
+| **Versi**           | 4.1                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -75,8 +75,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | Baru       | C-16    |
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
+| [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
 
-**Rekap** — 17 temuan: 4 ditutup, **13 terbuka (1 Critical, 1 High, 6 Medium, 5 Low)**
+**Rekap** — 18 temuan: 4 ditutup, **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -86,7 +87,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
 
-**Keenam temuan C-14…C-19 kini terkunci uji otomatis (15 September 2026).**
+**Ketujuh temuan terbaru kini terkunci uji otomatis (15 September 2026)** — keenam dari C-14…C-19, ditambah BUG-019 dari C-09.
 Tak satu pun dari cacatnya sudah diperbaiki; yang dikunci adalah **momen
 perbaikannya** — tiap pagar ditulis sebagai gagal-yang-diharapkan, sehingga
 suite tetap hijau selama cacatnya ada dan MERAH begitu seseorang
@@ -101,6 +102,7 @@ regresi sungguhan.
 | [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL |
 | [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL |
 | [BUG-018](#bug-018) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
+| [BUG-019](#bug-019) | `e2e/sso-galat.spec.js` | E2E (API) |
 
 Tiap pagar didahului **uji kendali yang wajib lulus**, dan tiap-tiap dibuktikan
 **dua arah**: cacatnya diperbaiki sementara di kode produksi, pagarnya diamati
@@ -2666,6 +2668,87 @@ mutasinya dikembalikan.
 
 ---
 
+<a id="bug-019"></a>
+
+### BUG-019 — Layar "Gagal masuk lewat SSO" menampilkan kalimat dari luar, apa adanya
+
+|                       |                                                      |
+| --------------------- | ---------------------------------------------------- |
+| **Charter**           | C-09                                                  |
+| **Tanggal**           | 15 September 2026                                     |
+| **Peran**             | **siapa pun yang mencoba masuk** — termasuk warga     |
+| **Halaman**           | `/sso/callback` (layar gagal masuk)                   |
+| **Severity**          | Medium                                                |
+| **Kasus uji terkait** | TC-AUTH-001 s/d 003, C-09                             |
+
+**Langkah reproduksi**
+
+1. Buka tautan berikut di peramban (tanpa sesi apa pun):
+
+   ```
+   http://skema.local/api/v1/auth/sso/callback?error=access_denied&error_description=Akun+Anda+diblokir.+Hubungi+0812-PENIPU+untuk+membukanya.
+   ```
+
+2. Baca layar yang muncul.
+
+**Hasil yang diharapkan** — aplikasi menjelaskan kegagalannya dengan kalimatnya
+sendiri. Keterangan mentah dari penyedia identitas boleh masuk log, bukan layar.
+
+**Hasil sebenarnya** — kalimat karangan itu tampil utuh, **di domain yang asli,
+di dalam alur masuk**, lengkap dengan tombol milik aplikasi di bawahnya:
+
+```
+Gagal masuk lewat SSO Helpdesk
+Akun Anda diblokir. Hubungi 0812-PENIPU untuk membukanya.
+[ Coba masuk lagi ]  [ Kembali ke beranda ]
+```
+
+Diperiksa di peramban sungguhan, bukan disimpulkan dari kode.
+
+**Sebabnya, dua baris di dua berkas.**
+`auth.controller.ts:164` meneruskan keterangannya apa adanya:
+
+```ts
+this.ssoService.buildFailureRedirect(query.error_description ?? query.error)
+```
+
+`buildFailureRedirect` menaruhnya di fragment `#error=`, dan `AuthCallbackLoader`
+merendernya lewat `setMessage(galat)`. DTO-nya mengizinkan **1024 karakter**
+bebas (`@MaxLength(1024)`), tanpa daftar nilai yang boleh.
+
+**Ini BUKAN XSS, dan perbedaannya penting.** React merender pesan itu sebagai
+teks, bukan HTML — tak ada `dangerouslySetInnerHTML` di jalur ini, jadi tak ada
+kode yang dapat dijalankan. Yang disuntikkan **kalimatnya**. Justru itu yang
+membuatnya bekerja: korban melihat nomor telepon palsu pada halaman pemerintah
+yang sah, di dalam alur yang paling ia percayai, tanpa satu pun tanda bahaya yang
+biasa diajarkan (alamatnya benar, sertifikatnya benar, tampilannya benar).
+
+**Sisi kedua yang terjadi tanpa penyerang mana pun.** Percobaan dengan `code`
+karangan tetapi `state` yang sah menghasilkan layar berbunyi:
+
+```
+Helpdesk tidak mengembalikan access_token: invalid authorization code
+```
+
+Itu bukan kalimat untuk warga. Jadi jalur yang sama menghasilkan dua masalah
+sekaligus: dapat disalahgunakan bila ada yang mau, dan **sudah membingungkan
+sekarang** tanpa ada yang mau.
+
+**Saran perbaikan** — petakan galat yang dikenal ke kalimat milik aplikasi
+(`access_denied` → "Anda membatalkan proses masuk."), dan untuk yang tak dikenal
+tampilkan satu kalimat baku beserta kode galatnya saja. Keterangan aslinya sudah
+ikut tercatat di log (`auth.controller.ts:159-161`), jadi kemampuan menelusuri
+tak berkurang sedikit pun.
+
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`apps/web/e2e/sso-galat.spec.js`](../apps/web/e2e/sso-galat.spec.js). Uji
+kendali yang wajib lulus membuktikan jalur gagalnya memang hidup dan mengalihkan
+ke `/sso/callback#error=`; pagar `test.fail()` menuntut kalimat karangan tak ikut
+ke sana. Dibuktikan dua arah dengan menghapus `query.error_description` dari
+pemanggilan itu sementara, lalu mengembalikannya.
+
+---
+
 ### CAT-019 — Ekspor daftar survei mewarisi batas 100 baris, dan "Excel" sebenarnya CSV
 
 **Ditemukan:** 15 September 2026 (charter C-19)
@@ -2790,3 +2873,4 @@ temuan atas aplikasinya.
 | 3.8   | 15 September 2026  | **BUG-013 terkunci uji otomatis** (`e2e/statistik-sampah.spec.js`). Sebabnya kini pasti: `DashboardService.getStatistics` memanggil `prisma.ikmResult.findMany` **tanpa `where` sama sekali**, dan query itu menyuapi `summary.ikm` sekaligus seluruh `ikmTrend`. Ditulis sebagai `test.fail()` supaya suite tetap hijau selama cacatnya ada dan MERAH begitu diperbaiki. Efek sampingnya menyingkap gigi BUG-014: spec memusnahkan surveinya sendiri dan `bersihkan-data-uji.mjs` tak dapat menemukan notifikasi yang ditinggalkannya — skrip pembersih karena itu dapat bendera opt-in `--yatim`. |
 | 3.9   | 15 September 2026  | **Lima temuan sisa terkunci — keenam temuan C-14…C-19 kini berpagar.** BUG-014 & BUG-018 di E2E (`e2e/notifikasi-siklus.spec.js`), BUG-015/016/017 di Jest dengan `test.failing()`. Enam siklus mutasi, seluruhnya dikembalikan; tak ada kode produksi yang berubah. Sebab BUG-018 kini pasti: `ComplaintsService.forward` memanggil `notifyComplaintCreated`, jalur siar yang sama dengan pengaduan baru, dan jalur itu menyiarkan ke **setiap** akun admin. Pagar BUG-016 sengaja dipasang di `TurnstileWidget`, bukan `ModalKirimSurvei`: uji yang menuntut pesan saat token kosong akan menuntutnya muncul ketika tak ada yang salah, dan tetap merah sesudah perbaikan yang benar. |
 | 4.0   | 15 September 2026  | **CAT-020** — nginx menandai upstream `skm_api` mati saat API restart dan **tidak memulihkannya sendiri**: `…/api/v1/*` membalas 502 berjam-jam sementara `/` tetap 200, padahal API sehat dan dapat dicapai dari dalam container nginx. Menjelaskan **dua** jalan E2E yang mati di `globalSetup`, tetapi **bukan** kegoyahan yang tercatat di §Y.3 — jalan penuh sesudah `nginx -s reload` tetap gagal 5 dari 17 tanpa satu pun 502. Ditambahkan pula peringatan `pnpm db:seed` di TEST_PLAN §5.1: dijalankan dari akar repo ia **tidak ada**, dan dijalankan pada `skm_db` ia memangkas peran superuser dev dari empat menjadi satu. |
+| 4.1   | 15 September 2026  | **C-09 ternyata tidak lagi terkunci.** Kredensial SSO Helpdesk sudah terisi di `apps/api/.env` — tombol masuk tak lagi menjawab 503 — dan seluruh laporan sebelumnya masih mencatatnya terkunci. Charter dijalankan sebagian: pengalihan ke `api.madiunkab.go.id` benar, issuer terjangkau, kredensial klien **diterima Helpdesk** (`code` karangan ditolak dengan `invalid authorization code`, bukan `invalid_client`), dan penjagaan CSRF-nya bukan sekadar ada — `state` yang sah TANPA cookie-nya pun ditolak. **BUG-019 (Medium)**: `error_description` dari luar ditampilkan apa adanya di layar "Gagal masuk lewat SSO Helpdesk", hingga 1024 karakter bebas; bukan XSS (React merendernya sebagai teks) melainkan penyuntikan KALIMAT di domain pemerintah yang sah. Sisi keduanya terjadi tanpa penyerang: kegagalan biasa menampilkan "Helpdesk tidak mengembalikan access_token: invalid authorization code" kepada warga. Terkunci `e2e/sso-galat.spec.js`. Sisa charter menunggu **akun pengguna** Helpdesk, bukan kredensial aplikasi. |
