@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.4                                                                                                        |
+| **Versi**           | 3.5                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -73,8 +73,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | Baru       | C-16    |
+| [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
 
-**Rekap** — 15 temuan: 4 ditutup, **11 terbuka (1 Critical, 1 High, 5 Medium, 4 Low)**
+**Rekap** — 16 temuan: 4 ditutup, **12 terbuka (1 Critical, 1 High, 6 Medium, 4 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -2350,6 +2351,70 @@ Nomor 2 yang paling mendekati keadaan produksi tanpa membuka lubang.
 
 ---
 
+### BUG-017 — Dropdown menyebutkan namanya, tak pernah menyebutkan pilihannya
+
+|                       |                                                       |
+| --------------------- | ----------------------------------------------------- |
+| **Charter**           | C-17                                                  |
+| **Tanggal**           | 15 September 2026                                     |
+| **Peran**             | seluruh peran — termasuk **warga** pada formulir pengaduan |
+| **Halaman**           | `components/ui/Dropdown.jsx` — dipakai **17 berkas**, di antaranya `/complaints/new`, riwayat notifikasi, penyaring OPD, formulir survei |
+| **Severity**          | Medium                                                |
+| **Kasus uji terkait** | TC-FE-039, TC-FE-017, C-17                            |
+
+**Langkah reproduksi**
+
+1. Buka `/complaints/new` sebagai warga.
+2. Pilih "Aduan" pada dropdown **Kategori Pengaduan**.
+3. Bandingkan yang tampak di layar dengan nama yang terbaca teknologi bantu.
+
+**Hasil sebenarnya**
+
+```
+teks yang TAMPAK di tombol        : "Aduan"
+nama yang TERBACA (accname)       : "Kategori Pengaduan"
+pencarian tombol bernama "Aduan"  : 0 hasil
+```
+
+Pemakai awas melihat **"Aduan"**; pembaca layar mengumumkan **"Kategori
+Pengaduan, tombol"** — sebelum maupun sesudah memilih. Nilai yang dipilih tak
+pernah terdengar sama sekali.
+
+**Sebabnya.** Pemicu dropdown adalah `<button>` yang dilabeli
+`<label for="category">Kategori Pengaduan</label>`. Pada perhitungan nama
+aksesibel, label itu **menang atas isi tombolnya**, sehingga isinya — yaitu
+nilainya — diabaikan seluruhnya.
+
+Dua atribut yang biasanya melengkapi pola ini juga tak ada di
+`components/ui/Dropdown.jsx`: **`aria-haspopup`** (tak ada yang memberi tahu
+bahwa tombol ini membuka daftar) dan **`aria-expanded`** (keadaan
+terbuka/tertutupnya tak pernah disampaikan). Diperiksa di dua halaman berbeda,
+hasilnya sama:
+
+| Tempat | Nama terbaca | `aria-haspopup` | `aria-expanded` |
+| ------ | ------------ | --------------- | --------------- |
+| `/complaints/new` → `#department` | "OPD / Instansi Tujuan" | tak ada | tak ada |
+| `/complaints/new` → `#category` | "Kategori Pengaduan" | tak ada | tak ada |
+| riwayat notifikasi → `#saring-rentang-notifikasi` | "Rentang waktu" | tak ada | tak ada |
+| riwayat notifikasi → `#saring-urutan-notifikasi` | "Urutan" | tak ada | tak ada |
+
+**Kenapa Medium, dan kenapa formulir pengaduan yang menentukan.** Warga tunanetra
+dapat membuka daftar OPD dan memilih, tetapi **tak pernah dapat memastikan
+instansi mana yang akan menerima laporannya** — tombolnya terus menyebut
+"OPD / Instansi Tujuan", apa pun yang sudah dipilih. Pengaduan yang mendarat di
+OPD keliru tak pernah sampai ke petugas yang berwenang, dan pelapornya tak punya
+cara memeriksa sebelum menekan Kirim.
+
+**Catatan yang perlu diadili dengan jujur.** Label tampak itu **bukan
+kekeliruan** — ia dipasang justru untuk alasan yang benar, dan komentar di
+`NotificationFilterBar.jsx` menyatakannya terus terang: tanpa label, dua dropdown
+bersebelahan yang sama-sama berisi kata waktu ("Semua waktu" dan "Terbaru dulu")
+tak mungkin dibedakan pembaca layar. Yang keliru hanyalah menganggap pertukaran
+itu perlu terjadi: `aria-labelledby` yang menunjuk **label DAN nilainya
+sekaligus** memberi keduanya — "Rentang waktu, Semua waktu".
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -2371,3 +2436,4 @@ Nomor 2 yang paling mendekati keadaan produksi tanpa membuka lubang.
 | 3.2   | 15 September 2026  | **Sesi C-14 (Sampah survei & hapus permanen) dijalankan** — tiga temuan. **BUG-013 (High)**: survei yang dibuang ke Sampah tetap menghitung IKM kabupaten, papan peringkat OPD, jumlah responden, dan tren triwulan pada halaman publik; dibuktikan dengan uji kendali — memusnahkannya permanen mengembalikan seluruh angka persis ke semula. **BUG-014 (Medium)**: hapus permanen membersihkan enam tabel tetapi meninggalkan notifikasi yang menaut lewat teks `link`, menumpuk di lonceng lima akun admin sungguhan. **BUG-015 (Medium)**: dialog konfirmasi destruktif tak terbaca pembaca layar — `ConfirmActionModal` tanpa `role`/`aria-modal` sama sekali, dan `ConfirmTypeToDeleteModal` mengaku `aria-modal="true"` sambil meninggalkan fokus di luar dirinya. Delapan pemeriksaan lain **nihil cacat**, termasuk isolasi Sampah antar-OPD, penolakan 403 atas pemusnahan oleh Admin OPD, dan ketepatan sasaran pada dua survei berjudul sama. |
 | 3.3   | 15 September 2026  | **Sesi C-15 (berpindah peran dalam satu sesi) dijalankan — nihil cacat.** Sepuluh hal ditelusuri dan seluruhnya benar, termasuk penolakan **403** atas peran yang tidak dimiliki, **401** atas token yang belum berperan, pemantulan area sesudah berpindah, dan gerbang PDP yang berdiri tepat saat peran `responden` diambil. Satu dugaan sengaja diuji dan **gugur**: akun tanpa persetujuan PDP yang tetap boleh memakai area Admin Kabupaten bukan gerbang jebol, melainkan pembagian yang benar antara data pribadi responden dan tugas jabatan. Dua catatan: **CAT-016** (sesi memegang dua token berbeda; yang di cookie tak pernah berperan, sehingga keputusan area bersandar pada cookie `role` polos padahal klaim `act` bertanda tangan sudah tersedia) dan **CAT-017** (berpindah peran tidak mencabut token peran sebelumnya — token lama masih menulis, dan masih sah 24 jam bahkan sesudah logout). |
 | 3.4   | 15 September 2026  | **Sesi C-16 (rute publik tanpa sesi & captcha) dijalankan.** Sepuluh pemeriksaan lulus — termasuk gerbang PDP bagi pengunjung tanpa akun, penolakan **404** atas survei non-anonim, **400** atas kiriman tanpa `setuju`, dan **403** `CAPTCHA_TIDAK_SAH` atas token karangan maupun token yang tak ada. **BUG-016 (Medium)**: ketika Turnstile gagal menerbitkan token, tombol "Kirim Survei" terkunci selamanya tanpa satu pun pesan — `error-callback` hanya mengosongkan token, dan satu-satunya jalur pesan (`submitError`) baru hidup sesudah pengiriman dicoba. **CAT-018**: pengiriman publik tak dapat diuji ujung-ke-ujung di lingkungan ini karena site key Turnstile tak memuat hostname `skema.local`; ini pula sebab dua pengujian E2E milik tim dev dilewati, bukan lulus. Satu probe keliru (mencentang kotak yang salah) hampir menghasilkan laporan "jalan buntu" yang palsu, dan dibatalkan sesudah struktur gerbangnya didaftar ulang. |
+| 3.5   | 15 September 2026  | **Sesi C-17 (riwayat notifikasi) dijalankan.** Enam pemeriksaan lulus, termasuk satu dugaan yang sengaja diuji dan **gugur**: penyaringan & paginasi halaman ini dikerjakan backend, bukan diambil semua lalu disaring di peramban seperti halaman OPD yang melahirkan BUG-011. **BUG-017 (Medium)**: pemicu `Dropdown` dilabeli `<label for>` sehingga nama terbacanya adalah labelnya, bukan nilainya — pemakai awas melihat "Aduan", pembaca layar mendengar "Kategori Pengaduan". Berlaku pada **17 berkas**, terburuk di formulir pengaduan warga: pelapor tunanetra tak dapat memastikan OPD tujuan sebelum mengirim. `aria-haspopup` dan `aria-expanded` juga tak ada di mana pun. |

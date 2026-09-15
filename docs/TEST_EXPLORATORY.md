@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.5                                                     |
-| **Tanggal**            | 15 September 2026 (v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.6                                                     |
+| **Tanggal**            | 15 September 2026 (v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -777,6 +777,41 @@ CAT-018.
 
 > **Data uji sesi ini sudah dibersihkan.** Dua survei `[UJI C-16]` (satu anonim,
 > satu non-anonim sebagai pembanding) dihapus sesudah sesi.
+
+---
+
+### C-17 — Riwayat notifikasi tiga peran `P1` — ✅ dijalankan 15 September 2026
+
+**Misi:** halaman riwayat notifikasi beserta penyaring rentang & urutannya baru
+lahir 13 September 2026 dan belum pernah dibuka. Area ini juga sudah terbukti
+mahal sekali: 7.986 tautan mati pernah mengendap di lonceng para admin tanpa
+seorang pun menyadarinya.
+
+**Hasil: 1 temuan (Medium).** Rincian di [BUG-017](BUG_REPORTS.md#bug-017).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Halaman riwayat memuat & mengelompokkan per tanggal | ✅ "KEMARIN", "7 HARI TERAKHIR" sebagai kepala kelompok |
+| Hitungan pil status | ✅ "Semua (67)" dan "Belum dibaca (55)" cocok dengan `unread-count` |
+| **Penyaringan & paginasi dikerjakan backend, bukan klien** | ✅ `GET /notifications?page=1&limit=20` — bukan mengambil semua lalu menyaring di peramban |
+| Penyaring selalu mengembalikan ke halaman 1 | ✅ |
+| "Tandai semua dibaca" menandai SELURUHNYA, bukan yang tersaring | ✅ dan **labelnya jujur mengatakan itu** — sengaja tak ditekan pada sesi ini karena akan mengubah keadaan akun bersama |
+| Permintaan gagal di halaman notifikasi | ✅ nol |
+| **Nama terbaca pada dropdown penyaring** | ❌ [BUG-017](BUG_REPORTS.md#bug-017) |
+
+**Dugaan yang gugur, dan itu kabar baik.** Sesi ini berangkat dari kecurigaan
+yang wajar: [BUG-011](BUG_REPORTS.md#bug-011) dan
+[CAT-011](BUG_REPORTS.md#cat-011) lahir dari halaman OPD yang mengambil
+`limit: 100` lalu menyaring di peramban, sehingga penyaringnya berbohong begitu
+datanya melewati 100. Halaman ini **tidak** begitu: rentang waktunya ikut
+terkirim sebagai parameter, paginasinya milik backend, dan mengubah saringan
+mengembalikan halaman ke 1. Dugaan itu dicatat justru karena ia gugur — cara
+halaman ini dibangun pantas ditiru halaman OPD.
+
+**Satu hal di luar charter yang terekam.** Beranda publik (sebelum login)
+memanggil `GET /opd` dan `GET /ref/complaint-categories` **tanpa autentikasi**
+dan menerima **401** — mekanisme di balik [BUG-008](BUG_REPORTS.md#bug-008) yang
+masih terbuka. Bukan temuan baru, tetapi kini ada buktinya di tingkat permintaan.
 
 ---
 
