@@ -6,6 +6,7 @@ import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useAsync } from '@/hooks/useAsync';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 import {
+  NOTIFIKASI_BERUBAH_EVENT,
   getNotifications,
   getUnreadNotificationCount,
   markNotificationRead,
@@ -72,6 +73,19 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  /**
+   * Lonceng ini hidup di layout, jadi ia TETAP terpasang saat pengguna membuka
+   * halaman riwayat notifikasi dan menandai semuanya terbaca di sana. `useAsync`
+   * hanya mengambil data sekali per pemasangan, sehingga tanpa langganan ini ia
+   * memegang hitungan yang diambil sebelum tombol itu ditekan -- dan terus
+   * memperlihatkannya sampai halaman dimuat ulang (laporan pengguna 15
+   * September 2026).
+   */
+  useEffect(() => {
+    window.addEventListener(NOTIFIKASI_BERUBAH_EVENT, refetch);
+    return () => window.removeEventListener(NOTIFIKASI_BERUBAH_EVENT, refetch);
+  }, [refetch]);
 
   const handleItemClick = async (notification) => {
     setIsOpen(false);

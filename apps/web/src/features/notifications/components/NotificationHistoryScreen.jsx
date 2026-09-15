@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, BellOff, Check, ChevronRight } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -17,6 +17,7 @@ import NotificationFilterBar, {
 } from '@/features/notifications/components/NotificationFilterBar';
 import { kelompokkanNotifikasi } from '@/features/notifications/adapters/notificationKelompok';
 import {
+  NOTIFIKASI_BERUBAH_EVENT,
   getNotifications,
   getUnreadNotificationCount,
   markAllNotificationsRead,
@@ -176,6 +177,18 @@ export default function NotificationHistoryScreen({ dashboardHref, className = '
       // Navigasi tetap lanjut meski gagal menandai dibaca -- bukan penghalang.
     }
   };
+
+  /**
+   * Notifikasi juga dapat ditandai terbaca dari dropdown navbar yang tepat
+   * berada di atas halaman ini. Tanpa langganan ini, layarnya terus memajang
+   * daftar dan angka yang diambil sebelum itu terjadi -- bentuk kegagalan yang
+   * sama persis dengan laporan pengguna 15 September 2026, hanya arahnya
+   * terbalik.
+   */
+  useEffect(() => {
+    window.addEventListener(NOTIFIKASI_BERUBAH_EVENT, refetch);
+    return () => window.removeEventListener(NOTIFIKASI_BERUBAH_EVENT, refetch);
+  }, [refetch]);
 
   const handleMarkAllRead = async () => {
     try {

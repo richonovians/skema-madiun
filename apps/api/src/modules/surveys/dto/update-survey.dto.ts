@@ -28,4 +28,15 @@ export class UpdateSurveyDto {
   @IsOptional()
   @IsBoolean()
   izinkanAnonim?: boolean;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Jadikan survei utama OPD ini. Tujuan tombol "Lanjut Isi Survei" pada halaman ' +
+      'sukses pengaduan. Menyalakannya MELEPAS survei utama OPD yang sebelumnya ' +
+      '(paling banyak satu per OPD).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isUtama?: boolean;
 }

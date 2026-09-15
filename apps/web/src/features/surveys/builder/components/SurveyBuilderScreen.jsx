@@ -77,6 +77,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   // itu jadi tak punya cara apa pun menyalakannya, dan surveinya selamanya
   // lahir tertutup.
   const [izinkanAnonim, setIzinkanAnonim] = useState(false);
+  const [isUtama, setIsUtama] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -114,6 +115,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       setStatus(loaded.survey.status);
       setJumlahJawaban(loaded.survey.respondentsCount ?? 0);
       setIzinkanAnonim(loaded.survey.izinkanAnonim === true);
+      setIsUtama(loaded.survey.isUtama === true);
       setQuestions(loaded.loadedQuestions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,6 +214,31 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       // Dikembalikan ke keadaan semula: saklar yang tetap menyala padahal
       // backend menolak akan membuat admin mengira survei sudah terbuka.
       setIzinkanAnonim(!nilai);
+      setActionError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Survei utama OPD (15 September 2026). Menyalakannya MELEPAS survei utama
+   * OPD yang sebelumnya -- backend yang melakukannya dalam satu transaksi, jadi
+   * tak pernah ada saat OPD ini punya dua, maupun saat ia tak punya satu pun.
+   *
+   * Pola pengembaliannya sama dengan saklar anonim di atas: saklar yang tetap
+   * menyala padahal backend menolak membuat admin mengira OPD-nya sudah punya
+   * survei utama, dan ia baru tahu keliru ketika warga mengadu lalu mendarat di
+   * daftar alih-alih di kuesionernya.
+   */
+  const handleIsUtamaCommit = async (nilai) => {
+    setIsUtama(nilai);
+    if (!surveyId) return;
+    setIsSaving(true);
+    setActionError(null);
+    try {
+      await updateSurvey(surveyId, { title, period: periode, isUtama: nilai });
+    } catch (err) {
+      setIsUtama(!nilai);
       setActionError(err.message);
     } finally {
       setIsSaving(false);
@@ -548,6 +575,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onPeriodeCommit={handlePeriodeCommit}
         izinkanAnonim={izinkanAnonim}
         onIzinkanAnonimCommit={handleIzinkanAnonimCommit}
+        isUtama={isUtama}
+        onIsUtamaCommit={handleIsUtamaCommit}
         canEditMeta={!metaTerkunci}
         drag={drag}
         canReorder={!susunanTerkunci}
