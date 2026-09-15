@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.2                                                                                                        |
+| **Versi**           | 3.3                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -2156,6 +2156,88 @@ tertangkap sebelum sampai ke mesin siapa pun.
 
 ---
 
+### CAT-016 — Sesi memegang dua token berbeda; yang di cookie tak pernah berperan
+
+**Ditemukan:** 15 September 2026 (charter C-15)
+
+Sesudah memilih peran, satu sesi menyimpan **dua token yang berlainan**:
+
+| Tempat | Klaim `act` | Dipakai oleh |
+| ------ | ----------- | ------------ |
+| `localStorage.token` | `kabupaten` (ikut berubah tiap berpindah peran) | `services/api.js` — seluruh panggilan API |
+| cookie `token` | **tidak ada sama sekali** — token `dev-login` sebelum peran dipilih, tak pernah diperbarui | `proxy.js` |
+
+Dibaca langsung di peramban sesudah berpindah dari Admin OPD ke Admin Kabupaten:
+
+```
+actLocalStorage : "kabupaten"
+actCookie       : "(tanpa act)"
+samaPersis      : false
+```
+
+**Tidak ada cacat perilaku hari ini**, dan itu perlu dikatakan lebih dulu:
+backend **tidak menerima autentikasi lewat cookie sama sekali**
+(`GET /auth/me` tanpa header `Authorization` menjawab **401 "Autentikasi
+diperlukan"**), jadi token cookie yang tanpa peran itu tak pernah dipakai untuk
+apa pun yang dijaga. Yang dipakai `proxy.js` untuk menentukan area adalah cookie
+**`role`** yang terpisah — dan cookie itu memang ikut berubah saat peran
+berganti.
+
+**Kenapa tetap dicatat.** Dua hal yang akan menagih di kemudian hari:
+
+1. **Keputusan area bersandar pada nilai polos, padahal klaim bertanda tangan
+   sudah ada.** `act` kini hidup di dalam token dan tak dapat dipalsukan;
+   `role` di cookie dapat disunting siapa pun lewat DevTools — persis yang
+   ditunjukkan [CAT-007](#cat-007). Selama penegakan sesungguhnya ada di
+   backend, akibatnya terbatas pada navigasi. Tetapi kini ada bahan yang lebih
+   baik untuk dipakai, dan ia tidak dipakai.
+2. **Token cookie itu jebakan bagi pekerjaan berikutnya.** Siapa pun yang kelak
+   menambahkan render sisi-server atau middleware yang memvalidasi token dari
+   cookie akan mendapati sesi yang **selalu tanpa peran**, dan gejalanya muncul
+   sebagai 401 "Peran yang ingin dipakai belum dipilih" pada pengguna yang jelas
+   sudah memilih peran.
+
+---
+
+### CAT-017 — Berpindah peran tidak mencabut token peran sebelumnya
+
+**Ditemukan:** 15 September 2026 (charter C-15)
+
+`POST /auth/acting-role` menerbitkan token **baru**; token peran sebelumnya
+tidak dibatalkan di mana pun. Diuji dengan menyimpan token `kabupaten`, lalu
+berpindah ke `responden`:
+
+| Percobaan | Hasil |
+| --------- | ----- |
+| Token `responden` (yang sedang dipakai) → `GET /surveys` | **403** — benar |
+| Token `kabupaten` **lama** sesudah berpindah → `GET /surveys` | **200** |
+| Token `kabupaten` **lama** → `POST /surveys` (menulis) | **201** — survei sungguhan terbuat |
+| Token `kabupaten` **lama** sesudah **logout** → `GET /surveys` | **200** |
+
+Masa hidup tokennya **24 jam** (`exp - iat` = 86.400 detik), jadi itulah lebar
+jendelanya.
+
+**Ini konsekuensi rancangan, bukan kekhilafan kode** — dan sudah tercatat
+separuhnya: [TC-AUTH-031](TEST_CASES.md) menyatakan logout bersifat *stateless*,
+token lama tetap sah sampai kedaluwarsa. Tak ada daftar cabut (`jti` denylist)
+maupun versi token di sistem ini.
+
+**Yang membuatnya pantas dicatat ulang sekarang** adalah arti barunya bagi
+pengguna. "Ganti Peran" **terbaca sebagai menurunkan hak** — dan itu memang
+gunanya: seorang admin yang hendak melihat tampilan warga, atau menyerahkan
+layarnya sebentar, akan memakainya. Yang sebenarnya terjadi bukan penurunan hak,
+melainkan penambahan satu token baru di samping yang lama.
+
+Selama token hanya tersimpan di `localStorage` peramban itu sendiri dan tertimpa
+saat berpindah, tak ada yang bocor lewat aplikasi. Risikonya melekat pada token
+yang telanjur **tersalin keluar** — tercatat di log proxy, tertinggal di riwayat
+alat pengembang, atau dibagikan saat memecahkan masalah. Bila kelak dibutuhkan
+pencabutan yang sungguh-sungguh, dua jalannya: perpendek masa hidup token dan
+sediakan penyegaran, atau simpan nomor versi peran pada akun dan tolak token
+yang versinya tertinggal.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -2175,3 +2257,4 @@ tertangkap sebelum sampai ke mesin siapa pun.
 | 3.0   | 15 September 2026  | **`main` ditarik ke `tester`** (85 commit, 11 hari). 16 kasus uji merah di 4 berkas — **nol di antaranya cacat produk**: seluruhnya pengujian yang masih berbicara dengan kontrak yang sudah tidak ada (`role` tunggal → `roles`+`actingRole`, callback membaca `/auth/roles`, `reply.dariPelapor`, taksonomi sub-kategori dihapus, gerbang pengisian survei, peran jamak pada dev-login). Rinciannya di TEST_CASES §Y.7. Dua berkas uji penguji dibuang karena menguji antarmuka yang tak pernah lagi dirender; dua konflik merge diselesaikan dengan versi `main` yang lebih dalam. Tambah **CAT-013** (keterangan `proxy.js` menerangkan aturan yang sudah tidak berlaku) dan matriks A.5.1 disesuaikan. Suite: Jest **663/663 di 89 berkas**, eslint 0 galat. Basis data dev dibersihkan, termasuk **7.986 notifikasi yatim** yang menunjuk tiket pengaduan yang sudah lenyap. |
 | 3.1   | 15 September 2026  | Dokumen pengujian dicocokkan ulang dengan kode, bukan dengan versi sebelumnya. Tambah **CAT-014** — `pnpm db:seed` tak dapat dijalankan sejak peran jamak (`seed.ts` menulis `role` tunggal; kolomnya sudah dibuang), sehingga titik awal yang dapat direproduksi tak tersedia bagi siapa pun. Peta otomatisasi TEST_CASES §Y.1 dibaca ulang dari `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada. TEST_PLAN dinaikkan ke v1.3 setelah tertinggal 13 hari di belakang model peran jamak. |
 | 3.2   | 15 September 2026  | **Sesi C-14 (Sampah survei & hapus permanen) dijalankan** — tiga temuan. **BUG-013 (High)**: survei yang dibuang ke Sampah tetap menghitung IKM kabupaten, papan peringkat OPD, jumlah responden, dan tren triwulan pada halaman publik; dibuktikan dengan uji kendali — memusnahkannya permanen mengembalikan seluruh angka persis ke semula. **BUG-014 (Medium)**: hapus permanen membersihkan enam tabel tetapi meninggalkan notifikasi yang menaut lewat teks `link`, menumpuk di lonceng lima akun admin sungguhan. **BUG-015 (Medium)**: dialog konfirmasi destruktif tak terbaca pembaca layar — `ConfirmActionModal` tanpa `role`/`aria-modal` sama sekali, dan `ConfirmTypeToDeleteModal` mengaku `aria-modal="true"` sambil meninggalkan fokus di luar dirinya. Delapan pemeriksaan lain **nihil cacat**, termasuk isolasi Sampah antar-OPD, penolakan 403 atas pemusnahan oleh Admin OPD, dan ketepatan sasaran pada dua survei berjudul sama. |
+| 3.3   | 15 September 2026  | **Sesi C-15 (berpindah peran dalam satu sesi) dijalankan — nihil cacat.** Sepuluh hal ditelusuri dan seluruhnya benar, termasuk penolakan **403** atas peran yang tidak dimiliki, **401** atas token yang belum berperan, pemantulan area sesudah berpindah, dan gerbang PDP yang berdiri tepat saat peran `responden` diambil. Satu dugaan sengaja diuji dan **gugur**: akun tanpa persetujuan PDP yang tetap boleh memakai area Admin Kabupaten bukan gerbang jebol, melainkan pembagian yang benar antara data pribadi responden dan tugas jabatan. Dua catatan: **CAT-016** (sesi memegang dua token berbeda; yang di cookie tak pernah berperan, sehingga keputusan area bersandar pada cookie `role` polos padahal klaim `act` bertanda tangan sudah tersedia) dan **CAT-017** (berpindah peran tidak mencabut token peran sebelumnya — token lama masih menulis, dan masih sah 24 jam bahkan sesudah logout). |

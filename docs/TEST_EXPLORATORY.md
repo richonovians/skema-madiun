@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.3                                                     |
-| **Tanggal**            | 15 September 2026 (v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.4                                                     |
+| **Tanggal**            | 15 September 2026 (v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -688,6 +688,48 @@ membuktikan bukan pengamatan pertama, melainkan pengembalian keadaan.
 > **Alamat container berubah lagi di tengah sesi** — `172.18.0.2` pada pagi hari
 > dan `172.18.0.3` sesudahnya. Bukti langsung bahwa alamat bridge Docker tak
 > boleh dipakai sebagai tanda pengenal basis data (§3.1).
+
+---
+
+### C-15 — Berpindah peran dalam satu sesi `P0` — ✅ dijalankan 15 September 2026, **nihil cacat**
+
+**Misi:** peran jamak (5 September 2026) mengubah hal paling mendasar dalam
+sistem ini — **hak akses tidak lagi ditentukan oleh siapa Anda, melainkan oleh
+peran yang sedang Anda pakai**. Satu akun kini dapat memegang tiga peran
+sekaligus dan berpindah di antaranya tanpa keluar-masuk. Kontrak inilah yang
+mematahkan 16 kasus uji pada tarikan `main`, dan ia mengubah penjagaan akses,
+jadi ia layak diuji sendiri.
+
+**Hasil: 0 cacat, 2 catatan.** Rincian di
+[CAT-016](BUG_REPORTS.md#cat-016) dan [CAT-017](BUG_REPORTS.md#cat-017).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Pemilih peran pada akun ber-peran tiga | ✅ muncul; ketiganya ditawarkan dengan label yang benar |
+| Akun ber-peran **tunggal** | ✅ "Ganti Peran" tak ditawarkan sama sekali — tak ada yang membingungkan |
+| Memilih peran yang **tidak dimiliki** (`superuser`) | ✅ **403** "Akun Anda tidak memiliki peran tersebut" |
+| Token `dev-login` sebelum peran dipilih | ✅ **401** "Peran yang ingin dipakai belum dipilih" |
+| Berpindah peran lewat menu akun → `/pilih-peran` | ✅ token baru terbit, `act` berubah, mendarat di beranda peran barunya |
+| Membuka area peran lama sesudah berpindah | ✅ dipantulkan ke area peran yang sedang dipakai |
+| **Tombol Back** peramban sesudah berpindah | ✅ tak menghidupkan kembali layar peran lama — menu OPD tak muncul |
+| Endpoint admin dengan token `responden` | ✅ **403** |
+| Gerbang PDP saat berpindah ke `responden` | ✅ akun tanpa persetujuan **dipantulkan ke `/persetujuan`** tepat saat mengambil peran warga |
+| Galat konsol sepanjang sesi | ✅ nol |
+
+**Satu hal yang sengaja diperiksa dan ternyata benar: akun tanpa persetujuan PDP
+tetap boleh memakai area Admin Kabupaten.** Sekilas itu terlihat seperti gerbang
+yang jebol, dan mudah sekali dilaporkan sebagai temuan. Ia justru tepat:
+persetujuan PDP menyangkut pemrosesan **data pribadi orang itu sebagai
+responden**, bukan tugas jabatannya sebagai admin. Begitu ia mengambil peran
+Masyarakat, gerbangnya langsung berdiri. Yang membuktikan bukan penalaran itu
+melainkan percobaannya: satu akun ber-peran `responden`+`kabupaten` disetel
+tanpa persetujuan, masuk sebagai Admin Kabupaten (lolos), lalu berpindah ke
+Masyarakat — dan mendarat di `/persetujuan`.
+
+> **Data yang disentuh sesi ini sudah dikembalikan.** `consentAt` milik
+> `warga@gmail.com` dikosongkan sementara untuk probe di atas, lalu **disetel
+> kembali ke nilai semula** (`2026-09-14 02:10:47.017`), bukan ke waktu sekarang.
+> Satu survei yang lahir dari probe token dimusnahkan.
 
 ---
 
