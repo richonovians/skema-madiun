@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 // `History` dibuang bersama tombol Superuser (8 September 2026).
 import { Building2, Info, Lock, ShieldCheck, User, X } from 'lucide-react';
 import useBodyScrollLock from '@/hooks/useBodyScrollLock';
@@ -110,7 +111,21 @@ export default function RoleLoginPicker({
     }
   };
 
-  return (
+  // Lapisannya digambar langsung di `document.body`, bukan di tempat komponen
+  // ini dipanggil. `position: fixed` diukur terhadap leluhur ber-transform
+  // terdekat, bukan selalu terhadap layar -- dan di beranda pemanggilnya duduk
+  // di dalam pembungkus ber-`animate-fade-in-up`, yang menggerakkan `transform`
+  // dengan fill mode `both` sehingga transform itu menempel selamanya. Akibatnya
+  // `inset-0` menyusut menjadi kotak setinggi tombol masuk: dialognya melenceng
+  // ke kiri dan latar gelapnya cuma menutup sepetak kecil. Portal memutus
+  // ketergantungan itu untuk SETIAP tempat pemanggilan, sekarang dan nanti.
+  //
+  // `document` diperiksa karena berkas ini ikut terangkut ke bundel server:
+  // komponennya memang hanya dipasang sesudah pengguna menekan sesuatu, tapi
+  // pemeriksaan ini yang menahannya seandainya kelak ia masuk ke pohon awal.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[560px] max-h-[90vh] flex flex-col">
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 relative shrink-0">
@@ -204,6 +219,7 @@ export default function RoleLoginPicker({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
