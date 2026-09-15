@@ -20,7 +20,7 @@ async function main(): Promise<void> {
       ssoSubject: 'seed-admin-kabupaten',
       nama: 'Admin Kabupaten (Contoh)',
       email: 'admin.kabupaten@example.go.id',
-      role: Role.kabupaten,
+      roles: [Role.kabupaten],
       isActive: true,
       consentAt: new Date(),
     },
@@ -33,12 +33,12 @@ async function main(): Promise<void> {
   //     ini, satu-satunya akun berhak audit harus dibuat manual.
   const superuser = await prisma.user.upsert({
     where: { ssoSubject: 'seed-superuser' },
-    update: { role: Role.superuser },
+    update: { roles: [Role.superuser] },
     create: {
       ssoSubject: 'seed-superuser',
       nama: 'Superuser (Contoh)',
       email: 'superuser@example.go.id',
-      role: Role.superuser,
+      roles: [Role.superuser],
       isActive: true,
       consentAt: new Date(),
     },
@@ -113,7 +113,7 @@ async function main(): Promise<void> {
       ssoSubject: 'seed-admin-opd',
       nama: 'Admin OPD (Contoh)',
       email: 'admin.opd@example.go.id',
-      role: Role.opd,
+      roles: [Role.opd],
       opdId: opdByKode.DINKES.id,
       isActive: true,
       consentAt: new Date(),
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
       ssoSubject: 'seed-responden',
       nama: 'Warga Contoh',
       email: 'warga@example.go.id',
-      role: Role.responden,
+      roles: [Role.responden],
       isActive: true,
       consentAt: new Date(),
       respondentProfile: {
