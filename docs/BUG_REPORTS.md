@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.7                                                                                                        |
+| **Versi**           | 3.8                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -85,6 +85,12 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
+
+**BUG-013 terkunci uji otomatis sejak 15 September 2026** — satu-satunya di
+antara enam temuan C-14…C-19 yang punya pagar regresi
+(`apps/web/e2e/statistik-sampah.spec.js`). Cacatnya sendiri **belum diperbaiki**;
+yang dikunci adalah momen perbaikannya: uji itu memerah begitu penyaringnya
+dipasang. Lima temuan lain (BUG-014 s/d BUG-018) masih terdokumentasi saja.
 
 BUG-006 dilaporkan **dan** diperbaiki pada 2 September 2026. Ia bersaudara
 dekat dengan keluhan 18 Agustus ("baru akses localhost sudah terlihat login"):
@@ -1088,6 +1094,22 @@ publik atas namanya.
 sebagai arsip. Yang tampaknya terlewat adalah penyaring `deletedAt` pada agregat
 yang membaca snapshot itu kembali.
 
+**Sebabnya kini pasti, bukan lagi dugaan.** `DashboardService.getStatistics`
+memanggil `this.prisma.ikmResult.findMany({ select: … })` **tanpa `where` sama
+sekali** — tak ada penyaring `survey.deletedAt`. Snapshot milik survei di Sampah
+karena itu masuk ke `ikmResults`, yang menyuapi DUA keluaran sekaligus: nilai
+`summary.ikm` dan seluruh titik `ikmTrend`. Penyaring `status !== aktif` yang
+ada di sebelahnya (dipasang 31 Agustus untuk survei yang dibuka kembali)
+menunjukkan tempat yang tepat: satu klausa lagi di query yang sama.
+
+**Terkunci uji otomatis sejak 15 September 2026** —
+[`apps/web/e2e/statistik-sampah.spec.js`](../apps/web/e2e/statistik-sampah.spec.js).
+Ditulis sebagai `test.fail()`: selama cacatnya ada, suite tetap hijau; begitu
+penyaringnya dipasang, uji itu **merah** (`Expected to fail, but passed`) dan
+menuntut anotasinya dicabut — sejak saat itu ia jadi pagar regresi sungguhan.
+Dibuktikan dua arah dengan memasang penyaringnya sementara lalu
+mengembalikannya. Rinciannya di [TEST_CASES.md §Y.8](TEST_CASES.md).
+
 ---
 
 ### BUG-014 — Hapus permanen meninggalkan notifikasi yang menunjuk survei yang sudah tiada
@@ -1137,6 +1159,19 @@ pesan yang jelas, bukan layar putih. Yang membuatnya lebih dari kosmetik adalah
 yatim semacam ini di lingkungan dev, hasil sebelas hari tanpa pembersihan. Kini
 jalurnya terbuka lewat antarmuka bagi Admin Kabupaten, bukan hanya lewat skrip
 pengujian.
+
+**Ia menggigit perkakas pengujian itu sendiri (15 September 2026).** Pagar
+regresi [BUG-013](#bug-013) memusnahkan surveinya sendiri sesudah selesai, dan
+`bersihkan-data-uji.mjs` **tak dapat menemukan notifikasi yang ditinggalkannya**:
+penyaringnya bertolak dari survei yang masih ada, sedangkan induknya sudah
+tiada — persis mekanisme cacat ini. Tiga kali jalan meninggalkan **15** baris
+mati, dan tak satu pun terbaca sebagai data uji.
+
+Skrip pembersih karena itu mendapat bendera opt-in `--yatim`, yang menyapu
+notifikasi bertaut `/surveys/<id>` yang id-nya tak ada lagi. Opt-in dan bukan
+bawaan: yang tersapu bukan hanya milik data uji, melainkan jejak setiap survei
+yang pernah dimusnahkan siapa pun. Itu **menambal akibatnya di lingkungan dev,
+bukan cacatnya** — pengguna sungguhan tak punya skrip semacam itu.
 
 ---
 

@@ -23,6 +23,8 @@
  * Pemakaian (dari mana pun):
  *   node apps/web/e2e/support/bersihkan-data-uji.mjs --dry   # lihat dulu
  *   node apps/web/e2e/support/bersihkan-data-uji.mjs         # hapus
+ *   node apps/web/e2e/support/bersihkan-data-uji.mjs --yatim # + notifikasi
+ *                                                            #   yatim (BUG-014)
  */
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
@@ -62,6 +64,7 @@ if (!process.env.DATABASE_URL) {
 const p = new PrismaClient();
 const UJI = { contains: '[UJI ' };
 const KERING = process.argv.includes('--dry');
+const YATIM = process.argv.includes('--yatim');
 
 /**
  * Palang keselamatan: skrip ini MENGHAPUS baris, jadi ia menolak jalan kalau
@@ -119,12 +122,42 @@ const run = async () => {
     ? await p.notification.count({ where: { OR: penyaringNotif } })
     : 0;
 
+  // Notifikasi YATIM: menaut survei yang barisnya sudah tiada. Penyaring di
+  // atas tak akan pernah menemukannya — ia bertolak dari survei yang MASIH
+  // ADA, padahal `e2e/statistik-sampah.spec.js` memusnahkan surveinya sendiri
+  // di `afterAll` dan meninggalkan notifikasinya (BUG-014). Tanpa sapuan ini,
+  // tiap kali suite dijalankan lima baris mati menumpuk diam-diam.
+  //
+  // Opt-in lewat `--yatim`, dan sengaja: yang tersapu di sini bukan hanya
+  // milik data uji. Setiap survei yang pernah dimusnahkan siapa pun
+  // meninggalkan jejak yang sama, jadi keputusan menghapusnya milik orang yang
+  // menjalankan skrip, bukan bawaan.
+  const idSurveiAda = new Set((await p.survey.findMany({ select: { id: true } })).map((s) => s.id));
+  const idNotifYatim = (
+    YATIM
+      ? await p.notification.findMany({
+          where: { link: { contains: '/surveys/' } },
+          select: { id: true, link: true },
+        })
+      : []
+  )
+    .filter((n) => {
+      const cocok = /\/surveys\/(\d+)/.exec(n.link ?? '');
+      return cocok !== null && !idSurveiAda.has(Number(cocok[1]));
+    })
+    .map((n) => n.id);
+
   console.log('Ditemukan:');
   pengaduan.forEach((c) =>
     console.log(`  pengaduan ${c.id} ${c.ticketNo} "${c.judul.slice(0, 55)}"`),
   );
   survei.forEach((s) => console.log(`  survei    ${s.id} [${s.status}] "${s.judul.slice(0, 55)}"`));
   console.log(`  notifikasi bertaut data uji : ${notif}`);
+  console.log(
+    YATIM
+      ? `  notifikasi yatim (survei sudah tiada) : ${idNotifYatim.length}`
+      : '  notifikasi yatim: tidak diperiksa (tambahkan --yatim untuk ikut menyapunya)',
+  );
 
   if (KERING) {
     console.log('\n(--dry) tidak ada yang dihapus.');
@@ -133,6 +166,9 @@ const run = async () => {
   }
 
   const hasil = await p.$transaction(async (tx) => {
+    const y = idNotifYatim.length
+      ? await tx.notification.deleteMany({ where: { id: { in: idNotifYatim } } })
+      : { count: 0 };
     const n = penyaringNotif.length
       ? await tx.notification.deleteMany({ where: { OR: penyaringNotif } })
       : { count: 0 };
@@ -141,7 +177,13 @@ const run = async () => {
       where: { surveyId: { in: survei.map((x) => x.id) } },
     });
     const s = await tx.survey.deleteMany({ where: { id: { in: survei.map((x) => x.id) } } });
-    return { notif: n.count, pengaduan: c.count, respons: r.count, survei: s.count };
+    return {
+      notif: n.count,
+      notifYatim: y.count,
+      pengaduan: c.count,
+      respons: r.count,
+      survei: s.count,
+    };
   });
   console.log('\nTerhapus:', JSON.stringify(hasil));
 

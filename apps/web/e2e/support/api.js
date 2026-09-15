@@ -265,3 +265,15 @@ export async function cariResponsDenganTeks(surveyId, teks) {
   const rows = await panggil(token, 'GET', `/surveys/${surveyId}/responses?limit=20`);
   return (rows ?? []).find((r) => (r.answers ?? []).some((a) => a.teks === teks)) ?? null;
 }
+
+/**
+ * Jalur HTTP yang sama dengan yang dipakai seluruh helper di berkas ini,
+ * dibuka bagi spec yang perlu berbicara ke API di luar penyiapan survei uji —
+ * mis. membaca `GET /statistics` atau membuang survei ke Sampah.
+ *
+ * Sengaja diekspor sebagai alias, bukan disalin ke berkas spec: pesan galatnya
+ * (`METHOD /path → HTTP 404: pesan backend`) yang membuat kegagalan penyiapan
+ * langsung terbaca sebabnya, dan menyalinnya berarti dua jalur yang harus
+ * dirawat bersama.
+ */
+export { panggil as panggilApi };
