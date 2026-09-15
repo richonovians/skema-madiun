@@ -6,7 +6,7 @@
 | ----------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Versi Dokumen** | 1.4                                                                                    |
-| **Tanggal**       | 15 September 2026 (v1.8 — §5.2 perkakas: E2E 17 → 19 pengujian di 7 berkas; v1.7 — §5.1 kriteria seed: `pnpm db:seed` dari akar repo GAGAL (skripnya hanya di apps/api) + peringatan bahwa seed memangkas peran superuser dev; v1.6 — §5.2 perkakas: E2E 13 → 17 pengujian di 6 berkas sesudah lima pagar regresi ditambahkan; v1.5 — §5.2 perkakas: E2E 11 → 13 pengujian di 5 berkas, pembersih data uji dapat bendera `--yatim`; v1.4 — seed dapat dijalankan lagi (CAT-014 diperbaiki), §3.3 & §5.1 disesuaikan; v1.3 — revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
+| **Tanggal**       | 15 September 2026 (v1.9 — §5.1: lingkungan hasil seed tak dapat menguji peran jamak (CAT-021), dan apa yang sebenarnya bergantung pada seed — angka Jest tidak; v1.8 — §5.2 perkakas: E2E 17 → 19 pengujian di 7 berkas; v1.7 — §5.1 kriteria seed: `pnpm db:seed` dari akar repo GAGAL (skripnya hanya di apps/api) + peringatan bahwa seed memangkas peran superuser dev; v1.6 — §5.2 perkakas: E2E 13 → 17 pengujian di 6 berkas sesudah lima pagar regresi ditambahkan; v1.5 — §5.2 perkakas: E2E 11 → 13 pengujian di 5 berkas, pembersih data uji dapat bendera `--yatim`; v1.4 — seed dapat dijalankan lagi (CAT-014 diperbaiki), §3.3 & §5.1 disesuaikan; v1.3 — revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
 | **Stack**         | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Prisma (ORM) · Docker |
 | **Cakupan Uji**   | Backend REST API · Frontend UI · Integrasi End-to-End                                  |
 
@@ -323,6 +323,23 @@ yang muncul sesudah "Masuk", atau panggil
   >
   > Diverifikasi menempuh jalur itu 15 September 2026: seed lulus, menghasilkan
   > empat akun berperan tunggal, dan `skm_db` terbukti tak tersentuh.
+
+  > ⚠️ **Lingkungan hasil seed TIDAK dapat menguji peran jamak** —
+  > [CAT-021](BUG_REPORTS.md#cat-021). Keempat akun seed berperan tunggal,
+  > sehingga `actingRole: null`, 401 "Peran yang ingin dipakai belum dipilih",
+  > `POST /auth/acting-role`, pemilih peran, dan **seluruh charter C-15** tak
+  > pernah dapat diamati di sana. Kelima akun berperan jamak di `skm_db` disetel
+  > dengan tangan dan penyetelannya tak tercatat di repositori mana pun.
+
+- [ ] **Titik awal yang dapat direproduksi — apa yang sebenarnya bergantung padanya.**
+  Angka Jest (**673/673 di 92 berkas**) **tidak** menyentuh basis data sama
+  sekali: MSW yang menjawab setiap permintaan. Ia sudah dapat direproduksi di
+  mesin mana pun tanpa seed, tanpa Docker, tanpa server dev. Yang bergantung pada
+  basis data hanya lapisan E2E — dan ketakstabilannya berasal dari sisi peramban
+  ([TEST_CASES §Y.3](TEST_CASES.md)), bukan dari isi basis datanya. Menjalankan
+  ulang seluruh suite di atas basis data hasil seed karena itu **tidak** membuat
+  angkanya lebih dapat dipercaya; ia hanya memindahkannya ke dunia yang berbeda
+  (lihat CAT-021). Diputuskan 15 September 2026 untuk tidak menempuhnya.
 - [ ] Lingkungan Docker Compose berjalan normal (api, db, frontend).
 - [ ] Semua unit test yang ada lulus (`pnpm test`).
 

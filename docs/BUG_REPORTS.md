@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 4.1                                                                                                        |
+| **Versi**           | 4.2                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -2844,6 +2844,68 @@ temuan atas aplikasinya.
 
 ---
 
+<a id="cat-021"></a>
+
+### CAT-021 — Seed tak menghasilkan satu pun akun berperan jamak, padahal peran jamak inti model aksesnya
+
+**Ditemukan:** 15 September 2026 (saat menimbang apakah suite perlu dijalankan
+ulang dari seed bersih)
+
+Basis data sekali pakai dibangun dari nol — `migrate deploy` lalu `db:seed`,
+keduanya lulus — dan isinya:
+
+```
+1 | admin.kabupaten@example.go.id | {kabupaten}
+2 | superuser@example.go.id       | {superuser}
+3 | admin.opd@example.go.id       | {opd}
+4 | warga@example.go.id           | {responden}
+```
+
+**Keempatnya berperan tunggal.** Bandingkan dengan `skm_db`, tempat **lima dari
+tujuh** akun berperan lebih dari satu (`superuser` memegang empat).
+
+**Kenapa itu celah, bukan sekadar perbedaan.** Sejak 5 September 2026 kolom
+`role` tunggal dibuang dan diganti `roles Role[]`; akses ditentukan klaim `act`
+pada token. Seluruh kontrak yang lahir dari situ **hanya dapat diamati pada akun
+berperan banyak**:
+
+| Yang hanya muncul pada akun berperan jamak | Akibat di lingkungan hasil seed |
+| ------------------------------------------ | ------------------------------- |
+| `dev-login` pulang dengan `actingRole: null` | tak pernah terjadi — semua langsung ber-peran |
+| **401 "Peran yang ingin dipakai belum dipilih"** | tak pernah terjadi |
+| `POST /auth/acting-role` | tak pernah dipanggil |
+| `RoleLoginPicker` (pemilih peran saat masuk) | tak pernah dirender |
+| Berpindah peran dalam satu sesi (**seluruh charter C-15**) | **tak dapat dijalankan sama sekali** |
+
+Artinya siapa pun yang menyiapkan lingkungan baru persis sesuai dokumen —
+`migrate deploy`, `db:seed`, selesai — **tak dapat menguji mekanisme yang kini
+menjaga setiap endpoint terlindung**, kecuali ia menulis SQL sendiri.
+
+**Yang lebih rapuh daripada celahnya sendiri.** Ketujuh akun di `skm_db` berperan
+jamak bukan karena seed, melainkan karena **seseorang menyetelnya dengan tangan**
+di suatu titik, dan penyetelan itu **tidak tercatat di mana pun dalam repositori**.
+Ia hidup hanya di satu basis data pengembangan di satu mesin. Hilang basis data
+itu, hilang pula satu-satunya lingkungan tempat peran jamak dapat diuji — dan tak
+ada yang tahu cara membangunnya kembali.
+
+**Saran perbaikan** — cukup satu baris arah: beri minimal satu akun seed lebih
+dari satu peran. `admin.opd@example.go.id` dengan `[Role.opd, Role.responden]`
+paling masuk akal, sebab pasangan itulah yang nyata dipakai di `skm_db` dan yang
+membuat admin OPD dapat ikut mengisi survei. Dengan itu, lingkungan baru langsung
+memiliki jalur `actingRole: null` → pemilih peran → `POST /auth/acting-role`
+untuk diuji.
+
+**Catatan yang menyertainya, dan ini kabar baik.** Keputusan untuk **tidak**
+menjalankan ulang seluruh suite dari seed bersih diambil setelah menimbang ini:
+seed bersih menghasilkan **dunia yang berbeda**, bukan dunia yang sama dengan
+lebih rapi. Lagi pula angka yang paling sering dikutip — **Jest 673/673 di 92
+berkas** — tak menyentuh basis data sama sekali (MSW yang menjawab), jadi ia
+**sudah** dapat direproduksi di mesin mana pun tanpa seed. Yang bergantung pada
+basis data hanya lapisan E2E, dan ketakstabilannya berasal dari sisi peramban
+([§Y.3 TEST_CASES](TEST_CASES.md)), bukan dari data.
+
+---
+
 ---
 
 ## 6. Riwayat revisi
@@ -2874,3 +2936,4 @@ temuan atas aplikasinya.
 | 3.9   | 15 September 2026  | **Lima temuan sisa terkunci — keenam temuan C-14…C-19 kini berpagar.** BUG-014 & BUG-018 di E2E (`e2e/notifikasi-siklus.spec.js`), BUG-015/016/017 di Jest dengan `test.failing()`. Enam siklus mutasi, seluruhnya dikembalikan; tak ada kode produksi yang berubah. Sebab BUG-018 kini pasti: `ComplaintsService.forward` memanggil `notifyComplaintCreated`, jalur siar yang sama dengan pengaduan baru, dan jalur itu menyiarkan ke **setiap** akun admin. Pagar BUG-016 sengaja dipasang di `TurnstileWidget`, bukan `ModalKirimSurvei`: uji yang menuntut pesan saat token kosong akan menuntutnya muncul ketika tak ada yang salah, dan tetap merah sesudah perbaikan yang benar. |
 | 4.0   | 15 September 2026  | **CAT-020** — nginx menandai upstream `skm_api` mati saat API restart dan **tidak memulihkannya sendiri**: `…/api/v1/*` membalas 502 berjam-jam sementara `/` tetap 200, padahal API sehat dan dapat dicapai dari dalam container nginx. Menjelaskan **dua** jalan E2E yang mati di `globalSetup`, tetapi **bukan** kegoyahan yang tercatat di §Y.3 — jalan penuh sesudah `nginx -s reload` tetap gagal 5 dari 17 tanpa satu pun 502. Ditambahkan pula peringatan `pnpm db:seed` di TEST_PLAN §5.1: dijalankan dari akar repo ia **tidak ada**, dan dijalankan pada `skm_db` ia memangkas peran superuser dev dari empat menjadi satu. |
 | 4.1   | 15 September 2026  | **C-09 ternyata tidak lagi terkunci.** Kredensial SSO Helpdesk sudah terisi di `apps/api/.env` — tombol masuk tak lagi menjawab 503 — dan seluruh laporan sebelumnya masih mencatatnya terkunci. Charter dijalankan sebagian: pengalihan ke `api.madiunkab.go.id` benar, issuer terjangkau, kredensial klien **diterima Helpdesk** (`code` karangan ditolak dengan `invalid authorization code`, bukan `invalid_client`), dan penjagaan CSRF-nya bukan sekadar ada — `state` yang sah TANPA cookie-nya pun ditolak. **BUG-019 (Medium)**: `error_description` dari luar ditampilkan apa adanya di layar "Gagal masuk lewat SSO Helpdesk", hingga 1024 karakter bebas; bukan XSS (React merendernya sebagai teks) melainkan penyuntikan KALIMAT di domain pemerintah yang sah. Sisi keduanya terjadi tanpa penyerang: kegagalan biasa menampilkan "Helpdesk tidak mengembalikan access_token: invalid authorization code" kepada warga. Terkunci `e2e/sso-galat.spec.js`. Sisa charter menunggu **akun pengguna** Helpdesk, bukan kredensial aplikasi. |
+| 4.2   | 15 September 2026  | **CAT-021** — basis data hasil `db:seed` menghasilkan empat akun yang seluruhnya **berperan tunggal**, padahal peran jamak adalah inti model akses sejak 5 September. Akibatnya lingkungan yang disiapkan persis sesuai dokumen tak dapat mengamati `actingRole: null`, 401 "Peran yang ingin dipakai belum dipilih", `POST /auth/acting-role`, pemilih peran, maupun **seluruh charter C-15**. Yang lebih rapuh: kelima akun berperan jamak di `skm_db` disetel dengan tangan dan penyetelannya tak tercatat di repositori mana pun — hilang basis data itu, hilang satu-satunya lingkungan tempat peran jamak dapat diuji. Atas dasar ini diputuskan **tidak** menjalankan ulang suite dari seed bersih: ia menghasilkan dunia yang berbeda, bukan dunia yang sama dengan lebih rapi, sementara angka Jest (673/673) sudah reproducible tanpa basis data sama sekali. |
