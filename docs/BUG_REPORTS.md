@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.9                                                                                                        |
+| **Versi**           | 4.0                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -2474,6 +2474,33 @@ menolong selama tokennya tak pernah terbit.
 
 Nomor 2 yang paling mendekati keadaan produksi tanpa membuka lubang.
 
+**Diperiksa ulang 15 September 2026 (sore) — diagnosisnya terkonfirmasi, dan
+perubahannya dua baris.** Kedua kunci di lingkungan ini berawalan `0x4AAA…`,
+yaitu bentuk kunci **sungguhan** Cloudflare, bukan kunci uji. Itu menutup
+kemungkinan bahwa widgetnya diam karena kunci uji yang salah pasang, dan
+menyisakan tepat satu sebab yang tersisa: daftar domain kunci itu tak memuat
+`skema.local`.
+
+Perubahan yang dibutuhkan, bila pilihan 2 yang diambil:
+
+```
+apps/web/.env.local : NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+apps/api/.env       : TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+```
+
+Keduanya kunci uji resmi Cloudflare yang **selalu lulus**, dan keduanya wajib
+berpasangan — menukar salah satunya saja menghasilkan token yang terbit di
+peramban lalu ditolak backend dengan 403, yaitu gejala yang lebih
+membingungkan daripada keadaan sekarang.
+
+**Tidak diterapkan oleh penguji, dan itu keputusan yang disadari.** Berkas `.env`
+keduanya di luar git (gitignore), berisi kunci sungguhan yang dipasang orang
+lain, dan menukarnya menuntut `next dev` maupun `nest start` dinyalakan ulang —
+tiga hal yang mengubah lingkungan bersama, bukan menguji produk. Selama itu
+belum dilakukan, kedua pengujian di `e2e/isi-survei-anonim.spec.ts` tetap
+**dilewati, bukan lulus**, dan laporan mana pun yang menghitungnya sebagai lulus
+keliru.
+
 **Terkunci uji otomatis sejak 15 September 2026** —
 [`pagar-bug-016-captcha-gagal.test.jsx`](../apps/web/src/features/surveys/components/__tests__/pagar-bug-016-captcha-gagal.test.jsx).
 
@@ -2677,6 +2704,63 @@ lengkap. Perbandingan itulah yang membuat ketiadaan atribut serupa pada
 `components/ui/Dropdown.jsx` ([BUG-017](#bug-017)) terbaca sebagai kelalaian,
 bukan gaya rumah: polanya sudah dikuasai di berkas sebelah.
 
+<a id="cat-020"></a>
+
+### CAT-020 — nginx menandai API mati dan tak pulih sendiri; inilah sebagian "kegoyahan" E2E
+
+**Ditemukan:** 15 September 2026 (saat memasang pagar regresi)
+
+**Gejalanya membingungkan justru karena separuhnya sehat.** Sepanjang sore
+`http://skema.local/api/v1/*` membalas **502** terus-menerus, sementara
+`http://skema.local/` membalas 200 — padahal keduanya dilayani nginx yang sama
+dan menunjuk hostname upstream yang sama.
+
+Ditelusuri berlapis, dan tiap lapis mematahkan satu dugaan:
+
+| Yang diperiksa | Hasil |
+| -------------- | ----- |
+| Proses API masih hidup? | ✅ `dist/main` berjalan, port **3001 mendengarkan** |
+| API dapat dicapai dari host? | ✅ `127.0.0.1:3001` dan `[::1]:3001` membalas **200** |
+| API dapat dicapai **dari dalam container nginx**? | ✅ `host.docker.internal:3001` membalas **200** |
+| Resolusi `host.docker.internal` | ✅ `192.168.65.254`, sama untuk web maupun api |
+| Lewat nginx | ❌ **502** |
+
+Jadi bukan API yang mati, bukan DNS, bukan jaringan container. Yang tersisa:
+**nginx menandai upstream `skm_api` mati saat API benar-benar sedang restart, lalu
+tidak memulihkannya kembali.** Satu `nginx -s reload` menyembuhkannya seketika.
+
+**Apa yang benar-benar dijelaskannya — dan apa yang tidak.** Dua jalan E2E sore
+itu mati di `globalSetup` dengan **`POST /auth/dev-login → HTTP 502`**, dan
+keduanya memang ini sebabnya. Tetapi jalan penuh **sesudah** nginx dimuat ulang,
+dengan `api=200` dan `web=200` diperiksa sebelum maupun sesudahnya, **tetap
+gagal 5 dari 17** — seluruhnya `page.goto`/`waitForURL` yang kehabisan waktu,
+tanpa satu pun 502 di lognya. Jadi catatan ini **tidak** menutup kegoyahan E2E
+yang dicatat [§Y.3 TEST_CASES](TEST_CASES.md); ia hanya mencabut dua jalan dari
+daftar itu dan menambahkan satu pemeriksaan murah yang sebelumnya tak ada.
+
+Godaan untuk menyatakannya sebagai sebab tunggal besar justru karena gejalanya
+mirip — dan menyerah pada godaan itu akan menghentikan penelusuran pada sebab
+yang salah.
+
+**Yang harus dilakukan penguji berikutnya sebelum menulis temuan apa pun:**
+
+```
+curl -o /dev/null -w "api=%{http_code} " http://skema.local/api/v1/statistics
+curl -o /dev/null -w "web=%{http_code}\n" http://skema.local/
+```
+
+Bila `api=502` sementara `web=200`, jalankan `docker exec skm-proxy nginx -s reload`
+lalu ulangi. Kegagalan E2E yang dikumpulkan dalam keadaan itu **tidak berarti
+apa-apa tentang produk** — dan sebaliknya, kegagalan yang dilaporkan tanpa
+pemeriksaan ini tak dapat dipercaya.
+
+**Bukan cacat produk.** nginx di sini hanya perkakas pengembangan; di produksi
+frontend dan backend tak dilayani lewat `host.docker.internal`. Dicatat sebagai
+catatan lingkungan yang **menjelaskan kegagalan pengujian**, bukan sebagai
+temuan atas aplikasinya.
+
+---
+
 ---
 
 ## 6. Riwayat revisi
@@ -2703,3 +2787,6 @@ bukan gaya rumah: polanya sudah dikuasai di berkas sebelah.
 | 3.5   | 15 September 2026  | **Sesi C-17 (riwayat notifikasi) dijalankan.** Enam pemeriksaan lulus, termasuk satu dugaan yang sengaja diuji dan **gugur**: penyaringan & paginasi halaman ini dikerjakan backend, bukan diambil semua lalu disaring di peramban seperti halaman OPD yang melahirkan BUG-011. **BUG-017 (Medium)**: pemicu `Dropdown` dilabeli `<label for>` sehingga nama terbacanya adalah labelnya, bukan nilainya — pemakai awas melihat "Aduan", pembaca layar mendengar "Kategori Pengaduan". Berlaku pada **17 berkas**, terburuk di formulir pengaduan warga: pelapor tunanetra tak dapat memastikan OPD tujuan sebelum mengirim. `aria-haspopup` dan `aria-expanded` juga tak ada di mana pun. |
 | 3.6   | 15 September 2026  | **Sesi C-18 & C-19 dijalankan — seluruh charter baru sesudah tarikan `main` tuntas.** C-18 (teruskan pengaduan antar-OPD): enam pemeriksaan lulus, termasuk isolasi sebelum & sesudah penugasan, **403** bagi Admin OPD, **404** bagi OPD yang tak ada, dan **400** pada peneruskan kedua. **BUG-018 (Low)**: meneruskan menyiarkan ulang "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya — dibuktikan dengan dua kendali (5/5 dan 4/4 berbanding 9 notifikasi untuk 5 penerima); pelapornya sendiri justru tak diberi tahu. C-19 (tiga menu ekspor): **nihil cacat** — CSV dan PDF benar-benar diunduh dan isinya diperiksa, dan menu ekspor ternyata komponen paling lengkap aksesibilitasnya di antara semua yang diperiksa hari ini. **CAT-019**: ekspor daftar survei mewarisi batas `limit: 100` sisi klien (belum terjangkau hari ini) dan pilihan "Ekspor Excel" sebenarnya menghasilkan `.csv`. |
 | 3.7   | 15 September 2026  | **CAT-014 diperbaiki dan diverifikasi** atas permintaan penguji — menyimpang dari aturan biasa bahwa penguji tak menyentuh `apps/api`. Tiga berkas: lima baris `role:` menjadi `roles: [...]` pada `seed.ts`, `prisma/**/*` masuk `include` tsconfig, dan `prisma` masuk `exclude` tsconfig.build. Berkas ketiga tidak ada dalam rencana dan justru terpenting: tanpa itu `nest build` patah dengan TS6059 karena `rootDir: ./src`. Dibuktikan berlapis — penjaganya dibuat memerah lewat mutasi sengaja dua kali, seed dijalankan penuh pada basis data sekali pakai yang dibuat dari nol (`migrate deploy` + `db:seed`, idempoten pada jalan kedua), `skm_db` dipastikan tak tersentuh, dan 708 uji unit backend tetap lulus. |
+| 3.8   | 15 September 2026  | **BUG-013 terkunci uji otomatis** (`e2e/statistik-sampah.spec.js`). Sebabnya kini pasti: `DashboardService.getStatistics` memanggil `prisma.ikmResult.findMany` **tanpa `where` sama sekali**, dan query itu menyuapi `summary.ikm` sekaligus seluruh `ikmTrend`. Ditulis sebagai `test.fail()` supaya suite tetap hijau selama cacatnya ada dan MERAH begitu diperbaiki. Efek sampingnya menyingkap gigi BUG-014: spec memusnahkan surveinya sendiri dan `bersihkan-data-uji.mjs` tak dapat menemukan notifikasi yang ditinggalkannya — skrip pembersih karena itu dapat bendera opt-in `--yatim`. |
+| 3.9   | 15 September 2026  | **Lima temuan sisa terkunci — keenam temuan C-14…C-19 kini berpagar.** BUG-014 & BUG-018 di E2E (`e2e/notifikasi-siklus.spec.js`), BUG-015/016/017 di Jest dengan `test.failing()`. Enam siklus mutasi, seluruhnya dikembalikan; tak ada kode produksi yang berubah. Sebab BUG-018 kini pasti: `ComplaintsService.forward` memanggil `notifyComplaintCreated`, jalur siar yang sama dengan pengaduan baru, dan jalur itu menyiarkan ke **setiap** akun admin. Pagar BUG-016 sengaja dipasang di `TurnstileWidget`, bukan `ModalKirimSurvei`: uji yang menuntut pesan saat token kosong akan menuntutnya muncul ketika tak ada yang salah, dan tetap merah sesudah perbaikan yang benar. |
+| 4.0   | 15 September 2026  | **CAT-020** — nginx menandai upstream `skm_api` mati saat API restart dan **tidak memulihkannya sendiri**: `…/api/v1/*` membalas 502 berjam-jam sementara `/` tetap 200, padahal API sehat dan dapat dicapai dari dalam container nginx. Menjelaskan **dua** jalan E2E yang mati di `globalSetup`, tetapi **bukan** kegoyahan yang tercatat di §Y.3 — jalan penuh sesudah `nginx -s reload` tetap gagal 5 dari 17 tanpa satu pun 502. Ditambahkan pula peringatan `pnpm db:seed` di TEST_PLAN §5.1: dijalankan dari akar repo ia **tidak ada**, dan dijalankan pada `skm_db` ia memangkas peran superuser dev dari empat menjadi satu. |

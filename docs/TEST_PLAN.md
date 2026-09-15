@@ -6,7 +6,7 @@
 | ----------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan** | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Versi Dokumen** | 1.4                                                                                    |
-| **Tanggal**       | 15 September 2026 (v1.6 — §5.2 perkakas: E2E 13 → 17 pengujian di 6 berkas sesudah lima pagar regresi ditambahkan; v1.5 — §5.2 perkakas: E2E 11 → 13 pengujian di 5 berkas, pembersih data uji dapat bendera `--yatim`; v1.4 — seed dapat dijalankan lagi (CAT-014 diperbaiki), §3.3 & §5.1 disesuaikan; v1.3 — revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
+| **Tanggal**       | 15 September 2026 (v1.7 — §5.1 kriteria seed: `pnpm db:seed` dari akar repo GAGAL (skripnya hanya di apps/api) + peringatan bahwa seed memangkas peran superuser dev; v1.6 — §5.2 perkakas: E2E 13 → 17 pengujian di 6 berkas sesudah lima pagar regresi ditambahkan; v1.5 — §5.2 perkakas: E2E 11 → 13 pengujian di 5 berkas, pembersih data uji dapat bendera `--yatim`; v1.4 — seed dapat dijalankan lagi (CAT-014 diperbaiki), §3.3 & §5.1 disesuaikan; v1.3 — revisi §1.1, §3.2, §3.3, §5.1, §5.2, §9 — **model peran jamak** (`roles` + `actingRole`), seed yang tak lagi dapat dijalankan, klaim pembersihan data uji yang keliru, jumlah endpoint 49 → 67; v1.2 — 2 Sep: SSO Helpdesk, peran superuser kembali, origin `skema.local`; v1.1 — 10 Agu; v1.0 — 29 Juli 2026) |
 | **Stack**         | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Prisma (ORM) · Docker |
 | **Cakupan Uji**   | Backend REST API · Frontend UI · Integrasi End-to-End                                  |
 
@@ -297,7 +297,32 @@ yang muncul sesudah "Masuk", atau panggil
 
 - [ ] Kode sudah ter-compile tanpa error (`pnpm build` sukses).
 - [ ] Database migration terbaru sudah dijalankan (`prisma migrate deploy`).
-- [ ] Seed data tersedia dan dapat dijalankan (`pnpm db:seed` — **bukan** `prisma db seed`, yang gagal karena tak ada blok `prisma.seed` di package.json). Sempat tak terpenuhi 5–15 Sep 2026, lihat [CAT-014](BUG_REPORTS.md#cat-014).
+- [ ] Seed data tersedia dan dapat dijalankan. Sempat tak terpenuhi 5–15 Sep 2026, lihat [CAT-014](BUG_REPORTS.md#cat-014). **Dari mana dijalankan menentukan** (terpantau 15 Sep 2026):
+
+  | Perintah | Hasil |
+  | -------- | ----- |
+  | `pnpm db:seed` dari **akar repo** | ❌ `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "db:seed" not found` — skripnya hanya ada di `apps/api/package.json`, tak ada di akar |
+  | `cd apps/api && pnpm db:seed` | ✅ |
+  | `pnpm --filter ./apps/api db:seed` dari akar | ✅ |
+  | `prisma db seed` | ❌ tak ada blok `prisma.seed` di package.json |
+
+  > ⚠️ **Jangan jalankan pada `skm_db` tanpa berpikir dua kali.** Upsert superuser
+  > memuat `update: { roles: [Role.superuser] }`, yang **menimpa** peran akun yang
+  > sudah ada. Akun superuser dev kini berperan empat
+  > (`superuser, kabupaten, opd, responden`); menjalankan seed akan memangkasnya
+  > menjadi satu, dan akun itulah yang dipakai menguji perpindahan peran (C-15).
+  > Untuk sekadar memastikan seed-nya waras, pakai basis data sekali pakai:
+  >
+  > ```
+  > docker exec -i skm-db psql -U skm -d postgres -c "CREATE DATABASE skm_uji_seed;"
+  > cd apps/api
+  > DATABASE_URL="postgresql://skm:<sandi>@localhost:5432/skm_uji_seed?schema=public" pnpm exec prisma migrate deploy
+  > DATABASE_URL="postgresql://skm:<sandi>@localhost:5432/skm_uji_seed?schema=public" pnpm db:seed
+  > docker exec -i skm-db psql -U skm -d postgres -c "DROP DATABASE skm_uji_seed;"
+  > ```
+  >
+  > Diverifikasi menempuh jalur itu 15 September 2026: seed lulus, menghasilkan
+  > empat akun berperan tunggal, dan `skm_db` terbukti tak tersentuh.
 - [ ] Lingkungan Docker Compose berjalan normal (api, db, frontend).
 - [ ] Semua unit test yang ada lulus (`pnpm test`).
 
