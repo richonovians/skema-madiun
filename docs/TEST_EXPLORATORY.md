@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.4                                                     |
-| **Tanggal**            | 15 September 2026 (v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.5                                                     |
+| **Tanggal**            | 15 September 2026 (v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -730,6 +730,53 @@ Masyarakat — dan mendarat di `/persetujuan`.
 > `warga@gmail.com` dikosongkan sementara untuk probe di atas, lalu **disetel
 > kembali ke nilai semula** (`2026-09-14 02:10:47.017`), bukan ke waktu sekarang.
 > Satu survei yang lahir dari probe token dimusnahkan.
+
+---
+
+### C-16 — Rute publik tanpa sesi (`/survei/:id`) & captcha `P0` — ✅ dijalankan 15 September 2026
+
+**Misi:** sejak 8 September 2026 warga dapat mengisi survei **tanpa akun sama
+sekali**, lewat tautan atau QR yang disebar di loket layanan. Jalur itu tak
+punya sesi, tak punya identitas, dan tak punya siapa pun yang dapat ditanya bila
+macet — dan sampai charter ini dijalankan, ia belum pernah dibuka manusia dalam
+pengujian ini.
+
+**Hasil: 1 temuan (Medium) + 1 catatan penghambat.** Rincian di
+[BUG-016](BUG_REPORTS.md#bug-016) dan [CAT-018](BUG_REPORTS.md#cat-018).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Rute lama `/isi/:id` | ✅ dialihkan ke `/survei/:id` |
+| Gerbang PDP bagi pengunjung tanpa sesi | ✅ muncul lebih dulu, memuat rujukan UU 27/2022 |
+| Tombol "Setuju & Mulai Isi" sebelum persetujuan dicentang | ✅ terkunci; hidup saat dicentang, **terkunci lagi** saat dibatalkan |
+| Data diri kosong tanpa "tanpa data diri" | ✅ ditahan dengan pesan per-kolom ("Nama wajib diisi, minimal 2 huruf") |
+| Data diri sebagian (nama & HP, tanpa jenis kelamin/umur) | ✅ tetap ditahan |
+| "Isi survei tanpa data diri" | ✅ melewati seluruh kolom identitas dan masuk kuesioner |
+| `GET /public/surveys/:id/fill` pada survei **non-anonim** | ✅ **404** — tak ada kebocoran isi survei |
+| `POST` tanpa medan `setuju` | ✅ **400** sebelum satu baris pun ditulis |
+| `POST` dengan `captchaToken` karangan / tanpa token | ✅ **403** `CAPTCHA_TIDAK_SAH` — verifikasi benar-benar hidup |
+| Galat konsol sepanjang jalur | ✅ nol |
+| **Captcha gagal menerbitkan token** | ❌ [BUG-016](BUG_REPORTS.md#bug-016) — tombol kirim mati selamanya, tanpa pesan |
+| Pengiriman publik ujung-ke-ujung | ⛔ [CAT-018](BUG_REPORTS.md#cat-018) — **terhalang lingkungan**, lihat di bawah |
+
+**Satu jebakan yang hampir menghasilkan laporan palsu.** Probe pertama mencentang
+kotak yang salah — `#tanpa-data-diri`, bukan `#setuju-pdp-publik` — lalu menekan
+"Setuju & Mulai Isi" dan mendapati halaman tak bergerak. Terbaca persis seperti
+jalan buntu. Diperiksa ulang dengan mendaftar seluruh kotak centang, kolom, dan
+tombol pada gerbang itu, jawabannya ternyata sebaliknya: aplikasinya menahan
+karena data dirinya belum lengkap, **dan mengatakannya dengan pesan per-kolom
+yang jelas**. Yang keliru probenya. Aturan §Y.5 lagi: sebelum melaporkan "tak
+terjadi apa-apa", buktikan dulu pemicunya benar-benar ditekan.
+
+**Yang menghalangi bagian terakhir.** Pengiriman publik tak dapat diselesaikan
+dari lingkungan ini: Turnstile memuat dan memulai tantangannya, tetapi tak pernah
+menerbitkan token pada hostname `skema.local`. Karena itu pula dua pengujian E2E
+milik tim dev (`e2e/isi-survei-anonim.spec.ts`) **dilewati, bukan lulus**.
+Jalan keluarnya ada tiga dan semuanya di tangan yang memasang kuncinya — lihat
+CAT-018.
+
+> **Data uji sesi ini sudah dibersihkan.** Dua survei `[UJI C-16]` (satu anonim,
+> satu non-anonim sebagai pembanding) dihapus sesudah sesi.
 
 ---
 

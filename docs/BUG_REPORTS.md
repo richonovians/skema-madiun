@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.3                                                                                                        |
+| **Versi**           | 3.4                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -72,8 +72,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | Baru       | C-14    |
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
+| [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | Baru       | C-16    |
 
-**Rekap** — 14 temuan: 4 ditutup, **10 terbuka (1 Critical, 1 High, 4 Medium, 4 Low)**
+**Rekap** — 15 temuan: 4 ditutup, **11 terbuka (1 Critical, 1 High, 5 Medium, 4 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -2238,6 +2239,117 @@ yang versinya tertinggal.
 
 ---
 
+### BUG-016 — Captcha yang gagal mengunci tombol kirim selamanya, tanpa satu pun pesan
+
+|                       |                                                      |
+| --------------------- | ---------------------------------------------------- |
+| **Charter**           | C-16                                                 |
+| **Tanggal**           | 15 September 2026                                    |
+| **Peran**             | **pengunjung tanpa akun** — warga yang mengisi survei dari tautan/QR |
+| **Halaman**           | `/survei/:id` → modal "Kirim Survei"                 |
+| **Severity**          | Medium                                               |
+| **Kasus uji terkait** | TC-FE-009 (jalur publik), C-16                       |
+
+**Langkah reproduksi**
+
+1. Buka `/survei/:id` sebuah survei aktif ber-`izinkanAnonim` **tanpa sesi**.
+2. Setujui gerbang PDP, jawab pertanyaannya, tekan **Selesaikan**.
+3. Pada modal "Kirim Survei", biarkan Turnstile gagal menerbitkan token —
+   pada lingkungan pengujian ini ia memang selalu gagal (lihat
+   [CAT-018](#cat-018)); di dunia nyata cukup pemblokir iklan, jaringan kantor
+   yang menyaring, atau CDN Cloudflare yang tak terjangkau.
+
+**Hasil yang diharapkan** — pengisi diberi tahu bahwa verifikasi keamanannya
+gagal, dan diberi jalan keluar (muat ulang, coba lagi).
+
+**Hasil sebenarnya** — tombol **"Kirim Survei" tetap mati**, dipantau 40 detik
+penuh, dan **tak ada satu pun teks yang menjelaskan mengapa**. Keadaan wadah
+widget-nya, dibaca tiap 5 detik:
+
+```
+t+0s  … t+40s   kirim terkunci=true   iframe Cloudflare=0
+                wadah widget=ada, tinggi 72px, berisi <input name="cf-turnstile-response"> KOSONG
+```
+
+Seluruh isi modal saat itu berakhir pada `… Batal  Kirim Survei` — tak ada
+peringatan, tak ada tombol muat ulang.
+
+**Sebabnya ada di jalur penanganan galatnya.** `TurnstileWidget.jsx` memasang:
+
+```js
+'error-callback': () => onTokenRef.current?.(null),
+```
+
+Galat hanya **mengosongkan token**, tidak dilaporkan ke mana pun. Di sisi modal,
+`ModalKirimSurvei.jsx` mengunci tombolnya dari nilai itu:
+
+```js
+const menungguCaptcha = captchaTersedia() && !captchaToken;
+const terkunci = isSubmitting || menungguCaptcha;
+```
+
+Satu-satunya tempat pesan galat dapat muncul adalah `submitError` — dan itu baru
+terisi **sesudah** pengiriman dicoba. Pengisi yang tokennya tak pernah terbit tak
+pernah sampai ke sana, sehingga tak ada jalur pesan sama sekali.
+
+**Kenapa ini bukan sekadar urusan lingkungan pengujian.** Kegagalan Turnstile
+bukan hal langka di lapangan: pemblokir iklan, ekstensi privasi, jaringan
+instansi yang menyaring domain luar, dan gangguan CDN semuanya menghasilkan
+gejala yang sama. Yang dialami warga adalah **survei yang sudah diisi penuh lalu
+tak dapat dikirim, tanpa diberi tahu apa yang salah** — dan ia tak punya akun,
+tak punya riwayat, tak punya siapa pun untuk ditanya. Jawabannya hilang begitu
+tabnya ditutup.
+
+Ironisnya peringatan tentang gejala persis ini sudah tertulis di
+`utils/captcha.js`: _"gejalanya adalah tombol kirim yang mati selamanya tanpa
+satu pun pesan galat."_ Yang diwaspadai di sana adalah nama variabel yang
+ketinggalan; yang terjadi di sini jalur yang sama, dengan sebab yang berbeda.
+
+**Saran perbaikan** — laporkan galat widget ke antarmuka, bukan hanya ke token:
+satu baris peringatan di dalam modal beserta tombol "Muat ulang verifikasi", dan
+bila perlu batas waktu (mis. 15 detik tanpa token dianggap gagal).
+
+---
+
+### CAT-018 — Jalur pengisian publik tak dapat diuji ujung-ke-ujung di lingkungan pengembangan
+
+**Ditemukan:** 15 September 2026 (charter C-16)
+
+Kunci Turnstile di lingkungan ini **sungguhan dan menyala di kedua sisi**:
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` pada frontend dan `TURNSTILE_SECRET_KEY` pada
+backend. Verifikasinya benar-benar hidup — dibuktikan dari sisi API:
+
+| Percobaan pada `POST /public/surveys/:id/responses` | Hasil |
+| --------------------------------------------------- | ----- |
+| tanpa medan `setuju` | **400** Validation failed — ditolak sebelum satu baris pun ditulis |
+| `setuju: true`, `captchaToken` dikarang | **403** `CAPTCHA_TIDAK_SAH` |
+| `setuju: true`, tanpa `captchaToken` | **403** `CAPTCHA_TIDAK_SAH` |
+
+Penjagaannya benar. Masalahnya di sisi peramban: pada hostname pengujian
+`skema.local`, widget Turnstile **memuat, memulai tantangan, lalu berhenti tanpa
+menerbitkan token** — skripnya terunduh, pertukaran dengan
+`challenges.cloudflare.com` menjawab 200, wadahnya dirender setinggi 72px,
+tetapi tak ada iframe tantangan dan `cf-turnstile-response` tetap kosong. Pola
+itu khas site key yang **daftar domainnya tidak memuat hostname ini**.
+
+**Akibatnya bagi pengujian:** tak ada satu pun pengiriman survei publik yang
+dapat diselesaikan dari lingkungan ini. Inilah juga sebab kedua pengujian E2E
+milik tim dev (`e2e/isi-survei-anonim.spec.ts`) **dilewati, bukan lulus** —
+keduanya menunggu `E2E_SURVEY_ANONIM_ID`, dan menyetel variabel itu pun tak akan
+menolong selama tokennya tak pernah terbit.
+
+**Yang dibutuhkan, dan ini pekerjaan yang memasang kuncinya** — salah satu dari:
+
+1. daftarkan `skema.local` pada site key Turnstile yang dipakai pengembangan;
+2. **pakai kunci uji resmi Cloudflare** di lingkungan pengembangan
+   (`1x00000000000000000000AA` untuk site key, yang selalu lulus); atau
+3. kosongkan kedua kunci di lingkungan pengembangan — frontend dan backend sudah
+   dirancang mati bersamaan bila kosong, sehingga jalurnya dapat diuji penuh.
+
+Nomor 2 yang paling mendekati keadaan produksi tanpa membuka lubang.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -2258,3 +2370,4 @@ yang versinya tertinggal.
 | 3.1   | 15 September 2026  | Dokumen pengujian dicocokkan ulang dengan kode, bukan dengan versi sebelumnya. Tambah **CAT-014** — `pnpm db:seed` tak dapat dijalankan sejak peran jamak (`seed.ts` menulis `role` tunggal; kolomnya sudah dibuang), sehingga titik awal yang dapat direproduksi tak tersedia bagi siapa pun. Peta otomatisasi TEST_CASES §Y.1 dibaca ulang dari `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada. TEST_PLAN dinaikkan ke v1.3 setelah tertinggal 13 hari di belakang model peran jamak. |
 | 3.2   | 15 September 2026  | **Sesi C-14 (Sampah survei & hapus permanen) dijalankan** — tiga temuan. **BUG-013 (High)**: survei yang dibuang ke Sampah tetap menghitung IKM kabupaten, papan peringkat OPD, jumlah responden, dan tren triwulan pada halaman publik; dibuktikan dengan uji kendali — memusnahkannya permanen mengembalikan seluruh angka persis ke semula. **BUG-014 (Medium)**: hapus permanen membersihkan enam tabel tetapi meninggalkan notifikasi yang menaut lewat teks `link`, menumpuk di lonceng lima akun admin sungguhan. **BUG-015 (Medium)**: dialog konfirmasi destruktif tak terbaca pembaca layar — `ConfirmActionModal` tanpa `role`/`aria-modal` sama sekali, dan `ConfirmTypeToDeleteModal` mengaku `aria-modal="true"` sambil meninggalkan fokus di luar dirinya. Delapan pemeriksaan lain **nihil cacat**, termasuk isolasi Sampah antar-OPD, penolakan 403 atas pemusnahan oleh Admin OPD, dan ketepatan sasaran pada dua survei berjudul sama. |
 | 3.3   | 15 September 2026  | **Sesi C-15 (berpindah peran dalam satu sesi) dijalankan — nihil cacat.** Sepuluh hal ditelusuri dan seluruhnya benar, termasuk penolakan **403** atas peran yang tidak dimiliki, **401** atas token yang belum berperan, pemantulan area sesudah berpindah, dan gerbang PDP yang berdiri tepat saat peran `responden` diambil. Satu dugaan sengaja diuji dan **gugur**: akun tanpa persetujuan PDP yang tetap boleh memakai area Admin Kabupaten bukan gerbang jebol, melainkan pembagian yang benar antara data pribadi responden dan tugas jabatan. Dua catatan: **CAT-016** (sesi memegang dua token berbeda; yang di cookie tak pernah berperan, sehingga keputusan area bersandar pada cookie `role` polos padahal klaim `act` bertanda tangan sudah tersedia) dan **CAT-017** (berpindah peran tidak mencabut token peran sebelumnya — token lama masih menulis, dan masih sah 24 jam bahkan sesudah logout). |
+| 3.4   | 15 September 2026  | **Sesi C-16 (rute publik tanpa sesi & captcha) dijalankan.** Sepuluh pemeriksaan lulus — termasuk gerbang PDP bagi pengunjung tanpa akun, penolakan **404** atas survei non-anonim, **400** atas kiriman tanpa `setuju`, dan **403** `CAPTCHA_TIDAK_SAH` atas token karangan maupun token yang tak ada. **BUG-016 (Medium)**: ketika Turnstile gagal menerbitkan token, tombol "Kirim Survei" terkunci selamanya tanpa satu pun pesan — `error-callback` hanya mengosongkan token, dan satu-satunya jalur pesan (`submitError`) baru hidup sesudah pengiriman dicoba. **CAT-018**: pengiriman publik tak dapat diuji ujung-ke-ujung di lingkungan ini karena site key Turnstile tak memuat hostname `skema.local`; ini pula sebab dua pengujian E2E milik tim dev dilewati, bukan lulus. Satu probe keliru (mencentang kotak yang salah) hampir menghasilkan laporan "jalan buntu" yang palsu, dan dibatalkan sesudah struktur gerbangnya didaftar ulang. |
