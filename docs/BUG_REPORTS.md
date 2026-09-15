@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.1                                                                                                        |
+| **Versi**           | 3.2                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -69,8 +69,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
+| [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | Baru       | C-14    |
+| [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | Baru       | C-14    |
+| [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
 
-**Rekap** — 11 temuan: 4 ditutup, **7 terbuka (1 Critical, 2 Medium, 4 Low)**
+**Rekap** — 14 temuan: 4 ditutup, **10 terbuka (1 Critical, 1 High, 4 Medium, 4 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -1024,6 +1027,171 @@ suksesnya dengan yang tak melewatkan satu pun.
 
 **Yang diharapkan.** Sebutkan juga jumlah yang dilewati, dan tandai berbeda
 (mis. peringatan kuning, bukan hijau) bila nilainya lebih dari nol.
+
+---
+
+### BUG-013 — Survei di Sampah tetap terhitung pada statistik publik
+
+|                       |                                                            |
+| --------------------- | ---------------------------------------------------------- |
+| **Charter**           | C-14                                                        |
+| **Tanggal**           | 15 September 2026                                           |
+| **Peran**             | Admin Kabupaten (yang membuang) · **pengunjung publik** (yang melihat akibatnya) |
+| **Halaman**           | `/admin-kab/surveys` → Sampah; akibatnya di beranda publik `/` dan `GET /statistics` |
+| **Severity**          | **High**                                                    |
+| **Kasus uji terkait** | TC-FE-020, TC-FE-021 (statistik), C-14                      |
+
+**Langkah reproduksi**
+
+1. Sebagai Admin Kabupaten, buat survei ber-unsur IKM (`isIkmUnsur: true`,
+   `kodeUnsur: 'U1'`) pada Dinas Kesehatan, periode `2026-Q4`, lalu aktifkan.
+2. Sebagai warga, isi satu jawaban bernilai **1** (setara IKM 25).
+3. Catat angka `GET /statistics`.
+4. Buang survei itu ke **Sampah** lewat tombol Hapus pada daftar survei.
+5. Baca ulang `GET /statistics`.
+
+**Hasil yang diharapkan** — survei yang sudah dibuang tak lagi ikut menghitung
+apa pun yang ditampilkan kepada publik.
+
+**Hasil sebenarnya** — angkanya **tidak bergeser sedikit pun** sesudah dibuang:
+
+| Ukuran | Sebelum survei dibuat | Sesudah dijawab | **Sesudah masuk Sampah** |
+| ------ | --------------------: | --------------: | -----------------------: |
+| IKM kabupaten | 82,64 | 71,11 | **71,11** |
+| Total responden | 5 | 6 | **6** |
+| Nilai Dinas Kesehatan (papan peringkat) | 100 | 62,5 | **62,5** |
+| Tren IKM `2026-Q4` | tidak ada | 25 | **25** |
+
+**Bukti kendali** — survei yang sama kemudian **dimusnahkan permanen**, dan
+seluruh angka kembali persis ke keadaan semula (82,64 · 5 · 100 · tak ada).
+Jadi yang menggerakkan angka itu memang survei yang berada di Sampah, bukan
+cache, bukan kebetulan.
+
+**Kenapa ini High.** Yang tercemar bukan layar internal, melainkan **angka resmi
+yang dipublikasikan kepada warga**: nilai IKM kabupaten, peringkat antar-OPD,
+dan garis tren per triwulan. Satu survei uji yang sudah dibuang menurunkan IKM
+kabupaten **11,53 poin** dan menjatuhkan Dinas Kesehatan dari 100 menjadi 62,5 —
+cukup untuk mengubah urutan papan peringkat. Ia juga memunculkan titik tren
+`2026-Q4` yang seluruh datanya hanya ada di Sampah.
+
+Yang membuatnya lebih jauh dari sekadar angka: dialog pembuangannya berjanji
+_"dipindahkan ke Sampah dan dapat dipulihkan kembali"_, barisnya lenyap dari
+daftar survei, dan `GET /surveys/:id/ikm` menjawab **404** bagi admin. Jadi
+admin tak punya cara melihat angka yang justru sedang dipertontonkan kepada
+publik atas namanya.
+
+**Catatan** — snapshot IKM memang sengaja dibuat saat survei aktif dibuang
+(`SurveysService.remove` memanggil `ikmService.snapshot`), dan itu masuk akal
+sebagai arsip. Yang tampaknya terlewat adalah penyaring `deletedAt` pada agregat
+yang membaca snapshot itu kembali.
+
+---
+
+### BUG-014 — Hapus permanen meninggalkan notifikasi yang menunjuk survei yang sudah tiada
+
+|                       |                                                 |
+| --------------------- | ----------------------------------------------- |
+| **Charter**           | C-14                                            |
+| **Tanggal**           | 15 September 2026                               |
+| **Peran**             | Admin Kabupaten, Admin OPD, Superuser (penerima notifikasi) |
+| **Halaman**           | lonceng notifikasi seluruh admin                |
+| **Severity**          | Medium                                          |
+| **Kasus uji terkait** | TC-FE-017, TC-FE-018, C-14                      |
+
+**Langkah reproduksi**
+
+1. Aktifkan sebuah survei, lalu kirim satu jawaban sebagai warga. Backend
+   menyiarkan notifikasi "Survei Mulai Menerima Jawaban" ke setiap akun admin.
+2. Buang survei itu ke Sampah, lalu **Hapus Permanen**.
+3. Periksa tabel `notifications`, atau buka lonceng notifikasi salah satu admin.
+
+**Hasil yang diharapkan** — notifikasi yang menunjuk survei yang sudah
+dimusnahkan ikut dibersihkan, atau setidaknya tak lagi ditawarkan untuk diklik.
+
+**Hasil sebenarnya** — survei, respons, jawaban, pertanyaan, opsi, dan snapshot
+IKM-nya memang terhapus bersih, tetapi **5 notifikasi tetap tinggal**, tersebar
+di lima akun sungguhan:
+
+```
+13022  admin.opd@example.go.id        /admin-opd/surveys/3042/responses
+13023  warga@gmail.com                /admin-kab/surveys/3042/responses
+13024  budi@gmail.com                 /admin-kab/surveys/3042/responses
+13025  admin.kabupaten@example.go.id  /admin-kab/surveys/3042/responses
+13026  superuser@example.go.id        /admin-kab/surveys/3042/responses
+```
+
+Notifikasi itu tetap tampil di lonceng, dan menekannya mendarat pada halaman
+yang berbunyi **"Gagal memuat respons — Survei dengan id 3042 tidak ditemukan"**.
+
+**Sebabnya sudah dikenal.** Notifikasi menaut induknya lewat **teks pada kolom
+`link`, bukan kunci asing**, jadi ia tak pernah ikut `ON DELETE CASCADE`.
+`SurveysService.purge` menghapus enam tabel secara tersurat dan `notifications`
+tidak termasuk.
+
+**Kenapa Medium, bukan Low.** Kegagalannya memang anggun — pengguna melihat
+pesan yang jelas, bukan layar putih. Yang membuatnya lebih dari kosmetik adalah
+**penumpukannya**: pembersihan 15 September 2026 menemukan **7.986** notifikasi
+yatim semacam ini di lingkungan dev, hasil sebelas hari tanpa pembersihan. Kini
+jalurnya terbuka lewat antarmuka bagi Admin Kabupaten, bukan hanya lewat skrip
+pengujian.
+
+---
+
+### BUG-015 — Dialog konfirmasi tindakan destruktif tak dapat dipakai pembaca layar
+
+|                       |                                              |
+| --------------------- | -------------------------------------------- |
+| **Charter**           | C-14                                         |
+| **Tanggal**           | 15 September 2026                            |
+| **Peran**             | seluruh peran admin                          |
+| **Halaman**           | `ConfirmActionModal` (buang ke Sampah, tutup survei, salin, aktifkan) dan `ConfirmTypeToDeleteModal` (hapus permanen) |
+| **Severity**          | Medium                                       |
+| **Kasus uji terkait** | TC-FE-028, C-14                              |
+
+Dua modal, dua kekurangan yang berbeda — dan yang kedua lebih merugikan daripada
+yang pertama.
+
+**1. `ConfirmActionModal` bukan dialog bagi teknologi bantu.** Dibaca langsung
+dari DOM saat modal terbuka:
+
+```
+role=null   aria-modal=null   aria-labelledby=null   fokus di dalam modal=false
+```
+
+Tak ada yang memberi tahu pembaca layar bahwa sebuah dialog terbuka. Tombol
+tutupnya (ikon `X`) juga tanpa nama yang dapat dibacakan — keluarga yang sama
+dengan [BUG-010](#bug-010).
+
+**2. `ConfirmTypeToDeleteModal` menyatakan dirinya dialog, tetapi meninggalkan
+penggunanya di luar.** Atributnya justru lengkap (`role="dialog"`,
+`aria-modal="true"`, `aria-labelledby`), namun fokus **tidak dipindahkan ke
+dalam** saat ia terbuka dan **tidak dikurung** di dalamnya. Jejak fokus, direkam
+dengan menekan Tab empat kali sesudah dialog muncul:
+
+```
+BUTTON "Hapus Permanen"   [DI LUAR MODAL]   ← fokus awal, tetap di pemicunya
+INPUT#ketik-ulang
+BUTTON "Batal"
+(keluar dari modal)       [DI LUAR MODAL]
+BODY                      [DI LUAR MODAL]
+```
+
+**Inilah yang membuatnya lebih buruk daripada sekadar tak beratribut.**
+`aria-modal="true"` menyuruh pembaca layar menyembunyikan seluruh isi halaman di
+luar dialog. Karena fokus tetap tertinggal di tombol pemicu — yang kini berada
+di wilayah yang disembunyikan itu — pengguna pembaca layar mendarat di ruang
+kosong: dialognya ada, tetapi ia tak berada di dalamnya, dan dua kali Tab
+membawanya keluar sama sekali.
+
+**Kenapa Medium.** Yang dijaga dialog ini adalah **penghapusan permanen jawaban
+responden**. Pengguna yang tak dapat membaca isi dialognya hanya punya dua
+kemungkinan: batal mengerjakan tugasnya, atau menekan tombol tanpa tahu apa yang
+tertulis. Pengaman ketik-ulang-judulnya sendiri sudah dirancang bagus — justru
+karena itu sayang bila tak terbaca.
+
+**Catatan** — ini bukan cacat yang lahir bersama fitur Sampah; `ConfirmActionModal`
+sudah lama ada. Yang baru adalah dipakainya pola ini untuk menjaga tindakan yang
+tak dapat dibatalkan.
 
 ---
 
@@ -2006,3 +2174,4 @@ tertangkap sebelum sampai ke mesin siapa pun.
 | 2.9   | 4 September 2026   | **Tiga survei uji tersisa dihapus paksa** atas permintaan penguji: 332 & 333 (reproduksi hidup BUG-005) dan 336 (fixture E2E). Keberatan sudah disampaikan — BUG-005 masih terbuka dan peragaannya jadi hilang — tetapi keputusan tetap di penguji. Bukti tertulis BUG-005 utuh di laporan ini dan dapat dibangun ulang dalam hitungan menit; baris aslinya dicadangkan lebih dulu. Fixture E2E dibuat ulang sendiri oleh `globalSetup` pada jalan berikutnya. Basis data dev kini **nol baris bertanda `[UJI `**. |
 | 3.0   | 15 September 2026  | **`main` ditarik ke `tester`** (85 commit, 11 hari). 16 kasus uji merah di 4 berkas — **nol di antaranya cacat produk**: seluruhnya pengujian yang masih berbicara dengan kontrak yang sudah tidak ada (`role` tunggal → `roles`+`actingRole`, callback membaca `/auth/roles`, `reply.dariPelapor`, taksonomi sub-kategori dihapus, gerbang pengisian survei, peran jamak pada dev-login). Rinciannya di TEST_CASES §Y.7. Dua berkas uji penguji dibuang karena menguji antarmuka yang tak pernah lagi dirender; dua konflik merge diselesaikan dengan versi `main` yang lebih dalam. Tambah **CAT-013** (keterangan `proxy.js` menerangkan aturan yang sudah tidak berlaku) dan matriks A.5.1 disesuaikan. Suite: Jest **663/663 di 89 berkas**, eslint 0 galat. Basis data dev dibersihkan, termasuk **7.986 notifikasi yatim** yang menunjuk tiket pengaduan yang sudah lenyap. |
 | 3.1   | 15 September 2026  | Dokumen pengujian dicocokkan ulang dengan kode, bukan dengan versi sebelumnya. Tambah **CAT-014** — `pnpm db:seed` tak dapat dijalankan sejak peran jamak (`seed.ts` menulis `role` tunggal; kolomnya sudah dibuang), sehingga titik awal yang dapat direproduksi tak tersedia bagi siapa pun. Peta otomatisasi TEST_CASES §Y.1 dibaca ulang dari `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada. TEST_PLAN dinaikkan ke v1.3 setelah tertinggal 13 hari di belakang model peran jamak. |
+| 3.2   | 15 September 2026  | **Sesi C-14 (Sampah survei & hapus permanen) dijalankan** — tiga temuan. **BUG-013 (High)**: survei yang dibuang ke Sampah tetap menghitung IKM kabupaten, papan peringkat OPD, jumlah responden, dan tren triwulan pada halaman publik; dibuktikan dengan uji kendali — memusnahkannya permanen mengembalikan seluruh angka persis ke semula. **BUG-014 (Medium)**: hapus permanen membersihkan enam tabel tetapi meninggalkan notifikasi yang menaut lewat teks `link`, menumpuk di lonceng lima akun admin sungguhan. **BUG-015 (Medium)**: dialog konfirmasi destruktif tak terbaca pembaca layar — `ConfirmActionModal` tanpa `role`/`aria-modal` sama sekali, dan `ConfirmTypeToDeleteModal` mengaku `aria-modal="true"` sambil meninggalkan fokus di luar dirinya. Delapan pemeriksaan lain **nihil cacat**, termasuk isolasi Sampah antar-OPD, penolakan 403 atas pemusnahan oleh Admin OPD, dan ketepatan sasaran pada dua survei berjudul sama. |

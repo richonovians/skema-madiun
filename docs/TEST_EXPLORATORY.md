@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.2                                                     |
-| **Tanggal**            | 15 September 2026 (v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.3                                                     |
+| **Tanggal**            | 15 September 2026 (v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -111,10 +111,11 @@ Alamat itu jaringan bridge Docker di mesin penguji — bukan alamat yang dapat
 dicapai dari luar. Baris `DATABASE_URL` pada `.env` akar yang menunjuk
 `db:5432` **dinonaktifkan** (berawalan `#`) dan tak dipakai.
 
-> ⚠️ **Jangan menjadikan angka terakhirnya sebagai tanda pengenal.** Versi
-> dokumen ini sebelumnya menulis `172.18.0.3`; pada 15 September 2026 container
-> yang sama menjawab dari `172.18.0.2` — Docker membagikan ulang alamat bridge
-> setiap kali container disusun ulang. Yang menentukan **bukan** angka
+> ⚠️ **Jangan menjadikan angka terakhirnya sebagai tanda pengenal.** Pada
+> 15 September 2026 container yang sama menjawab dari `172.18.0.2` pagi hari lalu
+> `172.18.0.3` beberapa jam kemudian — berubah **dua kali dalam satu hari
+> pengujian**. Docker membagikan ulang alamat bridge setiap kali container
+> disusun ulang. Yang menentukan **bukan** angka
 > persisnya, melainkan bahwa alamatnya berada di rentang privat/loopback **dan**
 > nama basisnya `skm_db`. Palang di skrip pembersih memang memeriksa kedua hal
 > itu, bukan mencocokkan alamat harfiah.
@@ -639,6 +640,56 @@ dihapus, dan `consentAt` milik `warga@gmail.com` disetel `null` kembali lewat
 basis data. Persetujuan itu memang tak dapat dibatalkan **lewat aplikasi**
 (`POST /auth/consent` hanya menulis), tetapi dapat lewat basis data — jadi
 gerbang PDP tetap dapat diuji ulang tanpa seed responden baru.
+
+### C-14 — Sampah survei & hapus permanen `P0` — ✅ dijalankan 15 September 2026
+
+**Misi:** fitur Sampah (11 September 2026) memberi Admin Kabupaten kemampuan yang
+sebelumnya tak dimiliki siapa pun di aplikasi ini: **memusnahkan survei beserta
+jawaban responden secara permanen**. Sampai fitur ini ada, survei hanya dapat
+dihapus selagi berstatus `draft`, dan tak ada endpoint yang dapat menghilangkan
+jawaban yang sudah masuk. Charter ini berdiri di urutan pertama karena
+kegagalannya berarti data hilang dan tak dapat dikembalikan.
+
+**Hasil: 3 temuan — 1 High, 2 Medium.** Rincian di
+[BUG_REPORTS.md — Sesi C-14](BUG_REPORTS.md#bug-013).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Dialog buang-ke-Sampah menyebutkan akibatnya | ✅ menyebut penutupan survei aktif **dan** jumlah jawaban yang ikut terbawa |
+| Pengaman ketik-ulang judul | ✅ terkunci saat kosong & saat teks salah; memangkas spasi; **peka kapitalisasi** |
+| Escape menutup, ketikan tak terbawa ke baris lain | ✅ kolom kosong lagi dan tombol terkunci saat dialog dibuka untuk baris berikutnya |
+| Dua survei **berjudul sama** di Sampah | ✅ yang termusnahkan tepat barisnya — kunci sasarannya `row.id`, bukan judul yang diketik |
+| Pemusnahan menghapus seluruh turunannya | ✅ respons, jawaban, pertanyaan, opsi, dan snapshot IKM habis dalam satu transaksi |
+| Pemulihan dari Sampah | ✅ kembali ke daftar, **status tidak diam-diam dibuka** — pesannya mengatakannya terus terang |
+| Isolasi Sampah antar-OPD | ✅ Admin OPD hanya melihat survei OPD-nya; memulihkan milik OPD lain ditolak **403** |
+| Pemusnahan oleh Admin OPD | ✅ **403** baik atas survei OPD lain maupun OPD-nya sendiri — tombolnya pun tak ditawarkan |
+| Survei di Sampah bagi responden | ✅ `GET /surveys/:id/fill` menjawab **404** |
+| **Survei di Sampah pada statistik publik** | ❌ [BUG-013](BUG_REPORTS.md#bug-013) — **tetap terhitung** |
+| **Notifikasi sesudah hapus permanen** | ❌ [BUG-014](BUG_REPORTS.md#bug-014) — 5 tautan mati tertinggal |
+| **Dialog konfirmasi bagi pembaca layar** | ❌ [BUG-015](BUG_REPORTS.md#bug-015) — fokus tertinggal di luar dialog |
+
+**Yang paling layak diingat dari sesi ini: angka publik tidak ikut berubah saat
+survei dibuang.** Membuang survei ke Sampah menghilangkan barisnya dari daftar
+admin, tetapi IKM kabupaten, papan peringkat OPD, jumlah responden, dan tren
+triwulan di beranda publik tetap memuatnya. Dugaan itu tak dilaporkan begitu
+terlihat: sesudahnya survei yang sama **dimusnahkan permanen**, dan seluruh angka
+kembali persis ke keadaan semula — barulah sebabnya pasti.
+
+Pola uji kendali itu lahir dari kesalahan sesi-sesi sebelumnya (§Y.5): angka yang
+berubah bersamaan dengan sebuah tindakan belum tentu disebabkan olehnya. Yang
+membuktikan bukan pengamatan pertama, melainkan pengembalian keadaan.
+
+> **Data uji sesi ini sudah dibersihkan.** Enam survei `[UJI C-14]`, seluruh
+> responsnya, dan **10 notifikasi yatim** yang ditinggalkan dua kali pemusnahan
+> dihapus sesudah sesi. Notifikasi yatim itu harus dicari lewat id survei yang
+> sudah tak ada — persis aturan nomor 2 pada putaran ketiga di bawah, dan kali
+> ini aturannya dipakai atas sisa yang dibuat sendiri.
+
+> **Alamat container berubah lagi di tengah sesi** — `172.18.0.2` pada pagi hari
+> dan `172.18.0.3` sesudahnya. Bukti langsung bahwa alamat bridge Docker tak
+> boleh dipakai sebagai tanda pengenal basis data (§3.1).
+
+---
 
 ### Pembersihan data uji — 3 September 2026
 
