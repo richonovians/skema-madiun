@@ -38,12 +38,15 @@ const RECENT_ACTIVITIES_LIMIT = 5;
  * - `getAuditLogs({limit:5})` (GET /audit-logs, INT-34) -- pengganti jujur
  *   utk "aktivitas terbaru" (dummy lama karang nama OPD+ikon per-domain
  *   spt RSUD/DLH yang tak py padanan data nyata).
- * PENYARING (2026-08-19): `periode` & `jenisLayanan` dari navbar kini
- * DITERUSKAN ke `GET /dashboard/ikm` -- endpoint itu memang menerima keduanya
- * (DashboardIkmQueryDto). Sebelumnya navbar cuma menulis `?year=&service=` yang
+ * PENYARING (2026-08-19): `periode` dari navbar DITERUSKAN ke
+ * `GET /dashboard/ikm`. Sebelumnya navbar cuma menulis `?year=&service=` yang
  * tak dibaca siapa pun, sehingga catatan lama di sini ("filters DIHAPUS")
  * menjelaskan separuh cerita saja: query param-nya dibuang di halaman ini, tapi
  * dropdown-nya dibiarkan hidup di navbar tanpa pernah berefek.
+ *
+ * Penyaring jenis layanan DIBUANG seluruhnya 15 September 2026 atas permintaan
+ * pengguna. Backend tetap menerima parameternya; halaman ini berhenti
+ * mengirimnya.
  *
  * Sengaja DUA useAsync, bukan satu Promise.all seperti sebelumnya: hanya
  * `/dashboard/ikm` yang bergantung pada penyaring. `/statistics` (agregat
@@ -52,17 +55,13 @@ const RECENT_ACTIVITIES_LIMIT = 5;
  * Cakupan tiap penyaring dijelaskan ke pengguna lewat KabFilterScopeNote.
  */
 export default function AdminKabDashboardPage() {
-  const { periode, jenisLayanan } = useAdminKabLayout();
+  const { periode } = useAdminKabLayout();
 
-  // Parameter kosong TIDAK dikirim: backend mencocokkan `periode`/`jenisLayanan`
-  // secara persis, jadi mengirim string kosong akan menyaring habis semuanya.
+  // Parameter kosong TIDAK dikirim: backend mencocokkan `periode` secara
+  // persis, jadi mengirim string kosong akan menyaring habis semuanya.
   const fetchFiltered = useCallback(
-    () =>
-      getKabupatenDashboard({
-        ...(periode ? { periode } : {}),
-        ...(jenisLayanan ? { jenisLayanan } : {}),
-      }),
-    [periode, jenisLayanan],
+    () => getKabupatenDashboard({ ...(periode ? { periode } : {}) }),
+    [periode],
   );
   const {
     data: kabDashboard,
@@ -141,7 +140,7 @@ export default function AdminKabDashboardPage() {
     <div className="min-h-screen p-lg space-y-lg relative">
       <KabDashboardHeader summary={summary} />
 
-      <KabFilterScopeNote periode={periode} jenisLayanan={jenisLayanan} />
+      <KabFilterScopeNote periode={periode} />
 
       {/* `activeUsers` dioper terpisah: asalnya `GET /statistics`, bukan
           `GET /dashboard/ikm` yang mengisi keempat kartu lain, dan ia tidak

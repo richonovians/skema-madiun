@@ -87,7 +87,7 @@ export default function AdminKabSidebar() {
           </Link>
           <Link href="/admin-kab/opd" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Building2 size={20} />
-            <span>Manajemen OPD</span>
+            <span>Daftar OPD</span>
           </Link>
           <Link href="/admin-kab/surveys" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
             <ClipboardList size={20} />

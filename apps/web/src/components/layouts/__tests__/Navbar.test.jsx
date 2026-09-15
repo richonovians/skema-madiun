@@ -74,3 +74,46 @@ describe('Navbar', () => {
     expect(screen.queryByRole('link', { name: /registrasi helpdesk/i })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * PENAMAAN MENU (15 September 2026, permintaan pengguna): "Tentang Kami"
+ * menjadi "Tentang Platform".
+ *
+ * Navbar ini dipakai DUA kali -- versi desktop dan versi drawer ponsel -- dari
+ * dua daftar tautan yang ditulis terpisah di berkas yang sama. Nama yang
+ * diganti pada satu daftar saja menghasilkan aplikasi yang menyebut halaman
+ * yang sama dengan dua nama, tergantung lebar layar pembacanya.
+ */
+describe('Navbar — penamaan menu', () => {
+  beforeEach(() => isAuthenticated.mockReturnValue(false));
+
+  it('menu /about bernama "Tentang Platform" pada daftar desktop', () => {
+    render(<Navbar />);
+
+    expect(screen.getByRole('link', { name: 'Tentang Platform' })).toHaveAttribute(
+      'href',
+      '/about',
+    );
+  });
+
+  /**
+   * Daftar ponsel hidup di dalam drawer dan baru digambar setelah tombolnya
+   * ditekan, jadi ia HARUS dibuka. Tanpa langkah ini, nama lama yang tertinggal
+   * di sana tak akan pernah tersentuh uji mana pun.
+   */
+  it('nama yang sama dipakai daftar ponsel', () => {
+    render(<Navbar />);
+
+    fireEvent.click(screen.getByLabelText(/toggle navigation menu/i));
+
+    expect(screen.getAllByRole('link', { name: 'Tentang Platform' })).toHaveLength(2);
+  });
+
+  it('KONTROL: nama lamanya tak tertinggal di salah satu daftar', () => {
+    render(<Navbar />);
+
+    fireEvent.click(screen.getByLabelText(/toggle navigation menu/i));
+
+    expect(screen.queryByRole('link', { name: /tentang kami/i })).toBeNull();
+  });
+});

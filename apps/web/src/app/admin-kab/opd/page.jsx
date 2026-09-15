@@ -15,7 +15,6 @@ const FETCH_LIMIT = 100;
 
 export default function ManajemenOPDPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedService, setSelectedService] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState(null);
@@ -24,25 +23,12 @@ export default function ManajemenOPDPage() {
   const fetchOpd = useCallback(() => getOpdList({ limit: FETCH_LIMIT }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchOpd);
 
-  // Opsi jenis layanan DIDERIVASI dari data asli (bukan hardcode) -- backend
-  // tak punya enum tetap utk `jenisLayanan` (lihat OPDFilterBar.jsx).
-  const serviceOptions = useMemo(() => {
-    const unique = [...new Set((response?.data ?? []).map((o) => o.serviceType).filter(Boolean))].sort();
-    return [
-      { value: '', label: 'Semua Jenis Layanan' },
-      ...unique.map((s) => ({ value: s, label: s })),
-    ];
-  }, [response]);
-
   const filteredData = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return (response?.data ?? []).filter((opd) => {
-      const matchSearch =
-        opd.name.toLowerCase().includes(q) || opd.code.toLowerCase().includes(q);
-      const matchService = selectedService === '' || opd.serviceType === selectedService;
-      return matchSearch && matchService;
+      return opd.name.toLowerCase().includes(q) || opd.code.toLowerCase().includes(q);
     });
-  }, [response, searchQuery, selectedService]);
+  }, [response, searchQuery]);
 
   const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
@@ -54,13 +40,8 @@ export default function ManajemenOPDPage() {
     setCurrentPage(1);
   };
 
-  const handleServiceChange = (val) => {
-    setSelectedService(val);
-    setCurrentPage(1);
-  };
-
   /**
-   * Setel ulang SEMUA penyaring tabel ini (2 September 2026). Halaman paginasi
+   * Setel ulang penyaring tabel ini (2 September 2026). Halaman paginasi
    * ikut dikembalikan ke 1: tanpa itu, pengguna yang sedang di halaman 4 dari
    * hasil tersaring akan mendarat di halaman 4 dari daftar penuh -- benar
    * secara data, tapi terlihat seperti reset yang tak berfungsi karena tabelnya
@@ -68,7 +49,6 @@ export default function ManajemenOPDPage() {
    */
   const handleResetFilters = () => {
     setSearchQuery('');
-    setSelectedService('');
     setCurrentPage(1);
   };
 
@@ -115,9 +95,6 @@ export default function ManajemenOPDPage() {
       <OPDFilterBar
         searchQuery={searchQuery}
         setSearchQuery={handleSearchChange}
-        selectedService={selectedService}
-        setSelectedService={handleServiceChange}
-        serviceOptions={serviceOptions}
         onReset={handleResetFilters}
       />
       <div className="flex-1 flex flex-col min-h-0">
