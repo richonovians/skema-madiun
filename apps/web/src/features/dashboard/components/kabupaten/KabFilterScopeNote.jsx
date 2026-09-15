@@ -13,6 +13,8 @@ import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
  * - `jenisLayanan` menyaring itu semua DITAMBAH hitungan pengaduan
  *   (complaintWhere memakai jenisLayanan, tapi TIDAK memakai periode).
  * - `systemActivityPercent` (Keaktifan Sistem) tak pernah disaring keduanya.
+ * - Jumlah akun aktif (kartu Akun Aktif, 15 September 2026) juga tidak: asalnya
+ *   `GET /statistics`, yang tak menerima parameter periode maupun jenis layanan.
  * - Bagian statistik, distribusi nilai, 9 unsur, dan donut pengaduan berasal
  *   dari `GET /statistics` yang sama sekali tak menerima parameter -- selalu
  *   seluruh data.
@@ -35,9 +37,9 @@ export default function KabFilterScopeNote({ periode, jenisLayanan }) {
         </p>
         <p className="text-blue-700">
           Mengikuti penyaring: Rata-Rata IKM, Partisipasi Responden, dan Peringkat IKM per OPD.
-          Hitungan pengaduan hanya mengikuti jenis layanan (bukan periode). Keaktifan Sistem serta
-          seluruh bagian statistik, distribusi nilai, dan 9 unsur pelayanan selalu menampilkan
-          data lengkap seluruh periode.
+          Hitungan pengaduan hanya mengikuti jenis layanan (bukan periode). Keaktifan Sistem,
+          Akun Aktif, serta seluruh bagian statistik, distribusi nilai, dan 9 unsur pelayanan
+          selalu menampilkan data lengkap seluruh periode.
         </p>
       </div>
     </div>
