@@ -41,7 +41,6 @@ export default function OPDTable({ data, pagination }) {
           <Tr className="bg-[#F8FAFC]">
             <Th>KODE OPD</Th>
             <Th>NAMA INSTANSI</Th>
-            <Th>JENIS LAYANAN</Th>
             <Th>AKTIVITAS SISTEM</Th>
             <Th>STATUS</Th>
             <Th>TERAKHIR DISINKRON</Th>
@@ -59,9 +58,6 @@ export default function OPDTable({ data, pagination }) {
                     Helpdesk (D7): menambah kolom lokal berarti data itu tak
                     akan pernah tersinkronisasi. */}
                 <div className="font-bold text-text-primary">{item.name}</div>
-              </Td>
-              <Td className="text-on-surface-variant font-body-md text-body-md">
-                {item.serviceType}
               </Td>
               <Td>
                 {/* PENGHITUNG DIBACA ULANG (1 September 2026, laporan pengguna:

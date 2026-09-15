@@ -6,20 +6,21 @@ const AdminKabLayoutContext = createContext({
   setIsMobileSidebarOpen: () => {},
   periode: '',
   setPeriode: () => {},
-  jenisLayanan: '',
-  setJenisLayanan: () => {},
 });
 
 /**
  * State bersama layout Admin Kabupaten.
  *
- * `periode` ({tahun}-Q{1-4}) & `jenisLayanan` adalah DUA parameter yang memang
- * diterima `GET /dashboard/ikm` (DashboardIkmQueryDto backend: `periode` +
- * `jenisLayanan`), jadi penyaring di navbar sekarang benar-benar menyaring di
- * server -- bukan lagi menulis query param `?year=&service=` yang tak pernah
- * dibaca komponen mana pun.
+ * `periode` ({tahun}-Q{1-4}) adalah parameter yang memang diterima
+ * `GET /dashboard/ikm`, jadi penyaring di navbar benar-benar menyaring di
+ * server -- bukan menulis query param yang tak pernah dibaca komponen mana pun.
  *
- * Keduanya kosong = tak menyaring (parameternya tak dikirim), dan itulah NILAI
+ * Penyaring jenis layanan DIBUANG 15 September 2026 atas permintaan pengguna.
+ * Backend tetap menerima parameternya; yang hilang hanya kendali di layar,
+ * sehingga hitungan pengaduan -- satu-satunya angka yang dulu mengikutinya --
+ * kini selalu utuh.
+ *
+ * Kosong = tak menyaring (parameternya tak dikirim), dan itulah NILAI
  * AWALNYA. Berbeda dari penyaring Admin OPD yang default-nya triwulan berjalan:
  * di sana penyaring hanya melingkupi satu bagian di samping kartu kumulatif,
  * sedangkan di sini ia mempersempit angka UTAMA dashboard eksekutif. Dashboard
@@ -30,7 +31,6 @@ const AdminKabLayoutContext = createContext({
 export function AdminKabLayoutProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [periode, setPeriode] = useState('');
-  const [jenisLayanan, setJenisLayanan] = useState('');
 
   return (
     <AdminKabLayoutContext.Provider
@@ -39,8 +39,6 @@ export function AdminKabLayoutProvider({ children }) {
         setIsMobileSidebarOpen,
         periode,
         setPeriode,
-        jenisLayanan,
-        setJenisLayanan,
       }}
     >
       {children}
