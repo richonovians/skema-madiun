@@ -44,6 +44,7 @@ describe('SurveysService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       delete: jest.fn(),
     },
     opd: { findUnique: jest.fn() },
@@ -61,6 +62,16 @@ describe('SurveysService', () => {
     // Bakunya NOL jawaban: keadaan seluruh uji yang ditulis sebelum aturan ubah
     // bertingkat ada. Uji yang menguji penguncian menyebut angkanya sendiri.
     (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+    // `$transaction` dipakai DUA bentuk di service ini: deretan janji (findAll,
+    // findActive, findTrashed) dan panggilan balik (update, sejak survei utama
+    // per OPD). Tiruan ini melayani bentuk panggilan balik dengan meneruskan
+    // `prisma` sebagai `tx`, sehingga asersi tetap mengamati `prisma.survey.*`
+    // yang sama. Uji bentuk deretan menimpanya dengan `mockResolvedValue`.
+    (prisma.$transaction as jest.Mock).mockImplementation((arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: PrismaService) => unknown)(prisma)
+        : Promise.resolve(arg),
+    );
   });
 
   it('findAll (Admin OPD) mengembalikan PaginatedResult terfilter OPD-nya', async () => {
