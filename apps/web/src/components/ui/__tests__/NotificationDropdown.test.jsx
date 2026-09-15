@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, paginated, notificationFixture } from '@/mocks/handlers';
 import NotificationDropdown from '../NotificationDropdown';
+import { NOTIFIKASI_BERUBAH_EVENT } from '@/features/notifications/services/notifications.api';
 
 /**
  * Notifikasi in-app (D9) — sebelumnya TIDAK punya cakupan uji sama sekali,
@@ -276,5 +277,55 @@ describe('NotificationDropdown', () => {
 
       expect(await screen.findByRole('link', { name: /lihat semua notifikasi/i })).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * LONCENG IKUT MENYELARASKAN DIRI (laporan pengguna 15 September 2026).
+ *
+ * "Tandai semua dibaca" di halaman riwayat tak memperbarui lonceng ini.
+ * Sebabnya lonceng dan halaman itu memegang state `useAsync` masing-masing,
+ * yang hanya mengambil data sekali saat mount -- dan lonceng tinggal di layout,
+ * sehingga ia tetap terpasang selama pengguna berada di halaman riwayat,
+ * memegang hitungan yang diambil SEBELUM tombolnya ditekan.
+ *
+ * Yang diuji di sini bukan tombol halaman itu, melainkan kesediaan lonceng
+ * mendengar: apakah ia mengambil ulang hitungannya ketika ada yang mengabarkan
+ * status baca berubah, dari mana pun kabar itu datang.
+ */
+describe('NotificationDropdown — menyelaraskan diri dengan layar lain', () => {
+  const lonceng = () => screen.getByRole('button', { name: /notifikasi/i });
+
+  it('mengambil ulang hitungannya saat status baca dikabarkan berubah', async () => {
+    givenNotifications([BELUM_DIBACA], 3);
+    render(<NotificationDropdown />);
+    expect(await screen.findByRole('button', { name: /3 belum dibaca/i })).toBeInTheDocument();
+
+    // Layar lain menandai semuanya terbaca: server kini menjawab nol.
+    givenNotifications([], 0);
+    await act(async () => {
+      window.dispatchEvent(new Event(NOTIFIKASI_BERUBAH_EVENT));
+    });
+
+    await waitFor(() => expect(lonceng()).toHaveAccessibleName('Notifikasi'));
+  });
+
+  /**
+   * PASANGAN kontrol. Tanpa ini, uji di atas tetap hijau seandainya lonceng
+   * mengambil ulang datanya karena sebab lain -- polling, render ulang, atau
+   * sekadar urutan janji yang kebetulan menguntungkan. Yang harus dibuktikan
+   * adalah PERISTIWA itu yang melakukannya.
+   */
+  it('KONTROL: tanpa kabar apa pun, hitungannya tidak berubah sendiri', async () => {
+    givenNotifications([BELUM_DIBACA], 3);
+    render(<NotificationDropdown />);
+    expect(await screen.findByRole('button', { name: /3 belum dibaca/i })).toBeInTheDocument();
+
+    givenNotifications([], 0);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(lonceng()).toHaveAccessibleName('Notifikasi, 3 belum dibaca');
   });
 });
