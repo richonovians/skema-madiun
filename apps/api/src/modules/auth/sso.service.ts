@@ -271,16 +271,20 @@ export class SsoService {
         (created.opdId === null ? '' : ` opdId=${created.opdId}`),
     );
 
-    // Pengaman KETIGA atas dicabutnya larangan memetakan `superuser` dari klaim
-    // (6 September 2026; dua lainnya: baku `responden` bila env kosong, dan
-    // penetapan hanya saat akun dibuat). Hak tertinggi yang diberikan sistem di
-    // luar SKEMA harus meninggalkan jejak -- tanpa ini, Helpdesk yang salah
-    // kirim memberi hak itu tanpa ada yang pernah tahu.
-    if (created.roles.includes(Role.superuser)) {
+    // Pengaman KETIGA atas peran tertinggi yang diberikan dari luar SKEMA (dua
+    // lainnya: baku `responden` bila env kosong, dan penetapan hanya saat akun
+    // dibuat). Hak itu harus meninggalkan jejak -- tanpa ini, Helpdesk yang
+    // salah kirim memberikannya tanpa ada yang pernah tahu.
+    //
+    // Sasarannya mengikuti PERAN TERTINGGI, bukan nama tertentu. Sejak
+    // `superuser` dilebur (15 September 2026), `kabupaten` yang memegang
+    // manajemen pengguna dan log aktivitas -- membiarkan pengaman ini menjaga
+    // nama yang sudah tak ada sama dengan membuangnya.
+    if (created.roles.includes(Role.kabupaten)) {
       this.logger.warn(
-        `Akun baru id=${created.id} lahir memegang superuser dari klaim Helpdesk (sub=${profile.sub})`,
+        `Akun baru id=${created.id} lahir memegang kabupaten dari klaim Helpdesk (sub=${profile.sub})`,
       );
-      await this.audit.record(created.id, 'sso_grant_superuser', 'auth', {
+      await this.audit.record(created.id, 'sso_grant_kabupaten', 'auth', {
         sub: profile.sub,
         roles: created.roles,
       });

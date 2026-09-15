@@ -36,14 +36,14 @@ import { devHeaders } from './helpers/auth.helper';
  */
 /**
  * Cocok untuk KEDUA gerbang, dan itu memang yang diinginkan sejak T6 dibereskan
- * (7 September 2026): `@Roles(Role.superuser)` pada controller kini ditegakkan
+ * (7 September 2026): `@Roles(Role.kabupaten)` pada controller kini ditegakkan
  * guard ("Sumber daya ini hanya untuk peran: superuser"), sementara
  * `UsersService.assertSuperuser` tetap ada sebagai lapis kedua ("Manajemen
  * pengguna hanya dapat diakses oleh Superuser"). Yang dijaga di sini: penolakan
  * itu MENYEBUT superuser, sehingga tak tertukar dengan penolakan lain --
  * anti-self-lockout tetap diperiksa dengan pesannya sendiri.
  */
-const PESAN_SUPERUSER = /superuser/i;
+const PESAN_PERAN = /kabupaten/i;
 
 describe('Users (e2e)', () => {
   let app: INestApplication;
@@ -51,7 +51,7 @@ describe('Users (e2e)', () => {
   let opdId: number;
 
   /** Semua manajemen pengguna kini menuntut peran-yang-dipakai `superuser`. */
-  const asSuper = (userId?: number) => devHeaders({ role: Role.superuser, userId });
+  const asKab = (userId?: number) => devHeaders({ role: Role.kabupaten, userId });
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -78,7 +78,7 @@ describe('Users (e2e)', () => {
   }, 30000);
 
   const buatAkun = (body: Record<string, unknown>) =>
-    request(app.getHttpServer()).post('/api/v1/users').set(asSuper()).send(body);
+    request(app.getHttpServer()).post('/api/v1/users').set(asKab()).send(body);
 
   describe('Superuser mengelola akun', () => {
     it('Superuser membuat Admin OPD -> 201', async () => {
@@ -115,22 +115,22 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${created.body.data.id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ roles: ['kabupaten'] });
 
       expect(res.status).toBe(200);
       expect(res.body.data.roles).toEqual(['kabupaten']);
     });
 
-    it('GET /users (superuser) -> 200 paginated', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users?limit=5').set(asSuper());
+    it('GET /users (Admin Kabupaten) -> 200 paginated', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/users?limit=5').set(asKab());
 
       expect(res.status).toBe(200);
       expect(res.body.meta.pagination).toBeDefined();
     });
 
-    it('GET /users/stats (superuser) -> 200', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asSuper());
+    it('GET /users/stats (Admin Kabupaten) -> 200', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asKab());
 
       expect(res.status).toBe(200);
       expect(typeof res.body.data.activeUsers).toBe('number');
@@ -138,7 +138,7 @@ describe('Users (e2e)', () => {
     });
 
     it('GET /users/:id tidak ada -> 404', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users/99999999').set(asSuper());
+      const res = await request(app.getHttpServer()).get('/api/v1/users/99999999').set(asKab());
 
       expect(res.status).toBe(404);
     });
@@ -154,32 +154,30 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .delete(`/api/v1/users/${targetId}`)
-        .set(asSuper());
+        .set(asKab());
 
       expect(res.status).toBe(200);
       expect(res.body.data.isActive).toBe(false);
 
       const detail = await request(app.getHttpServer())
         .get(`/api/v1/users/${targetId}`)
-        .set(asSuper());
+        .set(asKab());
       expect(detail.status).toBe(404); // findOne memfilter deletedAt: null
     });
 
     it('DELETE /users/:id tidak ada -> 404', async () => {
-      const res = await request(app.getHttpServer())
-        .delete('/api/v1/users/99999999')
-        .set(asSuper());
+      const res = await request(app.getHttpServer()).delete('/api/v1/users/99999999').set(asKab());
 
       expect(res.status).toBe(404);
     });
   });
 
   describe('anti-self-lockout (dijaga PESANnya, bukan cuma statusnya)', () => {
-    it('Superuser DILARANG mengubah role akun sendiri -> 403 "role akun sendiri"', async () => {
+    it('Admin Kabupaten DILARANG mengubah role akun sendiri -> 403 "role akun sendiri"', async () => {
       const created = await buatAkun({
         nama: 'Self Lockout E2E',
         email: 'selflockout@users.e2e.test',
-        roles: ['superuser'],
+        roles: ['kabupaten'],
       });
       const selfId: number = created.body.data.id;
 
@@ -190,7 +188,7 @@ describe('Users (e2e)', () => {
       // memuat perubahan role saja.
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${selfId}`)
-        .set(asSuper(selfId))
+        .set(asKab(selfId))
         .send({ roles: ['opd'] });
 
       expect(res.status).toBe(403);
@@ -199,17 +197,17 @@ describe('Users (e2e)', () => {
       expect(String(res.body.message)).toMatch(/role akun sendiri/i);
     });
 
-    it('Superuser DILARANG menghapus akun sendiri -> 403 "menghapus akun sendiri"', async () => {
+    it('Admin Kabupaten DILARANG menghapus akun sendiri -> 403 "menghapus akun sendiri"', async () => {
       const created = await buatAkun({
         nama: 'Self Delete E2E',
         email: 'selfdelete@users.e2e.test',
-        roles: ['superuser'],
+        roles: ['kabupaten'],
       });
       const selfId: number = created.body.data.id;
 
       const res = await request(app.getHttpServer())
         .delete(`/api/v1/users/${selfId}`)
-        .set(asSuper(selfId));
+        .set(asKab(selfId));
 
       expect(res.status).toBe(403);
       expect(String(res.body.message)).toMatch(/menghapus akun sendiri/i);
@@ -217,27 +215,31 @@ describe('Users (e2e)', () => {
   });
 
   /**
-   * PASANGAN yang membuat blok pertama berarti. Tanpa blok ini, "superuser ->
-   * 200" bisa saja karena endpointnya terbuka bagi peran mana pun.
+   * PASANGAN yang membuat blok pertama berarti. Tanpa blok ini, "Admin
+   * Kabupaten -> 200" bisa saja karena endpointnya terbuka bagi peran mana pun.
+   *
+   * Lawannya berganti pada 15 September 2026: sebelumnya `kabupaten`, karena
+   * manajemen pengguna milik `superuser` seorang. Sesudah peleburan, yang harus
+   * tetap tertutup adalah Admin OPD.
    */
-  describe('kabupaten BUKAN superuser (kebijakan 20 Agustus 2026)', () => {
-    const asKab = () => devHeaders({ role: Role.kabupaten });
+  describe('Admin OPD BUKAN Admin Kabupaten', () => {
+    const asKab = () => devHeaders({ role: Role.opd, opdId });
 
-    it('GET /users (kabupaten) -> 403', async () => {
+    it('GET /users (Admin OPD) -> 403', async () => {
       const res = await request(app.getHttpServer()).get('/api/v1/users').set(asKab());
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(PESAN_SUPERUSER);
+      expect(String(res.body.message)).toMatch(PESAN_PERAN);
     });
 
-    it('GET /users/stats (kabupaten) -> 403', async () => {
+    it('GET /users/stats (Admin OPD) -> 403', async () => {
       const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asKab());
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(PESAN_SUPERUSER);
+      expect(String(res.body.message)).toMatch(PESAN_PERAN);
     });
 
-    it('POST /users (kabupaten) -> 403, dan akunnya TIDAK terbuat', async () => {
+    it('POST /users (Admin OPD) -> 403, dan akunnya TIDAK terbuat', async () => {
       const email = 'ditolak-kab@users.e2e.test';
 
       const res = await request(app.getHttpServer())
@@ -250,7 +252,7 @@ describe('Users (e2e)', () => {
       await expect(prisma.user.findFirst({ where: { email } })).resolves.toBeNull();
     });
 
-    it('PATCH /users/:id (kabupaten) -> 403, dan role TIDAK berubah', async () => {
+    it('PATCH /users/:id (Admin OPD) -> 403, dan role TIDAK berubah', async () => {
       const created = await buatAkun({
         nama: 'Target Kab E2E',
         email: 'target-kab@users.e2e.test',
@@ -262,14 +264,14 @@ describe('Users (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
         .set(asKab())
-        .send({ roles: ['superuser'] });
+        .send({ roles: ['kabupaten'] });
 
       expect(res.status).toBe(403);
       const sesudah = await prisma.user.findUnique({ where: { id }, select: { roles: true } });
       expect(sesudah?.roles).toEqual([Role.opd]);
     });
 
-    it('DELETE /users/:id (kabupaten) -> 403, dan akunnya TETAP aktif', async () => {
+    it('DELETE /users/:id (Admin OPD) -> 403, dan akunnya TETAP aktif', async () => {
       const created = await buatAkun({
         nama: 'Hapus Kab E2E',
         email: 'hapus-kab@users.e2e.test',
@@ -322,7 +324,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ nama: 'Nama Timpaan' });
 
       expect(res.status).toBe(400);
@@ -352,7 +354,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ opdId });
 
       expect(res.status).toBe(400);
@@ -371,7 +373,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ roles: ['kabupaten'] });
 
       expect(res.status).toBe(200);
@@ -394,7 +396,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ roles: ['opd'] });
 
       // Penjaga ini HARUS bertahan: tanpa tautan OPD, peran Admin OPD adalah
@@ -414,7 +416,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}/status`)
-        .set(asSuper())
+        .set(asKab())
         .send({ isActive: false });
 
       expect(res.status).toBe(200);

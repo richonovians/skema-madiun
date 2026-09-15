@@ -53,14 +53,15 @@ describe('Audit Log (e2e)', () => {
 
   const opdHeaders = () => devHeaders({ role: Role.opd, opdId, userId: opdUserId });
   /**
-   * PEMBACA audit log kini `superuser`, bukan `kabupaten` (dibereskan
+   * PEMBACA audit log kembali `kabupaten` sejak peleburan 15 September 2026
+   * (sempat `superuser` sejak 20 Agustus 2026 -- dibereskan
    * 7 September 2026). Sejak keduanya dipisah (20 Agustus 2026),
    * `AuditService.assertSuperuser` menutup audit log bagi kabupaten -- di dalam
    * service, bukan lewat `@Roles`, karena RolesGuard memberi kedua peran itu
    * jalan pintas penuh atas dekorator tersebut. Tujuh uji di berkas ini merah
    * selama berminggu-minggu sebagai "kegagalan lama yang dimaklumi".
    */
-  const superuserHeaders = () => devHeaders({ role: Role.superuser });
+  const kabupatenHeaders = () => devHeaders({ role: Role.kabupaten });
 
   it('POST /surveys (aksi tercatat) -> GET /audit-logs (Superuser) menampilkannya', async () => {
     const created = await request(app.getHttpServer())
@@ -72,7 +73,7 @@ describe('Audit Log (e2e)', () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ entitas: 'survey' })
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
 
     expect(res.status).toBe(200);
     const entry = (
@@ -106,7 +107,7 @@ describe('Audit Log (e2e)', () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ entitas: 'survey' })
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
 
     const entry = (res.body.data as { aksi: string; detail: { params?: { id?: string } } }[]).find(
       (e) => e.aksi === 'update_status' && String(e.detail?.params?.id) === String(id),
@@ -126,7 +127,7 @@ describe('Audit Log (e2e)', () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ entitas: 'survey', actorId: opdUserId })
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
 
     const entry = (res.body.data as { aksi: string; detail: { params?: { id?: string } } }[]).find(
       (e) => e.aksi === 'delete' && String(e.detail?.params?.id) === String(id),
@@ -134,26 +135,26 @@ describe('Audit Log (e2e)', () => {
     expect(entry).toBeDefined();
   });
 
-  it('GET /audit-logs (Admin OPD) -> 403 (hanya Superuser)', async () => {
+  it('GET /audit-logs (Admin OPD) -> 403 (hanya Admin Kabupaten)', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/audit-logs').set(opdHeaders());
     expect(res.status).toBe(403);
   });
 
-  it('GET /audit-logs (Kabupaten) -> 403 -- kebijakan 20 Agustus 2026', async () => {
+  it('GET /audit-logs (Responden) -> 403, pesannya menyebut peran yang dibutuhkan', async () => {
     // PASANGAN yang membuat uji "Superuser -> 200" di atas berarti. Tanpa ini,
     // 200 itu bisa saja karena endpointnya terbuka bagi peran mana pun.
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
-      .set(devHeaders({ role: Role.kabupaten }));
+      .set(devHeaders({ role: Role.responden }));
 
     expect(res.status).toBe(403);
-    expect(String(res.body.message)).toMatch(/superuser/i);
+    expect(String(res.body.message)).toMatch(/kabupaten/i);
   });
 
-  it('GET /audit-logs/:id (Kabupaten) -> 403 juga', async () => {
+  it('GET /audit-logs/:id (Admin OPD) -> 403 juga', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs/1')
-      .set(devHeaders({ role: Role.kabupaten }));
+      .set(devHeaders({ role: Role.opd, opdId: 1 }));
 
     expect(res.status).toBe(403);
   });
@@ -169,7 +170,7 @@ describe('Audit Log (e2e)', () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ actorId: opdUserId })
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
 
     expect(res.status).toBe(200);
     expect((res.body.data as { actorId: number }[]).every((e) => e.actorId === opdUserId)).toBe(
@@ -183,7 +184,7 @@ describe('Audit Log (e2e)', () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ actorId: opdUserId })
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
 
     const hasGetEntry = (res.body.data as { aksi: string }[]).some((e) => e.aksi === 'get');
     expect(hasGetEntry).toBe(false);
@@ -198,7 +199,7 @@ describe('Audit Log (e2e)', () => {
     const list = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ entitas: 'survey', actorId: opdUserId })
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
     const entry = (list.body.data as { id: number; detail: { body?: { judul?: string } } }[]).find(
       (e) => e.detail?.body?.judul === 'Survei Detail Audit',
     );
@@ -206,7 +207,7 @@ describe('Audit Log (e2e)', () => {
 
     const res = await request(app.getHttpServer())
       .get(`/api/v1/audit-logs/${entry?.id}`)
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
 
     expect(res.status).toBe(200);
     expect(res.body.data.id).toBe(entry?.id);
@@ -216,11 +217,11 @@ describe('Audit Log (e2e)', () => {
   it('GET /audit-logs/:id tidak ditemukan -> 404', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs/999999999')
-      .set(superuserHeaders());
+      .set(kabupatenHeaders());
     expect(res.status).toBe(404);
   });
 
-  it('GET /audit-logs/:id (Admin OPD) -> 403 (hanya Superuser)', async () => {
+  it('GET /audit-logs/:id (Admin OPD) -> 403 (hanya Admin Kabupaten)', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/audit-logs/1').set(opdHeaders());
     expect(res.status).toBe(403);
   });

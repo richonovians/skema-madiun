@@ -12,21 +12,17 @@ import { USER_ROLES } from '../constants/userConstants';
  * `Masyarakat (Responden)` ikut ditawarkan sejak tanggal yang sama. Sebelumnya
  * backend menolaknya (`ADMIN_ROLES`) karena akun warga lahir dari SSO; batas
  * itu dicabut atas permintaan pengguna, dan `ASSIGNABLE_ROLES` kini memuat
- * seluruh role. Yang TETAP tertutup: `superuser` tak dapat dipetakan dari klaim
- * SSO -- di sini yang memberi adalah manusia yang sudah superuser.
+ * seluruh role.
+ *
+ * Pilihan `Superuser` DIHAPUS 15 September 2026 (permintaan pengguna): perannya
+ * dilebur ke Admin Kabupaten, sampai ke nilai enum di basis data.
  */
 const ROLE_CHOICES = [
-  {
-    value: USER_ROLES.SUPERUSER,
-    label: 'Superuser',
-    keterangan:
-      'Seluruh hak Admin Kabupaten, DITAMBAH log aktivitas dan manajemen pengguna (halaman ini).',
-  },
   {
     value: USER_ROLES.ADMIN_KABUPATEN,
     label: 'Admin Kabupaten',
     keterangan:
-      'Akses penuh lintas OPD, KECUALI log aktivitas dan manajemen pengguna (keduanya khusus Superuser).',
+      'Akses penuh lintas OPD, termasuk log aktivitas dan manajemen pengguna (halaman ini).',
   },
   {
     value: USER_ROLES.ADMIN_OPD,

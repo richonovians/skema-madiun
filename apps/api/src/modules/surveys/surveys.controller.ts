@@ -34,7 +34,7 @@ export class SurveysController {
 
   /** Daftar survei (Kabupaten: semua; Admin OPD: milik OPD-nya). */
   @Get()
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
   findAll(
     @Query() query: ListSurveyQueryDto,
@@ -45,7 +45,7 @@ export class SurveysController {
 
   /** Buat paket survei (Admin OPD). */
   @Post()
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   create(@Body() dto: CreateSurveyDto, @CurrentUser() user: CurrentUser): Promise<SurveyEntity> {
@@ -70,7 +70,7 @@ export class SurveysController {
    * mendahului param `:id`. Alasan yang sama berlaku bagi `active` di atas.
    */
   @Get('trash')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: TrashedSurveyEntity, isArray: true })
   findTrashed(
     @Query() query: ListSurveyQueryDto,
@@ -81,7 +81,7 @@ export class SurveysController {
 
   /** Detail survei. */
   @Get(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: SurveyEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,
@@ -92,7 +92,7 @@ export class SurveysController {
 
   /** Ubah survei (draft, Admin OPD). */
   @Patch(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   update(
@@ -109,7 +109,7 @@ export class SurveysController {
    * permanennya ada di `DELETE /surveys/:id/purge`.
    */
   @Delete(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
@@ -118,7 +118,7 @@ export class SurveysController {
 
   /** Pulihkan survei dari Sampah. */
   @Post(':id/restore')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'restore')
   @ApiOkResponse({ type: SurveyEntity })
   restore(
@@ -133,7 +133,7 @@ export class SurveysController {
    * tindakan ini tak dapat dibatalkan dan ikut membawa jawaban responden.
    */
   @Delete(':id/purge')
-  @Roles(Role.kabupaten, Role.superuser)
+  @Roles(Role.kabupaten)
   @Audit('survey', 'purge')
   @HttpCode(HttpStatus.OK)
   purge(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
@@ -142,7 +142,7 @@ export class SurveysController {
 
   /** Publikasikan / tutup survei (Admin OPD). */
   @Patch(':id/status')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'update_status')
   @ApiOkResponse({ type: SurveyEntity })
   updateStatus(
@@ -155,7 +155,7 @@ export class SurveysController {
 
   /** Duplikasi survei periode sebelumnya (Admin OPD). */
   @Post(':id/duplicate')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'duplicate')
   @ApiOkResponse({ type: SurveyEntity })
   duplicate(

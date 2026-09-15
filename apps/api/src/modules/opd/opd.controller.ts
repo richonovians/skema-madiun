@@ -42,7 +42,7 @@ export class OpdController {
 
   /** Sinkronisasi data OPD dari Helpdesk (upsert by external_id). Hanya Admin Kabupaten. */
   @Post('sync')
-  @Roles(Role.kabupaten, Role.superuser)
+  @Roles(Role.kabupaten)
   @Audit('opd', 'sync')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: OpdSyncReport })
@@ -52,7 +52,7 @@ export class OpdController {
 
   /** Detail OPD. Admin Kabupaten (semua) atau Admin OPD (miliknya sendiri). */
   @Get(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: OpdEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,

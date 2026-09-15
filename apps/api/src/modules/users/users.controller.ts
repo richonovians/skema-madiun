@@ -26,15 +26,15 @@ import { UsersService } from './users.service';
 @ApiTags('users')
 @ApiBearerAuth()
 /**
- * `@Roles(Role.superuser)` -- dan dekorator ini kini JUJUR. Sampai T6 dibereskan
+ * `@Roles(Role.kabupaten)` -- dan dekorator ini kini JUJUR. Sampai T6 dibereskan
  * (7 September 2026) ia tertulis `Role.kabupaten` justru karena isinya tak
  * berarti apa-apa: RolesGuard meloloskan `kabupaten` DAN `superuser` lewat
  * bypass menyeluruh, jadi nilai apa pun di sini sama saja.
  *
- * `UsersService.assertSuperuser` (403) DIPERTAHANKAN sebagai lapis kedua --
+ * `UsersService.assertKabupaten` (403) DIPERTAHANKAN sebagai lapis kedua --
  * lihat catatan panjang di sana.
  */
-@Roles(Role.superuser)
+@Roles(Role.kabupaten)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -49,7 +49,7 @@ export class UsersController {
     return this.usersService.findAll(query, actor);
   }
 
-  /** Buat akun admin (OPD/Kabupaten/Superuser). Khusus superuser. */
+  /** Buat akun admin (OPD/Kabupaten). Khusus Admin Kabupaten. */
   @Post()
   @Audit('user')
   @ApiOkResponse({ type: UserEntity })

@@ -27,21 +27,21 @@ export class UsersService {
    *
    * Dulu pemeriksaan ini SATU-SATUNYA gerbang: RolesGuard memberi `kabupaten`
    * bypass penuh atas seluruh @Roles, sehingga mengganti `@Roles(Role.kabupaten)`
-   * menjadi `@Roles(Role.superuser)` di controller tak akan berpengaruh apa pun.
+   * menjadi `@Roles(Role.kabupaten)` di controller tak akan berpengaruh apa pun.
    * Bypass itu dibongkar T6 (7 September 2026), dekoratornya sudah dibetulkan,
    * dan controller kini menolak kabupaten lebih dahulu.
    *
    * Pemeriksaan ini TETAP sebagai lapis kedua (alasannya di
-   * `AuditService.assertSuperuser`), dengan pesan yang BERBEDA dari pesan guard
+   * `AuditService.assertKabupaten`), dengan pesan yang BERBEDA dari pesan guard
    * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    *
    * Konsekuensi yang disengaja: ini juga menutup pintu terakhir untuk MENGUBAH
    * peran akun lain (`PATCH /users/:id`), jadi hanya superuser yang dapat
    * mengangkat/menurunkan admin. Itulah maksud pembatasannya.
    */
-  private assertSuperuser(actor: CurrentUser): void {
-    if (actor.actingRole !== Role.superuser) {
-      throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Superuser');
+  private assertKabupaten(actor: CurrentUser): void {
+    if (actor.actingRole !== Role.kabupaten) {
+      throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Admin Kabupaten');
     }
   }
 
@@ -52,7 +52,7 @@ export class UsersService {
    * hanya butuh satu angka, sedangkan statistik menjalankan selusin agregasi.
    */
   async getStats(actor: CurrentUser): Promise<UserStatsEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
 
     const [totalUsers, activeUsers] = await this.prisma.$transaction([
       this.prisma.user.count({ where: { deletedAt: null } }),
@@ -66,7 +66,7 @@ export class UsersService {
     query: ListUsersQueryDto,
     actor: CurrentUser,
   ): Promise<PaginatedResult<UserEntity>> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     const { page, limit, role, opdId } = query;
 
     const where: Prisma.UserWhereInput = { deletedAt: null };
@@ -102,7 +102,7 @@ export class UsersService {
   }
 
   async findOne(id: number, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     return new UserEntity(await this.getActiveOrThrow(id));
   }
 
@@ -135,7 +135,7 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     const normal = this.normalisasiRoles(dto.roles, dto.opdId);
     if (normal.opdId != null) {
       await this.assertOpdExists(normal.opdId);
@@ -166,7 +166,7 @@ export class UsersService {
 
   /** `roles` opsional; sejak 2026-08-20 hanya superuser yang boleh mengubahnya. */
   async update(id: number, dto: UpdateUserDto, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     const target = await this.getActiveOrThrow(id);
 
     // Perbandingan HIMPUNAN, bukan `!==` pada array: urutan role yang berbeda
@@ -206,7 +206,7 @@ export class UsersService {
     dto: UpdateUserStatusDto,
     actor: CurrentUser,
   ): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     await this.getActiveOrThrow(id);
 
     const updated = await this.prisma.user.update({
@@ -225,7 +225,7 @@ export class UsersService {
    * Anti-self-lockout sama seperti `update()` role: tak boleh hapus akun sendiri.
    */
   async remove(id: number, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     await this.getActiveOrThrow(id);
     if (id === actor.userId) {
       throw new ForbiddenException('Tidak bisa menghapus akun sendiri');
