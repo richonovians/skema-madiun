@@ -7,7 +7,6 @@ import IkmLeaderboard from '@/features/dashboard/components/kabupaten/IkmLeaderb
 import ComplaintStatusDonut from '@/features/dashboard/components/kabupaten/ComplaintStatusDonut';
 import RecentActivities from '@/features/dashboard/components/kabupaten/RecentActivities';
 import LoadingState from '@/components/ui/LoadingState';
-import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { useAdminKabLayout } from '@/components/layouts/AdminKabLayoutProvider';
@@ -144,7 +143,10 @@ export default function AdminKabDashboardPage() {
 
       <KabFilterScopeNote periode={periode} jenisLayanan={jenisLayanan} />
 
-      <KabSummaryMetrics data={kabDashboard.summary} />
+      {/* `activeUsers` dioper terpisah: asalnya `GET /statistics`, bukan
+          `GET /dashboard/ikm` yang mengisi keempat kartu lain, dan ia tidak
+          mengikuti penyaring periode & jenis layanan di navbar. */}
+      <KabSummaryMetrics data={kabDashboard.summary} activeUsers={summary.activeUsers ?? null} />
 
       {/* Ringkasan KPI (bento grid, sumber sama dgn /statistics publik) */}
       <section className="mt-8">
@@ -152,11 +154,6 @@ export default function AdminKabDashboardPage() {
           <TrendingUp size={24} className="text-primary" />
           Ringkasan Kinerja Terkini (Detail Lengkap)
         </h2>
-        {/* Strip, bukan kartu ke-7: grid di bawah berisi 6 kartu pada 3 kolom
-            (dua baris penuh), dan kartu ketujuh akan yatim di baris terakhir. */}
-        <div className="mb-6">
-          <ActiveAccountsInfo activeCount={summary.activeUsers ?? null} scope="all" />
-        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <MetricCard
             title="Indeks Kepuasan Masyarakat"

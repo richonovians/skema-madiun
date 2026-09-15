@@ -7,7 +7,6 @@ import TrendChart from '@/features/statistics/components/charts/TrendChart';
 import PeriodSurveyPerformance from '@/features/dashboards/components/PeriodSurveyPerformance';
 import ComplaintStatusBreakdown from '@/features/dashboards/components/ComplaintStatusBreakdown';
 import PerformanceMetrics from '@/features/dashboards/components/PerformanceMetrics';
-import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -80,10 +79,8 @@ export default function AdminDashboardPage() {
     <>
       <OpdDashboardHeader periode={periode} />
 
-      {/* Di antara kepala halaman dan grid ringkasan: angkanya keterangan
-          tentang AKUN, bukan salah satu metrik layanan di grid itu. */}
-      <ActiveAccountsInfo activeCount={data.dashboard.summary.activeOpdUsers ?? null} scope="opd" />
-
+      {/* Angka akun aktif kini menjadi kartu kelima di dalam DashboardSummary
+          (15 September 2026, permintaan pengguna), bukan strip tersendiri. */}
       <DashboardSummary summaryData={data.dashboard.summary} />
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
