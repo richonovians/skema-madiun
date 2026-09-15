@@ -23,8 +23,8 @@
  * Pemakaian (dari mana pun):
  *   node apps/web/e2e/support/bersihkan-data-uji.mjs --dry   # lihat dulu
  *   node apps/web/e2e/support/bersihkan-data-uji.mjs         # hapus
- *   node apps/web/e2e/support/bersihkan-data-uji.mjs --yatim # + notifikasi
- *                                                            #   yatim (BUG-014)
+ *   node apps/web/e2e/support/bersihkan-data-uji.mjs --tanpa-induk # + notifikasi
+ *                                                            #   tanpa induk (BUG-014)
  */
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
@@ -64,7 +64,7 @@ if (!process.env.DATABASE_URL) {
 const p = new PrismaClient();
 const UJI = { contains: '[UJI ' };
 const KERING = process.argv.includes('--dry');
-const YATIM = process.argv.includes('--yatim');
+const TANPA_INDUK = process.argv.includes('--tanpa-induk');
 
 /**
  * Palang keselamatan: skrip ini MENGHAPUS baris, jadi ia menolak jalan kalau
@@ -122,19 +122,19 @@ const run = async () => {
     ? await p.notification.count({ where: { OR: penyaringNotif } })
     : 0;
 
-  // Notifikasi YATIM: menaut survei yang barisnya sudah tiada. Penyaring di
+  // Notifikasi TANPA INDUK: menaut survei yang barisnya sudah tiada. Penyaring di
   // atas tak akan pernah menemukannya — ia bertolak dari survei yang MASIH
   // ADA, padahal `e2e/statistik-sampah.spec.js` memusnahkan surveinya sendiri
   // di `afterAll` dan meninggalkan notifikasinya (BUG-014). Tanpa sapuan ini,
   // tiap kali suite dijalankan lima baris mati menumpuk diam-diam.
   //
-  // Opt-in lewat `--yatim`, dan sengaja: yang tersapu di sini bukan hanya
+  // Opt-in lewat `--tanpa-induk`, dan sengaja: yang tersapu di sini bukan hanya
   // milik data uji. Setiap survei yang pernah dimusnahkan siapa pun
   // meninggalkan jejak yang sama, jadi keputusan menghapusnya milik orang yang
   // menjalankan skrip, bukan bawaan.
   const idSurveiAda = new Set((await p.survey.findMany({ select: { id: true } })).map((s) => s.id));
-  const idNotifYatim = (
-    YATIM
+  const idNotifTanpaInduk = (
+    TANPA_INDUK
       ? await p.notification.findMany({
           where: { link: { contains: '/surveys/' } },
           select: { id: true, link: true },
@@ -154,9 +154,9 @@ const run = async () => {
   survei.forEach((s) => console.log(`  survei    ${s.id} [${s.status}] "${s.judul.slice(0, 55)}"`));
   console.log(`  notifikasi bertaut data uji : ${notif}`);
   console.log(
-    YATIM
-      ? `  notifikasi yatim (survei sudah tiada) : ${idNotifYatim.length}`
-      : '  notifikasi yatim: tidak diperiksa (tambahkan --yatim untuk ikut menyapunya)',
+    TANPA_INDUK
+      ? `  notifikasi tanpa induk (survei sudah tiada) : ${idNotifTanpaInduk.length}`
+      : '  notifikasi tanpa induk: tidak diperiksa (tambahkan --tanpa-induk untuk ikut menyapunya)',
   );
 
   if (KERING) {
@@ -166,8 +166,8 @@ const run = async () => {
   }
 
   const hasil = await p.$transaction(async (tx) => {
-    const y = idNotifYatim.length
-      ? await tx.notification.deleteMany({ where: { id: { in: idNotifYatim } } })
+    const y = idNotifTanpaInduk.length
+      ? await tx.notification.deleteMany({ where: { id: { in: idNotifTanpaInduk } } })
       : { count: 0 };
     const n = penyaringNotif.length
       ? await tx.notification.deleteMany({ where: { OR: penyaringNotif } })
@@ -179,7 +179,7 @@ const run = async () => {
     const s = await tx.survey.deleteMany({ where: { id: { in: survei.map((x) => x.id) } } });
     return {
       notif: n.count,
-      notifYatim: y.count,
+      notifTanpaInduk: y.count,
       pengaduan: c.count,
       respons: r.count,
       survei: s.count,
@@ -204,7 +204,7 @@ const run = async () => {
       berkas += 1;
     }
   }
-  console.log(`Berkas unggahan yatim dihapus: ${berkas} (${byte} byte)`);
+  console.log(`Berkas unggahan tak tertaut dihapus: ${berkas} (${byte} byte)`);
 
   console.log(
     'Sisa di basis data:',

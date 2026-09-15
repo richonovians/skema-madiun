@@ -6,7 +6,7 @@
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
 | **Versi**              | 2.9                                                     |
-| **Tanggal**            | 15 September 2026 (v2.9 — **C-09 TIDAK LAGI TERKUNCI**: kredensial SSO Helpdesk sudah turun, charter dijalankan sebagian (separuh pertama alur terverifikasi, BUG-019 ditemukan); sisanya menunggu akun pengguna Helpdesk, bukan kredensial aplikasi; v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Tanggal**            | 15 September 2026 (v2.9 — **C-09 TIDAK LAGI TERKUNCI**: kredensial SSO Helpdesk sudah turun, charter dijalankan sebagian (separuh pertama alur terverifikasi, BUG-019 ditemukan); sisanya menunggu akun pengguna Helpdesk, bukan kredensial aplikasi; v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi tanpa induk yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -713,8 +713,8 @@ berubah bersamaan dengan sebuah tindakan belum tentu disebabkan olehnya. Yang
 membuktikan bukan pengamatan pertama, melainkan pengembalian keadaan.
 
 > **Data uji sesi ini sudah dibersihkan.** Enam survei `[UJI C-14]`, seluruh
-> responsnya, dan **10 notifikasi yatim** yang ditinggalkan dua kali pemusnahan
-> dihapus sesudah sesi. Notifikasi yatim itu harus dicari lewat id survei yang
+> responsnya, dan **10 notifikasi tanpa induk** yang ditinggalkan dua kali pemusnahan
+> dihapus sesudah sesi. Notifikasi tanpa induk itu harus dicari lewat id survei yang
 > sudah tak ada — persis aturan nomor 2 pada putaran ketiga di bawah, dan kali
 > ini aturannya dipakai atas sisa yang dibuat sendiri.
 
@@ -931,7 +931,7 @@ angka resmi di halaman `/statistics` publik.
 | Respons survei                        |       43 | fixture E2E & survei mati               |
 | Jawaban                               |    104 + | terukur di jalan pertama; sisanya cascade |
 | Akun karangan `uji.c05.*`             |        2 | C-05, sudah soft-delete                 |
-| Berkas unggahan yatim                 | 22 (56 KB) | unggahan yang validasinya menolak     |
+| Berkas unggahan tak tertaut                 | 22 (56 KB) | unggahan yang validasinya menolak     |
 
 **Putaran kedua — 4 September 2026, penghapusan paksa**
 
@@ -987,7 +987,7 @@ notifikasi, dan 2 respons. Skrip pembersih yang dapat dijalankan ulang (bermode
 `--dry` untuk melihat dulu tanpa menghapus) tersedia; jalankan sesudah suite,
 bukan sesudah menumpuk berhari-hari.
 
-### Putaran ketiga — 15 September 2026, notifikasi yatim
+### Putaran ketiga — 15 September 2026, notifikasi tanpa induk
 
 Sebelas hari tanpa pembersihan menunjukkan berapa cepat sisanya menumpuk, dan
 satu bentuk sisa yang sebelumnya luput sama sekali:
@@ -996,7 +996,7 @@ satu bentuk sisa yang sebelumnya luput sama sekali:
 | ----- | -----: |
 | Pengaduan `[UJI E2E]` + survei fixture + responsnya | 5 + 1 + 6 |
 | Notifikasi bertaut data uji | 25 |
-| Berkas unggahan yatim | 50 |
+| Berkas unggahan tak tertaut | 50 |
 | **Notifikasi menunjuk tiket yang sudah lenyap** | **7.986** |
 
 Angka terakhir itu pelajarannya. Notifikasi pengaduan **disiarkan ke setiap akun
@@ -1009,7 +1009,7 @@ menumpuk diam-diam sejak akhir Agustus.
 Dua aturan yang lahir dari situ:
 1. **Saring notifikasi lewat `link`, dan lakukan SEBELUM induknya dihapus** —
    sesudah pengaduannya hilang, nomor tiketnya tak dapat dicari lagi.
-2. **Periksa juga yang sudah telanjur yatim**: cocokkan `link` tiap notifikasi
+2. **Periksa juga yang sudah telanjur tanpa induk**: cocokkan `link` tiap notifikasi
    dengan tiket & id survei yang benar-benar masih ada. Itu satu-satunya cara
    menemukan sisa dari pembersihan-pembersihan sebelumnya yang belum tahu aturan
    nomor 1.

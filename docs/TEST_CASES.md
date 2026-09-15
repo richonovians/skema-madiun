@@ -6,8 +6,8 @@
 | ---------------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan**      | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Dokumen Pendamping** | TEST_PLAN.md                                                                           |
-| **Versi**              | 3.1                                                                                    |
-| **Tanggal**            | 15 September 2026 (v3.1 — C-09 TIDAK LAGI terkunci (kredensial SSO sudah turun), dijalankan sebagian: BUG-019 + pagarnya; E2E 17 → 19 di 7 berkas; v3.0 — §Y.3 dapat sebab BARU untuk dua jalan (CAT-020, nginx menandai upstream API mati dan tak pulih sendiri) — sisanya tetap belum terjelaskan; v2.9 — lima pagar regresi berikutnya (BUG-014 s/d BUG-018) masuk §Y.8; Jest 663 → **673 di 92 berkas**, E2E 13 → **17 di 6 berkas**; v2.8 — §Y.3 dapat pembaruan: satu jalan E2E penuh 4 worker bersih (11 lulus, 2 dilewati, nol gagal), anjuran "per berkas" diturunkan tetapi tak dicabut; v2.7 — §Y.8 baru: pagar regresi `test.fail()` untuk BUG-013, peta E2E 11 → 13 pengujian di 5 berkas; v2.6 — peta otomatisasi §Y.1 dicocokkan ulang dengan `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada; TC-FE-010 tak lagi menyebut sub-kategori; v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
+| **Versi**              | 3.2                                                                                    |
+| **Tanggal**            | 15 September 2026 (v3.2 — §Y.3.1 baru: kegoyahan E2E AKHIRNYA TERUKUR — 4 worker 5 gagal/4,0 mnt, 1 worker 0 gagal/2,3 mnt; muat halaman 1,6 dtk berbanding 12 dtk; `playwright.config.ts` kini 1 worker secara bawaan. Kata "yatim" diganti "tanpa induk" di seluruh dokumen pengujian atas permintaan pengguna; v3.1 — C-09 TIDAK LAGI terkunci (kredensial SSO sudah turun), dijalankan sebagian: BUG-019 + pagarnya; E2E 17 → 19 di 7 berkas; v3.0 — §Y.3 dapat sebab BARU untuk dua jalan (CAT-020, nginx menandai upstream API mati dan tak pulih sendiri) — sisanya tetap belum terjelaskan; v2.9 — lima pagar regresi berikutnya (BUG-014 s/d BUG-018) masuk §Y.8; Jest 663 → **673 di 92 berkas**, E2E 13 → **17 di 6 berkas**; v2.8 — §Y.3 dapat pembaruan: satu jalan E2E penuh 4 worker bersih (11 lulus, 2 dilewati, nol gagal), anjuran "per berkas" diturunkan tetapi tak dicabut; v2.7 — §Y.8 baru: pagar regresi `test.fail()` untuk BUG-013, peta E2E 11 → 13 pengujian di 5 berkas; v2.6 — peta otomatisasi §Y.1 dicocokkan ulang dengan `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada; TC-FE-010 tak lagi menyebut sub-kategori; v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
 
 **Konvensi:**
 
@@ -788,7 +788,7 @@ pernyataan uji bergantung padanya.
 > menit. Kegagalan berpindah-pindah itu **tidak muncul sama sekali**.
 >
 > Yang berubah di lingkungan sejak tiga jalan bermasalah itu: basis data
-> dikembalikan ke garis dasar (7.986 notifikasi yatim disapu, lalu sisa data uji
+> dikembalikan ke garis dasar (7.986 notifikasi tanpa induk disapu, lalu sisa data uji
 > tiap jalan ikut dibersihkan), dan `next dev` sudah lama menyala sehingga
 > seluruh rute terkompilasi. Keduanya **dugaan, bukan sebab yang terbukti** —
 > satu jalan bersih tak membatalkan tiga jalan bermasalah.
@@ -830,6 +830,61 @@ pernyataan uji bergantung padanya.
 > BUG-013, BUG-014, BUG-018) **selalu lulus, dalam hitungan ratusan milidetik**,
 > pada jalan yang sama tempat pengujian berperamban kehabisan waktu 60 detik.
 > Yang goyah tampaknya sisi peramban di bawah beban, bukan backend-nya.
+
+#### Y.3.1 Sebabnya akhirnya terukur — empat peramban berebut satu mesin (15 September 2026, malam)
+
+Dugaan di atas ("sisi peramban di bawah beban") **diuji, bukan dibiarkan sebagai
+dugaan.** Tiga pengukuran, di mesin yang sama, dalam rentang setengah jam.
+
+**1. Jalan penuh pada tiga setelan worker.**
+
+| Worker | Hasil | Waktu |
+| -----: | ----- | ----: |
+| **4** (bawaan Playwright) | **5 dari 19 GAGAL** | 4,0 menit |
+| **2** | 0 gagal, lalu 1 gagal pada ulangan | 2,2 / 1,9 menit |
+| **1** | **0 gagal** | 2,3 menit |
+
+Perhatikan kolom waktunya, dan ini yang mengubah keputusan: **satu worker tidak
+lebih lambat daripada empat.** Paralelisme di mesin ini tak memberi apa pun untuk
+ditukar — ia hanya menukar kestabilan dengan ketiadaan keuntungan.
+
+**2. Waktu muat halaman, satu konteks berbanding empat konteks serentak.**
+
+| Rute | 1 konteks | 4 konteks serentak |
+| ---- | --------: | -----------------: |
+| `/` | 1.600 ms | **11.748 ms** |
+| `/surveys` | 1.405 ms | **12.866 ms** |
+| `/complaints/new` | 1.669 ms | **12.749 ms** |
+| `/` | 1.618 ms | **12.038 ms** |
+
+Delapan kali lipat, rute yang sama, menit yang sama.
+
+**3. Kendali yang menunjuk tersangkanya.** Empat permintaan HTTP serentak ke rute
+yang sama, **tanpa peramban**, dilayani dalam **0,09–0,47 detik**. Jadi yang
+kehabisan napas bukan `next dev`, bukan nginx, bukan basis data — melainkan
+**empat Chrome yang berebut satu mesin** sambil mengurai bundel Next.js mode dev.
+Mesinnya: 4 inti fisik, 8 prosesor logis, RAM bebas ~2,7 GB.
+
+**Kenapa bukti lama menyimpulkan sebaliknya.** §Y.3 pernah mematahkan dugaan
+"server dev kewalahan" dengan "navigasi paling lambat di log Next.js: 1,8 detik".
+Angka itu benar — dan **mengukur hal yang salah**: ia waktu kerja server, yang
+memang tetap sehat. Yang meledak waktu muat ujung-ke-ujung di peramban. Dua besaran
+berbeda yang mudah tertukar, dan tertukarnya membuat tersangka yang tepat bebas
+selama dua minggu.
+
+**Yang diubah.** `playwright.config.ts` kini memakai
+`workers: Number(process.env.E2E_WORKERS ?? 1)` — satu worker secara bawaan,
+dengan seluruh angka di atas tertulis sebagai komentar di sana supaya tak ada
+yang menaikkannya kembali tanpa mengukur ulang. Mesin yang lebih lapang boleh
+memakai `E2E_WORKERS=4 pnpm test:e2e`.
+
+**Batasnya, supaya tak diklaim lebih dari yang terbukti.** Satu jalan dengan dua
+worker tetap gagal satu; jadi beban bukan satu-satunya bumbu, hanya yang paling
+menentukan. Dan tiga jalan bermasalah 15 September **pagi** berjalan sebelum
+seluruh pengukuran ini — sebagiannya sudah dijelaskan
+[CAT-020](BUG_REPORTS.md#cat-020), sisanya tak pernah diperiksa dengan alat ini.
+Yang dapat dikatakan dengan yakin: **pada setelan bawaan, suite ini tidak dapat
+dipercaya di mesin sekelas ini, dan sebabnya bukan produknya.**
 
 ### Y.4 Cache peramban — kegagalan yang mustahil berasal dari proxy
 
@@ -1106,7 +1161,7 @@ hanyalah uji yang gagal karena sebab apa pun.
 surveinya sendiri di `afterAll`, dan `bersihkan-data-uji.mjs` **tak dapat
 menemukan notifikasi yang ditinggalkannya** — penyaringnya bertolak dari survei
 yang masih ada. Tiga kali jalan meninggalkan 15 baris mati. Skrip pembersih
-karena itu mendapat bendera opt-in `--yatim`, yang menyapu notifikasi bertaut
+karena itu mendapat bendera opt-in `--tanpa-induk`, yang menyapu notifikasi bertaut
 `/surveys/<id>` yang id-nya sudah tiada. Opt-in dan bukan bawaan: yang tersapu
 bukan hanya milik data uji.
 

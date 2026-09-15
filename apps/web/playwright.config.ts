@@ -26,7 +26,35 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // SATU worker secara bawaan, dan angka ini hasil pengukuran -- bukan kehati-hatian.
+  //
+  // Bawaan Playwright (`undefined`) adalah separuh prosesor logis; di mesin ini
+  // berarti EMPAT peramban sekaligus. Diukur 15 September 2026 pada satu jalan
+  // penuh yang sama, berulang:
+  //
+  //   4 worker : 5 dari 19 GAGAL, 4,0 menit
+  //   2 worker : 0 gagal, lalu 1 gagal pada ulangan, 2,2 / 1,9 menit
+  //   1 worker : 0 gagal, 2,3 menit
+  //
+  // Perhatikan kolom waktunya: satu worker TIDAK lebih lambat daripada empat.
+  // Paralelisme di sini tak memberi apa pun untuk ditukar -- ia hanya menukar
+  // kestabilan dengan ketiadaan keuntungan.
+  //
+  // Sebabnya terukur terpisah, dan letaknya di SISI PERAMBAN, bukan di server:
+  // memuat `/`, `/surveys`, dan `/complaints/new` memakan ~1,5 detik bila satu
+  // konteks dijalankan sendirian, dan ~12 detik bila empat konteks berjalan
+  // serentak -- delapan kali lipat. Pada saat yang sama, EMPAT permintaan HTTP
+  // serentak tanpa peramban dilayani dalam 0,09-0,47 detik. Jadi yang kehabisan
+  // napas empat Chrome yang berebut satu mesin (4 inti fisik, RAM bebas ~2,7 GB)
+  // sambil mengurai bundel Next.js mode dev, bukan `next dev` maupun proxy-nya.
+  //
+  // Bentuk kegagalannya menegaskan hal yang sama: `domcontentloaded` menyala,
+  // `load` tak pernah tuntas, lalu 60 detik habis. Inilah "kegoyahan yang belum
+  // terjelaskan" di TEST_CASES §Y.3.
+  //
+  // Mesin yang lebih lapang boleh menaikkannya: `E2E_WORKERS=4 pnpm test:e2e`.
+  // Naikkan hanya bila jalan penuh terbukti hijau berulang kali di mesin itu.
+  workers: Number(process.env.E2E_WORKERS ?? 1),
   reporter: 'html',
   // Server pengembangan Next.js mengompilasi rute saat pertama diminta; kunjungan
   // pertama ke halaman wizard survei bisa memakan belasan detik pada mesin biasa.

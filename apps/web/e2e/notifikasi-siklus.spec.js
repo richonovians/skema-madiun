@@ -8,7 +8,7 @@ import { AKUN, masukApi, panggilApi } from './support/api.js';
  * lewat TEKS pada kolom `link`, bukan kunci asing.** Karena itu ia tak pernah
  * ikut `ON DELETE CASCADE`, dan tak ada satu pun batasan basis data yang
  * mencegahnya diterbitkan dua kali. Pembersihan 15 September 2026 menemukan
- * **7.986** notifikasi yatim di lingkungan dev — sebelas hari tanpa penyapu.
+ * **7.986** notifikasi tanpa induk di lingkungan dev — sebelas hari tanpa penyapu.
  *
  * ── Kenapa tanpa peramban ───────────────────────────────────────────────────
  * Yang salah bukan tampilannya melainkan barisnya. Melewati antarmuka hanya
@@ -25,8 +25,8 @@ import { AKUN, masukApi, panggilApi } from './support/api.js';
  * ── Data uji ────────────────────────────────────────────────────────────────
  * Seluruh baris berjudul `[UJI ` supaya terjaring
  * `e2e/support/bersihkan-data-uji.mjs`. Survei BUG-014 dimusnahkan oleh ujinya
- * sendiri — itu memang langkahnya — dan notifikasi yatim yang ditinggalkannya
- * hanya tersapu oleh bendera `--yatim`. Pengaduan tak punya endpoint hapus sama
+ * sendiri — itu memang langkahnya — dan notifikasi tanpa induk yang ditinggalkannya
+ * hanya tersapu oleh bendera `--tanpa-induk`. Pengaduan tak punya endpoint hapus sama
  * sekali, jadi ia ditinggalkan untuk skrip pembersih.
  */
 
@@ -37,7 +37,7 @@ async function notifikasiSaya(token) {
   return (await panggilApi(token, 'GET', '/notifications?limit=100&sort=desc')) ?? [];
 }
 
-test.describe('BUG-014 — hapus permanen meninggalkan notifikasi yatim', () => {
+test.describe('BUG-014 — hapus permanen meninggalkan notifikasi tanpa induk', () => {
   // Serial DI DALAM describe, bukan di tingkat berkas: uji kedua bergantung
   // pada survei yang dibuat uji pertama, tetapi pagar BUG-018 di bawah tidak.
   // Dipasang di tingkat berkas, kegagalan satu pagar (yaitu justru saat
@@ -67,7 +67,7 @@ test.describe('BUG-014 — hapus permanen meninggalkan notifikasi yatim', () => 
 
   test('kendali — survei yang dijawab menerbitkan notifikasi yang menautnya', async () => {
     const survei = await panggilApi(tokenOpd, 'POST', '/surveys', {
-      judul: `[UJI BUG-014] Survei pengunci notifikasi yatim ${PENANDA}`,
+      judul: `[UJI BUG-014] Survei pengunci notifikasi tanpa induk ${PENANDA}`,
       periode: '2027-Q3',
     });
     surveiId = survei.id;
