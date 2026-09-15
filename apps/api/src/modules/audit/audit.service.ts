@@ -44,7 +44,7 @@ export class AuditService {
    *
    * Dulu pemeriksaan ini SATU-SATUNYA gerbang, karena RolesGuard memberi
    * `kabupaten` bypass penuh atas seluruh @Roles sehingga
-   * `@Roles(Role.superuser)` di controller tak berlaku sama sekali. Bypass itu
+   * `@Roles(Role.kabupaten)` di controller tak berlaku sama sekali. Bypass itu
    * dibongkar T6 (7 September 2026) dan dekoratornya kini ditegakkan apa adanya,
    * jadi controller sudah menolak kabupaten lebih dahulu.
    *
@@ -54,18 +54,18 @@ export class AuditService {
    * satu penolakan dapat datang dari dua tempat -- karena itu PESANnya berbeda,
    * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    */
-  private assertSuperuser(user: CurrentUser): void {
-    if (user.actingRole !== Role.superuser) {
-      throw new ForbiddenException('Log aktivitas hanya dapat diakses oleh Superuser');
+  private assertKabupaten(user: CurrentUser): void {
+    if (user.actingRole !== Role.kabupaten) {
+      throw new ForbiddenException('Log aktivitas hanya dapat diakses oleh Admin Kabupaten');
     }
   }
 
-  /** Daftar log aktivitas admin (Superuser), terbaru lebih dulu. */
+  /** Daftar log aktivitas admin (Admin Kabupaten), terbaru lebih dulu. */
   async findAll(
     query: ListAuditLogQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<AuditLogEntity>> {
-    this.assertSuperuser(user);
+    this.assertKabupaten(user);
     const { page, limit, entitas, actorId } = query;
     const where: Prisma.AuditLogWhereInput = {};
     if (entitas) {
@@ -94,9 +94,9 @@ export class AuditService {
     );
   }
 
-  /** Detail satu log aktivitas (Superuser) -- dipakai halaman detail (INT-34). */
+  /** Detail satu log aktivitas (Admin Kabupaten) -- dipakai halaman detail (INT-34). */
   async findOne(id: number, user: CurrentUser): Promise<AuditLogEntity> {
-    this.assertSuperuser(user);
+    this.assertKabupaten(user);
     const row = await this.prisma.auditLog.findUnique({
       where: { id },
       include: { actor: { select: { nama: true } } },

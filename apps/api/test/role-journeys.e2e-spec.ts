@@ -38,20 +38,17 @@ describe('Alur End-to-End per Peran (e2e)', () => {
    * Akun admin pada perjalanan ini memegang DUA peran, dan itu diperbaiki
    * 7 September 2026 -- bukan sekadar tambalan agar hijau.
    *
-   * Dulu ia ber-role `kabupaten` saja dan memakai satu helper untuk segalanya.
-   * Sejak `kabupaten` & `superuser` dipisah (20 Agustus 2026), manajemen
-   * pengguna dan audit log menjadi superuser-saja, sehingga langkah 1 dan 7
-   * merah -- lalu langkah 4 & 5 ikut merah SEBAGAI RANTAI, karena
-   * `opdAdminUserId` tak pernah terisi. Empat kegagalan, dua akar.
+   * Perjalanannya memodelkan rancangan multi-role yang sesungguhnya: SATU akun
+   * (`e2e-jrn-kab`) memegang `[kabupaten, opd]`, dan yang menentukan hak adalah
+   * PERAN YANG SEDANG DIPAKAI. Itu pula bentuk akun nyata di basis data
+   * pengguna. Jadi perjalanan ini ikut membuktikan mekanisme peran-yang-dipakai,
+   * bukan cuma alur bisnisnya.
    *
-   * Sekarang perjalanannya memodelkan rancangan multi-role yang sesungguhnya:
-   * SATU akun (`e2e-jrn-kab`) memegang `[superuser, kabupaten]`, dan yang
-   * menentukan hak adalah PERAN YANG SEDANG DIPAKAI. Itu pula bentuk akun nyata
-   * di basis data pengguna. Jadi perjalanan ini kini ikut membuktikan mekanisme
-   * peran-yang-dipakai, bukan cuma alur bisnisnya.
+   * Pasangan perannya berganti pada 15 September 2026: sebelumnya
+   * `[superuser, kabupaten]`, dan pembuktiannya bersandar pada audit log yang
+   * hanya boleh dibaca `superuser`. Sesudah peleburan, pasangan itu tak lagi
+   * berbeda -- yang masih membedakan adalah kabupaten vs opd.
    */
-  const superuserHeaders = () =>
-    devHeaders({ role: Role.superuser, userId: kabupatenUserId, ssoSubject: 'e2e-jrn-kab' });
   const kabupatenHeaders = () =>
     devHeaders({ role: Role.kabupaten, userId: kabupatenUserId, ssoSubject: 'e2e-jrn-kab' });
   const opdHeaders = () =>
@@ -83,12 +80,12 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       // `roles` juga di `update`: baris SISA dari run sebelumnya hanya ber-role
       // kabupaten, dan tanpa ini perjalanan gagal pada mesin yang pernah
       // menjalankan versi lama berkas ini (pola sama seperti consentAt di bawah).
-      update: { roles: [Role.superuser, Role.kabupaten] },
+      update: { roles: [Role.kabupaten, Role.opd] },
       create: {
         ssoSubject: 'e2e-jrn-kab',
-        nama: 'Admin E2E Journey (superuser + kabupaten)',
+        nama: 'Admin E2E Journey (kabupaten + opd)',
         email: 'e2e-jrn-kab@example.go.id',
-        roles: [Role.superuser, Role.kabupaten],
+        roles: [Role.kabupaten, Role.opd],
       },
     });
     kabupatenUserId = kabupatenUser.id;
@@ -152,7 +149,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
     it('POST /users (peran superuser) -> buat akun Admin OPD baru', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/users')
-        .set(superuserHeaders())
+        .set(kabupatenHeaders())
         .send({
           nama: 'Admin OPD E2E Journey',
           email: 'e2e-jrn-opd@example.go.id',
@@ -413,7 +410,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
         .query({ actorId: opdAdminUserId, limit: 50 })
-        .set(superuserHeaders());
+        .set(kabupatenHeaders());
 
       expect(res.status).toBe(200);
       const aksiTercatat = (res.body.data as { aksi: string; entitas: string }[]).map(
@@ -428,13 +425,16 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       );
     });
 
-    it('GET /audit-logs dengan peran KABUPATEN -> 403, walau akunnya sama', async () => {
+    it('GET /audit-logs dengan peran OPD -> 403, walau akunnya sama', async () => {
       // Bukti bahwa yang menentukan hak adalah peran yang DIPAKAI, bukan daftar
-      // role yang dimiliki akun. Tanpa uji ini, "superuser -> 200" di atas bisa
-      // saja karena akunnya kebetulan istimewa.
+      // role yang dimiliki akun: akun ini MEMEGANG `kabupaten`, tetapi sedang
+      // memakai `opd`. Tanpa uji ini, "kabupaten -> 200" di atas bisa saja
+      // karena akunnya kebetulan istimewa.
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
-        .set(kabupatenHeaders());
+        .set(
+          devHeaders({ role: Role.opd, userId: kabupatenUserId, opdId, ssoSubject: 'e2e-jrn-kab' }),
+        );
 
       expect(res.status).toBe(403);
     });

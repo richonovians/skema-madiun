@@ -422,7 +422,7 @@ export class ComplaintsService {
    * OPD yang berwenang (permintaan pengguna 6 September 2026).
    *
    * HAK DITEGAKKAN DUA LAPIS sejak T6 (7 September 2026):
-   * `@Roles(Role.kabupaten, Role.superuser)` di controller menolak lebih dahulu,
+   * `@Roles(Role.kabupaten)` di controller menolak lebih dahulu,
    * dan pemeriksaan di bawah tetap ada sebagai lapis kedua. Dulu hanya ada lapis
    * ini, karena bypass menyeluruh membuat dekorator apa pun tak berlaku bagi
    * kedua peran itu.
@@ -436,9 +436,7 @@ export class ComplaintsService {
     const complaint = await this.getByIdOrThrow(id);
 
     if (!hasFullAccess(user.actingRole)) {
-      throw new ForbiddenException(
-        'Hanya Superuser dan Admin Kabupaten yang dapat meneruskan pengaduan ke OPD',
-      );
+      throw new ForbiddenException('Hanya Admin Kabupaten yang dapat meneruskan pengaduan ke OPD');
     }
     if (complaint.opdId != null) {
       throw new BadRequestException(

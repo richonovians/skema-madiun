@@ -31,7 +31,11 @@ enum Role {
   kabupaten
   opd
   responden
-  superuser
+
+  // `superuser` DIHAPUS 15 September 2026 (permintaan pengguna): kuasanya --
+  // manajemen pengguna & log aktivitas -- pindah ke `kabupaten`, dan nilai
+  // enumnya dibuang supaya tak ada jalan tersisa membuat peran itu lagi.
+  // Lihat migrasi 20260915140000_lebur_superuser_ke_kabupaten.
 
   @@map("user_role")
 }

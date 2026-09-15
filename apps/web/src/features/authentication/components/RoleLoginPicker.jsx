@@ -27,21 +27,16 @@ import { KUNCI_TOMBOL, peranUntukTombol, tombolUntukRoles } from '../utils/tombo
 const ROLE_CHOICES = [
   {
     // SATU tombol untuk DUA role (8 September 2026). Yang menentukan haknya
-    // `peranUntukTombol()`, bukan label di sini: akun bersuperuser masuk dengan
-    // `act=superuser`, akun kabupaten biasa dengan `act=kabupaten`.
     key: KUNCI_TOMBOL.KABUPATEN,
     label: 'Admin Kabupaten',
     icon: ShieldCheck,
     tone: 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800',
-    description: 'Dashboard eksekutif dan monitoring survei serta pengaduan lintas OPD.',
-    note: 'Log aktivitas & manajemen pengguna TIDAK terbuka pada peran ini.',
-    // Dipakai bila akunnya memegang role `superuser`. Keterangannya WAJIB
-    // berbeda: tombolnya satu, tapi haknya benar-benar tidak sama, dan
-    // menjanjikan hal yang salah di sini berarti pengguna mengira fiturnya
-    // rusak ketika manajemen pengguna tak terbuka -- atau sebaliknya.
-    deskripsiSuper:
+    // Keterangannya menyebut log aktivitas & manajemen pengguna sejak peran
+    // `superuser` dilebur ke sini (15 September 2026). Sebelumnya justru
+    // sebaliknya -- peran ini dinyatakan TIDAK memegang keduanya.
+    description:
       'Dashboard eksekutif, monitoring lintas OPD, ditambah log aktivitas & manajemen pengguna.',
-    noteSuper: 'Akun Anda bersuperuser, jadi log aktivitas & manajemen pengguna ikut terbuka.',
+    note: 'Peran dengan akses paling luas di aplikasi ini.',
   },
   {
     key: KUNCI_TOMBOL.OPD,
@@ -92,19 +87,15 @@ export default function RoleLoginPicker({
   // backend (AuthService.setActingRole), dan itu terasa seperti aplikasi rusak.
   //
   // Penyaringnya `tombolUntukRoles`, BUKAN `roles.includes(c.key)` seperti dulu:
-  // tombol Admin Kabupaten mewakili DUA role, sehingga penyaring lama memberi
-  // akun ber-role `[superuser]` nol tombol -- terkunci di luar tanpa pesan apa
-  // pun. Ada uji khusus untuk kasus itu di utils/__tests__/tombolPeran.test.js.
   const kunciTampil = tombolUntukRoles(roles);
   const pilihan = ROLE_CHOICES.filter((c) => kunciTampil.includes(c.key));
-  const punyaSuperuser = roles.includes('superuser');
 
   const enterAs = async (tombolKey) => {
     setGalat('');
     // `sedangGanti` memegang kunci TOMBOL, bukan peran hasil pemetaan, supaya
     // penanda "berpindah..." tetap menempel pada tombol yang benar-benar diklik.
     setSedangGanti(tombolKey);
-    const peran = peranUntukTombol(tombolKey, roles);
+    const peran = peranUntukTombol(tombolKey);
     try {
       await setActingRole(peran);
       // Navigasi HARD (bukan router.push) SENGAJA -- proxy.js membaca cookie
@@ -132,9 +123,7 @@ export default function RoleLoginPicker({
             <X size={18} />
           </button>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            {/* Jumlah TOMBOL, bukan jumlah role: akun ber-role
-                `[superuser, kabupaten]` memegang dua role tapi melihat satu
-                tombol, dan "2 peran" di atas satu tombol hanya membingungkan. */}
+            {/* Jumlah TOMBOL, bukan jumlah role -- keduanya tak selalu sama. */}
             {pilihan.length} pilihan peran
           </p>
           <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1">
@@ -191,18 +180,14 @@ export default function RoleLoginPicker({
                   )}
                 </span>
                 <span className="block text-xs mt-1.5 opacity-90">
-                  {punyaSuperuser && choice.deskripsiSuper
-                    ? choice.deskripsiSuper
-                    : choice.description}
+                  {choice.description}
                 </span>
                 <span className="flex items-start gap-1.5 text-[11px] mt-2 opacity-80">
                   <Info size={12} className="mt-0.5 shrink-0" />
                   <span>
                     {terhalang
-                      ? 'Akun Anda belum ditautkan ke OPD mana pun, jadi peran ini belum dapat dipakai. Hubungi Superuser untuk menautkannya.'
-                      : punyaSuperuser && choice.noteSuper
-                        ? choice.noteSuper
-                        : choice.note}
+                      ? 'Akun Anda belum ditautkan ke OPD mana pun, jadi peran ini belum dapat dipakai. Hubungi Admin Kabupaten untuk menautkannya.'
+                      : choice.note}
                   </span>
                 </span>
               </button>

@@ -18,7 +18,7 @@ import { SessionService } from '../src/modules/auth/session/session.service';
  * membuktikan apa pun.
  *
  * Endpoint yang dipakai sebagai batu uji adalah `GET /audit-logs`: satu-satunya
- * pembeda `superuser` dari `kabupaten` (bersama manajemen pengguna), dan
+ * milik `kabupaten` sejak peleburan 15 September 2026 (bersama manajemen pengguna), dan
  * penjagaannya ada DI DALAM service (`AuditService.assertSuperuser`), bukan di
  * `@Roles` -- karena peran berhak penuh melewati dekorator itu.
  */
@@ -59,7 +59,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
         ssoSubject: 'e2e-multirole',
         nama: 'Pak A (Multi-Role)',
         email: EMAIL,
-        roles: [Role.superuser, Role.opd],
+        roles: [Role.kabupaten, Role.opd],
         opdId,
         isActive: true,
       },
@@ -83,8 +83,8 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
   }, 30000);
 
   describe('hak ikut turun sesuai peran yang dipakai', () => {
-    it('act=superuser -> GET /audit-logs 200', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+    it('act=kabupaten -> GET /audit-logs 200', async () => {
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
@@ -98,7 +98,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * yang dipakainya berbeda. Tanpa pasangan ini, "200" di atas bisa saja
      * karena endpointnya memang terbuka bagi siapa pun.
      */
-    it('act=opd -> GET /audit-logs 403, walau akun MEMILIKI superuser', async () => {
+    it('act=opd -> GET /audit-logs 403, walau akun MEMILIKI kabupaten', async () => {
       const token = sessionService.issue(userId, Role.opd);
 
       const res = await request(app.getHttpServer())
@@ -108,7 +108,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
       expect(res.status).toBe(403);
     });
 
-    it('act=opd -> GET /users 403 (manajemen pengguna khusus superuser)', async () => {
+    it('act=opd -> GET /users 403 (manajemen pengguna khusus Admin Kabupaten)', async () => {
       const token = sessionService.issue(userId, Role.opd);
 
       const res = await request(app.getHttpServer())
@@ -118,8 +118,8 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
       expect(res.status).toBe(403);
     });
 
-    it('KONTROL: act=superuser -> GET /users 200', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+    it('KONTROL: act=kabupaten -> GET /users 200', async () => {
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/users')
@@ -157,7 +157,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.data.roles).toEqual(expect.arrayContaining([Role.superuser, Role.opd]));
+      expect(res.body.data.roles).toEqual(expect.arrayContaining([Role.kabupaten, Role.opd]));
       // `actingRole` sengaja TIDAK disertakan: pada jalur ini perannya memang
       // belum ditentukan, dan mengarang nilainya hanya menyesatkan pemanggil.
       expect(res.body.data.actingRole).toBeUndefined();
@@ -183,19 +183,19 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
       const ganti = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
         .set('Authorization', `Bearer ${awal}`)
-        .send({ role: Role.superuser });
+        .send({ role: Role.kabupaten });
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${ganti.body.data.token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.data.actingRole).toBe(Role.superuser);
-      expect(res.body.data.roles).toEqual(expect.arrayContaining([Role.superuser, Role.opd]));
+      expect(res.body.data.actingRole).toBe(Role.kabupaten);
+      expect(res.body.data.roles).toEqual(expect.arrayContaining([Role.kabupaten, Role.opd]));
     });
 
     it('MENOLAK 403 peran yang tidak dimiliki akun', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
@@ -206,7 +206,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('MENOLAK 400 peran di luar enum', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
@@ -220,10 +220,10 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
   /**
    * Permintaan pengguna 6 September 2026: "ketika login sebagai admin OPD akan
    * langsung redirect ke OPD sesuai dengan dinas akun tersebut, meskipun
-   * rolenya superuser. Jadi tetap tidak bisa masuk sebagai admin OPD selain
+   * rolenya kabupaten. Jadi tetap tidak bisa masuk sebagai admin OPD selain
    * tempat dinas user tersebut."
    *
-   * Akun uji di berkas ini memegang `[superuser, opd]` DAN tertaut satu OPD,
+   * Akun uji di berkas ini memegang `[kabupaten, opd]` DAN tertaut satu OPD,
    * jadi ia tepat menjadi batu ujinya.
    */
   describe('dashboard OPD terikat dinas akun', () => {
@@ -241,22 +241,22 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * PASANGAN yang membuat uji di atas berarti. Tanpa ini, "200" di atas bisa
      * saja karena endpointnya terbuka bagi siapa pun.
      */
-    it('act=superuser + ?opdId= -> 403, OPD lain tak dapat dibuka', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+    it('act=kabupaten + ?opdId= -> 403, OPD lain tak dapat dibuka', async () => {
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get(`/api/v1/dashboard/opd?opdId=${opdId}`)
         .set('Authorization', `Bearer ${token}`);
 
       // 403, BUKAN 400: endpoint ini tak mendeklarasikan parameter query sama
-      // sekali (DTO-nya dibuang 6 September 2026 bersama cabang superuser),
+      // sekali (DTO-nya dibuang 6 September 2026 bersama cabang peran berakses penuh),
       // sehingga `?opdId=` diabaikan Nest tanpa kena forbidNonWhitelisted.
       // Yang ditolak perannya.
       expect(res.status).toBe(403);
     });
 
-    it('act=superuser tanpa parameter -> 403 juga', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+    it('act=kabupaten tanpa parameter -> 403 juga', async () => {
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboard/opd')
@@ -273,7 +273,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * seketika -- bukan menunggu token kedaluwarsa.
      */
     it('mencabut role membatalkan pilihan pada permintaan BERIKUTNYA', async () => {
-      const token = sessionService.issue(userId, Role.superuser);
+      const token = sessionService.issue(userId, Role.kabupaten);
 
       // Kontrol dulu: token ini memang sah SEBELUM pencabutan.
       const sebelum = await request(app.getHttpServer())
@@ -292,7 +292,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
 
       await prisma.user.update({
         where: { id: userId },
-        data: { roles: [Role.superuser, Role.opd] },
+        data: { roles: [Role.kabupaten, Role.opd] },
       });
     });
   });

@@ -8,7 +8,6 @@ const ROLE_TO_FRONTEND = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
   responden: 'RESPONDENT',
-  superuser: 'SUPERUSER',
 };
 
 /**

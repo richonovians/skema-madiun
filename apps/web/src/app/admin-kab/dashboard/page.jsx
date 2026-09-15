@@ -78,11 +78,16 @@ export default function AdminKabDashboardPage() {
     // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
     // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
     const profile = await getMyProfile();
-    const isSuperuser = profile.actingRole === USER_ROLES.SUPERUSER;
+    // Log aktivitas kini milik Admin Kabupaten (peleburan 15 September 2026),
+    // dan halaman ini memang hanya dibuka peran itu. Penjaganya tetap dipasang
+    // TERSURAT: sesi yang entah bagaimana mendarat di sini dengan peran lain
+    // akan membuat backend menjawab 403, dan karena keduanya satu Promise.all,
+    // SELURUH dashboard gagal memuat -- bukan cuma seksi aktivitasnya.
+    const bolehBacaAudit = profile.actingRole === USER_ROLES.ADMIN_KABUPATEN;
 
     const [statistics, auditLogs] = await Promise.all([
       getStatistics(),
-      isSuperuser ? getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }) : Promise.resolve(null),
+      bolehBacaAudit ? getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }) : Promise.resolve(null),
     ]);
     return {
       statistics,
@@ -287,7 +292,7 @@ export default function AdminKabDashboardPage() {
         </div>
       </div>
 
-      {/* Disembunyikan untuk Admin Kabupaten biasa -- log aktivitas superuser saja. */}
+      {/* Kosong bila sesi ini tak berhak membaca log aktivitas. */}
       {activities && <RecentActivities data={activities} />}
     </div>
   );

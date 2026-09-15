@@ -10,9 +10,4 @@ export const ROLE_HOME = {
   kabupaten: '/admin-kab/dashboard',
   opd: '/admin-opd/dashboard',
   responden: '/dashboard',
-  // `superuser`: beranda yang sama dengan Admin Kabupaten. Sejak 5 September
-  // 2026 tak ada lagi "area superuser" tersendiri -- setiap sesi punya TEPAT
-  // SATU peran yang dipakai, jadi tabel ini cukup. `SUPERUSER_AREA_HOME` dan
-  // `SUPERUSER_OPD_ENTRY` dibuang bersamanya.
-  superuser: '/admin-kab/dashboard',
 };

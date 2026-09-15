@@ -56,10 +56,10 @@ describe('parseRolePackages', () => {
   });
 
   it('membaca paket berisi beberapa peran, dipisah tanda tambah', () => {
-    const map = parseRolePackages('pegawai-dinas:opd+responden,admin:superuser+opd+responden');
+    const map = parseRolePackages('pegawai-dinas:opd+responden,admin:kabupaten+opd+responden');
 
     expect(map.get('pegawai-dinas')).toEqual([Role.opd, Role.responden]);
-    expect(map.get('admin')).toEqual([Role.superuser, Role.opd, Role.responden]);
+    expect(map.get('admin')).toEqual([Role.kabupaten, Role.opd, Role.responden]);
   });
 
   it('memaafkan spasi berlebih & huruf besar', () => {
@@ -73,19 +73,34 @@ describe('parseRolePackages', () => {
   });
 
   /**
-   * PEMBALIKAN YANG DISENGAJA (keputusan pengguna 6 September 2026): sebelum ini
-   * `superuser` sengaja TIDAK dapat dipetakan dari klaim, karena peran itu
-   * memegang log aktivitas & manajemen pengguna. Pengguna meminta tipe "admin"
-   * dari Helpdesk menjadi superuser di SKEMA, jadi larangan itu dicabut.
+   * `superuser` DILEBUR ke `kabupaten` (15 September 2026), jadi namanya bukan
+   * lagi peran yang sah dan pemetaan yang menyebutnya diabaikan diam-diam --
+   * perlakuan yang sama dengan nama peran salah ketik mana pun.
+   *
+   * Konsekuensinya disengaja dan perlu diketahui operator: `HELPDESK_SSO_ROLE_MAP`
+   * yang masih berbunyi `admin:superuser` TIDAK otomatis berpindah ke
+   * `kabupaten`. Memetakannya diam-diam berarti menghidupkan kembali nama yang
+   * baru saja dihapus, lewat pintu yang tak terlihat siapa pun.
    *
    * Pengamannya BUKAN di sini melainkan tiga hal di luar fungsi ini: baku tetap
    * `responden` bila env kosong, penetapan hanya saat akun dibuat, dan
    * pembuatannya tercatat di audit_logs. Lihat spec Bagian A.3.
    */
-  it('MENERIMA pemetaan ke superuser -- larangan lama sudah dicabut', () => {
+  it('MENGABAIKAN pemetaan ke superuser -- peran itu sudah tak ada', () => {
     const map = parseRolePackages('admin:superuser');
 
-    expect(map.get('admin')).toEqual([Role.superuser]);
+    expect(map.has('admin')).toBe(false);
+  });
+
+  /**
+   * PASANGAN kontrol. Nama yang sudah tak sah dibuang, tetapi paketnya TIDAK
+   * ikut hangus: akun yang seharusnya menjadi Admin OPD tak boleh jatuh ke
+   * `responden` hanya karena satu nama usang ikut tertulis di sebelahnya.
+   */
+  it('KONTROL: nama usang dibuang, peran sah di paket yang sama tetap hidup', () => {
+    const map = parseRolePackages('admin:superuser+opd+responden');
+
+    expect(map.get('admin')).toEqual([Role.opd, Role.responden]);
   });
 
   it.each([
@@ -115,7 +130,7 @@ describe('parseRolePackages', () => {
 
 describe('resolveRolesFromClaims', () => {
   const map = parseRolePackages(
-    'pegawai-dinas:opd+responden,admin:superuser+opd+responden,warga:responden',
+    'pegawai-dinas:opd+responden,admin:kabupaten+opd+responden,warga:responden',
   );
 
   it('satu nilai cocok -> seluruh paketnya', () => {
@@ -154,7 +169,7 @@ describe('resolveRolesFromClaims', () => {
   it('paket bertumpang tindih tidak menghasilkan role ganda', () => {
     const hasil = resolveRolesFromClaims(['admin', 'pegawai-dinas'], map);
 
-    expect([...hasil].sort()).toEqual([Role.opd, Role.responden, Role.superuser].sort());
+    expect([...hasil].sort()).toEqual([Role.kabupaten, Role.opd, Role.responden].sort());
     expect(hasil.length).toBe(3);
   });
 });

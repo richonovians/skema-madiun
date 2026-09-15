@@ -19,8 +19,8 @@ const kabupatenUser = (): CurrentUser => ({
 });
 const superUser = (): CurrentUser => ({
   userId: 3,
-  roles: [Role.superuser],
-  actingRole: Role.superuser,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
   opdId: null,
 });
 const respondenUser = (): CurrentUser => ({

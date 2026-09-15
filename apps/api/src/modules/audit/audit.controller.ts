@@ -11,12 +11,12 @@ import { AuditLogEntity } from './entities/audit-log.entity';
 /**
  * Log aktivitas -- SUPERUSER saja (2026-08-20). Admin Kabupaten biasa ditolak.
  *
- * `@Roles(Role.superuser)` di sini SUDAH menegakkan batasnya sejak T6
+ * `@Roles(Role.kabupaten)` di sini SUDAH menegakkan batasnya sejak T6
  * dibereskan (7 September 2026). Sebelum itu dekorator ini tak berarti apa-apa
  * bagi `kabupaten`, yang melampaui seluruh @Roles tanpa syarat -- rute inilah
  * contoh paling nyata mengapa bypass itu dibongkar.
  *
- * `AuditService.assertSuperuser` DIPERTAHANKAN sebagai lapis kedua, bukan sisa
+ * `AuditService.assertKabupaten` DIPERTAHANKAN sebagai lapis kedua, bukan sisa
  * yang lupa dibuang. Penjelasan lengkapnya ada di service.
  */
 @ApiTags('audit')
@@ -25,9 +25,9 @@ import { AuditLogEntity } from './entities/audit-log.entity';
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  /** Log aktivitas admin (siapa mengubah apa, kapan) — Superuser. */
+  /** Log aktivitas admin (siapa mengubah apa, kapan) — Admin Kabupaten. */
   @Get()
-  @Roles(Role.superuser)
+  @Roles(Role.kabupaten)
   @ApiOkResponse({ type: AuditLogEntity, isArray: true })
   findAll(
     @Query() query: ListAuditLogQueryDto,
@@ -36,9 +36,9 @@ export class AuditController {
     return this.auditService.findAll(query, user);
   }
 
-  /** Detail satu log aktivitas — Superuser. */
+  /** Detail satu log aktivitas — Admin Kabupaten. */
   @Get(':id')
-  @Roles(Role.superuser)
+  @Roles(Role.kabupaten)
   @ApiOkResponse({ type: AuditLogEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,

@@ -71,7 +71,7 @@ describe('Halaman Ubah Role Admin', () => {
     const adminOpd = screen.getByLabelText('Admin OPD');
     expect(adminOpd).toBeEnabled();
     expect(adminOpd).toBeChecked();
-    expect(screen.getByLabelText('Superuser')).not.toBeChecked();
+    expect(screen.getByLabelText('Admin Kabupaten')).not.toBeChecked();
   });
 
   it('TIDAK mengirim `nama` ke backend saat disimpan', async () => {

@@ -36,7 +36,6 @@ describe('ConsentService.isRequired', () => {
     [Role.responden, new Date(), false],
     [Role.kabupaten, null, false],
     [Role.opd, null, false],
-    [Role.superuser, null, false],
   ])('%s dengan consentAt=%s -> %s', (role, consentAt, harapan) => {
     expect(ConsentService.isRequired(role, consentAt as Date | null)).toBe(harapan);
   });
@@ -62,15 +61,12 @@ describe('ConsentService.assertConsented', () => {
    * Peran non-responden tak pernah dimintai persetujuan, jadi tak perlu pula
    * membebani setiap permintaan mereka dengan satu kueri tambahan.
    */
-  it.each([Role.kabupaten, Role.opd, Role.superuser])(
-    '%s lolos TANPA menyentuh basis data',
-    async (role) => {
-      const { service, prisma } = buat();
+  it.each([Role.kabupaten, Role.opd])('%s lolos TANPA menyentuh basis data', async (role) => {
+    const { service, prisma } = buat();
 
-      await expect(service.assertConsented(cu(role))).resolves.toBeUndefined();
-      expect(prisma.user.findUnique).not.toHaveBeenCalled();
-    },
-  );
+    await expect(service.assertConsented(cu(role))).resolves.toBeUndefined();
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
 
   /**
    * Permintaan pengguna 14 September 2026: kalimat "Buka halaman Persetujuan

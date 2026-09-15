@@ -9,7 +9,7 @@ import { resolveActingRole } from './acting-role.util';
 describe('resolveActingRole', () => {
   it('act sah & dimiliki -> dipakai', () => {
     const hasil = resolveActingRole({
-      roles: [Role.superuser, Role.opd],
+      roles: [Role.kabupaten, Role.opd],
       act: Role.opd,
       opdId: 1,
     });
@@ -25,7 +25,7 @@ describe('resolveActingRole', () => {
 
   it('tanpa act & role BANYAK -> wajib memilih', () => {
     const hasil = resolveActingRole({
-      roles: [Role.superuser, Role.kabupaten],
+      roles: [Role.kabupaten, Role.opd],
       act: null,
       opdId: null,
     });
@@ -70,7 +70,7 @@ describe('resolveActingRole', () => {
 
   /**
    * Uji ini SEMPAT ditulis dengan harapan sebaliknya (jatuh ke role tunggalnya),
-   * dan itu keliru: jatuh otomatis bisa menjadi KENAIKAN hak. Akun `[superuser]`
+   * dan itu keliru: jatuh otomatis bisa menjadi KENAIKAN hak. Akun `[kabupaten]`
    * yang tokennya menyebut `act=opd` -- karena role `opd`-nya baru dicabut --
    * akan diam-diam memperoleh log aktivitas & manajemen pengguna, sementara
    * pemiliknya menyangka dirinya sedang menjadi Admin OPD.
@@ -80,7 +80,7 @@ describe('resolveActingRole', () => {
    * keadaan "act TIDAK ADA sama sekali" (uji di atas).
    */
   it('act ADA tapi tak dimiliki, walau sisa role tunggal -> tetap wajib memilih', () => {
-    const hasil = resolveActingRole({ roles: [Role.kabupaten], act: Role.superuser, opdId: null });
+    const hasil = resolveActingRole({ roles: [Role.kabupaten], act: Role.opd, opdId: null });
 
     expect(hasil).toEqual({ ok: false, reason: 'SELECTION_REQUIRED' });
   });

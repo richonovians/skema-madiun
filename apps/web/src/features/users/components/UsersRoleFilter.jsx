@@ -4,7 +4,6 @@ import { twMerge } from 'tailwind-merge';
 
 const ROLES = [
   { label: 'Semua Pengguna', value: 'ALL' },
-  { label: 'Superuser', value: 'SUPERUSER' },
   { label: 'Admin Kabupaten', value: 'ADMIN_KABUPATEN' },
   { label: 'Admin OPD', value: 'ADMIN_OPD' },
   { label: 'Responden Aktif', value: 'RESPONDENT' },

@@ -718,7 +718,7 @@ describe('Complaints (e2e)', () => {
         .send({ opdId });
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, superuser/i);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten/i);
     });
 
     it('Responden pun tidak dapat meneruskan -> 403 (kontrol peran tak berwenang)', async () => {
@@ -728,7 +728,7 @@ describe('Complaints (e2e)', () => {
         .send({ opdId });
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, superuser/i);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten/i);
     });
 
     it('Admin Kabupaten meneruskan -> 200, opdId terisi', async () => {
