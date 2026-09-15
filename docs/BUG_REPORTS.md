@@ -2,7 +2,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 3.5                                                                                                        |
+| **Versi**           | 3.6                                                                                                        |
 | **Tanggal**         | 15 September 2026                                                                                          |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -74,8 +74,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | Baru       | C-16    |
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
+| [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
 
-**Rekap** — 16 temuan: 4 ditutup, **12 terbuka (1 Critical, 1 High, 6 Medium, 4 Low)**
+**Rekap** — 17 temuan: 4 ditutup, **13 terbuka (1 Critical, 1 High, 6 Medium, 5 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -2415,6 +2416,94 @@ sekaligus** memberi keduanya — "Rentang waktu, Semua waktu".
 
 ---
 
+### BUG-018 — Meneruskan pengaduan menyiarkan ulang "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya
+
+|                       |                                              |
+| --------------------- | -------------------------------------------- |
+| **Charter**           | C-18                                         |
+| **Tanggal**           | 15 September 2026                            |
+| **Peran**             | Admin Kabupaten, Superuser, Admin OPD (penerima notifikasi) |
+| **Halaman**           | lonceng & riwayat notifikasi seluruh admin   |
+| **Severity**          | Low                                          |
+| **Kasus uji terkait** | TC-FE-017, C-18                              |
+
+**Langkah reproduksi**
+
+1. Sebagai warga, kirim pengaduan **tanpa memilih OPD** (`opdId` null).
+2. Sebagai Admin Kabupaten, teruskan pengaduan itu ke sebuah OPD
+   (`PATCH /complaints/:id/opd`).
+3. Hitung notifikasi yang menaut nomor tiketnya.
+
+**Hasil sebenarnya — dibandingkan dengan dua kendali:**
+
+| Tiket | Perlakuan | Notifikasi | Penerima unik |
+| ----- | --------- | ---------: | ------------: |
+| `…USKO` | dibuat **dengan** OPD, tak pernah diteruskan | 5 | 5 |
+| `…HT8F` | dibuat tanpa OPD, **tidak** diteruskan | 4 | 4 |
+| `…GDRT` | dibuat tanpa OPD, **lalu diteruskan** | **9** | **5** |
+
+Empat akun menerima pemberitahuan **"Pengaduan Baru Masuk" yang sama dua kali**,
+berselang 0,6 detik. Yang kedua lahir dari peneruskan — bukan dari pengaduan baru.
+
+**Dua hal yang salah sekaligus.** Pertama, **duplikasi**: admin yang sudah
+diberi tahu diberi tahu lagi. Kedua, **kalimatnya keliru**: yang terjadi bukan
+pengaduan baru masuk, melainkan pengaduan lama yang akhirnya menemukan OPD-nya.
+Satu-satunya akun yang pantas menerima kabar baru di langkah itu adalah admin OPD
+yang baru ditunjuk — dan ia memang menerimanya; sisanya kebisingan.
+
+Jalur penumpukannya sama persis dengan yang melahirkan 7.986 notifikasi yatim:
+disiarkan ke setiap akun admin, tanpa yang menyapu.
+
+**Satu pengamatan yang menyertainya, dan ini bukan bagian temuan di atas.**
+**Pelapornya sendiri tidak diberi tahu.** Sembilan notifikasi seluruhnya untuk
+admin; warga yang mengirim pengaduan tanpa memilih instansi tak pernah menerima
+kabar bahwa laporannya akhirnya ditangani OPD tertentu. Ia diberi tahu saat
+*status* berubah, tetapi penugasan OPD bukan perubahan status. Apakah itu perlu
+diberitahukan adalah keputusan rancangan, bukan cacat — dicatat di sini supaya
+keputusannya diambil sadar, bukan terlewat.
+
+---
+
+### CAT-019 — Ekspor daftar survei mewarisi batas 100 baris, dan "Excel" sebenarnya CSV
+
+**Ditemukan:** 15 September 2026 (charter C-19)
+
+**Ekspornya bekerja.** Diperiksa dengan benar-benar mengunduh berkasnya di
+peramban, bukan sekadar menekan tombolnya:
+
+| Pilihan | Berkas | Ukuran | Isi |
+| ------- | ------ | -----: | --- |
+| Ekspor Excel | `daftar-survei.csv` | 145 byte | baris kepala + data: `"Judul Survei","Periode","Status","Responden","Nilai IKM"` |
+| Ekspor PDF | `daftar-survei.pdf` | 5.458 byte | berawalan `%PDF-` — PDF sungguhan, bukan HTML bernama .pdf |
+
+Dua hal yang perlu diketahui sebelum berkas ini dipakai sebagai lampiran resmi:
+
+**1. Batas 100 baris, dan ia diam.** `/admin-opd/surveys` mengambil
+`getSurveys({ limit: 100 })` lalu menyaring di peramban, dan `SurveyListExportMenu`
+mengekspor apa pun yang tersisa di array itu. Pola yang sama sudah melahirkan
+[BUG-011](#bug-011) dan [CAT-011](#cat-011) pada halaman OPD. Untuk ekspor
+akibatnya lebih tajam: berkasnya **terbaca sebagai rekaman resmi yang lengkap**,
+padahal begitu satu OPD melewati 100 survei, kelebihannya hilang tanpa
+peringatan — dan subjudul PDF-nya tetap mengumumkan angka yang sudah terpotong
+itu sebagai total. Belum terjangkau hari ini (jumlah survei masih jauh di bawah
+100), jadi dicatat sebagai batas yang diketahui, bukan cacat yang terjadi.
+Memperbaikinya menuntut paginasi atau endpoint ekspor sisi server — `limit`
+backend memang berhenti di 100.
+
+**2. "Ekspor Excel" menghasilkan `.csv`, bukan `.xlsx`.** Excel membukanya, jadi
+tak ada yang rusak; tetapi pemakai yang memilih "Excel" lalu menerima CSV akan
+mengira ada yang salah — terutama di Windows berlokal Indonesia, tempat CSV
+berpemisah koma kerap terbuka menumpuk dalam satu kolom. Menamainya "Ekspor CSV"
+menyelesaikannya tanpa mengubah satu baris kode pun di jalur unduhnya.
+
+**Yang justru pantas dicontoh dari komponen ini.** `EksporMenu` memakai
+`aria-haspopup="menu"`, `aria-expanded`, `role="menu"`, dan `role="menuitem"` —
+lengkap. Perbandingan itulah yang membuat ketiadaan atribut serupa pada
+`components/ui/Dropdown.jsx` ([BUG-017](#bug-017)) terbaca sebagai kelalaian,
+bukan gaya rumah: polanya sudah dikuasai di berkas sebelah.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -2437,3 +2526,4 @@ sekaligus** memberi keduanya — "Rentang waktu, Semua waktu".
 | 3.3   | 15 September 2026  | **Sesi C-15 (berpindah peran dalam satu sesi) dijalankan — nihil cacat.** Sepuluh hal ditelusuri dan seluruhnya benar, termasuk penolakan **403** atas peran yang tidak dimiliki, **401** atas token yang belum berperan, pemantulan area sesudah berpindah, dan gerbang PDP yang berdiri tepat saat peran `responden` diambil. Satu dugaan sengaja diuji dan **gugur**: akun tanpa persetujuan PDP yang tetap boleh memakai area Admin Kabupaten bukan gerbang jebol, melainkan pembagian yang benar antara data pribadi responden dan tugas jabatan. Dua catatan: **CAT-016** (sesi memegang dua token berbeda; yang di cookie tak pernah berperan, sehingga keputusan area bersandar pada cookie `role` polos padahal klaim `act` bertanda tangan sudah tersedia) dan **CAT-017** (berpindah peran tidak mencabut token peran sebelumnya — token lama masih menulis, dan masih sah 24 jam bahkan sesudah logout). |
 | 3.4   | 15 September 2026  | **Sesi C-16 (rute publik tanpa sesi & captcha) dijalankan.** Sepuluh pemeriksaan lulus — termasuk gerbang PDP bagi pengunjung tanpa akun, penolakan **404** atas survei non-anonim, **400** atas kiriman tanpa `setuju`, dan **403** `CAPTCHA_TIDAK_SAH` atas token karangan maupun token yang tak ada. **BUG-016 (Medium)**: ketika Turnstile gagal menerbitkan token, tombol "Kirim Survei" terkunci selamanya tanpa satu pun pesan — `error-callback` hanya mengosongkan token, dan satu-satunya jalur pesan (`submitError`) baru hidup sesudah pengiriman dicoba. **CAT-018**: pengiriman publik tak dapat diuji ujung-ke-ujung di lingkungan ini karena site key Turnstile tak memuat hostname `skema.local`; ini pula sebab dua pengujian E2E milik tim dev dilewati, bukan lulus. Satu probe keliru (mencentang kotak yang salah) hampir menghasilkan laporan "jalan buntu" yang palsu, dan dibatalkan sesudah struktur gerbangnya didaftar ulang. |
 | 3.5   | 15 September 2026  | **Sesi C-17 (riwayat notifikasi) dijalankan.** Enam pemeriksaan lulus, termasuk satu dugaan yang sengaja diuji dan **gugur**: penyaringan & paginasi halaman ini dikerjakan backend, bukan diambil semua lalu disaring di peramban seperti halaman OPD yang melahirkan BUG-011. **BUG-017 (Medium)**: pemicu `Dropdown` dilabeli `<label for>` sehingga nama terbacanya adalah labelnya, bukan nilainya — pemakai awas melihat "Aduan", pembaca layar mendengar "Kategori Pengaduan". Berlaku pada **17 berkas**, terburuk di formulir pengaduan warga: pelapor tunanetra tak dapat memastikan OPD tujuan sebelum mengirim. `aria-haspopup` dan `aria-expanded` juga tak ada di mana pun. |
+| 3.6   | 15 September 2026  | **Sesi C-18 & C-19 dijalankan — seluruh charter baru sesudah tarikan `main` tuntas.** C-18 (teruskan pengaduan antar-OPD): enam pemeriksaan lulus, termasuk isolasi sebelum & sesudah penugasan, **403** bagi Admin OPD, **404** bagi OPD yang tak ada, dan **400** pada peneruskan kedua. **BUG-018 (Low)**: meneruskan menyiarkan ulang "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya — dibuktikan dengan dua kendali (5/5 dan 4/4 berbanding 9 notifikasi untuk 5 penerima); pelapornya sendiri justru tak diberi tahu. C-19 (tiga menu ekspor): **nihil cacat** — CSV dan PDF benar-benar diunduh dan isinya diperiksa, dan menu ekspor ternyata komponen paling lengkap aksesibilitasnya di antara semua yang diperiksa hari ini. **CAT-019**: ekspor daftar survei mewarisi batas `limit: 100` sisi klien (belum terjangkau hari ini) dan pilihan "Ekspor Excel" sebenarnya menghasilkan `.csv`. |

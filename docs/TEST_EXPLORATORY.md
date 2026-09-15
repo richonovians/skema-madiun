@@ -5,8 +5,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.6                                                     |
-| **Tanggal**            | 15 September 2026 (v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 2.7                                                     |
+| **Tanggal**            | 15 September 2026 (v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi yatim yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -812,6 +812,70 @@ halaman ini dibangun pantas ditiru halaman OPD.
 memanggil `GET /opd` dan `GET /ref/complaint-categories` **tanpa autentikasi**
 dan menerima **401** — mekanisme di balik [BUG-008](BUG_REPORTS.md#bug-008) yang
 masih terbuka. Bukan temuan baru, tetapi kini ada buktinya di tingkat permintaan.
+
+---
+
+### C-18 — Teruskan pengaduan antar-OPD `P1` — ✅ dijalankan 15 September 2026
+
+**Misi:** `ForwardComplaintModal` (September 2026) membuat Admin Kabupaten dapat
+menentukan OPD mana yang menangani sebuah pengaduan. Yang dijaga di sini aturan
+bisnis paling kritis di PRD: **isolasi data OPD**. Salah tempat berarti pengaduan
+warga terbaca instansi yang tak berhak, atau tak terbaca instansi yang berhak.
+
+**Hasil: 1 temuan (Low).** Rincian di [BUG-018](BUG_REPORTS.md#bug-018).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Pengaduan tanpa OPD sebelum diteruskan | ✅ terlihat Admin Kabupaten, **tidak** terlihat Admin OPD |
+| Admin OPD mencoba meneruskan | ✅ **403** "hanya untuk peran: kabupaten, superuser" |
+| Meneruskan ke OPD yang tak ada | ✅ **404** "OPD dengan id 999999 tidak ditemukan" |
+| Admin Kabupaten meneruskan | ✅ **200**, dan OPD tujuan **langsung melihatnya** |
+| Meneruskan kedua kalinya | ✅ **400** "sudah memiliki OPD tujuan, jadi tidak dapat diteruskan lagi" |
+| Tombol "Teruskan" di daftar | ✅ hanya pada baris ber-`opdId` kosong — sejalan dengan penolakan backend |
+| **Notifikasi sesudah diteruskan** | ❌ [BUG-018](BUG_REPORTS.md#bug-018) — disiarkan ulang ke admin yang sudah menerimanya |
+
+**Yang membuat temuannya pasti bukan pengamatan, melainkan dua kendali.** Satu
+pengaduan yang dibuat **dengan** OPD dan satu yang dibuat tanpa OPD **tanpa**
+diteruskan dibandingkan dengan yang diteruskan: 5 notifikasi/5 penerima dan
+4/4 berbanding **9 notifikasi untuk 5 penerima**. Tanpa kedua pembanding itu,
+angka 9 tak berarti apa-apa.
+
+**Satu probe keliru yang sempat menyesatkan.** Probe pertama memanggil
+`PATCH /complaints/:id/forward` dan menerima 404 pada setiap langkah — terbaca
+seolah seluruh fitur tak ada. Rutenya ternyata `PATCH /complaints/:id/opd`.
+Kekeliruan yang sama berulang di sisi antarmuka: tombol "Teruskan" dicari di
+halaman **detail** pengaduan, padahal ia berada di **daftar**-nya. Dua-duanya
+akan menjadi laporan palsu kalau dilaporkan langsung.
+
+---
+
+### C-19 — Tiga menu ekspor `P1` — ✅ dijalankan 15 September 2026, **nihil cacat**
+
+**Misi:** `EksporMenu`, `ComplaintExportMenu`, dan `SurveyListExportMenu` lahir
+September 2026 dan **tak punya satu pun uji otomatis**. Berkas ekspor kerap
+berakhir sebagai lampiran laporan resmi, jadi yang penting bukan tombolnya
+bereaksi melainkan **isi berkasnya benar**.
+
+**Hasil: 0 cacat, 1 catatan.** Rincian di [CAT-019](BUG_REPORTS.md#cat-019).
+
+| Yang ditelusuri | Hasil |
+| --------------- | ----- |
+| Ekspor Excel daftar survei | ✅ terunduh, 145 byte, baris kepala + data yang benar |
+| Ekspor PDF daftar survei | ✅ terunduh, 5.458 byte, **berawalan `%PDF-`** — PDF sungguhan |
+| Aksesibilitas menu ekspor | ✅ `aria-haspopup="menu"`, `aria-expanded`, `role="menu"`/`"menuitem"` lengkap |
+| Ekspor satu tiket pengaduan | ✅ PDF arsip + CSV percakapan, satu pesan per baris |
+| Batas 100 baris & penamaan "Excel" | ⚠️ [CAT-019](BUG_REPORTS.md#cat-019) |
+
+**Berkasnya benar-benar diunduh dan dibuka, bukan sekadar ditekan tombolnya** —
+pelajaran dari C-12, tempat memeriksa status HTTP saja tak akan membedakan PDF
+sungguhan dari HTML yang bernama `.pdf`.
+
+**Satu jebakan probe lagi, dan yang ini justru memuji produknya.** Menu ekspor
+tak dapat ditemukan dengan `getByRole('button')` — isinya `role="menuitem"` di
+dalam `role="menu"`. Probe yang gagal itu menyingkap bahwa komponen ini justru
+**paling lengkap aksesibilitasnya** di antara semua yang diperiksa hari ini, dan
+itulah yang membuat ketiadaan atribut serupa pada `Dropdown`
+([BUG-017](BUG_REPORTS.md#bug-017)) terbaca sebagai kelalaian, bukan gaya rumah.
 
 ---
 
