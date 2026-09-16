@@ -65,6 +65,7 @@ export default function AdminKabNavbar() {
   const {
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
     periode,
     setPeriode,
   } = useAdminKabLayout();
@@ -109,14 +110,25 @@ export default function AdminKabNavbar() {
    */
   const headerRef = useRef(null);
   useEffect(() => {
-    const el = headerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-
-    const observer = new ResizeObserver(([entry]) => {
-      const tinggi = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
-      document.documentElement.style.setProperty('--tinggi-navbar-kab', `${Math.ceil(tinggi)}px`);
+    if (!headerRef.current) return;
+    
+    // ResizeObserver digunakan untuk memperbarui tinggi bilah ke properti khusus
+    // CSS (`--tinggi-navbar-kab`), sehingga padding-top halaman SELALU tepat
+    // selebar tinggi aktual bilah ini.
+    // SEBELUMNYA `AdminKabLayout` mematok padding 110px di ponsel dan 80px
+    // di desktop, tapi begitu halaman tak butuh penyaring (tinggi menyusut
+    // ke 64px/80px) atau layar amat sempit sehingga penyaring membungkus lagi,
+    // angka tetap itu jadi keliru dan merusak tata letak.
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        document.documentElement.style.setProperty(
+          '--tinggi-navbar-kab',
+          `${entry.target.offsetHeight}px`
+        );
+      }
     });
-    observer.observe(el);
+    
+    observer.observe(headerRef.current);
 
     return () => {
       observer.disconnect();
@@ -148,7 +160,7 @@ export default function AdminKabNavbar() {
   return (
     <header
       ref={headerRef}
-      className="fixed top-0 right-0 left-0 md:left-64 min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-30 gap-x-2 gap-y-2 xl:gap-lg transition-all"
+      className={`fixed top-0 right-0 left-0 ${isDesktopSidebarCollapsed ? 'md:left-20' : 'md:left-64'} min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-30 gap-x-2 gap-y-2 xl:gap-lg transition-all duration-300`}
     >
       <button
         className="md:hidden -ml-1 p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"

@@ -30,6 +30,7 @@ const AdminKabLayoutContext = createContext({
  */
 export function AdminKabLayoutProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [periode, setPeriode] = useState('');
 
   return (
@@ -37,6 +38,8 @@ export function AdminKabLayoutProvider({ children }) {
       value={{
         isMobileSidebarOpen,
         setIsMobileSidebarOpen,
+        isDesktopSidebarCollapsed,
+        setIsDesktopSidebarCollapsed,
         periode,
         setPeriode,
       }}
