@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { FileText } from 'lucide-react';
+import { BarChart3, Activity, PieChart, TrendingUp, Users } from 'lucide-react';
 import KartuStatistikHero from './KartuStatistikHero';
 import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
 import {
   isAuthenticated,
   SESSION_CHANGED_EVENT,
 } from '@/features/authentication/services/authStorage';
-
 
 /**
  * Ilustrasi jendela peramban, digambar dari elemen biasa (14 September 2026).
@@ -24,7 +23,22 @@ import {
  */
 function IlustrasiJendela() {
   return (
-    <div className="relative">
+    /* Efek kedalamannya `lg:`-saja (16 September 2026). Sebelumnya dipasang
+       lewat `style` sebaris, jadi berlaku di setiap lebar -- dan sejak kartu
+       statistik ikut hidup di ponsel sebagai tumpukan dalam alur biasa,
+       ketiganya ikut termiringkan. Terukur pada 393px: lebar kotak pembatas
+       tumpukan berubah-ubah 358-367px alih-alih tetap 361px, tanda kotaknya
+       memang terputar. Rangka ilustrasi yang dinaungi efek ini sendiri
+       `hidden lg:block`, jadi mengurungnya ke `lg` mempertahankan maksud
+       aslinya. Sudut putarannya tidak diubah sedikit pun.
+
+       `lg:scale-95` DIBUANG, bukan dipindahkan: `style` sebaris selalu
+       mengalahkan kelas, jadi selama ini ia tak pernah berlaku sama sekali.
+       Menghidupkannya sekarang justru akan mengubah tampilan desktop. */
+    <div
+      data-ilustrasi-3d
+      className="relative mt-12 origin-center lg:mt-16 xl:origin-right lg:[transform:perspective(1200px)_rotateX(4deg)_rotateY(-12deg)_rotateZ(2deg)] lg:[transform-style:preserve-3d]"
+    >
       {/* Bola gradasi di belakang tumpukan, memberi kedalaman seperti pada
           referensi. Murni `radial-gradient` -- tak ada berkas gambar dan tak ada
           alamat luar sama sekali. `blur` besar membuat tepinya larut, jadi ia
@@ -48,28 +62,99 @@ function IlustrasiJendela() {
       <div
         data-rangka-ilustrasi
         aria-hidden="true"
-        className="hidden rounded-[28px] border border-slate-200/80 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.10)] lg:block"
+        className="hidden overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.10)] lg:block"
       >
-        <div className="flex items-center gap-1.5 px-3 py-2.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+        {/* Browser header */}
+        <div className="flex items-center border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-full bg-red-400" />
+            <span className="h-3 w-3 rounded-full bg-amber-400" />
+            <span className="h-3 w-3 rounded-full bg-emerald-400" />
+          </div>
+          <div className="mx-auto flex h-6 w-1/2 items-center justify-center rounded-md bg-white px-3 shadow-sm ring-1 ring-slate-200/50">
+            <span className="text-[10px] font-medium text-slate-400">skema.madiunkab.go.id</span>
+          </div>
         </div>
 
-        <div className="rounded-[20px] border border-slate-100 bg-slate-50/60 p-4">
-          <div className="mb-4 h-7 w-1/2 rounded-lg bg-slate-200/70" />
+        {/* Dashboard Content Mock */}
+        <div className="relative bg-slate-50/30 p-5">
+          {/* Header Dashboard Mock */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Ringkasan Eksekutif</h3>
+              <p className="text-[11px] text-slate-500">Performa Layanan Publik Hari Ini</p>
+            </div>
+            <div className="flex gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                <Activity size={14} className="text-primary" />
+              </span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100">
+                <Users size={14} className="text-indigo-600" />
+              </span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 flex h-40 items-center justify-center rounded-2xl bg-blue-50">
-              <FileText size={38} className="text-primary/45" />
+            {/* Main Chart Mock */}
+            <div className="col-span-2 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-600">Grafik Kepuasan</span>
+                <BarChart3 size={16} className="text-slate-400" />
+              </div>
+              <div className="flex h-32 items-end justify-between gap-2">
+                {[40, 70, 45, 90, 65, 85, 100].map((h, i) => (
+                  <div key={i} className="group relative w-full rounded-t-sm bg-primary/10">
+                    <div
+                      className="absolute bottom-0 w-full rounded-t-sm bg-gradient-to-t from-primary/80 to-indigo-500 transition-all duration-500"
+                      style={{ height: `${h}%` }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="h-40 rounded-2xl bg-slate-100" />
+
+            {/* Side Metric Mock */}
+            <div className="flex flex-col gap-4">
+              <div className="flex-1 rounded-2xl border border-slate-100 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm">
+                <span className="text-xs font-semibold text-indigo-800">Partisipasi</span>
+                <div className="mt-2 text-2xl font-black tracking-tight text-indigo-950">84%</div>
+                <div className="mt-1 flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+                  <TrendingUp size={12} />
+                  <span>+12% dr bulan lalu</span>
+                </div>
+              </div>
+              <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="absolute -right-4 -top-4 opacity-5">
+                  <PieChart size={64} />
+                </div>
+                <span className="text-xs font-semibold text-slate-600">Respon Cepat</span>
+                <div className="mt-2 text-xl font-bold text-slate-800">&lt; 2 Jam</div>
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-4">
-            <div className="h-14 rounded-2xl bg-slate-100" />
-            <div className="h-14 rounded-2xl bg-emerald-50" />
-            <div className="h-14 rounded-2xl bg-amber-50" />
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-emerald-100/50" />
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-16 rounded bg-slate-200" />
+                <div className="h-2 w-10 rounded bg-slate-100" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-amber-100/50" />
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-16 rounded bg-slate-200" />
+                <div className="h-2 w-10 rounded bg-slate-100" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-blue-100/50" />
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-16 rounded bg-slate-200" />
+                <div className="h-2 w-10 rounded bg-slate-100" />
+              </div>
+            </div>
           </div>
         </div>
       </div>

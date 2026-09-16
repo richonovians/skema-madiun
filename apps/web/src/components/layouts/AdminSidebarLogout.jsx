@@ -31,20 +31,25 @@ import { useLogout } from '@/hooks/useLogout';
  * dan yang di ikon profil satu-satunya yang tetap ada saat sidebar ponsel
  * sedang tertutup.
  */
-export default function AdminSidebarLogout() {
+export default function AdminSidebarLogout({ isCollapsed }) {
   const { logout, isLoggingOut } = useLogout();
 
   return (
     <div className="mt-auto shrink-0 pt-md">
-      <div className="mx-md mb-md border-t border-slate-800"></div>
+      <div className="mx-md mb-md border-t border-slate-200"></div>
       <button
         type="button"
         onClick={logout}
         disabled={isLoggingOut}
-        className="flex w-full min-h-[44px] items-center gap-md rounded-lg px-md py-sm font-medium text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`flex w-full min-h-[44px] items-center gap-md rounded-lg py-sm font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 relative group ${
+          isCollapsed ? 'justify-center px-0' : 'px-md'
+        }`}
+        title="Keluar"
       >
         <LogOut size={20} className="shrink-0" aria-hidden="true" />
-        <span>{isLoggingOut ? 'Keluar...' : 'Keluar'}</span>
+        {!isCollapsed && (
+          <span>{isLoggingOut ? 'Keluar...' : 'Keluar'}</span>
+        )}
       </button>
     </div>
   );
