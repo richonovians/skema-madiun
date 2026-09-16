@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import 'dotenv/config';
 import {
   ComplaintStatus,
@@ -21,6 +22,24 @@ async function main(): Promise<void> {
       nama: 'Admin Kabupaten (Contoh)',
       email: 'admin.kabupaten@example.go.id',
       roles: [Role.kabupaten],
+      isActive: true,
+      consentAt: new Date(),
+    },
+  });
+
+  // 1b) Superuser contoh (2026-08-20). Dipisahkan kembali dari Admin Kabupaten:
+  //     ia mewarisi seluruh hak kabupaten DITAMBAH akses log aktivitas (audit
+  //     log), yang justru TIDAK dimiliki Admin Kabupaten biasa. Perlu ada di
+  //     seed supaya basis data baru bisa langsung menguji perbedaan itu -- tanpa
+  //     ini, satu-satunya akun berhak audit harus dibuat manual.
+  const superuser = await prisma.user.upsert({
+    where: { ssoSubject: 'seed-superuser' },
+    update: { roles: [Role.superuser] },
+    create: {
+      ssoSubject: 'seed-superuser',
+      nama: 'Superuser (Contoh)',
+      email: 'superuser@example.go.id',
+      roles: [Role.superuser],
       isActive: true,
       consentAt: new Date(),
     },
@@ -219,7 +238,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}, + manajemen pengguna & log aktivitas), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
+    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), superuser (id=${superuser.id}, + log aktivitas), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
   );
 }
 
