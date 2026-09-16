@@ -293,7 +293,8 @@ export default function KartuStatistikHero() {
           className="animate-fade-in-up absolute top-14 -left-12 z-20"
           style={{ animationDelay: '0ms' }}
         >
-          <div className={clsx('animate-melayang', KELAS_JEDA)}>
+          <div style={{ transform: 'translateZ(50px)' }}>
+            <div className={clsx('animate-melayang', KELAS_JEDA)}>
             <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
               <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-[268px] px-4 py-3.5')}>
                 <span className="bg-primary/10 text-primary inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold">
@@ -338,6 +339,7 @@ export default function KartuStatistikHero() {
               </div>
             </Link>
           </div>
+          </div>
         </div>
 
         {/* Kartu batang: satu batang per periode, yang terbaru diberi warna tegas. */}
@@ -345,7 +347,8 @@ export default function KartuStatistikHero() {
           className="animate-fade-in-up absolute -top-9 right-0 z-10"
           style={{ animationDelay: '130ms' }}
         >
-          <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
+          <div style={{ transform: 'translateZ(30px)' }}>
+            <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
             <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
               <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-[200px] px-4 py-3.5')}>
                 <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
@@ -380,6 +383,7 @@ export default function KartuStatistikHero() {
               </div>
             </Link>
           </div>
+          </div>
         </div>
 
         {/* Dua chip kecil yang bertumpuk, mengikuti susunan pada referensi. */}
@@ -387,7 +391,8 @@ export default function KartuStatistikHero() {
           className="animate-fade-in-up absolute -bottom-10 left-10 z-30"
           style={{ animationDelay: '260ms' }}
         >
-          <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
+          <div style={{ transform: 'translateZ(60px)' }}>
+            <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
             <Link href="/statistics" className={clsx('group flex flex-col gap-2', KELAS_FOKUS)}>
               {/* Instalasi baru belum punya pengaduan yang selesai, jadi
             `avgSlaDays` belum bernilai. "0 hari" terbaca sebagai janji tanggapan
@@ -428,6 +433,7 @@ export default function KartuStatistikHero() {
                 />
               )}
             </Link>
+          </div>
           </div>
         </div>
       </div>
