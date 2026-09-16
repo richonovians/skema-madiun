@@ -13,9 +13,9 @@ import { Role } from '@prisma/client';
  * PERBEDAAN superuser vs kabupaten TIDAK ada di sini: satu-satunya beda adalah
  * akses log aktivitas, yang ditegakkan di AuditService. Alasannya ada di sana.
  */
-export const FULL_ACCESS_ROLES: readonly Role[] = [Role.kabupaten, Role.superuser];
+export const FULL_ACCESS_ROLES: readonly Role[] = [Role.kabupaten];
 
-/** `true` bila peran ini boleh menembus batas OPD (kabupaten & superuser). */
+/** `true` bila peran ini boleh menembus batas OPD (kini hanya `kabupaten`). */
 export function hasFullAccess(role: Role): boolean {
   return FULL_ACCESS_ROLES.includes(role);
 }

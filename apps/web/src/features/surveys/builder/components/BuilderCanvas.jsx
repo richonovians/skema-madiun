@@ -43,6 +43,8 @@ export default function BuilderCanvas({
   onPeriodeCommit,
   izinkanAnonim = false,
   onIzinkanAnonimCommit,
+  isUtama = false,
+  onIsUtamaCommit,
   // Judul & izin pengisian ikut aturan 'meta' (boleh sampai survei ditutup),
   // terpisah dari `canReorder` yang mengunci periode & susunan begitu ada
   // jawaban. Lihat SurveyBuilderScreen.
@@ -194,6 +196,36 @@ export default function BuilderCanvas({
               >
                 Cocok untuk QR di loket layanan. Pengisian berulang hanya dicegah lewat penanda di
                 peramban responden, bukan ditegakkan sistem.
+              </span>
+            </span>
+          </label>
+
+          {/* SURVEI UTAMA OPD (15 September 2026, permintaan pengguna).
+              Sengaja TIDAK terikat `isEditableMeta`: penunjukan survei utama
+              bukan penyuntingan isi survei, dan OPD tetap berhak memindahkannya
+              ke survei lain kapan pun -- termasuk saat survei ini sudah punya
+              jawaban. */}
+          <label
+            htmlFor="builder-survei-utama"
+            className="mt-sm flex items-start gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60 text-left transition-colors cursor-pointer hover:bg-surface-container-low has-[:checked]:border-primary has-[:checked]:bg-primary-container/20"
+          >
+            <input
+              id="builder-survei-utama"
+              type="checkbox"
+              checked={isUtama}
+              onChange={(e) => onIsUtamaCommit?.(e.target.checked)}
+              aria-describedby="builder-survei-utama-bantuan"
+              className="w-5 h-5 mt-0.5 shrink-0 accent-primary"
+            />
+            <span className="text-sm text-text-primary leading-relaxed">
+              Jadikan <strong className="font-semibold">survei utama</strong> OPD ini
+              <span
+                id="builder-survei-utama-bantuan"
+                className="block mt-1 text-xs text-text-secondary font-normal"
+              >
+                Warga yang selesai mengirim pengaduan ke OPD ini langsung dibawa ke survei ini.
+                Tiap OPD hanya punya satu; menyalakannya di sini melepasnya dari survei yang
+                sebelumnya. Pengarahannya baru berjalan setelah survei ini terbit.
               </span>
             </span>
           </label>

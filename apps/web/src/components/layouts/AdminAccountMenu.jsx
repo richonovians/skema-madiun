@@ -110,9 +110,9 @@ export default function AdminAccountMenu({ user, className = '' }) {
             <p className="truncate text-xs text-text-secondary">{user?.roleLabel ?? '-'}</p>
           </div>
 
-          {/* "Ganti Peran" tetap KHUSUS SUPERUSER, syarat yang sama seperti
-              waktu masih di sidebar -- peran lain tak punya peran lain untuk
-              dipindahi, jadi menampilkannya hanya membingungkan. */}
+          {/* "Ganti Peran" hanya untuk akun yang benar-benar memegang lebih
+              dari satu peran -- akun berperan tunggal tak punya tujuan untuk
+              berpindah, jadi menampilkannya hanya membingungkan. */}
           {bolehGantiPeran && (
             <Link
               href="/pilih-peran"

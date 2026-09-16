@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, paginated, notificationFixture } from '@/mocks/handlers';
 import NotificationHistoryScreen from '../NotificationHistoryScreen';
+import { NOTIFIKASI_BERUBAH_EVENT } from '@/features/notifications/services/notifications.api';
 
 /**
  * Permintaan pengguna 13 September 2026: "tambahkan halaman dan tombol pada
@@ -637,5 +638,63 @@ describe('NotificationHistoryScreen', () => {
       expect(screen.getByText('Semua waktu')).toBeInTheDocument();
       expect(screen.getByText('Terbaru dulu')).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * ARAH SEBALIKNYA dari laporan pengguna 15 September 2026.
+ *
+ * Sebab yang sama -- dua state `useAsync` yang saling tak tahu -- juga membuat
+ * halaman ini basi ketika notifikasi ditandai terbaca dari dropdown navbar yang
+ * tepat berada di atasnya. Memperbaiki hanya arah yang dilaporkan akan
+ * meninggalkan arah ini tetap rusak, dan bentuk kegagalannya persis sama:
+ * layarnya menampilkan angka yang sudah tidak benar tanpa satu pun galat.
+ */
+describe('NotificationHistoryScreen — menyelaraskan diri dengan layar lain', () => {
+  let nowSpy;
+  beforeEach(() => {
+    nowSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
+  });
+  afterEach(() => nowSpy.mockRestore());
+
+  const sajikan = (list, unreadCount) => {
+    server.use(
+      http.get(`${API_BASE}/notifications`, () => paginated(list, '/notifications')),
+      http.get(`${API_BASE}/notifications/unread-count`, () =>
+        ok({ count: unreadCount }, '/notifications/unread-count'),
+      ),
+    );
+  };
+
+  it('mengambil ulang daftarnya saat status baca dikabarkan berubah', async () => {
+    sajikan([BARU, LAMA], 1);
+    render(<NotificationHistoryScreen dashboardHref="/admin-opd/dashboard" />);
+    expect(await screen.findByText('1 belum dibaca')).toBeInTheDocument();
+
+    // Dropdown navbar menandai semuanya terbaca.
+    sajikan([{ ...BARU, isRead: true }, LAMA], 0);
+    await act(async () => {
+      window.dispatchEvent(new Event(NOTIFIKASI_BERUBAH_EVENT));
+    });
+
+    await waitFor(() => expect(screen.getByText('Semua sudah dibaca')).toBeInTheDocument());
+  });
+
+  /**
+   * PASANGAN kontrol: tanpa kabar, layarnya memang tidak menyegarkan diri
+   * sendiri. Tanpa uji ini, uji di atas tetap hijau seandainya halaman ini
+   * kebetulan mengambil ulang datanya karena sebab lain.
+   */
+  it('KONTROL: tanpa kabar apa pun, angkanya tidak berubah sendiri', async () => {
+    sajikan([BARU, LAMA], 1);
+    render(<NotificationHistoryScreen dashboardHref="/admin-opd/dashboard" />);
+    expect(await screen.findByText('1 belum dibaca')).toBeInTheDocument();
+
+    sajikan([{ ...BARU, isRead: true }, LAMA], 0);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(screen.getByText('1 belum dibaca')).toBeInTheDocument();
   });
 });

@@ -31,7 +31,11 @@ enum Role {
   kabupaten
   opd
   responden
-  superuser
+
+  // `superuser` DIHAPUS 15 September 2026 (permintaan pengguna): kuasanya --
+  // manajemen pengguna & log aktivitas -- pindah ke `kabupaten`, dan nilai
+  // enumnya dibuang supaya tak ada jalan tersisa membuat peran itu lagi.
+  // Lihat migrasi 20260915140000_lebur_superuser_ke_kabupaten.
 
   @@map("user_role")
 }
@@ -198,6 +202,15 @@ model Survey {
   // survei yang sudah ada tidak berubah perilakunya sedikit pun. Hanya
   // endpoint /public/surveys/* yang membacanya.
   izinkanAnonim       Boolean      @default(false) @map("izinkan_anonim")
+  // SURVEI UTAMA per OPD (15 September 2026). Tombol "Lanjut Isi Survei" pada
+  // halaman sukses pengaduan mengarah ke survei utama milik OPD yang diadukan.
+  //
+  // Batas "paling banyak satu per OPD" TIDAK terlihat di berkas ini: ia indeks
+  // unik parsial (`surveys_opd_utama_unik`, `WHERE is_utama AND deleted_at IS
+  // NULL`) yang hanya hidup di migrasi 20260915090000_survei_utama_per_opd,
+  // karena Prisma tak dapat menyatakan indeks parsial. Jangan simpulkan dari
+  // sini bahwa kolomnya bebas diisi ganda.
+  isUtama             Boolean      @default(false) @map("is_utama")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
   // SOFT DELETE (11 September 2026). `deletedAt` terisi = survei ada di Sampah:

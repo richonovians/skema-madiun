@@ -84,7 +84,7 @@ export default function AdminSidebar() {
         </Link>
         <Link href="/admin-opd/complaints" className={getLinkClass('/admin-opd/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
           <Inbox size={20} />
-          <span>Laporan</span>
+          <span>Aduan</span>
         </Link>
         <Link href="/admin-opd/analytics" className={getLinkClass('/admin-opd/analytics')} onClick={() => setIsMobileSidebarOpen(false)}>
           <TrendingUp size={20} />

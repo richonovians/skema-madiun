@@ -1,14 +1,22 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ComplaintSuccessCard from '../ComplaintSuccessCard';
+import { getActiveSurveys } from '@/features/surveys/services/surveys.api';
 
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
   useSearchParams: jest.fn(),
 }));
 
+jest.mock('@/features/surveys/services/surveys.api', () => ({
+  getActiveSurveys: jest.fn(),
+}));
+
 const push = jest.fn();
+
+/** Daftar survei aktif milik satu OPD, sebagaimana dikembalikan adapternya. */
+const daftarSurvei = (...surveys) => ({ data: surveys, meta: {} });
 
 /**
  * Halaman ini menerima id instansi lewat query `?opdId=`. Angka itu berasal dari
@@ -37,35 +45,83 @@ describe('ComplaintSuccessCard -- tombol "Lanjut Isi Survei"', () => {
    * kuesioner instansi yang sama sekali tak ia adukan -- dan jawabannya masuk
    * ke IKM instansi tersebut.
    */
-  it('membuka daftar survei yang tersaring instansi, bukan satu survei', () => {
-    renderKartu('complaintId=PGD1&opdId=22&opdName=Bappeda');
-
+  const klikLanjut = () =>
     fireEvent.click(screen.getByRole('button', { name: /lanjut isi survei/i }));
 
-    expect(push).toHaveBeenCalledWith('/surveys?opdId=22');
+  /**
+   * Sejak 15 September 2026, OPD boleh menunjuk satu survei utama dan tombol ini
+   * menuju ke sana langsung. Id surveinya sengaja DIBEDAKAN dari id instansinya
+   * (22 vs 77): kalau keduanya disamakan di dalam uji, tautan yang keliru
+   * memakai `opdId` sebagai id survei akan tetap hijau.
+   */
+  it('menuju survei utama milik instansi yang diadukan', async () => {
+    getActiveSurveys.mockResolvedValue(
+      daftarSurvei({ id: '70', isUtama: false }, { id: '77', isUtama: true }),
+    );
+    renderKartu('complaintId=PGD1&opdId=22&opdName=Bappeda');
+
+    klikLanjut();
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/surveys/77'));
     expect(push).not.toHaveBeenCalledWith('/surveys/22');
   });
 
-  it('id instansi lain ikut terbawa, bukan dipatok satu nilai', () => {
+  it('meminta survei milik instansi itu saja, bukan seluruh instansi', async () => {
+    getActiveSurveys.mockResolvedValue(daftarSurvei({ id: '77', isUtama: true }));
     renderKartu('complaintId=PGD2&opdId=24&opdName=Dinas%20Lingkungan%20Hidup');
 
-    fireEvent.click(screen.getByRole('button', { name: /lanjut isi survei/i }));
+    klikLanjut();
 
-    expect(push).toHaveBeenCalledWith('/surveys?opdId=24');
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    expect(getActiveSurveys).toHaveBeenCalledWith(expect.objectContaining({ opdId: '24' }));
+  });
+
+  /**
+   * CADANGAN, dan inilah perilaku lama yang tetap dipertahankan: instansi yang
+   * belum menunjuk survei utama tak boleh membuat tombolnya mati. Warga tetap
+   * dibawa ke daftar survei instansi yang ia adukan.
+   *
+   * Penjaga `not.toHaveBeenCalledWith('/surveys/22')` di bawah menjaga bug lama
+   * (laporan 14 September 2026): `opdId` dan id survei adalah dua ruang nomor
+   * berbeda, dan menaruh yang satu di lubang yang lain tak pernah memunculkan
+   * galat -- hanya membuka kuesioner instansi yang tak diadukan siapa pun.
+   */
+  it('instansi tanpa survei utama jatuh ke daftar yang tersaring', async () => {
+    getActiveSurveys.mockResolvedValue(daftarSurvei({ id: '70', isUtama: false }));
+    renderKartu('complaintId=PGD1&opdId=22&opdName=Bappeda');
+
+    klikLanjut();
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/surveys?opdId=22'));
+    expect(push).not.toHaveBeenCalledWith('/surveys/22');
+  });
+
+  /**
+   * Permintaannya gagal -- jaringan putus, server sedang tak menjawab. Tombol
+   * yang diam setelah ditekan adalah jalan buntu; warga yang baru saja mengadu
+   * tak punya cara tahu bahwa ia masih boleh mengisi survei.
+   */
+  it('permintaan yang gagal tetap membawa ke daftar, bukan berhenti', async () => {
+    getActiveSurveys.mockRejectedValue(new Error('jaringan putus'));
+    renderKartu('complaintId=PGD1&opdId=22&opdName=Bappeda');
+
+    klikLanjut();
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/surveys?opdId=22'));
   });
 
   /**
    * Pengaduan "Lainnya (belum tahu tujuannya)" dikirim tanpa `opdId`. Tak ada
-   * instansi untuk disaring, jadi daftarnya dibuka utuh -- satu-satunya kondisi
-   * yang selama ini sudah benar, dan yang paling mudah ikut rusak saat
-   * perbaikannya ditulis.
+   * instansi untuk disaring, jadi daftarnya dibuka utuh -- dan tak ada survei
+   * utama siapa pun untuk dicari, sehingga permintaannya pun tak perlu dikirim.
    */
-  it('tanpa instansi tujuan membuka daftar survei utuh', () => {
+  it('tanpa instansi tujuan membuka daftar survei utuh', async () => {
     renderKartu('complaintId=PGD3');
 
-    fireEvent.click(screen.getByRole('button', { name: /lanjut isi survei/i }));
+    klikLanjut();
 
-    expect(push).toHaveBeenCalledWith('/surveys');
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/surveys'));
+    expect(getActiveSurveys).not.toHaveBeenCalled();
   });
 });
 

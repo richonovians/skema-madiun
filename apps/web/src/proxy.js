@@ -37,23 +37,13 @@ import { ROLE_HOME } from '@/constants/roleHome';
 // reload halaman saat ini, admin harus navigasi manual sendiri).
 const RESPONDENT_ONLY_PREFIXES = ['/dashboard', '/complaints', '/surveys', '/profile'];
 
-// SUPERUSER (2026-08-20): peran terpisah yang mewarisi seluruh hak `kabupaten`
-// dan boleh masuk ke SEMUA area (ia memilih sendiri mau ke mana saat login,
-// lihat RoleLoginPicker.jsx). Backend memperlakukannya setara kabupaten
-// (hasFullAccess di role.util.ts), jadi proxy tak boleh lebih ketat dari itu.
-const FULL_ACCESS_ROLES = ['kabupaten', 'superuser'];
+// `superuser` DILEBUR ke `kabupaten` (15 September 2026). Log aktivitas &
+// manajemen pengguna kini milik Admin Kabupaten, dan karena keduanya berada di
+// bawah `/admin-kab` yang memang miliknya, tak ada lagi prefiks yang perlu
+// dijaga terpisah di sini -- `SUPERUSER_ONLY_PREFIXES` dibuang bersama perannya.
+const FULL_ACCESS_ROLES = ['kabupaten'];
 
-// Log aktivitas & manajemen pengguna HANYA superuser -- Admin Kabupaten biasa
-// dipantulkan. Ini penjaga NAVIGASI, bukan pengganti penjaga data: yang
-// sesungguhnya menegakkan larangan ini adalah AuditService.assertSuperuser dan
-// UsersService.assertSuperuser di backend (403 walau URL-nya dipaksa). Di sini
-// supaya pengguna tak mendarat di halaman yang pasti gagal memuat.
-//
-// `/admin-kab/users` ditambahkan 2026-08-20 atas permintaan user ("fitur
-// manajemen user hanya dapat diakses oleh role superuser").
-const SUPERUSER_ONLY_PREFIXES = ['/admin-kab/audit-logs', '/admin-kab/users'];
-
-// Halaman pemilih peran: hanya relevan bagi superuser, dan HARUS tetap terbuka
+// Halaman pemilih peran: relevan bagi akun ber-peran jamak, dan HARUS tetap terbuka
 // walau ia sedang terkurung di satu area (itu satu-satunya jalan berpindah tanpa
 // logout).
 const ROLE_PICKER_PATH = '/pilih-peran';
@@ -83,10 +73,9 @@ const CONSENT_PATH = '/persetujuan';
  * Perlu dinyatakan jujur: pembatasan ini NAVIGASI, bukan hak akses. Backend tetap
  * memperlakukan superuser setara kabupaten (`hasFullAccess` di role.util.ts),
  * dan cookie `area` bisa disunting pemiliknya sendiri -- yang memang tak
- * menaikkan hak siapa pun, karena hanya superuser yang punya sesi superuser.
+ * menaikkan hak siapa pun, karena hanya pemilik peran itu yang punya sesinya.
  */
 const ROLE_PREFIXES = {
-  superuser: ['/admin-kab'],
   kabupaten: ['/admin-kab'],
   opd: ['/admin-opd'],
   responden: RESPONDENT_ONLY_PREFIXES,
@@ -182,11 +171,6 @@ export function proxy(request) {
   // OPD-nya, lalu berpindah ke peran itu. Kemampuan lamanya (memerankan OPD
   // mana pun tanpa tautan) memang dihapus -- keputusan pengguna 5 Sep 2026.
   if (pathname.startsWith('/admin-opd/dashboard') && role !== 'opd') {
-    return NextResponse.redirect(new URL(home, request.url));
-  }
-
-  // Hanya superuser: Admin Kabupaten biasa dipantulkan ke berandanya.
-  if (SUPERUSER_ONLY_PREFIXES.some((prefix) => isUnder(pathname, prefix)) && role !== 'superuser') {
     return NextResponse.redirect(new URL(home, request.url));
   }
 

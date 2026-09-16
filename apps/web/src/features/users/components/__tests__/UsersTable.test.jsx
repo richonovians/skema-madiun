@@ -5,7 +5,7 @@ import UsersTable from '../UsersTable';
 
 /**
  * PENJAGA REGRESI (permintaan pengguna 6 September 2026: "pada manajemen user
- * di halaman superuser, tambahkan juga tombol ubah role untuk warga").
+ * di halaman manajemen pengguna, tambahkan juga tombol ubah role untuk warga").
  *
  * Tombolnya sebenarnya SUDAH tampil sebelum berkas ini ada — tapi karena bug,
  * bukan karena keputusan: syaratnya `user.role !== USER_ROLES.RESPONDENT`,
@@ -100,10 +100,10 @@ describe('UsersTable — Ubah Role', () => {
 
   it('akun ber-beberapa role menampilkan seluruh lencananya', () => {
     render(
-      <UsersTable data={[baris({ roles: [USER_ROLES.SUPERUSER, USER_ROLES.RESPONDENT] })]} />,
+      <UsersTable data={[baris({ roles: [USER_ROLES.ADMIN_KABUPATEN, USER_ROLES.RESPONDENT] })]} />,
     );
 
-    expect(screen.getByText('Superuser')).toBeInTheDocument();
+    expect(screen.getByText('Admin Kabupaten')).toBeInTheDocument();
     expect(screen.getByText('Responden Aktif')).toBeInTheDocument();
   });
 });

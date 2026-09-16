@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, Ticket, Building2, Calendar, Clock } from 'lucide-react';
+import { getActiveSurveys } from '@/features/surveys/services/surveys.api';
 
 export default function ComplaintSuccessCard() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [mencariSurvei, setMencariSurvei] = useState(false);
 
   const complaintId = searchParams.get('complaintId') || 'COM-2026-00000';
   const opdId = searchParams.get('opdId') || '';
@@ -19,6 +21,40 @@ export default function ComplaintSuccessCard() {
    * terbaca sebagai tanpa tujuan.
    */
   const adaTujuan = opdId !== '';
+
+  /**
+   * Tujuan tombol "Lanjut Isi Survei" (15 September 2026).
+   *
+   * OPD boleh menunjuk satu survei utama, dan warga yang baru mengadu dibawa
+   * langsung ke sana alih-alih ke daftar yang masih harus dipilihnya sendiri.
+   *
+   * SETIAP kegagalan jatuh ke daftar tersaring, tak satu pun berhenti di tempat:
+   * OPD yang belum menunjuk survei utama, jaringan yang putus, dan tanggapan
+   * yang bentuknya tak terduga. Tombol yang diam setelah ditekan adalah jalan
+   * buntu bagi orang yang baru saja menuliskan keluhannya.
+   *
+   * `opdId` dan id survei adalah DUA RUANG NOMOR yang berbeda (laporan 14
+   * September 2026: pengadu ke instansi 22 mendarat di survei 22 milik instansi
+   * lain). Id yang dipakai di sini hanya yang datang dari daftar survei, tak
+   * pernah dari `opdId`.
+   */
+  const lanjutIsiSurvei = async () => {
+    if (!opdId) {
+      router.push('/surveys');
+      return;
+    }
+
+    setMencariSurvei(true);
+    try {
+      const { data } = await getActiveSurveys({ opdId, limit: 100 });
+      const utama = (data ?? []).find((s) => s.isUtama);
+      router.push(utama ? `/surveys/${utama.id}` : `/surveys?opdId=${opdId}`);
+    } catch {
+      router.push(`/surveys?opdId=${opdId}`);
+    } finally {
+      setMencariSurvei(false);
+    }
+  };
 
   const today = new Date().toLocaleDateString('id-ID', {
     day: 'numeric',
@@ -106,8 +142,9 @@ export default function ComplaintSuccessCard() {
       <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
         <button
           type="button"
-          onClick={() => router.push(opdId ? `/surveys?opdId=${opdId}` : '/surveys')}
-          className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 hover:from-blue-700 hover:to-blue-800 transition-all"
+          onClick={lanjutIsiSurvei}
+          disabled={mencariSurvei}
+          className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-70"
         >
           Lanjut Isi Survei
         </button>

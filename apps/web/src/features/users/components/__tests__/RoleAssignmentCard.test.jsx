@@ -32,30 +32,30 @@ describe('RoleAssignmentCard', () => {
     const onRolesChange = jest.fn();
     render1({}, { onRolesChange });
 
-    fireEvent.click(screen.getByLabelText('Superuser'));
+    fireEvent.click(screen.getByLabelText('Admin Kabupaten'));
 
-    expect(onRolesChange).toHaveBeenLastCalledWith([USER_ROLES.SUPERUSER]);
+    expect(onRolesChange).toHaveBeenLastCalledWith([USER_ROLES.ADMIN_KABUPATEN]);
   });
 
   it('mencentang role KEDUA menambah, bukan menggantikan', () => {
     const onRolesChange = jest.fn();
-    render1({ roles: [USER_ROLES.SUPERUSER] }, { onRolesChange });
+    render1({ roles: [USER_ROLES.ADMIN_KABUPATEN] }, { onRolesChange });
 
     fireEvent.click(screen.getByLabelText('Admin OPD'));
 
     // Inti seluruh perubahan: dropdown lama hanya bisa satu nilai, jadi uji ini
     // yang membedakan "kelompok kotak centang" dari "dropdown berpenampilan lain".
     expect(onRolesChange).toHaveBeenLastCalledWith([
-      USER_ROLES.SUPERUSER,
+      USER_ROLES.ADMIN_KABUPATEN,
       USER_ROLES.ADMIN_OPD,
     ]);
   });
 
   it('membuka centang MENGHAPUS role itu saja', () => {
     const onRolesChange = jest.fn();
-    render1({ roles: [USER_ROLES.SUPERUSER, USER_ROLES.ADMIN_OPD] }, { onRolesChange });
+    render1({ roles: [USER_ROLES.ADMIN_KABUPATEN, USER_ROLES.ADMIN_OPD] }, { onRolesChange });
 
-    fireEvent.click(screen.getByLabelText('Superuser'));
+    fireEvent.click(screen.getByLabelText('Admin Kabupaten'));
 
     expect(onRolesChange).toHaveBeenLastCalledWith([USER_ROLES.ADMIN_OPD]);
   });
@@ -84,12 +84,12 @@ describe('RoleAssignmentCard', () => {
 
   it('roleLocked: menampilkan seluruh role sebagai teks, tanpa kotak centang', () => {
     render1(
-      { roles: [USER_ROLES.SUPERUSER, USER_ROLES.ADMIN_OPD] },
+      { roles: [USER_ROLES.ADMIN_KABUPATEN, USER_ROLES.ADMIN_OPD] },
       { roleLocked: true, opdOptions: [] },
     );
 
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.getByText('Superuser, Admin OPD')).toBeInTheDocument();
+    expect(screen.getByText('Admin Kabupaten, Admin OPD')).toBeInTheDocument();
     expect(screen.getByText(/tidak dapat mengubah role akun Anda sendiri/i)).toBeInTheDocument();
   });
 

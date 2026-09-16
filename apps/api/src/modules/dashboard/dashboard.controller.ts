@@ -43,7 +43,7 @@ export class DashboardController {
   /** Isi/perbarui narasi `/statistics` (D6) -- Admin Kabupaten. */
   @Patch('statistics/insight')
   @ApiBearerAuth()
-  @Roles(Role.kabupaten, Role.superuser)
+  @Roles(Role.kabupaten)
   @ApiOkResponse({ type: StatisticsInsightEntity })
   updateInsight(
     @Body() dto: UpdateInsightDto,

@@ -7,7 +7,6 @@ import IkmLeaderboard from '@/features/dashboard/components/kabupaten/IkmLeaderb
 import ComplaintStatusDonut from '@/features/dashboard/components/kabupaten/ComplaintStatusDonut';
 import RecentActivities from '@/features/dashboard/components/kabupaten/RecentActivities';
 import LoadingState from '@/components/ui/LoadingState';
-import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { useAdminKabLayout } from '@/components/layouts/AdminKabLayoutProvider';
@@ -39,12 +38,15 @@ const RECENT_ACTIVITIES_LIMIT = 5;
  * - `getAuditLogs({limit:5})` (GET /audit-logs, INT-34) -- pengganti jujur
  *   utk "aktivitas terbaru" (dummy lama karang nama OPD+ikon per-domain
  *   spt RSUD/DLH yang tak py padanan data nyata).
- * PENYARING (2026-08-19): `periode` & `jenisLayanan` dari navbar kini
- * DITERUSKAN ke `GET /dashboard/ikm` -- endpoint itu memang menerima keduanya
- * (DashboardIkmQueryDto). Sebelumnya navbar cuma menulis `?year=&service=` yang
+ * PENYARING (2026-08-19): `periode` dari navbar DITERUSKAN ke
+ * `GET /dashboard/ikm`. Sebelumnya navbar cuma menulis `?year=&service=` yang
  * tak dibaca siapa pun, sehingga catatan lama di sini ("filters DIHAPUS")
  * menjelaskan separuh cerita saja: query param-nya dibuang di halaman ini, tapi
  * dropdown-nya dibiarkan hidup di navbar tanpa pernah berefek.
+ *
+ * Penyaring jenis layanan DIBUANG seluruhnya 15 September 2026 atas permintaan
+ * pengguna. Backend tetap menerima parameternya; halaman ini berhenti
+ * mengirimnya.
  *
  * Sengaja DUA useAsync, bukan satu Promise.all seperti sebelumnya: hanya
  * `/dashboard/ikm` yang bergantung pada penyaring. `/statistics` (agregat
@@ -53,17 +55,13 @@ const RECENT_ACTIVITIES_LIMIT = 5;
  * Cakupan tiap penyaring dijelaskan ke pengguna lewat KabFilterScopeNote.
  */
 export default function AdminKabDashboardPage() {
-  const { periode, jenisLayanan } = useAdminKabLayout();
+  const { periode } = useAdminKabLayout();
 
-  // Parameter kosong TIDAK dikirim: backend mencocokkan `periode`/`jenisLayanan`
-  // secara persis, jadi mengirim string kosong akan menyaring habis semuanya.
+  // Parameter kosong TIDAK dikirim: backend mencocokkan `periode` secara
+  // persis, jadi mengirim string kosong akan menyaring habis semuanya.
   const fetchFiltered = useCallback(
-    () =>
-      getKabupatenDashboard({
-        ...(periode ? { periode } : {}),
-        ...(jenisLayanan ? { jenisLayanan } : {}),
-      }),
-    [periode, jenisLayanan],
+    () => getKabupatenDashboard({ ...(periode ? { periode } : {}) }),
+    [periode],
   );
   const {
     data: kabDashboard,
@@ -78,11 +76,16 @@ export default function AdminKabDashboardPage() {
     // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
     // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
     const profile = await getMyProfile();
-    const isSuperuser = profile.actingRole === USER_ROLES.SUPERUSER;
+    // Log aktivitas kini milik Admin Kabupaten (peleburan 15 September 2026),
+    // dan halaman ini memang hanya dibuka peran itu. Penjaganya tetap dipasang
+    // TERSURAT: sesi yang entah bagaimana mendarat di sini dengan peran lain
+    // akan membuat backend menjawab 403, dan karena keduanya satu Promise.all,
+    // SELURUH dashboard gagal memuat -- bukan cuma seksi aktivitasnya.
+    const bolehBacaAudit = profile.actingRole === USER_ROLES.ADMIN_KABUPATEN;
 
     const [statistics, auditLogs] = await Promise.all([
       getStatistics(),
-      isSuperuser ? getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }) : Promise.resolve(null),
+      bolehBacaAudit ? getAuditLogs({ limit: RECENT_ACTIVITIES_LIMIT }) : Promise.resolve(null),
     ]);
     return {
       statistics,
@@ -137,9 +140,12 @@ export default function AdminKabDashboardPage() {
     <div className="min-h-screen p-lg space-y-lg relative">
       <KabDashboardHeader summary={summary} />
 
-      <KabFilterScopeNote periode={periode} jenisLayanan={jenisLayanan} />
+      <KabFilterScopeNote periode={periode} />
 
-      <KabSummaryMetrics data={kabDashboard.summary} />
+      {/* `activeUsers` dioper terpisah: asalnya `GET /statistics`, bukan
+          `GET /dashboard/ikm` yang mengisi keempat kartu lain, dan ia tidak
+          mengikuti penyaring periode & jenis layanan di navbar. */}
+      <KabSummaryMetrics data={kabDashboard.summary} activeUsers={summary.activeUsers ?? null} />
 
       {/* Ringkasan KPI (bento grid, sumber sama dgn /statistics publik) */}
       <section className="mt-8">
@@ -147,11 +153,6 @@ export default function AdminKabDashboardPage() {
           <TrendingUp size={24} className="text-primary" />
           Ringkasan Kinerja Terkini (Detail Lengkap)
         </h2>
-        {/* Strip, bukan kartu ke-7: grid di bawah berisi 6 kartu pada 3 kolom
-            (dua baris penuh), dan kartu ketujuh akan yatim di baris terakhir. */}
-        <div className="mb-6">
-          <ActiveAccountsInfo activeCount={summary.activeUsers ?? null} scope="all" />
-        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <MetricCard
             title="Indeks Kepuasan Masyarakat"
@@ -287,7 +288,7 @@ export default function AdminKabDashboardPage() {
         </div>
       </div>
 
-      {/* Disembunyikan untuk Admin Kabupaten biasa -- log aktivitas superuser saja. */}
+      {/* Kosong bila sesi ini tak berhak membaca log aktivitas. */}
       {activities && <RecentActivities data={activities} />}
     </div>
   );

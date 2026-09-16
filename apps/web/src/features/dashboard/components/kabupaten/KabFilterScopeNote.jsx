@@ -10,9 +10,13 @@ import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
  * backend (IkmService.getDashboard), bukan pilihan tampilan.
  * - `periode` menyaring baris IkmResult/Survey -> rata-rata IKM, responden,
  *   jumlah OPD, dan peringkat.
- * - `jenisLayanan` menyaring itu semua DITAMBAH hitungan pengaduan
- *   (complaintWhere memakai jenisLayanan, tapi TIDAK memakai periode).
- * - `systemActivityPercent` (Keaktifan Sistem) tak pernah disaring keduanya.
+ * - Hitungan pengaduan tak mengikuti apa pun lagi. Ia dulu mengikuti
+ *   `jenisLayanan` (complaintWhere memakainya, tapi TIDAK memakai periode);
+ *   sejak penyaring itu dibuang dari layar (15 September 2026), angkanya selalu
+ *   utuh. Backend tetap menerima parameternya -- yang hilang kendalinya.
+ * - `systemActivityPercent` (Keaktifan Sistem) tak pernah disaring.
+ * - Jumlah akun aktif (kartu Akun Aktif, 15 September 2026) juga tidak: asalnya
+ *   `GET /statistics`, yang tak menerima parameter periode maupun jenis layanan.
  * - Bagian statistik, distribusi nilai, 9 unsur, dan donut pengaduan berasal
  *   dari `GET /statistics` yang sama sekali tak menerima parameter -- selalu
  *   seluruh data.
@@ -20,24 +24,22 @@ import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
  * Tanpa keterangan ini, angka yang berubah dan yang tidak berubah saat
  * berganti periode akan terbaca seperti kekeliruan.
  */
-export default function KabFilterScopeNote({ periode, jenisLayanan }) {
-  // Kosong = tak menyaring (nilai awal), bukan periode/layanan bernama kosong.
+export default function KabFilterScopeNote({ periode }) {
+  // Kosong = tak menyaring (nilai awal), bukan periode bernama kosong.
   const periodeLabel = periode ? formatPeriodeLabel(periode) : 'semua periode';
-  const layananLabel = jenisLayanan || 'semua jenis layanan';
 
   return (
     <div className="flex items-start gap-2.5 p-md rounded-xl bg-blue-50 border border-blue-100">
       <Info size={16} className="text-blue-500 mt-0.5 shrink-0" />
       <div className="text-xs text-blue-800 leading-relaxed space-y-1">
         <p>
-          Penyaring navbar aktif: <strong>{periodeLabel}</strong> ·{' '}
-          <strong>{layananLabel}</strong>.
+          Penyaring navbar aktif: <strong>{periodeLabel}</strong>.
         </p>
         <p className="text-blue-700">
           Mengikuti penyaring: Rata-Rata IKM, Partisipasi Responden, dan Peringkat IKM per OPD.
-          Hitungan pengaduan hanya mengikuti jenis layanan (bukan periode). Keaktifan Sistem serta
-          seluruh bagian statistik, distribusi nilai, dan 9 unsur pelayanan selalu menampilkan
-          data lengkap seluruh periode.
+          Hitungan pengaduan, Keaktifan Sistem, Akun Aktif, serta seluruh bagian statistik,
+          distribusi nilai, dan 9 unsur pelayanan selalu menampilkan data lengkap seluruh
+          periode.
         </p>
       </div>
     </div>

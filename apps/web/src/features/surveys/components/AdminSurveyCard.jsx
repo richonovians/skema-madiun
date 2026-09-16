@@ -8,7 +8,7 @@ import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, onDelete }) {
-  const { id, title, status, period, respondentsCount, ikmScore } = survey;
+  const { id, title, status, period, respondentsCount, ikmScore, isUtama } = survey;
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showReopenModal, setShowReopenModal] = useState(false);
 
@@ -38,6 +38,19 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
           >
             PERIODE: {formatPeriodeLabel(period)}
           </Badge>
+          {/* Penanda survei utama disetel di builder, satu halaman per survei.
+              Tanpa lencana di sini, admin hanya dapat mengetahuinya dengan
+              membuka survei satu per satu -- dan karena menyalakan yang baru
+              MELEPAS yang lama, ia juga tak punya cara memastikan
+              penunjukannya berpindah ke tempat yang ia kira. */}
+          {isUtama && (
+            <Badge
+              variant="info"
+              className="px-sm py-[2px] text-[10px] uppercase rounded"
+            >
+              Survei Utama
+            </Badge>
+          )}
         </div>
 
         {/* Switch AKTIF → DITUTUP */}

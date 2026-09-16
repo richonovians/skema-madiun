@@ -10,6 +10,11 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   allowMultipleSubmit: boolean;
   /** Survei ini boleh diisi tanpa sesi lewat /survei/:id. Baku false. */
   izinkanAnonim: boolean;
+  /**
+   * Survei utama OPD ini: tujuan tombol "Lanjut Isi Survei" pada halaman sukses
+   * pengaduan. Paling banyak satu per OPD, ditegakkan indeks unik parsial.
+   */
+  isUtama: boolean;
   createdAt: Date;
   updatedAt: Date;
   /** Jumlah responden yang sudah mengisi. Hanya diisi pada `GET /surveys` (INT-9). */

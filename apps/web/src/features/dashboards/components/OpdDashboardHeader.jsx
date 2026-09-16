@@ -71,7 +71,7 @@ export default function OpdDashboardHeader({ periode }) {
       <div className="flex items-start gap-2.5 mt-md pt-md border-t border-outline-variant">
         <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
         <p className="text-xs text-text-secondary leading-relaxed">
-          Empat kartu di bawah menampilkan angka <strong>kumulatif</strong> seluruh periode. Bagian
+          Lima kartu di bawah menampilkan angka <strong>kumulatif</strong> seluruh periode. Bagian
           &quot;Kinerja Periode&quot; dan &quot;Status Pengaduan&quot; mengikuti pilihan triwulan
           pada navbar.
         </p>

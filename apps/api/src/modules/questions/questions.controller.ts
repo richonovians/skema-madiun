@@ -25,7 +25,7 @@ import { QuestionsService } from './questions.service';
 @ApiBearerAuth()
 // Peran berakses penuh DITULIS di daftar, tak lagi mengandalkan bypass
 // menyeluruh yang dibongkar T6 (7 September 2026).
-@Roles(Role.kabupaten, Role.superuser, Role.opd)
+@Roles(Role.kabupaten, Role.opd)
 @Controller()
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}

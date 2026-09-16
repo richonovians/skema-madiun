@@ -132,15 +132,30 @@ export class SurveysService {
     const periodeBerganti = dto.periode !== undefined && dto.periode !== survey.periode;
     assertSurveyEditable(survey, jumlahJawaban, periodeBerganti ? 'periode' : 'meta');
 
-    const updated = await this.prisma.survey.update({
-      where: { id },
-      data: {
-        judul: dto.judul,
-        periode: dto.periode,
-        allowMultipleSubmit: dto.allowMultipleSubmit,
-        // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
-        izinkanAnonim: dto.izinkanAnonim,
-      },
+    // Satu transaksi, dan URUTANNYA mengikat: survei utama OPD yang lama harus
+    // dilepas SEBELUM yang baru dinyalakan. Indeks unik parsial
+    // `surveys_opd_utama_unik` diperiksa PostgreSQL per pernyataan, bukan
+    // ditunda sampai commit, jadi menyalakan lebih dulu akan ditolak oleh
+    // barisnya sendiri yang belum sempat dilepas.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.isUtama === true) {
+        await tx.survey.updateMany({
+          where: { opdId: survey.opdId, isUtama: true, id: { not: id }, deletedAt: null },
+          data: { isUtama: false },
+        });
+      }
+
+      return tx.survey.update({
+        where: { id },
+        data: {
+          judul: dto.judul,
+          periode: dto.periode,
+          allowMultipleSubmit: dto.allowMultipleSubmit,
+          // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
+          izinkanAnonim: dto.izinkanAnonim,
+          isUtama: dto.isUtama,
+        },
+      });
     });
     return new SurveyEntity(updated);
   }

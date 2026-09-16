@@ -1,7 +1,7 @@
 'use client';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { Menu, CalendarRange, Layers } from 'lucide-react';
+import { Menu, CalendarRange } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import AdminAccountMenu from './AdminAccountMenu';
@@ -13,7 +13,6 @@ import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useAsync } from '@/hooks/useAsync';
 import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
-import { getOpdList } from '@/features/opd/services/opd.api';
 import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
 
 // "Semua Periode" sengaja jadi opsi pertama DAN nilai awal -- lihat alasannya di
@@ -29,14 +28,13 @@ const PERIODE_OPTIONS = [ALL_PERIODS, ...buildRecentPeriodeOptions()];
 // Diurut dari yang paling spesifik supaya pencocokan awalan tak salah ambil.
 const PAGE_TITLES = [
   ['/admin-kab/dashboard', 'Dashboard Eksekutif'],
-  ['/admin-kab/opd', 'Manajemen OPD'],
+  ['/admin-kab/opd', 'Daftar OPD'],
   ['/admin-kab/surveys', 'Monitoring Survei'],
   ['/admin-kab/complaints', 'Pengaduan'],
   ['/admin-kab/users', 'Manajemen User'],
   ['/admin-kab/audit-logs', 'Audit Logs'],
 ];
 
-const ALL_SERVICES = { value: '', label: 'Semua Layanan' };
 
 /**
  * Navbar Admin Kabupaten.
@@ -53,15 +51,15 @@ const ALL_SERVICES = { value: '', label: 'Semua Layanan' };
  * (keduanya sudah lampau), dan jenis layanannya huruf kecil ('kesehatan')
  * sementara backend menyimpannya kapital ('Kesehatan') dan mencocokkan persis.
  *
- * Sekarang keduanya nyata dan diteruskan ke `GET /dashboard/ikm`, yang memang
- * menerima `periode` + `jenisLayanan` (DashboardIkmQueryDto):
- * - periode memakai format kanonik {tahun}-Q{1-4}, bukan tahun saja -- backend
- *   mencocokkan `IkmResult.periode`/`Survey.periode` PERSIS, jadi "2026" tak
- *   akan cocok apa pun.
- * - pilihan jenis layanan dibangun dari nilai `jenisLayanan` yang SUNGGUHAN ada
- *   di data OPD, bukan daftar tetap. Dropdown-nya disembunyikan bila tak ada
- *   satu pun OPD yang punya nilai itu (kondisi data saat ini: hanya 1 dari 54
- *   OPD terisi, sisanya null karena OPD cuma cache read-only dari Helpdesk).
+ * Sekarang periodenya nyata dan diteruskan ke `GET /dashboard/ikm`, dengan
+ * format kanonik {tahun}-Q{1-4} -- bukan tahun saja, sebab backend mencocokkan
+ * `IkmResult.periode`/`Survey.periode` PERSIS, jadi "2026" tak akan cocok apa
+ * pun.
+ *
+ * Penyaring jenis layanan DIBUANG 15 September 2026 atas permintaan pengguna.
+ * Bersamanya hilang `GET /opd` yang dipanggil hanya untuk membangun pilihannya,
+ * pada SETIAP halaman Admin Kabupaten -- termasuk lima halaman yang tak pernah
+ * menampilkan penyaring sama sekali.
  */
 export default function AdminKabNavbar() {
   const {
@@ -69,8 +67,6 @@ export default function AdminKabNavbar() {
     setIsMobileSidebarOpen,
     periode,
     setPeriode,
-    jenisLayanan,
-    setJenisLayanan,
   } = useAdminKabLayout();
   const pathname = usePathname();
 
@@ -88,16 +84,6 @@ export default function AdminKabNavbar() {
   // pembedaan 401-vs-jaringan di ProfileLoadError.jsx dan api.js.
   const gagalProfil = error != null;
   const alasanGagal = isUnauthorizedError(error) ? 'expired' : 'offline';
-
-  const fetchServiceOptions = useCallback(async () => {
-    if (!isDashboard) return [];
-    const { data: opdList } = await getOpdList({ limit: 100 });
-    const jenis = [...new Set(opdList.map((opd) => opd.serviceType).filter(Boolean))].sort();
-    return jenis.map((value) => ({ value, label: value }));
-  }, [isDashboard]);
-  const { data: serviceOptions } = useAsync(fetchServiceOptions);
-
-  const hasServiceFilter = (serviceOptions?.length ?? 0) > 0;
 
   /**
    * Melaporkan tinggi nyata bilah ini ke `--tinggi-navbar-kab`, yang dipakai
@@ -218,19 +204,6 @@ export default function AdminKabNavbar() {
               className="w-full"
             />
           </div>
-          {hasServiceFilter && (
-            <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <Layers size={18} className="hidden lg:block text-secondary shrink-0" />
-              <Dropdown
-                id="filter-kab-layanan"
-                options={[ALL_SERVICES, ...serviceOptions]}
-                value={jenisLayanan}
-                onChange={setJenisLayanan}
-                variant="primary"
-                className="w-full"
-              />
-            </div>
-          )}
         </div>
       )}
 

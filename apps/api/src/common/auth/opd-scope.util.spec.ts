@@ -12,7 +12,7 @@ const user = (actingRole: Role, opdId: number | null = null): CurrentUser => ({
 });
 
 describe('opdWhereFilter', () => {
-  it('kabupaten (= superuser) → filter kosong (semua OPD)', () => {
+  it('kabupaten → filter kosong (semua OPD)', () => {
     expect(opdWhereFilter(user(Role.kabupaten))).toEqual({});
   });
 
@@ -30,7 +30,7 @@ describe('opdWhereFilter', () => {
 });
 
 describe('assertOpdAccess', () => {
-  it('kabupaten (= superuser) → boleh akses OPD mana pun', () => {
+  it('kabupaten → boleh akses OPD mana pun', () => {
     expect(() => assertOpdAccess(user(Role.kabupaten), 99)).not.toThrow();
   });
 
@@ -56,9 +56,8 @@ describe('assertOpdAccess', () => {
    * merekalah yang bertugas meneruskannya.
    */
   describe('target OPD null (belum bertujuan)', () => {
-    it('kabupaten & superuser → boleh', () => {
+    it('kabupaten → boleh', () => {
       expect(() => assertOpdAccess(user(Role.kabupaten), null)).not.toThrow();
-      expect(() => assertOpdAccess(user(Role.superuser), null)).not.toThrow();
     });
 
     /**

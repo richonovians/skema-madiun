@@ -5,7 +5,6 @@ import Badge from '@/components/ui/Badge';
 import { USER_ROLES } from '../constants/userConstants';
 
 const ROLE_LABELS = {
-  [USER_ROLES.SUPERUSER]: 'Superuser',
   [USER_ROLES.ADMIN_KABUPATEN]: 'Admin Kabupaten',
   [USER_ROLES.ADMIN_OPD]: 'Admin OPD',
   // Ditambahkan 5 September 2026: `responden` kini dapat diberikan lewat
@@ -72,13 +71,11 @@ export default function UserAccessSummary({ formData, opdOptions = [] }) {
                   <span
                     key={r}
                     className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      r === USER_ROLES.SUPERUSER
-                        ? 'bg-violet-100 text-violet-800'
-                        : r === USER_ROLES.ADMIN_KABUPATEN
-                          ? 'bg-indigo-100 text-indigo-800'
-                          : r === USER_ROLES.ADMIN_OPD
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-slate-100 text-slate-800'
+                      r === USER_ROLES.ADMIN_KABUPATEN
+                        ? 'bg-indigo-100 text-indigo-800'
+                        : r === USER_ROLES.ADMIN_OPD
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-slate-100 text-slate-800'
                     }`}
                   >
                     {ROLE_LABELS[r] ?? r}

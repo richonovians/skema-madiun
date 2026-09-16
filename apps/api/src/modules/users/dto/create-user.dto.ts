@@ -29,7 +29,7 @@ import {
  * memberi adalah manusia yang sudah superuser, di sana sistem di luar kendali
  * kita.
  */
-export const ASSIGNABLE_ROLES: Role[] = [Role.superuser, Role.kabupaten, Role.opd, Role.responden];
+export const ASSIGNABLE_ROLES: Role[] = [Role.kabupaten, Role.opd, Role.responden];
 
 export class CreateUserDto {
   @ApiProperty({ maxLength: 50 })

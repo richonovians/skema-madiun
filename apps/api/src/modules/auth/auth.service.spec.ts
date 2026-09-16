@@ -89,7 +89,6 @@ describe('AuthService', () => {
       [Role.responden, new Date(), false],
       [Role.kabupaten, null, false],
       [Role.opd, null, false],
-      [Role.superuser, null, false],
     ])('%s dengan consentAt=%s -> %s', async (role, consentAt, harapan) => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ role, consentAt }));
 
@@ -262,7 +261,7 @@ describe('AuthService', () => {
       (sessionService.issue as jest.Mock).mockReturnValue('token-baru');
 
       const hasil = await service.setActingRole(
-        cu(Role.superuser, 9, { roles: [Role.superuser, Role.opd], opdId: 1 }),
+        cu(Role.kabupaten, 9, { roles: [Role.kabupaten, Role.opd], opdId: 1 }),
         Role.opd,
       );
 
@@ -272,7 +271,7 @@ describe('AuthService', () => {
 
     it('MENOLAK role yang tidak dimiliki akun, tanpa menerbitkan apa pun', async () => {
       await expect(
-        service.setActingRole(cu(Role.opd, 9, { roles: [Role.opd], opdId: 1 }), Role.superuser),
+        service.setActingRole(cu(Role.opd, 9, { roles: [Role.opd], opdId: 1 }), Role.kabupaten),
       ).rejects.toThrow(ForbiddenException);
 
       expect(sessionService.issue).not.toHaveBeenCalled();
@@ -281,7 +280,7 @@ describe('AuthService', () => {
     it('MENOLAK role opd bila akun tak tertaut OPD', async () => {
       await expect(
         service.setActingRole(
-          cu(Role.superuser, 9, { roles: [Role.superuser, Role.opd], opdId: null }),
+          cu(Role.kabupaten, 9, { roles: [Role.kabupaten, Role.opd], opdId: null }),
           Role.opd,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -291,7 +290,7 @@ describe('AuthService', () => {
   describe('devLogin memilih peran', () => {
     it('meneruskan peran yang diminta ke penerbit token', async () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(
-        userRow({ roles: [Role.superuser, Role.opd], opdId: 1 }),
+        userRow({ roles: [Role.kabupaten, Role.opd], opdId: 1 }),
       );
       (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
 
@@ -308,7 +307,7 @@ describe('AuthService', () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ roles: [Role.opd] }));
 
       await expect(
-        service.devLogin({ identifier: 'a@x.go.id', role: Role.superuser }),
+        service.devLogin({ identifier: 'a@x.go.id', role: Role.kabupaten }),
       ).rejects.toThrow(ForbiddenException);
     });
 

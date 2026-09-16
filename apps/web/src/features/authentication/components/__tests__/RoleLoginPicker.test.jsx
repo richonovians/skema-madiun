@@ -15,11 +15,11 @@ jest.mock('../../services/actingRole.api', () => ({
  * Bedanya bukan kerapian: versi sebelumnya menyaring tombol dengan
  * `roles.includes(c.key)` dan memanggil `setActingRole(c.key)` langsung, jadi
  * util yang benar pun tak akan berpengaruh apa-apa kalau sambungannya lupa
- * dipasang — dan akun ber-role `[superuser]` melihat NOL tombol.
+ * dipasang.
  *
- * DIJALANKAN terhadap komponen LAMA: 3 dari 6 memerah. Tiga yang tetap hijau
- * ditandai KONTROL di bawah — mereka menjaga arah sebaliknya (bahwa perubahan
- * ini TIDAK mengubah perilaku peran lain), bukan membuktikan perubahannya.
+ * Peran `superuser` dilebur ke `kabupaten` pada 15 September 2026; uji yang dulu
+ * membuktikan "tombolnya sama, haknya berbeda" ikut lenyap bersama perbedaan
+ * yang dibuktikannya.
  */
 const render1 = (props = {}) =>
   render(<RoleLoginPicker roles={props.roles ?? []} onCancel={() => {}} {...props} />);
@@ -34,23 +34,19 @@ beforeAll(() => {
 beforeEach(() => jest.clearAllMocks());
 
 describe('RoleLoginPicker — tiga tombol', () => {
-  it('akun HANYA superuser melihat tombol Admin Kabupaten, bukan nol tombol', () => {
-    render1({ roles: ['superuser'] });
+  /**
+   * Tak ada lagi tombol "Superuser" di layar mana pun (peleburan 15 September
+   * 2026). Akun yang tokennya masih menyebut peran itu tak melihat tombol hantu.
+   */
+  it('tak ada tombol Superuser, dan peran yang sudah dihapus tak memunculkan tombol', () => {
+    render1({ roles: ['superuser', 'kabupaten'] });
 
     expect(screen.getByText('Admin Kabupaten')).toBeInTheDocument();
     expect(screen.queryByText('Superuser')).not.toBeInTheDocument();
+    expect(screen.getByText(/1 pilihan peran/i)).toBeInTheDocument();
   });
 
-  it('menekan tombol itu mengirim act=superuser, bukan act=kabupaten', async () => {
-    render1({ roles: ['superuser'] });
-
-    fireEvent.click(screen.getByText('Admin Kabupaten'));
-
-    // Inti permintaan pengguna: tombolnya Admin Kabupaten, haknya superuser.
-    await waitFor(() => expect(setActingRole).toHaveBeenCalledWith('superuser'));
-  });
-
-  it('KONTROL: akun kabupaten biasa tetap mengirim act=kabupaten', async () => {
+  it('akun kabupaten mengirim act=kabupaten', async () => {
     render1({ roles: ['kabupaten'] });
 
     fireEvent.click(screen.getByText('Admin Kabupaten'));
@@ -58,8 +54,8 @@ describe('RoleLoginPicker — tiga tombol', () => {
     await waitFor(() => expect(setActingRole).toHaveBeenCalledWith('kabupaten'));
   });
 
-  it('KONTROL: superuser yang memilih Masyarakat tetap menjadi responden — gerbang PDP tak terlewati', async () => {
-    render1({ roles: ['superuser', 'responden'] });
+  it('KONTROL: Admin Kabupaten yang memilih Masyarakat tetap menjadi responden — gerbang PDP tak terlewati', async () => {
+    render1({ roles: ['kabupaten', 'responden'] });
 
     fireEvent.click(screen.getByText('Masyarakat'));
 
@@ -76,18 +72,20 @@ describe('RoleLoginPicker — tiga tombol', () => {
     expect(screen.queryByText('Warga')).not.toBeInTheDocument();
   });
 
-  it('akun bersuperuser diberi keterangan yang BERBEDA pada tombol yang sama', () => {
-    // Tombolnya satu, haknya tidak sama. Menjanjikan hal yang salah di sini
-    // membuat pengguna mengira manajemen pengguna rusak, bukan tak berhak.
-    render1({ roles: ['superuser'] });
-    expect(screen.getByText(/bersuperuser, jadi log aktivitas/i)).toBeInTheDocument();
-
+  /**
+   * Keterangannya kini MENJANJIKAN log aktivitas & manajemen pengguna, kebalikan
+   * dari sebelum peleburan. Menjanjikan hal yang salah di sini membuat pengguna
+   * mengira fiturnya rusak, bukan bahwa ia tak berhak.
+   */
+  it('keterangan tombol Admin Kabupaten menyebut log aktivitas & manajemen pengguna', () => {
     render1({ roles: ['kabupaten'] });
-    expect(screen.getByText(/TIDAK terbuka pada peran ini/i)).toBeInTheDocument();
+
+    expect(screen.getByText(/log aktivitas & manajemen pengguna/i)).toBeInTheDocument();
+    expect(screen.queryByText(/TIDAK terbuka pada peran ini/i)).not.toBeInTheDocument();
   });
 
-  it('KONTROL: penanda "sedang dipakai" tetap muncul untuk superuser', () => {
-    render1({ roles: ['superuser'], currentRole: 'superuser' });
+  it('KONTROL: penanda "sedang dipakai" tetap muncul', () => {
+    render1({ roles: ['kabupaten'], currentRole: 'kabupaten' });
 
     expect(screen.getByText('sedang dipakai')).toBeInTheDocument();
   });

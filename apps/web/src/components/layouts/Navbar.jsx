@@ -83,7 +83,7 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-1">
             {[
               { href: '/', label: 'Beranda' },
-              { href: '/about', label: 'Tentang Kami' },
+              { href: '/about', label: 'Tentang Platform' },
               { href: '/statistics', label: 'Statistik' },
             ].map(({ href, label }) => {
               const active = pathname === href;
@@ -156,7 +156,7 @@ export default function Navbar() {
             <div className="flex flex-col p-3 gap-1">
               {[
                 { href: '/', label: 'Beranda' },
-                { href: '/about', label: 'Tentang Kami' },
+                { href: '/about', label: 'Tentang Platform' },
                 { href: '/statistics', label: 'Statistik' },
               ].map(({ href, label }) => {
                 const active = pathname === href;

@@ -238,7 +238,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), superuser (id=${superuser.id}, + akses log aktivitas), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
+    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), superuser (id=${superuser.id}, + log aktivitas), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
   );
 }
 

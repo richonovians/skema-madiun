@@ -88,6 +88,9 @@ export function adaptSurvey(survey) {
     // Dipakai formulir kelola survei (saklar "izinkan tanpa login") dan modal
     // bagikan (keterangan tautannya menyesuaikan diri).
     izinkanAnonim: survey.izinkanAnonim === true,
+    // Survei utama OPD: tujuan tombol "Lanjut Isi Survei" pada halaman sukses
+    // pengaduan. Dipakai saklar di builder dan lencana pada kartu daftar.
+    isUtama: survey.isUtama === true,
     isClosed: survey.status === 'ditutup',
   };
 }
@@ -140,8 +143,14 @@ export function toCreateSurveyPayload({
 }
 
 /** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
-export function toUpdateSurveyPayload({ title, period, allowMultipleSubmit, izinkanAnonim }) {
-  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim };
+export function toUpdateSurveyPayload({
+  title,
+  period,
+  allowMultipleSubmit,
+  izinkanAnonim,
+  isUtama,
+}) {
+  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim, isUtama };
 }
 
 /** Terjemahkan status frontend ('AKTIF' dkk) -> enum backend ('aktif' dkk). */
@@ -172,6 +181,11 @@ export function adaptActiveSurveyCard(survey) {
     questionsCount: survey.questionsCount ?? 0,
     category: null, // gap, lihat catatan di atas
     status: STATUS_MAP[survey.status] ?? survey.status,
+    // `=== true`, bukan diteruskan apa adanya: tanggapan dari backend lama --
+    // atau yang ter-cache sebelum kolomnya ada -- tak membawa medan ini sama
+    // sekali, dan `undefined` yang lolos akan menyeberang ke pembanding lain
+    // sebagai nilai bertipe tak menentu.
+    isUtama: survey.isUtama === true,
   };
 }
 

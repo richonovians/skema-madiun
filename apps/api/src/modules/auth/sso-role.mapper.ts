@@ -17,12 +17,7 @@ import { Role } from '@prisma/client';
  *   3. Akun yang lahir memegang `superuser` dari klaim menulis satu baris
  *      `audit_logs` — lihat SsoService.provision.
  */
-const MAPPABLE_ROLES: readonly string[] = [
-  Role.superuser,
-  Role.kabupaten,
-  Role.opd,
-  Role.responden,
-];
+const MAPPABLE_ROLES: readonly string[] = [Role.kabupaten, Role.opd, Role.responden];
 
 /** Pemisah antar peran DI DALAM satu paket (`opd+responden`). */
 const PACKAGE_SEPARATOR = '+';

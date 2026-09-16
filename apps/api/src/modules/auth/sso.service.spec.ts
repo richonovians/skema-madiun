@@ -201,7 +201,7 @@ describe('SsoService', () => {
    * Jalur penautan lewat email adalah SATU-SATUNYA tempat sebuah klaim SSO dapat
    * membuat pemegangnya mewarisi peran akun yang sudah ada. Sebelum ini klaim
    * `email` dipercaya tanpa syarat: siapa pun yang dapat membuat akun Helpdesk
-   * ber-email `superuser@example.go.id` akan ditautkan ke akun superuser SKEMA
+   * ber-email `admin.kabupaten@example.go.id` akan ditautkan ke akun kabupaten SKEMA
    * beserta seluruh haknya.
    *
    * Karena itu penautan sekarang menuntut `email_verified === true`. GAGAL
@@ -216,7 +216,7 @@ describe('SsoService', () => {
    */
   describe('provisioning: penautan email menuntut email terverifikasi (T5)', () => {
     const akunLama = () =>
-      userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.superuser] });
+      userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.kabupaten] });
 
     const siapkan = (prisma: Mocked['prisma']) => {
       prisma.user.findFirst
@@ -253,7 +253,7 @@ describe('SsoService', () => {
       const { service, prisma, session } = buat();
       siapkan(prisma);
       prisma.user.update.mockResolvedValue(
-        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
       );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -271,7 +271,7 @@ describe('SsoService', () => {
       const { service, prisma, audit } = buat();
       siapkan(prisma);
       prisma.user.update.mockResolvedValue(
-        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
       );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -334,14 +334,14 @@ describe('SsoService', () => {
       prisma.user.findFirst
         .mockResolvedValueOnce(null) // pencarian by sub
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.superuser] }),
+          userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.kabupaten] }),
         ); // pencarian by email
       prisma.user.update
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
         )
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
         );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -351,7 +351,7 @@ describe('SsoService', () => {
         where: { id: 1 },
         data: { ssoSubject: 'hd-sub-abc123' },
       });
-      // ...dan tak ada akun baru yang dibuat, sehingga peran superuser & seluruh
+      // ...dan tak ada akun baru yang dibuat, sehingga peran kabupaten & seluruh
       // riwayatnya tidak hilang.
       expect(prisma.user.create).not.toHaveBeenCalled();
       expect(session.issue).toHaveBeenCalledWith(1);
@@ -524,17 +524,34 @@ describe('SsoService', () => {
     });
 
     /**
-     * PEMBALIKAN keputusan 27 Agustus 2026, diminta pengguna 6 September 2026:
-     * tipe "admin" dari Helpdesk menjadi superuser di SKEMA. Sebelumnya
-     * pemetaan ini diabaikan dan akunnya jatuh menjadi `responden`.
+     * `superuser` DILEBUR ke `kabupaten` (15 September 2026), jadi tipe "admin"
+     * dari Helpdesk dipetakan ke `kabupaten` -- peran yang kini memegang
+     * manajemen pengguna & log aktivitas.
      */
-    it('pemetaan ke superuser DITERIMA -- larangan lama sudah dicabut', async () => {
+    it('pemetaan ke kabupaten DITERIMA', async () => {
+      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:kabupaten' });
+      m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
+
+      await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.kabupaten]);
+    });
+
+    /**
+     * PASANGAN kontrol. `HELPDESK_SSO_ROLE_MAP` yang masih berbunyi
+     * `bos:superuser` TIDAK diam-diam berpindah ke `kabupaten`: memetakannya
+     * berarti menghidupkan kembali nama yang baru saja dihapus lewat pintu yang
+     * tak terlihat siapa pun. Akunnya jatuh ke baku `responden`, dan operator
+     * yang menyadari perannya salah akan memperbaiki petanya -- itu kegagalan
+     * yang terlihat, bukan hak yang diberikan diam-diam.
+     */
+    it('KONTROL: pemetaan ke superuser diabaikan, akunnya jatuh ke baku', async () => {
       const m = baru({ 'helpdesk.ssoRoleMap': 'bos:superuser' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
-      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.superuser]);
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.responden]);
     });
 
     it('paket beberapa peran -> seluruhnya tersimpan, beserta opdId', async () => {
@@ -558,14 +575,14 @@ describe('SsoService', () => {
      * terdaftar. Sekarang yang dibuang hanya `opd`-nya.
      */
     it('paket ber-opd tapi OPD tak ditemukan -> sisa paket UTUH, bukan responden', async () => {
-      const m = baru({ 'helpdesk.ssoRoleMap': 'admin:superuser+opd+responden' });
+      const m = baru({ 'helpdesk.ssoRoleMap': 'admin:kabupaten+opd+responden' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['admin'] }));
       m.prisma.opd.findFirst.mockResolvedValue(null);
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
       const data = m.prisma.user.create.mock.calls[0][0].data;
-      expect(data.roles).toEqual([Role.superuser, Role.responden]);
+      expect(data.roles).toEqual([Role.kabupaten, Role.responden]);
       expect(data.opdId ?? null).toBeNull();
     });
 
@@ -574,21 +591,21 @@ describe('SsoService', () => {
      * bila env kosong, dan penetapan hanya saat akun dibuat). Tanpa jejak ini,
      * Helpdesk yang salah kirim akan memberi hak tertinggi tanpa ada yang tahu.
      */
-    it('akun ber-superuser dari klaim MENULIS jejak audit', async () => {
-      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:superuser' });
+    it('akun ber-kabupaten dari klaim MENULIS jejak audit', async () => {
+      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:kabupaten' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
       expect(m.audit.record).toHaveBeenCalledWith(
         expect.any(Number),
-        'sso_grant_superuser',
+        'sso_grant_kabupaten',
         'auth',
         expect.objectContaining({ sub: 'hd-sub-abc123' }),
       );
     });
 
-    it('KONTROL: akun TANPA superuser tidak menulis jejak itu', async () => {
+    it('KONTROL: akun TANPA kabupaten tidak menulis jejak itu', async () => {
       const m = baru({ 'helpdesk.ssoRoleMap': 'pegawai-dinas:opd+responden' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['pegawai-dinas'] }));
       m.prisma.opd.findFirst.mockResolvedValue({ id: 7 });

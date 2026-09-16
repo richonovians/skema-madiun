@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -14,10 +14,7 @@ import {
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
-import { useAsync } from '@/hooks/useAsync';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { getMyProfile } from '@/features/profile/services/profile.api';
-import { USER_ROLES } from '@/features/users/constants/userConstants';
 
 /**
  * "Audit Logs" DAN "Manajemen User" hanya untuk SUPERUSER (2026-08-20, atas
@@ -38,9 +35,6 @@ import { USER_ROLES } from '@/features/users/constants/userConstants';
  */
 export default function AdminKabSidebar() {
   const pathname = usePathname();
-  const fetchProfile = useCallback(() => getMyProfile(), []);
-  const { data: profile } = useAsync(fetchProfile);
-  const isSuperuser = profile?.actingRole === USER_ROLES.SUPERUSER;
 
   const getLinkClass = (path) => {
     // Exact match or active section
@@ -93,7 +87,7 @@ export default function AdminKabSidebar() {
           </Link>
           <Link href="/admin-kab/opd" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
             <Building2 size={20} />
-            <span>Manajemen OPD</span>
+            <span>Daftar OPD</span>
           </Link>
           <Link href="/admin-kab/surveys" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
             <ClipboardList size={20} />
@@ -103,24 +97,22 @@ export default function AdminKabSidebar() {
             <MessageSquare size={20} />
             <span>Pengaduan</span>
           </Link>
-          {/* Manajemen User & Audit Logs: khusus SUPERUSER (2026-08-20). */}
-          {isSuperuser && (
-            <>
-              <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
-                <Users size={20} />
-                <span>Manajemen User</span>
-              </Link>
-              <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
-                <History size={20} />
-                <span>Audit Logs</span>
-              </Link>
-            </>
-          )}
+          {/* Manajemen User & Audit Logs: milik Admin Kabupaten sejak peleburan
+              peran superuser (15 September 2026). Sidebar ini memang hanya
+              tampil di area Admin Kabupaten, jadi tak ada penjaga tambahan. */}
+          <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <Users size={20} />
+            <span>Manajemen User</span>
+          </Link>
+          <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <History size={20} />
+            <span>Audit Logs</span>
+          </Link>
         </nav>
 
         {/* "Keluar" kembali ke sini atas permintaan pengguna (1 September 2026).
             Yang membuatnya aman sekarang: `<aside>` di atas sudah
-            `overflow-y-auto overscroll-contain`, jadi menu superuser yang
+            `overflow-y-auto overscroll-contain`, jadi menu manajemen yang
             lebih tinggi dari layar bisa digulir dan tombol ini tetap dapat
             dicapai -- persis kelas masalah yang dulu membuatnya dipindahkan.
             Alasan panjangnya di AdminSidebarLogout.
