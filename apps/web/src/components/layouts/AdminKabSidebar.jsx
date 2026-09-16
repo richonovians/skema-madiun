@@ -10,7 +10,9 @@ import {
   MessageSquare,
   ClipboardList,
   X,
-  History
+  History,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
@@ -36,16 +38,21 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 export default function AdminKabSidebar() {
   const pathname = usePathname();
 
+  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed } = useAdminKabLayout();
+
   const getLinkClass = (path) => {
-    // Exact match or active section
     const isActive = pathname === path || pathname.startsWith(`${path}/`);
     
-    return isActive
-      ? "flex items-center gap-md px-md py-sm bg-blue-600 text-white rounded-lg font-bold transition-all duration-150"
-      : "flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg";
+    let base = "flex items-center gap-md py-sm rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ";
+    base += isDesktopSidebarCollapsed ? "justify-center px-0 " : "px-md ";
+    
+    if (isActive) {
+      base += "bg-blue-600 text-white font-bold shadow-md ";
+    } else {
+      base += "text-slate-500 hover:text-blue-600 hover:bg-blue-50 ";
+    }
+    return base;
   };
-
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminKabLayout();
 
   // Sama seperti AdminSidebar: latar laci menutupi layar, tapi halaman di
   // belakangnya tetap bergulir kalau tidak dikunci.
@@ -53,60 +60,77 @@ export default function AdminKabSidebar() {
 
   return (
     <>
-      {/* Mobile Overlay */}
+      {/* Overlay untuk mobile */}
       {isMobileSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden"
+          className="md:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
+
+      {/* Tombol Toggle Desktop diletakkan di LUAR aside agar tidak terpotong overflow */}
+      <button 
+        className={`hidden md:flex fixed top-8 h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-slate-50 shadow-sm z-[60] transition-all duration-300 hover:scale-110 ${
+          isDesktopSidebarCollapsed ? 'left-[66px]' : 'left-[242px]'
+        }`}
+        onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+        title={isDesktopSidebarCollapsed ? "Perbesar Sidebar" : "Perkecil Sidebar"}
+      >
+        {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
       
       <aside className={`
-        bg-slate-900 text-slate-300 font-body-md text-body-md h-screen w-64 fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50
+        bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50
         overflow-y-auto overscroll-contain
-        transition-transform duration-300 ease-in-out
+        transition-all duration-300 ease-in-out
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="mb-xl px-md flex items-center justify-between">
-          <div>
-            <h1 className="font-headline-md text-headline-md font-bold text-blue-400">Admin Kabupaten</h1>
-            <p className="text-sm opacity-60">Portal Eksekutif</p>
-          </div>
+        <div className={`mb-4 flex items-center ${isDesktopSidebarCollapsed ? 'justify-center px-0 mt-2' : 'justify-between px-md'}`}>
+          {!isDesktopSidebarCollapsed && (
+            <div className="min-w-0">
+              <h1 className="font-headline-md text-headline-md font-bold text-blue-600">Admin Kabupaten</h1>
+              <p className="text-sm text-slate-500">Portal Eksekutif</p>
+            </div>
+          )}
+
           <button 
-            className="md:hidden text-slate-400 hover:text-white"
+            className="md:hidden p-2 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0"
             onClick={() => setIsMobileSidebarOpen(false)}
           >
             <X size={24} />
           </button>
         </div>
+
+        {/* Garis pembatas tipis */}
+        <div className="mx-2 mb-6 border-t border-slate-200"></div>
         
         <nav className="flex-1 space-y-sm">
-          <Link href="/admin-kab/dashboard" className={getLinkClass('/admin-kab/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
+          <Link href="/admin-kab/dashboard" title="Dashboard" className={getLinkClass('/admin-kab/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <LayoutDashboard size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            {!isDesktopSidebarCollapsed && <span>Dashboard</span>}
           </Link>
-          <Link href="/admin-kab/opd" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <Building2 size={20} />
-            <span>Daftar OPD</span>
+          <Link href="/admin-kab/opd" title="Daftar OPD" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <Building2 size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            {!isDesktopSidebarCollapsed && <span>Daftar OPD</span>}
           </Link>
-          <Link href="/admin-kab/surveys" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <ClipboardList size={20} />
-            <span>Monitoring Survei</span>
+          <Link href="/admin-kab/surveys" title="Monitoring Survei" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <ClipboardList size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            {!isDesktopSidebarCollapsed && <span>Monitoring Survei</span>}
           </Link>
-          <Link href="/admin-kab/complaints" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <MessageSquare size={20} />
-            <span>Pengaduan</span>
+          <Link href="/admin-kab/complaints" title="Pengaduan" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <MessageSquare size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            {!isDesktopSidebarCollapsed && <span>Pengaduan</span>}
           </Link>
           {/* Manajemen User & Audit Logs: milik Admin Kabupaten sejak peleburan
               peran superuser (15 September 2026). Sidebar ini memang hanya
               tampil di area Admin Kabupaten, jadi tak ada penjaga tambahan. */}
-          <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <Users size={20} />
-            <span>Manajemen User</span>
+          <Link href="/admin-kab/users" title="Manajemen User" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <Users size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            {!isDesktopSidebarCollapsed && <span>Manajemen User</span>}
           </Link>
-          <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <History size={20} />
-            <span>Audit Logs</span>
+          <Link href="/admin-kab/audit-logs" title="Audit Logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
+            <History size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+            {!isDesktopSidebarCollapsed && <span>Audit Logs</span>}
           </Link>
         </nav>
 
@@ -117,7 +141,7 @@ export default function AdminKabSidebar() {
             dicapai -- persis kelas masalah yang dulu membuatnya dipindahkan.
             Alasan panjangnya di AdminSidebarLogout.
             "Ganti Peran" TETAP hanya di ikon profil (AdminAccountMenu). */}
-        <AdminSidebarLogout />
+        <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
       </aside>
     </>
   );

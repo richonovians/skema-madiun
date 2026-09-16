@@ -34,7 +34,7 @@ const PERIODE_OPTIONS = buildRecentPeriodeOptions();
  * menghapus satu permintaan gambar ke host eksternal dari tiap halaman admin.
  */
 export default function AdminNavbar() {
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen, periode, setPeriode } = useAdminLayout();
+  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, periode, setPeriode } = useAdminLayout();
   const pathname = usePathname();
 
   // Penyaring triwulan HANYA ditampilkan di dashboard -- itu satu-satunya
@@ -131,7 +131,7 @@ export default function AdminNavbar() {
   return (
     <header
       ref={headerRef}
-      className="fixed top-0 right-0 left-0 md:left-64 min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-40 transition-all gap-x-2 gap-y-2 xl:gap-lg"
+      className={`fixed top-0 right-0 left-0 ${isDesktopSidebarCollapsed ? 'md:left-20' : 'md:left-64'} min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-40 transition-all duration-300 gap-x-2 gap-y-2 xl:gap-lg`}
     >
       <button
         className="md:hidden -ml-1 p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"

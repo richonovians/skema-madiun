@@ -19,11 +19,16 @@ const AdminLayoutContext = createContext();
  */
 export function AdminLayoutProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [periode, setPeriode] = useState(() => periodeFromDate(new Date()));
 
   return (
     <AdminLayoutContext.Provider
-      value={{ isMobileSidebarOpen, setIsMobileSidebarOpen, periode, setPeriode }}
+      value={{ 
+        isMobileSidebarOpen, setIsMobileSidebarOpen, 
+        isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed,
+        periode, setPeriode 
+      }}
     >
       {children}
     </AdminLayoutContext.Provider>
