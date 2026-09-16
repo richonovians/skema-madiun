@@ -40,7 +40,29 @@ export function configureApp(app: INestApplication): void {
   );
 
   // Header keamanan baku (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, dst.) — OWASP baseline.
-  app.use(helmet());
+  //
+  // `upgrade-insecure-requests` DIBUANG saat aplikasi tidak disajikan lewat
+  // https (16 September 2026, laporan pengguna: /api/docs putih kosong).
+  // Direktif itu memerintahkan peramban menaikkan setiap permintaan http:// pada
+  // halaman ini menjadi https://; proxy pengembangan hanya mendengarkan port 80,
+  // jadi seluruh berkas Swagger ditolak sambungannya (ERR_CONNECTION_REFUSED)
+  // dan wadahnya tinggal kosong. `curl` tak mematuhi CSP, jadi dari baris
+  // perintah semuanya tetap terlihat 200 -- cacat yang sama persis dengan
+  // Cross-Origin-Resource-Policy di bawah (6 Agustus 2026).
+  //
+  // Skemanya dibaca dari WEB_APP_URL, bukan NODE_ENV: yang menentukan bukan
+  // "sedang mengembangkan atau tidak", melainkan apakah alamat yang dipakai
+  // benar-benar melayani https. Di produksi nilainya https, jadi direktifnya
+  // tetap terpasang dan tak ada yang melemah di sana.
+  const lewatHttps = (config.get<string>('app.webUrl') ?? '').startsWith('https://');
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: lewatHttps ? {} : { upgradeInsecureRequests: null },
+      },
+    }),
+  );
 
   // CORS eksplisit: hanya origin frontend yang diizinkan (bukan wildcard `*`),
   // `credentials: true` disiapkan untuk sesi cookie httpOnly saat SSO nyata aktif.
