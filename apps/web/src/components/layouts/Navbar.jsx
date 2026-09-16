@@ -9,7 +9,10 @@ import { Menu, X } from 'lucide-react';
 import RegistrasiHelpdeskLink from '@/features/authentication/components/RegistrasiHelpdeskLink';
 import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
-import { isAuthenticated, SESSION_CHANGED_EVENT } from '@/features/authentication/services/authStorage';
+import {
+  isAuthenticated,
+  SESSION_CHANGED_EVENT,
+} from '@/features/authentication/services/authStorage';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -63,7 +66,11 @@ export default function Navbar() {
           )}
         >
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+          {/* `min-w-0`, BUKAN `shrink-0`. Sejak namanya ikut tampil di layar
+              kecil, tautan yang menolak menyusut membawa seluruh blok merek
+              mendorong kelompok kanan navbar -- avatar dan tombol menu -- 28px
+              ke luar layar pada 320px. Lambangnya tetap `shrink-0` di dalam. */}
+          <Link href="/" className="flex items-center gap-2.5 group min-w-0">
             <div className="shrink-0 transition-transform duration-300 group-hover:scale-105 flex items-center">
               <Image
                 src="/images/navbar/skema-logo-2.png"
@@ -74,13 +81,31 @@ export default function Navbar() {
                 priority
               />
             </div>
-            <span className="font-h3 text-lg md:text-xl text-primary font-bold tracking-tight hidden sm:block">
+            {/* Tampil sejak lebar terkecil (15 September 2026, permintaan
+                pengguna). Sebelumnya `hidden sm:block`, jadi lenyap di bawah
+                640px -- lebar hampir semua ponsel. Terukur pada 360px: navbar
+                cuma berisi lambang ~30px dan tombol menu ~40px, menyisakan
+                sekitar 250px kosong; yang disembunyikan bukan sesuatu yang tak
+                muat.
+
+                `truncate` menahan pertukaran yang lebih buruk: nama yang
+                memanjang sampai mendorong tombol menu keluar layar. Ia butuh
+                `min-w-0` pada dirinya sendiri karena induknya baris flex, dan
+                item flex menolak menyusut di bawah lebar isinya secara baku. */}
+            <span className="font-h3 text-base sm:text-lg md:text-xl text-primary font-bold tracking-tight truncate min-w-0">
               SKEMA Madiun
             </span>
           </Link>
 
-          {/* Nav links — desktop */}
-          <div className="hidden md:flex items-center gap-1">
+          {/* Nav links — desktop
+              `lg`, BUKAN `md` (16 September 2026, laporan pengguna). Pada 768px
+              titik `md` menyalakan ketiga tautan ini sekaligus mematikan tombol
+              menu, sementara tombol registrasi tetap di tempatnya. Terukur: pil
+              navbar 720px harus memuat merek 183px + tautan 289px + tombol 206px
+              beserta jaraknya, dan merek -- satu-satunya yang boleh menyusut --
+              menanggung seluruh kekurangannya sendirian, tersisa 112px dari
+              147px yang dibutuhkan. Pita yang terkena 768-899px. */}
+          <div data-tautan-desktop className="hidden lg:flex items-center gap-1">
             {[
               { href: '/', label: 'Beranda' },
               { href: '/about', label: 'Tentang Platform' },
@@ -133,7 +158,7 @@ export default function Navbar() {
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className={clsx(
-                'md:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200',
+                'lg:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200',
                 'text-slate-600 hover:text-primary hover:bg-primary/8 focus:outline-none focus:ring-2 focus:ring-primary/20',
               )}
               aria-label="Toggle Navigation Menu"
@@ -147,7 +172,7 @@ export default function Navbar() {
         {isMobileMenuOpen && (
           <div
             className={clsx(
-              'absolute top-[72px] left-4 right-4 md:hidden',
+              'absolute top-[72px] left-4 right-4 lg:hidden',
               'rounded-2xl border border-white/60 shadow-[0_8px_32px_rgba(0,74,198,0.13)]',
               'bg-white/80 backdrop-blur-xl',
               'animate-in slide-in-from-top-3 fade-in duration-200',

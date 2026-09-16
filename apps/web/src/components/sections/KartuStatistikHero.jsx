@@ -90,6 +90,22 @@ const KELAS_FOKUS =
  */
 const KELAS_JEDA = 'hover:[animation-play-state:paused]';
 
+/**
+ * Wadah ketiga kartu, dan satu-satunya tempat perbedaan ponsel/desktop diputuskan
+ * (16 September 2026, laporan pengguna: kartunya tak terlihat di ponsel 6,78").
+ *
+ * Di bawah `lg` ia kolom biasa; mulai `lg` ia kembali `block` sehingga anak-anaknya
+ * yang ber-`lg:absolute` menumpang pada rangka ilustrasi seperti semula. Yang tak
+ * bisa hidup di layar 393px memang hanya TATA LETAKNYA -- posisi absolut terhadap
+ * rangka yang di sana tak digambar, lebar tetap 268px, dan ayunan tanpa henti.
+ * Kartunya sendiri bisa.
+ *
+ * Kartunya sengaja TIDAK digambar dua kali. Satu pohon DOM berarti setiap angka,
+ * tautan, dan penanda fokus yang sudah dijaga uji tetap berlaku untuk kedua lebar
+ * layar; salinan kedua akan menggandakan semuanya dan diam-diam boleh menyimpang.
+ */
+const KELAS_TUMPUKAN = 'flex flex-col gap-3 lg:block';
+
 function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHover = '' }) {
   return (
     <div className={clsx(KELAS_KARTU, kelasHover, 'flex items-center gap-3 px-3.5 py-2.5')}>
@@ -123,8 +139,8 @@ function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHov
  */
 function KartuPernyataan() {
   return (
-    <>
-      <div className="animate-melayang absolute -bottom-7 -left-7">
+    <div data-kartu-pernyataan className={KELAS_TUMPUKAN}>
+      <div className="lg:animate-melayang lg:absolute lg:-bottom-7 lg:-left-7">
         <div className={clsx(KELAS_KARTU, 'flex items-center gap-3 px-4 py-3')}>
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500">
             <ShieldCheck size={19} className="text-white" />
@@ -141,7 +157,7 @@ function KartuPernyataan() {
       </div>
 
       <div
-        className="animate-melayang-lambat absolute -top-6 -right-5"
+        className="lg:animate-melayang-lambat lg:absolute lg:-top-6 lg:-right-5"
         style={{ animationDelay: '400ms' }}
       >
         <div className={clsx(KELAS_KARTU, 'flex items-center gap-3 px-4 py-3')}>
@@ -158,23 +174,29 @@ function KartuPernyataan() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
 function Kerangka() {
   return (
-    <div data-testid="kerangka-statistik" aria-hidden="true">
+    <div data-testid="kerangka-statistik" aria-hidden="true" className={KELAS_TUMPUKAN}>
       <div
-        className={clsx(KELAS_KARTU, 'absolute top-14 -left-12 h-[124px] w-[268px] animate-pulse')}
-      />
-      <div
-        className={clsx(KELAS_KARTU, 'absolute -top-9 right-0 h-[108px] w-[200px] animate-pulse')}
+        className={clsx(
+          KELAS_KARTU,
+          'h-[124px] w-full animate-pulse lg:absolute lg:top-14 lg:-left-12 lg:w-[268px]',
+        )}
       />
       <div
         className={clsx(
           KELAS_KARTU,
-          'absolute -bottom-10 left-10 h-[104px] w-[212px] animate-pulse',
+          'h-[108px] w-full animate-pulse lg:absolute lg:-top-9 lg:right-0 lg:w-[200px]',
+        )}
+      />
+      <div
+        className={clsx(
+          KELAS_KARTU,
+          'h-[104px] w-full animate-pulse lg:absolute lg:-bottom-10 lg:left-10 lg:w-[212px]',
         )}
       />
     </div>
@@ -195,46 +217,6 @@ function Kerangka() {
  * cukup di baris ini.
  */
 const AMBANG_PENILAIAN = 30;
-
-/**
- * Ringkasan untuk ponsel: angka yang sama, tanpa tata letak yang melayang.
- *
- * Seluruh kolom ilustrasi terukur `display: none` di bawah `lg`, jadi sebelumnya
- * setiap angka yang dimaksudkan menarik minat warga hanya sampai ke pengunjung
- * desktop -- padahal warga membuka situs ini dari ponsel. Yang tak bisa hidup di
- * layar 400px adalah TATA LETAKNYA: posisi absolut yang keluar dari alur, lebar
- * tetap 268px, dan ayunan tanpa henti. Datanya bisa.
- *
- * Sengaja BUKAN tautan. Tiga kartu desktop sudah menuju /statistics dan navbar
- * menyediakan jalan yang sama; menambah satu lagi hanya memperpanjang daftar
- * tautan serupa yang harus dilewati pengguna pembaca layar.
- */
-function RingkasanPonsel({ nilaiIkm, cukupPenilaian, jumlahPenilaian }) {
-  return (
-    <div
-      data-ringkas-ponsel
-      className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 lg:hidden"
-    >
-      {cukupPenilaian ? (
-        <div className="leading-tight">
-          <p className="text-2xl font-bold text-slate-900">{nilaiIkm}</p>
-          <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-            Nilai IKM
-          </p>
-        </div>
-      ) : (
-        <div className="leading-tight">
-          <p className="text-sm font-bold text-slate-800">
-            Nilai IKM menunggu {AMBANG_PENILAIAN} penilaian
-          </p>
-          <p className="text-[11px] font-medium text-slate-500">
-            Terkumpul {jumlahPenilaian} sejauh ini.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * Tumpukan kartu melayang di atas ilustrasi hero (14 September 2026, permintaan
@@ -278,165 +260,153 @@ export default function KartuStatistikHero() {
   const cukupPenilaian = jumlahPenilaian >= AMBANG_PENILAIAN;
 
   return (
-    <>
-      {/* Tumpukan melayang ini milik desktop saja. Ia bersandar pada posisi
-          absolut terhadap rangka ilustrasi dan lebar tetap 268px; keduanya tak
-          punya tempat di layar 400px. Yang menggantikannya di ponsel adalah
-          RingkasanPonsel di bawah, dengan angka yang sama. */}
-      <div className="hidden lg:block">
-        {/* DUA lapisan animasi, dan pemisahannya perlu. Utilitas `animate-*`
+    <div data-tumpukan-statistik className={KELAS_TUMPUKAN}>
+      {/* DUA lapisan animasi, dan pemisahannya perlu. Utilitas `animate-*`
             menetapkan properti `animation` secara utuh, jadi memasang gerak masuk
             dan gerak melayang pada elemen yang sama membuat yang satu menghapus
             yang lain. Pembungkus luar mengurus kemunculan, pembungkus dalam
             mengurus ayunan. */}
-        <div
-          className="animate-fade-in-up absolute top-14 -left-12 z-20"
-          style={{ animationDelay: '0ms' }}
-        >
-          <div className={clsx('animate-melayang', KELAS_JEDA)}>
-            <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
-              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-[268px] px-4 py-3.5')}>
-                <span className="bg-primary/10 text-primary inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold">
-                  Nilai IKM
-                </span>
+      <div
+        className="animate-fade-in-up z-20 lg:absolute lg:top-14 lg:-left-12"
+        style={{ animationDelay: '0ms' }}
+      >
+        <div className={clsx('lg:animate-melayang', KELAS_JEDA)}>
+          <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
+            <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3.5 lg:w-[268px]')}>
+              <span className="bg-primary/10 text-primary inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold">
+                Nilai IKM
+              </span>
 
-                {cukupPenilaian ? (
-                  <div className="mt-2.5 flex items-end justify-between gap-3">
-                    <div className="leading-none">
-                      <p data-testid="nilai-ikm" className="text-[32px] font-bold text-slate-900">
-                        {angka(summary.ikm)}
-                      </p>
-                      <p className="mt-1.5 text-[11px] font-medium text-slate-500">
-                        dari {angka(summary.totalRespondents)} penilaian warga
-                      </p>
-                    </div>
-
-                    <svg viewBox="0 0 96 40" className="h-10 w-24 shrink-0" aria-hidden="true">
-                      <polyline
-                        points={titikGaris(deret, 96, 36)}
-                        fill="none"
-                        stroke="#004ac6"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+              {cukupPenilaian ? (
+                <div className="mt-2.5 flex items-end justify-between gap-3">
+                  <div className="leading-none">
+                    <p data-testid="nilai-ikm" className="text-[32px] font-bold text-slate-900">
+                      {angka(summary.ikm)}
+                    </p>
+                    <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                      dari {angka(summary.totalRespondents)} penilaian warga
+                    </p>
                   </div>
-                ) : (
-                  /* Jumlah sebenarnya tetap disebut, dan itu disengaja. Kolom
+
+                  <svg viewBox="0 0 96 40" className="h-10 w-24 shrink-0" aria-hidden="true">
+                    <polyline
+                      points={titikGaris(deret, 96, 36)}
+                      fill="none"
+                      stroke="#004ac6"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+              ) : (
+                /* Jumlah sebenarnya tetap disebut, dan itu disengaja. Kolom
                      yang dikosongkan tanpa penjelasan terbaca sebagai aplikasi
                      yang rusak; menyebut "5 dari 30" mengubah kekurangan itu
                      menjadi alasan untuk ikut mengisi. */
-                  <div className="mt-2.5 leading-snug">
-                    <p className="text-base font-bold text-slate-800">Belum cukup penilaian</p>
-                    <p className="mt-1 text-[11px] font-medium text-slate-500">
-                      Baru {angka(jumlahPenilaian)} dari {AMBANG_PENILAIAN} penilaian yang
-                      dibutuhkan agar nilainya layak ditampilkan.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </Link>
-          </div>
+                <div className="mt-2.5 leading-snug">
+                  <p className="text-base font-bold text-slate-800">Belum cukup penilaian</p>
+                  <p className="mt-1 text-[11px] font-medium text-slate-500">
+                    Baru {angka(jumlahPenilaian)} dari {AMBANG_PENILAIAN} penilaian yang dibutuhkan
+                    agar nilainya layak ditampilkan.
+                  </p>
+                </div>
+              )}
+            </div>
+          </Link>
         </div>
+      </div>
 
-        {/* Kartu batang: satu batang per periode, yang terbaru diberi warna tegas. */}
-        <div
-          className="animate-fade-in-up absolute -top-9 right-0 z-10"
-          style={{ animationDelay: '130ms' }}
-        >
-          <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
-            <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
-              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-[200px] px-4 py-3.5')}>
-                <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-                  Tren IKM
-                </p>
-                <div className="mt-3 flex items-end gap-2.5">
-                  {ikmTrend.map((t, i) => (
-                    <div key={t.month} className="flex flex-1 flex-col items-center gap-1.5">
-                      {/* Jalur bertinggi PASTI. Tanpa ini persentase batangnya tak
+      {/* Kartu batang: satu batang per periode, yang terbaru diberi warna tegas. */}
+      <div
+        className="animate-fade-in-up z-10 lg:absolute lg:-top-9 lg:right-0"
+        style={{ animationDelay: '130ms' }}
+      >
+        <div className={clsx('lg:animate-melayang-lambat', KELAS_JEDA)}>
+          <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
+            <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3.5 lg:w-[200px]')}>
+              <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+                Tren IKM
+              </p>
+              <div className="mt-3 flex items-end gap-2.5">
+                {ikmTrend.map((t, i) => (
+                  <div key={t.month} className="flex flex-1 flex-col items-center gap-1.5">
+                    {/* Jalur bertinggi PASTI. Tanpa ini persentase batangnya tak
                     punya acuan -- terukur di peramban: kolomnya menyusut ke
                     tinggi labelnya sendiri dan batangnya terhitung 0px, jadi
                     kartunya tampil dengan label tanpa satu pun batang. */}
-                      <div className="flex h-12 w-full items-end">
-                        <div
-                          data-batang
-                          className={clsx(
-                            'animate-tumbuh-batang w-full origin-bottom rounded-md',
-                            i === ikmTrend.length - 1 ? 'bg-primary' : 'bg-primary/25',
-                          )}
-                          style={{
-                            height: `${Math.max((t.value / tertinggi) * 100, 10)}%`,
-                            animationDelay: `${260 + i * 90}ms`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-semibold whitespace-nowrap text-slate-500">
-                        {labelSingkat(t.month)}
-                      </span>
+                    <div className="flex h-12 w-full items-end">
+                      <div
+                        data-batang
+                        className={clsx(
+                          'animate-tumbuh-batang w-full origin-bottom rounded-md',
+                          i === ikmTrend.length - 1 ? 'bg-primary' : 'bg-primary/25',
+                        )}
+                        style={{
+                          height: `${Math.max((t.value / tertinggi) * 100, 10)}%`,
+                          animationDelay: `${260 + i * 90}ms`,
+                        }}
+                      />
                     </div>
-                  ))}
-                </div>
+                    <span className="text-[11px] font-semibold whitespace-nowrap text-slate-500">
+                      {labelSingkat(t.month)}
+                    </span>
+                  </div>
+                ))}
               </div>
-            </Link>
-          </div>
+            </div>
+          </Link>
         </div>
+      </div>
 
-        {/* Dua chip kecil yang bertumpuk, mengikuti susunan pada referensi. */}
-        <div
-          className="animate-fade-in-up absolute -bottom-10 left-10 z-30"
-          style={{ animationDelay: '260ms' }}
-        >
-          <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
-            <Link href="/statistics" className={clsx('group flex flex-col gap-2', KELAS_FOKUS)}>
-              {/* Instalasi baru belum punya pengaduan yang selesai, jadi
+      {/* Dua chip kecil yang bertumpuk, mengikuti susunan pada referensi. */}
+      <div
+        className="animate-fade-in-up z-30 lg:absolute lg:-bottom-10 lg:left-10"
+        style={{ animationDelay: '260ms' }}
+      >
+        <div className={clsx('lg:animate-melayang-lambat', KELAS_JEDA)}>
+          <Link href="/statistics" className={clsx('group flex flex-col gap-2', KELAS_FOKUS)}>
+            {/* Instalasi baru belum punya pengaduan yang selesai, jadi
             `avgSlaDays` belum bernilai. "0 hari" terbaca sebagai janji tanggapan
             seketika dan "null hari" sebagai aplikasi rusak; keduanya lebih buruk
             daripada tak menjanjikan apa pun. Chip-nya diganti, bukan
             dikosongkan, supaya susunannya tak berlubang. */}
-              {lamaTanggapan !== null ? (
-                <Chip
-                  ikon={Clock}
-                  warnaIkon="text-primary"
-                  label="Ditanggapi rata-rata"
-                  nilai={`${angka(lamaTanggapan)} hari`}
-                  deret={deret}
-                  warnaGaris="#004ac6"
-                  kelasHover={KELAS_HOVER}
-                />
-              ) : (
-                <Chip
-                  ikon={Building2}
-                  warnaIkon="text-primary"
-                  label="Pengaduan Masuk"
-                  nilai={angka(summary.totalComplaints)}
-                  deret={deret}
-                  warnaGaris="#004ac6"
-                  kelasHover={KELAS_HOVER}
-                />
-              )}
+            {lamaTanggapan !== null ? (
+              <Chip
+                ikon={Clock}
+                warnaIkon="text-primary"
+                label="Ditanggapi rata-rata"
+                nilai={`${angka(lamaTanggapan)} hari`}
+                deret={deret}
+                warnaGaris="#004ac6"
+                kelasHover={KELAS_HOVER}
+              />
+            ) : (
+              <Chip
+                ikon={Building2}
+                warnaIkon="text-primary"
+                label="Pengaduan Masuk"
+                nilai={angka(summary.totalComplaints)}
+                deret={deret}
+                warnaGaris="#004ac6"
+                kelasHover={KELAS_HOVER}
+              />
+            )}
 
-              {jumlahSelesai !== null && (
-                <Chip
-                  ikon={CheckCircle2}
-                  warnaIkon="text-emerald-500"
-                  label="Pengaduan Selesai"
-                  nilai={angka(jumlahSelesai)}
-                  deret={deret}
-                  warnaGaris="#10b981"
-                  kelasHover={KELAS_HOVER}
-                />
-              )}
-            </Link>
-          </div>
+            {jumlahSelesai !== null && (
+              <Chip
+                ikon={CheckCircle2}
+                warnaIkon="text-emerald-500"
+                label="Pengaduan Selesai"
+                nilai={angka(jumlahSelesai)}
+                deret={deret}
+                warnaGaris="#10b981"
+                kelasHover={KELAS_HOVER}
+              />
+            )}
+          </Link>
         </div>
       </div>
-
-      <RingkasanPonsel
-        nilaiIkm={angka(summary.ikm)}
-        cukupPenilaian={cukupPenilaian}
-        jumlahPenilaian={angka(jumlahPenilaian)}
-      />
-    </>
+    </div>
   );
 }

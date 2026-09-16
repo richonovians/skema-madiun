@@ -90,10 +90,7 @@ describe('HeroSection', () => {
       el.classList.forEach((k) => k.startsWith('animate-') && dipakai.add(k));
     });
 
-    const css = readFileSync(
-      join(__dirname, '..', '..', '..', 'app', 'globals.css'),
-      'utf8',
-    );
+    const css = readFileSync(join(__dirname, '..', '..', '..', 'app', 'globals.css'), 'utf8');
     // Bawaan Tailwind memang tak pernah muncul di globals.css; yang dicari uji
     // ini adalah nama BUATAN SENDIRI yang lupa didaftarkan.
     const BAWAAN_TAILWIND = ['animate-pulse', 'animate-spin', 'animate-bounce', 'animate-ping'];
@@ -129,13 +126,13 @@ describe('HeroSection', () => {
    * Angkanya tidak: justru itu yang seharusnya dibaca warga sebelum memutuskan
    * mengisi survei, dan mayoritas dari mereka datang dari ponsel.
    */
-  it('ringkasan ponsel tidak ikut disembunyikan bersama rangka ilustrasi', async () => {
+  it('kartu statistiknya tidak ikut disembunyikan bersama rangka ilustrasi', async () => {
     isAuthenticated.mockReturnValue(false);
 
     const { container } = render(<HeroSection />);
     await screen.findByTestId('nilai-ikm');
 
     expect(container.querySelector('[data-rangka-ilustrasi]').className).toMatch(/hidden/);
-    expect(container.querySelector('[data-ringkas-ponsel]').closest('.hidden')).toBeNull();
+    expect(container.querySelector('[data-tumpukan-statistik]').closest('.hidden')).toBeNull();
   });
 });
