@@ -87,6 +87,7 @@ export class NotificationsService {
     const label = STATUS_LABEL[complaint.status] ?? complaint.status;
     await this.safeCreate({
       userId: complaint.userId,
+      untukPeran: Role.responden,
       type: NotificationType.complaint_status_changed,
       title: 'Status Pengaduan Diperbarui',
       message: `Pengaduan ${complaint.ticketNo} kini berstatus "${label}"`,
@@ -126,6 +127,7 @@ export class NotificationsService {
     } else {
       await this.safeCreate({
         userId: complaint.userId,
+        untukPeran: Role.responden,
         type: NotificationType.complaint_reply,
         title: 'Balasan Baru pada Pengaduan',
         message: `OPD membalas pengaduan ${complaint.ticketNo} Anda`,
@@ -215,7 +217,9 @@ export class NotificationsService {
         select: { id: true },
       });
       await Promise.all(
-        recipients.map((r) => this.safeCreate({ userId: r.id, type, title, message, link })),
+        recipients.map((r) =>
+          this.safeCreate({ userId: r.id, untukPeran: role, type, title, message, link }),
+        ),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi role=${role}: ${String(err)}`);
@@ -249,7 +253,16 @@ export class NotificationsService {
         select: { id: true },
       });
       await Promise.all(
-        kabupatenUsers.map((k) => this.safeCreate({ userId: k.id, type, title, message, link })),
+        kabupatenUsers.map((k) =>
+          this.safeCreate({
+            userId: k.id,
+            untukPeran: Role.kabupaten,
+            type,
+            title,
+            message,
+            link,
+          }),
+        ),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi kabupaten: ${String(err)}`);
@@ -281,6 +294,9 @@ export class NotificationsService {
     };
     const where = {
       userId: user.userId,
+      // Peran yang SEDANG DIPAKAI, bukan seluruh milik akun. Lihat catatan
+      // kelas di atas: tanpa ini kotak masuk akun berperan jamak bercampur.
+      untukPeran: user.actingRole,
       ...(unreadOnly ? { isRead: false } : {}),
       ...(Object.keys(rentang).length > 0 ? { createdAt: rentang } : {}),
     };
@@ -304,7 +320,9 @@ export class NotificationsService {
   }
 
   async countUnread(user: CurrentUser): Promise<number> {
-    return this.prisma.notification.count({ where: { userId: user.userId, isRead: false } });
+    return this.prisma.notification.count({
+      where: { userId: user.userId, isRead: false, untukPeran: user.actingRole },
+    });
   }
 
   /** Tandai satu notifikasi dibaca. `findFirst` gabungan id+userId -- 404 baik saat tak ada maupun bukan milik (privasi, bukan enumerable). */
@@ -323,8 +341,13 @@ export class NotificationsService {
   }
 
   async markAllAsRead(user: CurrentUser): Promise<{ updated: number }> {
+    /**
+     * Hanya peran yang sedang dipakai. Menandai lintas-peran akan membungkam
+     * notifikasi yang JUSTRU disembunyikan dari sesi ini, sehingga pemiliknya
+     * tak pernah punya kesempatan membacanya.
+     */
     const result = await this.prisma.notification.updateMany({
-      where: { userId: user.userId, isRead: false },
+      where: { userId: user.userId, isRead: false, untukPeran: user.actingRole },
       data: { isRead: true },
     });
     return { updated: result.count };
@@ -332,6 +355,12 @@ export class NotificationsService {
 
   private async safeCreate(data: {
     userId: number;
+    /**
+     * Peran TUJUAN, wajib. Dibuat wajib dengan sengaja: pemanggil baru yang
+     * lupa mengisinya akan ditolak kompilator, bukan diam-diam menulis baris
+     * yang tak pernah terlihat siapa pun karena tak cocok dengan peran mana pun.
+     */
+    untukPeran: Role;
     type: NotificationType;
     title: string;
     message: string;

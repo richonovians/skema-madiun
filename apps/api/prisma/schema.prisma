@@ -476,8 +476,18 @@ model ComplaintReply {
 // query "punya berapa belum dibaca" & tandai-dibaca per pengguna, sepadan
 // dgn skala pemakaian (bukan broadcast massal).
 model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int              @map("user_id")
+  id     Int @id @default(autoincrement())
+  userId Int @map("user_id")
+
+  /// Peran TUJUAN notifikasi ini (16 September 2026, pertanyaan pengguna soal
+  /// akun berperan jamak). Satu akun boleh memegang beberapa peran, dan
+  /// pengiriman notifikasi menyasar KEPEMILIKAN peran sementara navigasinya
+  /// dikurung per peran yang sedang dipakai -- tanpa kolom ini kotak masuknya
+  /// bercampur, dan lencananya menghitung hal yang tak dapat dibuka di sesi itu.
+  /// Diisi saat notifikasi DIBUAT, karena di situlah diketahui pasti kepada
+  /// siapa pesannya ditujukan.
+  untukPeran Role @map("untuk_peran")
+
   type      NotificationType
   title     String           @db.VarChar(150)
   message   String           @db.VarChar(500)
@@ -489,6 +499,7 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([userId, untukPeran, isRead])
   @@map("notifications")
 }
 
