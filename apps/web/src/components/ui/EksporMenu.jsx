@@ -37,13 +37,26 @@ export default function EksporMenu({ onPdf, onExcel, label = 'Ekspor' }) {
       >
         <Download size={16} />
         {label}
-        <ChevronDown size={14} className={terbuka ? 'rotate-180 transition-transform' : 'transition-transform'} />
+        <ChevronDown
+          size={14}
+          className={terbuka ? 'rotate-180 transition-transform' : 'transition-transform'}
+        />
       </button>
 
       {terbuka && (
         <ul
           role="menu"
-          className="absolute right-0 mt-1 w-48 bg-surface border border-border rounded-xl shadow-lg overflow-hidden z-20"
+          /* Dipatok ke tepi KIRI tombol di layar sempit (16 September 2026).
+             Terukur pada 320-390px: dengan `right-0` menu selebar 192px yang
+             tepi kanannya mengikuti tombol di x=160 jatuh di kiri=-32, sehingga
+             huruf pertama kedua butirnya terpotong keluar layar. Luapan ke kiri
+             tak membuat halaman bisa digeser, jadi sapuan responsif yang membaca
+             `window.scrollX` tak pernah melihatnya.
+
+             `max-w` adalah penjaga terakhirnya: memindahkan patokan cukup untuk
+             lebar tombol yang ada sekarang, batas ini yang menahan menu tetap di
+             dalam layar berapa pun lebarnya kelak. */
+          className="absolute left-0 right-auto sm:left-auto sm:right-0 mt-1 w-48 max-w-[calc(100vw-2rem)] bg-surface border border-border rounded-xl shadow-lg overflow-hidden z-20"
         >
           <li>
             <button

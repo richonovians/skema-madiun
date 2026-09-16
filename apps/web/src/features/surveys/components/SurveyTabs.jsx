@@ -13,7 +13,10 @@ export default function SurveyTabs({ activeTab, onTabChange }) {
 
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border mb-lg gap-4 sm:gap-0 pb-2 sm:pb-0">
-      <div className="flex items-center overflow-x-auto w-full sm:w-auto">
+      {/* `min-w-0` menemani `overflow-x-auto`, dan itu syaratnya: item flex
+          diukur selebar isinya secara baku, jadi tanpa ini keempat tab tetap
+          mendorong halaman alih-alih menggulung di tempatnya. */}
+      <div data-deret-tab className="flex items-center overflow-x-auto w-full min-w-0 sm:flex-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}

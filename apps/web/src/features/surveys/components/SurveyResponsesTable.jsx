@@ -35,7 +35,16 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
             <Th>Respons</Th>
             <Th>Waktu Pengisian</Th>
             <Th>Nilai Rata-Rata</Th>
-            <Th>
+            {/* `relative` (16 September 2026): `sr-only` adalah
+                `position: absolute`, dan tanpa penampung di sel ini blok
+                penampungnya melompat sampai ke blok awal dokumen -- keluar dari
+                wadah `overflow-x-auto` milik tabel, yang karenanya tak menjepitnya.
+                Terukur pada 320px: tepi kanannya 329px sementara layar 320px,
+                dan halaman benar-benar bisa digeser 9px ke samping meski jalur
+                itu kosong (`sr-only` memakai `clip: rect(0,0,0,0)`, jadi tak
+                menggambar apa pun). Dengan `relative` di sini, ia kembali diukur
+                dan dijepit di dalam gulirannya sendiri. */}
+            <Th className="relative">
               <span className="sr-only">Aksi</span>
             </Th>
           </Tr>
