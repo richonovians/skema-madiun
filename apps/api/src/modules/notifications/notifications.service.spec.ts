@@ -73,6 +73,7 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 200,
+          untukPeran: Role.opd,
           type: NotificationType.complaint_created,
           title: 'Pengaduan Baru Masuk',
           message: 'Pengaduan baru PGD20260805ABCD masuk ke OPD Anda',
@@ -95,6 +96,7 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 300,
+          untukPeran: Role.kabupaten,
           type: NotificationType.complaint_created,
           title: 'Pengaduan Baru Masuk',
           message: 'Pengaduan baru PGD20260805ABCD masuk',
@@ -119,6 +121,7 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 10,
+          untukPeran: Role.responden,
           type: NotificationType.complaint_status_changed,
           title: 'Status Pengaduan Diperbarui',
           message: 'Pengaduan PGD20260805ABCD kini berstatus "Diproses"',
@@ -187,6 +190,7 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 10,
+          untukPeran: Role.responden,
           type: NotificationType.complaint_reply,
           title: 'Balasan Baru pada Pengaduan',
           message: 'OPD membalas pengaduan PGD20260805ABCD Anda',
@@ -249,6 +253,7 @@ describe('NotificationsService', () => {
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 200,
+          untukPeran: Role.opd,
           type: NotificationType.survey_response_created,
           title: 'Survei Mulai Menerima Jawaban',
           message: 'Survei "Survei Kepuasan Layanan" menerima jawaban pertama',
@@ -282,6 +287,7 @@ describe('NotificationsService', () => {
         expect(prisma.notification.create).toHaveBeenCalledWith({
           data: {
             userId: 200,
+            untukPeran: Role.opd,
             type: NotificationType.survey_response_created,
             title: 'Jawaban Survei Bertambah',
             message: `Survei "Survei Kepuasan Layanan" telah menerima ${n} jawaban`,
@@ -407,7 +413,7 @@ describe('NotificationsService', () => {
       const result = await service.markAllAsRead(respondenUser(10));
 
       expect(prisma.notification.updateMany).toHaveBeenCalledWith({
-        where: { userId: 10, isRead: false },
+        where: { userId: 10, isRead: false, untukPeran: Role.responden },
         data: { isRead: true },
       });
       expect(result).toEqual({ updated: 3 });
@@ -420,8 +426,176 @@ describe('NotificationsService', () => {
       await service.findMine({ page: 1, limit: 20, unreadOnly: true }, respondenUser(10));
 
       expect(prisma.notification.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { userId: 10, isRead: false } }),
+        expect.objectContaining({
+          where: { userId: 10, untukPeran: Role.responden, isRead: false },
+        }),
       );
+    });
+  });
+});
+
+/**
+ * KOTAK MASUK TERPISAH PER PERAN (16 September 2026, pertanyaan pengguna:
+ * "apakah seharusnya notif role warga tidak bisa tercampur dengan notif role
+ * admin opd/kabupaten?").
+ *
+ * Sampai sebelum ini tabel notifikasi hanya punya `userId`, sementara
+ * pengirimannya menyasar KEPEMILIKAN peran (`roles: { has }`) dan navigasinya
+ * justru dikurung per peran yang SEDANG DIPAKAI (proxy.js). Akibatnya akun
+ * berperan jamak melihat notifikasi pekerjaan admin saat memakai peran warga,
+ * lengkap dengan tautan yang dipantulkan proxy kembali ke beranda, dan
+ * lencananya menghitung hal yang tak bisa ditindaklanjuti di sesi itu.
+ *
+ * Peran tujuan ditulis SAAT NOTIFIKASI DIBUAT, bukan disimpulkan dari awalan
+ * `link` saat dibaca: tiap pemanggil sudah tahu persis kepada siapa pesannya
+ * ditujukan, sedangkan awalan tautan hanya kebetulan sejalan dan diam-diam
+ * salah golong begitu ada notifikasi tanpa tautan.
+ */
+describe('NotificationsService — pemisahan kotak masuk per peran', () => {
+  const prisma = {
+    notification: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    user: { findMany: jest.fn() },
+    surveyResponse: { count: jest.fn() },
+    $transaction: jest.fn(),
+  } as unknown as PrismaService;
+  const service = new NotificationsService(prisma);
+
+  /** Kumpulkan `data` dari tiap pemanggilan notification.create. */
+  const barisDibuat = (): Array<{ userId: number; untukPeran: Role; link: string }> =>
+    (prisma.notification.create as jest.Mock).mock.calls.map(([arg]) => arg.data);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([]);
+  });
+
+  it('pengaduan baru: baris OPD bertanda peran opd, baris pengawasan bertanda kabupaten', async () => {
+    (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+      if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
+      if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
+      return Promise.resolve([]);
+    });
+
+    await service.notifyComplaintCreated(complaint());
+
+    const baris = barisDibuat();
+    expect(baris).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: 200, untukPeran: Role.opd }),
+        expect.objectContaining({ userId: 300, untukPeran: Role.kabupaten }),
+      ]),
+    );
+  });
+
+  it('status pengaduan berubah: baris untuk pelapor bertanda peran responden', async () => {
+    await service.notifyComplaintStatusChanged(complaint({ userId: 10 }), 99);
+
+    expect(barisDibuat()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ userId: 10, untukPeran: Role.responden })]),
+    );
+  });
+
+  it('balasan admin: baris untuk pelapor bertanda peran responden', async () => {
+    await service.notifyComplaintReply(complaint({ userId: 10 }), 99);
+
+    expect(barisDibuat()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ userId: 10, untukPeran: Role.responden })]),
+    );
+  });
+
+  it('balasan pelapor: baris untuk Admin OPD bertanda peran opd', async () => {
+    (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+      if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
+      return Promise.resolve([]);
+    });
+
+    await service.notifyComplaintReply(complaint({ userId: 10 }), 10);
+
+    expect(barisDibuat()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ userId: 200, untukPeran: Role.opd })]),
+    );
+  });
+
+  it('jawaban survei masuk: baris OPD bertanda opd, pengawasan bertanda kabupaten', async () => {
+    (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(1);
+    (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+      if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 200 }]);
+      if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
+      return Promise.resolve([]);
+    });
+
+    await service.notifySurveyResponse({ id: 7, judul: 'SKM Triwulan III', opdId: 5 }, null);
+
+    const baris = barisDibuat();
+    expect(baris).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: 200, untukPeran: Role.opd }),
+        expect.objectContaining({ userId: 300, untukPeran: Role.kabupaten }),
+      ]),
+    );
+  });
+
+  it('daftar disaring peran yang SEDANG DIPAKAI, bukan seluruh milik akun', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+
+    await service.findMine({ page: 1, limit: 20 }, respondenUser(10));
+
+    expect(prisma.notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 10, untukPeran: Role.responden }),
+      }),
+    );
+  });
+
+  /**
+   * Akun yang sama, peran berbeda, harus menghasilkan kueri berbeda. Inilah
+   * yang tak bisa dijawab oleh penyaringan berdasar `userId` saja.
+   */
+  it('akun yang sama dengan peran berbeda menyaring peran yang berbeda pula', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+
+    await service.findMine(
+      { page: 1, limit: 20 },
+      { userId: 10, roles: [Role.responden, Role.opd], actingRole: Role.opd, opdId: 5 },
+    );
+
+    expect(prisma.notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 10, untukPeran: Role.opd }),
+      }),
+    );
+  });
+
+  it('hitungan belum dibaca ikut disaring peran yang dipakai', async () => {
+    (prisma.notification.count as jest.Mock).mockResolvedValue(0);
+
+    await service.countUnread(respondenUser(10));
+
+    expect(prisma.notification.count).toHaveBeenCalledWith({
+      where: { userId: 10, isRead: false, untukPeran: Role.responden },
+    });
+  });
+
+  /**
+   * "Tandai semua dibaca" dari sesi peran warga TIDAK BOLEH membungkam
+   * notifikasi peran admin yang belum pernah dilihat pemiliknya -- justru
+   * karena peran itu menyembunyikannya, ia tak punya kesempatan membacanya.
+   */
+  it('tandai semua dibaca hanya mengenai peran yang sedang dipakai', async () => {
+    (prisma.notification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+    await service.markAllAsRead(respondenUser(10));
+
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+      where: { userId: 10, isRead: false, untukPeran: Role.responden },
+      data: { isRead: true },
     });
   });
 });
