@@ -27,23 +27,16 @@ async function main(): Promise<void> {
     },
   });
 
-  // 1b) Superuser contoh (2026-08-20). Dipisahkan kembali dari Admin Kabupaten:
-  //     ia mewarisi seluruh hak kabupaten DITAMBAH akses log aktivitas (audit
-  //     log), yang justru TIDAK dimiliki Admin Kabupaten biasa. Perlu ada di
-  //     seed supaya basis data baru bisa langsung menguji perbedaan itu -- tanpa
-  //     ini, satu-satunya akun berhak audit harus dibuat manual.
-  const superuser = await prisma.user.upsert({
-    where: { ssoSubject: 'seed-superuser' },
-    update: { roles: [Role.superuser] },
-    create: {
-      ssoSubject: 'seed-superuser',
-      nama: 'Superuser (Contoh)',
-      email: 'superuser@example.go.id',
-      roles: [Role.superuser],
-      isActive: true,
-      consentAt: new Date(),
-    },
-  });
+  // Akun `seed-superuser` DIHAPUS dari seed 16 September 2026. Peran
+  // `superuser` dilebur ke `kabupaten` pada 46f7d4b dan nilainya dibuang dari
+  // enum `Role`, tetapi penyelesaian konflik af95772 mempertahankan blok yang
+  // membuatnya. Akibatnya `Role.superuser` bernilai undefined dan seed berhenti
+  // di akun kedua, jadi basis data baru tak pernah selesai terisi. Kuasanya --
+  // log aktivitas & manajemen pengguna -- kini dipegang Admin Kabupaten di
+  // atas, jadi tak ada yang perlu digantikan.
+  //
+  // Baris yang sudah terlanjur ada di basis data TIDAK disentuh: seed hanya
+  // berhenti membuat dan memperbaruinya.
 
   // 2) Beberapa OPD contoh.
   //
@@ -238,7 +231,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), superuser (id=${superuser.id}, + log aktivitas), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
+    `Seed selesai: admin kabupaten (id=${adminKabupaten.id}), admin OPD (id=${adminOpd.id}), responden (id=${responden.id}), ${opdSeed.length} OPD, template ${SKM_UNSUR.length} unsur (2 survei: 1 draft + 1 aktif), 1 pengaduan contoh.`,
   );
 }
 

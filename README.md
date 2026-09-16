@@ -98,7 +98,7 @@ Dikembangkan sejak 20 Juli 2026 dan **masih dalam pengembangan**. Alur utamanya 
 - **Masuk lewat SSO Helpdesk** sudah ditulis lengkap, tetapi belum bisa dipakai di lapangan karena `client_id` dan `client_secret` belum diberikan tim Helpdesk. Selama itu, lingkungan pengembangan memakai jalur masuk sementara yang mati sendiri di produksi.
 - **Captcha pengisian survei** (Cloudflare Turnstile) belum punya kunci produksi atas nama akun resmi Diskominfo.
 - **Docker untuk aplikasi.** Yang berjalan di dalam kontainer baru basis data dan reverse proxy. Backend dan frontend masih dijalankan langsung di komputer pengembang.
-- **Data contoh (seed) belum bisa dijalankan sampai selesai.** Skripnya masih membuat akun dengan peran `superuser`, padahal peran itu sudah dilebur ke Admin Kabupaten pada 15 September 2026 dan nilainya dibuang dari basis data. Akibatnya skrip berhenti di tengah. Lihat catatan di langkah 6.
+- **Uji ujung-ke-ujung baru mencakup satu alur**, yaitu pengisian survei tanpa sesi. Selebihnya diuji di tingkat unit dan komponen.
 
 ---
 
@@ -168,13 +168,13 @@ pnpm install
 pnpm --filter @skm-spm/api prisma:deploy
 ```
 
-**6. Isi data contoh (opsional, saat ini gagal di tengah).**
+**6. Isi data contoh (opsional).**
 
 ```bash
 pnpm --filter @skm-spm/api db:seed
 ```
 
-Perintah ini belum berjalan sampai selesai. Lihat bagian Status proyek di atas. Tanpa data contoh, aplikasi tetap bisa dinyalakan, hanya saja isinya kosong.
+Mengisi tiga akun contoh (Admin Kabupaten, Admin OPD, Responden), tiga OPD, dua survei, dan satu pengaduan. Aman dijalankan berulang kali: isinya diperbarui, bukan digandakan. Tanpa langkah ini aplikasi tetap menyala, hanya saja isinya kosong.
 
 **7. Jalankan backend dan frontend.**
 

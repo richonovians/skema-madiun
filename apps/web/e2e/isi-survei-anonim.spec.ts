@@ -3,10 +3,11 @@ import { expect, test } from '@playwright/test';
 /**
  * Alur pengisian survei TANPA sesi lewat rute `/isi/:id`.
  *
- * URL ABSOLUT, bukan `baseURL`: origin pengujian proyek ini `http://skema.local`
- * (port 80), sementara `playwright.config.ts` di branch ini masih menunjuk
- * `localhost:3000` yang selalu 404. Berkas config itu bagian dari pekerjaan
- * penguji, jadi tidak disentuh dari sini.
+ * URL absolut lewat `E2E_ORIGIN`, dan sejak 16 September 2026 nilai bakunya
+ * sama persis dengan `baseURL` di `playwright.config.ts` (`http://skema.local`,
+ * port 80). Sebelumnya config menunjuk `localhost:3000` yang tak melayani API,
+ * dan berkas ini mengelak dengan memakai origin sendiri; sekarang keduanya
+ * membaca env yang sama sehingga tak bisa berselisih diam-diam.
  *
  * PRASYARAT: satu survei berstatus AKTIF dengan `izinkanAnonim = true`, id-nya
  * diberikan lewat env `E2E_SURVEY_ANONIM_ID`. Tanpa itu berkas ini DILEWATI --
