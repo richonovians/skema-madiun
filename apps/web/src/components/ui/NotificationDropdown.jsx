@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useAsync } from '@/hooks/useAsync';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import useSegarkanBerkala from '@/hooks/useSegarkanBerkala';
 import {
   NOTIFIKASI_BERUBAH_EVENT,
   getNotifications,
@@ -14,6 +15,22 @@ import {
 } from '@/features/notifications/services/notifications.api';
 
 const LIST_LIMIT = 10;
+
+/**
+ * Jeda penyegaran latar (16 September 2026, pertanyaan pengguna: lencananya tak
+ * ikut berubah saat ada notifikasi baru).
+ *
+ * Satu menit, dan angkanya kompromi yang disengaja. Notifikasi di sini bukan
+ * percakapan langsung: isinya perubahan status pengaduan dan survei baru, yang
+ * terlambat satu menit tak mengubah apa pun bagi penerimanya. Lebih rapat
+ * berarti setiap pengguna yang membiarkan tabnya terbuka membebani API tanpa
+ * ada yang benar-benar menunggu, sementara lebih renggang membuat lencananya
+ * terasa mati lagi.
+ *
+ * Diekspor supaya ujinya memajukan waktu dengan angka yang sama persis, bukan
+ * angka yang disalin dan diam-diam berbeda saat nilai ini diubah.
+ */
+export const JEDA_SEGARKAN_MS = 60_000;
 
 /**
  * D9 (2026-08-05, in-app saja): SEBELUMNYA murni shell UI -- panel selalu
@@ -53,6 +70,27 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
     return { notifications, unreadCount };
   }, []);
   const { data, isLoading, refetch } = useAsync(fetchData);
+
+  /**
+   * Penyegaran latar tiap satu menit, tidur selagi tab tersembunyi. Tanpa ini
+   * lonceng hanya mengambil data sekali per pemasangan, dan karena ia hidup di
+   * navbar milik layout, berpindah halaman pun tak memasangnya ulang.
+   *
+   * Ketukan DILEWATI bila permintaan sebelumnya masih berjalan: `useAsync` tak
+   * punya penjaga permintaan ganda, dan pada jaringan lambat ketukan berikutnya
+   * akan menumpuk permintaan yang jawabannya bisa datang tak berurutan.
+   */
+  const sedangMemuat = useRef(isLoading);
+  useEffect(() => {
+    sedangMemuat.current = isLoading;
+  }, [isLoading]);
+
+  const segarkanLatar = useCallback(() => {
+    if (sedangMemuat.current) return;
+    refetch();
+  }, [refetch]);
+
+  useSegarkanBerkala(segarkanLatar, JEDA_SEGARKAN_MS);
 
   // TIDAK memakai useBodyScrollLock (2026-08-24, permintaan user: "ketika panel
   // notif muncul masih tetap bisa di scroll backgroundnya"). Kunci gulir halaman
@@ -167,7 +205,12 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
               )}
             </div>
 
-            {isLoading ? (
+            {/* `&& !data`: spinner hanya untuk pemuatan PERTAMA. `useAsync`
+                menyalakan `isLoading` pada setiap panggilan, termasuk
+                penyegaran latar tiap satu menit -- tanpa syarat ini panel yang
+                sedang dibuka berkedip jadi spinner secara berkala, dan daftar
+                yang sedang dibaca orang lenyap sekejap tanpa sebab. */}
+            {isLoading && !data ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 size={20} className="animate-spin text-slate-300" />
               </div>
