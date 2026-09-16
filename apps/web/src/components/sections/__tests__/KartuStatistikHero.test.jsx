@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import KartuStatistikHero from '../KartuStatistikHero';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
 
@@ -42,9 +42,10 @@ describe('KartuStatistikHero', () => {
 
     // Angka sengaja tak lazim: kartu yang menuliskan nilainya langsung di dalam
     // kode akan tetap hijau pada 82,64 dan lolos tanpa pernah memanggil apa pun.
-    // DUA kali: sekali di kartu melayang untuk desktop, sekali di ringkasan
-    // ponsel. Keduanya harus membaca data yang sama.
-    expect(await screen.findAllByText('91,2')).toHaveLength(2);
+    // SEKALI saja. Sebelum 16 September 2026 angkanya muncul dua kali -- kartu
+    // desktop dan strip ringkasan khusus ponsel -- dan strip itu kini digantikan
+    // kartu yang sama, yang kini ikut tampil di layar sempit.
+    expect(await screen.findAllByText('91,2')).toHaveLength(1);
     expect(screen.getByText(/438/)).toBeInTheDocument();
   });
 
@@ -366,37 +367,9 @@ describe('KartuStatistikHero', () => {
   });
 
   /**
-   * Seluruh kolom ilustrasi terukur `display: none` di bawah `lg`, jadi setiap
-   * angka yang dimaksudkan menarik minat warga hanya sampai ke pengunjung
-   * desktop -- padahal warga membuka situs ini dari ponsel. Yang tak bisa hidup
-   * di layar 400px adalah TATA LETAKNYA (melayang, absolute, lebar tetap
-   * 268px), bukan datanya.
+   * Jaminan bahwa kartunya benar-benar sampai ke layar ponsel -- beserta keadaan
+   * memuat dan gagalnya -- pindah ke KartuHeroPonsel.test.jsx sejak 16 September
+   * 2026. Strip ringkasan yang dulu diuji di sini sudah tak ada: kartunya sendiri
+   * yang kini tampil di layar sempit.
    */
-  it('angkanya ikut sampai ke pengunjung ponsel', async () => {
-    getStatistics.mockResolvedValue(DATA);
-
-    const { container } = render(<KartuStatistikHero />);
-    await screen.findByTestId('nilai-ikm');
-
-    const ponsel = container.querySelector('[data-ringkas-ponsel]');
-    expect(ponsel).toBeInTheDocument();
-    expect(ponsel.className).toMatch(/lg:hidden/);
-    expect(ponsel).toHaveTextContent('91,2');
-  });
-
-  /**
-   * PASANGAN kontrol. Menyalin susunan melayang ke ponsel berarti menyalin juga
-   * yang membuatnya mustahil di sana: posisi absolut yang keluar dari alur, dan
-   * ayunan tanpa henti di layar yang sudah sempit.
-   */
-  it('KONTROL: ringkasan ponsel tak ikut melayang atau keluar alur', async () => {
-    getStatistics.mockResolvedValue(DATA);
-
-    const { container } = render(<KartuStatistikHero />);
-    await screen.findByTestId('nilai-ikm');
-
-    const ponsel = container.querySelector('[data-ringkas-ponsel]');
-    expect(ponsel.querySelectorAll('[class*="animate-melayang"]')).toHaveLength(0);
-    expect(ponsel.querySelectorAll('.absolute')).toHaveLength(0);
-  });
 });

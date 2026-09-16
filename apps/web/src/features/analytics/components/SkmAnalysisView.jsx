@@ -65,9 +65,15 @@ export default function SkmAnalysisView({
           <span className="text-label-md text-secondary uppercase tracking-wider font-semibold">Mutu Layanan</span>
           <div>
             {metrics.quality.grade ? (
-              <span className="inline-flex items-center px-lg py-sm rounded-full bg-green-100 text-green-800 font-bold text-headline-md">
-                <Verified size={24} className="mr-xs" />
-                {metrics.quality.grade}
+              /* Ukuran penuhnya baru mulai `lg`. Terukur di Chrome pada
+                 768px: lencana 153px melewati kartunya sendiri dan mendorong
+                 halaman 18px ke samping. */
+              <span
+                data-lencana-mutu
+                className="inline-flex items-center max-w-full px-md py-xs lg:px-lg lg:py-sm rounded-full bg-green-100 text-green-800 font-bold text-body-lg lg:text-headline-md"
+              >
+                <Verified size={20} className="mr-xs shrink-0" />
+                <span className="truncate">{metrics.quality.grade}</span>
               </span>
             ) : (
               <span className="inline-flex items-center px-lg py-sm rounded-full bg-surface-variant text-on-surface-variant font-bold text-body-md">

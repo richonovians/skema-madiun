@@ -104,7 +104,7 @@ export default function BuilderCanvas({
 
   return (
     <main
-      className="flex-1 bg-slate-50 relative overflow-y-auto"
+      className="flex-1 bg-slate-50 relative md:overflow-y-auto"
       style={{
         backgroundSize: '24px 24px',
         backgroundImage: 'radial-gradient(circle, #E2E8F0 1px, transparent 1px)',
@@ -223,9 +223,9 @@ export default function BuilderCanvas({
                 id="builder-survei-utama-bantuan"
                 className="block mt-1 text-xs text-text-secondary font-normal"
               >
-                Warga yang selesai mengirim pengaduan ke OPD ini langsung dibawa ke survei ini.
-                Tiap OPD hanya punya satu; menyalakannya di sini melepasnya dari survei yang
-                sebelumnya. Pengarahannya baru berjalan setelah survei ini terbit.
+                Warga yang selesai mengirim pengaduan ke OPD ini langsung dibawa ke survei ini. Tiap
+                OPD hanya punya satu; menyalakannya di sini melepasnya dari survei yang sebelumnya.
+                Pengarahannya baru berjalan setelah survei ini terbit.
               </span>
             </span>
           </label>

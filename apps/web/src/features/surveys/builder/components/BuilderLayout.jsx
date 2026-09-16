@@ -13,6 +13,13 @@ import BuilderSidebar from './BuilderSidebar';
  * SurveyBuilderScreen (induk bersama bilah sisi & kanvas) supaya kanvas tahu
  * tipe apa yang sedang diseret tanpa mengandalkan dataTransfer, yang di
  * peristiwa `dragover` tidak boleh dibaca oleh browser.
+ *
+ * LAYAR-PENUH HANYA MULAI `md` (16 September 2026, laporan pengguna: builder
+ * "menampilkan 2 layar atas dan bawah"). Mengunci tinggi builder ke layar lalu
+ * menyusunnya sebagai kolom membelah ponsel jadi dua daerah gulir mandiri --
+ * terukur pada layar 800px: palet 304px, kanvas 432px, bilah atas 64px, habis
+ * terbagi. Di bawah `md` seluruh builder kini menggulir sebagai satu halaman;
+ * susunan dua kolom di atasnya tak berubah sama sekali.
  */
 export default function BuilderLayout({
   children,
@@ -24,8 +31,18 @@ export default function BuilderLayout({
   alasanTerkunci,
 }) {
   return (
-    <div className="fixed inset-0 md:left-64 z-50 flex flex-col bg-background overflow-hidden">
-      <div className="flex flex-col md:flex-row flex-1 pt-16 md:pt-[72px] h-full overflow-hidden">
+    <div className="relative z-50 flex flex-col bg-background md:fixed md:inset-0 md:left-64 md:overflow-hidden">
+      {/* TANPA `pt` di bawah `md`. Ruang untuk bilah atas hanya perlu disediakan
+          sendiri ketika builder menjadi lapisan `fixed` yang menutup seluruh
+          layar. Di bawah `md` ia kembali menjadi halaman biasa di dalam
+          AdminLayout, yang <main>-nya sudah menyisakan 80px untuk navbar
+          tetapnya -- lebih tinggi dari bilah atas builder yang 64px. Menambah
+          `pt-16` di sana menumpuk dua sisa ruang dan meninggalkan pita kosong
+          80px di bawah bilah atas. */}
+      <div
+        data-baris-builder
+        className="flex flex-1 flex-col md:h-full md:flex-row md:overflow-hidden md:pt-[72px]"
+      >
         <BuilderSidebar
           onAddBaku={onAddBaku}
           onAddCustom={onAddCustom}
@@ -34,7 +51,9 @@ export default function BuilderLayout({
           canDrag={canDrag}
           alasanTerkunci={alasanTerkunci}
         />
-        <div className="flex-1 overflow-y-auto w-full">{children}</div>
+        <div data-wadah-kanvas className="w-full md:flex-1 md:overflow-y-auto">
+          {children}
+        </div>
       </div>
     </div>
   );

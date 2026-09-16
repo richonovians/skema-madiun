@@ -9,7 +9,6 @@ import {
   SESSION_CHANGED_EVENT,
 } from '@/features/authentication/services/authStorage';
 
-
 /**
  * Ilustrasi jendela peramban, digambar dari elemen biasa (14 September 2026).
  *
@@ -24,12 +23,21 @@ import {
  */
 function IlustrasiJendela() {
   return (
-    <div 
-      className="relative mt-12 lg:mt-16 lg:scale-95 origin-center xl:origin-right"
-      style={{
-        transform: 'perspective(1200px) rotateX(4deg) rotateY(-12deg) rotateZ(2deg)',
-        transformStyle: 'preserve-3d'
-      }}
+    /* Efek kedalamannya `lg:`-saja (16 September 2026). Sebelumnya dipasang
+       lewat `style` sebaris, jadi berlaku di setiap lebar -- dan sejak kartu
+       statistik ikut hidup di ponsel sebagai tumpukan dalam alur biasa,
+       ketiganya ikut termiringkan. Terukur pada 393px: lebar kotak pembatas
+       tumpukan berubah-ubah 358-367px alih-alih tetap 361px, tanda kotaknya
+       memang terputar. Rangka ilustrasi yang dinaungi efek ini sendiri
+       `hidden lg:block`, jadi mengurungnya ke `lg` mempertahankan maksud
+       aslinya. Sudut putarannya tidak diubah sedikit pun.
+
+       `lg:scale-95` DIBUANG, bukan dipindahkan: `style` sebaris selalu
+       mengalahkan kelas, jadi selama ini ia tak pernah berlaku sama sekali.
+       Menghidupkannya sekarang justru akan mengubah tampilan desktop. */
+    <div
+      data-ilustrasi-3d
+      className="relative mt-12 origin-center lg:mt-16 xl:origin-right lg:[transform:perspective(1200px)_rotateX(4deg)_rotateY(-12deg)_rotateZ(2deg)] lg:[transform-style:preserve-3d]"
     >
       {/* Bola gradasi di belakang tumpukan, memberi kedalaman seperti pada
           referensi. Murni `radial-gradient` -- tak ada berkas gambar dan tak ada

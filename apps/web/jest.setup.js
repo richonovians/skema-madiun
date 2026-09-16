@@ -31,3 +31,20 @@ Object.assign(navigator, {
     writeText: jest.fn(),
   },
 });
+
+/**
+ * `ResizeObserver` tidak ada di jsdom sama sekali, dan sejak redesain sidebar
+ * (16 September 2026) AdminKabNavbar memakainya untuk mengukur tingginya
+ * sendiri. Setiap uji yang memasang komponen itu jadi melempar
+ * `ReferenceError` sebelum sempat memeriksa apa pun.
+ *
+ * Boneka yang tak melakukan apa-apa memang jawaban yang benar di sini, bukan
+ * kompromi: jsdom tak menghitung tata letak, jadi pengamat ukuran sungguhan pun
+ * tak akan pernah punya perubahan ukuran untuk dilaporkan. Yang dijaga uji-uji
+ * itu adalah isi dan perilaku navbar, sementara tingginya diukur di peramban.
+ */
+global.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

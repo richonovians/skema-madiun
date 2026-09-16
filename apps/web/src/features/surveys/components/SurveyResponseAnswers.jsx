@@ -25,7 +25,14 @@ export default function SurveyResponseAnswers({ answers }) {
       <div className="space-y-lg">
         {(answers ?? []).map((answer, index) => (
           <div key={answer.questionId} className="pb-md border-b border-outline-variant last:border-0 last:pb-0">
-            <div className="flex items-start justify-between gap-md mb-sm">
+            {/* Menumpuk di layar sempit, berdampingan mulai `sm`. Terukur
+                di Chrome pada 320px: lencana 140px yang menolak menyusut
+                mendorong halaman 15px ke samping, dan pada 360px ia memaksa
+                judul pertanyaan pecah menjadi tiga sampai empat baris. */}
+            <div
+              data-baris-pertanyaan
+              className="flex flex-col sm:flex-row items-start sm:justify-between gap-xs sm:gap-md mb-sm"
+            >
               <p className="font-medium text-on-surface text-lg">
                 {/* Nomor soal DI SURVEI (adaptSurveyResponseAnswer), bukan
                     posisi jawaban di array. Posisi array sempat menjadi
@@ -37,7 +44,10 @@ export default function SurveyResponseAnswers({ answers }) {
                 {answer.questionText}
               </p>
               {answer.questionType && (
-                <Badge variant={TYPE_VARIANT[answer.questionType] ?? 'default'} className="shrink-0">
+                <Badge
+                  variant={TYPE_VARIANT[answer.questionType] ?? 'default'}
+                  className="max-w-full sm:shrink-0"
+                >
                   {answer.questionType}
                 </Badge>
               )}
