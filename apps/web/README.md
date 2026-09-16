@@ -62,7 +62,13 @@ Uji ujung-ke-ujung memakai Playwright:
 pnpm test:e2e
 ```
 
-Perlu diketahui: `playwright.config.ts` masih memakai `baseURL` `http://localhost:3000`, alamat yang justru tidak melayani API di proyek ini. Selama itu belum diselaraskan ke `http://skema.local`, uji e2e yang menyentuh API tidak dapat diandalkan lewat konfigurasi ini.
+Dijalankan terhadap `http://skema.local` dan memakai Chrome yang sudah terpasang, jadi tidak perlu mengunduh peramban tersendiri. Docker dan `pnpm dev` harus sudah hidup lebih dulu. Origin dapat ditimpa lewat `E2E_ORIGIN`.
+
+Spec pengisian survei tanpa sesi butuh satu survei aktif yang mengizinkan pengisian anonim, dan id-nya diberikan lewat env. Tanpa itu spec tersebut dilewati, bukan dinyatakan lulus:
+
+```bash
+E2E_SURVEY_ANONIM_ID=<id> pnpm test:e2e --workers=1
+```
 
 ## Perintah lain
 
