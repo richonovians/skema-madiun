@@ -11,7 +11,12 @@ import ChatReplyForm from './chat/ChatReplyForm';
  * disediakan, form balasan tetap tampil tapi tak melakukan apa pun (jangan
  * dibiarkan begini di produksi -- murni fallback aman).
  */
-export default function ComplaintChatSection({ initialMessages = [], participants = [], onSendReply }) {
+export default function ComplaintChatSection({
+  initialMessages = [],
+  participants = [],
+  nomorTiket,
+  onSendReply,
+}) {
   const [messages, setMessages] = useState(initialMessages);
   const [error, setError] = useState(null);
 
@@ -32,7 +37,7 @@ export default function ComplaintChatSection({ initialMessages = [], participant
       <ChatHeader participants={participants} />
       <ChatMessageList messages={messages} />
       {error && <p className="px-4 sm:px-6 pb-2 text-error text-sm font-semibold">{error}</p>}
-      <ChatReplyForm onSubmit={handleReplySubmit} />
+      <ChatReplyForm onSubmit={handleReplySubmit} nomorTiket={nomorTiket} />
     </section>
   );
 }
