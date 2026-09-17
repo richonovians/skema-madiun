@@ -112,3 +112,55 @@ describe('interceptor 401', () => {
     expect(localStorage.getItem('token')).toBe('token-sah');
   });
 });
+
+/**
+ * PERPANJANGAN SESI YANG DIKABARKAN LEWAT HEADER (17 September 2026, laporan
+ * pengguna: sesi kemarin masih hidup hari ini).
+ *
+ * Backend kini memperpanjang jendela menganggur sesi selama dipakai, lalu
+ * menyebut waktu berakhirnya yang baru pada header `X-Sesi-Berakhir`. Frontend
+ * WAJIB menerimanya: `isAuthenticated()` memutuskan dari `sso_expires_at` di
+ * localStorage, dan pada jalur SSO tokennya HttpOnly sehingga waktu itu tak
+ * dapat disimpulkan sendiri. Tanpa langkah ini cookie diperpanjang diam-diam di
+ * server sementara antarmuka memantulkan pemiliknya keluar dengan waktu lama.
+ */
+describe('api — menerima perpanjangan sesi dari header', () => {
+  const kemarin = () => Math.floor(Date.now() / 1000) + 60;
+  const nanti = () => Math.floor(Date.now() / 1000) + 3600;
+
+  it('memperbarui masa berlaku sesi dari header respons', async () => {
+    const baru = nanti();
+    localStorage.setItem('sso_logged_in', 'true');
+    localStorage.setItem('sso_expires_at', String(kemarin()));
+    server.use(
+      http.get(`${API_BASE}/apa-saja`, () =>
+        HttpResponse.json(
+          { success: true, data: { ok: true } },
+          { headers: { 'X-Sesi-Berakhir': String(baru) } },
+        ),
+      ),
+    );
+
+    await api.get('/apa-saja');
+
+    expect(Number(localStorage.getItem('sso_expires_at'))).toBe(baru);
+  });
+
+  /**
+   * KONTROL. Respons biasa jauh lebih banyak daripada yang membawa header ini;
+   * menulis ulang masa berlaku pada setiap respons akan memperpanjang sesi
+   * tanpa izin server, persis kebalikan dari yang sedang diperbaiki.
+   */
+  it('KONTROL: respons tanpa header itu tidak mengubah apa pun', async () => {
+    const semula = kemarin();
+    localStorage.setItem('sso_logged_in', 'true');
+    localStorage.setItem('sso_expires_at', String(semula));
+    server.use(
+      http.get(`${API_BASE}/apa-saja`, () => HttpResponse.json({ success: true, data: {} })),
+    );
+
+    await api.get('/apa-saja');
+
+    expect(Number(localStorage.getItem('sso_expires_at'))).toBe(semula);
+  });
+});

@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { verifyAttachmentPath } from './modules/complaints/attachment-url.util';
+import { HEADER_SESI_BERAKHIR } from './modules/auth/session/session-refresh.interceptor';
 
 /**
  * Konfigurasi aplikasi bersama — dipakai `main.ts` (runtime) DAN e2e test, agar
@@ -73,7 +74,12 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: config.get<string[]>('cors.origin'),
     credentials: true,
-    exposedHeaders: ['Content-Disposition'],
+    // `X-Sesi-Berakhir` (17 September 2026): waktu berakhirnya sesi sesudah
+    // diperpanjang. Sama seperti Content-Disposition, header di luar daftar aman
+    // CORS disembunyikan peramban dari JavaScript lintas-origin -- tanpa baris
+    // ini antarmuka tak pernah melihat perpanjangannya dan menyatakan sesi habis
+    // padahal cookienya baru saja disegarkan.
+    exposedHeaders: ['Content-Disposition', HEADER_SESI_BERAKHIR],
   });
 
   // ---------------------------------------------------------------- LAMPIRAN
