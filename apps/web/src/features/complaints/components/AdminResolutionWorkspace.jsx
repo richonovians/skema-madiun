@@ -2,8 +2,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Headset, Paperclip, CheckCircle, X, FileText, AlertTriangle } from 'lucide-react';
 import ImageViewer from '@/components/ui/ImageViewer';
+import TemplatePesanPicker from './chat/TemplatePesanPicker';
+import { TEMPLATE_ADMIN, gabungPesan } from '@/features/complaints/adapters/templatePesan';
 
-export default function AdminResolutionWorkspace({ currentStatus, chatHistory = [], onSendUpdate, onCloseTicket }) {
+export default function AdminResolutionWorkspace({ currentStatus, chatHistory = [], nomorTiket, onSendUpdate, onCloseTicket }) {
   const [replyText, setReplyText] = useState('');
   const [attachedFile, setAttachedFile] = useState(null);
   const [sedangMengirim, setSedangMengirim] = useState(false);
@@ -195,6 +197,11 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
             placeholder="Tulis jawaban solusi atau update status di sini..."
           />
           <div className="absolute bottom-md left-md flex items-center gap-sm">
+            <TemplatePesanPicker
+              templates={TEMPLATE_ADMIN}
+              nomorTiket={nomorTiket}
+              onPilih={(teks) => setReplyText((sekarang) => gabungPesan(sekarang, teks))}
+            />
             <label className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs cursor-pointer">
               <input 
                 type="file" 

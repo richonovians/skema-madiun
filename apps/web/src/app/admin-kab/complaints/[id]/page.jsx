@@ -181,6 +181,7 @@ export default function AdminKabComplaintDetailPage() {
           <AdminResolutionWorkspace
             currentStatus={complaintView.status}
             chatHistory={data.chatHistory}
+            nomorTiket={ticketNo}
             onSendUpdate={handleSendUpdate}
             onCloseTicket={handleCloseTicket}
           />

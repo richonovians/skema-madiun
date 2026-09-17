@@ -119,3 +119,65 @@ describe('AdminResolutionWorkspace', () => {
     });
   });
 });
+
+/**
+ * TEMPLATE PESAN SISI ADMIN (17 September 2026, permintaan pengguna).
+ *
+ * Komponen ini dipakai Admin OPD DAN Admin Kabupaten, jadi satu daftar yang
+ * keliru di sini merusak kedua area sekaligus.
+ */
+describe('AdminResolutionWorkspace — template pesan', () => {
+  const kotakPesan = () => screen.getByPlaceholderText(/tulis jawaban solusi/i);
+  const bukaTemplate = () => {
+    fireEvent.click(screen.getByRole('button', { name: /template pesan/i }));
+  };
+
+  it('menawarkan template admin', () => {
+    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    bukaTemplate();
+
+    expect(screen.getByText('Pengaduan diterima')).toBeInTheDocument();
+  });
+
+  /** KONTROL: kalimat pelapor tak boleh ditawarkan kepada admin. */
+  it('KONTROL: tidak menawarkan satu pun template warga', () => {
+    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    bukaTemplate();
+
+    expect(screen.queryByText('Mengirim bukti tambahan')).not.toBeInTheDocument();
+    expect(screen.queryByText('Masalah belum teratasi')).not.toBeInTheDocument();
+  });
+
+  it('mengisi kotak yang kosong, lengkap dengan nomor tiketnya', () => {
+    render(
+      <AdminResolutionWorkspace
+        currentStatus="Diproses"
+        nomorTiket="PGD20260917ABCD"
+        onSendUpdate={jest.fn()}
+      />,
+    );
+
+    bukaTemplate();
+    fireEvent.click(screen.getByText('Sedang diproses'));
+
+    expect(kotakPesan()).toHaveValue(
+      'Pengaduan PGD20260917ABCD sedang kami proses. Kami akan mengabari Anda begitu ada perkembangan.',
+    );
+  });
+
+  it('menyambung tanpa menghapus kalimat yang sedang diketik', () => {
+    render(
+      <AdminResolutionWorkspace currentStatus="Diproses" nomorTiket="PGD1" onSendUpdate={jest.fn()} />,
+    );
+    fireEvent.change(kotakPesan(), { target: { value: 'Selamat pagi.' } });
+
+    bukaTemplate();
+    fireEvent.click(screen.getByText('Sedang diproses'));
+
+    expect(kotakPesan()).toHaveValue(
+      'Selamat pagi.\nPengaduan PGD1 sedang kami proses. Kami akan mengabari Anda begitu ada perkembangan.',
+    );
+  });
+});

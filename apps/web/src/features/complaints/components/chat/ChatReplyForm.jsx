@@ -5,8 +5,10 @@ import { Paperclip, Send, CheckCircle, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import Textarea from '@/components/ui/Textarea';
+import TemplatePesanPicker from './TemplatePesanPicker';
+import { TEMPLATE_WARGA, gabungPesan } from '@/features/complaints/adapters/templatePesan';
 
-export default function ChatReplyForm({ onSubmit }) {
+export default function ChatReplyForm({ onSubmit, nomorTiket }) {
   const [reply, setReply] = useState('');
   const [file, setFile] = useState(null);
   const [isSending, setIsSending] = useState(false);
@@ -72,6 +74,15 @@ export default function ChatReplyForm({ onSubmit }) {
   return (
     <div className="p-4 sm:p-6 bg-surface border-t border-border">
       <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        {/* Di ATAS kotak: barisnya sudah penuh oleh kotak teks, klip, dan
+            tombol kirim, dan menambah satu tombol lagi di sana akan menyempitkan
+            kotak teks justru di layar yang paling sempit. */}
+        <TemplatePesanPicker
+          templates={TEMPLATE_WARGA}
+          nomorTiket={nomorTiket}
+          onPilih={(teks) => setReply((sekarang) => gabungPesan(sekarang, teks))}
+          className="self-start"
+        />
         {file && (
           <div className="p-2.5 mb-1 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center gap-2 overflow-hidden">
