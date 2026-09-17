@@ -123,3 +123,53 @@ describe('Detail pengaduan Admin OPD', () => {
     expect(kotakBalasan()).toHaveValue('Perbaikan dijadwalkan pekan depan.');
   });
 });
+
+/**
+ * KEPALA HALAMAN DI LAYAR SEMPIT (17 September 2026, audit responsif).
+ *
+ * Terukur di Chrome sungguhan: halaman ini menggulir ke samping pada SETIAP
+ * lebar di bawah 480px -- 118px pada 320, 78px pada 360, 48px pada 390, dan
+ * 24px pada 414. Sebabnya baris kepala yang tak pernah membungkus: tombol
+ * kembali, judul berisi nomor tiket panjang, dan menu ekspor selebar 144px
+ * yang didorong `ml-auto` dipaksa berbagi satu baris. Menu ekspornyalah yang
+ * terlempar keluar tepi kanan.
+ *
+ * Halaman setara di Admin Kabupaten tak punya cacat ini: ia memakai
+ * ComplaintDetailHeader yang barisnya `flex-col sm:flex-row`. Halaman inilah
+ * satu-satunya yang menyusun kepalanya sendiri.
+ *
+ * BATAS UJI INI DINYATAKAN TERUS TERANG: jsdom tak menghitung tata letak sama
+ * sekali -- setiap elemen berukuran nol di sana, sehingga luberannya mustahil
+ * diukur di Jest. Yang dikunci di bawah adalah SYARAT yang membuat pembungkusan
+ * mungkin terjadi. Bukti sesungguhnya tetap pengukuran di peramban.
+ */
+describe('Detail pengaduan Admin OPD — kepala halaman di layar sempit', () => {
+  const judul = async () => await screen.findByRole('heading', { name: /detail pengaduan/i });
+
+  it('baris kepala boleh membungkus, bukan memaksa semuanya satu baris', async () => {
+    render(<AdminComplaintDetailPage />);
+
+    expect((await judul()).parentElement.className).toMatch(/\bflex-wrap\b/);
+  });
+
+  it('judul dapat menyusut dan memenggal nomor tiket yang panjang', async () => {
+    render(<AdminComplaintDetailPage />);
+    const h = await judul();
+
+    // `min-w-0` melawan lebar minimum bawaan item flex; tanpa itu judul menolak
+    // menyusut dan justru mendorong tetangganya keluar layar. `break-words`
+    // untuk nomor tiket, yang satu untaian tanpa spasi.
+    expect(h.className).toMatch(/\bmin-w-0\b/);
+    expect(h.className).toMatch(/\bbreak-words\b/);
+  });
+
+  it('menu ekspor mengambil baris sendiri di layar sempit, dan kembali ke kanan di layar lebar', async () => {
+    render(<AdminComplaintDetailPage />);
+    const tombol = await screen.findByRole('button', { name: /ekspor/i });
+    const pembungkus = tombol.closest('div').parentElement;
+
+    expect(pembungkus.className).toMatch(/\bw-full\b/);
+    expect(pembungkus.className).toMatch(/\bsm:w-auto\b/);
+    expect(pembungkus.className).toMatch(/\bsm:ml-auto\b/);
+  });
+});
