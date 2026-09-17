@@ -208,6 +208,31 @@ function simpanPenandaPersetujuan(role, consentRequired) {
   saveConsentFlag(role ? !consentRequired : false);
 }
 
+/**
+ * Perbarui masa berlaku sesi dari kabar server (17 September 2026).
+ *
+ * Sejak sesi memakai jendela menganggur yang diperpanjang selama dipakai,
+ * waktu berakhirnya berubah di tengah jalan. Backend menyebutkannya pada header
+ * `X-Sesi-Berakhir`, dan `api.js` meneruskannya ke sini.
+ *
+ * Cookie navigasi ikut ditulis ulang, bukan hanya nilai di localStorage: cookie
+ * `role` & `consent` dulu diberi umur sepanjang sesi saat login, jadi tanpa
+ * penyegaran ini keduanya mati di jadwal lama sementara cookie `session` milik
+ * backend hidup lebih panjang. Proxy lalu melihat sesi hidup TANPA peran, dan
+ * memantulkan admin dari areanya sendiri -- persis cacat 2 September 2026,
+ * hanya dengan sebab yang berbeda.
+ */
+export function perbaruiMasaBerlakuSesi(epochDetik) {
+  if (typeof window === 'undefined') return;
+  if (!Number.isFinite(epochDetik) || epochDetik <= 0) return;
+  // Hanya untuk sesi yang memang sedang berjalan. Menulisnya pada keadaan
+  // logout akan membuat `isAuthenticated()` menyatakan ada sesi yang tak ada.
+  if (!localStorage.getItem(SSO_EXPIRES_KEY)) return;
+
+  localStorage.setItem(SSO_EXPIRES_KEY, String(epochDetik));
+  selaraskanCookieSesi();
+}
+
 export function saveConsentFlag(sudahMenyetujui) {
   if (typeof window === 'undefined') return;
   const nilai = sudahMenyetujui ? '1' : '0';

@@ -13,6 +13,7 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SessionRefreshInterceptor } from './modules/auth/session/session-refresh.interceptor';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { IkmModule } from './modules/ikm/ikm.module';
@@ -78,6 +79,10 @@ import { UsersModule } from './modules/users/users.module';
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     // Efek samping saja (tak mengubah payload) — urutan relatif terhadap dua di atas tak masalah.
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    // Memperpanjang jendela menganggur sesi selama dipakai (17 September 2026).
+    // Efek samping pada header saja; SessionService & SessionCookieService
+    // tersedia karena AuthModule mengekspor SessionModule.
+    { provide: APP_INTERCEPTOR, useClass: SessionRefreshInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })

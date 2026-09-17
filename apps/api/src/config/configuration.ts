@@ -90,7 +90,16 @@ export default () => ({
   },
   session: {
     jwtSecret: process.env.SESSION_JWT_SECRET,
-    ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '24', 10),
+    // PAGU MUTLAK sesi, bukan lagi umur tetapnya (17 September 2026). Sesi
+    // berakhir paling lambat sekian jam sesudah login, berapa pun aktivitas
+    // pemiliknya. Bakunya 12 jam supaya satu sesi tak pernah melampaui satu
+    // hari kerja.
+    ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '12', 10),
+    // Jendela menganggur: sesi yang tak dipakai selama sekian menit berakhir,
+    // dan pemakaian memperbaruinya. Inilah yang menjawab keluhan "sesi kemarin
+    // masih bisa dipakai hari ini" -- laptop yang ditinggal semalam kehilangan
+    // sesinya, sedangkan orang yang sedang bekerja tak pernah terputus.
+    idleMinutes: parseInt(process.env.SESSION_IDLE_MINUTES ?? '60', 10),
     // Domain cookie sesi (2026-08-27). KOSONG di dev dan itu benar: cookie
     // mengabaikan nomor port, jadi cookie milik host `localhost` yang disetel
     // API di :3001 sudah ikut terkirim ke frontend di :3000 dengan sendirinya.

@@ -12,7 +12,12 @@ import { SessionService } from './session.service';
         secret: config.get<string>('session.jwtSecret'),
         // expiresIn dalam detik (number) — hindari template literal string yang tak
         // cocok dengan tipe StringValue milik @nestjs/jwt.
-        signOptions: { expiresIn: (config.get<number>('session.ttlHours') ?? 24) * 3600 },
+        //
+        // JENDELA MENGANGGUR, bukan pagu mutlak (17 September 2026).
+        // `SessionService` selalu menyebut umurnya sendiri secara tersurat saat
+        // menandatangani; nilai ini bakunya, supaya penandatanganan lain yang
+        // kelak memakai JwtService ini berumur pendek, bukan sepanjang pagu.
+        signOptions: { expiresIn: (config.get<number>('session.idleMinutes') ?? 60) * 60 },
       }),
     }),
   ],

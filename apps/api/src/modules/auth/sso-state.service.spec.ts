@@ -155,7 +155,9 @@ describe('SsoStateService', () => {
  */
 describe('SessionService.verify menolak token bukan-sesi (2026-08-27)', () => {
   const jwt = new JwtService({ secret: SECRET });
-  const session = new SessionService(jwt);
+  const session = new SessionService(jwt, {
+    get: (kunci: string) => (kunci === 'session.idleMinutes' ? 60 : 12),
+  } as unknown as ConfigService);
 
   it('token sesi normal tetap lolos', () => {
     expect(session.verify(jwt.sign({ sub: 7 }))).toEqual({ sub: 7 });
