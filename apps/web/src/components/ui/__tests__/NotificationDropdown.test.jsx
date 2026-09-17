@@ -412,3 +412,138 @@ describe('NotificationDropdown — penyegaran berkala', () => {
     });
   });
 });
+
+/**
+ * MEMBUKA LONCENG ITU SENDIRI MENGAMBIL DATA (17 September 2026, laporan
+ * pengguna: notifikasi baru justru terlihat lebih dulu di halaman riwayat,
+ * bukan di loncengnya).
+ *
+ * Sebabnya tombol lonceng hanya membuka panel dan tak pernah meminta apa pun,
+ * sehingga isinya potret dari penyegaran terakhir. Halaman riwayat adalah
+ * komponen rute -- ia dipasang ulang setiap kali dibuka, dan `useAsync`
+ * mengambil data pada tiap pemasangan. Membuka halaman itu dengan sendirinya
+ * sudah merupakan permintaan baru, sementara membuka lonceng tidak.
+ *
+ * Gerakan yang paling jelas berarti "saya ingin memeriksa notifikasi" justru
+ * satu-satunya yang tak pernah memicu permintaan. Jeda minimum 10 detik milik
+ * `focus` SENGAJA tidak berlaku di sini: jeda itu untuk peristiwa pasif yang
+ * terjadi tanpa seorang pun memintanya, sedangkan membuka lonceng disengaja.
+ */
+describe('NotificationDropdown — membuka panel menyegarkan isinya', () => {
+  const lonceng = () => screen.getByRole('button', { name: /^notifikasi/i });
+
+  it('mengambil data lagi saat panel dibuka', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+    expect(
+      await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' }),
+    ).toBeInTheDocument();
+
+    // Notifikasi baru lahir di server sesudah lonceng memuat isinya.
+    givenNotifications([BELUM_DIBACA, SUDAH_DIBACA], 4);
+    fireEvent.click(lonceng());
+
+    await waitFor(() => expect(lonceng()).toHaveAccessibleName('Notifikasi, 4 belum dibaca'));
+  });
+
+  /**
+   * Satu ketukan tombol tidak boleh menembak dua kali. Tanpa syarat "hanya saat
+   * membuka", menutup panel ikut meminta data yang takkan dilihat siapa pun.
+   */
+  it('tidak mengambil data saat panel ditutup', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+    await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' });
+
+    fireEvent.click(lonceng());
+    expect(await screen.findByText('Status Pengaduan Diperbarui')).toBeInTheDocument();
+
+    const diminta = jest.fn();
+    server.use(
+      http.get(`${API_BASE}/notifications/unread-count`, () => {
+        diminta();
+        return ok({ count: 9 }, '/notifications/unread-count');
+      }),
+    );
+
+    fireEvent.click(lonceng());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(diminta).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `useAsync` tak punya penjaga permintaan ganda. Pada jaringan lambat, membuka
+   * dan menutup berulang akan menumpuk permintaan yang jawabannya bisa datang
+   * tak berurutan -- jawaban lama menimpa yang baru.
+   */
+  it('tidak menumpuk permintaan saat dibuka lagi selagi yang sebelumnya berjalan', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+    await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' });
+
+    let jumlahPermintaan = 0;
+    let lepaskan;
+    server.use(
+      http.get(`${API_BASE}/notifications`, async () => {
+        jumlahPermintaan += 1;
+        await new Promise((resolve) => {
+          lepaskan = resolve;
+        });
+        return paginated([BELUM_DIBACA], '/notifications');
+      }),
+    );
+
+    fireEvent.click(lonceng());
+    await waitFor(() => expect(jumlahPermintaan).toBe(1));
+    fireEvent.click(lonceng());
+    fireEvent.click(lonceng());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(jumlahPermintaan).toBe(1);
+
+    await act(async () => {
+      lepaskan?.();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  });
+
+  /**
+   * KONTROL. `useAsync.execute` menyalakan `isLoading` pada SETIAP panggilan,
+   * dan panel merender `isLoading ? pemintal : daftar`. Penyegaran yang dipicu
+   * pembukaan panel karena itu berisiko membuat panel yang baru saja dibuka
+   * tampil sebagai pemintal kosong, bukan daftar yang sudah ada.
+   */
+  it('KONTROL: panel yang baru dibuka menampilkan daftar lama, bukan pemintal', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    const { container } = render(<NotificationDropdown />);
+    await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' });
+
+    let lepaskan;
+    server.use(
+      http.get(`${API_BASE}/notifications`, async () => {
+        await new Promise((resolve) => {
+          lepaskan = resolve;
+        });
+        return paginated([BELUM_DIBACA], '/notifications');
+      }),
+    );
+
+    fireEvent.click(lonceng());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    expect(screen.getByText('Status Pengaduan Diperbarui')).toBeInTheDocument();
+    expect(container.querySelector('.animate-spin')).not.toBeInTheDocument();
+
+    await act(async () => {
+      lepaskan?.();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  });
+});
