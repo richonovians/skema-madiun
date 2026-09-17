@@ -116,21 +116,38 @@ export default function AdminComplaintDetailPage() {
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)]">
-      <div className="mb-lg mt-lg flex items-center gap-md">
+      {/* MEMBUNGKUS (17 September 2026, audit responsif). Terukur di Chrome:
+          baris ini membuat halaman menggulir ke samping pada setiap lebar di
+          bawah 480px -- 118px pada 320, 78px pada 360, 48px pada 390, 24px pada
+          414 -- karena tombol kembali, judul bernomor tiket panjang, dan menu
+          ekspor 144px dipaksa berbagi satu baris yang tak boleh patah. Yang
+          terlempar keluar tepi kanan adalah menu ekspornya.
+
+          Tiga hal bekerja bersama, dan ketiganya perlu: `flex-wrap` memberi
+          barisnya izin patah, `min-w-0` pada judul melawan lebar minimum bawaan
+          item flex (tanpa itu judul menolak menyusut dan tetap mendorong
+          tetangganya keluar), dan `w-full sm:w-auto` menurunkan menu ekspor ke
+          barisnya sendiri di layar sempit sambil mengembalikannya ke ujung
+          kanan begitu ruangnya cukup. Tampilan layar lebar tidak berubah.
+
+          Halaman setara di Admin Kabupaten sudah aman lebih dulu lewat
+          ComplaintDetailHeader (`flex-col sm:flex-row`); halaman inilah
+          satu-satunya yang menyusun kepalanya sendiri. */}
+      <div className="mb-lg mt-lg flex flex-wrap items-center gap-md">
         <Link
           href="/admin-opd/complaints"
-          className="p-2 bg-surface text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-full transition-all border border-border"
+          className="shrink-0 p-2 bg-surface text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-full transition-all border border-border"
         >
           <ArrowLeft size={20} />
         </Link>
-        <h2 className="font-headline-md text-headline-md font-black text-on-surface tracking-tight">
+        <h2 className="min-w-0 flex-1 break-words font-headline-md text-headline-md font-black text-on-surface tracking-tight">
           Detail Pengaduan #{ticketNo}
         </h2>
 
         {/* Baru tampil setelah datanya ada: tombol ekspor yang menghasilkan
             dokumen kosong lebih membingungkan daripada tombol yang belum ada. */}
         {data && (
-          <div className="ml-auto">
+          <div className="w-full sm:w-auto sm:ml-auto">
             <ComplaintExportMenu
               complaint={{ ...data.complaint, categoryLabel }}
               chatHistory={data.chatHistory}
