@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import useSegarkanBerkala from '../useSegarkanBerkala';
+import useSegarkanBerkala, { JEDA_MINIMUM_SEGAR_MS } from '../useSegarkanBerkala';
 
 /**
  * PENYEGARAN BERKALA YANG TIDUR SAAT TAB TERSEMBUNYI (16 September 2026,
@@ -129,5 +129,125 @@ describe('useSegarkanBerkala', () => {
 
     expect(pertama).not.toHaveBeenCalled();
     expect(kedua).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * FOKUS JENDELA (17 September 2026, laporan pengguna: sudah mencoba berkali-
+   * kali dengan dua akun dan lencananya tetap terasa mati).
+   *
+   * Sebabnya cara mengujinya, dan cara itu justru pemakaian yang wajar: dua
+   * akun dibuka pada dua jendela berdampingan, dan peramban menganggap KEDUANYA
+   * terlihat. `visibilitychange` tak pernah menembak di situ, sehingga satu-
+   * satunya penyegaran yang tersisa adalah ketukan berkala -- satu menit penuh
+   * yang terasa seperti tak terjadi apa-apa.
+   *
+   * `focus` menutup celah itu, TAPI ia menembak jauh lebih sering daripada
+   * `visibilitychange`: berpindah tab menembakkan keduanya berurutan, dan
+   * berpindah jendela bolak-balik menembakkannya berkali-kali dalam hitungan
+   * detik. Jeda minimum itulah yang membuat pendengar ini layak ada, dan
+   * sebagian besar uji di bawah menjaga jeda itu, bukan pendengarnya.
+   */
+  describe('fokus jendela', () => {
+    const beriFokus = () => {
+      act(() => {
+        window.dispatchEvent(new Event('focus'));
+      });
+    };
+
+    it('menyegarkan seketika saat jendela mendapat fokus', () => {
+      const segarkan = jest.fn();
+      renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      beriFokus();
+
+      expect(segarkan).toHaveBeenCalledTimes(1);
+    });
+
+    it('mengabaikan fokus yang datang sebelum jeda minimum terlewat', () => {
+      const segarkan = jest.fn();
+      renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      act(() => jest.advanceTimersByTime(JEDA));
+      expect(segarkan).toHaveBeenCalledTimes(1);
+
+      act(() => jest.advanceTimersByTime(JEDA_MINIMUM_SEGAR_MS / 2));
+      beriFokus();
+
+      expect(segarkan).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Jeda minimum harus MENUNDA, bukan membungkam. Penjaga yang cuma
+     * mengizinkan penyegaran pertama juga meluluskan dua uji di atas, lalu
+     * membuat lencananya diam selamanya sesudah fokus pertama.
+     */
+    it('menyegarkan lagi begitu jeda minimum terlewat', () => {
+      const segarkan = jest.fn();
+      renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      beriFokus();
+      act(() => jest.advanceTimersByTime(JEDA_MINIMUM_SEGAR_MS));
+      beriFokus();
+
+      expect(segarkan).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Berpindah tab menembakkan `visibilitychange` DAN `focus` berurutan. Tanpa
+     * jeda yang dipakai bersama keduanya, satu perpindahan tab menghasilkan dua
+     * permintaan yang jawabannya sama persis.
+     */
+    it('tidak menyegarkan dua kali walau satu perpindahan memicu dua peristiwa', () => {
+      const segarkan = jest.fn();
+      renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      ubahKeterlihatan(false);
+      ubahKeterlihatan(true);
+      beriFokus();
+
+      expect(segarkan).toHaveBeenCalledTimes(1);
+    });
+
+    it('menghitung ulang jedanya sesudah menyegar karena fokus', () => {
+      const segarkan = jest.fn();
+      renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      act(() => jest.advanceTimersByTime(JEDA * 0.9));
+      beriFokus();
+      expect(segarkan).toHaveBeenCalledTimes(1);
+
+      act(() => jest.advanceTimersByTime(JEDA * 0.5));
+      expect(segarkan).toHaveBeenCalledTimes(1);
+
+      act(() => jest.advanceTimersByTime(JEDA * 0.5));
+      expect(segarkan).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Aturan "tidur saat tak terlihat" tetap utuh. Jendela yang tersembunyi pun
+     * masih bisa menerima `focus`; menanggapinya berarti membangunkan kembali
+     * interval yang sengaja ditidurkan, dan tab yang ditinggal berhari-hari
+     * mulai memanggil API lagi tanpa ada yang melihatnya.
+     */
+    it('tidak menyegarkan maupun membangunkan interval saat tab tersembunyi', () => {
+      const segarkan = jest.fn();
+      renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      ubahKeterlihatan(false);
+      beriFokus();
+      act(() => jest.advanceTimersByTime(JEDA * 10));
+
+      expect(segarkan).not.toHaveBeenCalled();
+    });
+
+    it('melepas pendengar fokusnya saat dilepas', () => {
+      const segarkan = jest.fn();
+      const { unmount } = renderHook(() => useSegarkanBerkala(segarkan, JEDA));
+
+      unmount();
+      beriFokus();
+
+      expect(segarkan).not.toHaveBeenCalled();
+    });
   });
 });
