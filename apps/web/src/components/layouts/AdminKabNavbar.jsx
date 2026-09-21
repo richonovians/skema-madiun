@@ -163,7 +163,7 @@ export default function AdminKabNavbar() {
       className={`fixed top-0 right-0 left-0 ${isDesktopSidebarCollapsed ? 'md:left-20' : 'md:left-64'} min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-30 gap-x-2 gap-y-2 xl:gap-lg transition-all duration-300`}
     >
       <button
-        className="md:hidden -ml-1 p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+        className="md:hidden -ml-1 flex items-center justify-center min-w-[44px] min-h-[44px] text-on-surface hover:bg-surface-container rounded-lg shrink-0"
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         aria-label="Buka menu navigasi"
       >

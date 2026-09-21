@@ -52,7 +52,7 @@ describe('Navbar', () => {
       render(<Navbar />);
       const sebelum = screen.getAllByRole('link', { name: /registrasi helpdesk/i }).length;
 
-      fireEvent.click(screen.getByLabelText(/toggle navigation menu/i));
+      fireEvent.click(screen.getByLabelText(/buka menu navigasi/i));
 
       expect(screen.getAllByRole('link', { name: /registrasi helpdesk/i }).length).toBeGreaterThan(
         sebelum,
@@ -104,7 +104,7 @@ describe('Navbar — penamaan menu', () => {
   it('nama yang sama dipakai daftar ponsel', () => {
     render(<Navbar />);
 
-    fireEvent.click(screen.getByLabelText(/toggle navigation menu/i));
+    fireEvent.click(screen.getByLabelText(/buka menu navigasi/i));
 
     expect(screen.getAllByRole('link', { name: 'Tentang Platform' })).toHaveLength(2);
   });
@@ -112,7 +112,7 @@ describe('Navbar — penamaan menu', () => {
   it('KONTROL: nama lamanya tak tertinggal di salah satu daftar', () => {
     render(<Navbar />);
 
-    fireEvent.click(screen.getByLabelText(/toggle navigation menu/i));
+    fireEvent.click(screen.getByLabelText(/buka menu navigasi/i));
 
     expect(screen.queryByRole('link', { name: /tentang kami/i })).toBeNull();
   });
@@ -209,7 +209,7 @@ describe('Navbar — titik peralihan menu', () => {
   it('tombol menu bertahan sampai tepat sebelum lg', () => {
     render(<Navbar />);
 
-    const tombol = screen.getByLabelText(/toggle navigation menu/i);
+    const tombol = screen.getByLabelText(/buka menu navigasi/i);
 
     expect(tombol.className).toMatch(/\blg:hidden\b/);
     expect(tombol.className).not.toMatch(/\bmd:hidden\b/);
@@ -222,5 +222,32 @@ describe('Navbar — titik peralihan menu', () => {
     const nama = [...daftar.querySelectorAll('a')].map((a) => a.textContent.trim());
 
     expect(nama).toEqual(['Beranda', 'Tentang Platform', 'Statistik']);
+  });
+});
+
+/**
+ * NAMA TOMBOL MENU (21 September 2026).
+ *
+ * Namanya dulu "Toggle Navigation Menu" -- satu-satunya nama berbahasa Inggris
+ * di antarmuka yang seluruhnya berbahasa Indonesia, dan pembaca layar
+ * membacakannya apa adanya. Ia juga tak pernah berubah meski tombolnya
+ * mengganti fungsi: pemakai yang drawer-nya sudah terbuka tetap mendengar
+ * ajakan membuka.
+ */
+describe('Navbar — nama tombol menu', () => {
+  it('menyebut membuka saat tertutup dan menutup saat terbuka', () => {
+    render(<Navbar />);
+
+    const tombol = screen.getByLabelText(/^buka menu navigasi$/i);
+
+    fireEvent.click(tombol);
+
+    expect(screen.getByLabelText(/^tutup menu navigasi$/i)).toBe(tombol);
+  });
+
+  it('KONTROL: namanya berbahasa Indonesia, bukan sisa bahasa Inggris', () => {
+    render(<Navbar />);
+
+    expect(screen.queryByLabelText(/toggle navigation menu/i)).toBeNull();
   });
 });

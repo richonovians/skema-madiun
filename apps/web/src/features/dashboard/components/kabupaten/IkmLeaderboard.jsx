@@ -45,7 +45,10 @@ export default function IkmLeaderboard({ data = [], periode }) {
             memang memuat daftar lengkapnya. */}
         <Link
           href="/admin-kab/surveys"
-          className="text-primary text-xs font-bold hover:underline shrink-0"
+          /* Terukur 77x16 di ponsel: tautan setinggi enam belas piksel.
+             `inline-flex` + `min-h-[44px]` menaikkan sasaran sentuhnya tanpa
+             mengubah ukuran hurufnya. */
+          className="inline-flex items-center min-h-[44px] text-primary text-xs font-bold hover:underline shrink-0"
         >
           Lihat Semua
         </Link>

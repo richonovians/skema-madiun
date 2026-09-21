@@ -71,10 +71,13 @@ export default function BuilderToolbar({
             <CheckCircle2 size={14} /> <span>Tersimpan</span>
           </div>
         )}
+        {/* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. */}
         {status === 'DRAF' && (
           <button
             onClick={onPublish}
             disabled={isPublishing}
+            aria-label={isPublishing ? 'Memublikasikan...' : 'Publikasikan'}
+            title={isPublishing ? 'Memublikasikan...' : 'Publikasikan'}
             className="px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all flex items-center gap-1.5 md:gap-2 active:scale-95 disabled:opacity-60"
           >
             {isPublishing ? (

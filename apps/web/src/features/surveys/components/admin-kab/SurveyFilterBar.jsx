@@ -101,17 +101,30 @@ export default function SurveyFilterBar({
 
           <ResetFilterButton onReset={onResetFilters} />
 
+          {/* `aria-label` + `title` (21 September 2026). Labelnya disembunyikan
+              di bawah 640px, dan elemen ber-`display: none` tidak ikut menyusun
+              nama yang dapat diakses -- tombol ini karena itu dulu hanya
+              disebut "tombol" oleh pembaca layar, dan tak punya apa pun untuk
+              diucapkan oleh perintah suara. Polanya sendiri dipertahankan:
+              menampilkan label penuh di 320px akan mendorong tombol keluar
+              layar. Contoh yang sejak awal sudah benar: ResetFilterButton. */}
           <button
             onClick={onCreateSurvey}
+            aria-label="Buat Survei"
+            title="Buat Survei"
             className="flex items-center gap-2 min-h-[44px] px-md rounded-lg bg-primary text-on-primary hover:bg-primary-hover transition-colors font-bold text-xs sm:text-body-md shadow-sm shadow-primary/20"
           >
-            <Plus size={18} />
+            <Plus size={18} aria-hidden="true" />
             <span className="hidden sm:inline">Buat Survei</span>
           </button>
 
           <div className="relative group space-y-1" ref={exportRef}>
             <button
               onClick={() => setIsExportOpen(!isExportOpen)}
+              aria-label="Ekspor"
+              title="Ekspor"
+              aria-haspopup="menu"
+              aria-expanded={isExportOpen}
               className="flex items-center justify-between gap-1 sm:gap-3 min-h-[44px] px-md rounded-lg font-medium text-xs sm:text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm"
             >
               <div className="flex items-center gap-2">

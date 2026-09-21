@@ -202,16 +202,33 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
               nomorTiket={nomorTiket}
               onPilih={(teks) => setReplyText((sekarang) => gabungPesan(sekarang, teks))}
             />
-            <label className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs cursor-pointer">
-              <input 
-                type="file" 
-                className="hidden" 
-                ref={fileInputRef}
-                onChange={handleFileChange}
-              />
-              <Paperclip size={20} />
+            {/* DULU `<label>` yang membungkus inputnya (21 September 2026).
+                Label bukan elemen yang dapat difokus, dan inputnya
+                `display: none` -- keduanya bersama berarti admin yang memakai
+                keyboard sama sekali tak dapat melampirkan berkas di sini. Itu
+                fungsi yang hilang, bukan sekadar nama yang kurang.
+
+                Inputnya dipindah keluar menjadi saudara, bukan tetap di dalam:
+                elemen interaktif bersarang di dalam `<button>` bukan HTML yang
+                sah. Nama tombolnya sengaja disalin persis dari tulisan yang
+                tampak di layar lebar, supaya perintah suara menyebut hal yang
+                sama dengan yang dibaca mata. */}
+            <input
+              type="file"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Lampirkan Dokumen/Foto"
+              title="Lampirkan Dokumen/Foto"
+              className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs cursor-pointer"
+            >
+              <Paperclip size={20} aria-hidden="true" />
               <span className="text-label-md hidden sm:inline">Lampirkan Dokumen/Foto</span>
-            </label>
+            </button>
           </div>
           {/* Hanya pada layar lebar: di peranti sentuh Enter memang menyisipkan
               baris baru, jadi petunjuk ini akan menyesatkan di sana. */}
