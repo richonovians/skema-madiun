@@ -361,18 +361,58 @@ async function pastikanHalamanAplikasi(page: Page, path: string): Promise<void> 
         (document.body.innerText || '').trim().length > 50,
     );
 
-  if (await adaAplikasi()) return;
+  if (!(await adaAplikasi())) {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    await tungguDataTiba(page);
 
-  await page.goto(path, { waitUntil: 'domcontentloaded' });
-  await tungguDataTiba(page);
+    if (!(await adaAplikasi())) {
+      const judul = await page.title();
+      throw new Error(
+        `Yang terbuka di ${path} bukan halaman aplikasi (judul: "${judul}"). ` +
+          'Server dev kemungkinan tak menjawab -- tak ada yang diukur, dan uji ini ' +
+          'sengaja berhenti daripada melaporkan temuan dari halaman galat peramban.',
+      );
+    }
+  }
 
-  if (await adaAplikasi()) return;
+  await pastikanGayaTerpasang(page, path);
+}
 
-  const judul = await page.title();
+/**
+ * Menolak mengukur halaman yang lembar gayanya belum terpasang.
+ *
+ * Terukur 21 September 2026, tepat sesudah server dev pulih dari keadaan
+ * tersendat: sapuan sasaran sentuh melaporkan 44 pelanggaran sekaligus di satu
+ * halaman, dan di antaranya ada elemen yang kelasnya SENDIRI memuat
+ * `min-h-[44px]` namun terukur setinggi 29px. Itu mustahil bila CSS-nya
+ * berlaku; yang terjadi adalah halaman tersaji sebelum Tailwind selesai
+ * dikompilasi.
+ *
+ * Kegagalan seperti itu jauh lebih berbahaya daripada kegagalan biasa: ia
+ * terbaca sebagai puluhan cacat tata letak yang nyata, menuduh kode yang tak
+ * bersalah, dan suite yang berbuat begitu akan berhenti dipercaya -- persis
+ * pelajaran yang sudah melahirkan `panaskanRute`.
+ *
+ * Penandanya token milik proyek ini sendiri (`--spacing-xs`, didefinisikan di
+ * app/globals.css). Bila lembar gayanya belum berlaku, nilainya string kosong.
+ */
+async function pastikanGayaTerpasang(page: Page, path: string): Promise<void> {
+  const token = async () =>
+    page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--spacing-xs').trim(),
+    );
+
+  if (await token()) return;
+
+  // Satu kesempatan lagi: pada pemuatan pertama sebuah rute, server dev
+  // mengompilasi CSS-nya sesudah HTML-nya terkirim.
+  await page.waitForTimeout(2_000);
+  if (await token()) return;
+
   throw new Error(
-    `Yang terbuka di ${path} bukan halaman aplikasi (judul: "${judul}"). ` +
-      'Server dev kemungkinan tak menjawab -- tak ada yang diukur, dan uji ini ' +
-      'sengaja berhenti daripada melaporkan temuan dari halaman galat peramban.',
+    `Lembar gaya belum berlaku di ${path} (token --spacing-xs kosong). ` +
+      'Mengukur halaman tanpa CSS akan melaporkan puluhan cacat palsu, jadi ' +
+      'uji ini berhenti. Jalankan ulang sesudah server dev selesai mengompilasi.',
   );
 }
 

@@ -3,7 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Headset, Paperclip, CheckCircle, X, FileText, AlertTriangle } from 'lucide-react';
 import ImageViewer from '@/components/ui/ImageViewer';
 import TemplatePesanPicker from './chat/TemplatePesanPicker';
+import ChatDateSeparator from './chat/ChatDateSeparator';
 import { TEMPLATE_ADMIN, gabungPesan } from '@/features/complaints/adapters/templatePesan';
+import { kelompokkanPesanPerTanggal } from '@/features/complaints/adapters/pemisahTanggalChat';
 
 export default function AdminResolutionWorkspace({ currentStatus, chatHistory = [], nomorTiket, onSendUpdate, onCloseTicket }) {
   const [replyText, setReplyText] = useState('');
@@ -117,9 +119,17 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
       
       {/* Chat History */}
       <div ref={scrollRef} className="flex-1 p-md sm:p-lg overflow-y-auto space-y-lg scrollbar-hide bg-slate-50/50">
-        {chatHistory.map((msg, idx) => (
+        {/* Dikelompokkan per tanggal DI SINI, bukan pada `chatHistory` yang
+            masuk: larik yang sama diteruskan ke ComplaintExportMenu untuk
+            menyusun baris PDF & Excel, dan pemisah yang tersisip ke dalamnya
+            akan muncul sebagai baris hantu di tengah percakapan yang diekspor. */}
+        {kelompokkanPesanPerTanggal(chatHistory).map((grup) => (
+          <div key={grup.kunci} className="space-y-lg">
+            <ChatDateSeparator label={grup.label} />
+
+            {grup.items.map((msg, idx) => (
           msg.role === 'admin' ? (
-            <div key={idx} className="flex items-start gap-md max-w-[85%] ml-auto flex-row-reverse">
+            <div key={`${grup.kunci}-${idx}`} className="flex items-start gap-md max-w-[85%] ml-auto flex-row-reverse">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0 shadow-md">
                 <Headset size={20} className="text-white" />
               </div>
@@ -132,7 +142,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
               </div>
             </div>
           ) : (
-            <div key={idx} className="flex items-start gap-md max-w-[85%]">
+            <div key={`${grup.kunci}-${idx}`} className="flex items-start gap-md max-w-[85%]">
               <div className="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center flex-shrink-0 border border-outline-variant">
                 <User size={20} className="text-on-surface-variant" />
               </div>
@@ -155,6 +165,8 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
               </div>
             </div>
           )
+            ))}
+          </div>
         ))}
 
         <div className="flex items-center gap-md py-md">
