@@ -309,6 +309,105 @@ export async function tungguDataTiba(page: Page): Promise<void> {
  * komputer orang lain karena datanya tak ada -- kegagalan yang tak ada
  * hubungannya dengan tata letak.
  */
+/**
+ * Menunggu navbar publik selesai menentukan keadaan masuk.
+ *
+ * Navbar memulai dengan `useState(false)` lalu membalikkannya di dalam
+ * `useEffect` sesudah mount -- pola yang benar untuk menghindari ketidakcocokan
+ * hidrasi, tetapi artinya tombol "Masuk via SSO Helpdesk" BENAR-BENAR ada di
+ * layar selama sekejap pada setiap pemuatan, bahkan ketika sesinya sah.
+ *
+ * `tungguDataTiba` tak menangkapnya: pembalikan itu tak menimbulkan permintaan
+ * API apa pun. Terukur 21 September 2026 -- satu kali dari sekian jalan, sapuan
+ * sasaran sentuh memotret navbar versi keluar dan melaporkan dua tombol yang
+ * tak pernah dimaksud diukur di situ. Uji yang kadang mengukur halaman yang
+ * berbeda lebih buruk daripada uji yang tak ada.
+ *
+ * MENUNGGU LEBIH LAMA TIDAK MENOLONG, dan itu yang diukur berikutnya: pada
+ * kegagalan, `localStorage.token` SUDAH terisi dan ketiga kukinya lengkap,
+ * tetapi navbar tetap menampilkan tombol masuk. Navbar menghitung keadaannya
+ * satu kali di dalam `useEffect` saat mount dan sesudah itu hanya mendengarkan
+ * `SESSION_CHANGED_EVENT`; bila skrip sesi menang balapan lebih lambat daripada
+ * mount-nya, keputusan keliru itu tak pernah dihitung ulang. Yang dibutuhkan
+ * karena itu pemuatan ulang -- sekali, dengan penyimpanan yang kini pasti ada
+ * -- bukan penantian yang lebih panjang.
+ *
+ * Pada halaman admin tak ada tombol itu sama sekali, jadi penantian ini
+ * selesai seketika.
+ */
+/**
+ * Menolak mengukur apa pun yang bukan halaman aplikasi.
+ *
+ * Terukur 21 September 2026: satu jalan dari sepuluh melaporkan dua sasaran
+ * sentuh bernama "Reload" dan "Back" setinggi 32px, tanpa satu pun kelas CSS.
+ * Itu halaman galat bawaan Chrome, bukan beranda -- server dev sedang tak
+ * menjawab pada detik itu. Uji yang mengukur halaman galat lalu menyebutnya
+ * temuan akan menuduh kode yang tak bersalah, persis kegagalan yang sudah
+ * pernah ditutup `panaskanRute`.
+ *
+ * Penandanya data flight milik App Router (`self.__next_f`), BUKAN `<nav>`:
+ * `/sso/callback` sengaja dirender tanpa Navbar dan Footer, dan penjaga yang
+ * menuntut `<nav>` menuduhnya gagal padahal judul halamannya membuktikan ia
+ * termuat benar. Halaman galat peramban tak pernah punya penanda itu.
+ *
+ * Satu kali dicoba ulang, sebab penyebabnya memang sesaat; kalau tetap gagal,
+ * berhenti dengan sebab yang tersurat.
+ */
+async function pastikanHalamanAplikasi(page: Page, path: string): Promise<void> {
+  const adaAplikasi = async () =>
+    page.evaluate(
+      () =>
+        (self as unknown as { __next_f?: unknown }).__next_f !== undefined &&
+        (document.body.innerText || '').trim().length > 50,
+    );
+
+  if (await adaAplikasi()) return;
+
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await tungguDataTiba(page);
+
+  if (await adaAplikasi()) return;
+
+  const judul = await page.title();
+  throw new Error(
+    `Yang terbuka di ${path} bukan halaman aplikasi (judul: "${judul}"). ` +
+      'Server dev kemungkinan tak menjawab -- tak ada yang diukur, dan uji ini ' +
+      'sengaja berhenti daripada melaporkan temuan dari halaman galat peramban.',
+  );
+}
+
+async function tungguNavbarTenang(page: Page): Promise<void> {
+  const tombolMasuk = page.getByRole('button', { name: /masuk via sso/i });
+  try {
+    await tombolMasuk.waitFor({ state: 'detached', timeout: 3_000 });
+  } catch {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await tungguDataTiba(page);
+  }
+  try {
+    await tombolMasuk.waitFor({ state: 'detached', timeout: 10_000 });
+  } catch {
+    const keadaan = await page.evaluate(() => {
+      const baca = (k: string) => {
+        try {
+          return localStorage.getItem(k) ? 'ada' : 'kosong';
+        } catch {
+          return 'diblokir';
+        }
+      };
+      return {
+        lsToken: baca('token'),
+        lsRole: baca('role'),
+        kuki: document.cookie.replace(/=[^;]*/g, '=…'),
+      };
+    });
+    throw new Error(
+      'Navbar masih menampilkan tombol masuk sesudah 10 detik. ' +
+        `localStorage token=${keadaan.lsToken} role=${keadaan.lsRole}; cookie: ${keadaan.kuki}`,
+    );
+  }
+}
+
 export interface Contoh {
   tiketOpd?: string;
   tiketKab?: string;
@@ -454,6 +553,8 @@ export const test = base.extend<FixtureResponsif>({
       // mengukur permintaan API, bukan sumber daya halaman.
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       await tungguDataTiba(page);
+      await pastikanHalamanAplikasi(page, path);
+      await tungguNavbarTenang(page);
     });
 
     // Dilaporkan sesudah uji selesai supaya angkanya terlihat di keluaran,
