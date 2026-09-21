@@ -145,6 +145,13 @@ for (const { judul, peran, path, tombol } of HALAMAN) {
 test('KONTROL: pada 320px label tombol memang tersembunyi', async ({ page, bukaSebagai }) => {
   await bukaSebagai('kabupaten', '/admin-kab/surveys');
 
+  // Menunggu bilah penyaringnya DULU. Terukur 21 September 2026: sekali jalan,
+  // pencacahan di bawah mendapat nol span dan kontrol ini memerah -- bukan
+  // karena polanya hilang, melainkan karena bilahnya belum terpasang saat
+  // dihitung. Kontrolnya bekerja sebagaimana mestinya (ia menolak hijau ketika
+  // tak ada yang terukur); yang kurang adalah penanda kesiapan yang tersurat.
+  await expect(page.getByRole('button', { name: /^buat survei$/i })).toBeVisible();
+
   const terlihat = await page.evaluate(() =>
     Array.from(document.querySelectorAll('span.hidden')).filter(
       (s) => getComputedStyle(s).display !== 'none',
