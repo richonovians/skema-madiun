@@ -16,6 +16,13 @@ const ORIGIN = process.env.E2E_ORIGIN ?? 'http://skema.local';
 
 export default defineConfig({
   testDir: './e2e',
+  /**
+   * Sesi diterbitkan SEKALI di sini, bukan di tiap worker: setiap dev-login
+   * menulis satu baris `audit_logs` ke basis data yang dipakai tim (lihat
+   * e2e/global-setup.ts). Berjalan tanpa `E2E_IDENTIFIER` pun aman -- spec yang
+   * butuh sesi melewati dirinya sendiri dengan pesan yang menyebutkan caranya.
+   */
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
