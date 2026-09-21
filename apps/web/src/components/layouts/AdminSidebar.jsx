@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -68,29 +69,45 @@ export default function AdminSidebar() {
         {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      <aside className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
+      <aside className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
         isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
-        <div className={`mb-4 flex items-center ${isDesktopSidebarCollapsed ? 'justify-center px-0 mt-2' : 'justify-between px-md'}`}>
-          {!isDesktopSidebarCollapsed && (
-            <div className="min-w-0">
-              <h1 className="font-headline-md text-headline-md font-bold text-blue-600">Admin OPD</h1>
-              <p className="text-sm text-slate-500">Portal Analitik</p>
+        {/* Header sejajar dengan AdminNavbar (h-64/80, border-b) */}
+        <div className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
+              <Image 
+                src="/images/navbar/skema-logo-2.png" 
+                alt="Logo SKEMA" 
+                width={37} 
+                height={37} 
+                className="object-contain brightness-0 invert scale-[1.7]" 
+              />
             </div>
-          )}
+            {!isDesktopSidebarCollapsed && (
+              <span className="font-bold text-[18px] text-slate-900 tracking-tight uppercase truncate">
+                Admin OPD
+              </span>
+            )}
+          </div>
 
-          <button 
-            className="md:hidden p-2 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          >
-            <X size={20} />
-          </button>
+          {!isDesktopSidebarCollapsed && (
+            <button 
+              className="md:hidden p-2 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
+              onClick={() => setIsMobileSidebarOpen(false)}
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
 
-        {/* Garis pembatas tipis */}
-        <div className="mx-2 mb-6 border-t border-slate-200"></div>
+        {!isDesktopSidebarCollapsed && (
+          <div className="px-5 mb-2 mt-4">
+            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Portal & Ikhtisar</span>
+          </div>
+        )}
       
-      <nav className="flex-1 space-y-sm">
+      <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'mt-4' : ''}`}>
         <Link href="/admin-opd/dashboard" title="Dashboard" className={getLinkClass('/admin-opd/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
           <LayoutDashboard size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
           {!isDesktopSidebarCollapsed && <span>Dashboard</span>}
@@ -109,12 +126,9 @@ export default function AdminSidebar() {
         </Link>
       </nav>
       
-      {/* "Keluar" kembali ke sini atas permintaan pengguna (1 September 2026),
-          kini aman karena `<aside>` di atas sudah `overflow-y-auto` -- lihat
-          AdminSidebarLogout untuk sebab lengkapnya. "Ganti Peran" TETAP hanya
-          di ikon profil: yang diminta kembali cuma tombol keluar, dan
-          menggandakan pintu ganti peran ke dua tempat tak menambah apa pun. */}
-      <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
+      <div className="px-2 mt-auto">
+        <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
+      </div>
     </aside>
     </>
   );
