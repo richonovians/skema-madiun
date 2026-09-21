@@ -64,4 +64,47 @@ export default async function globalSetup(): Promise<void> {
   }
 
   writeFileSync(BERKAS_TOKEN, JSON.stringify(token), 'utf8');
+  await panaskanRute(token.kabupaten, token.opd);
+}
+
+/**
+ * Meminta tiap rute sekali supaya server dev sempat mengompilasinya.
+ *
+ * Bukan kerapian: server dev Next mengompilasi rute saat PERTAMA diminta, dan
+ * uji yang mendarat lebih dulu mengukur halaman yang belum berisi. Terukur 21
+ * September 2026, tepat sesudah menarik perubahan sidebar dari rekan setim:
+ * tiga uji gagal pada jalan pertama -- dua di antaranya penjaga "halamannya
+ * benar-benar berisi" -- lalu keduapuluhempatnya lulus pada jalan kedua tanpa
+ * satu baris kode pun berubah. Kegagalan seperti itu menuduh perubahan orang
+ * lain tanpa dasar, dan suite yang berbuat begitu akan berhenti dipercaya.
+ *
+ * Cookie disertakan supaya rutenya benar-benar dirender, bukan dijawab
+ * pengalihan ke halaman masuk -- pengalihan tak memicu kompilasi halamannya.
+ */
+async function panaskanRute(tokenKab?: string, tokenOpd?: string): Promise<void> {
+  const rute: Array<[string, string | undefined, string]> = [
+    ['/admin-kab/dashboard', tokenKab, 'kabupaten'],
+    ['/admin-kab/surveys', tokenKab, 'kabupaten'],
+    ['/admin-kab/surveys/sampah', tokenKab, 'kabupaten'],
+    ['/admin-kab/complaints', tokenKab, 'kabupaten'],
+    ['/admin-opd/complaints', tokenOpd, 'opd'],
+  ];
+
+  const api = await request.newContext({ baseURL: ORIGIN });
+  try {
+    await Promise.all(
+      rute.map(([path, token, peran]) =>
+        token
+          ? api
+              .get(path, {
+                headers: { Cookie: `token=${token}; role=${peran}; consent=1` },
+                timeout: 60_000,
+              })
+              .catch(() => undefined)
+          : Promise.resolve(undefined),
+      ),
+    );
+  } finally {
+    await api.dispose();
+  }
 }
