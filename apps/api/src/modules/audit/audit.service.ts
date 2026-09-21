@@ -66,13 +66,35 @@ export class AuditService {
     user: CurrentUser,
   ): Promise<PaginatedResult<AuditLogEntity>> {
     this.assertKabupaten(user);
-    const { page, limit, entitas, actorId } = query;
+    const { page, limit, entitas, actorId, aksi, search, startDate, endDate } = query;
     const where: Prisma.AuditLogWhereInput = {};
     if (entitas) {
       where.entitas = entitas;
     }
     if (actorId) {
       where.actorId = actorId;
+    }
+    if (aksi) {
+      where.aksi = { equals: aksi, mode: 'insensitive' };
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { actor: { nama: { contains: q, mode: 'insensitive' } } },
+        { aksi: { contains: q, mode: 'insensitive' } },
+        { entitas: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    if (startDate || endDate) {
+      where.timestamp = {};
+      if (startDate) {
+        where.timestamp.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.timestamp.lte = end;
+      }
     }
 
     const [rows, total] = await this.prisma.$transaction([

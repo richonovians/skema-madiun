@@ -816,7 +816,12 @@ export const handlers = [
   http.get(`${API_BASE}/audit-logs`, ({ request }) => {
     const url = new URL(request.url);
     const entitas = url.searchParams.get('entitas');
-    const list = entitas ? AUDIT_LIST.filter((l) => l.entitas === entitas) : AUDIT_LIST;
+    const aksi = url.searchParams.get('aksi');
+    const search = url.searchParams.get('search')?.toLowerCase();
+    let list = AUDIT_LIST;
+    if (entitas) list = list.filter((l) => l.entitas === entitas);
+    if (aksi) list = list.filter((l) => l.aksi?.toLowerCase() === aksi.toLowerCase());
+    if (search) list = list.filter((l) => l.actorNama?.toLowerCase().includes(search) || l.entitas?.toLowerCase().includes(search) || l.aksi?.toLowerCase().includes(search));
     return paginated(list, '/audit-logs', {
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 20),

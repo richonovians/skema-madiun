@@ -123,4 +123,23 @@ describe('Halaman Audit Log (Admin Kabupaten)', () => {
 
     expect(await screen.findByText('CREATE Survei')).toBeInTheDocument();
   });
+  it('menyaring log aktivitas berdasarkan input pencarian', async () => {
+    render(<AdminKabAuditLogsPage />);
+    await screen.findByText('CREATE Survei');
+
+    const inputSearch = screen.getByPlaceholderText(/cari berdasarkan nama pengguna, modul, atau aksi/i);
+    expect(inputSearch).toBeInTheDocument();
+
+    fireEvent.change(inputSearch, { target: { value: 'Survei' } });
+    await waitFor(() => expect(screen.getByDisplayValue('Survei')).toBeInTheDocument());
+  });
+
+  it('menyediakan pilihan filter Aksi', async () => {
+    render(<AdminKabAuditLogsPage />);
+    await screen.findByText('CREATE Survei');
+
+    expect(screen.getByText('Semua Aksi')).toBeInTheDocument();
+    expect(screen.getByLabelText(/dari tanggal/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/sampai tanggal/i)).toBeInTheDocument();
+  });
 });

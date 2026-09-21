@@ -15,4 +15,24 @@ export class ListAuditLogQueryDto extends PaginationQueryDto {
   @IsInt()
   @Min(1)
   actorId?: number;
+
+  @ApiPropertyOptional({ description: 'Filter aksi (mis. "create", "update", "delete", "login")' })
+  @IsOptional()
+  @IsString()
+  aksi?: string;
+
+  @ApiPropertyOptional({ description: 'Pencarian teks (nama pengguna, aksi, atau modul)' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Filter tanggal mulai (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'Filter tanggal selesai (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  endDate?: string;
 }
