@@ -64,7 +64,7 @@ export default async function globalSetup(): Promise<void> {
   }
 
   writeFileSync(BERKAS_TOKEN, JSON.stringify(token), 'utf8');
-  await panaskanRute(token.kabupaten, token.opd);
+  await panaskanRute(token.kabupaten, token.opd, token.responden);
 }
 
 /**
@@ -81,13 +81,35 @@ export default async function globalSetup(): Promise<void> {
  * Cookie disertakan supaya rutenya benar-benar dirender, bukan dijawab
  * pengalihan ke halaman masuk -- pengalihan tak memicu kompilasi halamannya.
  */
-async function panaskanRute(tokenKab?: string, tokenOpd?: string): Promise<void> {
+async function panaskanRute(
+  tokenKab?: string,
+  tokenOpd?: string,
+  tokenResponden?: string,
+): Promise<void> {
+  /**
+   * Rute bernomor dipanaskan dengan nomor asal-asalan, dan itu memang cukup:
+   * Next mengompilasi POLA rutenya (`[id]`), bukan tiap nilainya. Halamannya
+   * boleh saja menjawab "tak ditemukan" -- yang dibutuhkan hanya kompilasinya.
+   *
+   * Daftar ini diperlebar 21 September 2026 sesudah penjaga lembar gaya
+   * berbunyi di `/complaints/success`: rute yang tak ikut dipanaskan tersaji
+   * sebelum CSS-nya selesai dikompilasi, dan pengukuran di atasnya melaporkan
+   * puluhan cacat palsu.
+   */
   const rute: Array<[string, string | undefined, string]> = [
+    ['/', tokenResponden, 'responden'],
     ['/admin-kab/dashboard', tokenKab, 'kabupaten'],
     ['/admin-kab/surveys', tokenKab, 'kabupaten'],
     ['/admin-kab/surveys/sampah', tokenKab, 'kabupaten'],
     ['/admin-kab/complaints', tokenKab, 'kabupaten'],
+    ['/admin-kab/complaints/PEMANASAN', tokenKab, 'kabupaten'],
+    ['/admin-kab/audit-logs/1', tokenKab, 'kabupaten'],
     ['/admin-opd/complaints', tokenOpd, 'opd'],
+    ['/admin-opd/complaints/PEMANASAN', tokenOpd, 'opd'],
+    ['/admin-opd/analytics', tokenOpd, 'opd'],
+    ['/complaints/PEMANASAN', tokenResponden, 'responden'],
+    ['/complaints/success', tokenResponden, 'responden'],
+    ['/sso/callback', tokenResponden, 'responden'],
   ];
 
   const api = await request.newContext({ baseURL: ORIGIN });
