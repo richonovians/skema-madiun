@@ -204,4 +204,44 @@ describe('AdminResolutionWorkspace — template pesan', () => {
 
     expect(bukaPemilih).toHaveBeenCalled();
   });
+/**
+   * PEMISAH TANGGAL (21 September 2026). Ruang kerja admin merender
+   * percakapannya sendiri, terpisah dari ChatMessageList milik warga. Kalau
+   * hanya salah satu yang diberi pemisah, admin tetap membaca percakapan
+   * tanpa pegangan tanggal -- padahal justru merekalah yang menelusuri tiket
+   * lama.
+   */
+  it("menggambar pemisah tanggal di antara kelompok pesan", () => {
+    const kemarin = new Date(Date.now() - 86_400_000).toISOString();
+    render(
+      <AdminResolutionWorkspace
+        currentStatus="Diproses"
+        onSendUpdate={jest.fn()}
+        chatHistory={[
+          { role: "user", text: "pesan kemarin", createdAt: kemarin, timestamp: "09.00 WIB" },
+          { role: "admin", text: "balasan hari ini", createdAt: new Date().toISOString(), timestamp: "10.00 WIB" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Kemarin")).toBeInTheDocument();
+    expect(screen.getByText("Hari ini")).toBeInTheDocument();
+  });
+
+  it("KONTROL: seluruh pesan tetap tampil sesudah dikelompokkan", () => {
+    const kemarin = new Date(Date.now() - 86_400_000).toISOString();
+    render(
+      <AdminResolutionWorkspace
+        currentStatus="Diproses"
+        onSendUpdate={jest.fn()}
+        chatHistory={[
+          { role: "user", text: "pesan kemarin", createdAt: kemarin, timestamp: "09.00 WIB" },
+          { role: "admin", text: "balasan hari ini", createdAt: new Date().toISOString(), timestamp: "10.00 WIB" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("pesan kemarin")).toBeInTheDocument();
+    expect(screen.getByText("balasan hari ini")).toBeInTheDocument();
+  });
 });
