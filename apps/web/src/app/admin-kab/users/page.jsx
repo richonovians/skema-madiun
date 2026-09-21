@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import UsersRoleFilter from '@/features/users/components/UsersRoleFilter';
 import UsersTable from '@/features/users/components/UsersTable';
-import { Plus } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
@@ -57,9 +57,7 @@ const CONFIRM_COPY = {
 export default function ManajemenUsersPage() {
   const router = useRouter();
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
-  // Belum ada input pencarian lokal di halaman ini (lihat catatan di JSX bawah)
-  // -- state disiapkan utk saat Navbar bisa menyalurkan query pencarian.
-  const [searchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [actionError, setActionError] = useState(null);
   // `confirmAction` = { type: 'deactivate'|'activate'|'delete', user } saat
@@ -101,6 +99,11 @@ export default function ManajemenUsersPage() {
     setCurrentPage(1);
   };
 
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
   /** Jalankan aksi yang sudah dikonfirmasi lewat ConfirmDialog. */
   const handleConfirmedAction = async () => {
     if (!confirmAction) return;
@@ -134,20 +137,35 @@ export default function ManajemenUsersPage() {
 
   return (
     <div className="p-lg flex flex-col min-h-0 flex-1 w-full max-w-container-max mx-auto">
-      {/*
-        Catatan: searchQuery state sudah disiapkan di page ini (local state).
-        Untuk sementara waktu, tidak ada input text lokal karena sesuai instruksi,
-        input text ada di AdminNavbar.
-        Apabila nanti Navbar dapat menerima prop onSearch, state ini bisa dihubungkan ke sana,
-        atau kita bisa menambahkan local search bar di sini jika dibutuhkan.
-      */}
+      {/* Search bar -- mencari berdasarkan nama atau email pengguna */}
+      <div className="mb-lg">
+        <div className="relative">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant pointer-events-none"
+          />
+          <input
+            id="user-search-input"
+            type="text"
+            placeholder="Cari berdasarkan nama atau email..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="w-full min-h-[44px] pl-10 pr-10 py-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-body-md"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Hapus pencarian"
+              onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-outline-variant hover:text-text-primary transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* Menumpuk sampai `xl`, dulu `md`. Diukur, bukan dikira: penyaring peran
-          butuh ~700px dan tombol ~275px, jadi keduanya baru benar-benar cukup
-          sebaris pada area konten >=1000px -- yaitu sejak lebar layar 1280px.
-          Pada `md` (768px) area kontennya hanya ~512px dan keduanya digencet:
-          teks tombol terbelah empat baris, penyaringnya terpotong. Pada `lg`
-          (1024px) penyaringnya membungkus jadi tiga baris. */}
+      {/* Filter role + tombol buat akun */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-lg gap-4">
         {/* TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
             Penyaring di halaman ini berupa tab peran yang salah satunya selalu

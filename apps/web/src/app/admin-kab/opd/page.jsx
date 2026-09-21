@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
 import OPDHeader from '@/features/opd/components/OPDHeader';
@@ -37,18 +37,6 @@ export default function ManajemenOPDPage() {
 
   const handleSearchChange = (val) => {
     setSearchQuery(val);
-    setCurrentPage(1);
-  };
-
-  /**
-   * Setel ulang penyaring tabel ini (2 September 2026). Halaman paginasi
-   * ikut dikembalikan ke 1: tanpa itu, pengguna yang sedang di halaman 4 dari
-   * hasil tersaring akan mendarat di halaman 4 dari daftar penuh -- benar
-   * secara data, tapi terlihat seperti reset yang tak berfungsi karena tabelnya
-   * tetap tak menampilkan baris paling awal.
-   */
-  const handleResetFilters = () => {
-    setSearchQuery('');
     setCurrentPage(1);
   };
 
@@ -95,7 +83,6 @@ export default function ManajemenOPDPage() {
       <OPDFilterBar
         searchQuery={searchQuery}
         setSearchQuery={handleSearchChange}
-        onReset={handleResetFilters}
       />
       <div className="flex-1 flex flex-col min-h-0">
         <OPDTable
