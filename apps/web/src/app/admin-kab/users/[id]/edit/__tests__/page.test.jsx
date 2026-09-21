@@ -109,4 +109,21 @@ describe('Halaman Ubah Role Admin', () => {
     // keterangan penguncian belum ditulis sama sekali.
     expect(screen.getByText(new RegExp('tidak dapat diubah dari SKEMA', 'i'))).toBeInTheDocument();
   });
+  it('otomatis mencentang role Masyarakat (Responden) saat mencentang Admin Kabupaten atau Admin OPD', async () => {
+    render(<EditUserPage />);
+
+    await screen.findByLabelText(NAMA);
+
+    const adminKab = screen.getByLabelText('Admin Kabupaten');
+    const responden = screen.getByLabelText('Masyarakat (Responden)');
+
+    expect(adminKab).not.toBeChecked();
+    expect(responden).not.toBeChecked();
+
+    // Klik centang Admin Kabupaten
+    fireEvent.click(adminKab);
+
+    expect(adminKab).toBeChecked();
+    expect(responden).toBeChecked();
+  });
 });

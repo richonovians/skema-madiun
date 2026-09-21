@@ -83,14 +83,29 @@ export default function CreateUserPage() {
   };
 
   const handleRolesChange = (roles) => {
-    setFormData((prev) => ({
-      ...prev,
-      roles,
-      // Tautan OPD dilepas begitu Admin OPD tak lagi tercentang: tanpa role itu
-      // nilainya tak punya arti, dan backend pun mengosongkannya
-      // (UsersService.normalisasiRoles).
-      opdId: roles.includes(USER_ROLES.ADMIN_OPD) ? prev.opdId : '',
-    }));
+    // Ketika mencentang role salah satu dari Admin OPD / Admin Kabupaten,
+    // maka role Masyarakat (Responden) otomatis tercentang (21 September 2026).
+    setFormData((prev) => {
+      const prevRoles = prev?.roles ?? [];
+      const justCheckedAdminOpd =
+        !prevRoles.includes(USER_ROLES.ADMIN_OPD) && roles.includes(USER_ROLES.ADMIN_OPD);
+      const justCheckedAdminKab =
+        !prevRoles.includes(USER_ROLES.ADMIN_KABUPATEN) && roles.includes(USER_ROLES.ADMIN_KABUPATEN);
+
+      let nextRoles = roles;
+      if ((justCheckedAdminOpd || justCheckedAdminKab) && !roles.includes(USER_ROLES.RESPONDENT)) {
+        nextRoles = [...roles, USER_ROLES.RESPONDENT];
+      }
+
+      return {
+        ...prev,
+        roles: nextRoles,
+        // Tautan OPD dilepas begitu Admin OPD tak lagi tercentang: tanpa role itu
+        // nilainya tak punya arti, dan backend pun mengosongkannya
+        // (UsersService.normalisasiRoles).
+        opdId: nextRoles.includes(USER_ROLES.ADMIN_OPD) ? prev.opdId : '',
+      };
+    });
     if (errors.roles) setErrors((prev) => ({ ...prev, roles: null }));
   };
 
