@@ -45,3 +45,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sesi sementara untuk uji e2e (diterbitkan global-setup, bukan untuk dibagikan)
+e2e/.auth

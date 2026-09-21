@@ -70,6 +70,14 @@ Spec pengisian survei tanpa sesi butuh satu survei aktif yang mengizinkan pengis
 E2E_SURVEY_ANONIM_ID=<id> pnpm test:e2e --workers=1
 ```
 
+Spec tata letak (`responsif-komponen.spec.ts`) mengukur apakah panel, laci, dan modal keluar layar pada 320px dan 390px — hal yang mustahil diuji di Jest, sebab jsdom tak menghitung tata letak sama sekali. Ia butuh sesi, dan sesinya diterbitkan sekali lewat `dev-login`:
+
+```bash
+E2E_IDENTIFIER=<email akun uji> pnpm test:e2e
+```
+
+Akunnya sebaiknya memiliki ketiga peran (warga, Admin OPD, Admin Kabupaten); tanpa `E2E_IDENTIFIER`, spec itu melewati dirinya sendiri dengan pesan yang menyebutkan caranya. Spec ini berjalan di atas basis data lokal Anda dengan data sungguhan — justru nama OPD yang panjang dan nomor tiket tanpa spasi itulah yang merusak tata letak. Aman karena setiap permintaan menulis dibatalkan di tingkat jaringan peramban, jadi modal konfirmasi hapus pun tak dapat mencapai server; dua uji terakhir di berkas itu membuktikannya.
+
 ## Perintah lain
 
 | Perintah | Kegunaan |

@@ -1,6 +1,6 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import { defineConfig, globalIgnores } from 'eslint/config';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTs from 'eslint-config-next/typescript';
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -11,8 +11,8 @@ const eslintConfig = defineConfig([
   // ke tim frontend untuk diperbaiki, lalu aktifkan kembali sebagai "error".
   {
     rules: {
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/immutability": "warn",
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
     },
   },
   // Konfigurasi Jest DIMUAT NODE SEBAGAI CommonJS, bukan sebagai modul ESM:
@@ -26,18 +26,28 @@ const eslintConfig = defineConfig([
   // Tanpa pengecualian ini `pnpm --filter @skm-spm/web lint` keluar dengan kode 1
   // (6 galat), yang berarti job CI `web:lint` gagal pada setiap push.
   {
-    files: ["jest.config.js", "jest.setup.js"],
+    files: ['jest.config.js', 'jest.setup.js'],
     rules: {
-      "@typescript-eslint/no-require-imports": "off",
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  // Uji Playwright memakai `use()` milik fixture-nya, dan nama itu bertabrakan
+  // dengan aturan React: `react-hooks/rules-of-hooks` membacanya sebagai Hook
+  // yang dipanggil di luar komponen, lalu menolak berkas yang sama sekali tak
+  // menyentuh React. Fungsi di sini berjalan di Node, bukan di peramban.
+  {
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
     },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
   ]),
 ]);
 
