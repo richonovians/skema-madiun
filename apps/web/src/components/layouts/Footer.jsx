@@ -1,7 +1,40 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Globe, AtSign, MapPin, Phone, Mail } from 'lucide-react';
+import { Globe, MapPin, Phone, Mail } from 'lucide-react';
+
+/**
+ * Ikon Instagram digambar di sini, bukan diimpor.
+ *
+ * lucide-react 1.27.0 -- versi yang dipakai proyek ini -- tidak mengekspor
+ * satu pun ikon merek, termasuk Instagram. Menambah pustaka ikon kedua demi
+ * satu lambang terasa mahal, jadi lambangnya ditulis langsung.
+ *
+ * Gayanya sengaja mengikuti lucide (kotak 24, garis 2px, ujung membulat,
+ * tanpa isian) supaya berdampingan rapi dengan Globe di sebelahnya. Memakai
+ * lambang resmi Instagram yang berisi gradien justru akan terlihat menempel
+ * sendiri di antara ikon-ikon bergaris.
+ */
+function IkonInstagram({ size = 18, className }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect width="20" height="20" x="2" y="2" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1.25" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 export default function Footer() {
   return (
@@ -46,12 +79,35 @@ export default function Footer() {
             <p className="text-outline-variant font-body text-sm sm:text-base leading-relaxed text-slate-300">
               Layanan aspirasi dan pengaduan online rakyat Kabupaten Madiun. Terpercaya, transparan, dan akuntabel.
             </p>
+            {/* DULU keduanya `href="#"` -- tautan yang tak menuju ke mana pun,
+                dan isinya hanya ikon tanpa `aria-label` sehingga pembaca layar
+                cuma menyebut "tautan" (pola yang sama dengan sembilan tombol
+                yang dibereskan 21 September 2026).
+
+                `rel="noopener"` wajib menyertai `target="_blank"`: tanpanya
+                halaman tujuan memperoleh `window.opener` dan dapat mengarahkan
+                ulang tab asalnya. `noreferrer` menutup kebocoran alamat
+                perujuk sekalian. */}
             <div className="flex gap-3 mt-2">
-              <a href="#" className="p-3 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
-                <Globe size={18} className="text-white" />
+              <a
+                href="https://madiunkab.go.id/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Situs resmi Pemerintah Kabupaten Madiun"
+                title="Situs resmi Pemerintah Kabupaten Madiun"
+                className="p-3 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200"
+              >
+                <Globe size={18} className="text-white" aria-hidden="true" />
               </a>
-              <a href="#" className="p-3 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
-                <AtSign size={18} className="text-white" />
+              <a
+                href="https://www.instagram.com/pemkabmadiun/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram Pemerintah Kabupaten Madiun"
+                title="Instagram Pemerintah Kabupaten Madiun"
+                className="p-3 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200"
+              >
+                <IkonInstagram size={18} className="text-white" />
               </a>
             </div>
           </div>
@@ -70,15 +126,15 @@ export default function Footer() {
           <h4 className="font-bold text-lg text-white mb-1">Hubungi Kami</h4>
           <div className="flex gap-3 items-start">
             <MapPin className="text-primary shrink-0 mt-0.5" size={18} />
-            <p className="text-outline-variant text-sm leading-relaxed">Jl. Alun-Alun Utara No. 4, Mejayan, Kab. Madiun, Jawa Timur 63153</p>
+            <p className="text-outline-variant text-sm leading-relaxed">Jl. Mastrip No. 23 Madiun</p>
           </div>
           <div className="flex gap-3 items-center">
             <Phone className="text-primary shrink-0" size={18} />
-            <p className="text-outline-variant text-sm font-mono">(0351) 464xxx</p>
+            <p className="text-outline-variant text-sm font-mono">(0351) 462927</p>
           </div>
           <div className="flex gap-3 items-center">
             <Mail className="text-primary shrink-0" size={18} />
-            <p className="text-outline-variant text-sm">hubungi@madiunkab.go.id</p>
+            <p className="text-outline-variant text-sm">diskominfo@madiunkab.go.id</p>
           </div>
         </div>
       </div>
