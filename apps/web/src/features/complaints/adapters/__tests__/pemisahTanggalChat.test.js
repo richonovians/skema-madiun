@@ -166,3 +166,53 @@ describe('kelompokkanPesanPerTanggal', () => {
     expect(new Set(hasil.map((k) => k.kunci)).size).toBe(2);
   });
 });
+
+/**
+ * KUNCINYA HARUS UNIK WALAU MASUKANNYA TAK URUT.
+ *
+ * Hari ini mustahil: API mengurutkan balasan `createdAt: 'asc'`
+ * (complaints.service.ts) dan klien hanya menambah di ekor. Tapi kedua
+ * perender memakai `kunci` sebagai key React, dan invarian yang menjaganya
+ * ditegakkan tiga lapis jauhnya di Prisma. Begitu ada yang menambahkan "muat
+ * pesan lama" atau sisipan optimistis, dua kelompok bertanggal sama akan
+ * berbagi key dan React menggambar percakapan yang salah -- tanpa satu pun
+ * uji memerah. Jaminannya karena itu tinggal di sini, bukan di ingatan
+ * penulis perender berikutnya.
+ */
+describe('kunci kelompok', () => {
+  it('tetap unik saat tanggal yang sama muncul lagi sesudah tanggal lain', () => {
+    const hasil = kelompokkanPesanPerTanggal(
+      [
+        pesan(new Date(2026, 8, 21, 8, 0).toISOString(), 'a'),
+        pesan(new Date(2026, 8, 20, 9, 0).toISOString(), 'b'),
+        pesan(new Date(2026, 8, 21, 10, 0).toISOString(), 'c'),
+      ],
+      SEKARANG,
+    );
+
+    const kunci = hasil.map((g) => g.kunci);
+    expect(hasil).toHaveLength(3);
+    expect(new Set(kunci).size).toBe(3);
+  });
+
+  /**
+   * Pesan `d` ada supaya uji ini menangkap kesalahan yang mengintai di balik
+   * imbuhan itu: bila kelompoknya dibandingkan memakai kunci berimbuhan alih-
+   * alih kunci dasar, `c` dan `d` akan terpisah menjadi dua kelompok sehari
+   * sendiri-sendiri. Tanpa `d`, pemisahannya tak pernah terlihat.
+   */
+  it('menyatukan lagi pesan-pesan pada tanggal yang berulang', () => {
+    const hasil = kelompokkanPesanPerTanggal(
+      [
+        pesan(new Date(2026, 8, 21, 8, 0).toISOString(), 'a'),
+        pesan(new Date(2026, 8, 20, 9, 0).toISOString(), 'b'),
+        pesan(new Date(2026, 8, 21, 10, 0).toISOString(), 'c'),
+        pesan(new Date(2026, 8, 21, 11, 0).toISOString(), 'd'),
+      ],
+      SEKARANG,
+    );
+
+    expect(hasil.map((g) => g.label)).toEqual(['Hari ini', 'Kemarin', 'Hari ini']);
+    expect(hasil.map((g) => g.items.map((p) => p.text))).toEqual([['a'], ['b'], ['c', 'd']]);
+  });
+});

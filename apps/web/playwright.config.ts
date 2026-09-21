@@ -26,7 +26,26 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  /**
+   * SATU worker, juga di mesin sendiri. Sebelumnya lokal memakai bawaan
+   * Playwright (setengah jumlah inti -- empat di mesin 8 inti), dan empat
+   * peramban yang meminta rute berbeda serentak melampaui satu kompilator
+   * `next dev`: halamannya tersaji sebelum CSS dan bundel JS-nya jadi.
+   *
+   * Terukur 21 September 2026, satu variabel diubah:
+   *
+   *   4 worker -> 4, lalu 2, lalu 1 gagal; 3, 4, 5 dilewati
+   *   1 worker -> 0 gagal, 75 lulus, 3 dilewati
+   *
+   * Yang paling berbahaya bukan kegagalannya melainkan penyamarannya:
+   * beberapa uji memakai `test.skip((await tombol.count()) === 0, ...)`,
+   * sehingga tombol yang BELUM SEMPAT DIRENDER menjadi "dilewati", bukan
+   * "gagal". Angkanya lalu tampak membaik tiap jalan padahal yang tak terukur
+   * tetap sama banyaknya.
+   *
+   * Harganya ~6 menit, bukan ~3. Yang 3 menit itu tak ada gunanya.
+   */
+  workers: 1,
   reporter: 'html',
   use: {
     baseURL: ORIGIN,

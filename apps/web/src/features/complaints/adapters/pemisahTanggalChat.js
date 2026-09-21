@@ -73,6 +73,26 @@ function golongan(createdAt, sekarang) {
 export function kelompokkanPesanPerTanggal(messages, sekarang = new Date()) {
   const kelompok = [];
 
+  // Kedua perender memakai `kunci` sebagai key React. Selama percakapannya
+  // urut -- dan hari ini memang begitu, sebab API mengurutkan balasan
+  // `createdAt: 'asc'` dan klien hanya menambah di ekor -- satu tanggal hanya
+  // melahirkan satu kelompok. Jaminan itu ditegakkan tiga lapis jauhnya di
+  // Prisma, jadi ia tak boleh menjadi syarat diam-diam di sini: begitu ada
+  // yang menambahkan "muat pesan lama" atau sisipan optimistis, dua kelompok
+  // bertanggal sama akan berbagi key dan React menggambar percakapan yang
+  // salah tanpa satu pun uji memerah.
+  const dipakai = new Map();
+  const kunciUnik = (dasar) => {
+    const ke = (dipakai.get(dasar) ?? 0) + 1;
+    dipakai.set(dasar, ke);
+    return ke === 1 ? dasar : `${dasar}#${ke}`;
+  };
+
+  // Dibandingkan terhadap kunci DASAR, bukan kunci kelompok terakhir: yang
+  // terakhir bisa saja sudah berimbuhan, dan membandingkannya akan memecah
+  // pesan-pesan sehari menjadi satu kelompok per pesan.
+  let dasarTerakhir = null;
+
   for (const pesan of messages ?? []) {
     const gol = golongan(pesan?.createdAt, sekarang);
 
@@ -82,18 +102,19 @@ export function kelompokkanPesanPerTanggal(messages, sekarang = new Date()) {
     // mungkin yang sedang dicari.
     if (!gol) {
       if (kelompok.length === 0) {
-        kelompok.push({ kunci: 'tanpa-tanggal', label: null, items: [] });
+        kelompok.push({ kunci: kunciUnik('tanpa-tanggal'), label: null, items: [] });
+        dasarTerakhir = 'tanpa-tanggal';
       }
       kelompok[kelompok.length - 1].items.push(pesan);
       continue;
     }
 
-    const terakhir = kelompok[kelompok.length - 1];
-    if (!terakhir || terakhir.kunci !== gol.kunci) {
-      kelompok.push({ kunci: gol.kunci, label: gol.label, items: [pesan] });
+    if (dasarTerakhir !== gol.kunci) {
+      kelompok.push({ kunci: kunciUnik(gol.kunci), label: gol.label, items: [pesan] });
+      dasarTerakhir = gol.kunci;
       continue;
     }
-    terakhir.items.push(pesan);
+    kelompok[kelompok.length - 1].items.push(pesan);
   }
 
   return kelompok;

@@ -87,6 +87,23 @@ Akunnya sebaiknya memiliki ketiga peran (warga, Admin OPD, Admin Kabupaten); tan
 
 Spec ini berjalan di atas basis data lokal Anda dengan data sungguhan — justru nama OPD yang panjang dan nomor tiket tanpa spasi itulah yang merusak tata letak. Aman karena setiap permintaan menulis dibatalkan di tingkat jaringan peramban, jadi modal konfirmasi hapus pun tak dapat mencapai server; dua uji terakhir di `responsif-komponen.spec.ts` membuktikannya, bukan memercayainya.
 
+### Jalannya satu worker, dan itu disengaja
+
+`playwright.config.ts` memaksa `workers: 1` di mana pun, termasuk di mesin sendiri. Empat peramban yang meminta rute berbeda serentak melampaui satu kompilator `next dev`, dan halamannya tersaji sebelum CSS dan bundel JS-nya jadi. Terukur 21 September 2026: dengan empat worker, tiga jalan berturut-turut menjatuhkan 4, lalu 2, lalu 1 uji yang **berbeda-beda**; dengan satu worker, 75 lulus dan tak ada yang gagal.
+
+Bila suatu saat Anda tergoda menaikkannya lagi, ketahui dulu penyamarannya: beberapa uji memakai `test.skip((await tombol.count()) === 0, ...)`, sehingga tombol yang belum sempat dirender menjadi *dilewati*, bukan *gagal*. Jumlah kegagalan lalu tampak menurun tiap jalan padahal yang tak terukur tetap sama banyaknya. **Lewatan di atas tiga berarti curigai kompilasi, bukan data.**
+
+### Sesudah menjalankan spec yang menulis
+
+Suite responsif tak menulis apa pun, tapi spec lain (pengisian survei, pengaduan) meninggalkan baris sungguhan yang aplikasinya sendiri tak dapat menghapus kembali:
+
+```bash
+node apps/web/e2e/support/bersihkan-data-uji.mjs --dry   # lihat dulu
+node apps/web/e2e/support/bersihkan-data-uji.mjs         # hapus
+```
+
+Ia hanya menghapus baris berpenanda `[UJI `, menolak jalan bila sambungannya bukan `skm_db` lokal (diperiksa dua sisi: URL yang diminta *dan* alamat server yang menjawab), dan tak pernah menyentuh `audit_logs` — jejak itu wajib menurut rancangan. Tambahkan `--tanpa-induk` untuk ikut menyapu notifikasi yang surveinya sudah dimusnahkan.
+
 ## Perintah lain
 
 | Perintah | Kegunaan |
