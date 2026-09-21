@@ -115,27 +115,40 @@ export default function ChatReplyForm({ onSubmit, nomorTiket }) {
               style={{ minHeight: '52px' }}
             />
           </div>
-          <IconButton 
-            className="text-text-secondary hover:text-primary transition-colors p-2 shrink-0 relative" 
+          {/* Tombol ini TAK PERNAH punya nama, di lebar berapa pun: isinya hanya
+              ikon klip. Nama di tombolnyalah yang dibutuhkan, bukan pada
+              inputnya: input tetap `hidden`, dan pemakai keyboard menekan Enter
+              di tombol ini yang lalu membuka pemilih berkas lewat `onClick`.
+
+              Inputnya dipindah keluar menjadi saudara (21 September 2026):
+              elemen interaktif bersarang di dalam `<button>` bukan HTML yang
+              sah, dan penamaan tombol justru bekerja di atas isinya. */}
+          <input
+            type="file"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+          />
+          <IconButton
+            className="text-text-secondary hover:text-primary transition-colors p-2 shrink-0 relative"
             type="button"
+            aria-label="Lampirkan Dokumen/Foto"
+            title="Lampirkan Dokumen/Foto"
             onClick={() => fileInputRef.current?.click()}
           >
-            <input 
-              type="file" 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileChange} 
-            />
-            <Paperclip size={24} />
+            <Paperclip size={24} aria-hidden="true" />
           </IconButton>
-          <Button 
-            type="submit" 
+          {/* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. */}
+          <Button
+            type="submit"
             variant="primary"
+            aria-label={isSending ? 'Mengirim...' : 'Kirim Pesan'}
+            title={isSending ? 'Mengirim...' : 'Kirim Pesan'}
             className="w-[52px] h-[52px] !p-0 sm:w-auto sm:!px-6 rounded-full sm:!rounded-xl font-bold flex items-center justify-center sm:gap-2 whitespace-nowrap shrink-0 transition-all"
             disabled={(!reply.trim() && !file) || isSending}
           >
             <span className="hidden sm:inline">{isSending ? 'Mengirim...' : 'Kirim Pesan'}</span>
-            <Send size={20} />
+            <Send size={20} aria-hidden="true" />
           </Button>
         </div>
       </form>

@@ -57,8 +57,13 @@ export default function ComplaintDetailHeader({ complaint, chatHistory = [] }) {
         </Link>
 
         <div className="relative group space-y-1" ref={exportRef}>
-          <button 
+          {/* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. */}
+          <button
             onClick={() => setIsExportOpen(!isExportOpen)}
+            aria-label="Ekspor"
+            title="Ekspor"
+            aria-haspopup="menu"
+            aria-expanded={isExportOpen}
             className="flex items-center justify-between gap-1 sm:gap-3 min-h-[44px] px-md rounded-lg font-medium text-xs sm:text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm"
           >
             <div className="flex items-center gap-2">

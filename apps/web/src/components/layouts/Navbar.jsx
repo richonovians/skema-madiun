@@ -70,7 +70,7 @@ export default function Navbar() {
               kecil, tautan yang menolak menyusut membawa seluruh blok merek
               mendorong kelompok kanan navbar -- avatar dan tombol menu -- 28px
               ke luar layar pada 320px. Lambangnya tetap `shrink-0` di dalam. */}
-          <Link href="/" className="flex items-center gap-2.5 group min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 group min-w-0 min-h-[44px]">
             <div className="shrink-0 transition-transform duration-300 group-hover:scale-105 flex items-center">
               <Image
                 src="/images/navbar/skema-logo-2.png"
@@ -158,10 +158,10 @@ export default function Navbar() {
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className={clsx(
-                'lg:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200',
+                'lg:hidden flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200',
                 'text-slate-600 hover:text-primary hover:bg-primary/8 focus:outline-none focus:ring-2 focus:ring-primary/20',
               )}
-              aria-label="Toggle Navigation Menu"
+              aria-label={isMobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
             >
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>

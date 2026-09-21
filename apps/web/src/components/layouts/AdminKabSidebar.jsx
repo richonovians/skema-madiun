@@ -44,7 +44,11 @@ export default function AdminKabSidebar() {
   const getLinkClass = (path) => {
     const isActive = pathname === path || pathname.startsWith(`${path}/`);
     
-    let base = "flex items-center gap-md py-sm rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ";
+    // `min-h-[44px]` (21 September 2026): terukur 239x40 di laci ponsel --
+    // empat piksel di bawah sasaran sentuh 44px yang sudah dipakai belasan
+    // tombol lain di proyek ini. Tinggi tampak tak berubah pada layar lebar,
+    // sebab di sana isinya memang sudah melewati 44px.
+    let base = "flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ";
     base += isDesktopSidebarCollapsed ? "justify-center px-0 " : "px-md ";
     
     if (isActive) {
@@ -104,10 +108,13 @@ export default function AdminKabSidebar() {
 
           {!isDesktopSidebarCollapsed && (
             <button 
-              className="md:hidden p-2 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
+              type="button"
+              aria-label="Tutup menu navigasi"
+              title="Tutup menu navigasi"
+              className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
               onClick={() => setIsMobileSidebarOpen(false)}
             >
-              <X size={20} />
+              <X size={20} aria-hidden="true" />
             </button>
           )}
         </div>

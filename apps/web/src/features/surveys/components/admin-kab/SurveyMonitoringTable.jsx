@@ -27,8 +27,13 @@ const STATUS_LABEL = {
   DRAF: 'Draf',
 };
 
+// `h-[32px]` -> `min-h-[44px]` (21 September 2026). Delapan aksi per baris,
+// semuanya 32px, dan barisnya digulir mendatar di ponsel -- kombinasi yang
+// membuat "Hapus" bersebelahan dengan "Tutup" pada sasaran yang lebih kecil
+// daripada ujung jari. Tinggi minimum, bukan tetap, supaya baris yang labelnya
+// membungkus tak terpotong.
 const ACTION_CLASS =
-  'whitespace-nowrap px-2.5 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed';
+  'whitespace-nowrap px-2.5 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors min-h-[44px] flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed';
 
 /**
  * Tabel survei lintas OPD untuk Admin Kabupaten, lengkap dengan aksi CRUD.

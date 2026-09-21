@@ -180,4 +180,28 @@ describe('AdminResolutionWorkspace — template pesan', () => {
       'Selamat pagi.\nPengaduan PGD1 sedang kami proses. Kami akan mengabari Anda begitu ada perkembangan.',
     );
   });
+
+  /**
+   * LAMPIRAN DAPAT DICAPAI KEYBOARD (21 September 2026).
+   *
+   * Pemicunya dulu `<label>` yang membungkus input ber-`display: none`. Label
+   * bukan elemen yang dapat difokus, dan input yang tersembunyi bukan titik
+   * henti Tab -- keduanya bersama berarti admin yang tak memakai tetikus tak
+   * punya jalan apa pun untuk melampirkan berkas. Yang dikunci di sini bukan
+   * tampilannya, melainkan bahwa pemicunya sebuah tombol bernama yang
+   * benar-benar membuka pemilih berkas.
+   */
+  it('lampiran dipicu tombol bernama, bukan label yang tak dapat difokus', () => {
+    const { container } = render(
+      <AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />,
+    );
+
+    const tombol = screen.getByRole('button', { name: /lampirkan dokumen\/foto/i });
+    const input = container.querySelector('input[type="file"]');
+    const bukaPemilih = jest.spyOn(input, 'click');
+
+    fireEvent.click(tombol);
+
+    expect(bukaPemilih).toHaveBeenCalled();
+  });
 });

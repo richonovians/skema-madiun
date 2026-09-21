@@ -92,7 +92,7 @@ export default function SampahSurveiKabPage() {
         </div>
         <Link
           href="/admin-kab/surveys"
-          className="shrink-0 whitespace-nowrap px-lg py-sm border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
+          className="shrink-0 whitespace-nowrap px-lg py-sm min-h-[44px] border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
         >
           <ArrowLeft size={16} />
           Kembali ke Daftar Survei

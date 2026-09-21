@@ -1,4 +1,14 @@
-import { test, expect, ambilContoh, ukurLuberan, type Contoh } from './fixtures/responsif';
+import {
+  test,
+  expect,
+  ambilContoh,
+  ukurLuberan,
+  ukurGulirTersembunyi,
+  ukurTargetSentuh,
+  ukurTeksTerpotong,
+  type Contoh,
+  type Peran,
+} from './fixtures/responsif';
 
 /**
  * TATA LETAK KOMPONEN YANG BARU MUNCUL SESUDAH DIBUKA (21 September 2026).
@@ -210,10 +220,6 @@ for (const { nama, viewport } of LEBAR) {
 }
 
 /**
- * Suite ini membuka modal hapus di atas basis data sungguhan, jadi janji
- * "tak ada yang tertulis" harus dibuktikan, bukan dipercaya.
- */
-/**
  * Suite ini membuka modal hapus di atas basis data sungguhan, jadi janji "tak
  * ada yang tertulis" harus DIBUKTIKAN, bukan dipercaya.
  *
@@ -287,3 +293,162 @@ test.describe('Penjaga: permintaan menulis tak pernah mencapai server', () => {
     expect(hasil.status).toBe(200);
   });
 });
+
+/**
+ * ISI YANG MELEBAR TANPA BATANG GULIR YANG TERLIHAT (21 September 2026).
+ *
+ * Titik buta alat ukurnya sendiri. `ukurLuberan` sengaja melewati apa pun yang
+ * berada di dalam wadah `overflow-x: auto` -- kalau tidak, setiap tabel lebar
+ * yang memang disediakan untuk digulir ikut terlaporkan rusak. Wadah yang
+ * batang gulirnya disembunyikan tampak persis sama bagi saringan itu, padahal
+ * bagi pemakai tetikus tak ada apa pun yang memberi tahu bahwa isinya masih
+ * berlanjut ke kanan.
+ *
+ * Terukur di dasbor Admin Kabupaten: pada 768px wadahnya selebar 464px berisi
+ * bagan 600px, pada 900px selebar 596px berisi 600px. Sebabnya penjaga lebar
+ * `md:min-w-[600px]` yang menyala sejak 768px, sementara grid tiga kolom yang
+ * hendak dijaganya baru dimulai pada `lg` (1024px).
+ */
+for (const { nama, viewport } of [
+  { nama: '768px', viewport: { width: 768, height: 1024 } },
+  { nama: '900px', viewport: { width: 900, height: 700 } },
+] as const) {
+  test.describe(`Batang gulir di ${nama}`, () => {
+    test.use({ viewport });
+
+    test('dasbor Admin Kabupaten tak menyembunyikan isi yang melebar', async ({
+      page,
+      bukaSebagai,
+    }) => {
+      await bukaSebagai('kabupaten', '/admin-kab/dashboard');
+
+      const tersembunyi = await ukurGulirTersembunyi(page);
+      expect(tersembunyi, `isi melebar tanpa batang gulir di ${nama}`).toEqual([]);
+    });
+  });
+}
+
+/** Halaman yang dipakai sapuan lebar, lanskap, dan sasaran sentuh. */
+const HALAMAN_UTAMA: Array<[string, Peran, string]> = [
+  ['dasbor Admin Kabupaten', 'kabupaten', '/admin-kab/dashboard'],
+  ['daftar survei Admin Kabupaten', 'kabupaten', '/admin-kab/surveys'],
+  ['daftar pengaduan Admin Kabupaten', 'kabupaten', '/admin-kab/complaints'],
+  ['daftar pengaduan Admin OPD', 'opd', '/admin-opd/complaints'],
+  ['statistik Admin OPD', 'opd', '/admin-opd/analytics'],
+  ['beranda', 'responden', '/'],
+];
+
+/**
+ * LAYAR LEBAR DAN LANSKAP (21 September 2026).
+ *
+ * Seluruh audit sebelumnya berhenti di 414px. Yang belum pernah ditanya: apa
+ * yang terjadi di monitor 1440px, dan apa yang terjadi ketika ponsel diputar
+ * -- 844x390 memberi tinggi hanya 390px, dan modal serta laci yang dirancang
+ * untuk layar tegak justru di situ kehabisan ruang.
+ */
+for (const { nama, viewport } of [
+  { nama: '1440px', viewport: { width: 1440, height: 900 } },
+  { nama: 'lanskap 844x390', viewport: { width: 844, height: 390 } },
+] as const) {
+  test.describe(`Tata letak di ${nama}`, () => {
+    test.use({ viewport });
+
+    for (const [judul, peran, path] of HALAMAN_UTAMA) {
+      test(`${judul} muat di ${nama}`, async ({ page, bukaSebagai }) => {
+        await bukaSebagai(peran, path);
+
+        await harusMuatDiLayar(page, `${judul} @ ${nama}`);
+        expect(await ukurGulirTersembunyi(page), `${judul} @ ${nama}`).toEqual([]);
+      });
+    }
+  });
+}
+
+/**
+ * SASARAN SENTUH DAN TEKS YANG TERPOTONG (21 September 2026).
+ *
+ * Dua pertanyaan yang tak pernah diukur, dan keduanya hanya dapat dijawab di
+ * peramban: seberapa besar yang harus disentuh, dan apakah ada huruf yang
+ * benar-benar hilang dibaca. Batas 44px bukan angka dari luar -- proyek ini
+ * sudah memakai `min-h-[44px]` di belasan tempat; yang kurang adalah
+ * penerapannya yang merata.
+ */
+for (const { nama, viewport } of LEBAR) {
+  test.describe(`Sasaran sentuh di ${nama}`, () => {
+    test.use({ viewport });
+
+    for (const [judul, peran, path] of HALAMAN_UTAMA) {
+      test(`${judul}: tak ada sasaran di bawah 44px`, async ({ page, bukaSebagai }) => {
+        await bukaSebagai(peran, path);
+
+        expect(await ukurTargetSentuh(page), `${judul} @ ${nama}`).toEqual([]);
+      });
+
+      test(`${judul}: tak ada teks yang terpotong`, async ({ page, bukaSebagai }) => {
+        await bukaSebagai(peran, path);
+
+        expect(await ukurTeksTerpotong(page), `${judul} @ ${nama}`).toEqual([]);
+      });
+    }
+  });
+}
+
+/**
+ * TIGA RUTE YANG BELUM PERNAH TERSENTUH PENGUKURAN (21 September 2026).
+ *
+ * Ketiganya luput karena alasan yang sama: tak satu pun dapat dicapai dengan
+ * mengeklik dari halaman lain. `/complaints/success` hanya muncul sesudah
+ * sebuah pengaduan terkirim, `/sso/callback` hanya sebagai tujuan pengalihan
+ * dari Helpdesk, dan detail audit hanya lewat alamat bernomor.
+ *
+ * `/sso/callback` diukur dalam keadaan GAGAL, tanpa parameter kode. Itu bukan
+ * kelonggaran: keadaan berhasil hanya tampak beberapa ratus milidetik sebelum
+ * pengguna diantar pergi, sedangkan keadaan gagal justru yang bertahan di
+ * layar -- dan karena itu yang perlu muat.
+ *
+ * Nama OPD sengaja dibuat sepanjang yang sungguhan ada di Kabupaten Madiun:
+ * kata tunggal yang panjang itulah yang merusak tata letak, bukan kalimat
+ * pendek milik data seed.
+ */
+for (const { nama, viewport } of LEBAR) {
+  test.describe(`Rute yang jarang dilihat di ${nama}`, () => {
+    test.use({ viewport });
+
+    let contoh: Contoh = {};
+    test.beforeAll(async () => {
+      contoh = await ambilContoh();
+    });
+
+    test('halaman berhasil kirim pengaduan muat di layar', async ({ page, bukaSebagai }) => {
+      const opd = encodeURIComponent(
+        'Dinas Komunikasi Informatika Statistik dan Persandian Kabupaten Madiun',
+      );
+      await bukaSebagai(
+        'responden',
+        `/complaints/success?complaintId=${contoh.tiketResponden ?? 'PGD20260101UJI'}&opdName=${opd}`,
+      );
+
+      await expect(page.getByText(/berhasil/i).first()).toBeVisible();
+      await harusMuatDiLayar(page, 'halaman berhasil kirim pengaduan');
+    });
+
+    test('halaman transisi SSO muat di layar saat gagal', async ({ page, bukaSebagai }) => {
+      await bukaSebagai('responden', '/sso/callback');
+      await page.waitForTimeout(1500);
+
+      const panjang = await page.evaluate(() => (document.body.innerText || '').trim().length);
+      expect(panjang, 'halaman transisi SSO kosong, tak ada yang diukur').toBeGreaterThan(100);
+      await harusMuatDiLayar(page, 'halaman transisi SSO');
+    });
+
+    test('detail audit log muat di layar', async ({ page, bukaSebagai }) => {
+      test.skip(!contoh.auditId, 'Tak ada baris audit pada basis data mesin ini.');
+
+      await bukaSebagai('kabupaten', `/admin-kab/audit-logs/${contoh.auditId}`);
+
+      const panjang = await page.evaluate(() => (document.body.innerText || '').trim().length);
+      expect(panjang, 'detail audit kosong, tak ada yang diukur').toBeGreaterThan(100);
+      await harusMuatDiLayar(page, 'detail audit log');
+    });
+  });
+}

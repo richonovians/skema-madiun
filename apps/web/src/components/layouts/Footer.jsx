@@ -47,10 +47,10 @@ export default function Footer() {
               Layanan aspirasi dan pengaduan online rakyat Kabupaten Madiun. Terpercaya, transparan, dan akuntabel.
             </p>
             <div className="flex gap-3 mt-2">
-              <a href="#" className="p-2.5 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
+              <a href="#" className="p-3 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
                 <Globe size={18} className="text-white" />
               </a>
-              <a href="#" className="p-2.5 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
+              <a href="#" className="p-3 bg-white/5 border border-white/15 rounded-xl hover:bg-white/15 hover:border-white/30 hover:scale-105 transition-all duration-200">
                 <AtSign size={18} className="text-white" />
               </a>
             </div>
@@ -60,9 +60,9 @@ export default function Footer() {
         {/* Links */}
         <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3 lg:pl-6">
           <h4 className="font-bold text-lg text-white mb-1">Tautan Cepat</h4>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/">Beranda</Link>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/statistics">Statistik Pelayanan</Link>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-block w-fit" href="/about#faq">Bantuan</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/">Beranda</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/statistics">Statistik Pelayanan</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/about#faq">Bantuan</Link>
         </div>
         
         {/* Contact */}

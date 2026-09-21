@@ -389,7 +389,7 @@ export default function AdminKabSurveysPage() {
             survei yang terlanjur dibuang akan terlihat seperti hilang. */}
         <Link
           href="/admin-kab/surveys/sampah"
-          className="px-lg py-sm border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
+          className="px-lg py-sm min-h-[44px] border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
         >
           <Trash2 size={16} />
           Sampah

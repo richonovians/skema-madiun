@@ -16,7 +16,7 @@ export default function HelpBox() {
           const el = document.getElementById('panduan-penggunaan');
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
-        className="bg-white text-primary py-sm px-md rounded-full font-bold text-sm hover:bg-primary-hover hover:text-white transition-all duration-300 flex items-center justify-center gap-xs border border-primary/20 hover:border-transparent hover:shadow-md w-full cursor-pointer"
+        className="bg-white text-primary py-sm px-md min-h-[44px] rounded-full font-bold text-sm hover:bg-primary-hover hover:text-white transition-all duration-300 flex items-center justify-center gap-xs border border-primary/20 hover:border-transparent hover:shadow-md w-full cursor-pointer"
       >
         Panduan Layanan
         <ArrowRight size={18} />

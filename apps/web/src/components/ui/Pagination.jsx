@@ -19,7 +19,11 @@ export default function Pagination({
       <span className="font-body text-sm font-medium text-text-secondary">
         Menampilkan {startItem}-{endItem} dari {totalItems} {itemName}
       </span>
-      {/* Kedua tombol di bawah HANYA berisi ikon, jadi tanpa `aria-label` ia tak
+      {/* Ukurannya dinaikkan ke 44x44 (21 September 2026): terukur 28x28,
+          sasaran terkecil di seluruh area admin, dan justru dipakai berulang
+          kali saat menelusuri daftar panjang di ponsel.
+
+          Kedua tombol di bawah HANYA berisi ikon, jadi tanpa `aria-label` ia tak
           punya nama yang bisa dibacakan sama sekali -- pembaca layar cuma
           menyebut "tombol", persis cacat yang dulu ditemukan pada bel
           notifikasi. Ditemukan 13 September 2026 saat menulis uji halaman
@@ -29,7 +33,7 @@ export default function Pagination({
           aria-label="Halaman sebelumnya"
           onClick={() => onPageChange && onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
-          className={`p-1 rounded flex items-center justify-center transition-colors ${
+          className={`min-w-[44px] min-h-[44px] rounded flex items-center justify-center transition-colors ${
             currentPage <= 1 
               ? 'opacity-50 cursor-not-allowed text-text-secondary' 
               : 'hover:bg-surface-container text-text-primary'
@@ -41,7 +45,7 @@ export default function Pagination({
           aria-label="Halaman berikutnya"
           onClick={() => onPageChange && onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className={`p-1 rounded flex items-center justify-center transition-colors ${
+          className={`min-w-[44px] min-h-[44px] rounded flex items-center justify-center transition-colors ${
             currentPage >= totalPages 
               ? 'opacity-50 cursor-not-allowed text-text-secondary' 
               : 'hover:bg-surface-container text-text-primary'

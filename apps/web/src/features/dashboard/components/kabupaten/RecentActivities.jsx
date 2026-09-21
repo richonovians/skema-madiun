@@ -79,7 +79,12 @@ export default function RecentActivities({ data = [] }) {
                 {item.timeLabel}
               </span>
               <div className="mt-xs flex items-center gap-xs justify-end text-primary text-xs font-bold">
-                <Link href={item.link} className="flex items-center gap-xs hover:underline">
+                {/* Terukur 88x16 di ponsel; lihat catatan yang sama di
+                    IkmLeaderboard. */}
+                <Link
+                  href={item.link}
+                  className="flex items-center gap-xs min-h-[44px] hover:underline"
+                >
                   <span>Buka Detail</span>
                   <ChevronRight size={14} />
                 </Link>
