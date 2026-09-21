@@ -372,6 +372,15 @@ for (const { nama, viewport } of [
  * benar-benar hilang dibaca. Batas 44px bukan angka dari luar -- proyek ini
  * sudah memakai `min-h-[44px]` di belasan tempat; yang kurang adalah
  * penerapannya yang merata.
+ *
+ * YANG DIUKUR ADALAH KEADAAN SUDAH MASUK, sebab fixture memang memasang sesi.
+ * Navbar versi KELUAR belum tersentuh sapuan ini, dan di sana ada dua sasaran
+ * yang masih di bawah 44px -- terukur 21 September 2026: tombol "Masuk via SSO
+ * Helpdesk" setinggi 40px dan tautan "akun dev" setinggi 16px
+ * (SSOLoginButton.jsx). Keduanya SENGAJA dibiarkan di sini: tinggi 40px milik
+ * varian `navLogin` adalah keputusan tersurat 14 September 2026 atas permintaan
+ * pengguna, disamakan dengan RegistrasiHelpdeskLink supaya dua pil bersebelahan
+ * tak berbeda tinggi. Menaikkannya sepihak akan membatalkan permintaan itu.
  */
 for (const { nama, viewport } of LEBAR) {
   test.describe(`Sasaran sentuh di ${nama}`, () => {
