@@ -601,8 +601,31 @@ describe('SsoService', () => {
         expect.any(Number),
         'sso_grant_kabupaten',
         'auth',
-        expect.objectContaining({ sub: 'hd-sub-abc123' }),
+        // PERAN yang diberikan: inilah seluruh alasan jejak ini ada.
+        expect.objectContaining({ roles: [Role.kabupaten] }),
       );
+    });
+
+    /**
+     * 22 September 2026. Jejak ini dulu ikut membawa `sub` Helpdesk. Barisnya
+     * sudah menunjuk akunnya lewat `actorId`, dan `users.sso_subject` menyimpan
+     * nilainya — menyalinnya ke `audit_logs` tak menambah satu pun kemampuan
+     * penelusuran, hanya menggandakan pengenal identitas ke tabel yang dibaca
+     * Admin Kabupaten. Persis penggandaan yang dilarang temuan T8.
+     *
+     * Aksi `login` SENGAJA tidak ikut berubah: di sana `sub` punya alasan
+     * tertulis sendiri (memadankan satu kejadian dengan log sisi Helpdesk),
+     * dan membatalkannya adalah keputusan tersendiri.
+     */
+    it('jejak itu TIDAK membawa sub Helpdesk', async () => {
+      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:kabupaten' });
+      m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
+
+      await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+
+      const jejak = m.audit.record.mock.calls.find((c) => c[1] === 'sso_grant_kabupaten');
+      expect(jejak).toBeDefined();
+      expect(Object.keys(jejak![3] as object)).toEqual(['roles']);
     });
 
     it('KONTROL: akun TANPA kabupaten tidak menulis jejak itu', async () => {

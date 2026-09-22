@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nest
 import { Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
+import { redactAuditBody } from '../../common/interceptors/audit-redact.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
@@ -25,11 +26,31 @@ export class AuditService {
   /**
    * Catat satu aksi admin. SENGAJA menelan error-nya sendiri (best-effort) —
    * kegagalan mencatat audit TIDAK BOLEH menggagalkan aksi utama yang sudah sukses.
+   *
+   * REDAKSI DILAKUKAN DI SINI, bukan hanya di `AuditInterceptor`
+   * (22 September 2026). Sampai tanggal itu redaksi T8 hidup di interceptor
+   * saja, sehingga setiap pemanggil `record()` secara langsung melewatinya
+   * sepenuhnya — dan ada satu: `SsoService` menulis `sub` Helpdesk apa adanya
+   * ketika sebuah akun lahir memegang peran kabupaten.
+   *
+   * Yang keliru bukan pemanggil yang lupa, melainkan tempat redaksinya
+   * dipasang: selama ia di interceptor, setiap pemanggil BARU harus mengingat
+   * sendiri, dan lupanya tak menimbulkan gejala apa pun. Di sini ia menjadi
+   * satu-satunya jalan menuju `audit_logs.detail`.
+   *
+   * Interceptor tetap menyunting lebih dulu, jadi jalur teraudit melewati
+   * redaksi dua kali. Itu aman — `[disunting]` yang disunting ulang tetap
+   * `[disunting]` — dan dijaga uji tersendiri, bukan diandaikan.
    */
   async record(actorId: number, aksi: string, entitas: string, detail: unknown): Promise<void> {
     try {
       await this.prisma.auditLog.create({
-        data: { actorId, aksi, entitas, detail: detail as Prisma.InputJsonValue },
+        data: {
+          actorId,
+          aksi,
+          entitas,
+          detail: redactAuditBody(detail) as Prisma.InputJsonValue,
+        },
       });
     } catch (err) {
       this.logger.warn(

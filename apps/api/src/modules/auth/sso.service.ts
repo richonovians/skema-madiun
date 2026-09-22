@@ -195,8 +195,11 @@ export class SsoService {
           );
         }
 
+        // NILAI `sso_subject` sengaja tidak ikut dicetak (22 September 2026):
+        // ia pengenal identitas seseorang, dan `id` sudah cukup untuk menelusuri
+        // barisnya di `users` bila memang perlu dilihat.
         this.logger.log(
-          `Menyelaraskan akun lama id=${byEmail.id} — sso_subject "${byEmail.ssoSubject}" dinaikkan ke sub Helpdesk`,
+          `Menyelaraskan akun lama id=${byEmail.id} — sso_subject dinaikkan ke sub Helpdesk`,
         );
         const upgraded = await this.prisma.user.update({
           where: { id: byEmail.id },
@@ -266,8 +269,14 @@ export class SsoService {
         // antarmuka, bukan efek samping login.
       },
     });
+    // ALAMAT EMAIL tidak ikut dicetak (22 September 2026). Baris ini sudah
+    // membawa `id`, yang menunjuk barisnya di `users` tanpa menggandakan data
+    // pribadi ke berkas log — tempat yang tak punya masa retensi, tak
+    // terenkripsi, dan biasanya terbaca lebih banyak orang daripada basis
+    // datanya sendiri. Alasannya sama persis dengan `sso-claim-shape.ts`, yang
+    // menolak menyalin nilai klaim ke log; berkas ini yang belum ikut.
     this.logger.log(
-      `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.roles.join(',')}` +
+      `Pengguna baru dari SSO: id=${created.id} peran=${created.roles.join(',')}` +
         (created.opdId === null ? '' : ` opdId=${created.opdId}`),
     );
 
@@ -281,11 +290,16 @@ export class SsoService {
     // manajemen pengguna dan log aktivitas -- membiarkan pengaman ini menjaga
     // nama yang sudah tak ada sama dengan membuangnya.
     if (created.roles.includes(Role.kabupaten)) {
-      this.logger.warn(
-        `Akun baru id=${created.id} lahir memegang kabupaten dari klaim Helpdesk (sub=${profile.sub})`,
-      );
+      // `sub` Helpdesk TIDAK ikut, baik ke log maupun ke `audit_logs.detail`
+      // (22 September 2026). Barisnya sudah menunjuk akunnya lewat `id`, dan
+      // `users.sso_subject` menyimpan nilainya — menyalinnya ke tabel kedua
+      // tak menambah satu pun kemampuan penelusuran, hanya menggandakan
+      // pengenal identitas ke tempat yang dibaca Admin Kabupaten. Itu persis
+      // penggandaan yang dilarang temuan T8.
+      //
+      // Yang dijaga pengaman ini tetap utuh: SIAPA, peran apa, dan kapan.
+      this.logger.warn(`Akun baru id=${created.id} lahir memegang kabupaten dari klaim Helpdesk`);
       await this.audit.record(created.id, 'sso_grant_kabupaten', 'auth', {
-        sub: profile.sub,
         roles: created.roles,
       });
     }

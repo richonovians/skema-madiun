@@ -30,10 +30,14 @@ export const PENANDA_DISUNTING = '[disunting]';
  *
  * Tiga kelompok:
  *  - identitas orang (`nama`, `email`, `ssoSubject`, `nomorHp`);
- *  - teks bebas yang dapat memuat cerita pribadi (`catatan`, `uraian`, `pesan`,
- *    `jawaban`, `komentar`, `saran`) — di sistem pengaduan, isi keluhan justru
- *    bagian paling pribadinya;
- *  - jawaban survei (`answers`, `teks`) — ditambahkan 13 September 2026 SEBELUM
+ *  - teks bebas yang dapat memuat cerita pribadi (`judul`, `catatan`, `uraian`,
+ *    `pesan`, `jawaban`, `komentar`, `saran`) — di sistem pengaduan, isi keluhan
+ *    justru bagian paling pribadinya. `judul` menyusul 22 September 2026, dan
+ *    keterlambatannya adalah contoh persis dari peringatan di bawah: sejak T8
+ *    hanya `uraian` yang disunting, padahal `CreateComplaintDto` selalu membawa
+ *    DUA teks bebas, sehingga judul seperti "Pungli oleh Pak Budi di loket 3"
+ *    tersalin utuh selama dua minggu;
+ *  - jawaban survei (`answers`, `teks`, `label`) — ditambahkan 13 September 2026 SEBELUM
  *    `POST /surveys/:id/responses` diaudit. Payload survei memakai kunci
  *    berbahasa Inggris yang tak tercakup daftar lama, sehingga mengauditnya akan
  *    menyalin jawaban warga utuh ke tabel yang dibaca superuser. Kuncinya tetap
@@ -54,6 +58,8 @@ const KUNCI_SENSITIF = new Set([
   'nomorhp',
   'answers',
   'teks',
+  'label',
+  'judul',
   'catatan',
   'uraian',
   'pesan',
