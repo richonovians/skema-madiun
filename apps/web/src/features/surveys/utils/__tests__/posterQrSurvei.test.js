@@ -1,4 +1,12 @@
-import { muatLambang, pecahBaris, sikuPemindai, susunTataLetak } from '../posterQrSurvei';
+import {
+  JUDUL_SKALA,
+  barisMaksJudul,
+  muatLambang,
+  pecahBaris,
+  pilihSkalaJudul,
+  sikuPemindai,
+  susunTataLetak,
+} from '../posterQrSurvei';
 
 /**
  * POSTER QR SURVEI (permintaan pengguna 22 September 2026). Unduhan QR tak lagi
@@ -184,11 +192,23 @@ describe('muatLambang', () => {
  * wilayah yang bertumpang tindih, dan tulisan tak pernah keluar dari wilayahnya
  * sendiri. Itu menutup seluruh kelas cacatnya, bukan satu judul yang kebetulan
  * panjang.
+ *
+ * DIPERLUAS 22 September 2026 (permintaan pengguna: judul panjang mengecil
+ * alih-alih terpotong). Judul kini punya tangga ukuran, jadi "setiap panjang
+ * judul yang mungkin" tak lagi berarti 0..3 baris pada satu ukuran huruf,
+ * melainkan tiap langkah tangga dikalikan tiap jumlah baris yang diizinkannya.
+ * Menguji langkah pertama saja akan membiarkan dua langkah lain -- yang justru
+ * memuat baris lebih banyak, dan karenanya paling mungkin meluber -- lolos
+ * tanpa diperiksa sama sekali.
  */
 describe('susunTataLetak', () => {
-  const SEMUA_PANJANG = [0, 1, 2, 3];
-
   const bertumpang = (a, b) => a.atas < b.bawah && b.atas < a.bawah;
+
+  /** Seluruh pasangan (skala, jumlah baris) yang dapat benar-benar terjadi. */
+  const semuaKasus = () =>
+    JUDUL_SKALA.flatMap((skala) =>
+      Array.from({ length: barisMaksJudul(skala) + 1 }, (_, n) => ({ skala, n })),
+    );
 
   it('tak satu pun wilayah bertumpang tindih, berapa pun baris judulnya', () => {
     // Pelanggarannya DIKUMPULKAN lalu dibandingkan dengan larik kosong, bukan
@@ -197,15 +217,15 @@ describe('susunTataLetak', () => {
     // memperbaikinya tanpa membaca ulang tetapannya.
     const pelanggaran = [];
 
-    for (const n of SEMUA_PANJANG) {
-      const daftar = Object.entries(susunTataLetak(n).wilayah);
+    for (const { skala, n } of semuaKasus()) {
+      const daftar = Object.entries(susunTataLetak(n, skala).wilayah);
       for (let i = 0; i < daftar.length; i += 1) {
         for (let j = i + 1; j < daftar.length; j += 1) {
           const [namaA, a] = daftar[i];
           const [namaB, b] = daftar[j];
           if (bertumpang(a, b)) {
             pelanggaran.push(
-              `${n} baris: ${namaA}(${a.atas}-${a.bawah}) x ${namaB}(${b.atas}-${b.bawah})`,
+              `${skala.ukuran}px/${n} baris: ${namaA}(${a.atas}-${a.bawah}) x ${namaB}(${b.atas}-${b.bawah})`,
             );
           }
         }
@@ -216,14 +236,18 @@ describe('susunTataLetak', () => {
   });
 
   it('seluruh wilayah berada di dalam kanvas', () => {
-    for (const n of SEMUA_PANJANG) {
-      const { wilayah, tinggiKanvas } = susunTataLetak(n);
-      const salah = Object.entries(wilayah)
-        .filter(([, w]) => w.atas < 0 || w.bawah > tinggiKanvas || w.bawah <= w.atas)
-        .map(([nama, w]) => `${n} baris: ${nama}(${w.atas}-${w.bawah})`);
+    const salah = [];
 
-      expect(salah).toEqual([]);
+    for (const { skala, n } of semuaKasus()) {
+      const { wilayah, tinggiKanvas } = susunTataLetak(n, skala);
+      salah.push(
+        ...Object.entries(wilayah)
+          .filter(([, w]) => w.atas < 0 || w.bawah > tinggiKanvas || w.bawah <= w.atas)
+          .map(([nama, w]) => `${skala.ukuran}px/${n} baris: ${nama}(${w.atas}-${w.bawah})`),
+      );
     }
+
+    expect(salah).toEqual([]);
   });
 
   /**
@@ -232,25 +256,42 @@ describe('susunTataLetak', () => {
    * tabrakannya kembali persis seperti semula. Yang diperiksa kotak TINTA
    * judulnya -- dari puncak huruf baris pertama sampai ekor huruf baris
    * terakhir -- bukan sekadar garis alasnya.
+   *
+   * Pada tangga ukuran, inilah uji yang menjaga bahwa "baris maksimum" tiap
+   * langkah memang muat: langkah yang mengizinkan satu baris kelebihan akan
+   * meluber di sini, bukan diam-diam tertimpa QR di atas kertas cetak.
    */
   it('kotak tinta judul tak pernah keluar dari wilayah judul', () => {
-    for (const n of SEMUA_PANJANG) {
+    const meluber = [];
+
+    for (const { skala, n } of semuaKasus()) {
       if (n === 0) continue;
-      const { wilayah, blokJudul } = susunTataLetak(n);
+      const { wilayah, blokJudul } = susunTataLetak(n, skala);
 
-      const meluber =
-        blokJudul.atas < wilayah.judul.atas || blokJudul.bawah > wilayah.judul.bawah;
-
-      expect({ n, meluber }).toEqual({ n, meluber: false });
+      if (blokJudul.atas < wilayah.judul.atas || blokJudul.bawah > wilayah.judul.bawah) {
+        meluber.push(
+          `${skala.ukuran}px/${n} baris: blok(${blokJudul.atas}-${blokJudul.bawah}) di luar judul(${wilayah.judul.atas}-${wilayah.judul.bawah})`,
+        );
+      }
     }
+
+    expect(meluber).toEqual([]);
   });
 
   it('memusatkan judul secara tegak di dalam wilayahnya', () => {
-    const { wilayah, blokJudul } = susunTataLetak(1);
-    const sisaAtas = blokJudul.atas - wilayah.judul.atas;
-    const sisaBawah = wilayah.judul.bawah - blokJudul.bawah;
+    const timpang = [];
 
-    expect(Math.abs(sisaAtas - sisaBawah)).toBeLessThanOrEqual(1);
+    for (const skala of JUDUL_SKALA) {
+      const { wilayah, blokJudul } = susunTataLetak(1, skala);
+      const sisaAtas = blokJudul.atas - wilayah.judul.atas;
+      const sisaBawah = wilayah.judul.bawah - blokJudul.bawah;
+
+      if (Math.abs(sisaAtas - sisaBawah) > 1) {
+        timpang.push(`${skala.ukuran}px: atas ${sisaAtas} vs bawah ${sisaBawah}`);
+      }
+    }
+
+    expect(timpang).toEqual([]);
   });
 
   /**
@@ -263,9 +304,123 @@ describe('susunTataLetak', () => {
     expect(wilayah.qr.bawah - wilayah.qr.atas).toBeGreaterThanOrEqual(480);
   });
 
+  /**
+   * KONTROL: wilayah QR TIDAK BOLEH ikut bergeser saat judul mengecil. Poster
+   * berseri yang QR-nya berpindah-pindah letak terlihat seperti cetakan gagal,
+   * dan justru itulah harga yang tak jadi kita bayar dengan memakai wilayah
+   * tetap.
+   */
+  it('KONTROL: letak QR sama pada seluruh langkah tangga', () => {
+    const letak = JUDUL_SKALA.map((skala) => JSON.stringify(susunTataLetak(3, skala).wilayah.qr));
+
+    expect(new Set(letak).size).toBe(1);
+  });
+
   it('KONTROL: garis alas tiap baris judul dipulangkan, satu per baris', () => {
     expect(susunTataLetak(3).garisJudul).toHaveLength(3);
     expect(susunTataLetak(1).garisJudul).toHaveLength(1);
     expect(susunTataLetak(0).garisJudul).toHaveLength(0);
+  });
+});
+
+/**
+ * TANGGA UKURAN JUDUL (permintaan pengguna 22 September 2026).
+ *
+ * Sebelumnya judul dipaku pada 62px dengan batas tiga baris, sehingga judul
+ * panjang dipotong elipsis -- persis pada survei yang namanya memang panjang,
+ * yang justru paling butuh dikenali dari jauh. Sekarang judul yang tak muat
+ * TURUN SATU LANGKAH ukuran, yang sekaligus menaikkan jatah barisnya.
+ *
+ * Pengukur palsu di sini membuat lebar sebanding dengan ukuran huruf, meniru
+ * perilaku peramban: huruf yang lebih kecil memuat lebih banyak karakter per
+ * baris. Pengukur yang mengabaikan ukuran akan membuat seluruh uji ini hijau
+ * tanpa membuktikan apa pun, sebab turun tangga tak akan pernah menolong.
+ */
+describe('pilihSkalaJudul', () => {
+  const LEBAR_ISI = 912;
+  const aturUkur = (ukuran) => (teks) => teks.length * ukuran * 0.5;
+
+  // Kapasitas pengukur palsu ini DIHITUNG, bukan dikira-kira, supaya angka di
+  // bawah dapat diperiksa ulang: 912 dibagi (ukuran x 0,5) memberi batas 29/33/39
+  // karakter per baris, dan kata "Kepuasan " selebar 9 karakter memberi 3/3/4
+  // kata per baris. Dikalikan jatah barisnya: 9, 12, dan 20 kata.
+  const pilih = (judul) => pilihSkalaJudul(judul, LEBAR_ISI, aturUkur);
+
+  const kataSebanyak = (jumlahHuruf) => 'Kepuasan '.repeat(Math.ceil(jumlahHuruf / 9)).trim();
+
+  it('judul pendek tetap pada ukuran terbesar', () => {
+    const hasil = pilih('Survei Kepuasan Loket');
+
+    expect(hasil.ukuran).toBe(62);
+    expect(hasil.baris).toEqual(['Survei Kepuasan Loket']);
+  });
+
+  /**
+   * Judul yang hanya lewat sedikit dari jatah 62px turun SATU langkah, bukan
+   * langsung ke yang terkecil. Poster tak perlu mengorbankan keterbacaan lebih
+   * daripada yang dibutuhkannya.
+   */
+  it('judul yang tak muat pada 62px turun ke 54px, bukan langsung ke 46px', () => {
+    const hasil = pilih(kataSebanyak(98)); // 11 kata: lewat 9, masih di bawah 12
+
+    expect(hasil.ukuran).toBe(54);
+    expect(hasil.baris.length).toBeLessThanOrEqual(4);
+    expect(hasil.baris.join(' ')).not.toMatch(/…/);
+  });
+
+  it('judul yang lebih panjang lagi turun sampai 46px', () => {
+    const hasil = pilih(kataSebanyak(140)); // 16 kata: lewat 12, masih di bawah 20
+
+    expect(hasil.ukuran).toBe(46);
+    expect(hasil.baris.length).toBeLessThanOrEqual(5);
+    expect(hasil.baris.join(' ')).not.toMatch(/…/);
+  });
+
+  /**
+   * JARING TERAKHIR. Tangga ini melebarkan kapasitas, tidak menghapus batasnya:
+   * judul yang tetap tak muat pada langkah terkecil harus terpotong, sebab yang
+   * sama sekali tak boleh terjadi adalah tulisan meluber keluar poster.
+   */
+  it('judul yang tetap tak muat dipotong pada langkah terkecil, bukan meluber', () => {
+    const hasil = pilih(kataSebanyak(600)); // 67 kata: jauh melewati 20
+
+    expect(hasil.ukuran).toBe(46);
+    expect(hasil.baris).toHaveLength(5);
+    expect(hasil.baris[4]).toMatch(/…$/);
+  });
+
+  /**
+   * Satu kata panjang tanpa spasi tak pernah menyentuh batas BARIS -- ia hanya
+   * kelewat lebar. Pemilih yang menilai "muat" dari jumlah baris saja akan
+   * berhenti di 62px dan memotongnya, padahal kata itu utuh pada 46px.
+   */
+  it('satu kata yang kelewat lebar ikut turun tangga, bukan langsung dipotong', () => {
+    const hasil = pilih('Pemberdayaanmasyarakatdesaberkelanjutan');
+
+    expect(hasil.ukuran).toBe(46);
+    expect(hasil.baris).toEqual(['Pemberdayaanmasyarakatdesaberkelanjutan']);
+  });
+
+  it('judul kosong tak memaksa turun tangga', () => {
+    const hasil = pilih('');
+
+    expect(hasil.ukuran).toBe(62);
+    expect(hasil.baris).toEqual([]);
+  });
+
+  /**
+   * KONTROL atas kesepakatan desainnya sendiri: 62/54/46 dengan jatah 3/4/5
+   * baris. Jatahnya dihitung dari tinggi wilayah judul, bukan ditulis tangan,
+   * jadi uji ini yang menangkap bila rumusnya diam-diam bergeser.
+   */
+  it('KONTROL: tangganya 62/54/46 dengan jatah baris 3/4/5', () => {
+    expect(JUDUL_SKALA.map((s) => s.ukuran)).toEqual([62, 54, 46]);
+    expect(JUDUL_SKALA.map(barisMaksJudul)).toEqual([3, 4, 5]);
+  });
+
+  it('KONTROL: jarak baris tiap langkah sepadan dengan ukurannya', () => {
+    const rasio = JUDUL_SKALA.map((s) => Number((s.leading / s.ukuran).toFixed(2)));
+
+    expect(rasio).toEqual([1.35, 1.35, 1.35]);
   });
 });

@@ -18,24 +18,29 @@
 const ELIPSIS = '…';
 
 /**
- * Pecah `teks` menjadi paling banyak `maksBaris` baris yang masing-masing tak
- * melebihi `maksLebar` menurut `ukur`.
+ * Pecah `teks` menjadi paling banyak `maksBaris` baris, sambil melaporkan
+ * apakah ada isi yang terpaksa dibuang.
+ *
+ * KETERPOTONGAN DILAPORKAN, tidak cukup disimpulkan dari elipsis di ekor baris
+ * terakhir: judul yang memang diakhiri "…" oleh penulisnya akan terbaca sebagai
+ * terpotong, dan pemilih ukuran huruf di bawah lalu menyusut tanpa sebab.
  *
  * @param {string|null|undefined} teks
  * @param {number} maksLebar dalam satuan yang sama dengan keluaran `ukur`
  * @param {(teks: string) => number} ukur mis. `(t) => ctx.measureText(t).width`
  * @param {number} maksBaris
- * @returns {string[]} baris siap gambar; kosong bila tak ada teks
+ * @returns {{baris: string[], terpotong: boolean}}
  */
-export function pecahBaris(teks, maksLebar, ukur, maksBaris) {
+function pecahDenganTanda(teks, maksLebar, ukur, maksBaris) {
   const kata = String(teks ?? '')
     .trim()
     .split(/\s+/)
     .filter(Boolean);
-  if (kata.length === 0) return [];
+  if (kata.length === 0) return { baris: [], terpotong: false };
 
   const baris = [];
   let sekarang = '';
+  let terpotong = false;
 
   for (const k of kata) {
     const calon = sekarang ? `${sekarang} ${k}` : k;
@@ -50,11 +55,16 @@ export function pecahBaris(teks, maksLebar, ukur, maksBaris) {
     // terakhir yang SUDAH ada ditandai terpotong.
     if (baris.length >= maksBaris) {
       baris[maksBaris - 1] = tandaiTerpotong(baris[maksBaris - 1], maksLebar, ukur);
-      return baris.slice(0, maksBaris);
+      return { baris: baris.slice(0, maksBaris), terpotong: true };
     }
 
     // Satu kata yang sendirian pun tak muat: dipotong, bukan dibiarkan meluber.
-    sekarang = ukur(k) <= maksLebar ? k : tandaiTerpotong(k, maksLebar, ukur);
+    if (ukur(k) <= maksLebar) {
+      sekarang = k;
+    } else {
+      sekarang = tandaiTerpotong(k, maksLebar, ukur);
+      terpotong = true;
+    }
   }
 
   if (sekarang) baris.push(sekarang);
@@ -62,10 +72,24 @@ export function pecahBaris(teks, maksLebar, ukur, maksBaris) {
   if (baris.length > maksBaris) {
     const dipangkas = baris.slice(0, maksBaris);
     dipangkas[maksBaris - 1] = tandaiTerpotong(dipangkas[maksBaris - 1], maksLebar, ukur);
-    return dipangkas;
+    return { baris: dipangkas, terpotong: true };
   }
 
-  return baris;
+  return { baris, terpotong };
+}
+
+/**
+ * Pecah `teks` menjadi paling banyak `maksBaris` baris yang masing-masing tak
+ * melebihi `maksLebar` menurut `ukur`.
+ *
+ * @param {string|null|undefined} teks
+ * @param {number} maksLebar dalam satuan yang sama dengan keluaran `ukur`
+ * @param {(teks: string) => number} ukur mis. `(t) => ctx.measureText(t).width`
+ * @param {number} maksBaris
+ * @returns {string[]} baris siap gambar; kosong bila tak ada teks
+ */
+export function pecahBaris(teks, maksLebar, ukur, maksBaris) {
+  return pecahDenganTanda(teks, maksLebar, ukur, maksBaris).baris;
 }
 
 /**
@@ -109,14 +133,49 @@ const INSTANSI_UKURAN = 40;
 const INSTANSI_LEADING = 50;
 const KAKI_TINGGI = 8;
 
+/** Batas atas & bawah wilayah judul; tetap, tak bergantung panjang judul. */
+const JUDUL_ATAS = PITA_TINGGI;
+const JUDUL_BAWAH = 540;
 /**
- * Ukuran judul dan jarak barisnya. 84/62 = 1,35 -- dinaikkan dari 76 (1,23)
- * pada 22 September 2026 mengikuti panduan line-height: judul tiga baris yang
- * rapat terbaca padat di atas kertas.
+ * Napas yang disisakan di atas dan di bawah blok judul. Tanpa ini, judul
+ * terpanjang tiap langkah tangga akan menyentuh tepi wilayahnya, dan poster
+ * terbaca sesak walaupun secara hitungan tak ada yang bertabrakan.
  */
-const JUDUL_UKURAN = 62;
-const JUDUL_LEADING = 84;
-const JUDUL_BARIS_MAKS = 3;
+const JUDUL_NAPAS = 12;
+
+/**
+ * TANGGA UKURAN JUDUL (permintaan pengguna 22 September 2026).
+ *
+ * Sebelumnya judul dipaku pada 62px dengan jatah tiga baris, sehingga judul
+ * panjang dipotong elipsis -- justru pada survei yang namanya memang panjang,
+ * yang paling butuh dikenali dari jauh. Judul yang tak muat sekarang turun satu
+ * langkah, dan langkah yang lebih kecil sekaligus memuat lebih banyak baris.
+ *
+ * Berhenti di 46px dengan sengaja, bukan karena kehabisan angka: satu baris
+ * pada ukuran itu memuat sekitar 40 karakter, sudah mendekati batas nyaman 65-75
+ * karakter per baris, dan poster loket dibaca sambil lewat. Langkah yang lebih
+ * kecil lagi menukar judul terpotong dengan judul yang tak terbaca.
+ *
+ * Rasio jarak baris dijaga tetap 1,35 pada tiap langkah supaya judul dua baris
+ * terlihat serapat judul empat baris.
+ */
+export const JUDUL_SKALA = [
+  { ukuran: 62, leading: 84 },
+  { ukuran: 54, leading: 73 },
+  { ukuran: 46, leading: 62 },
+];
+
+/**
+ * Berapa baris yang muat di wilayah judul pada satu langkah tangga.
+ *
+ * DIHITUNG, bukan ditulis tangan per langkah. Angka yang ditulis tangan dapat
+ * meleset satu baris tanpa ada yang memerah, dan akibatnya persis cacat yang
+ * sudah pernah dilaporkan: judul menimpa apa yang ada di bawahnya.
+ */
+export function barisMaksJudul({ ukuran, leading }) {
+  const ruang = JUDUL_BAWAH - JUDUL_ATAS - JUDUL_NAPAS * 2;
+  return Math.max(1, Math.floor((ruang - ukuran) / leading) + 1);
+}
 
 /**
  * QR 520px, turun dari 680. Harga yang dibayar sadar: pada cetak A5 itu masih
@@ -156,6 +215,43 @@ const LABEL_URL = 'atau buka:';
 export const LAMBANG_SRC = '/images/footer/Kabupaten-Madiun-Logo-transparent.png';
 
 /**
+ * Pilih langkah tangga terbesar yang memuat judulnya UTUH, beserta barisnya.
+ *
+ * Yang dinilai keterpotongan, bukan jumlah baris. Satu kata panjang tanpa spasi
+ * tak pernah menyentuh batas baris -- ia hanya kelewat lebar -- sehingga
+ * pemilih yang menghitung baris akan berhenti di langkah terbesar dan
+ * memotongnya, padahal kata yang sama utuh pada langkah terkecil.
+ *
+ * Langkah terkecil selalu diterima apa adanya. Tangga ini melebarkan kapasitas,
+ * bukan menghapus batasnya: judul yang tetap tak muat di sana memang harus
+ * terpotong, sebab yang sama sekali tak boleh terjadi adalah tulisan meluber
+ * keluar poster.
+ *
+ * `aturUkur` menerima ukuran huruf dan memulangkan pengukur untuk ukuran itu.
+ * Bentuk ini dipilih supaya fungsinya tetap murni: di peramban ia memasang
+ * `ctx.font` lalu mengukur, di Jest ia cukup mengalikan panjang teks.
+ *
+ * @param {string|null|undefined} judul
+ * @param {number} maksLebar
+ * @param {(ukuran: number) => (teks: string) => number} aturUkur
+ * @returns {{ukuran: number, leading: number, maksBaris: number, baris: string[]}}
+ */
+export function pilihSkalaJudul(judul, maksLebar, aturUkur) {
+  let pilihan = null;
+
+  for (let i = 0; i < JUDUL_SKALA.length; i += 1) {
+    const skala = JUDUL_SKALA[i];
+    const maksBaris = barisMaksJudul(skala);
+    const { baris, terpotong } = pecahDenganTanda(judul, maksLebar, aturUkur(skala.ukuran), maksBaris);
+
+    pilihan = { ...skala, maksBaris, baris };
+    if (!terpotong) break;
+  }
+
+  return pilihan;
+}
+
+/**
  * Bagi poster menjadi wilayah-wilayah tetap, dan hitung garis alas judulnya.
  *
  * VERSI SEBELUMNYA BERTABRAKAN, dan bukan karena angkanya meleset. Judul tumbuh
@@ -170,17 +266,22 @@ export const LAMBANG_SRC = '/images/footer/Kabupaten-Madiun-Logo-transparent.png
  * dipusatkan tegak. Dengan begitu tabrakan tak lagi mungkin, dan poster berseri
  * tetap sama letaknya -- dua hal yang dulu saya kira harus dipertukarkan.
  *
+ * Tangga ukuran judul menumpang pada jaminan yang sama: mengecilkan huruf hanya
+ * mengubah isi wilayah judul, tak satu pun batas wilayah ikut bergeser, jadi QR
+ * tetap di tempat yang sama pada poster mana pun.
+ *
  * Dipisah sebagai fungsi murni supaya invariannya dapat dibuktikan tanpa
  * canvas: lihat uji "tak satu pun wilayah bertumpang tindih".
  *
- * @param {number} jumlahBarisJudul 0..3
+ * @param {number} jumlahBarisJudul dibatasi pada jatah baris `skala`
+ * @param {{ukuran: number, leading: number}} skala langkah tangga yang dipakai
  */
-export function susunTataLetak(jumlahBarisJudul) {
-  const n = Math.max(0, Math.min(JUDUL_BARIS_MAKS, jumlahBarisJudul));
+export function susunTataLetak(jumlahBarisJudul, skala = JUDUL_SKALA[0]) {
+  const n = Math.max(0, Math.min(barisMaksJudul(skala), jumlahBarisJudul));
 
   const wilayah = {
     pita: { atas: 0, bawah: PITA_TINGGI },
-    judul: { atas: PITA_TINGGI, bawah: 540 },
+    judul: { atas: JUDUL_ATAS, bawah: JUDUL_BAWAH },
     ajakan: { atas: 540, bawah: 620 },
     // Siku berdiri di luar gambar QR, jadi wilayahnya yang dipakai memeriksa
     // tabrakan -- bukan kotak QR-nya, yang lebih sempit.
@@ -192,13 +293,13 @@ export function susunTataLetak(jumlahBarisJudul) {
   // Kotak TINTA, bukan garis alas: dari puncak huruf baris pertama sampai ekor
   // huruf baris terakhir. Memusatkan garis alas akan membuat judulnya duduk
   // terlalu rendah di dalam kotaknya.
-  const tinggiBlok = n === 0 ? 0 : (n - 1) * JUDUL_LEADING + JUDUL_UKURAN;
+  const tinggiBlok = n === 0 ? 0 : (n - 1) * skala.leading + skala.ukuran;
   const ruang = wilayah.judul.bawah - wilayah.judul.atas;
   const mulai = wilayah.judul.atas + (ruang - tinggiBlok) / 2;
 
   const garisJudul = [];
   for (let i = 0; i < n; i += 1) {
-    garisJudul.push(mulai + JUDUL_UKURAN + i * JUDUL_LEADING);
+    garisJudul.push(mulai + skala.ukuran + i * skala.leading);
   }
 
   return {
@@ -337,15 +438,21 @@ export async function gambarPosterQr({ qrDataUrl, judul, instansi, url }) {
   ctx.textAlign = 'center';
   const isiLebar = LEBAR - TEPI * 2;
 
-  // Baris judul dipecah DULU, sebab jumlahnyalah yang menentukan letak tiap
-  // barisnya di dalam wilayah judul. Wilayahnya sendiri tidak ikut bergeser --
-  // itulah yang membuat tabrakan dengan QR tak lagi mungkin.
-  ctx.font = `bold ${JUDUL_UKURAN}px system-ui, sans-serif`;
-  const barisJudul = pecahBaris(judul, isiLebar, ukur, JUDUL_BARIS_MAKS);
-  const tata = susunTataLetak(barisJudul.length);
+  // Ukuran judul dipilih DULU, sebab ia yang menentukan jatah baris sekaligus
+  // jarak antar barisnya. Wilayah judulnya sendiri tidak ikut berubah -- itulah
+  // yang membuat tabrakan dengan QR tak lagi mungkin, berapa pun panjang judul.
+  const aturUkurJudul = (ukuran) => {
+    ctx.font = `bold ${ukuran}px system-ui, sans-serif`;
+    return ukur;
+  };
+  const skalaJudul = pilihSkalaJudul(judul, isiLebar, aturUkurJudul);
+  const tata = susunTataLetak(skalaJudul.baris.length, skalaJudul);
 
+  // Dipasang ulang dengan tegas, tidak menumpang pada font yang kebetulan
+  // tertinggal dari langkah terakhir yang dicoba pemilih di atas.
+  ctx.font = `bold ${skalaJudul.ukuran}px system-ui, sans-serif`;
   ctx.fillStyle = WARNA.judul;
-  barisJudul.forEach((baris, i) => {
+  skalaJudul.baris.forEach((baris, i) => {
     ctx.fillText(baris, tengah, tata.garisJudul[i]);
   });
 
@@ -403,4 +510,3 @@ export async function gambarPosterQr({ qrDataUrl, judul, instansi, url }) {
     }, 'image/png');
   });
 }
-
