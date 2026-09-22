@@ -4,6 +4,7 @@ import { Role } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { PENANDA_DISUNTING } from '../src/common/interceptors/audit-redact.util';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
 
@@ -67,7 +68,7 @@ describe('Audit Log (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei Audit E2E', periode: '2026-Q1' });
+      .send({ judul: 'Survei Audit E2E', periode: '2026-Q2' });
     expect(created.status).toBe(201);
 
     const res = await request(app.getHttpServer())
@@ -76,20 +77,29 @@ describe('Audit Log (e2e)', () => {
       .set(kabupatenHeaders());
 
     expect(res.status).toBe(200);
+    // PEGANGANNYA `periode`, BUKAN `judul` (22 September 2026). Uji ini dulu
+    // mencari barisnya lewat judul survei -- yang berarti ia bersandar pada
+    // kebocoran yang justru sedang ditutup: sejak `judul` masuk daftar redaksi,
+    // nilainya tak lagi ada di `audit_logs.detail`. `periode` bukan data
+    // pribadi, tetap terbaca, dan dibuat khas per uji agar tetap menunjuk satu
+    // baris.
     const entry = (
       res.body.data as {
         actorId: number;
         actorNama: string;
         aksi: string;
         entitas: string;
-        detail: { body?: { judul?: string } };
+        detail: { body?: { judul?: string; periode?: string } };
       }[]
-    ).find((e) => e.detail?.body?.judul === 'Survei Audit E2E');
+    ).find((e) => e.detail?.body?.periode === '2026-Q2');
 
     expect(entry).toBeDefined();
     expect(entry?.aksi).toBe('create');
     expect(entry?.actorId).toBe(opdUserId);
     expect(entry?.actorNama).toBe('Admin OPD Audit');
+    // Dan judulnya memang TIDAK ada di sana. Tanpa asersi ini, pergantian
+    // pegangan di atas hanya memindahkan masalahnya tanpa ada yang menjaga.
+    expect(entry?.detail?.body?.judul).toBe(PENANDA_DISUNTING);
   });
 
   it('PATCH status memakai aksi eksplisit "update_status" (bukan default "update")', async () => {
@@ -194,15 +204,16 @@ describe('Audit Log (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei Detail Audit', periode: '2026-Q1' });
+      .send({ judul: 'Survei Detail Audit', periode: '2026-Q3' });
 
     const list = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
       .query({ entitas: 'survey', actorId: opdUserId })
       .set(kabupatenHeaders());
-    const entry = (list.body.data as { id: number; detail: { body?: { judul?: string } } }[]).find(
-      (e) => e.detail?.body?.judul === 'Survei Detail Audit',
-    );
+    // Lihat catatan pegangan `periode` pada uji pertama berkas ini.
+    const entry = (
+      list.body.data as { id: number; detail: { body?: { periode?: string } } }[]
+    ).find((e) => e.detail?.body?.periode === '2026-Q3');
     expect(entry).toBeDefined();
 
     const res = await request(app.getHttpServer())

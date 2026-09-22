@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PENANDA_DISUNTING } from '../../common/interceptors/audit-redact.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from './audit.service';
 
@@ -33,13 +34,67 @@ describe('AuditService', () => {
   describe('record', () => {
     it('menulis baris audit_logs sesuai parameter', async () => {
       (prisma.auditLog.create as jest.Mock).mockResolvedValue({});
-      await service.record(1, 'create', 'survey', { params: {}, body: { judul: 'A' } });
+      await service.record(1, 'create', 'survey', { params: {}, body: { periode: '2026-Q1' } });
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: {
           actorId: 1,
           aksi: 'create',
           entitas: 'survey',
-          detail: { params: {}, body: { judul: 'A' } },
+          detail: { params: {}, body: { periode: '2026-Q1' } },
+        },
+      });
+    });
+
+    /**
+     * 22 September 2026. Redaksi T8 dulu hidup HANYA di `AuditInterceptor`,
+     * jadi setiap pemanggil `record()` secara langsung melewatinya sepenuhnya --
+     * dan ada satu: `SsoService` menulis `sub` Helpdesk apa adanya saat sebuah
+     * akun lahir memegang peran kabupaten.
+     *
+     * Yang keliru bukan pemanggil yang lupa, melainkan TEMPAT redaksinya
+     * dipasang. Selama ia berada di interceptor, setiap pemanggil baru harus
+     * mengingat sendiri -- kegagalan yang sunyi, dan yang bocor justru detail
+     * pemberian wewenang tertinggi. Sejak redaksinya di sini, tak ada lagi
+     * jalan lain menuju `audit_logs.detail`.
+     */
+    it('menyunting `detail` SENDIRI, tidak bergantung pada pemanggilnya', async () => {
+      (prisma.auditLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.record(1, 'sso_grant_kabupaten', 'auth', {
+        email: 'budi@example.go.id',
+        roles: [Role.kabupaten],
+      });
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          actorId: 1,
+          aksi: 'sso_grant_kabupaten',
+          entitas: 'auth',
+          // Peran yang diberikan TETAP terbaca: itu seluruh alasan baris ini ada.
+          detail: { email: PENANDA_DISUNTING, roles: [Role.kabupaten] },
+        },
+      });
+    });
+
+    /**
+     * Interceptor tetap menyunting lebih dulu, jadi jalur teraudit melewati
+     * redaksi DUA KALI. Ini menyatakan bahwa itu aman -- tanpanya, memindahkan
+     * redaksi ke sini adalah taruhan pada sifat yang tak pernah diperiksa.
+     */
+    it('redaksi ganda tidak merusak apa pun', async () => {
+      (prisma.auditLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.record(1, 'create', 'complaint', {
+        params: {},
+        body: { judul: PENANDA_DISUNTING, kategori: 'aduan' },
+      });
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          actorId: 1,
+          aksi: 'create',
+          entitas: 'complaint',
+          detail: { params: {}, body: { judul: PENANDA_DISUNTING, kategori: 'aduan' } },
         },
       });
     });

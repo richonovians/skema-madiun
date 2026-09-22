@@ -39,6 +39,54 @@ describe('redactAuditBody', () => {
   });
 
   /**
+   * 22 September 2026. `uraian` sudah masuk daftar sejak T8, tetapi
+   * `CreateComplaintDto` membawa DUA teks bebas sekaligus: `judul` dan `uraian`.
+   * Yang kedua disunting, yang pertama tersalin utuh ke `audit_logs.detail` --
+   * tabel yang dibaca Admin Kabupaten lewat `GET /audit-logs`.
+   *
+   * Ini persis kegagalan yang diramalkan komentar daftar tolak itu sendiri:
+   * setiap field pribadi BARU hilang dari perlindungan sampai seseorang ingat
+   * menambahkannya. Judul pengaduan adalah tulisan bebas seorang warga, dan
+   * judul semacam "Pungli oleh Pak Budi di loket 3" menyebut nama orang di
+   * baris pertama.
+   */
+  it('menyunting judul pengaduan, teks bebas kedua yang selama ini lolos', () => {
+    const hasil = redactAuditBody({
+      kategori: 'aduan',
+      judul: 'Pungli oleh Pak Budi di loket 3',
+      uraian: 'Saya dimintai uang saat mengurus surat',
+    });
+
+    // `kategori` DIBIARKAN: ia kode tertutup dari daftar tetap, bukan tulisan
+    // bebas, dan justru itulah yang membuat auditnya masih dapat dibaca.
+    expect(hasil).toEqual({
+      kategori: 'aduan',
+      judul: PENANDA_DISUNTING,
+      uraian: PENANDA_DISUNTING,
+    });
+  });
+
+  /**
+   * Sejalan dengan `teks` pertanyaan yang sudah disunting sejak 13 September:
+   * label pilihan jawaban adalah isi instrumen yang sama, hanya tersimpan satu
+   * tingkat lebih dalam. Membiarkannya berarti menyunting pertanyaannya tapi
+   * tidak jawabannya yang tercetak di layar.
+   */
+  it('menyunting label pilihan jawaban, sejalan dengan `teks` pertanyaan', () => {
+    const hasil = redactAuditBody({
+      teks: 'Bagaimana pelayanan kami?',
+      options: [{ label: 'Sangat puas', nilai: 4 }],
+    });
+
+    // `nilai` DIBIARKAN: bobot IKM bukan data pribadi, dan perubahannya justru
+    // hal yang harus terlihat saat memeriksa manipulasi skor.
+    expect(hasil).toEqual({
+      teks: PENANDA_DISUNTING,
+      options: [{ label: PENANDA_DISUNTING, nilai: 4 }],
+    });
+  });
+
+  /**
    * 13 September 2026, sebelum `POST /surveys/:id/responses` diaudit. Payload
    * survei memakai kunci `answers`/`teks` (dan `nomorHp` pada jalur publik) --
    * tak satu pun ada di daftar tolak, sehingga mengaudit endpoint itu akan
