@@ -121,9 +121,14 @@ export default function ComplaintDetailHeader({ complaint, chatHistory = [] }) {
                 {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
               </Badge>
             </div>
-            <h1 className="text-headline-sm font-bold text-slate-900 leading-tight">
-              {complaint.title}
-            </h1>
+            {/* JUDULNYA DIBUANG dari sini (22 September 2026, permintaan
+                pengguna). Ia tidak hilang dari halaman: turun ke kartu "Isi
+                Pengaduan" dengan label "Judul Pengaduan" di sebelahnya, tempat
+                ia berpasangan dengan uraian yang menjelaskannya. Di kepala ini
+                ia hanya mengulang apa yang terbaca beberapa sentimeter di
+                bawahnya. Nomor tiket dan lencana status tetap: dua hal yang
+                dicari orang saat menyalin nomor aduan atau memastikan tiketnya
+                masih berjalan. */}
           </div>
         </div>
       </div>
