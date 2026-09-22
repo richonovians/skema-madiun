@@ -174,7 +174,19 @@ export default function AdminKabComplaintDetailPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
-        <div className="lg:col-span-2 space-y-md">
+        {/* URUTANNYA DIBALIK DI LAYAR SEMPIT (22 September 2026, permintaan
+            pengguna). Saat gridnya runtuh menjadi satu kolom, urutan DOM-lah
+            yang menentukan siapa di atas -- dan tiga kartu kerja di kolom kanan
+            (Profil Pelapor, Status Progres, Kontrol Status) karena itu terkubur
+            di bawah percakapan yang panjang. Terukur pada ponsel 320px: "Profil
+            Pelapor" berada 1.955px di bawah puncak halaman, sementara Ringkasan
+            di 331px. Petugas harus menggulir melewati seluruh riwayat hanya
+            untuk mengubah status.
+
+            `order` dipakai, bukan menukar urutan DOM-nya: pada layar lebar
+            susunan dua kolomnya harus tetap seperti semula, dan urutan baca
+            untuk pembaca layar mengikuti DOM, bukan tampilan. */}
+        <div className="order-2 lg:order-1 lg:col-span-2 space-y-md">
           <ComplaintSummaryCard complaint={complaintView} />
           <ComplaintContentCard complaint={complaintView} />
           <ComplaintAttachmentGallery complaint={{ attachments }} />
@@ -187,7 +199,7 @@ export default function AdminKabComplaintDetailPage() {
           />
         </div>
 
-        <div className="lg:col-span-1 space-y-md">
+        <div className="order-1 lg:order-2 lg:col-span-1 space-y-md">
           <ComplaintReporterProfile reporter={complaintView.reporter} />
           <ComplaintProgressStepper currentStatus={toBackendComplaintStatus(complaintView.status)} />
           <ComplaintStatusControl

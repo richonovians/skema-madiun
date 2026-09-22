@@ -161,14 +161,41 @@ describe('NotificationsService', () => {
     });
   });
 
+  /**
+   * ARAH BALASAN DITENTUKAN PERAN YANG DIPAKAI, BUKAN ID PENULIS (22 September
+   * 2026, laporan pengguna: "notifikasi balasan tidak muncul" pada akun ber-3
+   * peran).
+   *
+   * Sebelumnya arahnya disimpulkan dari `replyAuthorUserId === complaint.userId`.
+   * Pada akun yang memegang beberapa peran sekaligus, pelapor dan petugas yang
+   * menanganinya adalah orang yang sama, sehingga syarat itu SELALU benar dan
+   * kotak masuk `responden` tak pernah menerima apa pun. Terukur di basis data
+   * pengembangan: balasan sebagai admin dan balasan sebagai warga pada tiket
+   * yang sama melahirkan notifikasi yang identik, keduanya `untukPeran: opd`.
+   *
+   * Kolom `dari_pelapor` pada baris balasannya sudah menyimpan arah yang benar
+   * sejak awal -- dan komentar pada skemanya sudah menyatakan arah itu "tidak
+   * dapat diturunkan dari author_id". Yang kurang hanyalah meneruskannya ke
+   * sini.
+   *
+   * KOTAK MASUK MILIK PERAN, BUKAN MILIK ORANG. Itu sebabnya uji "akun yang
+   * sama" di bawah mengharapkan notifikasi tetap lahir walau penerimanya adalah
+   * penulisnya sendiri: ia menulis sebagai petugas, dan yang dikabari adalah
+   * kotak wargannya, yang tak akan dilihatnya sampai ia berpindah peran.
+   */
   describe('notifyComplaintReply', () => {
+    const penulis = (userId: number, actingRole: Role) => ({ userId, actingRole });
+
     it('responden membalas -> semua Admin OPD aktif pemilik diberi tahu (link admin-opd)', async () => {
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
         if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 100 }, { id: 101 }]);
         return Promise.resolve([]);
       });
 
-      await service.notifyComplaintReply(complaint({ userId: 10, opdId: 5 }), 10);
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(10, Role.responden),
+      );
 
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: { roles: { has: Role.opd }, opdId: 5, isActive: true },
@@ -185,7 +212,10 @@ describe('NotificationsService', () => {
     });
 
     it('Admin OPD membalas -> pelapor diberi tahu (link responden)', async () => {
-      await service.notifyComplaintReply(complaint({ userId: 10, opdId: 5 }), 999);
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(999, Role.opd),
+      );
 
       expect(prisma.notification.create).toHaveBeenCalledWith({
         data: {
@@ -199,13 +229,67 @@ describe('NotificationsService', () => {
       });
     });
 
-    it('juga memberi tahu kabupaten (oversight) siapapun yg membalas, kecuali pelakunya sendiri', async () => {
+    /**
+     * INI YANG DILAPORKAN PENGGUNA. Satu akun memegang peran warga sekaligus
+     * admin OPD; ia melapor sebagai warga lalu membalas pengaduannya sendiri
+     * sebagai petugas. Kotak masuk wargannya dulu tak pernah menyala.
+     */
+    it('akun yang sama dengan pelapor membalas SEBAGAI Admin OPD -> kotak warganya tetap diberi tahu', async () => {
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(10, Role.opd),
+      );
+
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 10,
+          untukPeran: Role.responden,
+          type: NotificationType.complaint_reply,
+          title: 'Balasan Baru pada Pengaduan',
+          message: 'OPD membalas pengaduan PGD20260805ABCD Anda',
+          link: '/complaints/PGD20260805ABCD',
+        },
+      });
+    });
+
+    /**
+     * Arah sebaliknya, pada akun yang sama. Tanpa uji ini, penyelesaian yang
+     * asal "selalu beri tahu pelapor" akan tampak benar pada uji di atas
+     * sementara balasan warga tak pernah lagi sampai ke meja petugas.
+     */
+    it('akun yang sama membalas SEBAGAI warga -> yang diberi tahu Admin OPD, bukan kotak wargannya', async () => {
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (where.roles?.has === Role.opd) return Promise.resolve([{ id: 10 }]);
+        return Promise.resolve([]);
+      });
+
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(10, Role.responden),
+      );
+
+      expect(prisma.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 10, untukPeran: Role.opd }),
+        }),
+      );
+      expect(prisma.notification.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ untukPeran: Role.responden }),
+        }),
+      );
+    });
+
+    it('juga memberi tahu kabupaten (oversight) siapapun yg membalas', async () => {
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
         if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
         return Promise.resolve([]);
       });
 
-      await service.notifyComplaintReply(complaint({ userId: 10, opdId: 5 }), 999);
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(999, Role.opd),
+      );
 
       expect(prisma.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -215,6 +299,37 @@ describe('NotificationsService', () => {
           }),
         }),
       );
+    });
+
+    /** Pengecualian mengikuti peran yang dipakai: ia baru saja melakukannya sendiri di sana. */
+    it('penulis yang bertindak SEBAGAI kabupaten dikecualikan dari broadcast kabupaten', async () => {
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(777, Role.kabupaten),
+      );
+
+      const kueriKab = (prisma.user.findMany as jest.Mock).mock.calls.find(([arg]) =>
+        isFullAccessQuery(arg.where),
+      );
+      expect(kueriKab?.[0].where.id).toEqual({ not: 777 });
+    });
+
+    /**
+     * Sebaliknya, ia TIDAK dikecualikan saat bertindak sebagai petugas OPD.
+     * Kotak kabupatennya adalah meja lain dengan tugas lain; yang menulis tadi
+     * adalah petugas OPD, dan pengawas kabupaten -- termasuk dirinya sendiri --
+     * memang perlu tahu.
+     */
+    it('penulis yang bertindak sebagai Admin OPD tetap menerima di kotak kabupatennya', async () => {
+      await service.notifyComplaintReply(
+        complaint({ userId: 10, opdId: 5 }),
+        penulis(777, Role.opd),
+      );
+
+      const kueriKab = (prisma.user.findMany as jest.Mock).mock.calls.find(([arg]) =>
+        isFullAccessQuery(arg.where),
+      );
+      expect(kueriKab?.[0].where).not.toHaveProperty('id');
     });
   });
 
@@ -503,7 +618,10 @@ describe('NotificationsService — pemisahan kotak masuk per peran', () => {
   });
 
   it('balasan admin: baris untuk pelapor bertanda peran responden', async () => {
-    await service.notifyComplaintReply(complaint({ userId: 10 }), 99);
+    await service.notifyComplaintReply(complaint({ userId: 10 }), {
+      userId: 99,
+      actingRole: Role.opd,
+    });
 
     expect(barisDibuat()).toEqual(
       expect.arrayContaining([expect.objectContaining({ userId: 10, untukPeran: Role.responden })]),
@@ -516,7 +634,10 @@ describe('NotificationsService — pemisahan kotak masuk per peran', () => {
       return Promise.resolve([]);
     });
 
-    await service.notifyComplaintReply(complaint({ userId: 10 }), 10);
+    await service.notifyComplaintReply(complaint({ userId: 10 }), {
+      userId: 10,
+      actingRole: Role.responden,
+    });
 
     expect(barisDibuat()).toEqual(
       expect.arrayContaining([expect.objectContaining({ userId: 200, untukPeran: Role.opd })]),

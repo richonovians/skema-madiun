@@ -7,6 +7,7 @@ import ComplaintReporterProfile from '@/features/complaints/components/Complaint
 import ComplaintStatusControl from '@/features/complaints/components/ComplaintStatusControl';
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
+import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import ComplaintExportMenu from '@/features/complaints/components/ComplaintExportMenu';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
@@ -21,7 +22,10 @@ import {
   updateComplaintStatus,
 } from '@/features/complaints/services/complaints.api';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
-import { adaptComplaintReplyToChatMessage } from '@/features/complaints/adapters/complaint.adapter';
+import {
+  adaptComplaintReplyToChatMessage,
+  toBackendComplaintStatus,
+} from '@/features/complaints/adapters/complaint.adapter';
 
 export default function AdminComplaintDetailPage() {
   const params = useParams();
@@ -177,6 +181,19 @@ export default function AdminComplaintDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg container-max">
             <div className="lg:col-span-4 space-y-lg">
               <ComplaintReporterProfile reporter={data.complaint.reporter} />
+              {/* Kartu tahapan ini sudah lama ada di halaman Admin Kabupaten
+                  tetapi tak pernah di sini, sehingga petugas yang justru
+                  mengerjakan tiketnya tak punya gambaran tahap mana yang sedang
+                  berjalan -- ia hanya melihat satu lencana status. Ditambahkan
+                  22 September 2026 atas permintaan pengguna, pada urutan yang
+                  sama dengan halaman Admin Kabupaten.
+
+                  Statusnya diterjemahkan lebih dulu: kartu ini membandingkan
+                  dengan nilai backend huruf kecil, sementara halaman ini
+                  memegang label tampilan. */}
+              <ComplaintProgressStepper
+                currentStatus={toBackendComplaintStatus(data.complaint.status)}
+              />
               <ComplaintStatusControl
                 currentStatus={data.complaint.status}
                 onStatusChangeRequest={handleStatusChangeRequest}

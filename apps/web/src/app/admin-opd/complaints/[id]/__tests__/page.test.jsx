@@ -173,3 +173,29 @@ describe('Detail pengaduan Admin OPD — kepala halaman di layar sempit', () => 
     expect(pembungkus.className).toMatch(/\bsm:ml-auto\b/);
   });
 });
+
+/**
+ * STATUS PROGRES DI HALAMAN ADMIN OPD (permintaan pengguna 22 September 2026).
+ *
+ * Kartu ini sudah lama ada di halaman Admin Kabupaten tetapi tak pernah di
+ * sini, sehingga petugas yang justru mengerjakan tiketnya tak punya gambaran
+ * tahap mana yang sedang berjalan -- ia hanya melihat satu lencana status.
+ */
+describe('halaman detail Admin OPD — Status Progres', () => {
+  it('menampilkan kartu Status Progres', async () => {
+    render(<AdminComplaintDetailPage />);
+
+    expect(await screen.findByText('Status Progres')).toBeInTheDocument();
+  });
+
+  /**
+   * Tahapannya harus mengikuti status tiketnya, bukan sekadar tergambar. Tanpa
+   * ini, kartu yang selalu menyorot tahap pertama akan lolos uji di atas.
+   */
+  it('menyorot tahap yang sesuai status tiket', async () => {
+    render(<AdminComplaintDetailPage />);
+
+    const kartu = (await screen.findByText('Status Progres')).closest('div');
+    expect(kartu).toHaveTextContent('Diproses');
+  });
+});

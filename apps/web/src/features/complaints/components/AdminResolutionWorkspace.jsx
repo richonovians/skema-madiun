@@ -111,14 +111,20 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
   // (area pandang ~600px) panel setinggi 750px selalu lebih tinggi dari layar,
   // sehingga riwayat chat DAN halaman ikut bergulir bersamaan -- kolom balasan di
   // bawah pun terdorong keluar pandangan. `min-h` menjaga panel tetap layak di
-  // layar sangat pendek, dan pada layar besar tingginya kembali seperti semula.
-  // Wadah `flex flex-col` + `flex-1 overflow-y-auto` pada riwayat sudah menangani
-  // sisanya.
+  // layar sangat pendek.
+  //
+  // `lg:h-[750px]` DIBUANG 22 September 2026 (laporan pengguna beserta tangkapan
+  // layar). Perbaikan 20 Agustus itu ternyata dimatikan sendiri di layar lebar:
+  // `lg` menang atas `h-[70vh]`, dan `lg` menyangkut LEBAR saja. Jendela selebar
+  // 1024px yang hanya setinggi 768px karena itu kembali mendapat panel setinggi
+  // 750px -- terukur, hampir setinggi layarnya. `max-h` menggantikannya tanpa
+  // pernah mengalahkan tinggi jendela. `svh`, bukan `vh`, supaya bilah peramban
+  // ponsel yang muncul-hilang tak membuat panelnya melompat.
   return (
-    <div className="bg-surface rounded-xl shadow-2xl border border-border flex flex-col h-[70vh] min-h-[420px] lg:h-[750px]">
+    <div className="bg-surface rounded-xl shadow-2xl border border-border flex flex-col h-[85svh] max-h-[750px] min-h-[420px]">
       
       {/* Chat History */}
-      <div ref={scrollRef} className="flex-1 p-md sm:p-lg overflow-y-auto space-y-lg scrollbar-hide bg-slate-50/50">
+      <div ref={scrollRef} className="flex-1 min-h-0 p-md sm:p-lg overflow-y-auto space-y-lg scrollbar-hide bg-slate-50/50">
         {/* Dikelompokkan per tanggal DI SINI, bukan pada `chatHistory` yang
             masuk: larik yang sama diteruskan ke ComplaintExportMenu untuk
             menyusun baris PDF & Excel, dan pemisah yang tersisip ke dalamnya
@@ -177,7 +183,10 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
       </div>
 
       {/* Response Editor */}
-      <div className="p-md sm:p-lg border-t border-border bg-white rounded-b-xl">
+      {/* Bantalan & tinggi kolom tulis mengikuti TINGGI jendela. Pada jendela
+          pendek, bantalan longgar dan textarea tinggi bersama-sama merebut
+          separuh panel dari percakapan yang seharusnya dibaca. */}
+      <div className="p-sm [@media(min-height:800px)]:p-lg border-t border-border bg-white rounded-b-xl">
         {/* File Attachment Preview */}
         {attachedFile && (
           <div className="mb-3">
@@ -200,12 +209,19 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
           </div>
         )}
 
-        <div className="relative mb-lg">
+        <div className="relative mb-sm [@media(min-height:800px)]:mb-lg">
           <textarea 
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full min-h-[128px] sm:min-h-[160px] p-md sm:p-lg pb-14 border border-outline-variant rounded-xl bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none font-body-md text-body-md" 
+            /* Tinggi kolom tulis mengikuti tinggi JENDELA, bukan lebarnya
+               (22 September 2026). Terukur sebelum diperbaiki: di ponsel
+               320x720 kolom ini merebut 48% panel, menyisakan 262px untuk
+               percakapan -- kira-kira dua gelembung. Penyaring `sm:` tak
+               menolong, sebab yang sempit adalah TINGGI jendelanya, dan
+               tangkapan layar pengguna justru berasal dari jendela lebar yang
+               pendek. */
+            className="w-full min-h-[72px] [@media(min-height:640px)]:min-h-[96px] [@media(min-height:800px)]:min-h-[160px] p-md [@media(min-height:800px)]:p-lg pb-12 [@media(min-height:800px)]:pb-14 border border-outline-variant rounded-xl bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none font-body-md text-body-md" 
             placeholder="Tulis jawaban solusi atau update status di sini..."
           />
           <div className="absolute bottom-md left-md flex items-center gap-sm">
@@ -269,7 +285,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
           {currentStatus === 'Diproses' && (
             <button
               onClick={onCloseTicket}
-              className="w-full sm:w-auto sm:mr-auto px-md sm:px-lg py-3 rounded-lg border border-green-600/50 text-green-700 font-bold whitespace-nowrap hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-sm"
+              className="w-full sm:w-auto sm:mr-auto px-md sm:px-lg py-2 [@media(min-height:800px)]:py-3 rounded-lg border border-green-600/50 text-green-700 font-bold whitespace-nowrap hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-sm"
             >
               <CheckCircle size={20} className="hidden sm:block" />
               Selesaikan Pengaduan
@@ -278,7 +294,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
           <button
             onClick={handleSend}
             disabled={sedangMengirim}
-            className="w-full sm:w-auto px-md sm:px-lg py-3 rounded-lg bg-primary text-white font-bold whitespace-nowrap shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            className="w-full sm:w-auto px-md sm:px-lg py-2 [@media(min-height:800px)]:py-3 rounded-lg bg-primary text-white font-bold whitespace-nowrap shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
             {sedangMengirim ? 'Mengirim...' : 'Kirim Pesan'}
           </button>

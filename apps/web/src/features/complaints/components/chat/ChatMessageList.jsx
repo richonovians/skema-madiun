@@ -25,7 +25,11 @@ export default function ChatMessageList({ messages = [] }) {
   return (
     <div
       ref={listRef}
-      className="flex-grow p-lg space-y-lg overflow-y-auto custom-scrollbar bg-slate-50/50"
+      // `min-h-0`: anak flex menolak menyusut di bawah tinggi isinya kecuali
+      // diberi tahu secara tegas. Tanpa ini, riwayat yang panjang mendorong
+      // panelnya melar melewati batas tingginya sendiri alih-alih bergulir di
+      // dalamnya -- dan kolom balasan di bawahnya terdorong keluar layar.
+      className="flex-grow min-h-0 p-md sm:p-lg space-y-lg overflow-y-auto custom-scrollbar bg-slate-50/50"
     >
       {kelompok.map((grup) => (
         <div key={grup.kunci} className="space-y-lg">
