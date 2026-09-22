@@ -72,7 +72,9 @@ export default function ChatReplyForm({ onSubmit, nomorTiket }) {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-surface border-t border-border">
+    /* Bantalan mengikuti TINGGI jendela -- lihat catatan yang sama di
+         ChatHeader. */
+    <div className="p-3 [@media(min-height:800px)]:p-6 bg-surface border-t border-border">
       <form onSubmit={handleSubmit} className="flex flex-col gap-2">
         {/* Di ATAS kotak: barisnya sudah penuh oleh kotak teks, klip, dan
             tombol kirim, dan menambah satu tombol lagi di sana akan menyempitkan

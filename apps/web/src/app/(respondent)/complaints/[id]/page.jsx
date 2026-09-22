@@ -113,6 +113,7 @@ export default function ComplaintDetailPage() {
               initialMessages={data.chatHistory}
               participants={CHAT_PARTICIPANTS}
               nomorTiket={ticketNo}
+              judulPengaduan={data.complaint.title}
               onSendReply={handleSendReply}
             />
           </div>
