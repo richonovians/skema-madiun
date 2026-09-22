@@ -151,8 +151,16 @@ export default function SurveyMonitoringTable({
                       </Link>
 
                       {/* Komponen yang sama dipakai kartu survei Admin OPD --
-                          satu implementasi QR/tautan untuk kedua area. */}
-                      <ShareSurveyButton survey={survey} className={ACTION_CLASS} iconSize={12} />
+                          satu implementasi QR/tautan untuk kedua area.
+
+                          Hanya pada survei AKTIF (permintaan pengguna 22
+                          September 2026). Draf dan yang sudah ditutup
+                          disembunyikan: tautannya tak menerima jawaban, jadi
+                          membagikannya hanya menyesatkan penerimanya. Aturan
+                          yang sama dipagari di AdminSurveyCardActions.jsx. */}
+                      {survey.status === 'AKTIF' && (
+                        <ShareSurveyButton survey={survey} className={ACTION_CLASS} iconSize={12} />
+                      )}
 
                       {/* "Respons" hanya untuk survei terbit: draf belum pernah
                           dibuka utk diisi, jadi tautannya pasti mendarat di tabel

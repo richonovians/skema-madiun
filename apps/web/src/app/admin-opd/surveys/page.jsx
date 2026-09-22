@@ -8,6 +8,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getSurveys, updateSurveyStatus, duplicateSurvey, deleteSurvey } from '@/features/surveys/services/surveys.api';
+import { getOpdById } from '@/features/opd/services/opd.api';
 import { Search, X } from 'lucide-react';
 
 export default function AdminSurveysPage() {
@@ -23,9 +24,37 @@ export default function AdminSurveysPage() {
   // bertindak sebagai `opd`, dan backend menurunkan instansinya sendiri dari
   // `users.opd_id` (opd-scope.util.ts). Mengirimnya dari klien hanya menambah
   // sumber kebenaran kedua yang bisa basi.
-  const fetchSurveys = useCallback(() => getSurveys({ limit: 100 }), []);
+  /**
+   * Nama OPD ikut diambil karena poster QR mencetaknya (22 September 2026).
+   *
+   * `GET /surveys` hanya mengirim `opdId`, tidak namanya (lihat catatan di
+   * survey.adapter.js). Halaman Admin Kabupaten menyandingkannya dari seluruh
+   * daftar OPD karena tabelnya memang lintas instansi; di sini seluruh survei
+   * milik SATU instansi -- instansi si pengguna sendiri -- jadi satu
+   * `GET /opd/:id` sudah cukup dan tak perlu menarik enam puluh baris.
+   *
+   * Namanya diambil SESUDAH survei tiba karena `opdId` berasal dari sana.
+   * `/auth/me` pun hanya memberi `opdId`, jadi urutannya tetap sama.
+   *
+   * Kegagalan mengambil nama TIDAK menggagalkan halaman: daftar surveinya jauh
+   * lebih penting daripada satu baris pada poster, dan poster tanpa baris
+   * instansi tetap tersusun.
+   */
+  const fetchSurveys = useCallback(async () => {
+    const hasil = await getSurveys({ limit: 100 });
+    const opdId = hasil.data?.find((s) => s.opdId != null)?.opdId;
+    if (opdId == null) return { data: hasil.data, opdName: '' };
+
+    const opd = await getOpdById(opdId).catch(() => null);
+    return { data: hasil.data, opdName: opd?.name ?? '' };
+  }, []);
+
   const { data: response, isLoading, error, refetch } = useAsync(fetchSurveys);
-  const surveys = response?.data ?? [];
+
+  const surveys = useMemo(
+    () => (response?.data ?? []).map((survey) => ({ ...survey, opdName: response?.opdName ?? '' })),
+    [response],
+  );
 
   // Ubah status survei (AKTIF â†” DITUTUP) -- dua arah, backend kini izinkan
   // DITUTUP -> AKTIF (buka kembali). Setiap perubahan dikonfirmasi via modal.

@@ -3,9 +3,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { copyToClipboard } from '@/utils/clipboard';
+import { simpanBlob } from '@/utils/unduhBerkas';
+import { gambarPosterQr } from '@/features/surveys/utils/posterQrSurvei';
 import { X, Copy, Check, Download, ExternalLink, Info, AlertTriangle } from 'lucide-react';
 
-const QR_PIXEL_SIZE = 512; // resolusi berkas unduhan; tampilannya dikecilkan lewat CSS
+/**
+ * Resolusi QR yang dibuat; tampilannya di modal dikecilkan lewat CSS.
+ *
+ * 1024 (naik dari 512, 22 September 2026) karena poster menggambarnya pada
+ * 620px untuk dicetak. Memperbesar 512 ke 620 membuat modulnya berbayang, dan
+ * QR cetak yang berbayang lebih lambat dipindai.
+ */
+const QR_PIXEL_SIZE = 1024;
+
+/**
+ * Zona sunyi dalam satuan modul. Spesifikasi QR meminta 4; nilai sebelumnya 1,
+ * dan bantalan setipis itu membuat pemindai kesulitan menemukan batas kodenya
+ * -- terutama pada poster tercetak yang di sekelilingnya ada teks dan warna.
+ */
+const QR_MARGIN_MODUL = 4;
 
 /**
  * Bagikan tautan pengisian survei beserta QR-nya (Admin OPD & Admin Kabupaten).
@@ -29,7 +45,7 @@ const QR_PIXEL_SIZE = 512; // resolusi berkas unduhan; tampilannya dikecilkan le
  * yang lewat pengalihan menambah satu perjalanan jaringan pada setiap
  * pemindaian.
  */
-export default function ShareSurveyModal({ survey, onClose }) {
+export default function ShareSurveyModal({ survey, namaInstansi = '', onClose }) {
   // Dihitung saat inisialisasi state, BUKAN di dalam useEffect: menyetel state
   // secara sinkron di dalam effect memicu render berjenjang (aturan
   // react-hooks/set-state-in-effect). Modal ini hanya dirender setelah tombol
@@ -41,6 +57,8 @@ export default function ShareSurveyModal({ survey, onClose }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrError, setQrError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [sedangMenyusun, setSedangMenyusun] = useState(false);
+  const [galatPoster, setGalatPoster] = useState(null);
   const urlInputRef = useRef(null);
 
   useEffect(() => {
@@ -53,7 +71,7 @@ export default function ShareSurveyModal({ survey, onClose }) {
       .then(({ default: QRCode }) =>
         QRCode.toDataURL(url, {
           width: QR_PIXEL_SIZE,
-          margin: 1,
+          margin: QR_MARGIN_MODUL,
           color: { dark: '#0F172A', light: '#FFFFFF' },
         }),
       )
@@ -99,6 +117,38 @@ export default function ShareSurveyModal({ survey, onClose }) {
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  /**
+   * Unduhan QR adalah POSTER, bukan QR polos (22 September 2026, permintaan
+   * pengguna). Berkas lama hanya berisi kotak QR; ditempel di loket, gambar itu
+   * tak memberi tahu survei apa, milik instansi mana, dan tak memberi jalan
+   * lain bagi yang kameranya menolak memindai.
+   *
+   * Disusun saat DIKLIK, bukan disiapkan bersama QR-nya: kebanyakan yang
+   * membuka modal ini hanya menyalin tautannya, dan menggambar kanvas 1080x1440
+   * untuk mereka semua hanya membakar waktu yang tak diminta siapa pun.
+   */
+  const handleUnduh = async () => {
+    if (!qrDataUrl) return;
+    setGalatPoster(null);
+    setSedangMenyusun(true);
+    try {
+      const berkas = await gambarPosterQr({
+        qrDataUrl,
+        judul: survey.title,
+        instansi: namaInstansi,
+        url,
+      });
+      simpanBlob(berkas, `qr-survei-${survey.id}.png`);
+    } catch (err) {
+      // Kegagalan harus TERLIHAT: tombol yang diklik tanpa hasil apa pun
+      // terbaca sebagai peramban yang lambat, dan penggunanya menunggu berkas
+      // yang tak akan pernah turun.
+      setGalatPoster(err.message);
+    } finally {
+      setSedangMenyusun(false);
+    }
   };
 
   const isActive = survey.status === 'AKTIF';
@@ -191,6 +241,14 @@ export default function ShareSurveyModal({ survey, onClose }) {
           )}
         </div>
 
+        {galatPoster && (
+          <div className="px-6 pb-1">
+            <p role="alert" className="text-xs text-red-600 font-medium leading-relaxed">
+              Gagal menyiapkan poster QR: {galatPoster}
+            </p>
+          </div>
+        )}
+
         <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 border-t border-slate-100 pt-4">
           <a
             href={url || '#'}
@@ -201,17 +259,15 @@ export default function ShareSurveyModal({ survey, onClose }) {
             <ExternalLink size={16} />
             Buka Tautan
           </a>
-          <a
-            href={qrDataUrl ?? '#'}
-            download={`qr-survei-${survey.id}.png`}
-            aria-disabled={!qrDataUrl}
-            className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 ${
-              qrDataUrl ? '' : 'opacity-60 pointer-events-none'
-            }`}
+          <button
+            type="button"
+            onClick={handleUnduh}
+            disabled={!qrDataUrl || sedangMenyusun}
+            className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Download size={16} />
-            Unduh QR
-          </a>
+            {sedangMenyusun ? 'Menyiapkan…' : 'Unduh QR'}
+          </button>
         </div>
       </div>
     </div>
