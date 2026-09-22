@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Complaint, NotificationType, Role } from '@prisma/client';
-import { FULL_ACCESS_ROLES } from '../../common/auth/role.util';
+import { FULL_ACCESS_ROLES, hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -107,9 +107,32 @@ export class NotificationsService {
    * (oversight). Responden membalas -> semua Admin OPD pemilik (bisa >1
    * akun per OPD) diberi tahu. Admin OPD/Kabupaten membalas -> pelapor
    * diberi tahu.
+   *
+   * ARAHNYA DITENTUKAN PERAN YANG SEDANG DIPAKAI, BUKAN ID PENULIS (22
+   * September 2026, laporan pengguna: "notifikasi balasan tidak muncul" pada
+   * akun ber-3 peran). Sebelumnya di sini berdiri
+   * `replyAuthorUserId === complaint.userId`. Pada akun yang memegang beberapa
+   * peran, pelapor dan petugas yang menanganinya adalah orang yang sama,
+   * sehingga syarat itu selalu benar: balasan petugas digolongkan sebagai
+   * balasan pelapor, dan kotak masuk `responden` tak pernah menerima apa pun.
+   * Terukur pada basis data pengembangan -- balasan sebagai admin dan sebagai
+   * warga pada tiket yang sama melahirkan notifikasi yang identik.
+   *
+   * Komentar pada `ComplaintReply.dariPelapor` di schema.prisma sudah menyatakan
+   * arah ini "tidak dapat diturunkan dari author_id", dan `createReply` memang
+   * sudah menyimpannya dengan benar. Yang kurang hanya meneruskannya ke sini.
+   *
+   * KOTAK MASUK MILIK PERAN, BUKAN MILIK ORANG. Penerima yang kebetulan
+   * penulisnya sendiri TETAP dikabari selama itu kotak peran yang lain: ia
+   * menulis sebagai petugas, dan kotak wargannya tak akan dilihatnya sampai ia
+   * berpindah peran. Yang dikecualikan hanya kotak peran yang barusan dipakai
+   * -- di sana ia memang sudah tahu.
    */
-  async notifyComplaintReply(complaint: Complaint, replyAuthorUserId: number): Promise<void> {
-    if (replyAuthorUserId === complaint.userId) {
+  async notifyComplaintReply(
+    complaint: Complaint,
+    penulis: Pick<CurrentUser, 'userId' | 'actingRole'>,
+  ): Promise<void> {
+    if (penulis.actingRole === Role.responden) {
       // `opdId != null`: pengaduan yang belum bertujuan (6 September 2026)
       // tak punya OPD untuk dikabari. Pelapornya TIDAK kehilangan perhatian --
       // notifyKabupaten di akhir metode ini tetap berjalan, dan Superuser
@@ -135,8 +158,11 @@ export class NotificationsService {
       });
     }
 
+    // Pengecualiannya mengikuti PERAN yang dipakai, bukan orangnya. Penulis
+    // yang barusan bertindak sebagai petugas OPD tetap perlu melihatnya di
+    // kotak kabupatennya: itu meja lain dengan tugas lain, yaitu mengawasi.
     await this.notifyKabupaten(
-      replyAuthorUserId,
+      hasFullAccess(penulis.actingRole) ? penulis.userId : null,
       NotificationType.complaint_reply,
       'Balasan Baru pada Pengaduan',
       `Ada balasan baru pada pengaduan ${complaint.ticketNo}`,

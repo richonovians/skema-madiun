@@ -622,7 +622,14 @@ describe('ComplaintsService', () => {
 
       await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
 
-      expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(row, 10);
+      // Diserahkan UTUH, bukan id-nya saja: arah balasan ditentukan peran yang
+      // sedang dipakai. Menyerahkan id akan mengembalikan cacat 22 September
+      // 2026 -- balasan petugas dari akun pelapor digolongkan sebagai balasan
+      // pelapor, dan kotak masuk wargannya tak pernah menyala.
+      expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(
+        row,
+        expect.objectContaining({ userId: 10, actingRole: Role.responden }),
+      );
     });
   });
   /**

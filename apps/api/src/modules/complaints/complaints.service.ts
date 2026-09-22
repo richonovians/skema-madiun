@@ -365,7 +365,9 @@ export class ComplaintsService {
         },
         include: { attachments: true },
       });
-      await this.notificationsService.notifyComplaintReply(complaint, user.userId);
+      // `user` utuh, bukan `user.userId`: arah balasan ditentukan peran yang
+      // sedang dipakai -- alasan yang sama persis dengan `dariPelapor` di atas.
+      await this.notificationsService.notifyComplaintReply(complaint, user);
       return this.toReplyEntity(created, complaint);
     } catch (err) {
       // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort, pola sama create()).
