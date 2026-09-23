@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -110,6 +111,67 @@ class EnvironmentVariables {
     message: 'SESSION_JWT_SECRET minimal 32 karakter (rahasia penanda tangan token sesi)',
   })
   SESSION_JWT_SECRET!: string;
+
+  /**
+   * KUNCI INDUK ENKRIPSI DATA (23 September 2026). Melindungi dua hal sekaligus:
+   * lampiran pengaduan di disk, dan dua kolom teks bebas paling pribadi di basis
+   * data (`complaints.uraian`, `complaint_replies.pesan`).
+   *
+   * KEHILANGAN KUNCI INI BERARTI KEHILANGAN DATANYA. Bukan "sulit dipulihkan",
+   * melainkan hilang: tak ada pintu belakang di `envelope.ts`, dan memang tak
+   * boleh ada. Prosedur pencadangan kunci WAJIB dijalankan SEBELUM enkripsi
+   * dinyalakan -- lihat docs/keamanan/enkripsi-at-rest.md.
+   *
+   * 64 karakter heksadesimal = 32 byte, sepadan dengan AES-256 yang dipakai.
+   * Buat dengan `openssl rand -hex 32`.
+   *
+   * OPSIONAL DI SINI, bukan wajib seperti SESSION_JWT_SECRET, dan itu disengaja:
+   * `NODE_ENV=test` jatuh ke kunci uji tetap supaya seluruh uji yang ada tak
+   * menuntut konfigurasi baru. Yang menolaknya di luar `test` adalah `kunci.ts`, yang
+   * melempar saat kunci dipakai pertama kali. Validator di sini menjaga BENTUK
+   * nilainya, bukan ada-tidaknya: kunci yang panjangnya salah jauh lebih
+   * berbahaya daripada kunci yang tak ada, sebab yang pertama menyala.
+   */
+  @IsOptional()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'DATA_ENCRYPTION_KEY harus 64 karakter heksadesimal (openssl rand -hex 32)',
+  })
+  DATA_ENCRYPTION_KEY?: string;
+
+  /**
+   * KUNCI INDUK ENKRIPSI CADANGAN. Terpisah dari kunci data dengan sengaja,
+   * karena KUSTODINYA berbeda: kunci cadangan harus dapat diserahkan kepada
+   * pemegang salinan luar, sedangkan kunci data tak boleh meninggalkan server
+   * aplikasi.
+   *
+   * Perlu diketahui betul: sebuah cadangan TIDAK CUKUP untuk memulihkan sistem.
+   * Isinya memuat kolom dan lampiran yang terenkripsi DATA_ENCRYPTION_KEY, jadi
+   * pemulihan di server baru menuntut KEDUA kunci. Cadangan tanpa kunci data
+   * adalah hiasan.
+   */
+  @IsOptional()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'BACKUP_ENCRYPTION_KEY harus 64 karakter heksadesimal (openssl rand -hex 32)',
+  })
+  BACKUP_ENCRYPTION_KEY?: string;
+
+  /**
+   * PERNYATAAN bahwa disk yang memuat direktori data PostgreSQL terenkripsi
+   * (LUKS di Linux, BitLocker di Windows).
+   *
+   * Wajib `"true"` di produksi; aplikasi menolak boot tanpanya. Di luar
+   * produksi ia diabaikan. Penegakannya ada di `gerbang-penyimpanan.ts`, bukan
+   * di sini, karena yang ditolak bergantung pada NODE_ENV dan pesannya perlu
+   * panjang.
+   *
+   * INI PERNYATAAN, BUKAN VERIFIKASI. Aplikasi tak dapat memeriksa enkripsi
+   * volume pada host, apalagi dari dalam container. Gunanya memaksa seseorang
+   * menyatakannya secara sadar saat menggelar, sehingga kelalaian yang tak
+   * bergejala berubah menjadi kegagalan boot yang berisik.
+   */
+  @IsOptional()
+  @IsString()
+  DB_STORAGE_ENCRYPTED?: string;
 
   @IsOptional()
   @IsInt()

@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { configureApp } from '../src/app.setup';
+import { terenkripsi } from '../src/common/crypto/envelope';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
 import { bersihkanAuditAkunUji } from './helpers/audit.helper';
@@ -142,6 +143,50 @@ describe('Complaints (e2e)', () => {
     expect(res.body.data.status).toBe('diterima');
   });
 
+  /**
+   * ENKRIPSI KOLOM, DIBUKTIKAN DI BASIS DATANYA (23 September 2026).
+   *
+   * Respons API yang benar tidak membuktikan apa pun tentang enkripsi -- ia akan
+   * tetap benar seandainya enkripsinya dicopot seluruhnya. Yang membedakan
+   * hanya keadaan BARIS DI BASIS DATA, jadi uji ini membacanya langsung lewat
+   * Prisma, melewati seluruh jalur baca aplikasi.
+   */
+  it('uraian & pesan tersimpan TERENKRIPSI di basis data, tetapi terbaca lewat API', async () => {
+    const URAIAN = 'Pungli oleh petugas di loket 3, saya diminta Rp50.000';
+    const PESAN = 'Nomor saya 0812-3456-7890, mohon dihubungi';
+
+    const buat = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'aduan')
+      .field('judul', 'Uji enkripsi kolom')
+      .field('uraian', URAIAN);
+    expect(buat.status).toBe(201);
+    // API mengembalikan teks aslinya: dekripsi di jalur baca bekerja.
+    expect(buat.body.data.uraian).toBe(URAIAN);
+
+    const balas = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${buat.body.data.id}/replies`)
+      .set(asResponden(respondenId))
+      .field('pesan', PESAN);
+    expect(balas.status).toBe(201);
+    expect(balas.body.data.pesan).toBe(PESAN);
+
+    const baris = await prisma.complaint.findUnique({
+      where: { id: buat.body.data.id },
+      select: { uraian: true, replies: { select: { pesan: true } } },
+    });
+
+    expect(baris?.uraian.startsWith('enc:v1:')).toBe(true);
+    expect(baris?.uraian).not.toContain('Pungli');
+    expect(baris?.uraian).not.toContain('Rp50.000');
+
+    const pesanTersimpan = baris?.replies[0]?.pesan ?? '';
+    expect(pesanTersimpan.startsWith('enc:v1:')).toBe(true);
+    expect(pesanTersimpan).not.toContain('0812');
+  });
+
   it('POST /complaints dengan lampiran valid (png) -> 201, attachments tersimpan', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/complaints')
@@ -207,6 +252,28 @@ describe('Complaints (e2e)', () => {
       expect(res.body).toEqual(PNG_ASLI);
       // Tanpa header ini peramban memblokir <img> lintas-origin walau 200.
       expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    });
+
+    /**
+     * SATU-SATUNYA UJI YANG MEMBUKTIKAN ENKRIPSINYA BENAR-BENAR TERJADI
+     * (23 September 2026).
+     *
+     * Uji di atas membuktikan pulang-perginya utuh, dan itu akan tetap hijau
+     * seandainya enkripsinya dicopot seluruhnya -- berkas polos yang disajikan
+     * apa adanya juga sama dengan yang diunggah. Yang membedakan keduanya hanya
+     * keadaan berkas DI DISK, jadi di situlah asersinya harus berada.
+     */
+    it('berkas di disk BUKAN bita aslinya, melainkan amplop terenkripsi', async () => {
+      const jalurUrl = urlBertandaTangan.split('?')[0];
+      const dirUnggahan = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? 'uploads');
+      const diDisk = await fs.readFile(
+        path.join(dirUnggahan, jalurUrl.replace(/^\/uploads\//, '')),
+      );
+
+      expect(diDisk.equals(PNG_ASLI)).toBe(false);
+      expect(terenkripsi(diDisk)).toBe(true);
+      // Tanda tangan berkas PNG tak boleh tersisa di mana pun dalam ciphertext.
+      expect(diDisk.includes(Buffer.from('\x89PNG'))).toBe(false);
     });
 
     it('sig diutak-atik -> 403', async () => {

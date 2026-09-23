@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import { dekripsi, INFO_LAMPIRAN, terenkripsi } from './common/crypto/envelope';
+import { resolveLampiran, tipeKonten } from './common/crypto/jalur-lampiran';
+import { kunciData } from './common/crypto/kunci';
 import { verifyAttachmentPath } from './modules/complaints/attachment-url.util';
 import { HEADER_SESI_BERAKHIR } from './modules/auth/session/session-refresh.interceptor';
 
@@ -18,6 +22,8 @@ interface UploadRequestLike {
 interface UploadResponseLike {
   status: (code: number) => { json: (body: unknown) => void };
   setHeader: (name: string, value: string) => void;
+  /** Dipakai penyaji lampiran; badannya Buffer, bukan JSON. */
+  end: (body: Buffer) => void;
 }
 
 export function configureApp(app: INestApplication): void {
@@ -142,25 +148,90 @@ export function configureApp(app: INestApplication): void {
     });
   });
 
+  // PENYAJIAN LAMPIRAN TERENKRIPSI (23 September 2026).
+  //
+  // Menggantikan `useStaticAssets`, dan penggantinya harus ditulis sendiri
+  // karena berkas di disk kini bukan lagi berkas yang diminta peramban: ia
+  // amplop AES-256-GCM (lihat common/crypto/envelope.ts). `express.static` akan
+  // mengirimkan amplop itu apa adanya, dan peramban menampilkan gambar rusak.
+  //
+  // YANG IKUT HILANG BERSAMA `express.static`, dan karena itu ditulis ulang di
+  // sini: penegakan batas direktori (jalur-lampiran.ts) dan penentuan
+  // `Content-Type`. Keduanya dulu gratis, dan justru itu yang membuatnya mudah
+  // terlupakan.
+  //
   // `Cross-Origin-Resource-Policy: cross-origin` (2026-08-06, laporan bug user):
   // `helmet()` memasang default `same-origin` di SEMUA respons, dan peramban
   // (bukan curl -- itulah sebab verifikasi manual sebelumnya lolos) MEMBLOKIR
   // <img> lintas-origin walau responsnya 200 OK. Dilonggarkan HANYA di rute ini;
   // endpoint JSON lain tetap dijaga.
   //
-  // Lewat cast: tanda tangan fungsi ini `INestApplication` agar dapat dipakai
-  // seluruh e2e, sedangkan `useStaticAssets` milik NestExpressApplication.
-  // Adapter Express adalah bawaan `createNestApplication()`, jadi metode ini ada
-  // pada instansnya di runtime -- pola yang sama dengan `trust proxy` di atas.
-  (
-    app as unknown as {
-      useStaticAssets: (dir: string, options: Record<string, unknown>) => void;
+  // Middleware verifikasi tanda tangan di atas berjalan LEBIH DULU dan tak
+  // disentuh; permintaan yang sampai ke sini sudah bertanda tangan sah.
+  const kunciLampiran = kunciData(config);
+  const logLampiran = new Logger('Lampiran');
+
+  app.use((req: UploadRequestLike, res: UploadResponseLike, next: () => void) => {
+    if (!req.path.startsWith('/uploads/')) {
+      next();
+      return;
     }
-  ).useStaticAssets(uploadDir, {
-    prefix: '/uploads',
-    setHeaders: (res: UploadResponseLike) => {
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    },
+
+    const berkas = resolveLampiran(uploadDir, req.path);
+    if (!berkas) {
+      // 404, bukan 403: jalur yang ditolak penjaga direktori tak boleh dapat
+      // jawaban yang membedakannya dari jalur yang memang tak ada.
+      res
+        .status(404)
+        .json({ success: false, statusCode: 404, message: 'Lampiran tidak ditemukan' });
+      return;
+    }
+
+    let isi: Buffer;
+    try {
+      isi = readFileSync(berkas);
+    } catch {
+      res
+        .status(404)
+        .json({ success: false, statusCode: 404, message: 'Lampiran tidak ditemukan' });
+      return;
+    }
+
+    let keluaran: Buffer;
+    if (terenkripsi(isi)) {
+      try {
+        // SELURUH berkas didekripsi dan tagnya diverifikasi SEBELUM satu byte
+        // pun dikirim. Mengalirkannya berarti mengirim plaintext yang belum
+        // terbukti utuh lalu "membatalkan" setelah separuh gambar sampai di
+        // peramban. Batas lampiran 5MB membuat ongkos menyangga ini kecil dan
+        // terbatas -- lihat complaints.constants.ts.
+        keluaran = dekripsi(isi, kunciLampiran, INFO_LAMPIRAN);
+      } catch {
+        // Tag tak cocok berarti berkasnya rusak ATAU kuncinya bukan kunci yang
+        // dipakai menulisnya. Keduanya masalah server, bukan permintaan yang
+        // salah, dan keduanya harus terdengar.
+        logLampiran.error(`Gagal mendekripsi lampiran ${path.basename(berkas)}`);
+        res
+          .status(500)
+          .json({ success: false, statusCode: 500, message: 'Lampiran tidak dapat dibaca' });
+        return;
+      }
+    } else {
+      // Berkas lama dari sebelum enkripsi dinyalakan. Tetap disajikan supaya
+      // pengaduan lama tak mendadak kehilangan buktinya, tetapi namanya
+      // DISEBUT di log: migrasi yang belum tuntas harus terlihat, bukan
+      // tertutupi oleh jalur yang diam-diam tetap bekerja.
+      logLampiran.warn(
+        `Lampiran masih polos di disk: ${path.basename(berkas)} ` +
+          '(jalankan `pnpm enkripsi:lampiran`)',
+      );
+      keluaran = isi;
+    }
+
+    res.setHeader('Content-Type', tipeKonten(berkas));
+    res.setHeader('Content-Length', String(keluaran.length));
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.end(keluaran);
   });
 
   // Prefiks versi API: seluruh endpoint di bawah /api/v1 (kontrak arsitektur).

@@ -17,7 +17,11 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "enkripsi:lampiran": "node --env-file-if-exists=.env scripts/enkripsi-lampiran-lama.cjs",
+    "enkripsi:kolom": "node --env-file-if-exists=.env scripts/enkripsi-kolom-lama.cjs",
+    "cadangan": "node --env-file-if-exists=.env scripts/cadangan.cjs",
+    "pulihkan": "node --env-file-if-exists=.env scripts/pulihkan.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

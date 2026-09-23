@@ -54,7 +54,29 @@ export default tseslint.config(
     },
   },
 
-  // 6) HARUS TERAKHIR: matikan seluruh aturan format ESLint yang berpotensi
+  // 6) Berkas CommonJS (.cjs): `require` adalah SATU-SATUNYA cara memuat modul
+  //    di sana, jadi `no-require-imports` bukan aturan gaya melainkan larangan
+  //    menulis berkas itu sama sekali.
+  //
+  //    Dipakai skrip perkakas di apps/api/scripts. CommonJS-nya disengaja dan
+  //    ada alasannya, ditulis di kepala scripts/lib/envelope.cjs: dengan begitu
+  //    Jest dapat me-`require` berkas itu langsung, sehingga uji silang yang
+  //    menjaga format amplop tetap sama antara aplikasi dan perkakas pemulihan
+  //    benar-benar dapat berjalan.
+  {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
+  // 7) HARUS TERAKHIR: matikan seluruh aturan format ESLint yang berpotensi
   //    bentrok dengan Prettier. Formatting sepenuhnya ditangani Prettier.
   eslintConfigPrettier,
 );

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { dekripsiKolom } from '../../common/crypto/kolom';
 import { ComplaintStatus, Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -60,6 +61,12 @@ const p2002 = () =>
     clientVersion: 'test',
   });
 
+/**
+ * Kunci uji untuk enkripsi kolom. Bukan kunci sungguhan mana pun, dan tak
+ * pernah menyentuh disk: suite ini hanya memeriksa apa yang DIKIRIM ke Prisma.
+ */
+const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xb);
+
 describe('ComplaintsService', () => {
   const prisma = {
     opd: { findUnique: jest.fn() },
@@ -80,11 +87,30 @@ describe('ComplaintsService', () => {
    * diam-diam ikut terpakai -- perbandingan `10 < 'uploads'` bernilai false dan
    * SELURUH pembuatan pengaduan tertolak dengan pesan yang menyebut "uploads"
    * sebagai jumlah.
+   *
+   * DIPERKETAT 23 September 2026 menjadi PETA SUNGGUHAN, bukan satu pengecualian
+   * plus cadangan 'uploads'. Bentuk lama sudah setengah jalan: ia menjawab
+   * `complaint.batasHarian` dengan benar dan SELURUH kunci lain dengan 'uploads'
+   * -- termasuk kunci yang belum ada saat tiruan itu ditulis. Begitu service
+   * membaca `crypto.dataKey`, ia menerima string 'uploads' sebagai kunci
+   * enkripsi, dan suite ini gagal seluruhnya dengan pesan yang tak ada
+   * hubungannya dengan apa yang sedang diuji.
+   *
+   * Peta ini gagal ke arah yang benar: kunci yang tak dikenal menjawab
+   * `undefined`, sehingga service memakai nilai bakunya sendiri alih-alih
+   * sebuah string yang kebetulan ada.
    */
+  const NILAI_KONFIG: Record<string, unknown> = {
+    'upload.dir': 'uploads',
+    'complaint.batasHarian': BATAS_HARIAN_PENGADUAN_BAKU,
+    'session.jwtSecret': 'rahasia-uji-yang-panjangnya-lebih-dari-32-karakter',
+    'upload.signedUrlTtlSeconds': 3600,
+    // Kunci uji tetap. Bukan kunci sungguhan mana pun, dan tak pernah menyentuh
+    // disk: suite ini tak menulis lampiran ke direktori nyata.
+    'crypto.dataKey': KUNCI_UJI_KOLOM.toString('hex'),
+  };
   const config = {
-    get: jest.fn((kunci: string) =>
-      kunci === 'complaint.batasHarian' ? BATAS_HARIAN_PENGADUAN_BAKU : 'uploads',
-    ),
+    get: jest.fn((kunci: string) => NILAI_KONFIG[kunci]),
   } as unknown as ConfigService;
   const notificationsService = {
     notifyComplaintCreated: jest.fn(),
@@ -490,10 +516,22 @@ describe('ComplaintsService', () => {
         data: {
           complaintId: 1,
           authorId: 1,
-          pesan: 'Bukan wewenang OPD ini',
+          // TERENKRIPSI, bukan teks polos (23 September 2026). Catatan penolakan
+          // adalah tulisan bebas petugas tentang kasus seorang warga, disimpan
+          // di kolom yang sama dengan pesan percakapan, jadi ia diperlakukan
+          // sama. Nilainya tak dapat ditulis sebagai harapan tetap di sini:
+          // garam dan iv acak membuatnya berbeda setiap kali.
+          pesan: expect.stringMatching(/^enc:v1:/) as unknown as string,
           dariPelapor: false,
         },
       });
+
+      // Dan ia harus dapat DIBUKA KEMBALI. Tanpa asersi ini, uji di atas akan
+      // tetap hijau seandainya kode menulis blob yang tak berarti apa-apa.
+      const ditulis = (prisma.complaintReply.create as jest.Mock).mock.calls[0][0] as {
+        data: { pesan: string };
+      };
+      expect(dekripsiKolom(ditulis.data.pesan, KUNCI_UJI_KOLOM)).toBe('Bukan wewenang OPD ini');
     });
 
     it('(D9) sukses -> memicu notifyComplaintStatusChanged dgn baris terbaru', async () => {
