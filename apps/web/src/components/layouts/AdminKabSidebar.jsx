@@ -91,12 +91,15 @@ export default function AdminKabSidebar() {
         <div className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
-              <Image 
-                src="/images/navbar/skema-logo-2.png" 
-                alt="Logo SKEMA" 
-                width={37} 
-                height={37} 
-                className="object-contain brightness-0 invert scale-[1.7]" 
+              {/* Sama persis dengan AdminSidebar.jsx: 3:2 mengikuti berkasnya
+                  yang 1536x1024, dengan `w-[37px] h-auto` yang menjaga ukuran
+                  tergambarnya tidak berubah. Lihat catatan di sana. */}
+              <Image
+                src="/images/navbar/skema-logo-2.png"
+                alt="Logo SKEMA"
+                width={48}
+                height={32}
+                className="object-contain brightness-0 invert scale-[1.7] w-[37px] h-auto"
               />
             </div>
             {!isDesktopSidebarCollapsed && (
