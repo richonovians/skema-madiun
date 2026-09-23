@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  NotEquals,
   Max,
   Min,
   MinLength,
@@ -22,6 +23,23 @@ export enum NodeEnvironment {
   Production = 'production',
   Test = 'test',
 }
+
+/**
+ * Nilai contoh `SESSION_JWT_SECRET` di `.env.example`, ditolak secara tersurat
+ * di bawah (23 September 2026).
+ *
+ * Panjangnya TEPAT 32 karakter, jadi `@MinLength(32)` dari temuan T7 meloloskannya
+ * dan `.env` yang disalin lalu tak pernah disunting boot dengan normal. Ini bukan
+ * dugaan: nilai ini ditemukan masih terpasang di `.env` sungguhan.
+ *
+ * Yang membuatnya berbahaya bukan lemahnya nilai itu, melainkan bahwa ia TERCATAT
+ * DI GIT. Rahasia ini menandatangani seluruh token sesi, dan token sesi diperiksa
+ * murni dari tanda tangannya tanpa catatan pembanding di basis data. Siapa pun
+ * yang dapat membuka repositori ini karenanya dapat menerbitkan token untuk id dan
+ * peran mana pun. Ia juga menurunkan kunci HMAC URL lampiran bertanda tangan, jadi
+ * kebocorannya sekaligus membatalkan perbaikan temuan T1.
+ */
+const CONTOH_SESSION_JWT_SECRET = 'ganti-dengan-string-acak-panjang';
 
 class EnvironmentVariables {
   @IsOptional()
@@ -107,6 +125,11 @@ class EnvironmentVariables {
   // 32 karakter = 256 bit bila acak, sepadan dengan HS256 yang dipakai.
   @IsString()
   @IsNotEmpty()
+  @NotEquals(CONTOH_SESSION_JWT_SECRET, {
+    message:
+      'SESSION_JWT_SECRET masih bernilai contoh dari .env.example, dan nilai itu tercatat di Git. ' +
+      'Ganti dengan nilai acak: openssl rand -hex 32',
+  })
   @MinLength(32, {
     message: 'SESSION_JWT_SECRET minimal 32 karakter (rahasia penanda tangan token sesi)',
   })
