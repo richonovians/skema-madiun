@@ -25,7 +25,8 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Lokal 1, CI 2 -- alasannya panjang, ditulis di dekat `workers` di bawah.
+  retries: process.env.CI ? 2 : 1,
   /**
    * SATU worker, juga di mesin sendiri. Sebelumnya lokal memakai bawaan
    * Playwright (setengah jumlah inti -- empat di mesin 8 inti), dan empat
@@ -75,9 +76,12 @@ export default defineConfig({
    * Menghidupkan ini sekaligus menghidupkan `trace: 'on-first-retry'` di bawah,
    * yang selama ini tak pernah dapat berjalan karena percobaan ulangnya tak
    * pernah ada. Jejak itulah yang akan menjelaskan kegoyahan berikutnya.
+   *
+   * NILAINYA DISATUKAN DENGAN SETELAN CI DI ATAS, bukan ditulis kedua kalinya.
+   * Kunci ganda pada objek literal membuat yang belakangan menimpa yang
+   * pertama TANPA GEJALA -- di sini itu sempat terjadi dan diam-diam
+   * menurunkan percobaan CI dari 2 menjadi 1.
    */
-  retries: 1,
-
   reporter: 'html',
   use: {
     baseURL: ORIGIN,
