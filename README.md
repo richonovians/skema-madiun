@@ -144,11 +144,23 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Buka `apps/api/.env` dan isi `SESSION_JWT_SECRET` dengan teks acak minimal 32 karakter. Aplikasi menolak menyala bila lebih pendek. Cara membuatnya:
+Buka `apps/api/.env` dan isi tiga baris berikut. Masing-masing diisi nilai acak **sendiri**, bukan disalin dari orang lain:
+
+| Baris                   | Gunanya                                 |
+| ----------------------- | --------------------------------------- |
+| `SESSION_JWT_SECRET`    | Menandatangani token sesi               |
+| `DATA_ENCRYPTION_KEY`   | Mengenkripsi lampiran dan isi pengaduan |
+| `BACKUP_ENCRYPTION_KEY` | Mengenkripsi berkas cadangan            |
+
+Ketiganya dibuat dengan perintah yang sama, dijalankan sekali untuk tiap baris:
 
 ```bash
 openssl rand -hex 32
 ```
+
+Tanpa `SESSION_JWT_SECRET` yang panjangnya cukup, aplikasi menolak menyala. Tanpa `DATA_ENCRYPTION_KEY`, backend juga menolak menyala, dengan pesan yang menyebutkan hal ini.
+
+**Kehilangan `DATA_ENCRYPTION_KEY` berarti kehilangan lampiran dan isi pengaduan secara permanen.** Tidak ada pintu belakang, dan cadangan tidak menolong karena isinya terenkripsi kunci yang sama. Simpan salinannya di luar komputer ini sebelum melanjutkan. Penjelasan lengkapnya ada di `docs/keamanan/enkripsi-at-rest.md`.
 
 **3. Nyalakan basis data dan proxy.**
 
@@ -197,6 +209,33 @@ Alamat lain yang mungkin berguna selama pengembangan:
 
 ---
 
+## Kunci enkripsi dalam tim
+
+Sejak 23 September 2026, lampiran pengaduan dan dua kolom teks bebas di basis data tersimpan dalam bentuk terenkripsi. Ada satu aturan yang paling mudah salah, dan akibatnya tidak terlihat sampai terlambat.
+
+**Basis data sendiri, kunci sendiri.** Tiap orang menjalankan PostgreSQL-nya sendiri lewat `docker compose`, jadi buat kunci sendiri dan jangan menyalin punya orang lain.
+
+**Basis data bersama, kunci bersama.** Begitu tim memakai satu basis data yang sama, misalnya server uji coba atau produksi, `DATA_ENCRYPTION_KEY` di semua tempat harus sama persis. Bila tidak, pengaduan yang ditulis lewat satu laptop tidak terbaca lewat laptop lain. Gejalanya bukan pesan galat yang jelas, melainkan data yang gagal dibuka satu per satu ketika ada yang membukanya.
+
+**Jangan pernah mencetak nilai kunci** ke layar, berkas log, tiket, atau percakapan. Yang boleh ditunjukkan hanya sidik jarinya. Kunci yang pernah terlihat orang lain harus dianggap tidak rahasia lagi dan diputar dengan `pnpm rotasi:kunci` dari `apps/api`. Prosedur lengkapnya, termasuk empat langkah sesudah rotasi yang tidak boleh dilewat, ada di bagian 7 `docs/keamanan/enkripsi-at-rest.md`.
+
+### Kalau basis data Anda sudah terisi sebelumnya
+
+Data yang ditulis sebelum perubahan ini masih tersimpan polos. Aplikasi tetap membacanya dengan normal, jadi langkah ini tidak mendesak, tetapi selama belum dijalankan data tersebut terbaca oleh siapa pun yang memperoleh berkas disknya.
+
+```bash
+cd apps/api
+pnpm enkripsi:lampiran -- --uji   # laporan saja, tidak menulis apa pun
+pnpm enkripsi:lampiran
+
+pnpm enkripsi:kolom -- --uji
+pnpm enkripsi:kolom
+```
+
+Keduanya aman dijalankan berulang kali. Yang sudah terenkripsi dilewati, jadi menjalankannya lagi adalah cara memastikan tidak ada yang tertinggal.
+
+---
+
 ## Perintah sehari-hari
 
 Dijalankan dari akar repositori.
@@ -222,6 +261,7 @@ Jangan menjalankan `pnpm build` selagi `pnpm dev` hidup. Keduanya menulis ke fol
 | `docs/Routes-List-API-dan-Frontend.md`            | Daftar seluruh alamat API dan halaman web                                                 |
 | `docs/Rencana-Integrasi-Frontend-Backend.md`      | Rencana penyambungan frontend dengan backend                                              |
 | `docs/Roadmap-Timeline-*.csv`                     | Rencana kerja dan lini masa, siap diimpor ke ClickUp                                      |
+| `docs/keamanan/enkripsi-at-rest.md`               | Apa yang terenkripsi dan apa yang tidak, kustodi kunci, rotasi, cadangan, dan pemulihan   |
 
 Perlu diketahui saat membaca PRD: dokumen itu masih menyebut peran **Superuser** sebagai peran tersendiri. Peran tersebut dilebur ke Admin Kabupaten pada 15 September 2026, jadi sekarang hanya ada tiga peran, yaitu Admin Kabupaten, Admin OPD, dan Responden.
 
@@ -232,3 +272,4 @@ Perlu diketahui saat membaca PRD: dokumen itu masih menyebut peran **Superuser**
 - Berkas `.env` tidak pernah masuk ke repositori. Yang tercatat hanya `.env.example` berisi contoh tanpa nilai rahasia. Kunci SSO, secret captcha, dan kunci penanda tangan sesi diisi sendiri di setiap lingkungan.
 - Dokumentasi API di `/api/docs` harus dimatikan di produksi. Tanpa itu seluruh permukaan API, termasuk endpoint admin, terpampang tanpa perlu masuk.
 - Lampiran pengaduan tidak dapat dibuka lewat alamat biasa. Setiap tautan lampiran ditandatangani dan kedaluwarsa, supaya alamat yang bocor tidak berlaku selamanya.
+- Lampiran dan dua kolom paling pribadi (`complaints.uraian` dan `complaint_replies.pesan`) tersimpan terenkripsi. Basis datanya **tidak** terenkripsi seluruhnya: nama dan email pengguna, judul pengaduan, serta nama dan nomor HP responden survei tetap tersimpan polos. `users.nama` memang tidak bisa dienkripsi selama pencarian log audit memakainya; sisanya polos karena belum masuk cakupan, dan bisa menyusul. Cara menyebutnya yang benar adalah "isi pengaduan dan percakapannya terenkripsi, identitas pelapor tidak". Batas tepatnya, prosedur kunci, dan runbook cadangan ada di `docs/keamanan/enkripsi-at-rest.md`.
