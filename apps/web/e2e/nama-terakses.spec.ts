@@ -41,16 +41,32 @@ async function harusBernama(
   keterangan: string,
 ) {
   const tombol = page.getByRole('button', { name: nama });
-  const jumlah = await tombol.count();
-  if (jumlah === 0) {
+
+  /**
+   * URUTANNYA DIBALIK (23 September 2026). Sebelumnya `tombol.count()`
+   * dipanggil LEBIH DULU -- satu kali baca DOM, tanpa coba-ulang. Pada lari
+   * penuh, halaman yang belum selesai merender membuat hitungannya nol dan uji
+   * ini memerah dengan sebab yang salah. Terukur: daftar yang tertangkap hanya
+   * berisi tombol kerangka navbar -- "Tutup menu navigasi", "Keluar", "Buka
+   * menu navigasi", "Notifikasi" -- tanpa satu pun tombol isi halaman.
+   *
+   * Kini gerbangnya asersi locator, yang memang mencoba ulang sampai batas
+   * waktunya. Daftar diagnostiknya tetap ada dan tetap sama bergunanya, hanya
+   * disusun SESUDAH gagal -- saat halamannya sudah pasti selesai.
+   */
+  try {
+    await expect(tombol.first(), `${keterangan} tak bernama di 320px`).toBeVisible();
+  } catch (galat) {
     const semua = await page.evaluate(() =>
       Array.from(document.querySelectorAll('button'))
         .filter((b) => b.offsetParent !== null)
         .map((b) => (b.getAttribute('aria-label') || b.innerText || '').trim() || '(tanpa nama)'),
     );
     expect(semua, `${keterangan}: tak ada tombol bernama ${nama}`).toContain(nama.source);
+    // Namanya ADA di halaman tapi tombolnya tak terlihat: itu kegagalan yang
+    // berbeda, dan galat aslinya yang menjelaskannya.
+    throw galat;
   }
-  await expect(tombol.first(), `${keterangan} tak bernama di 320px`).toBeVisible();
 }
 
 const HALAMAN: Array<{

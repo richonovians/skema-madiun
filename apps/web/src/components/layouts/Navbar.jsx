@@ -72,11 +72,17 @@ export default function Navbar() {
               ke luar layar pada 320px. Lambangnya tetap `shrink-0` di dalam. */}
           <Link href="/" className="flex items-center gap-2.5 group min-w-0 min-h-[44px]">
             <div className="shrink-0 transition-transform duration-300 group-hover:scale-105 flex items-center">
+              {/* 120x80, BUKAN 120x64 (23 September 2026). Berkasnya 1536x1024,
+                  yaitu 3:2; deklarasi lama 1,875 membuat Next memesan ruang
+                  berbentuk keliru dan memperingatkannya di konsol peramban.
+                  Logo yang terlihat tidak berubah: `h-8 w-auto` mengunci
+                  tingginya 32px dan `object-contain` sudah menggambarnya pada
+                  48x32 -- yang menyusut hanya pita transparan di kiri-kanan. */}
               <Image
                 src="/images/navbar/skema-logo-2.png"
                 alt="Logo SKEMA"
                 width={120}
-                height={64}
+                height={80}
                 className="object-contain h-8 md:h-10 w-auto scale-110 origin-left"
                 priority
               />
