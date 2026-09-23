@@ -88,6 +88,18 @@ export default () => ({
     // yang menentukan seberapa lama kebocoran itu berguna.
     signedUrlTtlSeconds: parseInt(process.env.UPLOAD_SIGNED_URL_TTL_SECONDS ?? '3600', 10),
   },
+  crypto: {
+    // Kunci induk enkripsi at-rest (23 September 2026). Dibiarkan '' di sini,
+    // BUKAN dilempar: yang berhak melempar adalah `kunci.ts` saat kunci benar-
+    // benar dipakai. Melempar di berkas konfigurasi berarti seluruh aplikasi
+    // menolak boot walau bagian yang butuh kunci tak pernah disentuh, dan itu
+    // akan memaksa setiap uji serta setiap perkakas baris perintah menyetelnya.
+    //
+    // BENTUK nilainya sudah dijaga env.validation.ts; ADA-TIDAKNYA dijaga
+    // kunci.ts. Pembagian itu disengaja, alasannya ditulis di kedua berkas.
+    dataKey: process.env.DATA_ENCRYPTION_KEY ?? '',
+    backupKey: process.env.BACKUP_ENCRYPTION_KEY ?? '',
+  },
   session: {
     jwtSecret: process.env.SESSION_JWT_SECRET,
     // PAGU MUTLAK sesi, bukan lagi umur tetapnya (17 September 2026). Sesi
