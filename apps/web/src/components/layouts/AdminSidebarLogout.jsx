@@ -42,14 +42,16 @@ export default function AdminSidebarLogout({ isCollapsed }) {
         onClick={logout}
         disabled={isLoggingOut}
         className={`flex w-full min-h-[44px] items-center gap-md rounded-lg py-sm font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 relative group ${
-          isCollapsed ? 'justify-center px-0' : 'px-md'
+          isCollapsed ? 'px-md md:justify-center md:px-0' : 'px-md'
         }`}
         title="Keluar"
       >
         <LogOut size={20} className="shrink-0" aria-hidden="true" />
-        {!isCollapsed && (
-          <span>{isLoggingOut ? 'Keluar...' : 'Keluar'}</span>
-        )}
+        {/* Tetap dirender: `md:hidden` menyembunyikannya hanya di sidebar
+            desktop yang diciutkan, sementara laci ponsel selalu bernama. */}
+        <span className={isCollapsed ? 'md:hidden' : undefined}>
+          {isLoggingOut ? 'Keluar...' : 'Keluar'}
+        </span>
       </button>
     </div>
   );

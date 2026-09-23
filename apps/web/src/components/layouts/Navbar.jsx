@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -38,6 +38,48 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // HANYA SATU MENU YANG BOLEH TERBUKA (23 September 2026, laporan pengguna
+  // berikut tangkapan layar: laci navigasi dan panel akun terbuka bersamaan,
+  // saling menumpuk, dan panel akun tampak terpotong).
+  //
+  // Satu arah sudah aman tanpa disengaja: menekan hamburger memicu `mousedown`
+  // yang menutup panel akun lewat pola tutup-di-luar milik
+  // ProfileAvatarDropdown. Arah sebaliknya -- laci dibuka dulu, lalu avatar
+  // atau lonceng diketuk -- tak ada penjaganya sama sekali.
+  //
+  // Dipasang di sini, pada lacinya, BUKAN dengan menambah callback ke kedua
+  // komponen menu: satu tempat menutup keduanya sekaligus, dan lonceng ikut
+  // terbereskan tanpa disentuh.
+  //
+  // JEBAKAN YANG DIKECUALIKAN: hamburger berada DI LUAR laci, jadi tanpa
+  // pengecualian ia menutup laci pada `mousedown` lalu membukanya lagi pada
+  // `click`, dan tombolnya berhenti berfungsi sebagai penutup.
+  //
+  // CATATAN, cacat yang SENGAJA tidak diperbaiki di sini: `z-50` pada panel
+  // akun tak dapat melewati laci. Pil navbar memakai `backdrop-blur`, dan
+  // `backdrop-filter` membuat KONTEKS PENUMPUKAN baru, sehingga `z-50` panel
+  // terkurung di dalam pil sementara laci adalah adik kandung pil yang muncul
+  // belakangan di DOM. Dibuktikan di Chrome dengan percobaan satu variabel:
+  // apa adanya -> laci di atas; hanya `backdrop-filter` dimatikan -> panel di
+  // atas; dipasang lagi -> laci di atas. Ia tak lagi terlihat begitu keduanya
+  // saling meniadakan, tetapi siapa pun yang kelak menambah panel baru di
+  // dalam pil akan menabraknya lagi.
+  const laciRef = useRef(null);
+  const tombolMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return undefined;
+
+    const tutupBilaDiLuar = (event) => {
+      if (laciRef.current?.contains(event.target)) return;
+      if (tombolMenuRef.current?.contains(event.target)) return;
+      setIsMobileMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', tutupBilaDiLuar);
+    return () => document.removeEventListener('mousedown', tutupBilaDiLuar);
+  }, [isMobileMenuOpen]);
 
   return (
     <>
@@ -161,6 +203,7 @@ export default function Navbar() {
 
             {/* Mobile Hamburger Button */}
             <button
+              ref={tombolMenuRef}
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className={clsx(
@@ -177,6 +220,7 @@ export default function Navbar() {
         {/* Mobile Navigation Drawer — muncul tepat di bawah pill navbar */}
         {isMobileMenuOpen && (
           <div
+            ref={laciRef}
             className={clsx(
               'absolute top-[72px] left-4 right-4 lg:hidden',
               'rounded-2xl border border-white/60 shadow-[0_8px_32px_rgba(0,74,198,0.13)]',

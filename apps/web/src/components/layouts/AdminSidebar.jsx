@@ -34,6 +34,23 @@ export default function AdminSidebar() {
     setIsDesktopSidebarCollapsed,
   } = useAdminLayout();
 
+  // CIUT HANYA BERLAKU DARI `md` KE ATAS (23 September 2026, laporan pengguna).
+  //
+  // Sebelumnya efek ciut tak dipagari lebar layar sama sekali, padahal semua
+  // yang MEMAKAI state ini sudah dipagari: margin konten `md:ml-20`, offset
+  // navbar `md:left-20`, dan tombol pengalihnya sendiri `hidden md:flex`.
+  // Akibatnya bila ciut menyala lalu layar menyempit di bawah 768px, laci
+  // ponsel terbuka sebagai strip 80px berisi ikon tanpa nama -- bahkan tombol
+  // X penutupnya ikut hilang, sebab ia pun berada di balik syarat yang sama.
+  // Tombol untuk mengembalikannya `hidden` di bawah `md` dan merupakan
+  // SATU-SATUNYA pemanggil setternya, jadi keadaan itu tak dapat dipulihkan
+  // tanpa memuat ulang halaman.
+  //
+  // Diselesaikan lewat CSS, bukan pendengar resize atau media query di JS:
+  // yang terakhir memunculkan beda hasil antara render server dan peramban,
+  // yang tak dipunyai pendekatan ini.
+  const kelasLabelCiut = isDesktopSidebarCollapsed ? 'md:hidden' : '';
+
   // Laci mobile: latarnya menutupi layar, tapi tanpa kunci halaman di belakangnya
   // tetap ikut bergulir saat jari diusap di atas latar itu. `isMobileSidebarOpen`
   // hanya pernah true di ponsel (di md+ laci ini selalu tampak, tak pernah dibuka).
@@ -48,7 +65,7 @@ export default function AdminSidebar() {
     // sebab di sana isinya memang sudah melewati 44px.
     let base =
       'flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ';
-    base += isDesktopSidebarCollapsed ? 'justify-center px-0 ' : 'px-md ';
+    base += isDesktopSidebarCollapsed ? 'px-md md:justify-center md:px-0 ' : 'px-md ';
 
     if (isActive) {
       base += 'bg-blue-600 text-white font-bold shadow-md ';
@@ -80,13 +97,13 @@ export default function AdminSidebar() {
       </button>
 
       <aside
-        className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
+        className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen w-64 ${isDesktopSidebarCollapsed ? 'md:w-20' : 'md:w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* Header sejajar dengan AdminNavbar (h-64/80, border-b) */}
         <div
-          className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}
+          className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full justify-between px-4 ${isDesktopSidebarCollapsed ? 'md:justify-center md:px-0' : ''}`}
         >
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
@@ -105,35 +122,31 @@ export default function AdminSidebar() {
                 className="object-contain brightness-0 invert scale-[1.7] w-[37px] h-auto"
               />
             </div>
-            {!isDesktopSidebarCollapsed && (
-              <span className="font-bold text-[18px] text-slate-900 tracking-tight uppercase truncate">
-                Admin OPD
-              </span>
-            )}
-          </div>
-
-          {!isDesktopSidebarCollapsed && (
-            <button
-              type="button"
-              aria-label="Tutup menu navigasi"
-              title="Tutup menu navigasi"
-              className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
-              onClick={() => setIsMobileSidebarOpen(false)}
+            <span
+              className={`font-bold text-[18px] text-slate-900 tracking-tight uppercase truncate ${kelasLabelCiut}`}
             >
-              <X size={20} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-
-        {!isDesktopSidebarCollapsed && (
-          <div className="px-5 mb-2 mt-4">
-            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-              Portal & Ikhtisar
+              Admin OPD
             </span>
           </div>
-        )}
 
-        <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'mt-4' : ''}`}>
+          <button
+            type="button"
+            aria-label="Tutup menu navigasi"
+            title="Tutup menu navigasi"
+            className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className={`px-5 mb-2 mt-4 ${kelasLabelCiut}`}>
+          <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+            Portal & Ikhtisar
+          </span>
+        </div>
+
+        <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'md:mt-4' : ''}`}>
           <Link
             href="/admin-opd/dashboard"
             title="Dashboard"
@@ -144,7 +157,7 @@ export default function AdminSidebar() {
               size={20}
               className="shrink-0 transition-transform duration-300 group-hover:scale-110"
             />
-            {!isDesktopSidebarCollapsed && <span>Dashboard</span>}
+            <span className={kelasLabelCiut}>Dashboard</span>
           </Link>
           <Link
             href="/admin-opd/surveys"
@@ -156,7 +169,7 @@ export default function AdminSidebar() {
               size={20}
               className="shrink-0 transition-transform duration-300 group-hover:scale-110"
             />
-            {!isDesktopSidebarCollapsed && <span>Survei</span>}
+            <span className={kelasLabelCiut}>Survei</span>
           </Link>
           <Link
             href="/admin-opd/complaints"
@@ -168,7 +181,7 @@ export default function AdminSidebar() {
               size={20}
               className="shrink-0 transition-transform duration-300 group-hover:scale-110"
             />
-            {!isDesktopSidebarCollapsed && <span>Aduan</span>}
+            <span className={kelasLabelCiut}>Aduan</span>
           </Link>
           <Link
             href="/admin-opd/analytics"
@@ -180,7 +193,7 @@ export default function AdminSidebar() {
               size={20}
               className="shrink-0 transition-transform duration-300 group-hover:scale-110"
             />
-            {!isDesktopSidebarCollapsed && <span>Statistik & Laporan</span>}
+            <span className={kelasLabelCiut}>Statistik & Laporan</span>
           </Link>
         </nav>
 
