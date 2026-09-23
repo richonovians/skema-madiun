@@ -46,6 +46,38 @@ export default defineConfig({
    * Harganya ~6 menit, bukan ~3. Yang 3 menit itu tak ada gunanya.
    */
   workers: 1,
+
+  /**
+   * SATU PERCOBAAN ULANG (23 September 2026).
+   *
+   * MENGAPA, DAN BUKAN "SUPAYA HIJAU". Suite ini memerah pada 1-3 uji dari ~85
+   * setiap lari penuh, SELALU uji yang berbeda, dan seluruhnya hijau ketika
+   * berkasnya dijalankan sendirian. Akibatnya lari penuh tak pernah dapat
+   * hijau -- dan suite yang selalu merah mengajari orang mengabaikannya, yang
+   * berarti regresi sungguhan pun ikut lewat tanpa dilihat. Itu bahaya yang
+   * sedang berlangsung, bukan hipotetis.
+   *
+   * INI TIDAK MENYEMBUNYIKAN KEGAGALAN. Uji yang gagal DUA KALI tetap `failed`
+   * dan kode keluarnya tetap 1. Yang lulus pada percobaan kedua masuk kategori
+   * `flaky` yang TERPISAH dari `passed` -- jadi kegoyahannya tercatat dan dapat
+   * dihitung, bukan lenyap.
+   *
+   * ONGKOSNYA NOL PADA LARI SEHAT: uji yang lulus tak pernah diulang.
+   *
+   * SEBABNYA SUDAH DICARI DAN BUKAN KOMPILASI. Dugaan bahwa `next dev`
+   * mengompilasi rute saat pertama diminta sempat diuji dengan menjalankan
+   * seluruh suite terhadap build produksi (lihat scripts/server-e2e.mjs):
+   * hasilnya 1/2/1 kegagalan versus 1/0/3 pada server dev -- tidak lebih baik.
+   * Gejalanya pun tak seragam; salah satunya tombol yang terender rapi tetapi
+   * `disabled` selama 15 detik, yang mematahkan seluruh teori "halaman belum
+   * siap". Akar masalah tunggal tampaknya memang tidak ada.
+   *
+   * Menghidupkan ini sekaligus menghidupkan `trace: 'on-first-retry'` di bawah,
+   * yang selama ini tak pernah dapat berjalan karena percobaan ulangnya tak
+   * pernah ada. Jejak itulah yang akan menjelaskan kegoyahan berikutnya.
+   */
+  retries: 1,
+
   reporter: 'html',
   use: {
     baseURL: ORIGIN,
