@@ -224,13 +224,53 @@ tersisa disebut namanya di log aplikasi setiap kali diakses.
 
 ---
 
-## 7. Bila kunci harus diganti
+## 7. Rotasi kunci
 
-Belum ada perkakas rotasi kunci. Menggantinya menuntut mendekripsi seluruh data
-dengan kunci lama lalu mengenkripsinya dengan kunci baru, dan itu pekerjaan
-tersendiri yang belum ditulis.
+Lakukan ini bila `DATA_ENCRYPTION_KEY` pernah terlihat orang lain: tercetak ke
+layar atau log, terkirim lewat obrolan, tersalin ke tiket, atau ikut terbawa
+tangkapan layar. Kunci yang pernah keluar dari tempat simpanannya harus
+dianggap tak lagi rahasia, sependek apa pun ia terlihat.
 
-Yang **tidak boleh** dilakukan: mengganti isi `DATA_ENCRYPTION_KEY` di `.env`
-tanpa memigrasi data. Akibatnya bukan galat saat boot, melainkan setiap
-lampiran dan setiap pengaduan menjadi tak terbaca satu per satu, saat ada yang
-membukanya.
+```bash
+cd apps/api
+pnpm cadangan                 # SELALU lebih dulu
+pnpm rotasi:kunci -- --uji    # laporan saja, tak menulis apa pun
+pnpm rotasi:kunci             # sungguhan
+```
+
+Skrip membuat kunci baru sendiri (atau `--kunci-baru <64 heksadesimal>` bila
+Anda ingin menentukannya), memutar seluruh lampiran dan seluruh baris
+terenkripsi, lalu menulis kunci baru ke `.env` **paling akhir**. Nilainya tak
+pernah dicetak. Salinan `.env` sebelum rotasi disimpan berstempel waktu.
+
+**Aman diulang, dan itu syarat bukan kenyamanan.** Bila prosesnya mati di
+tengah, sebagian data memakai kunci baru dan sebagian masih kunci lama,
+sementara aplikasi hanya mengenal satu kunci. Karena itu tiap benda dicoba
+dengan kunci **baru** lebih dulu: yang sudah diputar dilewati, sisanya
+dituntaskan. Jalankan ulang untuk menyelesaikan yang tertinggal. Benda yang tak
+terbuka oleh kunci mana pun **menghentikan seluruh lari** alih-alih dilewati
+diam-diam.
+
+### Sesudah rotasi, empat langkah yang tak boleh dilewat
+
+1. Restart aplikasi supaya ia memakai kunci baru.
+2. **Buat ulang cadangan.** Cadangan lama memuat lampiran berkunci lama; ia tak
+   dapat dipulihkan utuh dengan kunci baru.
+3. **Hapus cadangan lama** sesudah cadangan baru terbukti dapat dipulihkan.
+   Selama ia ada, kunci yang bocor masih membuka isinya.
+4. Simpan kunci baru ke tempat cadangan kunci Anda, lalu hapus salinan `.env`
+   berstempel waktu itu.
+
+### Yang tidak boleh dilakukan
+
+Mengganti isi `DATA_ENCRYPTION_KEY` di `.env` **tanpa** menjalankan skrip ini.
+Akibatnya bukan galat saat boot, melainkan setiap lampiran dan setiap pengaduan
+menjadi tak terbaca satu per satu, saat ada yang membukanya.
+
+### Catatan sejarah
+
+Rotasi pertama dijalankan 23 September 2026 karena kunci pertama tercetak ke
+sebuah sesi kerja. 75 benda diputar (10 `uraian`, 62 `pesan`, 3 lampiran), 76
+sidik jari isi dibandingkan sebelum dan sesudah dan seluruhnya identik, dan
+kunci lama diuji tak lagi membuka kolom maupun lampiran. Cadangan pra-rotasi
+dihapus sesudah cadangan baru terbukti dapat dipulihkan.
