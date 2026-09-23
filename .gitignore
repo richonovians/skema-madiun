@@ -17,3 +17,12 @@ package-lock.json
 # Dokumen kerja skill "superpowers" (spec & rencana implementasi). Berguna
 # selama pengerjaan, tapi bukan dokumentasi produk -- tak perlu masuk GitLab.
 docs/superpowers/
+
+# Cadangan basis data & lampiran (23 September 2026).
+#
+# Terenkripsi, dan itu TETAP bukan alasan untuk menaruhnya di repositori.
+# Riwayat git disalin ke setiap klona dan sering berakhir di forge yang
+# aksesnya lebih luas daripada server aslinya; sebuah cadangan di sana adalah
+# seluruh basis data yang menunggu satu kunci bocor. Cadangan disimpan DI LUAR
+# repositori, beserta kedua kuncinya.
+cadangan/
