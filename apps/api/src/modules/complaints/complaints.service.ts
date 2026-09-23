@@ -26,6 +26,8 @@ import {
   Prisma,
   Role,
 } from '@prisma/client';
+import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
+import { kunciData } from '../../common/crypto/kunci';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -91,6 +93,13 @@ export class ComplaintsService {
   private readonly urlSecret: string;
   private readonly urlTtl: number;
   private readonly batasHarianPengaduan: number;
+  /**
+   * Kunci induk enkripsi at-rest (23 September 2026). Diambil sekali di
+   * konstruktor dengan alasan yang sama seperti `urlSecret` di atas, dan dengan
+   * satu alasan tambahan: bila kuncinya belum disetel, `kunciData` melempar
+   * SAAT MODUL DIBANGUN, bukan saat warga pertama menekan tombol kirim.
+   */
+  private readonly kunci: Buffer;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,6 +117,7 @@ export class ComplaintsService {
     this.urlTtl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
     this.batasHarianPengaduan =
       config.get<number>('complaint.batasHarian') ?? BATAS_HARIAN_PENGADUAN_BAKU;
+    this.kunci = kunciData(config);
   }
 
   /**
@@ -619,7 +629,16 @@ export class ComplaintsService {
       // pengirim memilih bagaimana berkasnya dieksekusi di peramban orang lain.
       const filename = `${randomUUID()}-${safeFilename(file.originalname, file.mimetype)}`;
       const absolutePath = path.join(dir, filename);
-      await fs.writeFile(absolutePath, file.buffer);
+      // TERENKRIPSI DI DISK (23 September 2026). Lampiran pengaduan adalah foto
+      // bukti: wajah, dokumen, kadang identitas. Sampai hari ini ia tersimpan
+      // apa adanya, sehingga siapa pun yang memperoleh berkas disknya membacanya
+      // langsung tanpa melewati satu pun pemeriksaan yang ditulis aplikasi ini.
+      //
+      // `sizeBytes` di bawah TETAP ukuran berkas ASLI, bukan ciphertext. Angka
+      // itulah yang ditampilkan kepada pengguna, dan 49 byte amplop bukan
+      // urusannya. Ukuran yang tersimpan juga tetap dapat dibandingkan dengan
+      // batas 5MB tanpa harus tahu soal enkripsi sama sekali.
+      await fs.writeFile(absolutePath, enkripsi(file.buffer, this.kunci, INFO_LAMPIRAN));
       saved.push({
         fileUrl: `/uploads/complaints/${filename}`,
         mimeType: file.mimetype,

@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { configureApp } from '../src/app.setup';
+import { terenkripsi } from '../src/common/crypto/envelope';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
 import { bersihkanAuditAkunUji } from './helpers/audit.helper';
@@ -207,6 +208,28 @@ describe('Complaints (e2e)', () => {
       expect(res.body).toEqual(PNG_ASLI);
       // Tanpa header ini peramban memblokir <img> lintas-origin walau 200.
       expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    });
+
+    /**
+     * SATU-SATUNYA UJI YANG MEMBUKTIKAN ENKRIPSINYA BENAR-BENAR TERJADI
+     * (23 September 2026).
+     *
+     * Uji di atas membuktikan pulang-perginya utuh, dan itu akan tetap hijau
+     * seandainya enkripsinya dicopot seluruhnya -- berkas polos yang disajikan
+     * apa adanya juga sama dengan yang diunggah. Yang membedakan keduanya hanya
+     * keadaan berkas DI DISK, jadi di situlah asersinya harus berada.
+     */
+    it('berkas di disk BUKAN bita aslinya, melainkan amplop terenkripsi', async () => {
+      const jalurUrl = urlBertandaTangan.split('?')[0];
+      const dirUnggahan = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? 'uploads');
+      const diDisk = await fs.readFile(
+        path.join(dirUnggahan, jalurUrl.replace(/^\/uploads\//, '')),
+      );
+
+      expect(diDisk.equals(PNG_ASLI)).toBe(false);
+      expect(terenkripsi(diDisk)).toBe(true);
+      // Tanda tangan berkas PNG tak boleh tersisa di mana pun dalam ciphertext.
+      expect(diDisk.includes(Buffer.from('\x89PNG'))).toBe(false);
     });
 
     it('sig diutak-atik -> 403', async () => {
