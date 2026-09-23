@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "build:e2e": "node scripts/server-e2e.mjs build",
+    "start:e2e": "node scripts/server-e2e.mjs start",
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",

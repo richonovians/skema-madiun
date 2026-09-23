@@ -4,6 +4,9 @@ node_modules/
 !.env.example
 dist/
 .next/
+# Keluaran build untuk uji E2E (apps/web/scripts/server-e2e.mjs). Terpisah dari
+# .next supaya build pengujian tak menimpa milik server pengembangan.
+.next-e2e/
 coverage/
 *.log
 
