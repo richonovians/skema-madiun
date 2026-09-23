@@ -5,11 +5,19 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
+import { periksaPenyimpanan } from './config/gerbang-penyimpanan';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
+
+  // GERBANG ENKRIPSI PENYIMPANAN (23 September 2026). Paling awal, sebelum
+  // apa pun mendengarkan porta: aplikasi yang sudah melayani permintaan lalu
+  // mati karena konfigurasi adalah aplikasi yang sempat menulis data ke disk
+  // yang mungkin tak terenkripsi. Ini PERNYATAAN, bukan verifikasi -- alasan
+  // lengkapnya di gerbang-penyimpanan.ts.
+  periksaPenyimpanan(process.env.NODE_ENV ?? 'development', process.env.DB_STORAGE_ENCRYPTED);
 
   // Prefiks + ValidationPipe global (konfigurasi bersama dengan e2e).
   configureApp(app);

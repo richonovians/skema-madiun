@@ -155,6 +155,24 @@ class EnvironmentVariables {
   })
   BACKUP_ENCRYPTION_KEY?: string;
 
+  /**
+   * PERNYATAAN bahwa disk yang memuat direktori data PostgreSQL terenkripsi
+   * (LUKS di Linux, BitLocker di Windows).
+   *
+   * Wajib `"true"` di produksi; aplikasi menolak boot tanpanya. Di luar
+   * produksi ia diabaikan. Penegakannya ada di `gerbang-penyimpanan.ts`, bukan
+   * di sini, karena yang ditolak bergantung pada NODE_ENV dan pesannya perlu
+   * panjang.
+   *
+   * INI PERNYATAAN, BUKAN VERIFIKASI. Aplikasi tak dapat memeriksa enkripsi
+   * volume pada host, apalagi dari dalam container. Gunanya memaksa seseorang
+   * menyatakannya secara sadar saat menggelar, sehingga kelalaian yang tak
+   * bergejala berubah menjadi kegagalan boot yang berisik.
+   */
+  @IsOptional()
+  @IsString()
+  DB_STORAGE_ENCRYPTED?: string;
+
   @IsOptional()
   @IsInt()
   @Min(1)
