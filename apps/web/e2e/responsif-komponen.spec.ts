@@ -49,13 +49,42 @@ const LEBAR = [
   { nama: '390px', viewport: { width: 390, height: 844 } },
 ] as const;
 
-/** Gagalnya menyebutkan elemen mana yang keluar, bukan sekadar "tidak nol". */
-async function harusMuatDiLayar(page: import('@playwright/test').Page, keterangan: string) {
-  const hasil = await ukurLuberan(page);
-  expect(
-    { keterangan, luber: hasil.luberHalaman, pelanggar: hasil.pelanggar },
-    `${keterangan} keluar layar`,
-  ).toEqual({ keterangan, luber: 0, pelanggar: [] });
+/**
+ * Gagalnya menyebutkan elemen mana yang keluar, bukan sekadar "tidak nol".
+ *
+ * MENGUKUR BERULANG, BUKAN SEKALI (23 September 2026). Sebelumnya fungsi ini
+ * membaca DOM sekali lalu mengasersi nilai biasa, sehingga coba-ulang otomatis
+ * Playwright tak pernah aktif. Lapisan seperti laci navigasi masuk dengan
+ * animasi geser; pada lari penuh -- saat server dev Next sedang mengompilasi
+ * rute lain dan mesin sibuk -- pengukurannya mendarat di TENGAH transisi.
+ * Terukur: `span.font-semibold` terbaca menonjol 22px, angka separuh jalan
+ * yang lenyap begitu berkasnya dijalankan sendirian. Cacat tata letak
+ * sungguhan memberi angka yang tetap.
+ *
+ * `penanda` ADALAH PENJAGA DARI PERBAIKAN INI SENDIRI. Pengukuran yang
+ * mencoba ulang akan lulus seketika pada halaman yang lapisannya BELUM
+ * terbuka -- hijau tanpa menguji apa pun, yang lebih buruk daripada goyah.
+ * Karena itu pemanggil menyerahkan satu elemen yang hanya ada ketika
+ * lapisannya benar-benar terbuka, dan itu diperiksa lebih dulu.
+ */
+async function harusMuatDiLayar(
+  page: import('@playwright/test').Page,
+  keterangan: string,
+  penanda?: import('@playwright/test').Locator,
+) {
+  if (penanda) {
+    await expect(penanda, `${keterangan} tak pernah terbuka`).toBeVisible();
+  }
+
+  await expect
+    .poll(
+      async () => {
+        const hasil = await ukurLuberan(page);
+        return { keterangan, luber: hasil.luberHalaman, pelanggar: hasil.pelanggar };
+      },
+      { message: `${keterangan} keluar layar`, timeout: 15_000 },
+    )
+    .toEqual({ keterangan, luber: 0, pelanggar: [] });
 }
 
 for (const { nama, viewport } of LEBAR) {
@@ -111,9 +140,16 @@ for (const { nama, viewport } of LEBAR) {
     test('laci navigasi admin tetap di dalam layar saat dibuka', async ({ page, bukaSebagai }) => {
       await bukaSebagai('kabupaten', '/admin-kab/dashboard');
       await page.getByRole('button', { name: /buka menu navigasi/i }).click();
-      await page.waitForTimeout(500);
 
-      await harusMuatDiLayar(page, 'laci navigasi');
+      // Tidurnya diganti syarat: tombol ini hanya ada ketika lacinya terbuka
+      // (AdminKabSidebar.jsx, `aria-label="Tutup menu navigasi"`). Menunggu
+      // 500ms menebak berapa lama animasinya; menunggu tombolnya menunggu
+      // kejadian yang sebenarnya.
+      await harusMuatDiLayar(
+        page,
+        'laci navigasi',
+        page.getByRole('button', { name: /tutup menu navigasi/i }).first(),
+      );
     });
 
     test('panel notifikasi tetap di dalam layar saat dibuka', async ({ page, bukaSebagai }) => {
@@ -122,18 +158,27 @@ for (const { nama, viewport } of LEBAR) {
         .getByRole('button', { name: /^notifikasi/i })
         .first()
         .click();
-      await expect(page.getByRole('link', { name: /lihat semua notifikasi/i })).toBeVisible();
 
-      await harusMuatDiLayar(page, 'panel notifikasi');
+      await harusMuatDiLayar(
+        page,
+        'panel notifikasi',
+        page.getByRole('link', { name: /lihat semua notifikasi/i }),
+      );
     });
 
     test('menu akun tetap di dalam layar saat dibuka', async ({ page, bukaSebagai }) => {
       await bukaSebagai('kabupaten', '/admin-kab/dashboard');
-      await page
-        .getByRole('button', { name: /menu akun/i })
-        .first()
-        .click();
-      await page.waitForTimeout(500);
+      const pemicu = page.getByRole('button', { name: /menu akun/i }).first();
+      await pemicu.click();
+
+      // Gerbangnya `aria-expanded`, bukan tidur 500ms: itu pernyataan komponen
+      // itu sendiri bahwa menunya terbuka (AdminAccountMenu.jsx), dan ia tak
+      // dapat meleset ketika mesin sedang sibuk. Penanda terpisah tak
+      // diperlukan -- asersi ini sudah menjadi penjaganya.
+      await expect(pemicu, 'menu akun tak pernah terbuka').toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
 
       await harusMuatDiLayar(page, 'menu akun');
     });
