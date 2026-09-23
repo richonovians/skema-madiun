@@ -27,6 +27,7 @@ import {
   Role,
 } from '@prisma/client';
 import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
+import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
 import { kunciData } from '../../common/crypto/kunci';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
@@ -297,7 +298,10 @@ export class ComplaintsService {
               data: {
                 complaintId: id,
                 authorId: user.userId,
-                pesan: dto.catatan,
+                // Catatan penolakan adalah teks bebas petugas tentang kasus
+                // seorang warga; ia disimpan di kolom yang sama dengan pesan
+                // percakapan, jadi ia diperlakukan sama.
+                pesan: enkripsiKolom(dto.catatan, this.kunci),
                 dariPelapor: false,
               },
             }),
@@ -357,7 +361,7 @@ export class ComplaintsService {
         data: {
           complaintId,
           authorId: user.userId,
-          pesan: dto.pesan ?? '',
+          pesan: enkripsiKolom(dto.pesan ?? '', this.kunci),
           // Peran yang SEDANG DIPAKAI, bukan perbandingan id. Satu akun lazim
           // memegang beberapa peran sekaligus, sehingga akun pelapor yang
           // menangani pengaduannya sendiri memiliki `userId` yang sama persis
@@ -571,7 +575,7 @@ export class ComplaintsService {
             opdId: dto.opdId ?? null,
             kategori: dto.kategori,
             judul: dto.judul,
-            uraian: dto.uraian,
+            uraian: enkripsiKolom(dto.uraian, this.kunci),
             isAnonim: dto.isAnonim ?? false,
             attachments: { create: attachmentData },
           },
@@ -675,6 +679,11 @@ export class ComplaintsService {
     const { user, opd, ...rest } = row;
     const entity = new ComplaintEntity({
       ...rest,
+      // DEKRIPSI DI SINI, di chokepoint yang komentar berkas ini sendiri sudah
+      // menyatakan dilewati SELURUH jalur baca (23 September 2026). Baris lama
+      // yang masih polos dikembalikan apa adanya oleh `dekripsiKolom`, jadi
+      // migrasi boleh bertahap dan sistem tak pernah harus berhenti.
+      uraian: dekripsiKolom(rest.uraian, this.kunci),
       attachments: this.tandaTanganiLampiran(rest.attachments),
       reporterNama: user?.nama,
       opdNama: opd?.nama,
@@ -697,6 +706,12 @@ export class ComplaintsService {
   ): ComplaintReplyEntity {
     const entity = new ComplaintReplyEntity({
       ...row,
+      // Sepasang dengan enkripsi di ketiga jalur tulis. Pembaca yang kelak
+      // melewati chokepoint ini akan menampilkan `enc:v1:...` kepada pengguna --
+      // kegagalan yang TERLIHAT, bukan senyap, dan itulah sebabnya pendekatan
+      // tersurat ini dipilih alih-alih ekstensi Prisma yang mengenai semua
+      // bentuk kueri sekaligus dan gagal tanpa gejala.
+      pesan: dekripsiKolom(row.pesan, this.kunci),
       // Lampiran pada balasan chat menempuh jalur penyajian yang SAMA
       // (`/uploads/*`), jadi ia perlu tanda tangan yang sama. Tanpa ini gambar
       // di percakapan gagal dimuat 403 -- gejalanya berbeda dari kebocoran,

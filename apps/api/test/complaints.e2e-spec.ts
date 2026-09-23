@@ -143,6 +143,50 @@ describe('Complaints (e2e)', () => {
     expect(res.body.data.status).toBe('diterima');
   });
 
+  /**
+   * ENKRIPSI KOLOM, DIBUKTIKAN DI BASIS DATANYA (23 September 2026).
+   *
+   * Respons API yang benar tidak membuktikan apa pun tentang enkripsi -- ia akan
+   * tetap benar seandainya enkripsinya dicopot seluruhnya. Yang membedakan
+   * hanya keadaan BARIS DI BASIS DATA, jadi uji ini membacanya langsung lewat
+   * Prisma, melewati seluruh jalur baca aplikasi.
+   */
+  it('uraian & pesan tersimpan TERENKRIPSI di basis data, tetapi terbaca lewat API', async () => {
+    const URAIAN = 'Pungli oleh petugas di loket 3, saya diminta Rp50.000';
+    const PESAN = 'Nomor saya 0812-3456-7890, mohon dihubungi';
+
+    const buat = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'aduan')
+      .field('judul', 'Uji enkripsi kolom')
+      .field('uraian', URAIAN);
+    expect(buat.status).toBe(201);
+    // API mengembalikan teks aslinya: dekripsi di jalur baca bekerja.
+    expect(buat.body.data.uraian).toBe(URAIAN);
+
+    const balas = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${buat.body.data.id}/replies`)
+      .set(asResponden(respondenId))
+      .field('pesan', PESAN);
+    expect(balas.status).toBe(201);
+    expect(balas.body.data.pesan).toBe(PESAN);
+
+    const baris = await prisma.complaint.findUnique({
+      where: { id: buat.body.data.id },
+      select: { uraian: true, replies: { select: { pesan: true } } },
+    });
+
+    expect(baris?.uraian.startsWith('enc:v1:')).toBe(true);
+    expect(baris?.uraian).not.toContain('Pungli');
+    expect(baris?.uraian).not.toContain('Rp50.000');
+
+    const pesanTersimpan = baris?.replies[0]?.pesan ?? '';
+    expect(pesanTersimpan.startsWith('enc:v1:')).toBe(true);
+    expect(pesanTersimpan).not.toContain('0812');
+  });
+
   it('POST /complaints dengan lampiran valid (png) -> 201, attachments tersimpan', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/complaints')
