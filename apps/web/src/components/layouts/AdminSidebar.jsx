@@ -11,7 +11,7 @@ import {
   TrendingUp,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminLayout } from './AdminLayoutProvider';
@@ -27,7 +27,12 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
  */
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed } = useAdminLayout();
+  const {
+    isMobileSidebarOpen,
+    setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
+    setIsDesktopSidebarCollapsed,
+  } = useAdminLayout();
 
   // Laci mobile: latarnya menutupi layar, tapi tanpa kunci halaman di belakangnya
   // tetap ikut bergulir saat jari diusap di atas latar itu. `isMobileSidebarOpen`
@@ -36,18 +41,19 @@ export default function AdminSidebar() {
 
   const getLinkClass = (path) => {
     const isActive = pathname === path || pathname.startsWith(`${path}/`);
-    
+
     // `min-h-[44px]` (21 September 2026): terukur 239x40 di laci ponsel --
     // empat piksel di bawah sasaran sentuh 44px yang sudah dipakai belasan
     // tombol lain di proyek ini. Tinggi tampak tak berubah pada layar lebar,
     // sebab di sana isinya memang sudah melewati 44px.
-    let base = "flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ";
-    base += isDesktopSidebarCollapsed ? "justify-center px-0 " : "px-md ";
-    
+    let base =
+      'flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ';
+    base += isDesktopSidebarCollapsed ? 'justify-center px-0 ' : 'px-md ';
+
     if (isActive) {
-      base += "bg-blue-600 text-white font-bold shadow-md ";
+      base += 'bg-blue-600 text-white font-bold shadow-md ';
     } else {
-      base += "text-slate-500 hover:text-blue-600 hover:bg-blue-50 ";
+      base += 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 ';
     }
     return base;
   };
@@ -56,28 +62,32 @@ export default function AdminSidebar() {
     <>
       {/* Overlay untuk mobile */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="md:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
       {/* Tombol Toggle Desktop diletakkan di LUAR aside agar tidak terpotong overflow */}
-      <button 
+      <button
         className={`hidden md:flex fixed top-8 h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-slate-50 shadow-sm z-[60] transition-all duration-300 hover:scale-110 ${
           isDesktopSidebarCollapsed ? 'left-[66px]' : 'left-[242px]'
         }`}
         onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
-        title={isDesktopSidebarCollapsed ? "Perbesar Sidebar" : "Perkecil Sidebar"}
+        title={isDesktopSidebarCollapsed ? 'Perbesar Sidebar' : 'Perkecil Sidebar'}
       >
         {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      <aside className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
+      <aside
+        className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
         {/* Header sejajar dengan AdminNavbar (h-64/80, border-b) */}
-        <div className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
+        <div
+          className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}
+        >
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
               {/* 48x32 (3:2, seperti berkasnya yang 1536x1024), BUKAN 37x37
@@ -103,7 +113,7 @@ export default function AdminSidebar() {
           </div>
 
           {!isDesktopSidebarCollapsed && (
-            <button 
+            <button
               type="button"
               aria-label="Tutup menu navigasi"
               title="Tutup menu navigasi"
@@ -117,33 +127,67 @@ export default function AdminSidebar() {
 
         {!isDesktopSidebarCollapsed && (
           <div className="px-5 mb-2 mt-4">
-            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Portal & Ikhtisar</span>
+            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+              Portal & Ikhtisar
+            </span>
           </div>
         )}
-      
-      <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'mt-4' : ''}`}>
-        <Link href="/admin-opd/dashboard" title="Dashboard" className={getLinkClass('/admin-opd/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <LayoutDashboard size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
-          {!isDesktopSidebarCollapsed && <span>Dashboard</span>}
-        </Link>
-        <Link href="/admin-opd/surveys" title="Survei" className={getLinkClass('/admin-opd/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <ClipboardList size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
-          {!isDesktopSidebarCollapsed && <span>Survei</span>}
-        </Link>
-        <Link href="/admin-opd/complaints" title="Aduan" className={getLinkClass('/admin-opd/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <Inbox size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
-          {!isDesktopSidebarCollapsed && <span>Aduan</span>}
-        </Link>
-        <Link href="/admin-opd/analytics" title="Statistik & Laporan" className={getLinkClass('/admin-opd/analytics')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <TrendingUp size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
-          {!isDesktopSidebarCollapsed && <span>Statistik & Laporan</span>}
-        </Link>
-      </nav>
-      
-      <div className="px-2 mt-auto">
-        <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
-      </div>
-    </aside>
+
+        <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'mt-4' : ''}`}>
+          <Link
+            href="/admin-opd/dashboard"
+            title="Dashboard"
+            className={getLinkClass('/admin-opd/dashboard')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <LayoutDashboard
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            {!isDesktopSidebarCollapsed && <span>Dashboard</span>}
+          </Link>
+          <Link
+            href="/admin-opd/surveys"
+            title="Survei"
+            className={getLinkClass('/admin-opd/surveys')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <ClipboardList
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            {!isDesktopSidebarCollapsed && <span>Survei</span>}
+          </Link>
+          <Link
+            href="/admin-opd/complaints"
+            title="Aduan"
+            className={getLinkClass('/admin-opd/complaints')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Inbox
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            {!isDesktopSidebarCollapsed && <span>Aduan</span>}
+          </Link>
+          <Link
+            href="/admin-opd/analytics"
+            title="Statistik & Laporan"
+            className={getLinkClass('/admin-opd/analytics')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <TrendingUp
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            {!isDesktopSidebarCollapsed && <span>Statistik & Laporan</span>}
+          </Link>
+        </nav>
+
+        <div className="px-2 mt-auto">
+          <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
+        </div>
+      </aside>
     </>
   );
 }

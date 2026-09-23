@@ -13,7 +13,7 @@ import {
   X,
   History,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
@@ -39,22 +39,28 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 export default function AdminKabSidebar() {
   const pathname = usePathname();
 
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed } = useAdminKabLayout();
+  const {
+    isMobileSidebarOpen,
+    setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
+    setIsDesktopSidebarCollapsed,
+  } = useAdminKabLayout();
 
   const getLinkClass = (path) => {
     const isActive = pathname === path || pathname.startsWith(`${path}/`);
-    
+
     // `min-h-[44px]` (21 September 2026): terukur 239x40 di laci ponsel --
     // empat piksel di bawah sasaran sentuh 44px yang sudah dipakai belasan
     // tombol lain di proyek ini. Tinggi tampak tak berubah pada layar lebar,
     // sebab di sana isinya memang sudah melewati 44px.
-    let base = "flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ";
-    base += isDesktopSidebarCollapsed ? "justify-center px-0 " : "px-md ";
-    
+    let base =
+      'flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ';
+    base += isDesktopSidebarCollapsed ? 'justify-center px-0 ' : 'px-md ';
+
     if (isActive) {
-      base += "bg-blue-600 text-white font-bold shadow-md ";
+      base += 'bg-blue-600 text-white font-bold shadow-md ';
     } else {
-      base += "text-slate-500 hover:text-blue-600 hover:bg-blue-50 ";
+      base += 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 ';
     }
     return base;
   };
@@ -67,28 +73,32 @@ export default function AdminKabSidebar() {
     <>
       {/* Overlay untuk mobile */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="md:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
       {/* Tombol Toggle Desktop diletakkan di LUAR aside agar tidak terpotong overflow */}
-      <button 
+      <button
         className={`hidden md:flex fixed top-8 h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-slate-50 shadow-sm z-[60] transition-all duration-300 hover:scale-110 ${
           isDesktopSidebarCollapsed ? 'left-[66px]' : 'left-[242px]'
         }`}
         onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
-        title={isDesktopSidebarCollapsed ? "Perbesar Sidebar" : "Perkecil Sidebar"}
+        title={isDesktopSidebarCollapsed ? 'Perbesar Sidebar' : 'Perkecil Sidebar'}
       >
         {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
-      
-      <aside className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
+
+      <aside
+        className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen ${isDesktopSidebarCollapsed ? 'w-20' : 'w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
         {/* Header sejajar dengan AdminKabNavbar (h-64/80, border-b) */}
-        <div className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
+        <div
+          className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full ${isDesktopSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}
+        >
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
               {/* Sama persis dengan AdminSidebar.jsx: 3:2 mengikuti berkasnya
@@ -110,7 +120,7 @@ export default function AdminKabSidebar() {
           </div>
 
           {!isDesktopSidebarCollapsed && (
-            <button 
+            <button
               type="button"
               aria-label="Tutup menu navigasi"
               title="Tutup menu navigasi"
@@ -124,36 +134,86 @@ export default function AdminKabSidebar() {
 
         {!isDesktopSidebarCollapsed && (
           <div className="px-5 mb-2 mt-4">
-            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">Portal & Ikhtisar</span>
+            <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+              Portal & Ikhtisar
+            </span>
           </div>
         )}
-        
+
         <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'mt-4' : ''}`}>
-          <Link href="/admin-kab/dashboard" title="Dashboard" className={getLinkClass('/admin-kab/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <LayoutDashboard size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <Link
+            href="/admin-kab/dashboard"
+            title="Dashboard"
+            className={getLinkClass('/admin-kab/dashboard')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <LayoutDashboard
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
             {!isDesktopSidebarCollapsed && <span>Dashboard</span>}
           </Link>
-          <Link href="/admin-kab/opd" title="Daftar OPD" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <Building2 size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <Link
+            href="/admin-kab/opd"
+            title="Daftar OPD"
+            className={getLinkClass('/admin-kab/opd')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Building2
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
             {!isDesktopSidebarCollapsed && <span>Daftar OPD</span>}
           </Link>
-          <Link href="/admin-kab/surveys" title="Monitoring Survei" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <ClipboardList size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <Link
+            href="/admin-kab/surveys"
+            title="Monitoring Survei"
+            className={getLinkClass('/admin-kab/surveys')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <ClipboardList
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
             {!isDesktopSidebarCollapsed && <span>Monitoring Survei</span>}
           </Link>
-          <Link href="/admin-kab/complaints" title="Pengaduan" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <MessageSquare size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <Link
+            href="/admin-kab/complaints"
+            title="Pengaduan"
+            className={getLinkClass('/admin-kab/complaints')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <MessageSquare
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
             {!isDesktopSidebarCollapsed && <span>Pengaduan</span>}
           </Link>
           {/* Manajemen User & Audit Logs: milik Admin Kabupaten sejak peleburan
               peran superuser (15 September 2026). Sidebar ini memang hanya
               tampil di area Admin Kabupaten, jadi tak ada penjaga tambahan. */}
-          <Link href="/admin-kab/users" title="Manajemen User" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <Users size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <Link
+            href="/admin-kab/users"
+            title="Manajemen User"
+            className={getLinkClass('/admin-kab/users')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Users
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
             {!isDesktopSidebarCollapsed && <span>Manajemen User</span>}
           </Link>
-          <Link href="/admin-kab/audit-logs" title="Audit Logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <History size={20} className="shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <Link
+            href="/admin-kab/audit-logs"
+            title="Audit Logs"
+            className={getLinkClass('/admin-kab/audit-logs')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <History
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
             {!isDesktopSidebarCollapsed && <span>Audit Logs</span>}
           </Link>
         </nav>
