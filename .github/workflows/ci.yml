@@ -1,0 +1,141 @@
+# Gerbang mutu otomatis.
+#
+# SEBELUM berkas ini ada, proyek punya 1.949 uji yang hanya berjalan kalau ada
+# yang ingat mengetiknya. Tak ada yang menghalangi siapa pun mendorong `main`
+# yang rusak. Seluruh kerja menulis uji itu baru berupa KEMUNGKINAN jaminan;
+# berkas ini yang mengubahnya jadi jaminan.
+#
+# Dua job, dipisah dengan sengaja. `mutu` tak menyentuh basis data sama sekali
+# sehingga cepat dan hampir mustahil goyah; `e2e-api` memerlukan PostgreSQL
+# sungguhan. Kalau keduanya digabung, satu masalah layanan basis data akan
+# menutupi hasil lint dan uji unit yang sebenarnya baik-baik saja.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Dorongan baru membatalkan run lama pada ref yang sama. Tanpa ini, mendorong
+# tiga kali berturut-turut menyisakan dua run yang hasilnya sudah tak relevan
+# tapi tetap memakan antrean.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mutu:
+    name: Lint, format, uji unit, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm dipasang SEBELUM setup-node: `cache: pnpm` di bawah mencari
+      # binernya saat itu juga, dan gagal bila urutannya dibalik. Versinya tak
+      # ditulis di sini supaya satu-satunya sumber kebenaran tetap kolom
+      # `packageManager` di package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+
+      # Eksplisit walau postinstall @prisma/client biasanya sudah melakukannya:
+      # tanpa klien yang tergenerasi, `nest build` gagal dengan galat tipe yang
+      # menyesatkan, bukan dengan pesan "prisma belum digenerasi".
+      - name: Generasi klien Prisma
+        run: pnpm --filter @skm-spm/api exec prisma generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Periksa format
+        run: pnpm format:check
+
+      - name: Uji unit API
+        run: pnpm --filter @skm-spm/api test
+
+      - name: Uji unit web
+        run: pnpm --filter @skm-spm/web test
+
+      # Build ikut digerbangi karena ia menangkap yang tak ditangkap uji:
+      # galat tipe di berkas yang tak punya uji, dan kegagalan prerender Next
+      # pada halaman statis.
+      - name: Build
+        run: pnpm build
+
+  e2e-api:
+    name: E2E API (PostgreSQL sungguhan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        # Versi disamakan dengan docker-compose.yml. Menguji di mayor yang
+        # berbeda dari yang dipakai pengembang & produksi berarti menguji
+        # sesuatu yang lain.
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: skm
+          POSTGRES_PASSWORD: skm
+          POSTGRES_DB: skm_uji
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://skm:skm@localhost:5432/skm_uji?schema=public
+      # NILAI PALSU, HANYA UNTUK RUNNER INI, dan sengaja dibuat agar terlihat
+      # palsu. Basis datanya dibuang begitu job selesai dan tak pernah memuat
+      # data siapa pun. JANGAN dipakai di mana pun selain di sini.
+      SESSION_JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+
+      - name: Generasi klien Prisma
+        run: pnpm --filter @skm-spm/api exec prisma generate
+
+      # `migrate deploy`, BUKAN `migrate dev`. Yang terakhir dilarang di proyek
+      # ini: ia menulis migrasi baru sendiri dan dapat mereset basis data.
+      - name: Terapkan migrasi
+        run: pnpm --filter @skm-spm/api prisma:deploy
+
+      # Basis data runner lahir kosong. Sebagian skenario e2e bertumpu pada data
+      # rujukan (OPD, unsur SKM) yang disiapkan seed.
+      - name: Isi data awal
+        run: pnpm --filter @skm-spm/api db:seed
+
+      - name: Uji e2e API
+        run: pnpm --filter @skm-spm/api test:e2e
+# E2E PLAYWRIGHT (apps/web) SENGAJA BELUM DIGERBANGI DI SINI.
+#
+# Suite itu diukur masih goyah 1 sampai 3 dari sekitar 85 berkas, dan
+# penyebabnya sudah ditelusuri bukan kompilasi (lihat catatan di repo). Gerbang
+# yang merah tanpa ada yang rusak adalah cara tercepat membuat orang berhenti
+# memercayai CI, lalu terbiasa menggabungkan sambil mengabaikan lampu merah.
+#
+# Dimasukkan begitu kegoyahannya diselesaikan, bukan sebelum itu.
