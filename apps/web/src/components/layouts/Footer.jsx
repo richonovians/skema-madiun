@@ -119,6 +119,12 @@ export default function Footer() {
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/">Beranda</Link>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/statistics">Statistik Pelayanan</Link>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/about#faq">Bantuan</Link>
+          {/* Kebijakan privasi WAJIB punya tautan permanen (25 September 2026).
+              Sebelumnya keterangannya hanya muncul di gerbang persetujuan, jadi
+              warga yang sudah menyetujui tak punya cara membacanya lagi, dan tak
+              ada alamat yang dapat dirujuk saat ada sengketa. Footer dipilih
+              karena ia satu-satunya tempat yang hadir di setiap halaman. */}
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/kebijakan-privasi">Kebijakan Privasi</Link>
         </div>
         
         {/* Contact */}
