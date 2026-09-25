@@ -2,7 +2,7 @@ import React from 'react';
 import AuthCallbackLoader from '@/features/authentication/components/AuthCallbackLoader';
 
 export const metadata = {
-  title: 'Menyelesaikan proses masuk | SKEMA Madiun',
+  title: 'Menyelesaikan proses masuk',
   description: 'Halaman transisi setelah masuk lewat SSO Helpdesk Kabupaten Madiun.',
   // Halaman transisi murni: tak punya isi untuk dicari, dan alamatnya hanya
   // bermakna sebagai tujuan pengalihan dari Helpdesk.

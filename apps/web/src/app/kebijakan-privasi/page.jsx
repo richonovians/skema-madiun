@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 
 export const metadata = {
-  title: 'Kebijakan Privasi — SKEMA Madiun',
+  title: 'Kebijakan Privasi',
   description:
     'Bagaimana SKEMA Madiun mengumpulkan, memakai, menyimpan, dan melindungi data pribadi warga.',
 };

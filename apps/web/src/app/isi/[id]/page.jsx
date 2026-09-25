@@ -1,5 +1,9 @@
 import { permanentRedirect } from 'next/navigation';
 
+export const metadata = {
+  title: 'Isi Survei',
+};
+
 /**
  * Alamat LAMA pengisian survei. QR dan tautan yang sudah tercetak serta
  * tersebar sejak 4 September 2026 menunjuk ke sini, jadi rute ini TIDAK

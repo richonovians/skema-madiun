@@ -5,7 +5,7 @@ import StatisticsHero from '@/features/statistics/components/StatisticsHero';
 import StatisticsDashboard from '@/features/statistics/components/StatisticsDashboard';
 
 export const metadata = {
-  title: 'Statistik Publik - SKEMA Madiun',
+  title: 'Statistik Publik',
   description: 'Transparansi hasil Survei Kepuasan Masyarakat (SKM) dan statistik pengaduan layanan publik Pemerintah Kabupaten Madiun.',
 };
 

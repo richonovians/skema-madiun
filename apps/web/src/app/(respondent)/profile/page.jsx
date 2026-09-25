@@ -2,7 +2,7 @@ import React from 'react';
 import ProfileContent from '@/features/profile/components/ProfileContent';
 
 export const metadata = {
-  title: 'Profil Saya - SKEMA Madiun',
+  title: 'Profil Saya',
   description: 'Informasi identitas akun yang terhubung melalui SSO Helpdesk Kabupaten Madiun.',
 };
 

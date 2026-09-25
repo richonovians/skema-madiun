@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
 
+export const metadata = {
+  title: 'Detail Survei',
+};
+
 /**
  * Rute ini SEBELUMNYA 404 (laporan bug 2026-08-19): folder `[id]/` hanya berisi
  * `responses/`, tanpa `page.jsx` sendiri -- jadi memangkas '/responses' dari URL,

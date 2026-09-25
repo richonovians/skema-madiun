@@ -3,7 +3,7 @@ import Link from 'next/link';
 import ErrorState from '@/components/ui/ErrorState';
 
 export const metadata = {
-  title: 'Halaman tidak ditemukan — SKEMA Madiun',
+  title: 'Halaman tidak ditemukan',
 };
 
 /**
