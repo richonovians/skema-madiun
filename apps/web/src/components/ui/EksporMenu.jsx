@@ -45,6 +45,12 @@ export default function EksporMenu({ onPdf, onExcel, label = 'Ekspor' }) {
 
       {terbuka && (
         <ul
+          /* `<ul role="menu">` dengan anak `role="menuitem"` adalah pola menu
+             WAI-ARIA yang kanonis, jadi aturan ini salah tuduh di sini.
+             Menurutinya berarti mengganti `<ul>` menjadi `<div>` tanpa membuat
+             menunya lebih dapat diakses sedikit pun. Dimatikan hanya di baris
+             ini supaya aturannya tetap menjaga sisa berkas. */
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role
           role="menu"
           /* Dipatok ke tepi KIRI tombol di layar sempit (16 September 2026).
              Terukur pada 320-390px: dengan `right-0` menu selebar 192px yang
