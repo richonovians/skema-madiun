@@ -132,6 +132,20 @@ jobs:
       # palsu. Basis datanya dibuang begitu job selesai dan tak pernah memuat
       # data siapa pun. JANGAN dipakai di mana pun selain di sini.
       SESSION_JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      # DATA_ENCRYPTION_KEY juga PALSU, dan juga hanya untuk runner ini.
+      #
+      # Diperlukan karena test/sso.e2e-spec.ts sengaja menyetel NODE_ENV ke
+      # 'development' -- tanpa itu AuthModule mengikat penyedia SSO ke stub dan
+      # jalur yang hendak diuji tak pernah dijalankan. Begitu NODE_ENV bukan
+      # 'test', kunci uji cadangan di common/crypto/kunci.ts tak lagi berlaku,
+      # dan ComplaintsService menolak dibangun tanpa kunci yang sah.
+      #
+      # Di mesin pengembang gerbang itu TIDAK PERNAH terasa, dan sebabnya halus:
+      # @prisma/client memuat apps/api/.env ke process.env begitu ia diimpor,
+      # jadi kuncinya selalu ada apa pun direktori kerjanya. Runner tak punya
+      # .env sama sekali, sehingga run 1 sampai 7 jatuh di sini -- 10 uji SSO,
+      # seluruhnya dengan pesan yang sama.
+      DATA_ENCRYPTION_KEY: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
 
     steps:
       - uses: actions/checkout@v4
