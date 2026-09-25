@@ -32,6 +32,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # DATABASE_URL diperlukan walau job ini tak punya basis data sama sekali.
+    # Sebabnya apps/api/prisma.config.ts memanggil env('DATABASE_URL') saat
+    # berkas konfigurasinya DIMUAT, sehingga SETIAP perintah prisma menuntutnya
+    # -- termasuk `generate`, yang tak pernah menyambung ke mana pun. Di mesin
+    # pengembang tuntutan itu tak pernah terasa karena config memuat
+    # apps/api/.env lebih dulu; di runner tak ada .env, dan lima run pertama CI
+    # gagal persis di sini dengan:
+    #   PrismaConfigEnvError: Missing required environment variable: DATABASE_URL
+    #
+    # Nilainya SENGAJA tak bisa dihubungi (porta 1 selalu menolak). Kalau kelak
+    # ada langkah di job ini yang benar-benar mencoba menyambung, ia harus gagal
+    # berisik -- bukan diam-diam mengenai basis data sungguhan.
+    env:
+      DATABASE_URL: postgresql://tanpa:basisdata@127.0.0.1:1/tidak_ada
+
     steps:
       - uses: actions/checkout@v4
 
@@ -61,11 +76,18 @@ jobs:
       - name: Periksa format
         run: pnpm format:check
 
+      # --reporters=github-actions mengubah TIAP uji yang gagal menjadi anotasi
+      # pada commit, lengkap dengan berkas, baris, dan pesan bedanya. Tanpa itu,
+      # satu-satunya jejak kegagalan ada di dalam log run -- dan log run hanya
+      # terbaca oleh yang punya akses tulis ke repositori, sementara anotasinya
+      # terbaca siapa pun yang dapat membuka repositorinya. Lima run pertama CI
+      # merah tanpa seorang pun bisa melihat uji mana yang jatuh; ini yang
+      # menutup lubang itu.
       - name: Uji unit API
-        run: pnpm --filter @skm-spm/api test
+        run: pnpm --filter @skm-spm/api test -- --reporters=default --reporters=github-actions
 
       - name: Uji unit web
-        run: pnpm --filter @skm-spm/web test
+        run: pnpm --filter @skm-spm/web test -- --reporters=default --reporters=github-actions
 
       # Build ikut digerbangi karena ia menangkap yang tak ditangkap uji:
       # galat tipe di berkas yang tak punya uji, dan kegagalan prerender Next
@@ -130,7 +152,7 @@ jobs:
         run: pnpm --filter @skm-spm/api db:seed
 
       - name: Uji e2e API
-        run: pnpm --filter @skm-spm/api test:e2e
+        run: pnpm --filter @skm-spm/api test:e2e -- --reporters=default --reporters=github-actions
 # E2E PLAYWRIGHT (apps/web) SENGAJA BELUM DIGERBANGI DI SINI.
 #
 # Suite itu diukur masih goyah 1 sampai 3 dari sekitar 85 berkas, dan
