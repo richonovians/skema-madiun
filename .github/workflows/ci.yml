@@ -83,11 +83,19 @@ jobs:
       # terbaca siapa pun yang dapat membuka repositorinya. Lima run pertama CI
       # merah tanpa seorang pun bisa melihat uji mana yang jatuh; ini yang
       # menutup lubang itu.
+      #
+      # BENTUKNYA `run <skrip> <argumen>`, TANPA `--`. Ini bukan selera: pnpm
+      # memperlakukan kedua nama skrip secara berbeda. Untuk `test` (nama daur
+      # hidup npm) argumen tanpa `--` ditelan pnpm sendiri ("Unknown options");
+      # untuk `test:e2e` (nama bebas) `--` justru diteruskan APA ADANYA ke
+      # jest, yang membacanya sebagai pola nama uji sehingga cocok dengan 0
+      # berkas. Run ke-6 gagal persis begitu. Menaruh `run` di depan membuat
+      # keduanya seragam dan benar.
       - name: Uji unit API
-        run: pnpm --filter @skm-spm/api test -- --reporters=default --reporters=github-actions
+        run: pnpm --filter @skm-spm/api run test --reporters=default --reporters=github-actions
 
       - name: Uji unit web
-        run: pnpm --filter @skm-spm/web test -- --reporters=default --reporters=github-actions
+        run: pnpm --filter @skm-spm/web run test --reporters=default --reporters=github-actions
 
       # Build ikut digerbangi karena ia menangkap yang tak ditangkap uji:
       # galat tipe di berkas yang tak punya uji, dan kegagalan prerender Next
@@ -152,7 +160,7 @@ jobs:
         run: pnpm --filter @skm-spm/api db:seed
 
       - name: Uji e2e API
-        run: pnpm --filter @skm-spm/api test:e2e -- --reporters=default --reporters=github-actions
+        run: pnpm --filter @skm-spm/api run test:e2e --reporters=default --reporters=github-actions
 # E2E PLAYWRIGHT (apps/web) SENGAJA BELUM DIGERBANGI DI SINI.
 #
 # Suite itu diukur masih goyah 1 sampai 3 dari sekitar 85 berkas, dan
