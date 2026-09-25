@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import ComplaintSuccessCard from '@/features/complaints/components/ComplaintSuccessCard';
 
 export const metadata = {
-  title: 'Pengaduan Berhasil Dikirim - SKEMA Madiun',
+  title: 'Pengaduan Berhasil Dikirim',
   description: 'Halaman konfirmasi pengaduan berhasil dikirim.',
 };
 

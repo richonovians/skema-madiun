@@ -5,7 +5,7 @@ import Breadcrumb from '@/components/ui/Breadcrumb';
 import CreateComplaintForm from '@/features/complaints/components/CreateComplaintForm';
 
 export const metadata = {
-  title: 'Buat Pengaduan - SKEMA Madiun',
+  title: 'Buat Pengaduan',
 };
 
 export default function NewComplaintPage() {
