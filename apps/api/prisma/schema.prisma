@@ -519,5 +519,10 @@ model AuditLog {
 
   @@index([actorId])
   @@index([entitas])
+  // Setiap pembukaan halaman log mengurutkan `timestamp` menurun, dan penyaring
+  // rentang tanggal memakai kolom yang sama. Tanpa indeks ini PostgreSQL membaca
+  // seluruh tabel lalu mengurutkannya hanya untuk 20 baris pertama -- dan tabel
+  // ini tak pernah dipangkas, sebab menghapus jejak audit dipalang.
+  @@index([timestamp])
   @@map("audit_logs")
 }
