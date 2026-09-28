@@ -12,6 +12,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
+import { readCookie } from './session/cookie.util';
+import { SESSION_COOKIE } from './session/session-cookie.service';
 import { SessionService } from './session/session.service';
 import { bentukKlaim } from './sso-claim-shape';
 import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
@@ -74,6 +76,31 @@ export class SsoService {
     // menghubungi Helpdesk atas permintaan yang belum terbukti berasal dari alur
     // login kita sendiri.
     if (!this.stateService.verify(state, cookieHeader)) {
+      const sesiBerjalan = this.sesiMasihSah(cookieHeader);
+      if (sesiBerjalan) {
+        // CALLBACK DUPLIKAT YANG TERLAMBAT (28 September 2026), terukur di log
+        // akses, bukan dibayangkan: alamat `authorize` Helpdesk sempat
+        // dihubungi DUA KALI untuk satu percobaan masuk, sehingga dua `code`
+        // berbeda kembali dengan `state` yang sama. Yang pertama berhasil dan
+        // membuang cookie `state` sebagaimana mestinya; yang kedua karena itu
+        // pasti ditolak di sini.
+        //
+        // Penolakan itu tidak berhenti di layar galat. `AuthCallbackLoader`
+        // pada cabang galat memanggil `clearSession()`, yang menembakkan
+        // `POST /auth/logout` -- sesi yang BARU SAJA berhasil ikut dibuang.
+        // Pengguna benar-benar sudah masuk, lalu dikeluarkan lagi oleh
+        // penanganan galatnya sendiri.
+        //
+        // PENJAGA CSRF TIDAK DILEMAHKAN. Syaratnya bukan "state boleh dipakai
+        // ulang", melainkan "permintaan ini membawa cookie sesi yang MASIH
+        // SAH". Pemiliknya tak memperoleh apa pun yang belum dipegangnya, tak
+        // ada sesi baru diterbitkan, dan `code` tetap tak pernah ditukar.
+        this.logger.warn(
+          'Callback SSO ber-state basi, tetapi permintaannya membawa sesi yang masih sah — ' +
+            'diperlakukan sebagai callback duplikat, bukan kegagalan.',
+        );
+        return { token: sesiBerjalan, clearCookie: this.stateService.clearCookie() };
+      }
       throw new BadRequestException(
         'Parameter state tidak sah atau kedaluwarsa. Silakan ulangi proses masuk.',
       );
@@ -640,6 +667,21 @@ export class SsoService {
    * boleh mengisinya tanpa menyertakan payload mentah — membaca `klaim` saja
    * akan diam-diam mematikan pemetaan peran bagi sumber semacam itu.
    */
+  /**
+   * Token sesi dari cookie permintaan, HANYA bila ia masih sah.
+   *
+   * Keberadaan cookie saja tak cukup: sepotong teks apa pun bernama `session`
+   * akan meloloskan callback ber-state basi. Yang menentukan tandatangan dan
+   * masa berlakunya, dan itu dijawab `SessionService.verify`.
+   */
+  private sesiMasihSah(cookieHeader: string | undefined): string | null {
+    const token = readCookie(cookieHeader, SESSION_COOKIE);
+    if (!token) {
+      return null;
+    }
+    return this.sessionService.verify(token) ? token : null;
+  }
+
   private nilaiPeranDariKlaim(profile: SsoProfile): string[] {
     const fields = parseRoleClaimFields(this.config.get<string>('helpdesk.ssoRoleClaim'));
     const keluar: string[] = [];
