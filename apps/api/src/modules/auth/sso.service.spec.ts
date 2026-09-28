@@ -78,7 +78,7 @@ type Mocked = {
   };
   source: { buildAuthorizeUrl: jest.Mock; exchangeCodeForProfile: jest.Mock };
   state: { issue: jest.Mock; verify: jest.Mock; clearCookie: jest.Mock };
-  session: { issue: jest.Mock };
+  session: { issue: jest.Mock; verify: jest.Mock };
   audit: { record: jest.Mock };
 };
 
@@ -102,7 +102,12 @@ function buat(configOverrides: Record<string, string | boolean | undefined> = {}
     verify: jest.fn().mockReturnValue(true),
     clearCookie: jest.fn().mockReturnValue('sso_state=; Max-Age=0'),
   };
-  const session = { issue: jest.fn().mockReturnValue('token-sesi-skm') };
+  const session = {
+    issue: jest.fn().mockReturnValue('token-sesi-skm'),
+    // Baku: TAK ADA sesi sah pada permintaan callback. Itu keadaan yang lazim,
+    // dan membuatnya baku menjaga seluruh uji lain tetap menguji jalur normal.
+    verify: jest.fn().mockReturnValue(null),
+  };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
 
   const service = new SsoService(
@@ -1125,5 +1130,94 @@ describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
     const data = await masuk(m, 'asn');
 
     expect(data.roles).toEqual([Role.responden]);
+  });
+});
+
+/**
+ * Callback duplikat yang datang terlambat (28 September 2026).
+ *
+ * TERUKUR DI LAPANGAN, bukan dibayangkan. Log akses proxy pada 14:34:
+ *
+ *   14:34:25  GET /auth/sso/callback  302 (79)   BERHASIL, audit `login` tercatat
+ *   14:34:26  GET /sso/callback       499        halaman sukses dibatalkan klien
+ *   14:34:26  GET /auth/sso/callback  302 (157)  callback KEDUA, state ditolak
+ *   14:34:27  POST /auth/logout       200        sesi yang berhasil itu dibuang
+ *
+ * Kedua callback membawa `code` BERBEDA dengan `state` SAMA: alamat `authorize`
+ * Helpdesk dihubungi dua kali untuk satu percobaan masuk. Yang pertama berhasil
+ * dan membuang cookie `state` sebagaimana mestinya; yang kedua karena itu gagal
+ * verifikasi, dan `AuthCallbackLoader` pada cabang galat memanggil
+ * `clearSession()` yang menembakkan `POST /auth/logout`. Pengguna benar-benar
+ * sudah masuk, lalu dikeluarkan lagi oleh penanganan galatnya sendiri.
+ *
+ * PENJAGA CSRF TIDAK DILEMAHKAN. Syaratnya BUKAN "state boleh dipakai ulang",
+ * melainkan "permintaan ini membawa cookie sesi yang masih sah". Pemiliknya tak
+ * memperoleh apa pun yang belum dipegangnya, dan `code` tetap tak pernah
+ * ditukar.
+ */
+describe('completeLogin: callback duplikat yang terlambat', () => {
+  const COOKIE = 'sso_state=abc; session=token-lama';
+
+  function basi() {
+    const m = buat();
+    m.state.verify.mockReturnValue(false);
+    return m;
+  }
+
+  it('state basi + sesi masih sah -> sukses memakai sesi yang ada', async () => {
+    const m = basi();
+    m.session.verify.mockReturnValue({ sub: 7 });
+
+    const hasil = await m.service.completeLogin('kode-2', 'nonce-1', COOKIE);
+
+    // Token yang dikembalikan token LAMA, bukan terbitan baru.
+    expect(hasil.token).toBe('token-lama');
+    expect(m.session.issue).not.toHaveBeenCalled();
+  });
+
+  it('tidak menukar `code` dan tidak menyentuh basis data', async () => {
+    const m = basi();
+    m.session.verify.mockReturnValue({ sub: 7 });
+
+    await m.service.completeLogin('kode-2', 'nonce-1', COOKIE);
+
+    // Inti pertahanan CSRF tetap utuh: Helpdesk tak dihubungi atas permintaan
+    // yang state-nya tak terbukti.
+    expect(m.source.exchangeCodeForProfile).not.toHaveBeenCalled();
+    expect(m.prisma.user.create).not.toHaveBeenCalled();
+    expect(m.prisma.user.update).not.toHaveBeenCalled();
+    // Login-nya sudah dicatat oleh callback PERTAMA. Mencatatnya lagi berarti
+    // dua baris audit untuk satu kali masuk.
+    expect(m.audit.record).not.toHaveBeenCalled();
+  });
+
+  it('cookie state tetap dibuang, karena ia memang sekali pakai', async () => {
+    const m = basi();
+    m.session.verify.mockReturnValue({ sub: 7 });
+
+    const hasil = await m.service.completeLogin('kode-2', 'nonce-1', COOKIE);
+
+    expect(hasil.clearCookie).toBe('sso_state=; Max-Age=0');
+  });
+
+  it('state basi TANPA cookie sesi -> tetap ditolak', async () => {
+    const m = basi();
+
+    await expect(m.service.completeLogin('kode-2', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(m.source.exchangeCodeForProfile).not.toHaveBeenCalled();
+  });
+
+  it('state basi dengan cookie sesi yang TIDAK sah -> tetap ditolak', async () => {
+    const m = basi();
+    // Cookie-nya ada, tapi tandatangannya tak sah atau sudah kedaluwarsa.
+    // Tanpa pemeriksaan ini, sepotong teks apa pun bernama `session` akan
+    // meloloskan callback ber-state basi.
+    m.session.verify.mockReturnValue(null);
+
+    await expect(m.service.completeLogin('kode-2', 'nonce-1', COOKIE)).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });
