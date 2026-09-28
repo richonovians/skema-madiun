@@ -1,5 +1,11 @@
 import { Role } from '@prisma/client';
-import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
+import {
+  extractRoleClaimValues,
+  parseClaimValues,
+  parseRoleClaimFields,
+  parseRolePackages,
+  resolveRolesFromClaims,
+} from './sso-role.mapper';
 
 describe('parseClaimValues', () => {
   /**
@@ -171,5 +177,100 @@ describe('resolveRolesFromClaims', () => {
 
     expect([...hasil].sort()).toEqual([Role.kabupaten, Role.opd, Role.responden].sort());
     expect(hasil.length).toBe(3);
+  });
+});
+
+/**
+ * Sumber nilai peran yang dapat dikonfigurasi (28 September 2026).
+ *
+ * Contoh payload `userinfo` Helpdesk akhirnya diterima, dan penentu ASN vs
+ * masyarakat ternyata ada di `identity.user_type`, BERSARANG. `groups` dan
+ * `role` di tingkat atas hanya membawa nilai tata kelola (`admin`), yang tak
+ * dapat membedakan seorang ASN dari seorang warga.
+ */
+describe('parseRoleClaimFields', () => {
+  it('baku `groups,role` supaya perilaku yang sudah terpasang tak berubah', () => {
+    expect(parseRoleClaimFields(undefined)).toEqual(['groups', 'role']);
+    expect(parseRoleClaimFields('')).toEqual(['groups', 'role']);
+    expect(parseRoleClaimFields('   ')).toEqual(['groups', 'role']);
+  });
+
+  it('membaca daftar dipisah koma, memangkas spasi, membuang duplikat', () => {
+    expect(parseRoleClaimFields(' role , identity.user_type , role ')).toEqual([
+      'role',
+      'identity.user_type',
+    ]);
+  });
+});
+
+describe('extractRoleClaimValues', () => {
+  /** Payload contoh dari Helpdesk, hanya field yang dipakai. */
+  const payloadAdmin = {
+    role: 'admin',
+    groups: ['admin'],
+    identity: { user_type: 'asn', name: 'Nama Lengkap Pengguna' },
+    governance: { role: 'admin', tenant_id: 'uuid-diskominfo' },
+  };
+
+  it('mengambil nilai dari jalur bersarang maupun tingkat atas', () => {
+    expect(extractRoleClaimValues(payloadAdmin, ['role', 'identity.user_type'])).toEqual([
+      'admin',
+      'asn',
+    ]);
+  });
+
+  it('menormalkan ke huruf kecil dan membuang duplikat antar field', () => {
+    const klaim = { role: 'ADMIN', groups: ['Admin'] };
+
+    expect(extractRoleClaimValues(klaim, ['role', 'groups'])).toEqual(['admin']);
+  });
+
+  it('field yang tak ada menghasilkan array kosong, bukan galat', () => {
+    expect(extractRoleClaimValues(payloadAdmin, ['identity.jabatan', 'tidak.ada'])).toEqual([]);
+    expect(extractRoleClaimValues(undefined, ['role'])).toEqual([]);
+  });
+
+  it('tidak memecah elemen array per spasi', () => {
+    // Beda dengan string tingkat atas: satu elemen array adalah satu nilai utuh.
+    const klaim = { groups: ['admin kabupaten'] };
+
+    expect(extractRoleClaimValues(klaim, ['groups'])).toEqual(['admin kabupaten']);
+  });
+});
+
+describe('pemetaan peran yang disetujui pengguna (28 September 2026)', () => {
+  // admin -> Admin Kabupaten; ASN -> Admin OPD; masyarakat -> responden.
+  const ROLE_MAP = 'admin:kabupaten,asn:opd+responden,masyarakat:responden';
+  const fields = parseRoleClaimFields('role,identity.user_type');
+  const map = parseRolePackages(ROLE_MAP);
+
+  const perankan = (klaim: Record<string, unknown>): Role[] =>
+    resolveRolesFromClaims(extractRoleClaimValues(klaim, fields), map);
+
+  it('admin Helpdesk yang juga ASN memperoleh gabungan ketiga peran', () => {
+    // Payload contoh memuat `role: admin` DAN `user_type: asn` sekaligus, jadi
+    // kedua aturan kena. Mesinnya menggabungkan, bukan memeringkat.
+    const hasil = perankan({ role: 'admin', identity: { user_type: 'asn' } });
+
+    expect([...hasil].sort()).toEqual([Role.kabupaten, Role.opd, Role.responden].sort());
+  });
+
+  it('ASN biasa menjadi Admin OPD merangkap responden', () => {
+    expect(perankan({ role: 'user', identity: { user_type: 'asn' } })).toEqual([
+      Role.opd,
+      Role.responden,
+    ]);
+  });
+
+  it('masyarakat menjadi responden saja', () => {
+    expect(perankan({ role: 'user', identity: { user_type: 'masyarakat' } })).toEqual([
+      Role.responden,
+    ]);
+  });
+
+  it('tipe pengguna yang tak dikenal tidak memetakan apa pun', () => {
+    // Pemanggil yang menjatuhkannya ke `responden`, bukan berkas ini -- dan
+    // itu yang membuat nilai baru dari Helpdesk gagal ke arah aman.
+    expect(perankan({ role: 'user', identity: { user_type: 'vendor' } })).toEqual([]);
   });
 });

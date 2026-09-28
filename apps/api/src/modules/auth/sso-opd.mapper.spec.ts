@@ -99,3 +99,57 @@ describe('normalkanNamaOpd', () => {
     );
   });
 });
+
+/**
+ * Klaim OPD bersarang (28 September 2026).
+ *
+ * Contoh payload `userinfo` Helpdesk menaruh UUID tenant di
+ * `governance.tenant_id`. UUID itu ruang nilai yang SAMA dengan
+ * `opd.external_id`, yang diisi `HelpdeskOpdClient` dari `GET /api/tenants`,
+ * jadi pencocokannya jatuh di tingkat pertama `findOpdFromClaims` dan tak
+ * pernah perlu menebak-nebak nama panjang.
+ */
+describe('extractOpdClaimValues pada klaim bersarang', () => {
+  const payload = {
+    identity: { user_type: 'asn', name: 'Nama Lengkap Pengguna' },
+    governance: {
+      tenant_id: '8b026b5a-0000-4000-8000-000000000000',
+      tenant_name: 'Dinas Komunikasi dan Informatika',
+    },
+    instansi: 'Dinas Kominfo',
+  };
+
+  it('menemukan UUID tenant lewat jalur bertitik', () => {
+    expect(extractOpdClaimValues(payload, ['governance.tenant_id'])).toEqual([
+      '8b026b5a-0000-4000-8000-000000000000',
+    ]);
+  });
+
+  it('nama tenant tetap dapat dipakai sebagai cadangan', () => {
+    expect(extractOpdClaimValues(payload, ['governance.tenant_name'])).toEqual([
+      'Dinas Komunikasi dan Informatika',
+    ]);
+  });
+
+  it('field tingkat atas tetap berperilaku seperti sebelumnya', () => {
+    // Jaminan kompatibilitas: nilai `HELPDESK_SSO_OPD_CLAIM` yang sudah
+    // terpasang di lingkungan mana pun tak boleh berubah artinya.
+    expect(extractOpdClaimValues(payload, ['instansi'])).toEqual(['Dinas Kominfo']);
+  });
+
+  it('jalur yang tak ada tidak menghasilkan apa pun dan tidak melempar', () => {
+    expect(extractOpdClaimValues(payload, ['governance.tidak_ada', 'a.b.c'])).toEqual([]);
+  });
+
+  it('tidak menarik nilai lewat prototipe', () => {
+    // Tanpa penjaga ini, `HELPDESK_SSO_OPD_CLAIM` yang salah tulis dapat
+    // memasukkan fungsi bawaan JavaScript ke daftar kandidat OPD.
+    expect(extractOpdClaimValues(payload, ['governance.constructor'])).toEqual([]);
+  });
+
+  it('nilai yang sama dari dua jalur hanya muncul sekali', () => {
+    const kembar = { a: { v: 'DISKOMINFO' }, b: { v: 'DISKOMINFO' } };
+
+    expect(extractOpdClaimValues(kembar, ['a.v', 'b.v'])).toEqual(['DISKOMINFO']);
+  });
+});

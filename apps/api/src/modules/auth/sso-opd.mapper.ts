@@ -25,6 +25,8 @@
  * cenderung tak pernah ditulis lengkap.
  */
 
+import { ambilJalurKlaim } from './sso-claim-path';
+
 /**
  * Nama field yang diperiksa bila `HELPDESK_SSO_OPD_CLAIM` tak diisi.
  *
@@ -84,7 +86,10 @@ export function extractOpdClaimValues(
   };
 
   for (const field of fields) {
-    const nilai = klaim[field];
+    // Jalur bertitik, bukan `klaim[field]` (28 September 2026): contoh payload
+    // Helpdesk menaruh UUID tenant di `governance.tenant_id`. Jalur tanpa titik
+    // berperilaku persis seperti sebelumnya.
+    const nilai = ambilJalurKlaim(klaim, field);
     if (Array.isArray(nilai)) {
       nilai.forEach(tambah);
     } else if (nilai !== null && typeof nilai === 'object') {

@@ -15,7 +15,12 @@ import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
 import { bentukKlaim } from './sso-claim-shape';
 import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
-import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
+import {
+  extractRoleClaimValues,
+  parseRoleClaimFields,
+  parseRolePackages,
+  resolveRolesFromClaims,
+} from './sso-role.mapper';
 import { SsoStateService } from './sso-state.service';
 
 /** Batas kolom `users.nama` (VarChar(50)) & `users.email` (VarChar(100)). */
@@ -322,7 +327,7 @@ export class SsoService {
   private async resolveRolesAndOpd(
     profile: SsoProfile,
   ): Promise<{ roles: Role[]; opdId: number | null }> {
-    const values = parseClaimValues(profile.groups, profile.role);
+    const values = this.nilaiPeranDariKlaim(profile);
     const resolved = resolveRolesFromClaims(
       values,
       parseRolePackages(this.config.get<string>('helpdesk.ssoRoleMap')),
@@ -377,7 +382,7 @@ export class SsoService {
     return [
       ...new Set([
         ...extractOpdClaimValues(profile.klaim, fields),
-        ...parseClaimValues(profile.groups, profile.role),
+        ...this.nilaiPeranDariKlaim(profile),
       ]),
     ];
   }
@@ -616,6 +621,54 @@ export class SsoService {
     this.logger.debug(
       `Bentuk klaim SSO — groups: ${describe(profile.groups)}, role: ${describe(profile.role)}`,
     );
+  }
+
+  /**
+   * Nilai kandidat peran dari klaim mentah, menurut `HELPDESK_SSO_ROLE_CLAIM`.
+   *
+   * DIBACA DARI `profile.klaim`, bukan dari `profile.groups`/`profile.role`
+   * (28 September 2026). Dua field itu dipetakan di `HelpdeskSsoClient` dari
+   * kunci TINGKAT ATAS, sementara penentu ASN vs masyarakat ternyata ada di
+   * `identity.user_type` — bersarang, dan karena itu tak pernah sampai ke sini
+   * lewat jalur lama betapapun benarnya env diisi.
+   *
+   * Bakunya tetap `groups,role`, jadi lingkungan yang belum mengisi env baru
+   * ini berperilaku persis seperti sebelumnya.
+   *
+   * `profile.groups` & `profile.role` TETAP DIHORMATI bila klaim mentahnya tak
+   * memuatnya. Keduanya field sah pada `SsoProfile`, dan sebuah `SsoSource`
+   * boleh mengisinya tanpa menyertakan payload mentah — membaca `klaim` saja
+   * akan diam-diam mematikan pemetaan peran bagi sumber semacam itu.
+   */
+  private nilaiPeranDariKlaim(profile: SsoProfile): string[] {
+    const fields = parseRoleClaimFields(this.config.get<string>('helpdesk.ssoRoleClaim'));
+    const keluar: string[] = [];
+    const tambah = (nilai: string[]): void => {
+      for (const satu of nilai) {
+        if (!keluar.includes(satu)) {
+          keluar.push(satu);
+        }
+      }
+    };
+
+    try {
+      tambah(extractRoleClaimValues(profile.klaim, fields));
+    } catch (err) {
+      // Payload datang dari jaringan dan dapat berbentuk apa pun, termasuk
+      // objek yang pengaksesan propertinya sendiri melempar. Penentuan peran
+      // TIDAK BOLEH menjadi sebab orang gagal masuk: yang benar adalah jatuh ke
+      // peran baku, bukan meledak. Alasan yang sama dengan
+      // `catatBentukKlaimSekali`.
+      this.logger.warn(`Gagal membaca klaim peran: ${(err as Error)?.message ?? err}`);
+    }
+
+    // Cadangan bagi `SsoSource` yang mengisi kedua field ini tanpa menyertakan
+    // payload mentah. Objek kecil dirakit sendiri, BUKAN salinan `profile.klaim`
+    // -- menyalinnya berarti membaca setiap propertinya, dan itu persis jalan
+    // yang baru saja dijaga di atas.
+    tambah(extractRoleClaimValues({ groups: profile.groups, role: profile.role }, fields));
+
+    return keluar;
   }
 }
 
