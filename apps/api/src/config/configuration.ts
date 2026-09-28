@@ -153,6 +153,12 @@ export default () => ({
     // Helpdesk belum dikonfirmasi: begitu jawabannya datang, yang berubah cuma
     // satu baris env. Lihat sso-role.mapper.ts untuk aturan penguraiannya --
     // termasuk kenapa `superuser` tak pernah bisa dipetakan dari sini.
+    // Field klaim yang membawa nilai peran, dipisah koma, boleh bersarang
+    // (`identity.user_type`). KOSONG = `groups,role` seperti sebelumnya.
+    // Contoh payload userinfo Helpdesk (28 September 2026) menaruh penentu ASN
+    // vs masyarakat di `identity.user_type`, yang tak terjangkau kunci tingkat
+    // atas -- lihat sso-claim-path.ts.
+    ssoRoleClaim: process.env.HELPDESK_SSO_ROLE_CLAIM,
     ssoRoleMap: process.env.HELPDESK_SSO_ROLE_MAP,
 
     // Nama field klaim userinfo yang membawa OPD seorang ASN, dipisah koma

@@ -256,6 +256,15 @@ class EnvironmentVariables {
   @IsString()
   HELPDESK_SSO_ROLE_MAP?: string;
 
+  // Field klaim sumber nilai peran (28 September 2026). Tidak divalidasi
+  // bentuknya, alasan yang sama seperti dua tetangganya: nama field yang salah
+  // tulis hanya membuat pemetaan tak menemukan apa pun, dan akun baru jatuh ke
+  // `responden` -- keadaan paling tidak berbahaya. Mematikan API saat boot demi
+  // ini jauh lebih mahal daripada kegagalan yang ditimbulkannya.
+  @IsOptional()
+  @IsString()
+  HELPDESK_SSO_ROLE_CLAIM?: string;
+
   // Nama field klaim yang membawa OPD ASN, dipisah koma (8 September 2026).
   // Tidak divalidasi bentuknya, alasan yang sama seperti di atas: nama field
   // yang salah tulis hanya membuat pencocokan tak menemukan apa pun — dan

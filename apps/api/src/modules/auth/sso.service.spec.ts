@@ -1011,3 +1011,119 @@ describe('SsoService — bentuk klaim dicatat', () => {
     ).resolves.toMatchObject({ token: 'token-sesi-skm' });
   });
 });
+
+/**
+ * Pemetaan yang disetujui pengguna 28 September 2026, sesudah contoh payload
+ * `userinfo` Helpdesk akhirnya diterima.
+ *
+ *   role `admin`              -> Admin Kabupaten
+ *   identity.user_type `asn`  -> Admin OPD, OPD-nya dari governance.tenant_id
+ *   identity.user_type `masyarakat` -> responden
+ *
+ * KENAPA DIUJI DI TINGKAT SERVICE, padahal pemetanya sudah diuji sendiri:
+ * yang dijaga di sini BUKAN aturan pemetaannya, melainkan bahwa jalur nyata
+ * benar-benar MEMBACA env `HELPDESK_SSO_ROLE_CLAIM` dan
+ * `HELPDESK_SSO_OPD_CLAIM`. Pemeta yang sempurna tak berguna bila service-nya
+ * masih memanggil pembaca lama yang hanya melihat kunci tingkat atas.
+ */
+describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
+  const TENANT_DISKOMINFO = '8b026b5a-0000-4000-8000-000000000000';
+  const OPD_DISKOMINFO = { id: 16 };
+
+  const ENV = {
+    'helpdesk.ssoRoleClaim': 'role,identity.user_type',
+    'helpdesk.ssoRoleMap': 'admin:kabupaten,asn:opd+responden,masyarakat:responden',
+    'helpdesk.ssoOpdClaim': 'governance.tenant_id',
+  };
+
+  /** Payload `userinfo`, hanya field yang dibaca jalur ini. */
+  const klaimHelpdesk = (userType: string, role: string) => ({
+    sub: 'hd-sub-abc123',
+    role,
+    groups: [role],
+    email: 'budi@example.go.id',
+    email_verified: true,
+    identity: { user_type: userType, name: 'Budi Santoso' },
+    governance: { role, tenant_id: TENANT_DISKOMINFO, tenant_name: 'Dinas Kominfo' },
+  });
+
+  function baru(overrides: Record<string, string | undefined> = {}) {
+    const m = buat({ ...ENV, ...overrides });
+    m.prisma.user.findFirst.mockResolvedValue(null);
+    m.prisma.user.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve(userRow(data)),
+    );
+    m.prisma.opd.findFirst.mockResolvedValue(OPD_DISKOMINFO);
+    return m;
+  }
+
+  const masuk = async (m: Mocked, userType: string, role = 'user') => {
+    m.source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: klaimHelpdesk(userType, role), role, groups: [role] }),
+    );
+    await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+    return m.prisma.user.create.mock.calls[0][0].data;
+  };
+
+  it('admin Helpdesk yang juga ASN -> kabupaten + opd + responden, tertaut OPD-nya', async () => {
+    const m = baru();
+
+    const data = await masuk(m, 'asn', 'admin');
+
+    expect([...(data.roles as Role[])].sort()).toEqual(
+      [Role.kabupaten, Role.opd, Role.responden].sort(),
+    );
+    expect(data.opdId).toBe(OPD_DISKOMINFO.id);
+  });
+
+  it('ASN biasa -> Admin OPD merangkap responden', async () => {
+    const m = baru();
+
+    const data = await masuk(m, 'asn');
+
+    expect(data.roles).toEqual([Role.opd, Role.responden]);
+    expect(data.opdId).toBe(OPD_DISKOMINFO.id);
+  });
+
+  /**
+   * BATAS UJI INI, dinyatakan supaya tak dikira membuktikan lebih dari yang
+   * dibuktikannya: menghapus entri `masyarakat:responden` dari peta TIDAK
+   * membuatnya merah (diukur), sebab `responden` juga peran baku ketika tak ada
+   * yang cocok. Yang dijaganya adalah HASILnya, bukan lewat jalur mana hasil itu
+   * diperoleh.
+   *
+   * Yang justru dijaganya dengan tajam: OPD tersedia dan `tenant_id` ada di
+   * klaim, namun seorang warga TIDAK BOLEH ikut memperoleh peran `opd`.
+   */
+  it('masyarakat -> responden saja, walau OPD-nya tersedia', async () => {
+    const m = baru();
+
+    const data = await masuk(m, 'masyarakat');
+
+    expect(data.roles).toEqual([Role.responden]);
+    expect(data.opdId ?? null).toBeNull();
+  });
+
+  it('OPD dicari memakai UUID tenant, bukan nama instansi', async () => {
+    const m = baru();
+
+    await masuk(m, 'asn');
+
+    const where = m.prisma.opd.findFirst.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain(TENANT_DISKOMINFO);
+  });
+
+  /**
+   * Penjaga bahwa env-lah yang membuatnya bekerja. Tanpa
+   * `HELPDESK_SSO_ROLE_CLAIM`, pembacaan jatuh ke baku `groups,role` yang tak
+   * pernah melihat `identity.user_type` — dan ASN biasa kembali jadi responden.
+   * Bila uji ini ikut hijau tanpa env, berarti nama field sudah dipaku di kode.
+   */
+  it('tanpa HELPDESK_SSO_ROLE_CLAIM, user_type bersarang tak terbaca', async () => {
+    const m = baru({ 'helpdesk.ssoRoleClaim': undefined });
+
+    const data = await masuk(m, 'asn');
+
+    expect(data.roles).toEqual([Role.responden]);
+  });
+});
