@@ -69,6 +69,7 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AFILIASI INSTANSI</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">TANGGAL DIBUAT</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS AKSES</Th>
+            <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS ADMINISTRATOR</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AKSI</Th>
           </Tr>
         </Thead>
@@ -79,6 +80,12 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
             // warnanya sekadar pembeda visual, bukan pernyataan hak.
             const roleConfigs = (user.roles ?? []).map(getRoleBadgeConfig);
             const isActive = user.status === 'ACTIVE';
+            // Administrator = memegang salah satu peran yang memerintah, yaitu
+            // Admin Kabupaten atau Admin OPD. `responden` bukan administrator
+            // betapapun aktifnya ia.
+            const isAdministrator = (user.roles ?? []).some(
+              (role) => role === USER_ROLES.ADMIN_KABUPATEN || role === USER_ROLES.ADMIN_OPD,
+            );
 
             return (
               <Tr key={user.id} className="hover:bg-slate-50 transition-colors group">
@@ -121,6 +128,27 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
                 </Td>
                 <Td>
                   <UserStatusBadge status={user.status} />
+                </Td>
+                <Td>
+                  {/* Dua nilai saja, dan itu disengaja. Kolom "HAK AKSES
+                      (ROLE)" sudah menyebutkan administrator JENIS APA; yang
+                      belum dijawab kolom mana pun adalah "administrator atau
+                      bukan", dan pertanyaan itulah yang dapat dipindai cepat
+                      pada daftar panjang.
+
+                      "Tidak" bernada redup, BUKAN merah: ia bertetangga dengan
+                      Status Akses yang hijau, dan merah di sebelahnya terbaca
+                      sebagai ada yang salah -- padahal bukan administrator
+                      adalah keadaan normal bagi hampir seluruh warga. */}
+                  <span
+                    className={
+                      isAdministrator
+                        ? 'font-label-md text-text-primary'
+                        : 'font-body-md text-text-secondary'
+                    }
+                  >
+                    {isAdministrator ? 'Ya' : 'Tidak'}
+                  </span>
                 </Td>
                 <Td>
                   <div className="flex items-center gap-2">

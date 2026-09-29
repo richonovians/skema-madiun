@@ -1037,19 +1037,32 @@ describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
 
   const ENV = {
     'helpdesk.ssoRoleClaim': 'role,identity.user_type',
-    'helpdesk.ssoRoleMap': 'admin:kabupaten,asn:opd+responden,masyarakat:responden',
+    // 29 September 2026: ASN TIDAK lagi lahir sebagai Admin OPD. Di SKEMA
+    // peran `opd` ITULAH Admin OPD, tak ada arti lain, sehingga memetakan
+    // seluruh ASN ke sana membuat setiap pegawai sekabupaten menjadi admin
+    // pada login pertamanya -- dan fitur "atur sebagai admin opd" di
+    // Manajemen User tak ada gunanya lagi.
+    'helpdesk.ssoRoleMap': 'admin:kabupaten+opd+responden,asn:responden,masyarakat:responden',
     'helpdesk.ssoOpdClaim': 'governance.tenant_id',
   };
 
-  /** Payload `userinfo`, hanya field yang dibaca jalur ini. */
-  const klaimHelpdesk = (userType: string, role: string) => ({
+  /**
+   * Payload `userinfo`, hanya field yang dibaca jalur ini.
+   *
+   * `tenant` dapat dimatikan: seorang warga memang tak punya tenant, dan
+   * memaksakan satu ke dalam payloadnya membuat uji menguji keadaan yang tak
+   * pernah terjadi.
+   */
+  const klaimHelpdesk = (userType: string, role: string, tenant = true) => ({
     sub: 'hd-sub-abc123',
     role,
     groups: [role],
     email: 'budi@example.go.id',
     email_verified: true,
     identity: { user_type: userType, name: 'Budi Santoso' },
-    governance: { role, tenant_id: TENANT_DISKOMINFO, tenant_name: 'Dinas Kominfo' },
+    governance: tenant
+      ? { role, tenant_id: TENANT_DISKOMINFO, tenant_name: 'Dinas Kominfo' }
+      : { role },
   });
 
   function baru(overrides: Record<string, string | undefined> = {}) {
@@ -1062,9 +1075,9 @@ describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
     return m;
   }
 
-  const masuk = async (m: Mocked, userType: string, role = 'user') => {
+  const masuk = async (m: Mocked, userType: string, role = 'user', tenant = true) => {
     m.source.exchangeCodeForProfile.mockResolvedValue(
-      profil({ klaim: klaimHelpdesk(userType, role), role, groups: [role] }),
+      profil({ klaim: klaimHelpdesk(userType, role, tenant), role, groups: [role] }),
     );
     await m.service.completeLogin('kode-1', 'nonce-1', 'c');
     return m.prisma.user.create.mock.calls[0][0].data;
@@ -1081,29 +1094,45 @@ describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
     expect(data.opdId).toBe(OPD_DISKOMINFO.id);
   });
 
-  it('ASN biasa -> Admin OPD merangkap responden', async () => {
+  /**
+   * INTI PERUBAHAN 29 September 2026, dan sekaligus bagian yang paling mudah
+   * salah dikerjakan.
+   *
+   * ASN lahir sebagai `responden` SAJA, sebab yang menentukan siapa Admin OPD
+   * adalah Admin Kabupaten lewat Manajemen User, bukan Helpdesk.
+   *
+   * Tetapi `opd_id` TETAP terisi sejak akun lahir. Tanpa itu, seorang ASN yang
+   * baru sekali masuk tampil TANPA instansi di daftar Manajemen User -- padahal
+   * keterangan itulah yang dibutuhkan untuk memutuskan apakah ia pantas
+   * dijadikan Admin OPD, dan Admin OPD dari OPD mana. Lebih buruk lagi, bila
+   * dinaikkan sebelum ia masuk untuk kedua kalinya, ia memegang peran `opd`
+   * dengan `opdId` kosong, dan dashboard OPD-nya menjawab 403
+   * (DashboardService.resolveDashboardOpdId).
+   */
+  it('ASN biasa -> responden saja, TETAPI OPD-nya sudah tertaut', async () => {
     const m = baru();
 
     const data = await masuk(m, 'asn');
 
-    expect(data.roles).toEqual([Role.opd, Role.responden]);
+    expect(data.roles).toEqual([Role.responden]);
     expect(data.opdId).toBe(OPD_DISKOMINFO.id);
   });
 
   /**
    * BATAS UJI INI, dinyatakan supaya tak dikira membuktikan lebih dari yang
    * dibuktikannya: menghapus entri `masyarakat:responden` dari peta TIDAK
-   * membuatnya merah (diukur), sebab `responden` juga peran baku ketika tak ada
-   * yang cocok. Yang dijaganya adalah HASILnya, bukan lewat jalur mana hasil itu
-   * diperoleh.
+   * membuatnya merah, sebab `responden` juga peran baku ketika tak ada yang
+   * cocok. Yang dijaganya adalah HASILnya, bukan lewat jalur mana ia diperoleh.
    *
-   * Yang justru dijaganya dengan tajam: OPD tersedia dan `tenant_id` ada di
-   * klaim, namun seorang warga TIDAK BOLEH ikut memperoleh peran `opd`.
+   * Yang dijaganya dengan tajam: warga tak berinstansi tidak boleh tertaut ke
+   * OPD mana pun, sekarang setelah pencarian OPD berjalan untuk SETIAP akun
+   * baru dan bukan lagi hanya bagi pemegang peran `opd`.
    */
-  it('masyarakat -> responden saja, walau OPD-nya tersedia', async () => {
+  it('masyarakat -> responden, tanpa OPD sama sekali', async () => {
     const m = baru();
+    m.prisma.opd.findFirst.mockResolvedValue(null);
 
-    const data = await masuk(m, 'masyarakat');
+    const data = await masuk(m, 'masyarakat', 'user', false);
 
     expect(data.roles).toEqual([Role.responden]);
     expect(data.opdId ?? null).toBeNull();
@@ -1119,17 +1148,26 @@ describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
   });
 
   /**
-   * Penjaga bahwa env-lah yang membuatnya bekerja. Tanpa
-   * `HELPDESK_SSO_ROLE_CLAIM`, pembacaan jatuh ke baku `groups,role` yang tak
-   * pernah melihat `identity.user_type` — dan ASN biasa kembali jadi responden.
-   * Bila uji ini ikut hijau tanpa env, berarti nama field sudah dipaku di kode.
+   * Uji lama "tanpa HELPDESK_SSO_ROLE_CLAIM, user_type bersarang tak terbaca"
+   * DIBUANG, bukan diperbaiki. Ia tak lagi dapat memerah: sejak `asn` dan
+   * `masyarakat` sama-sama dipetakan ke `responden`, yaitu peran BAKU, mematikan
+   * env itu tak mengubah satu pun keluaran. Uji yang mustahil merah bukan
+   * penjaga melainkan hiasan.
+   *
+   * Yang menggantikannya menjaga kenyataan barunya: yang membedakan ASN dari
+   * warga kini BUKAN perannya melainkan tautan OPD-nya.
    */
-  it('tanpa HELPDESK_SSO_ROLE_CLAIM, user_type bersarang tak terbaca', async () => {
-    const m = baru({ 'helpdesk.ssoRoleClaim': undefined });
+  it('ASN dan masyarakat sama-sama responden; yang membedakan tautan OPD', async () => {
+    const asn = baru();
+    const dataAsn = await masuk(asn, 'asn');
 
-    const data = await masuk(m, 'asn');
+    const warga = baru();
+    warga.prisma.opd.findFirst.mockResolvedValue(null);
+    const dataWarga = await masuk(warga, 'masyarakat', 'user', false);
 
-    expect(data.roles).toEqual([Role.responden]);
+    expect(dataAsn.roles).toEqual(dataWarga.roles);
+    expect(dataAsn.opdId).toBe(OPD_DISKOMINFO.id);
+    expect(dataWarga.opdId ?? null).toBeNull();
   });
 });
 
