@@ -360,17 +360,29 @@ export class SsoService {
       parseRolePackages(this.config.get<string>('helpdesk.ssoRoleMap')),
     );
 
-    if (resolved.length === 0) {
-      return { roles: [Role.responden], opdId: null };
-    }
-    if (!resolved.includes(Role.opd)) {
-      // Tak tertaut OPD mana pun -- sama seperti akun seed Admin Kabupaten.
-      return { roles: resolved, opdId: null };
-    }
+    const peran = resolved.length > 0 ? resolved : [Role.responden];
 
+    // OPD DICARI TANPA MEMANDANG PERAN (29 September 2026). Sebelumnya
+    // pencarian ini dilewati bagi akun yang tak berperan `opd`, dengan alasan
+    // `opd_id` hanya berguna bagi Admin OPD. Alasan itu benar selama ASN selalu
+    // lahir berperan `opd`; sejak ASN lahir sebagai `responden` saja, ia
+    // berubah dari penghematan menjadi lubang:
+    //
+    //   - Admin Kabupaten tak melihat instansi seorang ASN yang baru sekali
+    //     masuk, padahal keterangan itulah yang dibutuhkan untuk memutuskan
+    //     apakah ia pantas dijadikan Admin OPD, dan Admin OPD dari OPD mana;
+    //   - menaikkannya sebelum ia masuk untuk kedua kalinya menghasilkan peran
+    //     `opd` dengan `opdId` kosong, dan dashboard OPD-nya menjawab 403.
+    //
+    // `opd_id` adalah keterangan TEMPAT BERTUGAS, bukan hak akses. Mengisinya
+    // bagi seorang responden tak memberi kemampuan apa pun, dan `acceptLogin`
+    // memang sudah menyegarkannya pada setiap login tanpa melihat peran --
+    // jadi yang berubah di sini hanyalah ia tak perlu menunggu login kedua.
     const opd = await this.findOpdFromClaims(profile);
-    if (opd) {
-      return { roles: resolved, opdId: opd.id };
+    const opdId = opd ? opd.id : null;
+
+    if (!peran.includes(Role.opd) || opdId !== null) {
+      return { roles: peran, opdId };
     }
 
     // Peran `opd` TANPA opdId adalah keadaan setengah jadi: dashboard OPD-nya
@@ -382,7 +394,7 @@ export class SsoService {
     // paket `superuser+opd+responden` kehilangan hak tertingginya hanya karena
     // OPD-nya belum terdaftar -- kegagalan yang jauh lebih besar daripada
     // sebabnya.
-    const tanpaOpd = resolved.filter((role) => role !== Role.opd);
+    const tanpaOpd = peran.filter((role) => role !== Role.opd);
     this.logger.warn(
       `Klaim menunjuk peran OPD tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ') || '-'}) — peran opd tidak diberikan, sisa paket: ${tanpaOpd.join(',') || 'kosong'}`,
     );
