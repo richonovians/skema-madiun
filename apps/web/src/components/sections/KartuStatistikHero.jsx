@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Building2, Clock, ShieldCheck, Lock } from 'lucide-react';
+import { CheckCircle2, Building2, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useAsync } from '@/hooks/useAsync';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
@@ -128,56 +128,6 @@ function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHov
   );
 }
 
-/**
- * Ditampilkan saat `GET /statistics` gagal dihubungi.
- *
- * BUKAN kartu angka yang dibiarkan menggambar nol. Nol di halaman utama terbaca
- * sebagai kabupaten tanpa satu pun layanan, bukan sebagai jaringan yang sedang
- * putus, dan itu keliru dengan cara yang merugikan. Kolomnya juga tidak
- * dikosongkan begitu saja: kolom yang mendadak hilang terbaca sebagai halaman
- * rusak.
- */
-function KartuPernyataan() {
-  return (
-    <div data-kartu-pernyataan className={KELAS_TUMPUKAN}>
-      <div className="lg:animate-melayang lg:absolute lg:-bottom-7 lg:-left-7">
-        <div className={clsx(KELAS_KARTU, 'flex items-center gap-3 px-4 py-3')}>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500">
-            <ShieldCheck size={19} className="text-white" />
-          </span>
-          <div className="leading-tight">
-            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-              Status Layanan
-            </p>
-            <p className="text-sm font-bold whitespace-nowrap text-slate-800">
-              Terhubung SSO Madiun
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="lg:animate-melayang-lambat lg:absolute lg:-top-6 lg:-right-5"
-        style={{ animationDelay: '400ms' }}
-      >
-        <div className={clsx(KELAS_KARTU, 'flex items-center gap-3 px-4 py-3')}>
-          <span className="bg-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-            <Lock size={19} className="text-white" />
-          </span>
-          <div className="leading-tight">
-            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-              Data Pribadi
-            </p>
-            <p className="text-sm font-bold whitespace-nowrap text-slate-800">
-              Dengan Persetujuan Anda
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Kerangka() {
   return (
     <div data-testid="kerangka-statistik" aria-hidden="true" className={KELAS_TUMPUKAN}>
@@ -234,7 +184,7 @@ const AMBANG_PENILAIAN = 30;
  * predikat resmi.
  *
  * Pemanggilannya sengaja berada di komponen ini, bukan di HeroSection: kegagalan
- * jaringan cukup mengganti tumpukan kartunya, tanpa pernah menyentuh judul,
+ * jaringan cukup menghapus tumpukan kartunya, tanpa pernah menyentuh judul,
  * paragraf, dan tombol masuk yang menjadi isi utama halaman.
  */
 export default function KartuStatistikHero() {
@@ -242,7 +192,32 @@ export default function KartuStatistikHero() {
   const { data, isLoading, error } = useAsync(ambil);
 
   if (isLoading) return <Kerangka />;
-  if (error || !data?.summary) return <KartuPernyataan />;
+
+  /**
+   * TAK MENGGAMBAR APA PUN saat `GET /statistics` tak terjawab (30 September
+   * 2026, keputusan pengguna).
+   *
+   * Yang berdiri di sini sampai tanggal itu adalah dua kartu pernyataan, dan
+   * yang pertama berbunyi "Status Layanan -- Terhubung SSO Madiun". Ia muncul
+   * TEPAT ketika API-nya tak bisa dihubungi, sedangkan jalur SSO melewati API
+   * yang sama: kalimat itu menyatakan "terhubung" pada satu-satunya saat kita
+   * justru punya bukti sebaliknya.
+   *
+   * Penggantinya sengaja BUKAN pesan galat. Pemberitahuan kegagalan di hero
+   * menceritakan kepada warga sebuah masalah yang tak bisa mereka perbuat apa-
+   * apa, sekaligus membuat beranda tampak rusak padahal judul, paragraf, dan
+   * tombol masuknya baik-baik saja. Tempat pesan kegagalan adalah halaman
+   * /statistics itu sendiri.
+   *
+   * Yang TETAP dijaga dari versi lama: kartu berangka tak boleh digambar di
+   * sini. Nol di halaman utama terbaca sebagai kabupaten tanpa satu pun layanan,
+   * bukan sebagai jaringan yang sedang putus.
+   *
+   * Di `lg` ke atas rangka ilustrasi hero tetap digambar, jadi yang hilang hanya
+   * kartu melayangnya. Di bawah `lg` rangka itu sendiri `hidden`, jadi kolomnya
+   * memang kosong dan halamannya sekadar memendek.
+   */
+  if (error || !data?.summary) return null;
 
   const { summary, ikmTrend = [], complaintStatus } = data;
   const deret = ikmTrend.map((t) => t.value);

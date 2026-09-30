@@ -185,8 +185,26 @@ export default function HeroSection() {
     return () => window.removeEventListener(SESSION_CHANGED_EVENT, hitungUlang);
   }, []);
 
+  /*
+   * `items-start lg:items-center`, BUKAN `items-center` (30 September 2026).
+   *
+   * Terukur di Chrome terpasang pada 393x852, dengan /statistics ditunda lalu
+   * digagalkan: tinggi <section> 896px -> 724px (mentok di lantai
+   * `min-h-[85vh]`) dan posisi <h1> y=170 -> y=264. Isi yang memendek sampai di
+   * bawah lantai itu membuat seluruh tumpukan MEMUSAT ULANG secara tegak,
+   * sehingga judul utama halaman melompat turun 94px. Yang bergeser karenanya
+   * bukan kartu dekoratif di bawah, melainkan elemen yang paling mahal untuk
+   * digeser.
+   *
+   * Memaku isinya ke atas memutus rantai itu: tinggi kolom kedua tak lagi bisa
+   * menggerakkan kolom pertama, pada jalur gagal MAUPUN jalur berhasil.
+   *
+   * Mulai `lg` pemusatannya sengaja dipertahankan -- di sana kartu statistiknya
+   * `absolute` dan tak pernah ikut menentukan tinggi, jadi tak ada yang bisa
+   * bergeser.
+   */
   return (
-    <section className="relative flex min-h-[85vh] items-center overflow-hidden bg-white lg:min-h-[90vh]">
+    <section className="relative flex min-h-[85vh] items-start overflow-hidden bg-white lg:min-h-[90vh] lg:items-center">
       <div className="relative z-20 mx-auto w-full max-w-[1280px] px-4 pt-8 pb-24 sm:px-6 sm:pb-32">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <div>

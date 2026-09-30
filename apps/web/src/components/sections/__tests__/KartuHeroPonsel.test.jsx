@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import KartuStatistikHero from '../KartuStatistikHero';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
 
@@ -142,9 +142,12 @@ describe('KartuStatistikHero — kartu sampai ke layar ponsel', () => {
 });
 
 /**
- * Kedua keadaan di bawah ini TAK PERNAH punya palang `lg` sama sekali, jadi
- * merekalah yang benar-benar digambar di ponsel -- menindih satu sama lain dan
- * terpotong kedua tepi layar. Uji jalur berhasil di atas tak menyentuhnya.
+ * Keadaan memuat TAK PERNAH punya palang `lg` sama sekali, jadi dialah yang
+ * benar-benar digambar di ponsel. Uji jalur berhasil di atas tak menyentuhnya.
+ *
+ * Keadaan gagal dulu juga ada di sini: dua kartu pernyataan yang saling
+ * menindih pada 393px. Sejak 30 September 2026 ia tak menggambar apa pun, jadi
+ * yang tersisa untuk dijaga bukan lagi tata letaknya melainkan ketiadaannya.
  */
 describe('KartuStatistikHero — keadaan memuat dan gagal di ponsel', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -160,31 +163,23 @@ describe('KartuStatistikHero — keadaan memuat dan gagal di ponsel', () => {
     expect(container.innerHTML).not.toMatch(/class="[^"]*(^|\s)w-\[\d+px\]/);
   });
 
-  it('kartu pernyataan saat gagal tidak lagi keluar dari alur', async () => {
-    getStatistics.mockRejectedValue(new Error('jaringan putus'));
-
-    const { container } = render(<KartuStatistikHero />);
-    await screen.findByText(/terhubung sso madiun/i);
-
-    const wadah = container.querySelector('[data-kartu-pernyataan]');
-    expect(wadah).not.toBeNull();
-    expect(wadah.querySelectorAll('.absolute')).toHaveLength(0);
-    expect(wadah.querySelectorAll('[class*="lg:absolute"]')).toHaveLength(2);
-  });
-
   /**
-   * KONTROL. Kedua kalimat inilah satu-satunya penjelasan yang tersisa ketika
-   * /statistics tak terjawab; kartu yang "diperbaiki" dengan cara dihilangkan
-   * di ponsel meninggalkan kolom kosong tanpa sebab.
+   * Dua kartu pernyataan yang dulu digambar di sini terukur SALING MENINDIH pada
+   * 393px, kiri=-12 dan kanan=397, terpotong kedua tepi layar. Sejak 30
+   * September 2026 keadaan gagal tak menggambar apa pun, jadi persoalan tata
+   * letak itu lenyap bersama kartunya.
+   *
+   * Yang dijaga sekarang adalah ketiadaan itu secara MENYELURUH: bukan sekadar
+   * pembungkus lamanya yang hilang, melainkan tak ada simpul apa pun tersisa.
+   * Uji jalur berhasil di atas yang menahan agar ini tak dipenuhi dengan cara
+   * termudah, yaitu merender null di segala keadaan.
    */
-  it('KONTROL: kedua pernyataannya tetap terbaca', async () => {
+  it('keadaan gagal tak menggambar apa pun di ponsel', async () => {
     getStatistics.mockRejectedValue(new Error('jaringan putus'));
 
     const { container } = render(<KartuStatistikHero />);
-    await screen.findByText(/terhubung sso madiun/i);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
 
-    const wadah = container.querySelector('[data-kartu-pernyataan]');
-    expect(wadah).toHaveTextContent(/terhubung sso madiun/i);
-    expect(wadah).toHaveTextContent(/dengan persetujuan anda/i);
+    expect(container.querySelector('[data-kartu-pernyataan]')).toBeNull();
   });
 });
