@@ -12,6 +12,7 @@ import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
+import { operasiPemusnahanSurvei } from './survey-pemusnahan.util';
 import { assertSurveyEditable, TIDAK_DIBUANG } from './survey-scope.util';
 
 /** Transisi status yang diizinkan. */
@@ -253,25 +254,17 @@ export class SurveysService {
   }
 
   /**
-   * Musnahkan permanen. Hanya dari Sampah, dan hanya peran berhak penuh --
-   * penjaga perannya ada di `@Roles` controller.
+   * Musnahkan permanen. Hanya dari Sampah; penjaga perannya ada di `@Roles`
+   * controller, dan kurungan per-OPD-nya di `getTrashedOrThrow`.
    *
-   * URUTANNYA DITULIS TERSURAT, dan itu bukan kehati-hatian berlebih:
-   * `answers.question_id` TANPA `onDelete` alias RESTRICT, sehingga penghapusan
-   * berjenjang dari `surveys` dapat gagal ketika pertanyaan dibuang sementara
-   * jawabannya masih ada. Satu transaksi, dari daun ke akar.
+   * Rangkaian penghapusannya ada di `operasiPemusnahanSurvei`, dipakai bersama
+   * pemusnahan terjadwal. Alasan lengkapnya -- termasuk mengapa urutan daun ke
+   * akar itu wajib -- tertulis di berkas util tersebut.
    */
   async purge(id: number, user: CurrentUser): Promise<void> {
     const survey = await this.getTrashedOrThrow(id, user);
 
-    await this.prisma.$transaction([
-      this.prisma.answer.deleteMany({ where: { response: { surveyId: survey.id } } }),
-      this.prisma.surveyResponse.deleteMany({ where: { surveyId: survey.id } }),
-      this.prisma.questionOption.deleteMany({ where: { question: { surveyId: survey.id } } }),
-      this.prisma.question.deleteMany({ where: { surveyId: survey.id } }),
-      this.prisma.ikmResult.deleteMany({ where: { surveyId: survey.id } }),
-      this.prisma.survey.delete({ where: { id: survey.id } }),
-    ]);
+    await this.prisma.$transaction(operasiPemusnahanSurvei(this.prisma, survey.id));
   }
 
   /** Publikasikan / tutup survei (transisi tervalidasi). */

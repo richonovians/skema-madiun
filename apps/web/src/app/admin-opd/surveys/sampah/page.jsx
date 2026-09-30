@@ -2,45 +2,85 @@
 
 import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import TrashedSurveyTable from '@/features/surveys/components/TrashedSurveyTable';
+import SurveyTrashRetentionNotice from '@/features/surveys/components/SurveyTrashRetentionNotice';
+import ConfirmTypeToDeleteModal from '@/components/ui/ConfirmTypeToDeleteModal';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
-import { getTrashedSurveys, restoreSurvey } from '@/features/surveys/services/surveys.api';
+import {
+  getTrashedSurveys,
+  getTrashRetention,
+  purgeSurvey,
+  restoreSurvey,
+} from '@/features/surveys/services/surveys.api';
 
 /**
- * Sampah survei — Admin OPD (11 September 2026).
+ * Sampah survei — Admin OPD.
  *
- * TANPA tombol Hapus Permanen, dan tanpa kolom OPD. Keduanya bukan kelalaian:
- * backend menolak `DELETE /surveys/:id/purge` bagi peran ini (403), dan seluruh
- * baris di sini milik instansi yang sama sehingga satu kolom berisi nama yang
- * berulang tak menambah apa pun.
+ * BERUBAH 30 September 2026 (permintaan pengguna): peran ini kini MEMUSNAHKAN
+ * sendiri. Sebelumnya halaman ini sengaja tanpa tombol Hapus Permanen dan
+ * menyuruh pembacanya "hubungi Admin Kabupaten" -- kalimat yang kini salah dan
+ * karena itu dibuang, bukan dibiarkan menganggur.
+ *
+ * Yang membuatnya aman bukan berkurangnya akibat, melainkan kurungan per-OPD di
+ * backend: `assertOpdAccess` membatasi jangkauan peran ini pada survei OPD-nya
+ * sendiri. Penjaganya tetap di sana; tombol di sini hanya mengikuti.
+ *
+ * TANPA kolom OPD, dan itu tetap: seluruh barisnya milik instansi yang sama,
+ * jadi satu kolom berisi nama yang berulang tak menambah apa pun.
  */
 export default function SampahSurveiOpdPage() {
   const fetchTrashed = useCallback(() => getTrashedSurveys({ limit: 100 }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchTrashed);
   const rows = response?.data ?? [];
 
+  /**
+   * Pengambilan KEDUA, sengaja dipisah. Kegagalannya tidak diperiksa di mana
+   * pun: kebijakan umur yang tak terbaca bukan alasan menyembunyikan isi
+   * Sampah, jadi keterangannya cukup absen sementara halamannya tetap bekerja.
+   */
+  const fetchRetensi = useCallback(() => getTrashRetention(), []);
+  const { data: retensi } = useAsync(fetchRetensi);
+
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [notice, setNotice] = useState(null);
+  // Baris yang sedang dikonfirmasi pemusnahannya, atau `null`.
+  const [akanDihapusPermanen, setAkanDihapusPermanen] = useState(null);
 
-  const handleRestore = async (row) => {
+  const jalankan = async (row, aksi, pesanSukses) => {
     setActionError(null);
     setNotice(null);
     setBusyId(row.id);
     try {
-      await restoreSurvey(row.id);
-      setNotice(
-        `"${row.title}" dipulihkan. Statusnya tidak berubah, jadi survei tetap tertutup sampai Anda mengaktifkannya kembali.`,
-      );
+      await aksi();
+      setNotice(pesanSukses);
+      // Daftar dimuat ulang: tanpa ini baris yang sudah dipulihkan atau
+      // dimusnahkan tetap terpampang, dan pengguna menekannya lagi.
       refetch();
     } catch (err) {
       setActionError(err.message);
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleRestore = (row) =>
+    jalankan(
+      row,
+      () => restoreSurvey(row.id),
+      `"${row.title}" dipulihkan. Statusnya tidak berubah, jadi survei tetap tertutup sampai Anda mengaktifkannya kembali.`,
+    );
+
+  const handlePurge = (row) => {
+    setAkanDihapusPermanen(null);
+    return jalankan(
+      row,
+      () => purgeSurvey(row.id),
+      `"${row.title}" dihapus permanen beserta seluruh jawabannya.`,
+    );
   };
 
   if (isLoading) {
@@ -62,8 +102,8 @@ export default function SampahSurveiOpdPage() {
         <div className="max-w-[46rem]">
           <h1 className="font-h1 text-h1 text-text-primary tracking-tight">Sampah Survei</h1>
           <p className="text-text-secondary font-body mt-2">
-            Survei yang Anda hapus disimpan di sini beserta jawabannya, dan dapat dipulihkan kapan
-            saja.
+            Survei yang Anda hapus disimpan di sini beserta jawabannya. Pulihkan kapan saja, atau
+            hapus permanen bila memang sudah tidak diperlukan.
           </p>
         </div>
         <Link
@@ -86,20 +126,33 @@ export default function SampahSurveiOpdPage() {
         </div>
       )}
 
-      {/* Disebut TERSURAT, bukan dibiarkan sebagai tombol yang hilang: pengguna
-          yang mencari cara mengosongkan Sampah perlu tahu ke mana harus
-          meminta, bukan mengira fiturnya rusak. */}
-      <div className="p-md rounded-xl bg-surface-container-low border border-border text-sm text-text-secondary flex items-start gap-sm">
-        <Info size={16} className="shrink-0 mt-0.5 text-primary" aria-hidden="true" />
-        <span>
-          Survei di Sampah tidak terhapus dengan sendirinya. Untuk menghapusnya permanen, hubungi
-          Admin Kabupaten.
-        </span>
-      </div>
+      <SurveyTrashRetentionNotice hari={retensi ? retensi.hari : undefined} />
 
       <div className="bg-surface rounded-xl shadow-lg shadow-slate-200/50 border border-slate-200 overflow-hidden">
-        <TrashedSurveyTable rows={rows} onRestore={handleRestore} busyId={busyId} />
+        <TrashedSurveyTable
+          rows={rows}
+          onRestore={handleRestore}
+          onPurge={setAkanDihapusPermanen}
+          tampilkanHapusPermanen
+          busyId={busyId}
+        />
       </div>
+
+      {/* Ketik-ulang judul, bukan satu klik: menghapus permanen jawaban responden
+          tak punya jalan kembali. Angka jawabannya disebut karena hanya halaman
+          ini yang tahu berapa yang ikut hilang. */}
+      <ConfirmTypeToDeleteModal
+        isOpen={akanDihapusPermanen != null}
+        judul="Hapus Survei Permanen"
+        deskripsi={
+          akanDihapusPermanen
+            ? `${akanDihapusPermanen.responsesCount ?? 0} jawaban responden akan ikut hilang selamanya, beserta seluruh pertanyaan dan hasil IKM survei ini. Tindakan ini tidak dapat dibatalkan.`
+            : ''
+        }
+        teksKonfirmasi={akanDihapusPermanen?.title ?? ''}
+        onConfirm={() => handlePurge(akanDihapusPermanen)}
+        onCancel={() => setAkanDihapusPermanen(null)}
+      />
     </div>
   );
 }

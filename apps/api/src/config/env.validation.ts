@@ -313,6 +313,50 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   AUDIT_RETENTION_ALLOW_SHORT?: string;
+
+  /**
+   * Umur sebuah survei di Sampah sebelum ia dimusnahkan otomatis, dalam hari
+   * (30 September 2026, permintaan pengguna: setahun).
+   *
+   * BOLEH TIDAK ADA, dan itu beda penting dari AUDIT_RETENTION_DAYS di atas:
+   * pemusnahan ini MENYALA secara baku pada 365 hari, sebab yang diminta adalah
+   * fitur yang berjalan sendiri. Env-nya untuk mengubah atau mematikan
+   * kebijakan di produksi tanpa menyebarkan ulang aplikasi.
+   *
+   * Bentuknya dijaga di sini, bukan diserahkan ke `parseInt`.
+   * `parseInt('setahun')` menghasilkan NaN; batas waktu yang dihitung darinya
+   * menjadi Invalid Date, dan setiap perbandingan terhadap Invalid Date bernilai
+   * false. Akibatnya tak ada yang termusnahkan dan tak ada pula yang memerah --
+   * fitur yang mengaku berjalan sambil diam-diam tidak melakukan apa-apa.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  SURVEY_PURGE_DAYS?: number;
+
+  /**
+   * Izin TERSURAT untuk umur Sampah di bawah `PEMUSNAHAN_MINIMUM_HARI`
+   * (SurveiPemusnahanService). Palangnya ada sebab satu digit hilang mengubah
+   * 365 menjadi 36, dan Sampah adalah tempat orang menaruh sesuatu justru
+   * karena belum yakin hendak membuangnya.
+   */
+  @IsOptional()
+  @IsString()
+  SURVEY_PURGE_ALLOW_SHORT?: string;
+
+  /**
+   * Saklar mati pemusnahan otomatis survei. Hanya `'false'` yang mematikan;
+   * tidak ada sama sekali berarti MENYALA.
+   *
+   * Ada sebagai knop tersendiri, bukan sebagai nilai istimewa pada
+   * `SURVEY_PURGE_DAYS`, sebab angka hari itu sudah ber-`@Min(1)` justru
+   * karena 0 berbahaya. Membebani angka yang sama dengan makna kedua
+   * ("0 = jangan jalan") membuat palang dan saklar saling bertabrakan di satu
+   * nilai, dan yang kalah adalah palangnya.
+   */
+  @IsOptional()
+  @IsString()
+  SURVEY_PURGE_ENABLED?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

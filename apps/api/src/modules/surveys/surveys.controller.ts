@@ -11,7 +11,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,13 +24,17 @@ import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
+import { SurveiPemusnahanService } from './survei-pemusnahan.service';
 import { SurveysService } from './surveys.service';
 
 @ApiTags('surveys')
 @ApiBearerAuth()
 @Controller('surveys')
 export class SurveysController {
-  constructor(private readonly surveysService: SurveysService) {}
+  constructor(
+    private readonly surveysService: SurveysService,
+    private readonly pemusnahanService: SurveiPemusnahanService,
+  ) {}
 
   /** Daftar survei (Kabupaten: semua; Admin OPD: milik OPD-nya). */
   @Get()
@@ -77,6 +81,21 @@ export class SurveysController {
     @CurrentUser() user: CurrentUser,
   ): Promise<PaginatedResult<TrashedSurveyEntity>> {
     return this.surveysService.findTrashed(query, user);
+  }
+
+  /**
+   * Umur Sampah yang berlaku, dalam hari (`null` = pemusnahan otomatis
+   * dimatikan). Dipajang di halaman Sampah kedua peran.
+   *
+   * Dibuka untuk `opd` juga, dan itu perlu: sejak 30 September 2026 Admin OPD
+   * memusnahkan sendiri isi Sampah-nya, jadi ia berhak tahu kebijakan yang
+   * akan menghabisinya lebih dulu.
+   */
+  @Get('trash/retensi')
+  @Roles(Role.kabupaten, Role.opd)
+  @ApiOperation({ summary: 'Umur Sampah survei dalam hari (null = tanpa pemusnahan otomatis)' })
+  retensiSampah(): { hari: number | null } {
+    return { hari: this.pemusnahanService.hariPemusnahan() };
   }
 
   /** Detail survei. */
@@ -129,11 +148,22 @@ export class SurveysController {
   }
 
   /**
-   * Musnahkan permanen dari Sampah. TANPA Role.opd, dan itu keputusan tersurat:
-   * tindakan ini tak dapat dibatalkan dan ikut membawa jawaban responden.
+   * Musnahkan permanen dari Sampah.
+   *
+   * DIBUKA UNTUK Role.opd (30 September 2026, permintaan pengguna). Sebelumnya
+   * peran ini sengaja dikecualikan sebab tindakannya tak dapat dibatalkan dan
+   * ikut membawa jawaban responden. Yang membuat pelebaran ini aman bukan
+   * berkurangnya akibat -- akibatnya sama persis -- melainkan bahwa
+   * `getTrashedOrThrow` memanggil `assertOpdAccess`, sehingga Admin OPD hanya
+   * dapat menjangkau survei OPD-nya sendiri. Ia memusnahkan hasil pengukuran
+   * yang memang menjadi tanggung jawabnya.
+   *
+   * Kurungan itulah yang harus tetap dijaga. Uji `Admin OPD TETAP ditolak
+   * memusnahkan survei OPD LAIN` di surveys-trash.e2e-spec.ts ada untuk itu,
+   * dan ia lebih penting daripada uji jalur bahagianya.
    */
   @Delete(':id/purge')
-  @Roles(Role.kabupaten)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'purge')
   @HttpCode(HttpStatus.OK)
   purge(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
