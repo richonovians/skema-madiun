@@ -1,20 +1,20 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import UsersRoleFilter from '@/features/users/components/UsersRoleFilter';
 import UsersTable from '@/features/users/components/UsersTable';
-import { Plus, Search, X } from 'lucide-react';
-import Button from '@/components/ui/Button';
+import { Search, X } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 import {
   getUsers,
   getUserStats,
+  updateUser,
   updateUserStatus,
   deleteUser,
 } from '@/features/users/services/users.api';
@@ -52,17 +52,50 @@ const CONFIRM_COPY = {
     confirmLabel: 'Ya, Hapus Akun',
     tone: 'danger',
   },
+  /**
+   * Pintasan menaikkan ASN menjadi Admin OPD (30 September 2026).
+   *
+   * INSTANSINYA DISEBUT, bukan cuma nama orangnya: yang diserahkan di sini
+   * adalah kuasa atas data satu instansi, dan yang menekan harus melihat
+   * instansi mana itu sebelum menekan -- bukan sesudahnya.
+   */
+  'promote-opd': {
+    title: 'Jadikan Admin OPD?',
+    description: (user) =>
+      `"${user.name}" akan dapat mengelola survei, pertanyaan, respons, dan pengaduan milik ` +
+      `${user.organization ?? 'instansi yang tertaut di akunnya'}. Perannya sebagai warga tetap dipertahankan.`,
+    confirmLabel: 'Ya, Jadikan Admin OPD',
+    tone: 'primary',
+  },
 };
 
+/**
+ * Peran sesudah dinaikkan menjadi Admin OPD.
+ *
+ * `responden` IKUT ditambahkan bila belum ada, sama seperti halaman Ubah Role
+ * (21 September 2026): mencentang salah satu peran administrator di sana
+ * otomatis mencentang Responden juga. Dua jalan menuju hasil yang sama harus
+ * menghasilkan hal yang sama -- kalau tidak, pintasan ini justru mengubah akun
+ * secara berbeda dari cara panjangnya, dan bedanya tak akan terlihat siapa pun.
+ *
+ * `opdId` TIDAK disertakan: ia milik Helpdesk, dan `UpdateUserDto` menolaknya
+ * 400. Penyaringnya ada di `toUpdateUserPayload`, jadi di sini cukup tak
+ * mengirimkannya.
+ */
+function rolesSetelahNaik(user) {
+  return Array.from(
+    new Set([...(user.roles ?? []), USER_ROLES.ADMIN_OPD, USER_ROLES.RESPONDENT]),
+  );
+}
+
 export default function ManajemenUsersPage() {
-  const router = useRouter();
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [actionError, setActionError] = useState(null);
-  // `confirmAction` = { type: 'deactivate'|'activate'|'delete', user } saat
-  // dialog terbuka. `busyUserId` mengunci dialognya selagi permintaan berjalan
-  // supaya klik ganda tak mengirim dua permintaan.
+  // `confirmAction` = { type: 'deactivate'|'activate'|'delete'|'promote-opd', user }
+  // saat dialog terbuka. `busyUserId` mengunci dialognya selagi permintaan
+  // berjalan supaya klik ganda tak mengirim dua permintaan.
   const [confirmAction, setConfirmAction] = useState(null);
   const [busyUserId, setBusyUserId] = useState(null);
 
@@ -114,6 +147,8 @@ export default function ManajemenUsersPage() {
     try {
       if (type === 'delete') {
         await deleteUser(user.id);
+      } else if (type === 'promote-opd') {
+        await updateUser(user.id, { roles: rolesSetelahNaik(user) });
       } else {
         await updateUserStatus(user.id, type === 'activate');
       }
@@ -165,35 +200,31 @@ export default function ManajemenUsersPage() {
         </div>
       </div>
 
-      {/* Filter role + tombol buat akun */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-lg gap-4">
-        {/* TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
-            Penyaring di halaman ini berupa tab peran yang salah satunya selalu
-            aktif dan "Semua Pengguna" ada di paling kiri, jadi menetralkannya
-            sudah satu ketukan; tombol reset hanya menduplikasi tab itu. */}
+      {/* Filter role.
+          TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
+          Penyaring di halaman ini berupa tab peran yang salah satunya selalu
+          aktif dan "Semua Pengguna" ada di paling kiri, jadi menetralkannya
+          sudah satu ketukan; tombol reset hanya menduplikasi tab itu.
+
+          TANPA tombol "Buat Akun Admin Baru" -- diminta pengguna, 30 September
+          2026. Rute /admin-kab/users/create SENGAJA dibiarkan hidup: yang
+          diminta hanya membuang tombolnya, dan membongkar halamannya adalah
+          perubahan yang berbeda. */}
+      <div className="mb-lg">
         <UsersRoleFilter
           activeRoleFilter={activeRoleFilter}
           setActiveRoleFilter={handleRoleFilterChange}
         />
-        <Button
-          variant="primary-box"
-          // `shrink-0` + `whitespace-nowrap`: sebagai flex item tombol ini
-          // menyusut secara baku sampai labelnya terbelah empat baris.
-          className="shadow-md px-6 py-3 w-full xl:w-auto xl:shrink-0 whitespace-nowrap"
-          onClick={() => router.push('/admin-kab/users/create')}
-        >
-          <Plus size={20} />
-          <span>Buat Akun Admin Baru</span>
-        </Button>
       </div>
 
-      {/* BARIS SENDIRI, bukan anak baris tab+tombol di atas. Ketiganya bersama
-          melebihi lebar layar 1440px sekalipun (tab ~700px + strip ~290px +
-          tombol ~250px), jadi satu di antaranya PASTI mengalah: sebelum ini
-          stripnya yang digencet sampai kalimatnya terbelah dua baris, dan
-          begitu ia dibuat tak menyusut, tombol "Buat Akun Admin Baru" yang
-          terlempar ke baris kedua. Diberi barisnya sendiri, tak ada yang
-          mengalah -- dan letaknya sama dengan pada kedua dashboard. */}
+      {/* BARIS SENDIRI, bukan anak baris tab di atas. Ketika tombol "Buat Akun
+          Admin Baru" masih ada, ketiganya bersama melebihi lebar layar 1440px
+          sekalipun dan salah satu PASTI mengalah: stripnya digencet sampai
+          kalimatnya terbelah dua baris, lalu begitu ia dibuat tak menyusut,
+          tombolnya yang terlempar ke baris kedua. Tombol itu kini tiada, tapi
+          barisnya tetap dipisah -- letak inilah yang sama dengan pada kedua
+          dashboard, dan menyatukannya kembali hanya membuat halaman ini
+          berbeda dari keduanya. */}
       <div className="mb-lg">
         <ActiveAccountsInfo
           activeCount={stats?.activeUsers ?? null}
