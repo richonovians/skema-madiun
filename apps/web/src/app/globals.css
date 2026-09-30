@@ -271,6 +271,13 @@
      nyaris tak terlihat. */
   --tinggi-navbar-kab: 110px;
 
+  /* Lebar sidebar admin, dipakai BuilderLayout untuk menentukan tepi kiri
+     lapisan layar-penuhnya (30 September 2026). Nilai di sini yang berlaku
+     sebelum JS jalan dan di luar area admin; AdminSidebar & AdminKabSidebar
+     menimpanya lewat inline style pada :root, yang mengalahkan aturan ini.
+     16rem sepadan dengan md:w-64 -- keadaan mengembang, yakni bakunya. */
+  --lebar-sidebar: 16rem;
+
   /* Padanannya untuk Admin OPD (1 September 2026). Bilah itu kini dua baris di
      ponsel -- identitas di atas, penyaring triwulan di bawah -- supaya nama
      OPD tak lagi tergerus jadi satu huruf. Karena tingginya jadi berubah

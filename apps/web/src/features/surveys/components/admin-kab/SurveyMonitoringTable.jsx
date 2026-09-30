@@ -1,6 +1,8 @@
-import React from 'react';
-import Link from 'next/link';
+'use client';
+
+import React, { useState } from 'react';
 import Badge from '@/components/ui/Badge';
+import RowActionsMenu from '@/components/ui/RowActionsMenu';
 import {
   Eye,
   FileEdit,
@@ -11,8 +13,9 @@ import {
   Trash2,
   ClipboardList,
   Copy,
+  Share2,
 } from 'lucide-react';
-import ShareSurveyButton from '@/features/surveys/components/ShareSurveyButton';
+import ShareSurveyModal from '@/features/surveys/components/ShareSurveyModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 const STATUS_VARIANT = {
@@ -27,13 +30,14 @@ const STATUS_LABEL = {
   DRAF: 'Draf',
 };
 
-// `h-[32px]` -> `min-h-[44px]` (21 September 2026). Delapan aksi per baris,
-// semuanya 32px, dan barisnya digulir mendatar di ponsel -- kombinasi yang
-// membuat "Hapus" bersebelahan dengan "Tutup" pada sasaran yang lebih kecil
-// daripada ujung jari. Tinggi minimum, bukan tetap, supaya baris yang labelnya
-// membungkus tak terpotong.
-const ACTION_CLASS =
-  'whitespace-nowrap px-2.5 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors min-h-[44px] flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed';
+/**
+ * Ukuran ikon di dalam butir menu. Seragam dengan Manajemen User, supaya kedua
+ * menu di aplikasi ini terbaca sebagai benda yang sama.
+ */
+const IKON = 14;
+
+/** Alasan "Ubah" mati; dipajang sebagai teks, bukan tooltip `title`. */
+const ALASAN_DITUTUP = 'Survei yang sudah ditutup tidak dapat diubah. Aktifkan kembali lebih dulu.';
 
 /**
  * Tabel survei lintas OPD untuk Admin Kabupaten, lengkap dengan aksi CRUD.
@@ -76,6 +80,15 @@ export default function SurveyMonitoringTable({
   onDuplicate,
   busySurveyId = null,
 }) {
+  /**
+   * Modal "Bagikan" DIANGKAT KE SINI (30 September 2026). Dulu ia tinggal di
+   * dalam `ShareSurveyButton`, yang membawa tombolnya sendiri -- dan butir menu
+   * tak bisa membawa tombol. Yang berpindah hanya kepemilikan state-nya;
+   * modalnya sendiri tak disentuh, dan Admin OPD tetap memakai
+   * `ShareSurveyButton` seperti semula.
+   */
+  const [surveiDibagikan, setSurveiDibagikan] = useState(null);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -144,124 +157,113 @@ export default function SurveyMonitoringTable({
                   </td>
 
                   <td className="px-lg py-lg">
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-[230px]">
-                      <Link href={`/admin-kab/surveys/${survey.id}`} className={ACTION_CLASS}>
-                        <Eye size={12} />
-                        Detail
-                      </Link>
-
-                      {/* Komponen yang sama dipakai kartu survei Admin OPD --
-                          satu implementasi QR/tautan untuk kedua area.
-
-                          Hanya pada survei AKTIF (permintaan pengguna 22
-                          September 2026). Draf dan yang sudah ditutup
-                          disembunyikan: tautannya tak menerima jawaban, jadi
-                          membagikannya hanya menyesatkan penerimanya. Aturan
-                          yang sama dipagari di AdminSurveyCardActions.jsx. */}
-                      {survey.status === 'AKTIF' && (
-                        <ShareSurveyButton survey={survey} className={ACTION_CLASS} iconSize={12} />
-                      )}
-
-                      {/* "Respons" hanya untuk survei terbit: draf belum pernah
-                          dibuka utk diisi, jadi tautannya pasti mendarat di tabel
-                          kosong. Ditambahkan 2026-08-19 -- sebelumnya Admin
-                          Kabupaten tak punya jalan APA PUN ke respons per pengisi
-                          (rutenya cuma ada di /admin-opd/**, sehingga URL sepadan
-                          di area ini 404). */}
-                      {!isDraft && (
-                        <Link
-                          href={`/admin-kab/surveys/${survey.id}/responses`}
-                          className={ACTION_CLASS}
-                        >
-                          <ClipboardList size={12} />
-                          Respons
-                        </Link>
-                      )}
-
-                      {/* "Pertanyaan" & "Ubah" tak lagi khusus draf (11
-                          September 2026). Yang terkunci begitu ada jawaban
-                          adalah SUSUNAN pertanyaan, dan penjaganya di backend
-                          (assertSurveyEditable) -- bukan hilangnya tombol ini,
-                          yang justru menyembunyikan perbaikan teks pertanyaan
-                          yang masih sah. Survei DITUTUP terkunci seluruhnya
-                          karena hasil IKM-nya sudah terbit. */}
-                      {!isClosed && (
-                        <Link href={`/admin-kab/surveys/builder/${survey.id}`} className={ACTION_CLASS}>
-                          <FileEdit size={12} />
-                          Pertanyaan
-                        </Link>
-                      )}
-
-                      <button
-                        onClick={() => onEdit?.(survey)}
-                        disabled={isBusy || isClosed}
-                        title={
-                          isClosed
-                            ? 'Survei yang sudah ditutup tidak dapat diubah. Aktifkan kembali lebih dulu.'
-                            : undefined
-                        }
-                        className={ACTION_CLASS}
-                      >
-                        <Pencil size={12} />
-                        Ubah
-                      </button>
-
-                      {/* TANPA syarat status (8 September 2026), dan itu bukan
-                          kelalaian: `surveysService.duplicate` tidak memanggil
-                          `assertDraft`, jadi survei aktif maupun yang sudah
-                          ditutup boleh disalin. Salinannya selalu draf baru,
-                          sehingga aslinya tak tersentuh sama sekali. */}
-                      <button
-                        onClick={() => onDuplicate?.(survey)}
-                        disabled={isBusy}
-                        className={ACTION_CLASS}
-                      >
-                        <Copy size={12} />
-                        Salin
-                      </button>
-
-                      {isDraft && (
-                        <button onClick={() => onPublish?.(survey)} disabled={isBusy} className={ACTION_CLASS}>
-                          <UploadCloud size={12} />
-                          Publikasikan
-                        </button>
-                      )}
-
-                      {(isDraft || isActive) && (
-                        <button onClick={() => onClose?.(survey)} disabled={isBusy} className={ACTION_CLASS}>
-                          <Lock size={12} />
-                          Tutup
-                        </button>
-                      )}
-
-                      {/* DITUTUP -> AKTIF. Ditonjolkan (bukan gaya netral seperti
-                          aksi lain) karena ini satu-satunya aksi yang membuat
-                          baris berstatus ditutup kembali bisa diisi responden. */}
-                      {isClosed && (
-                        <button
-                          onClick={() => onReopen?.(survey)}
-                          disabled={isBusy}
-                          className={`${ACTION_CLASS} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
-                        >
-                          <Unlock size={12} />
-                          Aktifkan
-                        </button>
-                      )}
-
-                      {/* Semua status boleh dibuang -- keputusan pengguna 11
-                          September 2026. Bukan lagi penghapusan permanen:
-                          barisnya pindah ke Sampah dan dapat dipulihkan.
-                          Survei aktif ditutup lebih dulu oleh backend supaya
-                          tautan & QR yang beredar berhenti menerima jawaban. */}
-                      <button
-                        onClick={() => onDelete?.(survey)}
-                        disabled={isBusy}
-                        className={`${ACTION_CLASS} text-error hover:bg-error-container`}
-                      >
-                        <Trash2 size={12} />
-                        Hapus
-                      </button>
-                    </div>
+                    {/* SATU tombol, bukan sepuluh. Aturan statusnya tidak
+                        bergeser sedikit pun dari versi tombol lepas -- yang
+                        berubah hanya wadahnya. Entri `false` dibuang
+                        RowActionsMenu sendiri, jadi syaratnya boleh ditulis
+                        sebaris tanpa penjaga tambahan. */}
+                    <RowActionsMenu
+                      label={`Aksi untuk ${survey.title}`}
+                      items={[
+                        {
+                          key: 'detail',
+                          label: 'Detail',
+                          icon: <Eye size={IKON} />,
+                          href: `/admin-kab/surveys/${survey.id}`,
+                        },
+                        /* Hanya pada survei AKTIF (permintaan pengguna 22
+                           September 2026): tautan draf dan survei tertutup tak
+                           menerima jawaban, jadi membagikannya hanya
+                           menyesatkan penerimanya. Aturan yang sama dipagari di
+                           AdminSurveyCardActions.jsx. */
+                        isActive && {
+                          key: 'bagikan',
+                          label: 'Bagikan',
+                          icon: <Share2 size={IKON} />,
+                          onSelect: () => setSurveiDibagikan(survey),
+                        },
+                        /* Draf belum pernah dibuka untuk diisi, jadi tautannya
+                           pasti mendarat di tabel kosong. */
+                        !isDraft && {
+                          key: 'respons',
+                          label: 'Respons',
+                          icon: <ClipboardList size={IKON} />,
+                          href: `/admin-kab/surveys/${survey.id}/responses`,
+                        },
+                        /* Survei DITUTUP terkunci seluruhnya karena hasil
+                           IKM-nya sudah terbit. Yang terkunci begitu ada jawaban
+                           adalah SUSUNAN pertanyaan, dan penjaganya di backend
+                           (assertSurveyEditable) -- bukan hilangnya butir ini,
+                           yang justru menyembunyikan perbaikan teks pertanyaan
+                           yang masih sah. */
+                        !isClosed && {
+                          key: 'pertanyaan',
+                          label: 'Pertanyaan',
+                          icon: <FileEdit size={IKON} />,
+                          href: `/admin-kab/surveys/builder/${survey.id}`,
+                        },
+                        {
+                          key: 'ubah',
+                          label: 'Ubah',
+                          icon: <Pencil size={IKON} />,
+                          onSelect: () => onEdit?.(survey),
+                          disabled: isBusy || isClosed,
+                          /* ALASANNYA TERBACA. Dulu ini atribut `title` --
+                             tooltip yang tak pernah muncul pada sentuh dan tak
+                             dibacakan pembaca layar, sehingga butir yang mati
+                             tampak rusak begitu saja. */
+                          keterangan: isClosed ? ALASAN_DITUTUP : undefined,
+                        },
+                        /* TANPA syarat status (8 September 2026):
+                           `surveysService.duplicate` tidak memanggil
+                           `assertDraft`, jadi survei aktif maupun yang sudah
+                           ditutup boleh disalin. Salinannya selalu draf baru,
+                           sehingga aslinya tak tersentuh. */
+                        {
+                          key: 'salin',
+                          label: 'Salin',
+                          icon: <Copy size={IKON} />,
+                          onSelect: () => onDuplicate?.(survey),
+                          disabled: isBusy,
+                        },
+                        isDraft && {
+                          key: 'publikasikan',
+                          label: 'Publikasikan',
+                          icon: <UploadCloud size={IKON} />,
+                          onSelect: () => onPublish?.(survey),
+                          disabled: isBusy,
+                        },
+                        (isDraft || isActive) && {
+                          key: 'tutup',
+                          label: 'Tutup',
+                          icon: <Lock size={IKON} />,
+                          onSelect: () => onClose?.(survey),
+                          disabled: isBusy,
+                        },
+                        /* DITUTUP -> AKTIF, satu-satunya aksi yang membuat baris
+                           berstatus ditutup kembali bisa diisi responden. */
+                        isClosed && {
+                          key: 'aktifkan',
+                          label: 'Aktifkan',
+                          icon: <Unlock size={IKON} />,
+                          onSelect: () => onReopen?.(survey),
+                          disabled: isBusy,
+                        },
+                        /* Semua status boleh dibuang -- keputusan pengguna 11
+                           September 2026. Bukan penghapusan permanen: barisnya
+                           pindah ke Sampah dan dapat dipulihkan. Dipisah garis
+                           supaya tak bersebelahan dengan aksi sehari-hari. */
+                        {
+                          key: 'hapus',
+                          label: 'Hapus',
+                          icon: <Trash2 size={IKON} />,
+                          onSelect: () => onDelete?.(survey),
+                          disabled: isBusy,
+                          tone: 'danger',
+                          pemisahSebelum: true,
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               );
@@ -269,6 +271,17 @@ export default function SurveyMonitoringTable({
           )}
         </tbody>
       </table>
+
+      {/* SATU modal untuk seluruh tabel, bukan satu per baris. Isinya tak
+          memanggil API sama sekali -- seluruhnya diturunkan dari `survey` --
+          jadi merendernya hanya saat ada yang dipilih tak menunda apa pun. */}
+      {surveiDibagikan && (
+        <ShareSurveyModal
+          survey={surveiDibagikan}
+          namaInstansi={surveiDibagikan.opdName ?? ''}
+          onClose={() => setSurveiDibagikan(null)}
+        />
+      )}
     </div>
   );
 }

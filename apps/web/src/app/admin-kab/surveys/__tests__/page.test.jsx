@@ -59,12 +59,22 @@ beforeEach(() => {
   deleteSurvey.mockResolvedValue(undefined);
 });
 
+/**
+ * Aksi baris pindah ke MENU TITIK-TIGA (30 September 2026), jadi menekannya
+ * kini dua langkah. Dibungkus di sini supaya uji di bawah tetap berbicara
+ * tentang gerbang konfirmasinya, bukan tentang cara membuka menu.
+ */
+function pilihAksi(nama) {
+  fireEvent.click(screen.getByRole('button', { name: /aksi untuk/i }));
+  fireEvent.click(screen.getByRole('menuitem', { name: nama }));
+}
+
 describe('AdminKabSurveysPage — gerbang Salin', () => {
   it('Salin ditahan di dialog dan menyebut nama OPD-nya', async () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
 
     expect(screen.getByText('Salin survei ini?')).toBeInTheDocument();
     expect(
@@ -77,7 +87,7 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
     fireEvent.click(screen.getByRole('button', { name: /ya, salin/i }));
 
     await waitFor(() => expect(duplicateSurvey).toHaveBeenCalledWith('1'));
@@ -87,7 +97,7 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
     fireEvent.click(screen.getByRole('button', { name: /^batal$/i }));
 
     expect(duplicateSurvey).not.toHaveBeenCalled();
@@ -101,7 +111,7 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     await screen.findByText('Survei Layanan Adminduk');
     expect(getSurveys).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
     fireEvent.click(screen.getByRole('button', { name: /ya, salin/i }));
 
     await waitFor(() => expect(getSurveys).toHaveBeenCalledTimes(2));
@@ -122,7 +132,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
 
     expect(await screen.findByText(/ditutup lebih dulu/i)).toBeInTheDocument();
     expect(screen.getByText(/dipulihkan/i)).toBeInTheDocument();
@@ -134,7 +144,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
 
     expect(await screen.findByText(/142 jawaban/i)).toBeInTheDocument();
   });
@@ -146,7 +156,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
 
     expect(await screen.findByText(/dipulihkan/i)).toBeInTheDocument();
     expect(screen.queryByText(/ditutup lebih dulu/i)).not.toBeInTheDocument();
@@ -157,7 +167,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
     fireEvent.click(screen.getByRole('button', { name: /ya, pindahkan/i }));
 
     await waitFor(() => expect(deleteSurvey).toHaveBeenCalledWith('1'));
