@@ -45,25 +45,11 @@ const ROLE_TO_BACKEND = {
   RESPONDENT: 'responden',
 };
 
-/**
- * Terjemahkan payload form buat-akun (bentuk komponen, lihat
- * app/admin-kab/users/create/page.jsx) -> CreateUserDto backend.
- *
- * CATATAN GAP: form mengumpulkan `phone` & `isActive`, TAPI backend
- * (CreateUserDto) tidak punya field ini sama sekali -- sengaja TIDAK
- * dikirim di sini, bukan lupa. `isActive` khususnya: akun baru SELALU aktif
- * di backend (UsersService.create hardcode isActive:true); kalau perlu
- * nonaktif sejak awal, panggil updateUserStatus terpisah setelah create.
- * `phone` murni tak punya tempat di skema User sama sekali.
+/*
+ * TANPA `toCreateUserPayload`. Halamannya dibuang 30 September 2026, jadi tak
+ * ada lagi form buat-akun yang payloadnya perlu diterjemahkan. `ROLE_TO_BACKEND`
+ * di atas TETAP dipakai `toUpdateUserPayload` di bawah.
  */
-export function toCreateUserPayload({ fullName, email, roles, opdId }) {
-  return {
-    nama: fullName,
-    email,
-    roles: (roles ?? []).map((r) => ROLE_TO_BACKEND[r] ?? r),
-    opdId: opdId ? Number(opdId) : undefined,
-  };
-}
 
 /**
  * Terjemahkan payload edit akun -> UpdateUserDto backend — HANYA `roles`.

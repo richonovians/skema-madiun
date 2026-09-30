@@ -207,9 +207,9 @@ export default function ManajemenUsersPage() {
           sudah satu ketukan; tombol reset hanya menduplikasi tab itu.
 
           TANPA tombol "Buat Akun Admin Baru" -- diminta pengguna, 30 September
-          2026. Rute /admin-kab/users/create SENGAJA dibiarkan hidup: yang
-          diminta hanya membuang tombolnya, dan membongkar halamannya adalah
-          perubahan yang berbeda. */}
+          2026. Halaman /admin-kab/users/create IKUT DIBUANG pada tanggal yang
+          sama, jadi tak ada lagi jalan membuat akun admin dari antarmuka:
+          akun lahir dari SSO Helpdesk, lalu perannya diatur di halaman ini. */}
       <div className="mb-lg">
         <UsersRoleFilter
           activeRoleFilter={activeRoleFilter}

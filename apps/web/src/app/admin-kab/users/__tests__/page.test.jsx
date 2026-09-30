@@ -206,8 +206,8 @@ describe('ManajemenUsersPage — jadikan Admin OPD', () => {
 
 describe('ManajemenUsersPage — tombol Buat Akun Admin Baru dibuang', () => {
   it('tak ada tombol maupun tautan membuat akun di halaman ini', async () => {
-    // Diminta pengguna 30 September 2026. Rute /admin-kab/users/create sengaja
-    // dibiarkan hidup; yang dibuang hanya jalan masuk dari halaman ini.
+    // Diminta pengguna 30 September 2026. Halamannya sendiri ikut dibuang,
+    // jadi tombol ini tak punya tujuan lagi -- akun lahir dari SSO Helpdesk.
     render(<ManajemenUsersPage />);
     await screen.findByText('Budi Santoso');
 
