@@ -67,9 +67,26 @@ export async function restoreSurvey(surveyId) {
   return adaptSurvey(response.data);
 }
 
-/** Hapus permanen. Hanya Admin Kabupaten; backend menolak peran lain 403. */
+/**
+ * Hapus permanen. Admin Kabupaten maupun Admin OPD (30 September 2026); yang
+ * terakhir hanya untuk survei OPD-nya sendiri, dan backend yang menegakkannya.
+ */
 export async function purgeSurvey(surveyId) {
   await api.delete(`/surveys/${surveyId}/purge`);
+}
+
+/**
+ * Umur Sampah yang berlaku dalam hari; `hari: null` berarti pemusnahan
+ * otomatis dimatikan.
+ *
+ * Dibaca dari server, BUKAN ditulis mati di frontend: keterangan di halaman
+ * Sampah harus selalu sama dengan SURVEY_PURGE_DAYS yang benar-benar berlaku.
+ *
+ * @returns {Promise<{ hari: number | null }>}
+ */
+export async function getTrashRetention() {
+  const response = await api.get('/surveys/trash/retensi');
+  return response.data;
 }
 
 /** @param {string} status Nilai frontend ('AKTIF'/'DRAF'/'DITUTUP'). */

@@ -138,3 +138,56 @@ describe('validateEnv — AUDIT_RETENTION_DAYS', () => {
     expect(() => validateEnv({ ...dasar })).not.toThrow();
   });
 });
+
+/**
+ * PEMUSNAHAN OTOMATIS SURVEI DI SAMPAH (30 September 2026).
+ *
+ * Bedanya dari AUDIT_RETENTION_DAYS penting dan disengaja: yang ini MENYALA
+ * secara baku pada 365 hari, sebab pengguna memintanya berjalan otomatis. Maka
+ * env-nya boleh tidak ada, dan configuration.ts yang mengisi bakunya.
+ *
+ * Yang dijaga di sini tetap BENTUK-nya. `parseInt('setahun')` menghasilkan NaN,
+ * dan NaN yang lolos ke penjadwal membuat batas waktunya menjadi Invalid Date --
+ * perbandingan apa pun terhadapnya bernilai false, jadi tak ada yang termusnahkan
+ * dan tak ada pula yang memerah. Kegagalan sunyi persis seperti itulah yang
+ * gerbang ini cegah.
+ */
+describe('validateEnv — SURVEY_PURGE_DAYS', () => {
+  it('boleh TIDAK ADA: bakunya 365 hari, diisi configuration.ts', () => {
+    expect(() => validateEnv({ ...dasar })).not.toThrow();
+  });
+
+  it('menerima angka hari yang wajar', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_DAYS: '365' })).not.toThrow();
+  });
+
+  it('MENOLAK nol — nol berarti mengosongkan Sampah setiap malam', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_DAYS: '0' })).toThrow(/SURVEY_PURGE_DAYS/);
+  });
+
+  it('MENOLAK nilai negatif', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_DAYS: '-30' })).toThrow(/SURVEY_PURGE_DAYS/);
+  });
+
+  it('MENOLAK yang bukan bilangan bulat, bukan membiarkannya menjadi NaN', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_DAYS: 'setahun' })).toThrow(
+      /SURVEY_PURGE_DAYS/,
+    );
+  });
+
+  it('MENOLAK pecahan: setengah hari bukan satuan umur Sampah', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_DAYS: '365.5' })).toThrow(
+      /SURVEY_PURGE_DAYS/,
+    );
+  });
+
+  it('SURVEY_PURGE_ALLOW_SHORT opsional dan berupa teks', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_ALLOW_SHORT: 'true' })).not.toThrow();
+    expect(() => validateEnv({ ...dasar })).not.toThrow();
+  });
+
+  it('SURVEY_PURGE_ENABLED opsional dan berupa teks', () => {
+    expect(() => validateEnv({ ...dasar, SURVEY_PURGE_ENABLED: 'false' })).not.toThrow();
+    expect(() => validateEnv({ ...dasar })).not.toThrow();
+  });
+});

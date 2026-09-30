@@ -468,6 +468,11 @@ export const handlers = [
     ),
   ),
 
+  // SEBELUM pola `:id`, sama seperti deklarasinya di controller: MSW juga
+  // mencocokkan menurut urutan pendaftaran, jadi pola ber-parameter yang
+  // lebih dulu akan menelan rute literal ini.
+  http.get(`${API_BASE}/surveys/trash/retensi`, () => ok({ hari: 365 }, '/surveys/trash/retensi')),
+
   http.post(`${API_BASE}/surveys/:id/restore`, ({ params }) =>
     ok(surveyFixture({ id: Number(params.id) }), `/surveys/${params.id}/restore`),
   ),

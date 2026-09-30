@@ -4,12 +4,14 @@ import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import TrashedSurveyTable from '@/features/surveys/components/TrashedSurveyTable';
+import SurveyTrashRetentionNotice from '@/features/surveys/components/SurveyTrashRetentionNotice';
 import ConfirmTypeToDeleteModal from '@/components/ui/ConfirmTypeToDeleteModal';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getTrashedSurveys,
+  getTrashRetention,
   restoreSurvey,
   purgeSurvey,
 } from '@/features/surveys/services/surveys.api';
@@ -17,15 +19,26 @@ import {
 /**
  * Sampah survei — Admin Kabupaten (11 September 2026).
  *
- * Peran inilah satu-satunya yang boleh MEMUSNAHKAN, dan itu keputusan yang
- * disengaja: tindakannya tak dapat dibatalkan dan ikut membawa jawaban
- * responden. Penjaganya tetap di backend (`@Roles` pada DELETE
- * /surveys/:id/purge); tombol di sini hanya mengikuti.
+ * BUKAN LAGI satu-satunya peran yang boleh MEMUSNAHKAN: sejak 30 September
+ * 2026 Admin OPD memusnahkan isi Sampah-nya sendiri. Penjaganya tetap di
+ * backend (`@Roles` pada DELETE /surveys/:id/purge, ditambah kurungan per-OPD
+ * di `assertOpdAccess`); tombol di sini hanya mengikuti.
+ *
+ * Bedanya dengan halaman OPD kini tinggal kolom OPD, yang di sana tak ada sebab
+ * seluruh barisnya milik satu instansi.
  */
 export default function SampahSurveiKabPage() {
   const fetchTrashed = useCallback(() => getTrashedSurveys({ limit: 100 }), []);
   const { data: response, isLoading, error, refetch } = useAsync(fetchTrashed);
   const rows = response?.data ?? [];
+
+  /**
+   * Pengambilan KEDUA, sengaja dipisah. Kegagalannya tidak diperiksa di mana
+   * pun: kebijakan umur yang tak terbaca bukan alasan menyembunyikan isi
+   * Sampah, jadi keterangannya cukup absen sementara halamannya tetap bekerja.
+   */
+  const fetchRetensi = useCallback(() => getTrashRetention(), []);
+  const { data: retensi } = useAsync(fetchRetensi);
 
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -109,6 +122,8 @@ export default function SampahSurveiKabPage() {
           {actionError}
         </div>
       )}
+
+      <SurveyTrashRetentionNotice hari={retensi ? retensi.hari : undefined} />
 
       <div className="bg-surface rounded-xl shadow-lg shadow-slate-200/50 border border-slate-200 overflow-hidden">
         <TrashedSurveyTable

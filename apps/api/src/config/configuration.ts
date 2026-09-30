@@ -90,6 +90,26 @@ export default () => ({
     // kelonggaran yang diam-diam berlaku.
     retentionAllowShort: process.env.AUDIT_RETENTION_ALLOW_SHORT === 'true',
   },
+  survey: {
+    // PEMUSNAHAN OTOMATIS SURVEI DI SAMPAH (30 September 2026, permintaan
+    // pengguna: setahun). Beda tajam dari `audit.retentionDays` di atas yang
+    // baku MATI: yang ini baku MENYALA pada 365 hari, sebab yang diminta
+    // memang fitur yang berjalan sendiri tanpa harus disetel lebih dulu.
+    //
+    // BENTUK nilainya sudah dijaga env.validation.ts (bilangan bulat >= 1),
+    // jadi di sini cukup membedakan "ada" dari "tidak ada" lalu mengisi
+    // bakunya. Pembagian tugas yang sama dipakai blok audit di atas.
+    purgeDays: process.env.SURVEY_PURGE_DAYS ? parseInt(process.env.SURVEY_PURGE_DAYS, 10) : 365,
+    // Sakelar untuk umur Sampah yang lebih pendek daripada batas aman.
+    // Memakainya adalah keputusan operasional yang tercatat di log, bukan
+    // kelonggaran yang diam-diam berlaku.
+    purgeAllowShort: process.env.SURVEY_PURGE_ALLOW_SHORT === 'true',
+    // MENYALA kecuali dimatikan tersurat. Perhatikan bentuknya: `!== 'false'`,
+    // bukan `=== 'true'`. Dengan `=== 'true'` kebijakan ini akan MATI pada
+    // setiap server yang belum menyalin env barunya -- persis kebalikan dari
+    // yang diminta, dan kegagalannya sunyi.
+    purgeEnabled: process.env.SURVEY_PURGE_ENABLED !== 'false',
+  },
   upload: {
     // Path lokal (relatif ke cwd proses) — storage lokal via volume Docker dulu (keputusan
     // arsitektur), siap dipindah ke S3 nanti tanpa mengubah kontrak `fileUrl` di DB.
