@@ -46,6 +46,38 @@ export default function AdminKabSidebar() {
     setIsDesktopSidebarCollapsed,
   } = useAdminKabLayout();
 
+  /**
+   * MELAPORKAN LEBARNYA ke properti khusus CSS `--lebar-sidebar`
+   * (30 September 2026, laporan pengguna: builder survei rusak saat sidebar
+   * diciutkan).
+   *
+   * BuilderLayout menutup layar dengan `md:fixed md:inset-0` dan perlu tahu
+   * di mana tepi kiri isinya. Ia TAK BISA menanyakannya lewat context: builder
+   * dipakai dua area dengan dua provider berbeda, dan `useAdminLayout()`
+   * melempar di luar provider-nya, sehingga memanggil salah satunya akan
+   * mematikan area yang lain. Variabel CSS tak peduli provider mana yang
+   * sedang hidup.
+   *
+   * Polanya sama persis dengan `--tinggi-navbar-kab` di AdminKabNavbar:
+   * komponen yang MENGETAHUI ukurannya melaporkannya, pemakainya membaca.
+   * Nilai awalnya ada di globals.css (`:root`), dipakai sebelum JS jalan.
+   *
+   * Angkanya sepadan dengan kelas lebarnya sendiri di bawah: `md:w-64` =
+   * 16rem dan `md:w-20` = 5rem, dengan `--spacing: .25rem` di globals.css.
+   * Keduanya harus berubah bersama.
+   */
+  React.useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--lebar-sidebar',
+      isDesktopSidebarCollapsed ? '5rem' : '16rem',
+    );
+    return () => {
+      // Dibersihkan saat keluar dari area admin: nilainya milik sidebar ini,
+      // dan halaman warga yang dibuka sesudahnya tak punya sidebar sama sekali.
+      document.documentElement.style.removeProperty('--lebar-sidebar');
+    };
+  }, [isDesktopSidebarCollapsed]);
+
   // CIUT HANYA BERLAKU DARI `md` KE ATAS (23 September 2026, laporan pengguna).
   //
   // Sebelumnya efek ciut tak dipagari lebar layar sama sekali, padahal semua

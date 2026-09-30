@@ -30,8 +30,22 @@ export default function BuilderLayout({
   canDrag,
   alasanTerkunci,
 }) {
+  /*
+   * TEPI KIRINYA MENGIKUTI SIDEBAR (30 September 2026, laporan pengguna).
+   * Dulu `md:left-64` ditulis mati, sehingga saat sidebar diciutkan ke
+   * `md:w-20` builder tetap mulai di 256px sementara sidebarnya 80px --
+   * 176px ruang kosong di kiri, dan kanvas menyempit sebanyak itu.
+   *
+   * Lewat variabel CSS, BUKAN context: builder dipakai dua area dengan dua
+   * provider berbeda, dan `useAdminLayout()` MELEMPAR di luar provider-nya,
+   * jadi memanggil salah satunya akan mematikan area yang lain. Penyetelnya
+   * AdminSidebar & AdminKabSidebar, mengikuti pola `--tinggi-navbar-kab`.
+   *
+   * Nilai cadangan 16rem menjaga berkas ini tetap benar ketika dirender tanpa
+   * sidebar mana pun -- yang persis dilakukan BuilderSatuLayar.test.jsx.
+   */
   return (
-    <div className="relative z-50 flex flex-col bg-background md:fixed md:inset-0 md:left-64 md:overflow-hidden">
+    <div className="relative z-50 flex flex-col bg-background md:fixed md:inset-0 md:left-[var(--lebar-sidebar,16rem)] md:overflow-hidden">
       {/* TANPA `pt` di bawah `md`. Ruang untuk bilah atas hanya perlu disediakan
           sendiri ketika builder menjadi lapisan `fixed` yang menutup seluruh
           layar. Di bawah `md` ia kembali menjadi halaman biasa di dalam

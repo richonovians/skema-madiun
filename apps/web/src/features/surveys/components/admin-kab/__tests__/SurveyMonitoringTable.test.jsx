@@ -1,15 +1,28 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import SurveyMonitoringTable from '../SurveyMonitoringTable';
 
 /**
- * TOMBOL BAGIKAN HANYA PADA SURVEI AKTIF (permintaan pengguna 22 September
- * 2026), sisi Admin Kabupaten.
+ * AKSI BARIS MENJADI MENU TITIK-TIGA (30 September 2026, permintaan pengguna:
+ * "kolom aksi di survei kabupaten, buat menu titik tiga seperti di manajemen
+ * user kabupaten").
  *
- * Aturannya sama persis dengan kartu Admin OPD, tetapi diuji terpisah di sini
- * karena tabel ini merender tombolnya sendiri. Satu uji di salah satu area saja
- * akan membiarkan area lain membocorkan tautan survei yang belum terbit tanpa
- * ada yang memerah.
+ * Sebelumnya satu baris memuat SAMPAI SEPULUH tombol lepas ber-`flex-wrap`
+ * dengan `min-w-[230px]` -- penyakit yang sama persis dengan Manajemen User
+ * sebelum 28 September. Komponennya sudah generik (`components/ui/RowActionsMenu`),
+ * jadi ini pemakaian ulang, bukan komponen baru.
+ *
+ * DUA HAL BERUBAH BENTUK, BUKAN BERUBAH ATURAN, dan keduanya dijaga di bawah:
+ *
+ * 1. "Ubah" pada survei DITUTUP dulu memakai atribut `title` -- tooltip yang
+ *    tak terbaca pembaca layar dan tak pernah muncul pada sentuh. RowActionsMenu
+ *    sudah punya `disabled` + `keterangan`, jadi alasannya menjadi teks.
+ * 2. "Bagikan" dulu komponen `ShareSurveyButton` yang membawa tombolnya sendiri.
+ *    Di dalam menu ia tak bisa membawa tombol, jadi modalnya diangkat ke tabel:
+ *    butir menu menyetel state, `ShareSurveyModal` dirender sekali.
+ *
+ * Aturan status TIDAK bergeser sedikit pun -- itulah sebabnya berkas ini
+ * memeriksa ketiga status untuk hampir setiap aksi.
  */
 const survei = (id, title, status) => ({
   id: String(id),
@@ -21,7 +34,7 @@ const survei = (id, title, status) => ({
   ikmScore: null,
 });
 
-const render1 = (surveys) =>
+const render1 = (surveys, props = {}) =>
   render(
     <SurveyMonitoringTable
       surveys={surveys}
@@ -31,60 +44,151 @@ const render1 = (surveys) =>
       onReopen={jest.fn()}
       onDelete={jest.fn()}
       onDuplicate={jest.fn()}
+      {...props}
     />,
   );
 
 /** Baris dicari lewat judulnya supaya asersinya tak bergantung pada urutan. */
 const baris = (judul) => screen.getByText(judul).closest('tr');
 
-describe('SurveyMonitoringTable — tombol Bagikan mengikuti status', () => {
-  it('menampilkan Bagikan pada survei AKTIF', () => {
+/**
+ * Menu digambar lewat portal ke `document.body`, jadi ia TIDAK berada di dalam
+ * `<tr>`. Tombolnya dicari di dalam baris; panelnya di seluruh dokumen.
+ */
+function bukaMenu(judul) {
+  fireEvent.click(within(baris(judul)).getByRole('button', { name: /aksi untuk/i }));
+  return screen.getByRole('menu');
+}
+
+describe('SurveyMonitoringTable — kolom aksi sebagai menu titik-tiga', () => {
+  it('kolom aksi hanya memuat SATU tombol per baris', () => {
     render1([survei(1, 'Survei Aktif', 'AKTIF')]);
 
-    expect(within(baris('Survei Aktif')).getByRole('button', { name: /bagikan/i })).toBeInTheDocument();
+    expect(within(baris('Survei Aktif')).getAllByRole('button')).toHaveLength(1);
   });
 
-  it('menyembunyikan Bagikan pada survei DRAF', () => {
-    render1([survei(2, 'Survei Draf', 'DRAF')]);
+  it('nama tombolnya menyebut survei pemilik barisnya', () => {
+    // Pada daftar panjang akan ada belasan tombol berfungsi sama; nama yang
+    // identik membuat pembaca layar tak dapat membedakannya.
+    render1([survei(1, 'Survei Aktif', 'AKTIF'), survei(2, 'Survei Draf', 'DRAF')]);
 
-    expect(within(baris('Survei Draf')).queryByRole('button', { name: /bagikan/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /aksi untuk Survei Aktif/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /aksi untuk Survei Draf/i })).toBeInTheDocument();
   });
 
-  it('menyembunyikan Bagikan pada survei DITUTUP', () => {
-    render1([survei(3, 'Survei Ditutup', 'DITUTUP')]);
+  it('menunya tertutup secara baku', () => {
+    render1([survei(1, 'Survei Aktif', 'AKTIF')]);
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});
+
+describe('SurveyMonitoringTable — isi menu mengikuti status', () => {
+  it('DRAF: Publikasikan & Pertanyaan ada, Respons & Aktifkan tidak', () => {
+    render1([survei(1, 'Survei Draf', 'DRAF')]);
+    const menu = within(bukaMenu('Survei Draf'));
+
+    expect(menu.getByRole('menuitem', { name: /publikasikan/i })).toBeInTheDocument();
+    expect(menu.getByRole('menuitem', { name: /pertanyaan/i })).toBeInTheDocument();
+    expect(menu.queryByRole('menuitem', { name: /respons/i })).not.toBeInTheDocument();
+    expect(menu.queryByRole('menuitem', { name: /^Aktifkan$/ })).not.toBeInTheDocument();
+  });
+
+  it('AKTIF: Respons, Tutup & Bagikan ada, Publikasikan tidak', () => {
+    render1([survei(1, 'Survei Aktif', 'AKTIF')]);
+    const menu = within(bukaMenu('Survei Aktif'));
+
+    expect(menu.getByRole('menuitem', { name: /respons/i })).toBeInTheDocument();
+    expect(menu.getByRole('menuitem', { name: /tutup/i })).toBeInTheDocument();
+    expect(menu.getByRole('menuitem', { name: /bagikan/i })).toBeInTheDocument();
+    expect(menu.queryByRole('menuitem', { name: /publikasikan/i })).not.toBeInTheDocument();
+  });
+
+  it('DITUTUP: Aktifkan ada; Pertanyaan & Bagikan tidak', () => {
+    render1([survei(1, 'Survei Ditutup', 'DITUTUP')]);
+    const menu = within(bukaMenu('Survei Ditutup'));
+
+    // Pola ketat: keterangan butir 'Ubah' memuat kata yang sama, dan ia ikut
+    // masuk ke nama aksesibel butirnya -- justru bukti keterangan itu terbaca.
+    expect(menu.getByRole('menuitem', { name: /^Aktifkan$/ })).toBeInTheDocument();
+    expect(menu.queryByRole('menuitem', { name: /pertanyaan/i })).not.toBeInTheDocument();
+    expect(menu.queryByRole('menuitem', { name: /bagikan/i })).not.toBeInTheDocument();
+  });
+
+  it('Bagikan hanya pada AKTIF, dipagari PER BARIS', () => {
+    // Ketiga status dalam satu tabel: pemagaran yang keliru memakai status
+    // baris pertama untuk seluruh tabel akan lolos uji per-status di atas.
+    render1([
+      survei(1, 'Survei Aktif', 'AKTIF'),
+      survei(2, 'Survei Draf', 'DRAF'),
+      survei(3, 'Survei Ditutup', 'DITUTUP'),
+    ]);
 
     expect(
-      within(baris('Survei Ditutup')).queryByRole('button', { name: /bagikan/i }),
+      within(bukaMenu('Survei Draf')).queryByRole('menuitem', { name: /bagikan/i }),
     ).not.toBeInTheDocument();
   });
 
-  /**
-   * Ketiga status dalam SATU tabel. Uji per-baris di atas masing-masing hanya
-   * melihat satu status, sehingga pemagaran yang keliru memakai status baris
-   * pertama untuk seluruh tabel akan lolos ketiganya.
-   */
-  it('memagari per baris, bukan per tabel', () => {
-    render1([
-      survei(1, 'Survei Aktif', 'AKTIF'),
-      survei(2, 'Survei Draf', 'DRAF'),
-      survei(3, 'Survei Ditutup', 'DITUTUP'),
-    ]);
+  it('Detail & Salin ada pada ketiga status', () => {
+    // KONTROL. Tanpa ini, menghilangkan menunya sama sekali akan membuat setiap
+    // uji "tidak ada" di atas hijau selamanya.
+    for (const [judul, status] of [
+      ['Survei Aktif', 'AKTIF'],
+      ['Survei Draf', 'DRAF'],
+      ['Survei Ditutup', 'DITUTUP'],
+    ]) {
+      const { unmount } = render1([survei(1, judul, status)]);
+      const menu = within(bukaMenu(judul));
 
-    expect(screen.getAllByRole('button', { name: /bagikan/i })).toHaveLength(1);
-    expect(within(baris('Survei Aktif')).getByRole('button', { name: /bagikan/i })).toBeInTheDocument();
+      expect(menu.getByRole('menuitem', { name: /detail/i })).toBeInTheDocument();
+      expect(menu.getByRole('menuitem', { name: /salin/i })).toBeInTheDocument();
+      unmount();
+    }
+  });
+});
+
+describe('SurveyMonitoringTable — aksi memanggil penanganya', () => {
+  it('Hapus meneruskan baris yang dipilih', () => {
+    const onDelete = jest.fn();
+    render1([survei(7, 'Survei Aktif', 'AKTIF')], { onDelete });
+
+    fireEvent.click(within(bukaMenu('Survei Aktif')).getByRole('menuitem', { name: /hapus/i }));
+
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: '7' }));
   });
 
-  /**
-   * KONTROL. Tanpa ini, menghapus tombolnya sama sekali dari tabel akan
-   * membuat setiap uji "menyembunyikan" di atas hijau selamanya.
-   */
-  it('KONTROL: aksi Detail tetap ada pada ketiga status', () => {
-    render1([
-      survei(1, 'Survei Aktif', 'AKTIF'),
-      survei(2, 'Survei Draf', 'DRAF'),
-      survei(3, 'Survei Ditutup', 'DITUTUP'),
-    ]);
+  it('Publikasikan meneruskan baris yang dipilih', () => {
+    const onPublish = jest.fn();
+    render1([survei(8, 'Survei Draf', 'DRAF')], { onPublish });
 
-    expect(screen.getAllByRole('link', { name: /detail/i })).toHaveLength(3);
+    fireEvent.click(
+      within(bukaMenu('Survei Draf')).getByRole('menuitem', { name: /publikasikan/i }),
+    );
+
+    expect(onPublish).toHaveBeenCalledWith(expect.objectContaining({ id: '8' }));
+  });
+
+  it('Ubah pada survei DITUTUP dimatikan, dengan ALASAN yang terbaca', () => {
+    const onEdit = jest.fn();
+    render1([survei(9, 'Survei Ditutup', 'DITUTUP')], { onEdit });
+    const menu = within(bukaMenu('Survei Ditutup'));
+
+    const ubah = menu.getByRole('menuitem', { name: /ubah/i });
+    expect(ubah).toBeDisabled();
+    expect(menu.getByText(/aktifkan kembali lebih dulu/i)).toBeInTheDocument();
+
+    fireEvent.click(ubah);
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it('baris yang sedang sibuk mematikan aksi yang mengubah data', () => {
+    render1([survei(5, 'Survei Aktif', 'AKTIF')], { busySurveyId: '5' });
+    const menu = within(bukaMenu('Survei Aktif'));
+
+    expect(menu.getByRole('menuitem', { name: /hapus/i })).toBeDisabled();
+    expect(menu.getByRole('menuitem', { name: /salin/i })).toBeDisabled();
+    // Detail hanya membaca, jadi ia tetap hidup: mengunci jalan keluar sebuah
+    // baris selagi aksinya berjalan tak melindungi apa pun.
+    expect(menu.getByRole('menuitem', { name: /detail/i })).not.toBeDisabled();
   });
 });

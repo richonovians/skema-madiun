@@ -548,7 +548,7 @@ describe('NotificationHistoryScreen', () => {
       await screen.findByText('Survei Mulai Menerima Jawaban');
       expect(query[0].sort).toBeUndefined();
 
-      pilih('Terbaru dulu', 'Terlama dulu');
+      pilih('Terbaru', 'Terlama');
 
       await waitFor(() => expect(daftarTerakhir(query).sort).toBe('asc'));
     });
@@ -625,7 +625,7 @@ describe('NotificationHistoryScreen', () => {
       await screen.findByText('Survei Mulai Menerima Jawaban');
       pilih('Semua waktu', 'Tahun ini');
       await waitFor(() => expect(daftarTerakhir(query).from).toBeDefined());
-      pilih('Terbaru dulu', 'Terlama dulu');
+      pilih('Terbaru', 'Terlama');
       await waitFor(() => expect(daftarTerakhir(query).sort).toBe('asc'));
 
       fireEvent.click(await screen.findByRole('button', { name: /reset filter/i }));
@@ -636,7 +636,7 @@ describe('NotificationHistoryScreen', () => {
         expect(akhir.sort).toBeUndefined();
       });
       expect(screen.getByText('Semua waktu')).toBeInTheDocument();
-      expect(screen.getByText('Terbaru dulu')).toBeInTheDocument();
+      expect(screen.getByText('Terbaru')).toBeInTheDocument();
     });
   });
 });
