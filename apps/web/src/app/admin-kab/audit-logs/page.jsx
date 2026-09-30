@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import AuditRetentionNotice from '@/features/audit-logs/components/AuditRetentionNotice';
 import AuditSummaryCards from '@/features/audit-logs/components/AuditSummaryCards';
 import AuditFilterBar from '@/features/audit-logs/components/AuditFilterBar';
 import AuditTable from '@/features/audit-logs/components/AuditTable';
@@ -8,7 +9,7 @@ import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
-import { getAuditLogs } from '@/features/audit-logs/services/auditLogs.api';
+import { getAuditLogs, getAuditRetention } from '@/features/audit-logs/services/auditLogs.api';
 
 const LIMIT = 10;
 
@@ -42,6 +43,13 @@ export default function AdminKabAuditLogsPage() {
     [entitas, aksi, debouncedSearch, startDate, endDate, page],
   );
   const { data: response, isLoading, error, refetch } = useAsync(fetchLogs);
+
+  // Diambil TERPISAH dan kegagalannya TIDAK menggagalkan halaman — pola yang
+  // sama dengan `getUserStats` di Manajemen User. Angka retensi itu
+  // keterangan; daftar lognya isi utama. Menggabungkannya ke satu Promise.all
+  // berarti satu endpoint yang bermasalah mengosongkan tabelnya.
+  const fetchRetensi = useCallback(() => getAuditRetention(), []);
+  const { data: retensi } = useAsync(fetchRetensi);
 
   const data = response?.data ?? [];
   const pagination = response?.meta?.pagination ?? { total: 0, totalPages: 1 };
@@ -84,6 +92,11 @@ export default function AdminKabAuditLogsPage() {
   return (
     <div className="p-lg w-full max-w-7xl mx-auto space-y-md pb-24">
       <AuditSummaryCards total={pagination.total} />
+
+      {/* DI ATAS penyaring, bukan di bawah tabel: keterangannya harus terbaca
+          SEBELUM seseorang memilih rentang tanggal di luar masa retensi dan
+          mendapat tabel kosong tanpa sebab. */}
+      <AuditRetentionNotice hari={retensi ? retensi.hari : undefined} />
 
       <AuditFilterBar
         searchQuery={searchQuery}

@@ -30,6 +30,20 @@ export async function getAuditLogs(filters = {}) {
   return { data: adaptAuditLogList(response.data), meta: response.meta };
 }
 
+/**
+ * Lama retensi log aktivitas dalam hari; `hari: null` berarti tak ada
+ * pemangkasan sama sekali.
+ *
+ * Dibaca dari server, BUKAN ditulis mati di frontend: keterangan retensi di
+ * layar harus selalu sama dengan AUDIT_RETENTION_DAYS yang benar-benar berlaku.
+ *
+ * @returns {Promise<{ hari: number | null }>}
+ */
+export async function getAuditRetention() {
+  const response = await api.get('/audit-logs/retensi');
+  return response.data;
+}
+
 export async function getAuditLogDetail(id) {
   const response = await api.get(`/audit-logs/${id}`);
   return adaptAuditLog(response.data);
