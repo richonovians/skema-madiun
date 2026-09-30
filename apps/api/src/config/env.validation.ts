@@ -284,6 +284,35 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   WEB_APP_URL?: string;
+
+  /**
+   * RETENSI LOG AUDIT (30 September 2026) — lama jejak audit disimpan sebelum
+   * DIHAPUS PERMANEN.
+   *
+   * TIDAK ADA = retensi MATI, dan itu bakunya. Ketiadaan konfigurasi harus
+   * berarti menyimpan data: kalau bakunya menghapus, satu env yang lupa disalin
+   * ke server baru akan memusnahkan log tanpa ada yang memutuskannya.
+   *
+   * Bentuknya dijaga DI SINI, bukan diserahkan ke `parseInt` di
+   * configuration.ts. `parseInt('dua minggu')` menghasilkan NaN, dan NaN yang
+   * lolos ke penjadwal membuat retensi diam-diam mati — kegagalan yang baru
+   * terlihat berbulan-bulan kemudian, saat seseorang menyadari tak ada baris
+   * yang pernah terhapus.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUDIT_RETENTION_DAYS?: number;
+
+  /**
+   * Izin TERSURAT untuk retensi di bawah `RETENSI_MINIMUM_HARI`
+   * (AuditRetensiService). Tanpa ini, nilai sependek itu menolak berjalan —
+   * satu digit hilang mengubah 14 menjadi 1, dan itu memusnahkan hampir
+   * seluruh log dalam satu lintasan yang tak dapat dibatalkan.
+   */
+  @IsOptional()
+  @IsString()
+  AUDIT_RETENTION_ALLOW_SHORT?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

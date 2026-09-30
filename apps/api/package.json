@@ -21,6 +21,7 @@
     "enkripsi:lampiran": "node --env-file-if-exists=.env scripts/enkripsi-lampiran-lama.cjs",
     "enkripsi:kolom": "node --env-file-if-exists=.env scripts/enkripsi-kolom-lama.cjs",
     "rotasi:kunci": "node --env-file-if-exists=.env scripts/rotasi-kunci.cjs",
+    "pangkas:audit": "tsx --env-file-if-exists=.env scripts/pangkas-audit.ts",
     "cadangan": "node --env-file-if-exists=.env scripts/cadangan.cjs",
     "pulihkan": "node --env-file-if-exists=.env scripts/pulihkan.cjs"
   },

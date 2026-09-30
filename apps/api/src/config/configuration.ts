@@ -73,6 +73,23 @@ export default () => ({
       10,
     ),
   },
+  audit: {
+    // RETENSI LOG AUDIT (30 September 2026, permintaan pengguna). `null` =
+    // MATI, dan itu bakunya — lihat alasannya di env.validation.ts serta
+    // AuditRetensiService.
+    //
+    // BENTUK nilainya sudah dijaga env.validation.ts (bilangan bulat >= 1),
+    // jadi di sini cukup membedakan "ada" dari "tidak ada". Pembagian ini sama
+    // dengan yang dipakai `crypto.dataKey` di bawah: gerbang boot menjaga
+    // bentuk, pemakainya menjaga ada-tidaknya.
+    retentionDays: process.env.AUDIT_RETENTION_DAYS
+      ? parseInt(process.env.AUDIT_RETENTION_DAYS, 10)
+      : null,
+    // Sakelar untuk nilai retensi yang lebih pendek daripada batas aman.
+    // Memakainya adalah keputusan operasional yang tercatat di log, bukan
+    // kelonggaran yang diam-diam berlaku.
+    retentionAllowShort: process.env.AUDIT_RETENTION_ALLOW_SHORT === 'true',
+  },
   upload: {
     // Path lokal (relatif ke cwd proses) — storage lokal via volume Docker dulu (keputusan
     // arsitektur), siap dipindah ke S3 nanti tanpa mengubah kontrak `fileUrl` di DB.

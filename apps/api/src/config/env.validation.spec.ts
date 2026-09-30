@@ -89,3 +89,52 @@ describe('.env.example', () => {
     expect(cocok[1].trim().replace(/^["']|["']$/g, '')).toBe('');
   });
 });
+
+/**
+ * RETENSI LOG AUDIT (30 September 2026).
+ *
+ * Angkanya menentukan berapa lama jejak audit disimpan sebelum DIHAPUS
+ * PERMANEN, jadi bentuknya dijaga di gerbang boot, bukan diserahkan ke
+ * `parseInt` di configuration.ts. `parseInt('dua minggu')` menghasilkan NaN,
+ * dan NaN yang lolos ke penjadwal berarti retensi diam-diam mati -- kegagalan
+ * yang hanya terlihat berbulan-bulan kemudian, saat seseorang menyadari tak ada
+ * baris yang pernah terhapus.
+ */
+describe('validateEnv — AUDIT_RETENTION_DAYS', () => {
+  it('boleh TIDAK ADA sama sekali: retensi mati, dan itu keadaan yang sah', () => {
+    expect(() => validateEnv({ ...dasar })).not.toThrow();
+  });
+
+  it('menerima angka hari yang wajar', () => {
+    expect(() => validateEnv({ ...dasar, AUDIT_RETENTION_DAYS: '14' })).not.toThrow();
+  });
+
+  it('MENOLAK nol — nol berarti menghapus seluruh log setiap malam', () => {
+    expect(() => validateEnv({ ...dasar, AUDIT_RETENTION_DAYS: '0' })).toThrow(
+      /AUDIT_RETENTION_DAYS/,
+    );
+  });
+
+  it('MENOLAK nilai negatif', () => {
+    expect(() => validateEnv({ ...dasar, AUDIT_RETENTION_DAYS: '-7' })).toThrow(
+      /AUDIT_RETENTION_DAYS/,
+    );
+  });
+
+  it('MENOLAK yang bukan bilangan bulat, bukan membiarkannya menjadi NaN', () => {
+    expect(() => validateEnv({ ...dasar, AUDIT_RETENTION_DAYS: 'dua minggu' })).toThrow(
+      /AUDIT_RETENTION_DAYS/,
+    );
+  });
+
+  it('MENOLAK pecahan: setengah hari bukan satuan retensi', () => {
+    expect(() => validateEnv({ ...dasar, AUDIT_RETENTION_DAYS: '14.5' })).toThrow(
+      /AUDIT_RETENTION_DAYS/,
+    );
+  });
+
+  it('AUDIT_RETENTION_ALLOW_SHORT opsional dan berupa teks', () => {
+    expect(() => validateEnv({ ...dasar, AUDIT_RETENTION_ALLOW_SHORT: 'true' })).not.toThrow();
+    expect(() => validateEnv({ ...dasar })).not.toThrow();
+  });
+});

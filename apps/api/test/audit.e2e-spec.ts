@@ -5,8 +5,16 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PENANDA_DISUNTING } from '../src/common/interceptors/audit-redact.util';
+import { AuditRetensiService } from '../src/modules/audit/audit-retensi.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
+
+/**
+ * Retensi yang dipakai uji ini. Lihat alasan angkanya di beforeAll.
+ */
+const RETENSI_UJI_HARI = 3650;
+/** Jauh lebih tua daripada seluruh data yang mungkin ada di basis data ini. */
+const TANGGAL_PURBA = new Date('2015-01-01T00:00:00.000Z');
 
 describe('Audit Log (e2e)', () => {
   let app: INestApplication;
@@ -14,7 +22,25 @@ describe('Audit Log (e2e)', () => {
   let opdId: number;
   let opdUserId: number;
 
+  const envAsli = { ...process.env };
+
   beforeAll(async () => {
+    // WAJIB sebelum compile: ConfigModule memotret process.env dan memakai
+    // `cache: true`, jadi menyetelnya di dalam `it` tak berpengaruh apa pun.
+    //
+    // 3650 HARI (sepuluh tahun), BUKAN 14, dan angka janggal ini justru
+    // intinya. `pangkas()` bekerja pada SELURUH tabel — ia tak punya, dan tak
+    // boleh punya, saringan "hanya baris milik uji ini". Dengan retensi 14 hari,
+    // uji ini menghapus seluruh riwayat audit basis data pengembangan yang lebih
+    // tua dari dua minggu; itu sudah benar-benar terjadi sekali (5.857 baris,
+    // 30 September 2026) sebelum angka ini dinaikkan.
+    //
+    // Dengan batas sepuluh tahun, satu-satunya baris yang memenuhi syarat adalah
+    // baris bertanggal 2015 yang dibuat uji ini sendiri — proyek ini tak punya
+    // data sebelum 2026. Yang diuji tetap utuh: kueri sungguhan, batas `lt`,
+    // penghapusan berkelompok, dan sifat "yang masih berlaku tidak disentuh".
+    process.env.AUDIT_RETENTION_DAYS = String(RETENSI_UJI_HARI);
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -50,6 +76,7 @@ describe('Audit Log (e2e)', () => {
     await prisma.user.deleteMany({ where: { ssoSubject: 'e2e-audit-opd' } });
     await prisma.opd.deleteMany({ where: { kode: 'E2EAUD' } });
     await app.close();
+    process.env = envAsli;
   }, 30000);
 
   const opdHeaders = () => devHeaders({ role: Role.opd, opdId, userId: opdUserId });
@@ -235,5 +262,81 @@ describe('Audit Log (e2e)', () => {
   it('GET /audit-logs/:id (Admin OPD) -> 403 (hanya Admin Kabupaten)', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/audit-logs/1').set(opdHeaders());
     expect(res.status).toBe(403);
+  });
+  /**
+   * RETENSI LOG AUDIT (30 September 2026, permintaan pengguna).
+   *
+   * DIUJI DI E2E, bukan sebagai uji unit controller, dan itu seluruh alasan
+   * bagian ini ada di berkas ini: bahaya terbesarnya URUTAN RUTE. `@Get(':id')`
+   * ber-ParseIntPipe akan menelan `/audit-logs/retensi` dan menjawab 400
+   * "numeric string is expected" bila ia dideklarasikan lebih dulu. Uji unit
+   * controller memanggil metodenya langsung, jadi ia lulus sempurna sementara
+   * rutenya rusak di peramban.
+   */
+  describe('GET /audit-logs/retensi', () => {
+    it('TIDAK ditelan rute :id, dan menyebut lama retensinya', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/audit-logs/retensi')
+        .set(kabupatenHeaders());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ hari: RETENSI_UJI_HARI });
+    });
+
+    it('Admin OPD ditolak 403, sama seperti sisa log aktivitas', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/audit-logs/retensi')
+        .set(opdHeaders());
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('pemangkasan sungguhan', () => {
+    it('membuang baris kedaluwarsa dan MEMBIARKAN yang masih berlaku', async () => {
+      // Uji yang paling penting dari seluruh fitur ini: penghapusannya permanen,
+      // jadi yang harus dibuktikan bukan cuma "yang tua hilang" melainkan juga
+      // "yang baru TIDAK hilang". Sebuah pemangkasan yang menyapu semuanya akan
+      // lulus separuh pertama dengan gemilang.
+      const tua = TANGGAL_PURBA;
+      await prisma.auditLog.createMany({
+        data: [
+          { actorId: opdUserId, aksi: 'uji_tua', entitas: 'retensi', timestamp: tua },
+          { actorId: opdUserId, aksi: 'uji_tua', entitas: 'retensi', timestamp: tua },
+          { actorId: opdUserId, aksi: 'uji_baru', entitas: 'retensi' },
+        ],
+      });
+
+      const service = app.get(AuditRetensiService);
+      const hasil = await service.pangkas();
+
+      expect(hasil).toMatchObject({
+        dijalankan: true,
+        kering: false,
+        hari: RETENSI_UJI_HARI,
+      });
+      expect(await prisma.auditLog.count({ where: { actorId: opdUserId, aksi: 'uji_tua' } })).toBe(
+        0,
+      );
+      expect(await prisma.auditLog.count({ where: { actorId: opdUserId, aksi: 'uji_baru' } })).toBe(
+        1,
+      );
+    });
+
+    it('mode kering menghitung TANPA menghapus', async () => {
+      const tua = TANGGAL_PURBA;
+      await prisma.auditLog.create({
+        data: { actorId: opdUserId, aksi: 'uji_kering', entitas: 'retensi', timestamp: tua },
+      });
+
+      const service = app.get(AuditRetensiService);
+      const hasil = await service.pangkas({ kering: true });
+
+      expect(hasil).toMatchObject({ dijalankan: true, kering: true });
+      expect((hasil as { jumlah: number }).jumlah).toBeGreaterThanOrEqual(1);
+      expect(
+        await prisma.auditLog.count({ where: { actorId: opdUserId, aksi: 'uji_kering' } }),
+      ).toBe(1);
+    });
   });
 });

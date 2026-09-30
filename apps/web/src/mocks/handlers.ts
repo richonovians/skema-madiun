@@ -829,6 +829,11 @@ export const handlers = [
     });
   }),
 
+  // SEBELUM `:id` — MSW mencocokkan handler menurut urutan daftar, jadi
+  // `:id` yang lebih dulu akan menelan alamat ini. Urutan yang sama juga
+  // berlaku di controller Nest; lihat catatannya di audit.controller.ts.
+  http.get(`${API_BASE}/audit-logs/retensi`, () => ok({ hari: 14 }, '/audit-logs/retensi')),
+
   http.get(`${API_BASE}/audit-logs/:id`, ({ params }) =>
     ok(auditLogFixture({ id: Number(params.id) }), `/audit-logs/${params.id}`),
   ),

@@ -521,8 +521,15 @@ model AuditLog {
   @@index([entitas])
   // Setiap pembukaan halaman log mengurutkan `timestamp` menurun, dan penyaring
   // rentang tanggal memakai kolom yang sama. Tanpa indeks ini PostgreSQL membaca
-  // seluruh tabel lalu mengurutkannya hanya untuk 20 baris pertama -- dan tabel
-  // ini tak pernah dipangkas, sebab menghapus jejak audit dipalang.
+  // seluruh tabel lalu mengurutkannya hanya untuk 20 baris pertama.
+  //
+  // SEJAK 30 SEPTEMBER 2026 indeks ini punya pemakai kedua, dan kalimat lama di
+  // sini ("tabel ini tak pernah dipangkas, sebab menghapus jejak audit
+  // dipalang") sudah tidak benar: AuditRetensiService memangkas baris yang
+  // melewati AUDIT_RETENTION_DAYS, dan ia memilih barisnya lewat kolom yang
+  // sama. Yang berubah bukan sikap terhadap jejak audit melainkan bahwa
+  // sekarang ada KEBIJAKAN -- batas tetap, dari env, dinyatakan kepada
+  // pembacanya di halaman Log Aktivitas. Retensi MATI bila env itu tak disetel.
   @@index([timestamp])
   @@map("audit_logs")
 }

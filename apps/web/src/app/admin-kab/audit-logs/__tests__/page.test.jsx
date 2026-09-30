@@ -143,3 +143,53 @@ describe('Halaman Audit Log (Admin Kabupaten)', () => {
     expect(screen.getByLabelText(/sampai tanggal/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * KETERANGAN RETENSI (30 September 2026).
+ *
+ * Diuji di tingkat HALAMAN, bukan cuma komponennya: yang perlu dibuktikan bukan
+ * bahwa komponennya dapat merender angka, melainkan bahwa halaman ini
+ * benar-benar mengambil angka itu dari server dan menaruhnya SEBELUM penyaring
+ * tanggal. Letak itu seluruh gunanya — keterangan yang muncul di bawah tabel
+ * terbaca sesudah orangnya sudah bingung.
+ */
+describe('Halaman Audit Log — keterangan retensi', () => {
+  it('mengambil lama retensi dari server dan menaruhnya di ATAS penyaring', async () => {
+    render(<AdminKabAuditLogsPage />);
+
+    const keterangan = await screen.findByTestId('audit-retention-notice');
+    expect(keterangan).toHaveTextContent(/14 hari/);
+
+    // Letaknya ikut dijaga: penyaring tanggal harus MENYUSUL keterangan ini.
+    const cari = screen.getByPlaceholderText(/cari berdasarkan nama pengguna/i);
+    /* eslint-disable-next-line no-bitwise */
+    expect(keterangan.compareDocumentPosition(cari) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('retensi mati -> tak ada janji penyimpanan yang dipajang', async () => {
+    // `hari: null` berarti AUDIT_RETENTION_DAYS tak disetel dan tak ada baris
+    // yang pernah dipangkas. Memajang "disimpan N hari" di keadaan itu adalah
+    // pernyataan yang tidak benar.
+    server.use(
+      http.get(`${API_BASE}/audit-logs/retensi`, () => ok({ hari: null }, '/audit-logs/retensi')),
+    );
+
+    render(<AdminKabAuditLogsPage />);
+    await screen.findByText('CREATE Survei');
+
+    expect(screen.queryByTestId('audit-retention-notice')).not.toBeInTheDocument();
+  });
+
+  it('endpoint retensi gagal TIDAK menggagalkan halaman', async () => {
+    // Angka retensi itu keterangan; daftar lognya isi utama. Satu endpoint yang
+    // bermasalah tak boleh mengosongkan tabelnya.
+    server.use(
+      http.get(`${API_BASE}/audit-logs/retensi`, () => new Response(null, { status: 500 })),
+    );
+
+    render(<AdminKabAuditLogsPage />);
+
+    expect(await screen.findByText('CREATE Survei')).toBeInTheDocument();
+    expect(screen.queryByTestId('audit-retention-notice')).not.toBeInTheDocument();
+  });
+});
