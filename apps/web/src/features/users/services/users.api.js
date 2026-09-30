@@ -1,17 +1,12 @@
 import api from '@/services/api';
-import { adaptUser, adaptUserList, toCreateUserPayload, toUpdateUserPayload } from '../adapters/user.adapter';
+import { adaptUser, adaptUserList, toUpdateUserPayload } from '../adapters/user.adapter';
 
-/**
- * Membuat akun administrator baru.
- * @param {{fullName: string, email: string, role: string, opdId?: number}} payload
- *   role pakai nilai frontend (USER_ROLES.ADMIN_OPD dkk) -- diterjemahkan ke
- *   backend ('opd'/'kabupaten'/dst) oleh toCreateUserPayload.
- * @returns {Promise<Object>} User (bentuk frontend, lihat user.adapter.js)
+/*
+ * TANPA `createUser`. Halaman "Buat Akun Admin Baru" dibuang 30 September 2026
+ * (permintaan pengguna), dan pembungkus ini satu-satunya pemanggilnya. Endpoint
+ * `POST /users` di backend TETAP ADA dan tetap teruji di users.e2e-spec.ts --
+ * yang dibuang jalan masuk dari antarmuka, bukan kontrak apinya.
  */
-export async function createUser(payload) {
-  const response = await api.post('/users', toCreateUserPayload(payload));
-  return adaptUser(response.data);
-}
 
 /**
  * Mengambil daftar pengguna dengan filter opsional.
