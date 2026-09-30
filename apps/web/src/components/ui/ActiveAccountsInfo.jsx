@@ -25,12 +25,17 @@ export default function ActiveAccountsInfo({ activeCount, totalCount = null, sco
     scope === 'opd' ? 'akun aktif tertaut OPD ini' : 'akun aktif di seluruh sistem';
 
   return (
-    // `shrink-0`: di halaman Manajemen User strip ini duduk sebaris dengan tab
-    // penyaring dan tombol "Buat Akun Admin Baru". Sebagai flex item ia menyusut
-    // secara baku, dan kalimatnya terbelah dua baris padahal barisnya masih
-    // punya ruang. Pemanggil yang menyediakan `flex-wrap`, sehingga pada lebar
-    // sempit strip ini turun ke barisnya sendiri alih-alih membuat halaman
-    // bergeser horizontal.
+    // `shrink-0`: sebagai flex item strip ini menyusut secara baku, dan
+    // kalimatnya terbelah dua baris padahal barisnya masih punya ruang.
+    // Pemanggil yang menyediakan `flex-wrap`, sehingga pada lebar sempit strip
+    // ini turun ke barisnya sendiri alih-alih membuat halaman bergeser
+    // horizontal.
+    //
+    // Keadaan yang dulu memaksanya SUDAH TIDAK ADA di halaman Manajemen User:
+    // di sana strip ini kini punya barisnya sendiri, dan tombol "Buat Akun
+    // Admin Baru" yang dulu berdesakan dengannya dibuang 30 September 2026.
+    // Penjaga ini tetap dipasang untuk kedua dashboard, yang masih
+    // menempatkannya sebaris dengan hal lain.
     <div className="flex shrink-0 items-center gap-3 px-lg py-md bg-surface-container-low border border-outline-variant rounded-xl">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-container">
         {/* `text-on-primary-container` (#eeefff), BUKAN `text-primary`: yang

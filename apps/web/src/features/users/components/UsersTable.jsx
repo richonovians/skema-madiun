@@ -1,11 +1,11 @@
 import React from 'react';
-import Link from 'next/link';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
 import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
 import { USER_ROLES } from '../constants/userConstants';
 import EmptyState from '@/components/ui/EmptyState';
-import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
+import RowActionsMenu from '@/components/ui/RowActionsMenu';
+import { Users as UsersIcon, Pencil, Trash2, Building2, UserCheck, UserX } from 'lucide-react';
 
 /**
  * Kolom AKSI versi dummy lama ("Ubah Role" dropdown + "Reset Token JWT")
@@ -22,6 +22,9 @@ import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
  * Nonaktifkan mengubah status tanpa konfirmasi sama sekali dan Hapus memakai
  * `window.confirm()` bawaan peramban, dan dialog yang dipasang di dalam tabel
  * akan membuat tiap baris punya salinan dialognya sendiri.
+ *
+ * SEJAK 30 SEPTEMBER 2026 ketiga aksi itu tinggal di dalam menu titik-tiga
+ * (RowActionsMenu), bersama satu aksi baru. Lihat catatan di kolom AKSI.
  */
 export default function UsersTable({ data, onRequestAction, pagination }) {
   const getRoleBadgeConfig = (role) => {
@@ -80,6 +83,7 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
             // warnanya sekadar pembeda visual, bukan pernyataan hak.
             const roleConfigs = (user.roles ?? []).map(getRoleBadgeConfig);
             const isActive = user.status === 'ACTIVE';
+            const isAdminOpd = (user.roles ?? []).includes(USER_ROLES.ADMIN_OPD);
             // Administrator = memegang salah satu peran yang memerintah, yaitu
             // Admin Kabupaten atau Admin OPD. `responden` bukan administrator
             // betapapun aktifnya ia.
@@ -151,40 +155,63 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
                   </span>
                 </Td>
                 <Td>
-                  <div className="flex items-center gap-2">
-                    {/* TANPA SYARAT, termasuk untuk warga (permintaan pengguna
-                        6 September 2026). Backend menerimanya sejak
-                        5 September 2026: `ASSIGNABLE_ROLES` pada CreateUserDto
-                        memuat `responden`.
+                  {/* SATU tombol, bukan tiga tombol lepas (30 September 2026,
+                      permintaan pengguna). Sebabnya lebar: kolom ini sudah
+                      memuat tiga tombol dan tabelnya sudah dapat bergeser
+                      horizontal di layar sempit, sementara butir keempat
+                      ("Jadikan Admin OPD") memperburuknya.
 
-                        Syarat `user.role !== USER_ROLES.RESPONDENT` yang dulu
-                        ada di sini SUDAH MATI sejak adapter beralih ke `roles`:
-                        `user.role` tak ada lagi, jadi `undefined !==
-                        'responden'` selalu benar dan tombolnya sebenarnya sudah
-                        tampil untuk semua orang -- di bawah komentar yang
-                        menyatakan kebalikannya. Dihapus supaya yang tersurat
-                        sama dengan yang terjadi. */}
-                    <Link
-                      href={`/admin-kab/users/${user.id}/edit`}
-                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
-                    >
-                      <Pencil size={12} />
-                      Ubah Role
-                    </Link>
-                    <button
-                      onClick={() => onRequestAction?.(user, isActive ? 'deactivate' : 'activate')}
-                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
-                    >
-                      {isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                    </button>
-                    <button
-                      onClick={() => onRequestAction?.(user, 'delete')}
-                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-error hover:bg-error-container transition-colors h-[32px] flex items-center justify-center gap-1"
-                    >
-                      <Trash2 size={12} />
-                      Hapus
-                    </button>
-                  </div>
+                      Menunya digambar lewat portal -- lihat RowActionsMenu.
+                      Menu absolut akan dipotong wadah `overflow-x-auto` di
+                      atas, dan separuh butirnya tak dapat ditekan. */}
+                  <RowActionsMenu
+                    label={`Aksi untuk ${user.name}`}
+                    items={[
+                      {
+                        key: 'edit',
+                        label: 'Ubah Role',
+                        icon: <Pencil size={14} />,
+                        // TANPA SYARAT, termasuk untuk warga (permintaan
+                        // pengguna 6 September 2026). Backend menerimanya sejak
+                        // 5 September 2026: `ASSIGNABLE_ROLES` pada
+                        // CreateUserDto memuat `responden`.
+                        href: `/admin-kab/users/${user.id}/edit`,
+                      },
+                      // Disembunyikan bagi yang SUDAH Admin OPD: tak ada yang
+                      // perlu dijelaskan pada keadaan itu, dan butir mati tanpa
+                      // sebab hanya menjadi teka-teki.
+                      !isAdminOpd && {
+                        key: 'promote',
+                        label: 'Jadikan Admin OPD',
+                        icon: <Building2 size={14} />,
+                        // Tanpa tautan instansi backend menolak 400 -- `opdId`
+                        // milik Helpdesk dan UpdateUserDto tak menerimanya.
+                        // Ditampilkan MATI beserta alasannya, bukan
+                        // disembunyikan: justru inilah keadaan yang akan
+                        // ditanyakan Admin Kabupaten.
+                        disabled: !user.opdId,
+                        keterangan: user.opdId
+                          ? undefined
+                          : 'Instansi belum ditautkan Helpdesk',
+                        onSelect: () => onRequestAction?.(user, 'promote-opd'),
+                      },
+                      {
+                        key: 'status',
+                        label: isActive ? 'Nonaktifkan' : 'Aktifkan',
+                        icon: isActive ? <UserX size={14} /> : <UserCheck size={14} />,
+                        onSelect: () =>
+                          onRequestAction?.(user, isActive ? 'deactivate' : 'activate'),
+                      },
+                      {
+                        key: 'delete',
+                        label: 'Hapus',
+                        icon: <Trash2 size={14} />,
+                        tone: 'danger',
+                        pemisahSebelum: true,
+                        onSelect: () => onRequestAction?.(user, 'delete'),
+                      },
+                    ]}
+                  />
                 </Td>
               </Tr>
             );
