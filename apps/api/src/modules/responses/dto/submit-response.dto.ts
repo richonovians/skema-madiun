@@ -7,13 +7,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  Matches,
   Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { NOMOR_HP_REGEX } from '../responses.constants';
 
 /**
  * Satu jawaban dalam payload pengisian. Isi `nilai` untuk skala, `teks` untuk teks/saran,
@@ -75,32 +73,4 @@ export class SubmitResponseDto {
   @IsOptional()
   @IsBoolean()
   tanpaDataDiri?: boolean;
-
-  /**
-   * Nomor HP pengisi (1 Oktober 2026, keputusan tersurat pengguna).
-   *
-   * SATU-SATUNYA data diri jalur bersesi yang datang dari payload, dan itu
-   * bukan kelonggaran melainkan keharusan: nama dan demografis punya sumber di
-   * akun, nomor HP TIDAK. Terukur pada metadata penyedia 1 Oktober 2026 --
-   * `claims_supported` Helpdesk memuat `sub`, `email`, `name`,
-   * `preferred_username`, `nickname`, `groups`, `role`, dan `scopes_supported`
-   * hanya `openid`, `profile`, `email`. Tak ada klaim `phone_number` dan tak
-   * ada scope `phone`, jadi tak ada yang bisa disalin.
-   *
-   * OPSIONAL dengan sengaja. Nomor HP bukan syarat menilai layanan publik, dan
-   * mewajibkannya berarti menutup survei bagi orang yang tak ingin memberinya.
-   *
-   * Aturan bentuknya SATU dengan jalur publik (`NOMOR_HP_REGEX`), bukan
-   * disalin: dua aturan yang berbeda membuat nomor yang sama diterima di satu
-   * gerbang dan ditolak di gerbang lain.
-   */
-  @ApiPropertyOptional({
-    description: 'Nomor HP pengisi (08xx, 628xx, atau +628xx). Kosong bila tak diisi',
-  })
-  @IsOptional()
-  @IsString()
-  @Matches(NOMOR_HP_REGEX, {
-    message: 'Nomor HP tidak dikenali. Contoh bentuk yang diterima: 081234567890',
-  })
-  nomorHp?: string;
 }

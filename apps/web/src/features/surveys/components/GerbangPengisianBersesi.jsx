@@ -5,79 +5,42 @@ import Link from 'next/link';
 import { EyeOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { NOMOR_HP_REGEX } from '@/features/surveys/constants/demografi';
 
 /**
- * Gerbang sebelum kuesioner bagi pengguna yang SUDAH login (permintaan pengguna
- * 8 September 2026: "sebelum pengguna mengisi survei muncul tampilan opsi
- * anonim").
+ * Gerbang sebelum kuesioner bagi pengguna yang SUDAH login.
  *
- * MENGGANTIKAN PernyataanTanpaNama.jsx, yang dihapus bersama perubahan ini.
- * Komponen itu sengaja dibuat sebagai pernyataan pasif, bukan pilihan, dengan
- * alasan yang waktu itu benar: tak ada satu pun layar yang menampilkan siapa
- * pengisi survei, jadi tombol anonim tak akan mengubah apa pun. Alasan itu
- * BERUBAH pada hari yang sama, ketika pengguna meminta nama dan nomor HP
- * direkam. Sejak ada yang direkam, ada pula yang dapat dipilih untuk tidak
- * direkam, dan pilihannya menjadi kontrol yang hidup.
+ * SATU KONTROL SAJA, yaitu pilihan anonim (1 Oktober 2026, petang). Tak ada
+ * medan isian sama sekali.
  *
- * TIDAK ADA MEDAN ISIAN di sini, dan itu permintaan tersurat pengguna: data
- * dirinya diambil dari akun, jadi gerbangnya cukup kotak anonim. Yang
- * benar-benar tersedia dari akun sudah diukur, dan hanya `nama` yang datang
- * dari Helpdesk; demografisnya diambil dari `respondent_profiles` bila akun itu
- * punya barisnya. Nomor HP tak direkam pada jalur ini karena tak ada sumbernya.
- * Karena itu naskah di bawah menyebut "nama", bukan "data diri Anda":
- * menjanjikan lebih banyak daripada yang benar-benar tersimpan akan membuat
- * layar persetujuan menyesatkan.
+ * MEDAN NOMOR HP DIBUANG karena sumbernya akhirnya ada. Ia dipasang pagi ini
+ * atas dasar pengukuran yang ternyata belum lengkap: `claims_supported`
+ * penyedia tak memuat `phone_number`, dan dari situ disimpulkan Helpdesk tak
+ * mengirim nomor telepon. Payload `userinfo` SUNGGUHAN memuat
+ * `identity.phone_number`. Spesifikasi OIDC memang menyebut `claims_supported`
+ * sebagai petunjuk, bukan jaminan tertutup, dan di sinilah bedanya terasa.
+ * Sejak nomornya ada di akun, memintanya berarti menyuruh orang mengetik ulang
+ * yang sudah diketahui sistem.
  *
- * PILIHANNYA TIDAK MELEPAS RESPONS DARI AKUN. `userId` tetap tersimpan atas
- * keputusan pengguna, supaya anti-duplikat (`dedupeUserId`) dan riwayat survei
- * pemiliknya tetap bekerja. Naskahnya berhenti pada apa yang dijamin kode, dan
- * menyebut batas itu tersurat: pengisi yang menyangka responsnya lepas dari
- * akun akan salah menilai risikonya, justru pada topik yang paling tidak boleh
+ * PILIHAN ANONIM TETAP ADA, dan justru menjadi lebih berarti daripada
+ * sebelumnya: yang direkam kini bertambah dari nama saja menjadi nama, nomor
+ * HP, dan jenis kelamin. Semakin banyak yang direkam, semakin bernilai pula
+ * kemampuan memilih untuk tidak direkam.
+ *
+ * NASKAHNYA BERUBAH, dan bukan sekadar menyesuaikan. Kalimat lama berbunyi
+ * "Nama Anda tidak pernah ditampilkan bersama jawaban ini". Itu benar ketika
+ * ditulis, lalu menjadi TIDAK BENAR pada hari yang sama begitu kartu "Data
+ * Pengisi" dipasang di rincian respons: petugas memang melihatnya di sana.
+ * Layar yang meminta orang mengisi survei tak boleh menjanjikan kerahasiaan
+ * yang sudah tidak berlaku.
+ *
+ * BATASNYA JUGA DISEBUT: pilihan anonim TIDAK melepas respons dari akun.
+ * `userId` tetap tersimpan supaya anti-duplikat (`dedupeUserId`) dan riwayat
+ * survei pemiliknya bekerja. Pengisi yang menyangka responsnya lepas dari akun
+ * akan salah menilai risikonya, justru pada topik yang paling tidak boleh
  * dibesar-besarkan.
  */
 export default function GerbangPengisianBersesi({ onMulai }) {
   const [anonim, setAnonim] = useState(false);
-  const [nomorHp, setNomorHp] = useState('');
-  const [galatNomorHp, setGalatNomorHp] = useState(null);
-
-  /**
-   * SATU-SATUNYA medan isian di gerbang ini (1 Oktober 2026, keputusan tersurat
-   * pengguna), dan alasannya bukan selera.
-   *
-   * Nama dan demografis TIDAK diminta di sini sebab keduanya sudah ada di akun;
-   * memintanya berarti menyuruh orang mengetik ulang yang sudah diketahui
-   * sistem. Nomor HP berbeda, dan bedanya terukur: metadata penyedia Helpdesk
-   * (1 Oktober 2026) memuat `claims_supported` tanpa `phone_number` dan
-   * `scopes_supported` tanpa scope `phone`, dan `users` tak punya kolomnya.
-   * Tak ada yang bisa disalin, jadi satu-satunya sumber yang jujur adalah
-   * pengisinya sendiri.
-   *
-   * OPSIONAL dengan sengaja. Nomor HP bukan syarat menilai layanan publik, dan
-   * mewajibkannya menukar data pelengkap dengan suara warga yang hilang.
-   */
-  const mulai = () => {
-    // Dibuang, bukan sekadar disembunyikan: mengirim isi medan yang pengisinya
-    // sudah memutuskan untuk tidak diberikan akan membatalkan arti pilihannya.
-    // Pola yang sama berdiri di GerbangPengisianPublik.
-    if (anonim) {
-      setGalatNomorHp(null);
-      onMulai?.({ anonim: true, nomorHp: null });
-      return;
-    }
-
-    const bersih = nomorHp.trim();
-    if (bersih && !NOMOR_HP_REGEX.test(bersih)) {
-      // Ditahan DI SINI, bukan dibiarkan sampai pengiriman: pengisi yang sudah
-      // menjawab seluruh kuesioner lalu ditolak backend akan kehilangan
-      // jawabannya tanpa tahu sebabnya.
-      setGalatNomorHp('Nomor HP tidak dikenali. Contoh bentuk yang diterima: 081234567890');
-      return;
-    }
-
-    setGalatNomorHp(null);
-    onMulai?.({ anonim: false, nomorHp: bersih || null });
-  };
 
   return (
     <Card className="w-full max-w-[680px] mx-auto p-6 sm:p-8">
@@ -90,8 +53,7 @@ export default function GerbangPengisianBersesi({ onMulai }) {
             Sebelum Anda Mulai Mengisi
           </h1>
           <p className="text-body-md font-body-md text-text-secondary mt-1.5">
-            Jawaban survei ditampilkan kepada petugas dalam bentuk rekapitulasi. Nama Anda tidak
-            pernah ditampilkan bersama jawaban ini.
+            Jawaban survei ditampilkan kepada petugas dalam bentuk rekapitulasi.
           </p>
         </div>
       </div>
@@ -119,48 +81,20 @@ export default function GerbangPengisianBersesi({ onMulai }) {
         {/* Keterangannya BERUBAH mengikuti pilihannya, bukan satu paragraf tetap
             yang menjelaskan keduanya sekaligus: pengisi perlu tahu apa yang
             berlaku pada dirinya sekarang, bukan daftar dua kemungkinan yang
-            harus ia pilah sendiri. */}
-        <p id="isi-anonim-bantuan" className="text-xs text-text-secondary mt-2.5 px-1 leading-relaxed">
-          {anonim
-            ? 'Nama Anda tidak direkam bersama jawaban ini. Survei tetap hanya dapat diisi satu kali per akun, dan pengisian ini tetap muncul di riwayat survei Anda.'
-            : 'Nama pada akun Anda direkam bersama jawaban ini, tanpa ditampilkan kepada petugas.'}
-        </p>
+            harus ia pilah sendiri.
 
-        {/* HILANG saat anonim dipilih, bukan sekadar dinonaktifkan: medan mati
-            yang tetap terpampang mengundang pengisi mengetik lalu bertanya-tanya
-            mengapa tak bisa. */}
-        {!anonim && (
-          <div className="mt-5">
-            <label
-              htmlFor="nomor-hp"
-              className="block text-sm font-semibold text-text-primary mb-1.5"
-            >
-              Nomor HP <span className="font-normal text-text-secondary">(opsional)</span>
-            </label>
-            <input
-              id="nomor-hp"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel"
-              value={nomorHp}
-              onChange={(e) => setNomorHp(e.target.value)}
-              placeholder="081234567890"
-              aria-describedby={galatNomorHp ? 'nomor-hp-galat' : 'nomor-hp-bantuan'}
-              aria-invalid={galatNomorHp ? 'true' : undefined}
-              className="w-full min-h-[44px] rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
-            {galatNomorHp ? (
-              <p id="nomor-hp-galat" role="alert" className="text-xs text-error mt-1.5 px-1">
-                {galatNomorHp}
-              </p>
-            ) : (
-              <p id="nomor-hp-bantuan" className="text-xs text-text-secondary mt-1.5 px-1">
-                Dipakai hanya bila petugas perlu menghubungi Anda soal jawaban ini. Boleh
-                dikosongkan.
-              </p>
-            )}
-          </div>
-        )}
+            Cabang "tidak anonim" MENYEBUT KETIGA MEDANNYA satu per satu, bukan
+            "data diri Anda". Sejak nomor HP dan jenis kelamin ikut direkam,
+            kalimat yang menggeneralisasi akan menyembunyikan dua di antaranya
+            dari orang yang sedang memutuskan. */}
+        <p
+          id="isi-anonim-bantuan"
+          className="text-xs text-text-secondary mt-2.5 px-1 leading-relaxed"
+        >
+          {anonim
+            ? 'Nama, nomor HP, dan jenis kelamin Anda tidak direkam bersama jawaban ini. Survei tetap hanya dapat diisi satu kali per akun, dan pengisian ini tetap muncul di riwayat survei Anda.'
+            : 'Nama, nomor HP, dan jenis kelamin pada akun Anda direkam bersama jawaban ini, dan dapat dilihat petugas pada rincian respons.'}
+        </p>
       </div>
 
       <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-border pt-5">
@@ -171,9 +105,9 @@ export default function GerbangPengisianBersesi({ onMulai }) {
           Kembali ke Daftar Survei
         </Link>
         {/* Tombolnya SELALU hidup. Tidak mencentang apa pun adalah pilihan yang
-            sah di sini (mengisi dengan nama), berbeda dari gerbang PDP publik
-            yang memang menunggu satu persetujuan wajib. */}
-        <Button type="button" onClick={mulai} className="w-full sm:w-auto">
+            sah di sini (mengisi dengan data diri), berbeda dari gerbang PDP
+            publik yang memang menunggu satu persetujuan wajib. */}
+        <Button type="button" onClick={() => onMulai?.({ anonim })} className="w-full sm:w-auto">
           Mulai Isi Survei
         </Button>
       </div>

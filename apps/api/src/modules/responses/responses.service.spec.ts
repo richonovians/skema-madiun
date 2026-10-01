@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { enkripsiKolom } from '../../common/crypto/kolom';
 import { JenisKelamin, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -63,10 +65,27 @@ describe('ResponsesService', () => {
   const notifications = {
     notifySurveyResponse: jest.fn().mockResolvedValue(undefined),
   } as unknown as NotificationsService;
-  const service = new ResponsesService(prisma, consent, notifications);
+  /**
+   * Kunci uji tetap untuk kolom terenkripsi. `users.nomorHp` disimpan sebagai
+   * amplop (lihat common/crypto/kolom.ts), jadi layanan ini harus
+   * mendekripsinya sebelum menyalinnya ke respons.
+   */
+  const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xc);
+  const config = {
+    get: jest.fn((kunci: string) =>
+      kunci === 'crypto.dataKey' ? KUNCI_UJI_KOLOM.toString('hex') : undefined,
+    ),
+  } as unknown as ConfigService;
+  const service = new ResponsesService(prisma, consent, notifications, config);
 
   const AKUN_BERPROFIL = {
     nama: 'Siti Aminah',
+    // Kedua kolom ini lahir 1 Oktober 2026 dan ikut di-`select` sejak nomor HP
+    // serta jenis kelamin disalin dari akun Helpdesk. Ditulis TERSURAT sebagai
+    // null supaya fixture ini mewakili akun yang BELUM pernah login ulang --
+    // keadaan seluruh akun yang sudah ada saat kolomnya dibuat.
+    nomorHp: null,
+    jenisKelamin: null,
     respondentProfile: { jenisKelamin: JenisKelamin.perempuan, kelompokUmur: '26-35' },
   };
 
@@ -738,62 +757,136 @@ describe('ResponsesService', () => {
     });
 
     /**
-     * DIBALIK 1 Oktober 2026, atas keputusan tersurat pengguna.
+     * DIBALIK LAGI, 1 Oktober 2026 (petang), atas permintaan tersurat pengguna:
+     * "halaman sebelum mengisi survei tidak menampilkan form apapun".
      *
-     * Uji ini dulu berbunyi "nomorHp TIDAK pernah ditulis pada jalur bersesi",
-     * dan alasannya masih benar: Helpdesk tak mengirim nomor telepon (terukur
-     * pada metadata penyedia 1 Oktober 2026 -- `claims_supported` tak memuat
-     * `phone_number` dan `scopes_supported` tak memuat scope `phone`), dan
-     * `users` tak punya kolomnya.
+     * Uji ini sempat berbunyi "nomorHp ditulis DARI PAYLOAD", dan alasannya
+     * waktu itu benar: Helpdesk dianggap tak mengirim nomor telepon, terukur
+     * pada metadata penyedia yang `claims_supported`-nya tak memuat
+     * `phone_number`. ITU TERNYATA BUKAN JAWABAN YANG LENGKAP. Payload
+     * `userinfo` sungguhan memuat `identity.phone_number`, dan spesifikasi OIDC
+     * memang menyebut `claims_supported` sebagai petunjuk, bukan jaminan
+     * tertutup. Sejak nomornya ada di akun, meminta pengisi mengetiknya berarti
+     * menyuruh orang mengulang yang sudah diketahui sistem.
      *
-     * Yang berubah bukan ketersediaannya melainkan SUMBERNYA: sejak gerbang
-     * bersesi punya medan isian nomor HP, nomornya datang dari pengisi, bukan
-     * dari akun. Karena itu ia satu-satunya data diri jalur ini yang dibaca
-     * dari payload -- nama dan demografis tetap disalin dari akun, dan tetap
-     * tak dapat dikarang lewat permintaan langsung.
+     * Nomor HP kini DISALIN DARI AKUN seperti nama dan demografis, sehingga
+     * seluruh data diri jalur bersesi aman oleh konstruksi: tak satu pun dapat
+     * dikarang lewat permintaan langsung.
      */
-    it('nomorHp ditulis DARI PAYLOAD pada jalur bersesi', async () => {
+    it('nomorHp DISALIN DARI AKUN, bukan dari payload', async () => {
       siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: enkripsiKolom('+62895396662038', KUNCI_UJI_KOLOM),
+        jenisKelamin: JenisKelamin.perempuan,
+        respondentProfile: null,
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect(dataYangDitulis().nomorHp).toBe('+62895396662038');
+    });
+
+    /**
+     * PAGAR TERPENTING pada perubahan ini. DTO jalur bersesi sudah membuang
+     * medan `nomorHp`, tetapi layanan ini tak boleh bergantung pada satu
+     * lapisan saja: payload yang menyelundupkan nomor tak boleh berakhir di
+     * basis data sebagai data diri orang lain.
+     */
+    it('nomorHp yang diselundupkan lewat payload DIABAIKAN', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: enkripsiKolom('+62895396662038', KUNCI_UJI_KOLOM),
+        jenisKelamin: null,
+        respondentProfile: null,
+      });
 
       await service.submit(
         1,
-        { answers: [{ questionId: 101, nilai: 4 }], nomorHp: '081234567890' },
+        { answers: [{ questionId: 101, nilai: 4 }], nomorHp: '080000000000' } as never,
         responden(7),
       );
 
-      expect(dataYangDitulis().nomorHp).toBe('081234567890');
+      expect(dataYangDitulis().nomorHp).toBe('+62895396662038');
     });
 
-    it('nomorHp tak dikirim: kolomnya null, BUKAN undefined', async () => {
+    it('akun tanpa nomor HP: kolomnya null, BUKAN undefined', async () => {
       // `undefined` pada `create` Prisma berarti "pakai nilai baku". `null`
-      // menyatakan tersurat bahwa pengisi tak memberi nomornya -- dan medannya
-      // memang opsional, sebab memaksanya akan menghalangi orang mengisi survei.
+      // menyatakan tersurat bahwa nomornya memang tak ada -- keadaan normal,
+      // sebab Helpdesk tak menjamin medan itu terisi.
       siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: null,
+        jenisKelamin: null,
+        respondentProfile: null,
+      });
 
       await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
 
       expect(dataYangDitulis().nomorHp).toBeNull();
     });
 
-    it('KONTROL: tanpaDataDiri membuang nomorHp WALAU dikirim di payload', async () => {
-      // Pagar terpenting pada perubahan ini. Nomor HP satu-satunya data diri
-      // jalur bersesi yang datang dari payload, jadi ia pula satu-satunya yang
-      // bisa menyelinap melewati pilihan anonim: menghormati `tanpaDataDiri`
-      // pada nama dan demografis saja tak cukup, sebab keduanya tak pernah
-      // dibaca dari payload sejak awal.
+    it('KONTROL: tanpaDataDiri mengosongkan nomorHp walau akunnya punya', async () => {
       siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: enkripsiKolom('+62895396662038', KUNCI_UJI_KOLOM),
+        jenisKelamin: JenisKelamin.perempuan,
+        respondentProfile: null,
+      });
 
       await service.submit(
         1,
-        {
-          answers: [{ questionId: 101, nilai: 4 }],
-          nomorHp: '081234567890',
-          tanpaDataDiri: true,
-        },
+        { answers: [{ questionId: 101, nilai: 4 }], tanpaDataDiri: true },
         responden(7),
       );
 
-      expect(dataYangDitulis().nomorHp).toBeNull();
+      const data = dataYangDitulis();
+      expect(data.nomorHp).toBeNull();
+      expect(data.nama).toBeNull();
+      expect(data.jenisKelamin).toBeNull();
+    });
+
+    /**
+     * URUTAN SUMBER, keputusan tersurat pengguna: Helpdesk dulu,
+     * `respondent_profiles` sebagai cadangan. Diukur sebelum diputuskan --
+     * pada basis data lokal 1 Oktober 2026 hanya 1 dari 10 akun punya baris
+     * `respondent_profiles`, dan 7 dari 8 respons bersesi tersimpan tanpa
+     * jenis kelamin. Sumber lama memang hampir selalu kosong.
+     */
+    it('jenis kelamin diambil dari akun Helpdesk lebih dulu', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: null,
+        jenisKelamin: JenisKelamin.perempuan,
+        respondentProfile: { jenisKelamin: JenisKelamin.laki_laki, kelompokUmur: '26-35' },
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect(dataYangDitulis().jenisKelamin).toBe(JenisKelamin.perempuan);
+    });
+
+    it('respondent_profiles dipakai bila akun Helpdesk tak membawanya', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: null,
+        jenisKelamin: null,
+        respondentProfile: { jenisKelamin: JenisKelamin.laki_laki, kelompokUmur: '26-35' },
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      const data = dataYangDitulis();
+      expect(data.jenisKelamin).toBe(JenisKelamin.laki_laki);
+      // Kelompok umur TETAP dari respondent_profiles: Helpdesk tak
+      // mengirimkannya sama sekali (yang ada `tanggal_lahir`, dan batas
+      // kelompoknya keputusan pengguna, bukan tebakan kode ini).
+      expect(data.kelompokUmur).toBe('26-35');
     });
 
     it('akun yang tidak ditemukan tidak menggagalkan pengiriman', async () => {

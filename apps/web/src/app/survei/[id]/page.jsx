@@ -106,13 +106,15 @@ export default function IsiSurveiPage() {
 
   useEffect(() => {
     if (fillData && !fillData.sudahMengisi && !perluGerbang) {
+      // `nomorHp` TAK LAGI DITERUSKAN dari sini (1 Oktober 2026, petang):
+      // seluruh data diri jalur BERSESI disalin backend dari akun. Pilihan
+      // anonimnya tetap diteruskan. Jalur PUBLIK tak berubah sama sekali --
+      // pengunjung tanpa sesi tetap mengetik data dirinya di
+      // GerbangPengisianPublik, yang masuk lewat `dataPublik`.
       initSurvey(fillData, {
         anonim: !adaSesi,
         dataPublik,
         tanpaDataDiri: pilihanBersesi?.anonim === true,
-        // Hanya berarti pada jalur BERSESI. Pengunjung tanpa sesi mengetik nomor
-        // HP-nya di GerbangPengisianPublik, yang masuk lewat `dataPublik`.
-        nomorHp: pilihanBersesi?.nomorHp ?? null,
       });
     }
     return () => {
