@@ -4,6 +4,7 @@ import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronRight, ArrowLeft } from 'lucide-react';
 import SurveyResponseDetailCard from './SurveyResponseDetailCard';
+import SurveyRespondentCard from './SurveyRespondentCard';
 import SurveyResponseAnswers from './SurveyResponseAnswers';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
@@ -83,9 +84,21 @@ export default function SurveyResponseDetailScreen({
           </Link>
           <div>
             <h1 className="font-h2 text-h2 text-on-surface">Detail Respons</h1>
-            <p className="text-body-md text-on-surface-variant mt-xs">
-              Respons anonim -- SKM tidak menyimpan identitas pengisi
-            </p>
+            {/* HANYA pada respons yang pengisinya memilih anonim (1 Oktober
+                2026, permintaan pengguna). Kalimat ini dulu tanpa syarat apa
+                pun -- sisa dari masa ketika SKM memang tak menyimpan identitas
+                siapa pun. Sejak 8 September 2026 identitasnya disimpan bila
+                pengisi memilih memberikannya, dan sejak 1 Oktober 2026 ia
+                ditampilkan, sehingga kalimat ini berdiri tepat di atas kartu
+                yang memajang nama orangnya: bukan teks usang, melainkan
+                pernyataan yang TIDAK BENAR tentang perlakuan data pribadi.
+                Selagi memuat `data` belum ada, jadi kalimatnya belum muncul --
+                dan itu benar: belum diketahui anonim atau bukan. */}
+            {data?.response?.respondent?.isAnonim && (
+              <p className="text-body-md text-on-surface-variant mt-xs">
+                Respons anonim -- SKM tidak menyimpan identitas pengisi
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -102,6 +115,7 @@ export default function SurveyResponseDetailScreen({
               submittedAt={data.response.submittedAt}
               averageScore={data.response.averageScore}
             />
+            <SurveyRespondentCard respondent={data.response.respondent} />
           </div>
           <div className="lg:col-span-2">
             <SurveyResponseAnswers answers={data.response.answers} />
