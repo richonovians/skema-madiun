@@ -32,6 +32,21 @@ export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
   attachments?: ComplaintAttachmentEntity[];
   /** Nama pelapor. Hanya diisi pada `GET /complaints` (INT-11). */
   reporterNama?: string;
+  /**
+   * NIK, nomor HP, & alamat pelapor (1 Oktober 2026). HANYA pada
+   * `GET /complaints/:ticketNo` -- daftar pengaduan tak menggambar satu pun
+   * dari ketiganya, dan menariknya per baris berarti NIK serta alamat rumah
+   * puluhan orang melintas di respons yang tak memerlukannya.
+   *
+   * `null` BERBEDA dari tidak ada, dan bedanya dipakai. `null` berarti
+   * Helpdesk memang tak mengirimkan medan itu untuk orang ini -- keadaan
+   * NORMAL, sebab SSO melayani ASN maupun warga umum -- dan tampilan
+   * menyembunyikan barisnya alih-alih menggambar tanda hubung. Ketiadaan
+   * kuncinya berarti pengaduan ini anonim; lihat `toEntity`.
+   */
+  reporterNik?: string | null;
+  reporterNomorHp?: string | null;
+  reporterAlamat?: string | null;
   /** Nama OPD tujuan. Diisi pada `GET /complaints` & `GET /complaints/:ticketNo` (INT-18). */
   opdNama?: string;
 }
