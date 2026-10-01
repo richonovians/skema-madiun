@@ -65,7 +65,13 @@ export default function SurveyFilter({
           className={activeCategory === 'Semua' ? 'shrink-0 rounded-lg px-lg' : 'shrink-0 rounded-lg px-lg bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container'}
           onClick={() => onCategoryChange('Semua')}
         >
-          Semua
+          {/* LABEL saja yang berubah menjadi "Semua Survei" (1 Oktober 2026,
+              permintaan pengguna). Nilainya TETAP 'Semua': kata itu dipakai
+              dua kali dengan arti berbeda di berkas ini -- sebagai teks tombol
+              DAN sebagai nilai state, yang juga dibaca
+              app/(respondent)/surveys/page.jsx. Mengganti keduanya sekaligus
+              mematikan penyaringnya tanpa satu pun uji lama memerah. */}
+          Semua Survei
         </Button>
         {categories.map((cat) => (
           <Button

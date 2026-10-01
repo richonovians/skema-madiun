@@ -110,6 +110,9 @@ export default function IsiSurveiPage() {
         anonim: !adaSesi,
         dataPublik,
         tanpaDataDiri: pilihanBersesi?.anonim === true,
+        // Hanya berarti pada jalur BERSESI. Pengunjung tanpa sesi mengetik nomor
+        // HP-nya di GerbangPengisianPublik, yang masuk lewat `dataPublik`.
+        nomorHp: pilihanBersesi?.nomorHp ?? null,
       });
     }
     return () => {

@@ -400,10 +400,40 @@ export function adaptSurveyResponse(response, questions) {
   const averageScore =
     scaleValues.length > 0 ? scaleValues.reduce((sum, v) => sum + v, 0) / scaleValues.length : null;
 
+  /**
+   * Data diri pengisi (1 Oktober 2026, laporan pengguna "data responden bukan
+   * anonim belum tampil"). Backend membukanya pada tanggal yang sama; sebelum
+   * itu keempat kolomnya tersimpan tanpa satu pun pembaca.
+   *
+   * NULL DITERUSKAN APA ADANYA, tidak diganti '-' atau string kosong. Null di
+   * sini berarti pengisi MEMILIH tidak memberi datanya, dan pilihan itu harus
+   * tetap dapat dibedakan dari data yang hilang. Layar boleh memutuskan
+   * menampilkan '-'; adapter tak boleh memutuskannya untuk semua layar.
+   *
+   * `isAnonim` menuntut KEEMPATNYA kosong, bukan sekadar `nama` kosong, dan
+   * bedanya nyata: pada jalur bersesi, akun yang tak ditemukan membuat `nama`
+   * null sementara nomor HP yang diketik pengisi tetap tersimpan. Menyebut
+   * baris itu anonim akan mengklaim sebuah pilihan yang tak pernah diambil.
+   *
+   * Syarat "keempatnya" sah karena `tanpaDataDiri` mengosongkan SEMUANYA
+   * sekaligus di backend, pada kedua jalur -- jadi satu medan yang terisi sudah
+   * cukup membuktikan pengisi tidak memilih anonim.
+   */
+  const dataDiri = [response.nama, response.nomorHp, response.jenisKelamin, response.kelompokUmur];
+
+  const respondent = {
+    name: response.nama ?? null,
+    phone: response.nomorHp ?? null,
+    gender: response.jenisKelamin ?? null,
+    ageGroup: response.kelompokUmur ?? null,
+    isAnonim: dataDiri.every((n) => (n ?? null) === null),
+  };
+
   return {
     id: response.id,
     surveyId: response.surveyId,
     submittedAt: response.submittedAt,
+    respondent,
     answers,
     averageScore,
   };

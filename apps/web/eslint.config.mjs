@@ -124,6 +124,23 @@ const eslintConfig = defineConfig([
     'out/**',
     'build/**',
     'next-env.d.ts',
+
+    // KELUARAN BUATAN MESIN (30 September 2026). Ditambahkan begitu ESLint di
+    // apps/web bisa dijalankan lagi -- selama ia mati oleh `eslint-plugin-import`
+    // yang kehilangan `eslint-module-utils`, tak seorang pun bisa melihat bahwa
+    // daftar abainya belum lengkap.
+    //
+    // Terukur: `npx eslint .` melaporkan 12.319 masalah, dan 327 dari ~380
+    // berkasnya berasal dari direktori di bawah ini. Yang tersisa sesudah
+    // disaring -- `src` saja -- keluar dengan kode 0 dan 95 peringatan, angka
+    // yang masih cocok dengan utang a11y yang dicatat di atas pada 25 September.
+    //
+    // `.next-e2e` adalah keluaran `scripts/server-e2e.mjs`, sepupu `.next` yang
+    // luput dari daftar bawaan eslint-config-next semata karena namanya berbeda.
+    '.next-e2e/**',
+    'coverage/**',
+    // Dihasilkan `msw init`, bukan ditulis tangan.
+    'public/mockServiceWorker.js',
   ]),
 ]);
 

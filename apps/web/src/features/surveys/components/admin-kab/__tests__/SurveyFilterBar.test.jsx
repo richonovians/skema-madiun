@@ -95,3 +95,50 @@ describe('SurveyFilterBar — pencarian OPD', () => {
     expect(medanCari()).not.toBeInTheDocument();
   });
 });
+
+/**
+ * TOMBOL SAMPAH MASUK KE BARIS TOMBOL (1 Oktober 2026, permintaan pengguna:
+ * "pindahkan tombol sampah pada halaman monitoring survei kabupaten, sejajar
+ * dengan tombol reset filter, buat survei, ekspor").
+ *
+ * Sebelumnya ia berdiri sendiri pada barisnya sendiri di atas kartu ringkasan,
+ * `justify-end`, terpisah dari seluruh aksi lain halaman itu.
+ *
+ * DIRENDER DI SINI, BUKAN DIOPER SEBAGAI children, supaya urutannya tetap
+ * menjadi urusan komponen baris tombol -- halaman pemanggil tak perlu tahu di
+ * sebelah mana ia duduk, dan tak ada dua tempat yang harus mengingat hal sama.
+ *
+ * BARIS INI SUDAH SEMPIT, dan itu terukur: komentar di komponennya mencatat
+ * empat tombol menuntut 314px sementara layar 320px hanya menyediakan 222px --
+ * sebabnya `flex-wrap` dipasang 1 September 2026. Tombol kelima akan membungkus
+ * ke baris kedua di ponsel, dan itu perilaku yang memang sudah dirancang.
+ */
+describe('SurveyFilterBar — tautan Sampah', () => {
+  it('tautan Sampah ada di dalam baris tombol', () => {
+    render1();
+
+    expect(screen.getByRole('link', { name: /sampah/i })).toHaveAttribute(
+      'href',
+      '/admin-kab/surveys/sampah',
+    );
+  });
+
+  it('duduk dalam wadah yang sama dengan Reset Filter dan Buat Survei', () => {
+    // Inilah isi permintaannya: "sejajar dengan". Memastikan tautannya ADA saja
+    // akan tetap hijau walau ia kembali berdiri sendiri di barisnya sendiri.
+    render1();
+
+    const sampah = screen.getByRole('link', { name: /sampah/i });
+    const buat = screen.getByRole('button', { name: /buat survei/i });
+
+    expect(sampah.parentElement).toBe(buat.parentElement);
+  });
+
+  it('KONTROL: tombol lama tetap ada di baris itu', () => {
+    render1();
+
+    expect(screen.getByRole('button', { name: /buat survei/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ekspor/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reset/i })).toBeInTheDocument();
+  });
+});

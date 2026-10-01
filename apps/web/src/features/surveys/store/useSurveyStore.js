@@ -34,6 +34,11 @@ const useSurveyStore = create((set, get) => ({
   // sini. Terpisah pula dari `isAnonimMode`, yang menyatakan ada-tidaknya sesi
   // dan menentukan endpoint, bukan pilihan pengisi.
   tanpaDataDiri: false,
+  // Nomor HP dari GerbangPengisianBersesi (1 Oktober 2026). SATU-SATUNYA data
+  // diri jalur bersesi yang dikirim dari sini: nama & demografis disalin
+  // backend dari akun, sedangkan nomor HP tak ada sumbernya di sana -- Helpdesk
+  // tak mengirim klaim telepon dan tabel `users` tak punya kolomnya.
+  nomorHp: null,
 
   startSurvey: () => {
     set({ isSurveyInProgress: true, isCompleted: false });
@@ -45,7 +50,10 @@ const useSurveyStore = create((set, get) => ({
    * tengah pengisian berisiko berpindah jalur di tengah jalan bila sesi
    * kedaluwarsa -- responden akan kehilangan jawabannya tanpa sebab yang jelas.
    */
-  initSurvey: (data, { anonim = false, dataPublik = null, tanpaDataDiri = false } = {}) => {
+  initSurvey: (
+    data,
+    { anonim = false, dataPublik = null, tanpaDataDiri = false, nomorHp = null } = {},
+  ) => {
     set({
       surveyData: data,
       currentStepIndex: 0,
@@ -55,6 +63,7 @@ const useSurveyStore = create((set, get) => ({
       isAnonimMode: anonim,
       dataPublik,
       tanpaDataDiri,
+      nomorHp,
     });
   },
 
@@ -93,7 +102,15 @@ const useSurveyStore = create((set, get) => ({
   setCaptchaToken: (captchaToken) => set({ captchaToken }),
 
   submitSurvey: async () => {
-    const { surveyData, answers, isAnonimMode, dataPublik, tanpaDataDiri, captchaToken } = get();
+    const {
+      surveyData,
+      answers,
+      isAnonimMode,
+      dataPublik,
+      tanpaDataDiri,
+      nomorHp,
+      captchaToken,
+    } = get();
     if (!surveyData) {
       return { success: false, error: 'Survei belum dimuat' };
     }
@@ -110,7 +127,13 @@ const useSurveyStore = create((set, get) => ({
             ...(dataPublik ?? {}),
             captchaToken,
           })
-        : submitSurveyResponse(surveyData.id, surveyData.questions, answers, tanpaDataDiri));
+        : submitSurveyResponse(
+            surveyData.id,
+            surveyData.questions,
+            answers,
+            tanpaDataDiri,
+            nomorHp,
+          ));
       // Penanda peramban ditulis HANYA sesudah server menerima -- menandainya
       // lebih dulu akan mengunci responden dari survei yang belum tersimpan.
       if (isAnonimMode) {
@@ -141,6 +164,7 @@ const useSurveyStore = create((set, get) => ({
       dataPublik: null,
       captchaToken: null,
       tanpaDataDiri: false,
+      nomorHp: null,
     });
   },
 }));

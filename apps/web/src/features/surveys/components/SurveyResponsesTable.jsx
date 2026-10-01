@@ -33,6 +33,12 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
         <Thead>
           <Tr>
             <Th>Respons</Th>
+            {/* PENGISI (1 Oktober 2026, keputusan tersurat pengguna sesudah
+                laporan "data responden bukan anonim belum tampil"). Namanya
+                saja: nomor HP sengaja tinggal di halaman detail, sebab daftar
+                dipakai memindai banyak baris sekaligus dan memajang data hubung
+                puluhan orang pada satu layar tak dibutuhkan untuk memindai. */}
+            <Th>Pengisi</Th>
             <Th>Waktu Pengisian</Th>
             <Th>Nilai Rata-Rata</Th>
             {/* `relative` (16 September 2026): `sr-only` adalah
@@ -55,6 +61,18 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
               <Td>
                 <span className="font-medium text-on-surface">Respons #{index + 1}</span>
               </Td>
+              {/* "Anonim" DITULIS di sini, bukan di adapter. Null dari backend
+                  berarti pengisi memilih tidak memberi datanya, dan adapter
+                  meneruskannya apa adanya supaya pilihan itu tetap dapat
+                  dibedakan dari data yang hilang. Menerjemahkannya menjadi kata
+                  adalah keputusan TAMPILAN, dan tempatnya di sini. */}
+              <Td>
+                {response.respondent?.name ? (
+                  <span className="text-on-surface">{response.respondent.name}</span>
+                ) : (
+                  <span className="text-on-surface-variant italic">Anonim</span>
+                )}
+              </Td>
               <Td>
                 <span className="text-on-surface-variant">{formatDate(response.submittedAt)}</span>
               </Td>
@@ -75,7 +93,7 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
           ))}
           {responses.length === 0 && (
             <Tr>
-              <Td colSpan={4} className="text-center py-xl text-on-surface-variant">
+              <Td colSpan={5} className="text-center py-xl text-on-surface-variant">
                 Belum ada respons untuk survei ini.
               </Td>
             </Tr>

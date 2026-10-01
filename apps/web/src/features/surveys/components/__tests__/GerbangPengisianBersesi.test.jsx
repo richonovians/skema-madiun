@@ -22,6 +22,7 @@ const render1 = (props = {}) => render(<GerbangPengisianBersesi onMulai={jest.fn
 
 const kotakAnonim = () => screen.getByRole('checkbox', { name: /sebagai anonim/i });
 const tombolMulai = () => screen.getByRole('button', { name: /mulai isi survei/i });
+const medanNomorHp = () => screen.getByLabelText(/nomor hp/i);
 
 describe('GerbangPengisianBersesi', () => {
   it('baku TIDAK anonim, dan tombolnya tetap dapat ditekan', () => {
@@ -37,7 +38,7 @@ describe('GerbangPengisianBersesi', () => {
 
     fireEvent.click(tombolMulai());
 
-    expect(onMulai).toHaveBeenCalledWith({ anonim: false });
+    expect(onMulai).toHaveBeenCalledWith({ anonim: false, nomorHp: null });
   });
 
   it('meneruskan pilihan anonim saat dicentang', () => {
@@ -47,7 +48,7 @@ describe('GerbangPengisianBersesi', () => {
     fireEvent.click(kotakAnonim());
     fireEvent.click(tombolMulai());
 
-    expect(onMulai).toHaveBeenCalledWith({ anonim: true });
+    expect(onMulai).toHaveBeenCalledWith({ anonim: true, nomorHp: null });
   });
 
   it('keterangannya berubah mengikuti pilihannya', () => {
@@ -84,14 +85,87 @@ describe('GerbangPengisianBersesi', () => {
     expect(screen.queryByText(/tidak tertaut/i)).not.toBeInTheDocument();
   });
 
-  it('TIDAK meminta satu pun medan isian', () => {
-    // Permintaan tersurat pengguna: data dirinya diambil dari akun, jadi
-    // gerbangnya cukup kotak anonim. Medan isian di sini berarti meminta ulang
-    // yang sudah diketahui sistem, atau meminta yang tak akan pernah dipakai.
+  /**
+   * DIBALIK 1 Oktober 2026, atas keputusan tersurat pengguna.
+   *
+   * Uji ini dulu berbunyi "TIDAK meminta satu pun medan isian", dengan alasan
+   * yang waktu itu benar: data diri pengisi bersesi diambil dari akun, jadi
+   * medan isian berarti meminta ulang yang sudah diketahui sistem.
+   *
+   * Alasan itu TIDAK berlaku untuk nomor HP, dan bedanya terukur: Helpdesk tak
+   * mengirim nomor telepon sama sekali (metadata penyedia 1 Oktober 2026 --
+   * `claims_supported` tanpa `phone_number`, `scopes_supported` tanpa scope
+   * `phone`) dan `users` tak punya kolomnya. Nomor HP bukan "yang sudah
+   * diketahui sistem"; ia satu-satunya data diri yang TAK dapat diketahui tanpa
+   * bertanya.
+   *
+   * Karena itu medannya tepat satu. Menambah nama atau demografis di sini akan
+   * mengulangi apa yang memang sudah ada di akun, dan itulah yang dulu ditolak.
+   */
+  it('meminta nomor HP, dan HANYA itu', () => {
     render1();
 
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    expect(medanNomorHp()).toBeInTheDocument();
     expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+  });
+
+  it('meneruskan nomor HP yang diketik', () => {
+    const onMulai = jest.fn();
+    render1({ onMulai });
+
+    fireEvent.change(medanNomorHp(), { target: { value: '081234567890' } });
+    fireEvent.click(tombolMulai());
+
+    expect(onMulai).toHaveBeenCalledWith({ anonim: false, nomorHp: '081234567890' });
+  });
+
+  it('nomor HP OPSIONAL: dibiarkan kosong tetap boleh mulai', () => {
+    // Nomor HP bukan syarat menilai layanan publik. Mewajibkannya berarti
+    // menutup survei bagi orang yang tak ingin memberinya -- dan itu menukar
+    // data yang bersifat pelengkap dengan suara warga yang hilang.
+    const onMulai = jest.fn();
+    render1({ onMulai });
+
+    fireEvent.click(tombolMulai());
+
+    expect(onMulai).toHaveBeenCalledWith({ anonim: false, nomorHp: null });
+  });
+
+  it('nomor HP yang tak dikenali ditolak, dan pengisian tidak dimulai', () => {
+    // Ditahan DI SINI, bukan dibiarkan sampai backend: pengisi yang sudah
+    // menjawab seluruh kuesioner lalu ditolak pada pengiriman akan kehilangan
+    // jawabannya tanpa tahu sebabnya.
+    const onMulai = jest.fn();
+    render1({ onMulai });
+
+    fireEvent.change(medanNomorHp(), { target: { value: '12345' } });
+    fireEvent.click(tombolMulai());
+
+    expect(onMulai).not.toHaveBeenCalled();
+    expect(screen.getByText(/nomor hp tidak dikenali/i)).toBeInTheDocument();
+  });
+
+  it('KONTROL: memilih anonim MEMBUANG nomor HP yang terlanjur diketik', () => {
+    // Pagar terpenting berkas ini. Menyembunyikan medannya tanpa membuang
+    // isinya akan mengirim data yang pengisinya sudah memutuskan untuk tidak
+    // diberikan -- pola yang sama sudah berdiri di GerbangPengisianPublik.
+    const onMulai = jest.fn();
+    render1({ onMulai });
+
+    fireEvent.change(medanNomorHp(), { target: { value: '081234567890' } });
+    fireEvent.click(kotakAnonim());
+    fireEvent.click(tombolMulai());
+
+    expect(onMulai).toHaveBeenCalledWith({ anonim: true, nomorHp: null });
+  });
+
+  it('medan nomor HP hilang saat anonim dipilih', () => {
+    render1();
+
+    fireEvent.click(kotakAnonim());
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
   it('ada jalan keluar ke daftar survei', () => {

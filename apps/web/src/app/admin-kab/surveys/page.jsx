@@ -2,8 +2,6 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Trash2 } from 'lucide-react';
 import SurveyOverviewCards from '@/features/surveys/components/admin-kab/SurveyOverviewCards';
 import SurveyFilterBar from '@/features/surveys/components/admin-kab/SurveyFilterBar';
 import SurveyMonitoringTable from '@/features/surveys/components/admin-kab/SurveyMonitoringTable';
@@ -384,18 +382,9 @@ export default function AdminKabSurveysPage() {
 
   return (
     <div className="p-lg w-full space-y-6">
-      <div className="flex justify-end">
-        {/* Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali --
-            survei yang terlanjur dibuang akan terlihat seperti hilang. */}
-        <Link
-          href="/admin-kab/surveys/sampah"
-          className="px-lg py-sm min-h-[44px] border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
-        >
-          <Trash2 size={16} />
-          Sampah
-        </Link>
-      </div>
-
+      {/* Tautan Sampah PINDAH ke SurveyFilterBar (1 Oktober 2026, permintaan
+          pengguna) supaya sejajar dengan Reset Filter, Buat Survei, dan Ekspor.
+          Barisnya sendiri dibuang, bukan disisakan kosong. */}
       <SurveyOverviewCards surveys={surveys} />
 
       {actionNotice && (

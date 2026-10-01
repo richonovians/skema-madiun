@@ -4,7 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Question, QuestionOption, QuestionType, SurveyStatus } from '@prisma/client';
+import {
+  JenisKelamin,
+  Prisma,
+  Question,
+  QuestionOption,
+  QuestionType,
+  SurveyStatus,
+} from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
@@ -119,10 +126,19 @@ export class ResponsesService {
           surveyId,
           userId: user.userId,
           dedupeUserId,
-          // `nomorHp` TIDAK disebut di sini, dan ketiadaannya disengaja: tak ada
-          // sumbernya untuk pengguna bersesi. Helpdesk tak mengirim nomor
-          // telepon dan `users` tak punya kolomnya, jadi menyebutkannya di sini
-          // hanya menulis null yang menyamar sebagai data yang dicoba diambil.
+          // `nomorHp` DARI PAYLOAD, satu-satunya data diri jalur ini yang tidak
+          // disalin dari akun (1 Oktober 2026, keputusan tersurat pengguna).
+          // Bukan kelonggaran melainkan keharusan: Helpdesk tak mengirim nomor
+          // telepon -- terukur pada metadata penyedia, `claims_supported` tanpa
+          // `phone_number` dan `scopes_supported` tanpa scope `phone` -- dan
+          // `users` tak punya kolomnya. Tak ada yang bisa disalin, jadi satu-
+          // satunya sumber yang jujur adalah pengisinya sendiri.
+          //
+          // `dto.tanpaDataDiri` DIHORMATI DI SINI, dan pagar itu perlu justru
+          // karena nomor ini datang dari payload: nama dan demografis aman oleh
+          // konstruksi, sebab `ambilDataDiriAkun` tak pernah dipanggil saat
+          // pengisi memilih anonim. Nomor HP tak punya perlindungan itu.
+          nomorHp: dto.tanpaDataDiri ? null : (dto.nomorHp ?? null),
           nama: dataDiri?.nama ?? null,
           jenisKelamin: dataDiri?.jenisKelamin ?? null,
           kelompokUmur: dataDiri?.kelompokUmur ?? null,
@@ -438,7 +454,15 @@ export class ResponsesService {
   }
 
   private toResponseEntity(
-    row: { id: number; surveyId: number; submittedAt: Date },
+    row: {
+      id: number;
+      surveyId: number;
+      submittedAt: Date;
+      nama?: string | null;
+      nomorHp?: string | null;
+      jenisKelamin?: JenisKelamin | null;
+      kelompokUmur?: string | null;
+    },
     answers: {
       id: number;
       questionId: number;
@@ -451,6 +475,15 @@ export class ResponsesService {
       id: row.id,
       surveyId: row.surveyId,
       submittedAt: row.submittedAt,
+      // `?? null`, BUKAN dibiarkan undefined. Keempat medan ini opsional pada
+      // tipe baris di atas supaya pemanggil yang memilih kolomnya sendiri tetap
+      // cocok, tetapi entity-nya harus selalu menyatakan keadaan yang sama:
+      // `undefined` hilang dari JSON, sehingga pembaca tak dapat membedakan
+      // "pengisi memilih anonim" dari "medannya tak ikut terkirim".
+      nama: row.nama ?? null,
+      nomorHp: row.nomorHp ?? null,
+      jenisKelamin: row.jenisKelamin ?? null,
+      kelompokUmur: row.kelompokUmur ?? null,
       answers: answers.map(
         (a) =>
           new AnswerEntity({
