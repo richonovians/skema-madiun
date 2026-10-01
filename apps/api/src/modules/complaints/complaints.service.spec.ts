@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { dekripsiKolom } from '../../common/crypto/kolom';
+import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
 import { ComplaintStatus, Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -443,7 +443,10 @@ describe('ComplaintsService', () => {
         expect.objectContaining({
           include: {
             attachments: true,
-            user: { select: { nama: true } },
+            // Ketiga kolom identitas ikut sejak 1 Oktober 2026 -- hanya di
+            // jalur detail ini. Bentuknya ditegaskan sendiri pada blok
+            // "identitas pelapor pada detail" di bawah.
+            user: { select: { nama: true, nik: true, nomorHp: true, alamat: true } },
             opd: { select: { nama: true } },
           },
         }),
@@ -938,6 +941,120 @@ describe('ComplaintsService', () => {
       await expect(service.forward(99, { opdId: 9 }, kabupatenUser())).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  /**
+   * Identitas pelapor pada detail pengaduan (1 Oktober 2026, laporan pengguna:
+   * "profil pelapor pengaduan belum mengambil data profil/akun dari helpdesk").
+   *
+   * Sumbernya kini ada -- ketiga kolom `users` diisi dari klaim Helpdesk saat
+   * login (lihat sso-identitas.mapper.ts). Yang diuji di sini: ketiganya sampai
+   * ke kartu "Profil Pelapor", TIDAK ikut ke daftar, dan hilang sepenuhnya pada
+   * pengaduan anonim.
+   */
+  describe('ComplaintsService — identitas pelapor pada detail', () => {
+    const sandi = (teks: string) => enkripsiKolom(teks, KUNCI_UJI_KOLOM);
+
+    const userLengkap = {
+      nama: 'Warga Contoh',
+      nik: sandi('3520041502050002'),
+      nomorHp: sandi('+62895396662038'),
+      alamat: sandi('Dusun Timang Desa Waduk'),
+    };
+
+    it('mendekripsi ketiganya ke dalam entity detail', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ user: userLengkap, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(hasil.reporterNama).toBe('Warga Contoh');
+      // TERSAMAR, bukan penuh (1 Oktober 2026). Nomor penuhnya tak pernah
+      // meninggalkan server -- lihat common/identitas/nik.ts.
+      expect(hasil.reporterNik).toBe('3520 04•• •••• 0002');
+      expect(hasil.reporterNomorHp).toBe('+62895396662038');
+      expect(hasil.reporterAlamat).toBe('Dusun Timang Desa Waduk');
+    });
+
+    /**
+     * PAGAR TERPENTING perubahan ini. Uji di atas membuktikan bentuk yang
+     * tersamar muncul; uji ini membuktikan bentuk PENUHNYA tidak -- di medan mana
+     * pun, bukan hanya di medan yang kebetulan diperiksa.
+     */
+    it('nomor NIK penuh TIDAK muncul di satu medan pun', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ user: userLengkap, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(JSON.stringify(hasil)).not.toContain('3520041502050002');
+    });
+
+    it('meminta ketiga kolom itu pada include-nya', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+
+      await service.findByTicketNo('PGDX', kabupatenUser());
+
+      const include = (prisma.complaint.findUnique as jest.Mock).mock.calls[0][0].include;
+      expect(include.user.select).toEqual({
+        nama: true,
+        nik: true,
+        nomorHp: true,
+        alamat: true,
+      });
+    });
+
+    /**
+     * DAFTAR TIDAK IKUT MEMBAWANYA. Daftar pengaduan tak menggambar satu pun dari
+     * ketiganya, dan menariknya untuk tiap baris berarti NIK serta alamat rumah
+     * puluhan orang melintas di satu respons yang tak memerlukannya. Pembatasan
+     * termurah adalah tidak mengambilnya sejak kueri.
+     */
+    it('daftar pengaduan tidak ikut menarik NIK maupun alamat', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[complaintRow()], 1]);
+
+      await service.findAll({ page: 1, limit: 20 }, kabupatenUser());
+
+      const include = (prisma.complaint.findMany as jest.Mock).mock.calls[0][0].include;
+      expect(include.user.select).toEqual({ nama: true });
+    });
+
+    /**
+     * Janji anonim berlaku untuk SELURUH identitas, bukan hanya namanya. Tanpa
+     * uji ini, menambah tiga medan ke entity diam-diam membuka tiga jalan baru
+     * yang justru paling menunjuk satu orang.
+     */
+    it('pengaduan anonim: ketiganya hilang SEBAGAI KUNCI, bukan diisi null', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ isAnonim: true, user: userLengkap, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      for (const kunci of ['reporterNama', 'reporterNik', 'reporterNomorHp', 'reporterAlamat']) {
+        expect(Object.keys(hasil)).not.toContain(kunci);
+      }
+    });
+
+    /**
+     * Kolom kosong adalah keadaan NORMAL: SSO melayani ASN maupun warga umum,
+     * dan tak satu pun medan ini dijamin ada. Yang kosong tak boleh menjelma
+     * jadi string kosong -- tampilan membedakan "tak ada" dari "ada tapi kosong"
+     * untuk memutuskan menyembunyikan barisnya.
+     */
+    it('kolom yang null tetap null, tidak menjadi string kosong', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ user: { nama: 'Warga Contoh', nik: null, nomorHp: null, alamat: null } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(hasil.reporterNik).toBeNull();
+      expect(hasil.reporterNomorHp).toBeNull();
+      expect(hasil.reporterAlamat).toBeNull();
     });
   });
 });

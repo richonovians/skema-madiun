@@ -28,6 +28,7 @@ import {
 } from '@prisma/client';
 import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
 import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
+import { samarkanNik } from '../../common/identitas/nik';
 import { kunciData } from '../../common/crypto/kunci';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
@@ -74,8 +75,13 @@ type ComplaintWithAttachments = Complaint & {
     sizeBytes: number | null;
     createdAt: Date;
   }[];
-  /** Hanya terisi bila query di-`include` (lihat findAll, INT-11). */
-  user?: { nama: string };
+  /**
+   * Hanya terisi bila query di-`include`. `findAll` memilih `nama` saja;
+   * `findByTicketNo` memilih ketiga kolom identitas juga (1 Oktober 2026),
+   * sehingga ketiganya OPSIONAL di sini -- bukan kelalaian melainkan
+   * pernyataan bahwa daftar memang tak menariknya.
+   */
+  user?: { nama: string; nik?: string | null; nomorHp?: string | null; alamat?: string | null };
   /**
    * Hanya terisi bila query di-`include` (lihat findByTicketNo, INT-18).
    * `null` bila pengaduannya belum bertujuan (6 September 2026) -- relasinya
@@ -247,7 +253,9 @@ export class ComplaintsService {
       where: { ticketNo },
       include: {
         attachments: true,
-        user: { select: { nama: true } },
+        // Ketiga kolom identitas IKUT DI SINI SAJA, tidak di findAll. Lihat
+        // ComplaintEntity.reporterNik untuk sebabnya.
+        user: { select: { nama: true, nik: true, nomorHp: true, alamat: true } },
         opd: { select: { nama: true } },
       },
     });
@@ -675,6 +683,19 @@ export class ComplaintsService {
    * pengecualian berbasis peran di sini, janji anonim bergantung pada disiplin
    * pemakainya, bukan pada sistem.
    */
+  /**
+   * Dekripsi kolom yang boleh tak ada. TIGA KEADAAN DIBEDAKAN: `undefined`
+   * (kueri tak menariknya), `null` (Helpdesk tak mengirimnya), dan teks
+   * (ada isinya). Menyatukan dua yang pertama akan membuat daftar pengaduan
+   * tampak menyatakan bahwa seluruh pelapor tak punya NIK.
+   */
+  private dekripsiOpsional(nilai: string | null | undefined): string | null | undefined {
+    if (nilai === undefined || nilai === null) {
+      return nilai;
+    }
+    return dekripsiKolom(nilai, this.kunci);
+  }
+
   private toEntity(row: ComplaintWithAttachments): ComplaintEntity {
     const { user, opd, ...rest } = row;
     const entity = new ComplaintEntity({
@@ -686,11 +707,28 @@ export class ComplaintsService {
       uraian: dekripsiKolom(rest.uraian, this.kunci),
       attachments: this.tandaTanganiLampiran(rest.attachments),
       reporterNama: user?.nama,
+      // DIDEKRIPSI DI CHOKEPOINT YANG SAMA dengan `uraian` di atas. `undefined`
+      // dipertahankan sebagai `undefined` (daftar tak menariknya) sementara
+      // `null` dipertahankan sebagai `null` (Helpdesk memang tak mengirimnya) --
+      // tampilan membedakan keduanya untuk memutuskan menyembunyikan baris.
+      // DISAMARKAN DI SINI, di hulu. NIK ini milik PELAPOR, bukan milik
+      // petugas yang membukanya; nomor penuhnya tak punya alasan meninggalkan
+      // server. Ditaruh di chokepoint yang sama dengan dekripsi supaya ekspor
+      // PDF -- yang membaca medan ini juga -- ikut terlindungi tanpa pekerjaan
+      // tambahan. Lihat common/identitas/nik.ts.
+      reporterNik: samarkanNik(this.dekripsiOpsional(user?.nik)),
+      reporterNomorHp: this.dekripsiOpsional(user?.nomorHp),
+      reporterAlamat: this.dekripsiOpsional(user?.alamat),
       opdNama: opd?.nama,
     });
     if (row.isAnonim) {
       delete entity.userId;
       delete entity.reporterNama;
+      // Janji anonim berlaku untuk SELURUH identitas, bukan namanya saja.
+      // Ketiga medan ini justru yang paling menunjuk satu orang.
+      delete entity.reporterNik;
+      delete entity.reporterNomorHp;
+      delete entity.reporterAlamat;
     }
     return entity;
   }

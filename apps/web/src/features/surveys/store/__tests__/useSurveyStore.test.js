@@ -85,12 +85,16 @@ describe('useSurveyStore — mode anonim', () => {
 /**
  * PILIHAN GERBANG BERSESI DITERUSKAN SAMPAI PENGIRIMAN (1 Oktober 2026).
  *
- * `tanpaDataDiri` sudah ada sejak 8 September 2026 tetapi tak pernah diuji
- * rantainya; `nomorHp` menyusul hari ini. Keduanya diuji di sini sekaligus,
- * sebab yang mudah putus bukan masing-masing medannya melainkan JALANNYA:
- * gerbang -> halaman -> store -> pemanggilan API. Komponen gerbangnya sudah
- * punya ujinya sendiri, dan backend punya miliknya; bagian tengah inilah yang
- * selama ini tak dijaga siapa pun.
+ * DIPERSEMPIT pada sore hari yang sama. Berkas ini semula menjaga DUA medan --
+ * `tanpaDataDiri` dan `nomorHp` -- karena nomor HP sempat dikirim dari klien.
+ * Nomor itu kini DISALIN BACKEND DARI AKUN, sehingga tak ada lagi rantai klien
+ * yang perlu dijaga untuknya; yang tersisa justru menjadi pagar: memastikan
+ * nomor tak pernah lagi berangkat dari sini.
+ *
+ * Yang mudah putus bukan medannya satu per satu melainkan JALANNYA: gerbang ->
+ * halaman -> store -> pemanggilan API. Komponen gerbangnya punya ujinya
+ * sendiri, backend punya miliknya; bagian tengah inilah yang selama ini tak
+ * dijaga siapa pun.
  */
 describe('useSurveyStore — pilihan gerbang bersesi diteruskan', () => {
   beforeEach(() => {
@@ -105,33 +109,43 @@ describe('useSurveyStore — pilihan gerbang bersesi diteruskan', () => {
     return submitSurveyResponse.mock.calls[0];
   };
 
-  it('nomor HP dari gerbang sampai ke pemanggilan API', async () => {
-    const panggilan = await kirim({ nomorHp: '081234567890' });
-
-    expect(panggilan[4]).toBe('081234567890');
-  });
-
-  it('tanpa nomor HP: null diteruskan, bukan string kosong', async () => {
-    // String kosong akan lolos `@IsOptional` backend lalu ditolak regex-nya,
-    // sehingga pengisi yang sengaja mengosongkannya justru gagal mengirim.
-    const panggilan = await kirim({});
-
-    expect(panggilan[4]).toBeNull();
-  });
-
-  it('KONTROL: pilihan anonim ikut sampai, dan nomor HP tidak menumpanginya', async () => {
-    const panggilan = await kirim({ tanpaDataDiri: true, nomorHp: null });
+  it('pilihan anonim sampai ke pemanggilan API', async () => {
+    const panggilan = await kirim({ tanpaDataDiri: true });
 
     expect(panggilan[3]).toBe(true);
-    expect(panggilan[4]).toBeNull();
   });
 
-  it('resetSurvey membersihkan nomor HP', async () => {
-    // Nomor dari survei sebelumnya yang tertinggal akan ikut terkirim pada
-    // survei berikutnya, tanpa pengisi pernah mengetiknya lagi.
-    useSurveyStore.getState().initSurvey(survei, { nomorHp: '081234567890' });
+  it('tanpa pilihan anonim: false yang diteruskan, bukan undefined', async () => {
+    const panggilan = await kirim({});
+
+    expect(panggilan[3]).toBe(false);
+  });
+
+  /**
+   * PAGAR, bukan sekadar kerapian. Selama klien masih mengirim nomor HP, siapa
+   * pun dapat menaruh nomor orang lain pada responsnya sendiri. Sejak nomor
+   * disalin backend dari akun, argumen itu tak boleh ada lagi -- dan uji ini
+   * yang menahannya kembali.
+   */
+  it('TIDAK mengirim nomor HP dari klien sama sekali', async () => {
+    const panggilan = await kirim({});
+
+    expect(panggilan).toHaveLength(4);
+    expect(panggilan[4]).toBeUndefined();
+  });
+
+  it('store tak lagi menyimpan nomor HP', () => {
+    useSurveyStore.getState().initSurvey(survei, { tanpaDataDiri: false });
+
+    expect(useSurveyStore.getState()).not.toHaveProperty('nomorHp');
+  });
+
+  it('resetSurvey mengembalikan pilihan anonim ke false', async () => {
+    // Pilihan dari survei sebelumnya yang tertinggal akan diam-diam berlaku
+    // pada survei berikutnya, tanpa pengisi pernah memilihnya lagi.
+    useSurveyStore.getState().initSurvey(survei, { tanpaDataDiri: true });
     useSurveyStore.getState().resetSurvey();
 
-    expect(useSurveyStore.getState().nomorHp).toBeNull();
+    expect(useSurveyStore.getState().tanpaDataDiri).toBe(false);
   });
 });

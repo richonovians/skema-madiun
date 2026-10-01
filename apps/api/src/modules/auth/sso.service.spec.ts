@@ -5,7 +5,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
+import { JenisKelamin, Role } from '@prisma/client';
+import { AWALAN_KOLOM, dekripsiKolom } from '../../common/crypto/kolom';
+import { KUNCI_UJI } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
@@ -1257,5 +1259,157 @@ describe('completeLogin: callback duplikat yang terlambat', () => {
     await expect(m.service.completeLogin('kode-2', 'nonce-1', COOKIE)).rejects.toThrow(
       BadRequestException,
     );
+  });
+});
+
+/**
+ * Identitas pelapor (NIK, nomor HP, alamat) dari klaim Helpdesk, 1 Oktober 2026.
+ *
+ * Pembacaan jalurnya sendiri diuji tuntas di `sso-identitas.mapper.spec.ts`.
+ * Yang diuji DI SINI hanya yang menjadi urusan service: apakah hasilnya benar
+ * tersimpan, apakah terenkripsi, dan apakah login yang klaimnya tak membawa
+ * ketiganya menimpa apa yang sudah tersimpan.
+ */
+describe('SsoService — identitas pelapor dari klaim', () => {
+  /** Kunci yang sama dengan yang dipakai `kunciData` saat NODE_ENV=test. */
+  const KUNCI = Buffer.from(KUNCI_UJI, 'hex');
+
+  /** Bentuk bersarang, sebagaimana `GET /api/oauth/userinfo` mengirimkannya. */
+  const klaimLengkap = {
+    identity: { phone_number: '081234567890' },
+    demographics: { nik: '3507123456789012' },
+    location: { alamat: 'Jl. Pahlawan No. 1' },
+  };
+
+  it('akun baru: ketiganya tersimpan dan dapat didekripsi kembali', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimLengkap }));
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValueOnce(userRow());
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.create.mock.calls[0][0].data;
+    expect(dekripsiKolom(data.nik, KUNCI)).toBe('3507123456789012');
+    expect(dekripsiKolom(data.nomorHp, KUNCI)).toBe('081234567890');
+    expect(dekripsiKolom(data.alamat, KUNCI)).toBe('Jl. Pahlawan No. 1');
+  });
+
+  /**
+   * Uji ini yang membedakan "disimpan" dari "disimpan dengan aman". Tanpa dia,
+   * menghapus `enkripsiKolom` tetap membuat uji di atas lulus, sebab
+   * `dekripsiKolom` mengembalikan teks polos apa adanya demi migrasi bertahap.
+   */
+  it('akun baru: nilainya tersimpan sebagai blob, bukan teks polos', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimLengkap }));
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValueOnce(userRow());
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.create.mock.calls[0][0].data;
+    for (const kolom of [data.nik, data.nomorHp, data.alamat]) {
+      expect(kolom.startsWith(AWALAN_KOLOM)).toBe(true);
+    }
+    expect(data.nik).not.toContain('3507123456789012');
+    expect(data.alamat).not.toContain('Pahlawan');
+  });
+
+  it('akun lama: ketiganya disegarkan setiap login', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimLengkap }));
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(dekripsiKolom(data.nik, KUNCI)).toBe('3507123456789012');
+    expect(dekripsiKolom(data.nomorHp, KUNCI)).toBe('081234567890');
+    expect(dekripsiKolom(data.alamat, KUNCI)).toBe('Jl. Pahlawan No. 1');
+  });
+
+  /**
+   * TIDAK MENIMPA DENGAN KEKOSONGAN, dan ini bukan kehalusan. SSO Helpdesk
+   * melayani ASN maupun warga umum, dan payload yang satu kali tak membawa
+   * `location` -- karena penyedia mengubah bentuk, karena satu seksi sedang
+   * kosong -- akan menghapus alamat yang sudah tersimpan bila kuncinya ikut
+   * ditulis sebagai null. Pola `...(nilai ? { nilai } : {})` yang sama sudah
+   * dipakai `nama` di `acceptLogin` dengan alasan yang sama persis.
+   */
+  it('klaim tanpa ketiganya: kuncinya tak ikut ditulis sama sekali', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: {} }));
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('nik');
+    expect(data).not.toHaveProperty('nomorHp');
+    expect(data).not.toHaveProperty('alamat');
+  });
+
+  it('klaim sebagian: hanya yang terbaca yang ditulis', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: { demographics: { nik: '3507123456789012' } } }),
+    );
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(dekripsiKolom(data.nik, KUNCI)).toBe('3507123456789012');
+    expect(data).not.toHaveProperty('nomorHp');
+    expect(data).not.toHaveProperty('alamat');
+  });
+
+  /**
+   * Jenis kelamin (1 Oktober 2026). Pemetaan nilainya diuji tuntas di
+   * `sso-jenis-kelamin.mapper.spec.ts`; di sini hanya yang menjadi urusan
+   * service: hasilnya tersimpan, TIDAK terenkripsi (berbeda dari ketiga kolom
+   * di sebelahnya), dan klaim yang tak terbaca tidak menimpa yang tersimpan.
+   */
+  it('akun baru: jenis kelamin tersimpan sebagai enum, bukan blob', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: { demographics: { jenis_kelamin: 'Laki-laki' } } }),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValueOnce(userRow());
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.create.mock.calls[0][0].data;
+    expect(data.jenisKelamin).toBe(JenisKelamin.laki_laki);
+    expect(String(data.jenisKelamin).startsWith(AWALAN_KOLOM)).toBe(false);
+  });
+
+  it('akun lama: jenis kelamin disegarkan tiap login', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: { jenis_kelamin: 'P' } }));
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    expect(prisma.user.update.mock.calls[0][0].data.jenisKelamin).toBe(JenisKelamin.perempuan);
+  });
+
+  it('klaim jenis kelamin tak dikenali: kuncinya tak ikut ditulis', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: { demographics: { jenis_kelamin: 'Lainnya' } } }),
+    );
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    expect(prisma.user.update.mock.calls[0][0].data).not.toHaveProperty('jenisKelamin');
   });
 });

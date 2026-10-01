@@ -195,32 +195,23 @@ export async function getSurveyFill(surveyId) {
  * (getSurveyFill().questions + store.answers) -- toSubmitAnswers menerjemahkan
  * ke AnswerInputDto[] backend berdasar tipe tiap pertanyaan.
  *
- * @param {boolean} tanpaDataDiri Pilihan anonim dari GerbangPengisianBersesi.
- *   Nama & demografis TIDAK dikirim dari sini: backend menyalinnya dari akun
- *   pengirim, jadi isinya tak dapat dikarang oleh pemanggil.
- * @param {string|null} nomorHp Satu-satunya data diri jalur ini yang memang
- *   dikirim dari sini, dan itu keharusan: Helpdesk tak mengirim klaim telepon
- *   (`claims_supported` tanpa `phone_number`, `scopes_supported` tanpa scope
- *   `phone`, terukur 1 Oktober 2026) dan tabel `users` tak punya kolomnya, jadi
- *   tak ada yang bisa disalin backend.
+ * @param {boolean} tanpaDataDiri Pilihan anonim. TIDAK LAGI DISETEL GERBANG
+ *   BERSESI sejak 1 Oktober 2026 (petang): gerbangnya tak menampilkan kontrol
+ *   apa pun atas permintaan pengguna. Parameternya dipertahankan karena backend
+ *   masih menerimanya dan ia hanya MENGURANGI data yang direkam -- membuangnya
+ *   berarti melepas kemampuan itu dari klien, yang tak pernah diminta.
+ *
+ *   SELURUH data diri jalur ini disalin backend dari akun pengirim, termasuk
+ *   nomor HP sejak sore ini. Tak satu pun dikirim dari sini, jadi tak satu pun
+ *   dapat dikarang oleh pemanggil.
  */
-export async function submitSurveyResponse(
-  surveyId,
-  questions,
-  answers,
-  tanpaDataDiri = false,
-  nomorHp = null,
-) {
+export async function submitSurveyResponse(surveyId, questions, answers, tanpaDataDiri = false) {
   const response = await api.post(`/surveys/${surveyId}/responses`, {
     answers: toSubmitAnswers(questions, answers),
     // Dikirim hanya bila benar. Backend memperlakukan medan yang tak ada sama
     // dengan false (`@IsOptional`), dan payload yang tak memuatnya menjaga
     // bentuk permintaan lama tetap apa adanya.
     ...(tanpaDataDiri ? { tanpaDataDiri: true } : {}),
-    // Alasan yang sama, sebab yang berbeda: medan kosong yang tetap dikirim
-    // akan lolos `@IsOptional` lalu ditolak regex nomor HP, sehingga pengisi
-    // yang SENGAJA mengosongkannya justru gagal mengirim jawabannya.
-    ...(nomorHp ? { nomorHp } : {}),
   });
   return response.data;
 }

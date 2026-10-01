@@ -42,13 +42,21 @@ export function adaptComplaint(complaint) {
       name: reporterName,
       initials: reporterName ? getInitials(reporterName) : '',
       // nik/phone/address (dipakai ComplaintReporterProfile.jsx, halaman detail
-      // Admin OPD, INT-20): TIDAK ADA sumbernya di backend -- RespondentProfile
-      // sengaja cuma demografis IKM, bukan identitas pribadi (lihat gap sama
-      // di me.adapter.js, INT-16). Eksplisit null, bukan dikarang; komponen
-      // menampilkan '-' untuk field ini.
-      nik: null,
-      phone: null,
-      address: null,
+      // Admin OPD, INT-20). SUMBERNYA AKHIRNYA ADA, 1 Oktober 2026: ketiga
+      // kolom `users` diisi dari klaim SSO Helpdesk saat login, dan
+      // `GET /complaints/:ticketNo` mengirimkannya terdekripsi. Sebelum itu
+      // ketiganya dipaku null di sini dan kartunya menggambar tiga tanda
+      // hubung selamanya -- keluhan yang melahirkan pekerjaan ini.
+      //
+      // `?? null` BUKAN HIASAN. Daftar pengaduan sengaja TIDAK menarik ketiga
+      // kolom ini, jadi kuncinya memang tak ada di sana; tanpa ini komponen
+      // menerima `undefined` dan tak dapat membedakannya dari "Helpdesk tak
+      // mengirimkannya". Pada pengaduan anonim backend menghapus kuncinya,
+      // sehingga jalur yang sama membuat ketiganya null tanpa perlu
+      // memeriksa `isAnonim` sekali lagi di sini.
+      nik: isAnonim ? null : (complaint.reporterNik ?? null),
+      phone: isAnonim ? null : (complaint.reporterNomorHp ?? null),
+      address: isAnonim ? null : (complaint.reporterAlamat ?? null),
     },
     title: complaint.judul,
     description: complaint.uraian,

@@ -6,6 +6,9 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ConfigService } from '@nestjs/config';
+import { dekripsiKolom } from '../../common/crypto/kolom';
+import { kunciData } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ConsentService } from './consent.service';
@@ -17,11 +20,17 @@ import { SessionService } from './session/session.service';
 
 @Injectable()
 export class AuthService {
+  /** Kunci dekripsi `users.nik` / `nomor_hp` / `alamat`. Lihat `getMe`. */
+  private readonly kunci: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
     private readonly audit: AuditService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.kunci = kunciData(config);
+  }
 
   /**
    * Login sementara (BUKAN SSO) — terbitkan sesi untuk pengguna seed yang sudah ada,
@@ -176,7 +185,25 @@ export class AuthService {
     if (!row) {
       throw new NotFoundException('Pengguna tidak ditemukan');
     }
-    return toMeEntity(row, user.actingRole);
+    return toMeEntity(
+      {
+        ...row,
+        // DIDEKRIPSI DI SINI, menimpa nilai mentah yang ikut tersebar
+        // `...row`. Tanpa penimpaan ini responsnya memuat sandi `enc:v1:...`
+        // -- bukan dugaan melainkan keadaan yang terukur begitu ketiga kolom
+        // ini lahir, sebab serialisasi MeEntity bersifat expose-all.
+        // PENUH, TIDAK DISAMARKAN, dan itu keputusan tersurat pengguna
+        // (1 Oktober 2026) -- berbeda dari jalur pengaduan yang menyamarkan di
+        // hulu. Bedanya: NIK di sini milik PEMILIK SESI ITU SENDIRI, sehingga
+        // mengirimkannya ke perambannya bukan kebocoran. Penyamarannya urusan
+        // tampilan (lihat `samarkanNik` di me.adapter.js), yang melindungi dari
+        // tatapan sekilas ke layar -- bukan dari jaringan.
+        nik: row.nik ? dekripsiKolom(row.nik, this.kunci) : null,
+        nomorHp: row.nomorHp ? dekripsiKolom(row.nomorHp, this.kunci) : null,
+        alamat: row.alamat ? dekripsiKolom(row.alamat, this.kunci) : null,
+      },
+      user.actingRole,
+    );
   }
 
   /** Ubah nama (semua peran) + demografis (khusus responden). Data dipakai ulang antar survei. */

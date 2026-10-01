@@ -1,0 +1,37 @@
+-- Jenis kelamin pengguna dari Helpdesk (1 Oktober 2026, permintaan pengguna:
+-- "ambil data nomor hp dan jenis kelamin dari akun helpdesk untuk keperluan
+-- data respon survei bagi user yang sudah login saja").
+--
+-- APA YANG DIPERBAIKINYA, DIUKUR BUKAN DIKIRA. Sebelum migrasi ini, jenis
+-- kelamin pada respons survei bersesi disalin dari `respondent_profiles` --
+-- tabel yang terisi hanya bila pengguna pernah mengisi profilnya sendiri.
+-- Hitungan pada basis data lokal 1 Oktober 2026:
+--
+--   akun                                : 10
+--   akun punya respondent_profiles      :  1
+--   respons bersesi                     :  8
+--   respons bersesi TANPA jenis kelamin :  7
+--
+-- Tujuh dari delapan kosong. Sumbernya memang hampir selalu tak ada, dan
+-- itulah yang diperbaiki dengan menyalinnya dari akun Helpdesk saat login.
+--
+-- MENGAPA KOLOM BARU, BUKAN MENGISI `respondent_profiles`. Tabel itu menuntut
+-- `jenis_kelamin`, `kelompok_umur`, `pendidikan`, dan `pekerjaan` sekaligus
+-- NOT NULL, sedangkan Helpdesk hanya mengirim yang pertama. Mengisinya
+-- sebagian mustahil tanpa mengarang tiga medan sisanya.
+--
+-- TIDAK TERENKRIPSI, berbeda dari `nik`, `nomor_hp`, dan `alamat` yang lahir
+-- bersamanya hari ini. Nilainya hanya dua, sehingga enkripsi nyaris tak
+-- menambah perlindungan, sementara menyimpannya sebagai teks melepas jaminan
+-- tipe dari basis data dan memaksa rekapitulasi mendekripsi tiap baris hanya
+-- untuk menghitung. NIK dan alamat menunjuk satu orang secara langsung; jenis
+-- kelamin sendirian tidak.
+--
+-- Memakai ENUM `jenis_kelamin` yang SUDAH ADA (dipakai `survey_responses` dan
+-- `respondent_profiles`), jadi tak ada tipe baru yang dibuat. Nullable, dan
+-- tidak akan pernah tidak: tak satu pun akun dijamin membawa medan ini.
+--
+-- Tidak menyentuh satu baris data pun; kolomnya lahir NULL pada seluruh akun
+-- lalu terisi saat pemiliknya login berikutnya. Dibatalkan dengan satu
+-- DROP COLUMN.
+ALTER TABLE "users" ADD COLUMN "jenis_kelamin" "jenis_kelamin";

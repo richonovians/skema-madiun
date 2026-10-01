@@ -16,6 +16,9 @@ import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { ConfigService } from '@nestjs/config';
+import { dekripsiKolom } from '../../common/crypto/kolom';
+import { kunciData } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -31,11 +34,17 @@ import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 @Injectable()
 export class ResponsesService {
+  /** Kunci dekripsi `users.nomorHp`. Lihat `ambilDataDiriAkun`. */
+  private readonly kunci: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly consent: ConsentService,
     private readonly notifications: NotificationsService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.kunci = kunciData(config);
+  }
 
   /** Ambil survei aktif beserta pertanyaannya untuk diisi responden (BE-22). */
   async getFill(surveyId: number, user: CurrentUser): Promise<SurveyFillEntity> {
@@ -126,19 +135,18 @@ export class ResponsesService {
           surveyId,
           userId: user.userId,
           dedupeUserId,
-          // `nomorHp` DARI PAYLOAD, satu-satunya data diri jalur ini yang tidak
-          // disalin dari akun (1 Oktober 2026, keputusan tersurat pengguna).
-          // Bukan kelonggaran melainkan keharusan: Helpdesk tak mengirim nomor
-          // telepon -- terukur pada metadata penyedia, `claims_supported` tanpa
-          // `phone_number` dan `scopes_supported` tanpa scope `phone` -- dan
-          // `users` tak punya kolomnya. Tak ada yang bisa disalin, jadi satu-
-          // satunya sumber yang jujur adalah pengisinya sendiri.
+          // `nomorHp` DISALIN DARI AKUN sejak 1 Oktober 2026 (petang), bersama
+          // seluruh data diri jalur ini. Sebelumnya ia satu-satunya yang
+          // dibaca dari payload, atas dasar pengukuran yang ternyata belum
+          // lengkap: `claims_supported` penyedia tak memuat `phone_number`,
+          // tetapi payload `userinfo` SUNGGUHAN memuat `identity.phone_number`
+          // -- dan spesifikasi OIDC memang menyebut daftar itu petunjuk, bukan
+          // jaminan tertutup.
           //
-          // `dto.tanpaDataDiri` DIHORMATI DI SINI, dan pagar itu perlu justru
-          // karena nomor ini datang dari payload: nama dan demografis aman oleh
-          // konstruksi, sebab `ambilDataDiriAkun` tak pernah dipanggil saat
-          // pengisi memilih anonim. Nomor HP tak punya perlindungan itu.
-          nomorHp: dto.tanpaDataDiri ? null : (dto.nomorHp ?? null),
+          // Akibatnya seluruh data diri jalur bersesi kini aman OLEH
+          // KONSTRUKSI: tak satu pun dapat dikarang lewat permintaan langsung,
+          // sebab tak satu pun dibaca dari payload.
+          nomorHp: dataDiri?.nomorHp ?? null,
           nama: dataDiri?.nama ?? null,
           jenisKelamin: dataDiri?.jenisKelamin ?? null,
           kelompokUmur: dataDiri?.kelompokUmur ?? null,
@@ -299,13 +307,30 @@ export class ResponsesService {
       where: { id: userId },
       select: {
         nama: true,
+        nomorHp: true,
+        jenisKelamin: true,
         respondentProfile: { select: { jenisKelamin: true, kelompokUmur: true } },
       },
     });
     if (!akun) return null;
     return {
       nama: akun.nama,
-      jenisKelamin: akun.respondentProfile?.jenisKelamin ?? null,
+      // Tersimpan sebagai amplop; baris lama yang masih polos dikembalikan apa
+      // adanya oleh `dekripsiKolom`, jadi tak ada jalur yang perlu menunggu
+      // migrasi selesai.
+      nomorHp: akun.nomorHp ? dekripsiKolom(akun.nomorHp, this.kunci) : null,
+      // HELPDESK DULU, `respondent_profiles` sebagai cadangan -- urutan yang
+      // diputuskan pengguna, dan yang angkanya mendukung: pada basis data lokal
+      // 1 Oktober 2026 hanya 1 dari 10 akun punya baris `respondent_profiles`,
+      // sementara 7 dari 8 respons bersesi tersimpan tanpa jenis kelamin.
+      //
+      // Harganya disebut terang-terangan: pada akun yang pernah mengisi
+      // profilnya sendiri, nilai dari Helpdesk MENIMPA isian orang itu.
+      jenisKelamin: akun.jenisKelamin ?? akun.respondentProfile?.jenisKelamin ?? null,
+      // Kelompok umur TAK PUNYA sumber di Helpdesk. Yang dikirimnya
+      // `tanggal_lahir`, dan batas-batas kelompoknya keputusan pengguna, bukan
+      // sesuatu yang boleh ditebak kode ini. Jadi tetap dari
+      // `respondent_profiles`, dan tetap sering kosong.
       kelompokUmur: akun.respondentProfile?.kelompokUmur ?? null,
     };
   }
