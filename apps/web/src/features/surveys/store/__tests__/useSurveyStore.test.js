@@ -81,3 +81,57 @@ describe('useSurveyStore — mode anonim', () => {
     expect(useSurveyStore.getState().isAnonimMode).toBe(false);
   });
 });
+
+/**
+ * PILIHAN GERBANG BERSESI DITERUSKAN SAMPAI PENGIRIMAN (1 Oktober 2026).
+ *
+ * `tanpaDataDiri` sudah ada sejak 8 September 2026 tetapi tak pernah diuji
+ * rantainya; `nomorHp` menyusul hari ini. Keduanya diuji di sini sekaligus,
+ * sebab yang mudah putus bukan masing-masing medannya melainkan JALANNYA:
+ * gerbang -> halaman -> store -> pemanggilan API. Komponen gerbangnya sudah
+ * punya ujinya sendiri, dan backend punya miliknya; bagian tengah inilah yang
+ * selama ini tak dijaga siapa pun.
+ */
+describe('useSurveyStore — pilihan gerbang bersesi diteruskan', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useSurveyStore.getState().resetSurvey();
+  });
+
+  const kirim = async (opsi) => {
+    useSurveyStore.getState().initSurvey(survei, opsi);
+    useSurveyStore.getState().setAnswer(1, '4');
+    await useSurveyStore.getState().submitSurvey();
+    return submitSurveyResponse.mock.calls[0];
+  };
+
+  it('nomor HP dari gerbang sampai ke pemanggilan API', async () => {
+    const panggilan = await kirim({ nomorHp: '081234567890' });
+
+    expect(panggilan[4]).toBe('081234567890');
+  });
+
+  it('tanpa nomor HP: null diteruskan, bukan string kosong', async () => {
+    // String kosong akan lolos `@IsOptional` backend lalu ditolak regex-nya,
+    // sehingga pengisi yang sengaja mengosongkannya justru gagal mengirim.
+    const panggilan = await kirim({});
+
+    expect(panggilan[4]).toBeNull();
+  });
+
+  it('KONTROL: pilihan anonim ikut sampai, dan nomor HP tidak menumpanginya', async () => {
+    const panggilan = await kirim({ tanpaDataDiri: true, nomorHp: null });
+
+    expect(panggilan[3]).toBe(true);
+    expect(panggilan[4]).toBeNull();
+  });
+
+  it('resetSurvey membersihkan nomor HP', async () => {
+    // Nomor dari survei sebelumnya yang tertinggal akan ikut terkirim pada
+    // survei berikutnya, tanpa pengisi pernah mengetiknya lagi.
+    useSurveyStore.getState().initSurvey(survei, { nomorHp: '081234567890' });
+    useSurveyStore.getState().resetSurvey();
+
+    expect(useSurveyStore.getState().nomorHp).toBeNull();
+  });
+});

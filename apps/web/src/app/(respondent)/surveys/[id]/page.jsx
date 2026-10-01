@@ -47,7 +47,12 @@ export default function SurveyWizardPage() {
 
   useEffect(() => {
     if (fillData && !fillData.sudahMengisi && !perluGerbang) {
-      initSurvey(fillData, { tanpaDataDiri: pilihanBersesi?.anonim === true });
+      initSurvey(fillData, {
+        tanpaDataDiri: pilihanBersesi?.anonim === true,
+        // Satu-satunya data diri jalur bersesi yang dikirim dari klien; sisanya
+        // disalin backend dari akun. Lihat GerbangPengisianBersesi.jsx.
+        nomorHp: pilihanBersesi?.nomorHp ?? null,
+      });
     }
     return () => {
       resetSurvey();

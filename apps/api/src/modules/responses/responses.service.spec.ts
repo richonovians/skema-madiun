@@ -336,6 +336,92 @@ describe('ResponsesService', () => {
       );
     });
 
+    /**
+     * DATA DIRI PENGISI DIBUKA KEPADA ADMIN (1 Oktober 2026, keputusan tersurat
+     * pengguna sesudah laporan "data responden bukan anonim belum tampil").
+     *
+     * Keempat kolomnya sudah tersimpan sejak 8 September 2026, tetapi
+     * `ResponseEntity` hanya memuat id/surveyId/submittedAt -- catatan di
+     * schema.prisma menyebutnya tersurat: "BELUM ADA PEMBACANYA... keempatnya
+     * data pribadi yang tersimpan tanpa pemakai". Laporan itulah pembacanya.
+     *
+     * Barisnya TIDAK perlu kueri tambahan: `findAllForSurvey` sudah memakai
+     * `include`, jadi seluruh kolom baris itu memang sudah terambil dan selama
+     * ini dibuang oleh pemetanya.
+     */
+    it('mengembalikan data diri pengisi yang tersimpan', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [
+          {
+            id: 9,
+            surveyId: 1,
+            submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+            nama: 'Siti Aminah',
+            nomorHp: '081234567890',
+            jenisKelamin: JenisKelamin.perempuan,
+            kelompokUmur: '26-35',
+            answers: [],
+          },
+        ],
+        1,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items[0]).toEqual(
+        expect.objectContaining({
+          nama: 'Siti Aminah',
+          nomorHp: '081234567890',
+          jenisKelamin: JenisKelamin.perempuan,
+          kelompokUmur: '26-35',
+        }),
+      );
+    });
+
+    it('KONTROL: respons anonim tetap null pada keempat kolomnya', async () => {
+      // Pagar yang menentukan sah-tidaknya seluruh perubahan ini. Pengisi yang
+      // memilih anonim menyimpan null pada keempat kolom, dan pemetanya tak
+      // boleh menggantinya dengan string kosong, '-' , atau apa pun yang
+      // terbaca sebagai data. Tanpa uji ini, membuka kolomnya dan membocorkan
+      // identitas orang yang memilih tidak memberikannya terlihat sama saja.
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [
+          {
+            id: 10,
+            surveyId: 1,
+            submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+            nama: null,
+            nomorHp: null,
+            jenisKelamin: null,
+            kelompokUmur: null,
+            answers: [],
+          },
+        ],
+        1,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items[0]).toEqual(
+        expect.objectContaining({
+          nama: null,
+          nomorHp: null,
+          jenisKelamin: null,
+          kelompokUmur: null,
+        }),
+      );
+    });
+
     it('survei tidak ada → NotFound', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(
@@ -651,15 +737,63 @@ describe('ResponsesService', () => {
       expect(data.kelompokUmur).toBeNull();
     });
 
-    it('nomorHp TIDAK pernah ditulis pada jalur bersesi', async () => {
-      // Tak ada sumbernya, dan itu terukur: Helpdesk tak mengirim nomor telepon
-      // dan `users` tak punya kolomnya. Menulis null di sini akan menyamar
-      // sebagai data yang dicoba diambil lalu tak ada.
+    /**
+     * DIBALIK 1 Oktober 2026, atas keputusan tersurat pengguna.
+     *
+     * Uji ini dulu berbunyi "nomorHp TIDAK pernah ditulis pada jalur bersesi",
+     * dan alasannya masih benar: Helpdesk tak mengirim nomor telepon (terukur
+     * pada metadata penyedia 1 Oktober 2026 -- `claims_supported` tak memuat
+     * `phone_number` dan `scopes_supported` tak memuat scope `phone`), dan
+     * `users` tak punya kolomnya.
+     *
+     * Yang berubah bukan ketersediaannya melainkan SUMBERNYA: sejak gerbang
+     * bersesi punya medan isian nomor HP, nomornya datang dari pengisi, bukan
+     * dari akun. Karena itu ia satu-satunya data diri jalur ini yang dibaca
+     * dari payload -- nama dan demografis tetap disalin dari akun, dan tetap
+     * tak dapat dikarang lewat permintaan langsung.
+     */
+    it('nomorHp ditulis DARI PAYLOAD pada jalur bersesi', async () => {
+      siapkan();
+
+      await service.submit(
+        1,
+        { answers: [{ questionId: 101, nilai: 4 }], nomorHp: '081234567890' },
+        responden(7),
+      );
+
+      expect(dataYangDitulis().nomorHp).toBe('081234567890');
+    });
+
+    it('nomorHp tak dikirim: kolomnya null, BUKAN undefined', async () => {
+      // `undefined` pada `create` Prisma berarti "pakai nilai baku". `null`
+      // menyatakan tersurat bahwa pengisi tak memberi nomornya -- dan medannya
+      // memang opsional, sebab memaksanya akan menghalangi orang mengisi survei.
       siapkan();
 
       await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
 
-      expect('nomorHp' in dataYangDitulis()).toBe(false);
+      expect(dataYangDitulis().nomorHp).toBeNull();
+    });
+
+    it('KONTROL: tanpaDataDiri membuang nomorHp WALAU dikirim di payload', async () => {
+      // Pagar terpenting pada perubahan ini. Nomor HP satu-satunya data diri
+      // jalur bersesi yang datang dari payload, jadi ia pula satu-satunya yang
+      // bisa menyelinap melewati pilihan anonim: menghormati `tanpaDataDiri`
+      // pada nama dan demografis saja tak cukup, sebab keduanya tak pernah
+      // dibaca dari payload sejak awal.
+      siapkan();
+
+      await service.submit(
+        1,
+        {
+          answers: [{ questionId: 101, nilai: 4 }],
+          nomorHp: '081234567890',
+          tanpaDataDiri: true,
+        },
+        responden(7),
+      );
+
+      expect(dataYangDitulis().nomorHp).toBeNull();
     });
 
     it('akun yang tidak ditemukan tidak menggagalkan pengiriman', async () => {
