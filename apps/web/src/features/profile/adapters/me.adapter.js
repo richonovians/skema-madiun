@@ -11,19 +11,63 @@ const ROLE_TO_FRONTEND = {
 };
 
 /**
+ * NIK tersamar untuk halaman profil sendiri (1 Oktober 2026).
+ *
+ * PENYAMARAN, BUKAN PEMOTONGAN. Empat digit pertama dan empat terakhir cukup
+ * bagi pemiliknya untuk mengenali nomornya sendiri, sementara dua belas digit
+ * di tengah -- yang memuat tanggal lahir dan nomor urut -- tidak ikut terbaca
+ * orang yang kebetulan melihat layarnya.
+ *
+ * DI SINI, BUKAN DI BACKEND, dan itu disengaja. Yang dilindungi penyamaran ini
+ * adalah tatapan sekilas ke arah layar, bukan jaringan: nomornya milik
+ * pemilik sesi itu sendiri, sehingga mengirimkannya bukan kebocoran. Menaruh
+ * penyamaran di tampilan juga menyisakan ruang bagi tombol "tampilkan nomor
+ * lengkap" tanpa perlu menyentuh backend.
+ *
+ * BERBEDA DARI JALUR PENGADUAN, yang menyamarkan di BACKEND
+ * (`apps/api` common/identitas/nik.ts) justru karena NIK di sana milik ORANG
+ * LAIN -- nomor penuhnya tak punya alasan sampai ke peramban petugas. Dua
+ * tempat, dua alasan, keputusan tersurat pengguna 1 Oktober 2026.
+ *
+ * RISIKONYA DISEBUT: aturan yang sama hidup di dua runtime dan dapat
+ * menyimpang diam-diam. Keduanya WAJIB menghasilkan bentuk yang sama, dan
+ * masing-masing punya ujinya sendiri yang menuliskan bentuk itu tersurat.
+ *
+ * PANJANG YANG TAK DIKENALI DITUTUP SELURUHNYA. Helpdesk tak menjamin 16
+ * digit, dan menyamarkan berdasarkan posisi pada nilai yang panjangnya tak
+ * dikenal dapat membuka justru bagian yang ingin ditutup.
+ */
+export function samarkanNik(nik) {
+  if (!nik) return null;
+  const bersih = String(nik).trim();
+  if (bersih === '') return null;
+  if (!/^\d{16}$/.test(bersih)) return '•'.repeat(bersih.length);
+  return `${bersih.slice(0, 4)} ${bersih.slice(4, 6)}•• •••• ${bersih.slice(12)}`;
+}
+
+/**
  * Terjemahkan MeEntity backend (GET /auth/me) ke bentuk yang dipakai komponen
  * profil. Satu tempat
  * -- perubahan kontrak backend cukup diubah di sini (INT-16).
  *
- * CATATAN GAP BESAR: dummy mengharapkan banyak field identitas yang TIDAK ADA
- * di skema User/RespondentProfile sama sekali -- bukan gap penamaan, kapasitas
- * yang memang belum (dan mungkin sengaja tidak) dibangun. RespondentProfile
- * cuma simpan data DEMOGRAFIS utk keperluan IKM (jenisKelamin/kelompokUmur/
- * pendidikan/pekerjaan), bukan identitas pribadi -- kemungkinan besar demi
- * PDP/privasi (survei memang didesain anonim, lihat keputusan arsitektur):
- *   - nik/nikMasked, phone, address -- TIDAK ADA di skema manapun.
- *   - avatarUrl -- tak ada konsep foto profil di backend.
- * Field-field ini SENGAJA null di sini, bukan dikarang.
+ * CATATAN GAP, DIPERBARUI 1 Oktober 2026. Berkas ini sempat menyatakan bahwa
+ * `nik`, `phone`, dan `address` "TIDAK ADA di skema manapun", dan ketiganya
+ * dipaku null di bawah. Itu benar ketika ditulis: RespondentProfile memang cuma
+ * menyimpan demografis untuk keperluan IKM, bukan identitas pribadi.
+ *
+ * GAP ITU SUDAH TERTUTUP. `users.nik`, `users.nomor_hp`, dan `users.alamat`
+ * lahir hari ini bersama penyalinan identitas dari akun Helpdesk saat login,
+ * dan `GET /auth/me` mengirimkan ketiganya dalam keadaan TERDEKRIPSI. Catatan
+ * lamanya tidak dihapus melainkan ditulis ulang di sini, sebab akibatnya bukan
+ * sekadar komentar yang keliru: selama ia berlaku, halaman profil menggambar
+ * tiga tanda hubung dan menjelaskannya dengan kalimat "belum tersedia karena
+ * tidak disimpan sistem" -- menyalahkan sistem atas data yang sudah ada.
+ *
+ * YANG MASIH GAP:
+ *   - avatarUrl -- tak ada konsep foto profil di backend. Helpdesk mengirim
+ *     `profile_picture`, tetapi memakainya menyeret unduhan berkas dari pihak
+ *     luar beserta urusan penyimpanan & masa simpannya: pekerjaan tersendiri.
+ * Field ini SENGAJA null di sini, bukan dikarang.
  *
  * SSO (diperbarui 2026-08-27, celah 5): modul SSO Helpdesk SUDAH dibangun, jadi
  * `providerName` tak lagi selalu null. Yang menentukan bukan tebakan pola string
@@ -50,10 +94,13 @@ export function adaptMe(me) {
     name: me.nama,
     initials: getInitials(me.nama),
     email: me.email,
-    phone: null, // gap, lihat catatan di atas
-    nik: null, // gap
-    nikMasked: null, // gap
-    address: null, // gap
+    phone: me.nomorHp ?? null,
+    // Nilai PENUH tetap dibawa walau kartunya menggambar yang tersamar: ia
+    // milik orang yang sedang melihatnya sendiri, dan menyediakannya di sini
+    // membuat "tampilkan nomor lengkap" kelak cukup perubahan tampilan.
+    nik: me.nik ?? null,
+    nikMasked: samarkanNik(me.nik),
+    address: me.alamat ?? null,
     occupation: me.respondentProfile?.pekerjaan ?? null,
     roles: frontendRoles,
     actingRole: frontendRole,

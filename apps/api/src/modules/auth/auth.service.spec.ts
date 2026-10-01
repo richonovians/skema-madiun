@@ -1,9 +1,11 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JenisKelamin, Role } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
+import { enkripsiKolom } from '../../common/crypto/kolom';
 import { AuthService } from './auth.service';
 import type { SessionService } from './session/session.service';
 
@@ -29,6 +31,14 @@ const userRow = (overrides: Record<string, unknown> = {}) => ({
   createdAt: new Date(),
   updatedAt: new Date(),
   respondentProfile: null,
+  // Keempat kolom ini lahir 1 Oktober 2026 dan ikut terbaca `getMe` karena
+  // kueri-nya tanpa `select`. Ditulis TERSURAT sebagai null supaya fixture ini
+  // mewakili akun yang BELUM pernah login ulang -- keadaan seluruh akun yang
+  // sudah ada saat kolomnya dibuat.
+  nik: null,
+  nomorHp: null,
+  alamat: null,
+  jenisKelamin: null,
   ...overrides,
 });
 
@@ -41,7 +51,14 @@ describe('AuthService', () => {
     issue: jest.fn().mockReturnValue('signed.jwt.token'),
   } as unknown as SessionService;
   const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
-  const service = new AuthService(prisma, sessionService, audit);
+  /** Kunci uji untuk kolom terenkripsi `users.nik` / `nomor_hp` / `alamat`. */
+  const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xd);
+  const config = {
+    get: jest.fn((kunci: string) =>
+      kunci === 'crypto.dataKey' ? KUNCI_UJI_KOLOM.toString('hex') : undefined,
+    ),
+  } as unknown as ConfigService;
+  const service = new AuthService(prisma, sessionService, audit, config);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -319,5 +336,116 @@ describe('AuthService', () => {
 
       expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
     });
+  });
+});
+
+/**
+ * IDENTITAS PADA GET /auth/me (1 Oktober 2026).
+ *
+ * KEBOCORAN YANG DIPERBAIKI, dan sebabnya pantas dicatat supaya tak terulang.
+ * `getMe` memakai `findFirst` TANPA `select`, dan `toMeEntity` menyebar
+ * `...row` ke `MeEntity` yang serialisasinya EXPOSE-ALL. Artinya setiap kolom
+ * baru pada tabel `users` ikut keluar ke klien begitu kolomnya dibuat, tanpa
+ * ada yang perlu menuliskannya di mana pun.
+ *
+ * Terukur sebelum perbaikan ini: respons memuat `nik`, `nomorHp`, dan `alamat`
+ * sebagai SANDI MENTAH (`enc:v1:...`) beserta `jenisKelamin` -- keempatnya tak
+ * pernah dideklarasikan pada entity, dan tak seorang pun memutuskan
+ * mengirimkannya.
+ */
+describe('AuthService.getMe -- identitas dari akun', () => {
+  const prisma = {
+    user: { findFirst: jest.fn(), update: jest.fn() },
+    respondentProfile: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+  } as unknown as PrismaService;
+  const KUNCI = Buffer.alloc(32, 0xd);
+  const service = new AuthService(
+    prisma,
+    { issue: jest.fn() } as unknown as SessionService,
+    { record: jest.fn() } as unknown as AuditService,
+    {
+      get: jest.fn((k: string) => (k === 'crypto.dataKey' ? KUNCI.toString('hex') : undefined)),
+    } as unknown as ConfigService,
+  );
+
+  const barisBeridentitas = (over: Record<string, unknown> = {}) =>
+    userRow({
+      nik: enkripsiKolom('3520041502050002', KUNCI),
+      nomorHp: enkripsiKolom('+62895396662038', KUNCI),
+      alamat: enkripsiKolom('Dusun Timang Desa Waduk', KUNCI),
+      jenisKelamin: JenisKelamin.perempuan,
+      ...over,
+    });
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('mengirim ketiganya dalam keadaan TERDEKRIPSI', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const me = await service.getMe(cu(Role.responden));
+
+    // PENUH pada jalur ini, berbeda dari jalur pengaduan yang menyamarkan di
+    // backend: NIK ini milik pemilik sesi itu sendiri. Penyamarannya urusan
+    // tampilan, lihat me.adapter.js.
+    expect(me.nik).toBe('3520041502050002');
+    expect(me.nomorHp).toBe('+62895396662038');
+    expect(me.alamat).toBe('Dusun Timang Desa Waduk');
+  });
+
+  /**
+   * Uji ini yang membedakan "terkirim" dari "terkirim dengan benar". Tanpa dia,
+   * meneruskan sandi mentah apa adanya tetap lulus uji di atas -- sebab
+   * `dekripsiKolom` mengembalikan teks polos apa adanya demi migrasi bertahap,
+   * dan sandi mentah bukan teks polos melainkan blob yang terbaca sebagai
+   * string biasa oleh pemanggil yang tak memeriksanya.
+   */
+  it('TIDAK pernah membocorkan sandi mentah ke klien', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
+
+    for (const nilai of Object.values(keluar)) {
+      expect(String(nilai)).not.toContain('enc:v1:');
+    }
+  });
+
+  /**
+   * MINIMAL YANG DIBUTUHKAN, bukan segala yang kebetulan ada di barisnya.
+   * Halaman profil tidak menggambar jenis kelamin, dan medan yang terkirim
+   * tanpa ada yang memakainya adalah data pribadi yang beredar tanpa sebab.
+   */
+  it('TIDAK mengirim jenis kelamin', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
+
+    expect(keluar).not.toHaveProperty('jenisKelamin');
+  });
+
+  it('kolom yang kosong tetap null, bukan string kosong', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+      barisBeridentitas({ nik: null, nomorHp: null, alamat: null }),
+    );
+
+    const me = await service.getMe(cu(Role.responden));
+
+    expect(me.nik).toBeNull();
+    expect(me.nomorHp).toBeNull();
+    expect(me.alamat).toBeNull();
+  });
+
+  /**
+   * Endpoint ini hanya pernah mengembalikan akun PEMANGGILNYA. Dijaga tersurat
+   * karena ketiga medan yang baru ditambahkan membuat taruhannya naik: sebelum
+   * ini, salah kueri berarti membocorkan nama; sesudahnya, NIK dan alamat.
+   */
+  it('hanya pernah membaca akun pemanggilnya sendiri', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    await service.getMe(cu(Role.responden, 7));
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 7, deletedAt: null } }),
+    );
   });
 });
