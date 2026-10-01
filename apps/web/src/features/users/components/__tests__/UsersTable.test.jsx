@@ -118,7 +118,9 @@ describe('UsersTable — Ubah Role', () => {
 });
 
 /**
- * Kolom STATUS ADMINISTRATOR (29 September 2026, permintaan pengguna).
+ * Kolom STATUS ADMIN (29 September 2026, permintaan pengguna; judulnya
+ * dipendekkan dari "STATUS ADMINISTRATOR" pada 1 Oktober 2026 atas permintaan
+ * pengguna -- isinya tak berubah sama sekali).
  *
  * KENAPA "Ya"/"Tidak", BUKAN nama perannya. Kolom "HAK AKSES (ROLE)" di
  * sebelahnya sudah menyebutkan administrator JENIS APA. Kolom yang ikut
@@ -132,7 +134,7 @@ describe('UsersTable — Ubah Role', () => {
  * salah -- padahal bukan administrator adalah keadaan normal bagi hampir
  * seluruh warga.
  */
-describe('UsersTable — kolom STATUS ADMINISTRATOR', () => {
+describe('UsersTable — kolom STATUS ADMIN', () => {
   it('kolomnya ada, tepat di sebelah kanan STATUS AKSES', () => {
     // Letaknya ikut dijaga, bukan cuma keberadaannya: yang diminta pengguna
     // adalah kolom di sebelah kanan Status Akses, dan urutan kolom adalah
@@ -141,8 +143,8 @@ describe('UsersTable — kolom STATUS ADMINISTRATOR', () => {
 
     const judul = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
 
-    expect(judul).toContain('STATUS ADMINISTRATOR');
-    expect(judul.indexOf('STATUS ADMINISTRATOR')).toBe(judul.indexOf('STATUS AKSES') + 1);
+    expect(judul).toContain('STATUS ADMIN');
+    expect(judul.indexOf('STATUS ADMIN')).toBe(judul.indexOf('STATUS AKSES') + 1);
   });
 
   it('Admin Kabupaten -> Ya', () => {

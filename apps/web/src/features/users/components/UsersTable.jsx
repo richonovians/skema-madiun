@@ -72,7 +72,10 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AFILIASI INSTANSI</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">TANGGAL DIBUAT</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS AKSES</Th>
-            <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS ADMINISTRATOR</Th>
+            {/* "STATUS ADMIN", dipendekkan dari "STATUS ADMINISTRATOR" pada
+                1 Oktober 2026 atas permintaan pengguna. Isi kolomnya tidak
+                berubah sedikit pun; yang berubah hanya judulnya. */}
+            <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS ADMIN</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AKSI</Th>
           </Tr>
         </Thead>
