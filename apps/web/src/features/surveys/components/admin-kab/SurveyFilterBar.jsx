@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useState, useRef, useEffect } from 'react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
-import { Search, Download, FileText, ChevronDown, Filter, Plus } from 'lucide-react';
+import { Trash2, Search, Download, FileText, ChevronDown, Filter, Plus } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 
@@ -100,6 +101,23 @@ export default function SurveyFilterBar({
           </Button>
 
           <ResetFilterButton onReset={onResetFilters} />
+
+          {/* SAMPAH (1 Oktober 2026, permintaan pengguna: "pindahkan tombol
+              sampah ... sejajar dengan tombol reset filter, buat survei,
+              ekspor"). Sebelumnya ia berdiri sendiri pada barisnya sendiri di
+              atas kartu ringkasan, terpisah dari seluruh aksi lain halaman ini.
+              Dirender DI SINI, bukan dioper sebagai children dari halamannya:
+              urutan tombol menjadi urusan satu komponen saja, dan pemanggilnya
+              tak perlu ikut mengingatnya.
+              Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali
+              -- survei yang terlanjur dibuang akan terlihat seperti hilang. */}
+          <Link
+            href="/admin-kab/surveys/sampah"
+            className="border-outline flex min-h-[44px] items-center gap-2 rounded-lg border px-md text-xs font-bold transition-colors hover:bg-surface-container-low sm:text-body-md"
+          >
+            <Trash2 size={18} aria-hidden="true" />
+            <span>Sampah</span>
+          </Link>
 
           {/* `aria-label` + `title` (21 September 2026). Labelnya disembunyikan
               di bawah 640px, dan elemen ber-`display: none` tidak ikut menyusun

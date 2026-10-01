@@ -233,7 +233,17 @@ export default function SurveyMonitoringTable({
                           onSelect: () => onPublish?.(survey),
                           disabled: isBusy,
                         },
-                        (isDraft || isActive) && {
+                        /* HANYA pada survei AKTIF (1 Oktober 2026, permintaan
+                           pengguna). Syaratnya dulu `(isDraft || isActive)`,
+                           dan backend memang MENGIZINKAN transisi
+                           draft -> ditutup (ALLOWED_TRANSITIONS di
+                           surveys.service.ts). Yang dipersempit karena itu
+                           TAMPILANNYA saja: menutup survei yang belum pernah
+                           dibuka tak mengakhiri apa pun, sebab tak ada periode
+                           yang sedang berjalan. Pagar backend sengaja tak
+                           disentuh -- jalur penghapusan ke Sampah ikut
+                           memakainya untuk menutup survei yang dibuang. */
+                        isActive && {
                           key: 'tutup',
                           label: 'Tutup',
                           icon: <Lock size={IKON} />,

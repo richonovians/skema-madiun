@@ -94,6 +94,24 @@ describe('SurveyMonitoringTable — isi menu mengikuti status', () => {
     expect(menu.queryByRole('menuitem', { name: /^Aktifkan$/ })).not.toBeInTheDocument();
   });
 
+  /**
+   * TUTUP TIDAK MUNCUL PADA DRAF (1 Oktober 2026, permintaan pengguna).
+   *
+   * Syaratnya dulu `(isDraft || isActive)`, dan backend memang MENGIZINKAN
+   * transisi draft -> ditutup (ALLOWED_TRANSITIONS di surveys.service.ts).
+   * Yang dipersempit karena itu TAMPILANNYA saja: menutup survei yang belum
+   * pernah dibuka tak menutup apa pun, sebab tak ada periode yang berjalan
+   * untuk diakhiri. Pagar backend sengaja tak disentuh -- jalur penghapusan ke
+   * Sampah ikut memakainya.
+   */
+  it('DRAF: Tutup TIDAK ditawarkan', () => {
+    render1([survei(1, 'Survei Draf', 'DRAF')]);
+
+    expect(
+      within(bukaMenu('Survei Draf')).queryByRole('menuitem', { name: /^Tutup$/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it('AKTIF: Respons, Tutup & Bagikan ada, Publikasikan tidak', () => {
     render1([survei(1, 'Survei Aktif', 'AKTIF')]);
     const menu = within(bukaMenu('Survei Aktif'));
