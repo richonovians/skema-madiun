@@ -3,15 +3,23 @@ import { dekripsi, enkripsi, INFO_KOLOM } from './envelope';
 /**
  * Enkripsi teks untuk kolom basis data (23 September 2026).
  *
- * DIPAKAI PADA DUA KOLOM SAJA: `complaints.uraian` dan `complaint_replies.pesan`.
- * Keduanya teks bebas yang ditulis warga, dan keduanya isi paling pribadi di
- * seluruh sistem ini -- di sistem pengaduan, ceritanya sendirilah yang sensitif,
- * bukan metadatanya.
+ * DIPAKAI PADA LIMA KOLOM. Dua yang pertama (23 September 2026):
+ * `complaints.uraian` dan `complaint_replies.pesan` -- teks bebas yang ditulis
+ * warga, dan isi paling pribadi di seluruh sistem ini, sebab di sistem
+ * pengaduan ceritanya sendirilah yang sensitif, bukan metadatanya.
  *
- * MENGAPA HANYA DUA. Diukur, bukan dikira: keduanya TIDAK PERNAH dicari lewat
- * `contains` di seluruh API. `users.nama` dicari (audit.service.ts), jadi
+ * Tiga berikutnya (1 Oktober 2026): `users.nik`, `users.nomor_hp`, dan
+ * `users.alamat`, disalin dari klaim SSO Helpdesk untuk kartu "Profil Pelapor"
+ * (lihat sso-identitas.mapper.ts). Berbeda sifat dari dua yang pertama:
+ * ketiganya bukan teks bebas melainkan IDENTITAS yang menunjuk satu orang
+ * secara langsung, dan NIK beserta alamat rumah adalah dua hal yang paling
+ * tidak boleh ikut dalam sebuah dump yang tercecer.
+ *
+ * MENGAPA HANYA LIMA. Diukur, bukan dikira: kelimanya TIDAK PERNAH dicari
+ * lewat `contains` di seluruh API. `users.nama` dicari (audit.service.ts), jadi
  * mengenkripsinya akan mematahkan pencarian log audit dan ia sengaja dibiarkan
- * polos. Akibatnya harus disebut tanpa dibaguskan: basis data ini TIDAK
+ * polos -- dan itulah syarat yang memisahkan `nama` dari ketiga kolom baru di
+ * sebelahnya. Akibatnya harus disebut tanpa dibaguskan: basis data ini TIDAK
  * terenkripsi seluruhnya.
  *
  * APA YANG DITUTUPNYA, DAN APA YANG TIDAK. Ini melindungi dari pihak yang
@@ -26,10 +34,12 @@ import { dekripsi, enkripsi, INFO_KOLOM } from './envelope';
  * sistem tak pernah harus berhenti. Kedua, siapa pun yang membuka dump langsung
  * tahu isinya terenkripsi, bukan rusak.
  *
- * TIDAK ADA MIGRASI PRISMA. Kedua kolom sudah `@db.Text` tanpa batas panjang,
- * dan base64 dari amplop (sekitar 1,37x ditambah 49 bita header) muat di
- * dalamnya. Itu bukan kebetulan yang menguntungkan melainkan alasan bentuk ini
- * dipilih: `prisma migrate dev` terlarang di proyek ini.
+ * PANJANG KOLOM. Dua kolom pengaduan sudah `@db.Text` sejak awal sehingga tak
+ * perlu migrasi sama sekali; ketiga kolom `users` dibuat `text` sejak lahirnya
+ * dengan alasan yang sama, yaitu base64 amplop (sekitar 1,37x ditambah 49 bita
+ * header) harus muat tanpa batas yang dapat menggagalkan login. Itu bukan
+ * kebetulan yang menguntungkan melainkan alasan bentuk ini dipilih: `prisma
+ * migrate dev` terlarang di proyek ini dan migrasinya ditulis tangan.
  */
 export const AWALAN_KOLOM = 'enc:v1:';
 

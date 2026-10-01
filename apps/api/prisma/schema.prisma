@@ -124,6 +124,34 @@ model User {
   // menyatakan KEPEMILIKAN; sesi menyatakan PILIHAN.
   roles       Role[]
   opdId       Int?      @map("opd_id") // wajib bila `roles` memuat `opd`; null selain itu
+  // IDENTITAS PELAPOR DARI HELPDESK (1 Oktober 2026). Ketiganya disalin dari
+  // klaim `userinfo` saat login dan disegarkan tiap login; lihat
+  // sso-identitas.mapper.ts untuk jalur klaimnya dan alasan tiga medan ini
+  // saja yang diambil dari seksi `demographics`/`location` yang jauh lebih luas.
+  //
+  // TERENKRIPSI, lihat common/crypto/kolom.ts. NIK dan alamat rumah adalah
+  // identitas yang menunjuk satu orang secara langsung, dan keduanya TIDAK
+  // PERNAH dicari lewat `contains` di API mana pun -- justru syarat itulah
+  // yang membuat `users.nama` harus dibiarkan polos sementara ketiga kolom ini
+  // tidak.
+  //
+  // `@db.Text`, bukan VarChar: base64url amplopnya sekitar 1,37x panjang asli
+  // ditambah 49 bita header, dan batas panjang di sini berarti login gagal
+  // ketika seseorang kebetulan beralamat panjang. Pembatasannya dilakukan
+  // SEBELUM enkripsi (BATAS_ALAMAT), tempat panjangnya masih punya arti.
+  nik         String?   @db.Text
+  nomorHp     String?   @map("nomor_hp") @db.Text
+  alamat      String?   @db.Text
+  // TIDAK TERENKRIPSI, berbeda dari tiga kolom di atasnya (1 Oktober 2026).
+  // Nilainya hanya dua, sehingga enkripsi nyaris tak menambah perlindungan,
+  // sementara menyimpannya sebagai teks melepas jaminan tipe dari basis data
+  // dan membuat rekapitulasi harus mendekripsi tiap baris untuk menghitung.
+  // NIK dan alamat menunjuk satu orang secara langsung; jenis kelamin sendirian
+  // tidak.
+  //
+  // Dipetakan dari klaim Helpdesk yang pengkodeannya TIDAK SERAGAM antar
+  // endpoint ("Laki-laki" vs "L") -- lihat sso-jenis-kelamin.mapper.ts.
+  jenisKelamin JenisKelamin? @map("jenis_kelamin")
   isActive    Boolean   @default(true) @map("is_active")
   consentAt   DateTime? @map("consent_at") // persetujuan PDP saat pertama login
   lastLoginAt DateTime? @map("last_login_at")

@@ -7,7 +7,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role, User } from '@prisma/client';
+import { JenisKelamin, Role, User } from '@prisma/client';
+import { enkripsiKolom } from '../../common/crypto/kolom';
+import { kunciData } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
@@ -15,7 +17,10 @@ import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { readCookie } from './session/cookie.util';
 import { SESSION_COOKIE } from './session/session-cookie.service';
 import { SessionService } from './session/session.service';
+import { ambilJalurKlaim } from './sso-claim-path';
 import { bentukKlaim } from './sso-claim-shape';
+import { ambilIdentitasKlaim } from './sso-identitas.mapper';
+import { petakanJenisKelamin } from './sso-jenis-kelamin.mapper';
 import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
 import {
   extractRoleClaimValues,
@@ -44,6 +49,9 @@ export class SsoService {
    */
   private bentukKlaimSudahDicatat = false;
 
+  /** Kunci enkripsi kolom identitas. Lihat `identitasUntukDisimpan`. */
+  private readonly kunci: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -51,7 +59,12 @@ export class SsoService {
     private readonly stateService: SsoStateService,
     private readonly audit: AuditService,
     @Inject(SSO_SOURCE) private readonly ssoSource: SsoSource,
-  ) {}
+  ) {
+    // Dibaca SEKALI saat konstruksi, sama seperti ComplaintsService. Kalau
+    // kuncinya belum disetel, kegagalannya muncul saat aplikasi menyala --
+    // bukan saat seseorang sedang login dan tak punya cara memperbaikinya.
+    this.kunci = kunciData(config);
+  }
 
   /** Langkah 1: alihkan pengguna ke halaman login Helpdesk. */
   async beginLogin(): Promise<{ redirectUrl: string; setCookie: string }> {
@@ -294,6 +307,8 @@ export class SsoService {
         // role, pemilih itu tak pernah tampil.
         roles,
         ...(opdId === null ? {} : { opdId }),
+        // NIK, nomor HP, & alamat dari klaim Helpdesk (1 Oktober 2026).
+        ...this.identitasUntukDisimpan(profile),
         lastLoginAt: new Date(),
         // `consentAt` SENGAJA dibiarkan null. Kolom itu catatan persetujuan UU
         // PDP; mengisinya otomatis berarti mencatat persetujuan yang belum
@@ -552,6 +567,47 @@ export class SsoService {
     return opd.id;
   }
 
+  /**
+   * Ketiga kolom identitas dalam bentuk siap ditulis, atau objek KOSONG.
+   *
+   * KUNCI YANG TAK TERBACA SENGAJA TIDAK MUNCUL, bukan ditulis sebagai null.
+   * Ini pola yang sama dengan `nama` di `acceptLogin`, dan alasannya sama:
+   * satu login yang klaimnya kebetulan tak membawa `location` -- karena
+   * penyedia mengubah bentuk, karena seksinya sedang kosong -- akan MENGHAPUS
+   * alamat yang sudah tersimpan bila kuncinya ikut ditulis. Menulis null
+   * adalah pernyataan "orang ini tidak punya alamat", dan klaim yang hilang
+   * tidak pernah menyatakan itu.
+   *
+   * Enkripsinya di sini, di satu tempat yang dilewati jalur pembuatan maupun
+   * jalur penyegaran. Lihat common/crypto/kolom.ts untuk apa yang dilindungi
+   * dan apa yang tidak.
+   */
+  private identitasUntukDisimpan(profile: SsoProfile): {
+    nik?: string;
+    nomorHp?: string;
+    alamat?: string;
+    jenisKelamin?: JenisKelamin;
+  } {
+    const identitas = ambilIdentitasKlaim(profile.klaim);
+    // TIDAK TERENKRIPSI, sengaja berbeda dari ketiga medan di bawahnya. Dua
+    // nilai saja, jadi enkripsi nyaris tak menambah perlindungan sementara ia
+    // melepas jaminan tipe enum dan memaksa rekapitulasi mendekripsi tiap
+    // baris hanya untuk menghitung.
+    //
+    // Jalurnya bercabang seperti ketiga medan itu: `demographics.jenis_kelamin`
+    // (userinfo, bersarang) lalu `jenis_kelamin` (/api/me, rata). Nilainya pun
+    // tak seragam antar endpoint -- lihat sso-jenis-kelamin.mapper.ts.
+    const jenisKelamin =
+      petakanJenisKelamin(ambilJalurKlaim(profile.klaim, 'demographics.jenis_kelamin')) ??
+      petakanJenisKelamin(ambilJalurKlaim(profile.klaim, 'jenis_kelamin'));
+    return {
+      ...(jenisKelamin ? { jenisKelamin } : {}),
+      ...(identitas.nik ? { nik: enkripsiKolom(identitas.nik, this.kunci) } : {}),
+      ...(identitas.nomorHp ? { nomorHp: enkripsiKolom(identitas.nomorHp, this.kunci) } : {}),
+      ...(identitas.alamat ? { alamat: enkripsiKolom(identitas.alamat, this.kunci) } : {}),
+    };
+  }
+
   /** Tolak akun nonaktif, lalu segarkan nama & waktu login. */
   private async acceptLogin(user: User, profile: SsoProfile): Promise<User> {
     if (!user.isActive) {
@@ -573,6 +629,9 @@ export class SsoService {
         // tak ada urusannya dengan si pengguna. Perubahan email ditangani
         // terpisah bila kelak dibutuhkan.
         ...(nama ? { nama } : {}),
+        // Identitas pelapor disegarkan tiap login dengan sifat yang sama
+        // seperti nama di atas: hanya yang benar-benar dikirim Helpdesk.
+        ...this.identitasUntukDisimpan(profile),
       },
     });
   }
