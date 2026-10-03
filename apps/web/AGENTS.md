@@ -22,9 +22,10 @@ src/
 ├── constants/
 ├── features/
 ├── hooks/
+├── mocks/
 ├── services/
-├── stores/
-└── utils/
+├── utils/
+└── proxy.js
 
 Do not create TypeScript type definitions.
 Do not use /types folder for TypeScript interfaces.
