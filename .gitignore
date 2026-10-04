@@ -18,6 +18,12 @@ package-lock.json
 # selama pengerjaan, tapi bukan dokumentasi produk -- tak perlu masuk GitLab.
 docs/superpowers/
 
+# Setelan Claude Code per-mesin. `.claude/skills/` dan `.claude/settings.json`
+# SENGAJA tercatat: isinya aturan kerja proyek yang harus berlaku bagi siapa
+# pun yang mengklona repo ini. Yang dikecualikan hanya berkas `*.local.*`,
+# yang memuat keputusan izin milik satu pengembang, bukan aturan proyek.
+.claude/**/*.local.*
+
 # Cadangan basis data & lampiran (23 September 2026).
 #
 # Terenkripsi, dan itu TETAP bukan alasan untuk menaruhnya di repositori.
