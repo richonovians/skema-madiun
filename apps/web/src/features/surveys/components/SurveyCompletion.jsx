@@ -68,7 +68,11 @@ export default function SurveyCompletion({ tampilkanTautanWarga = true }) {
           <Link href="/dashboard" className="w-full sm:w-1/2 block">
             <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95 group/btn">
               <Home size={20} className="group-hover/btn:-translate-y-1 transition-transform" />
-              <span>Beranda</span>
+              {/* "Dashboard", bukan "Beranda" (4 Oktober 2026, laporan
+                  pengguna). Tujuannya `/dashboard`, yaitu dasbor warga, dan
+                  beranda publik ada di `/`. Tombol anonim di atas MEMANG
+                  menuju `/` dan karena itu labelnya tetap menyebut beranda. */}
+              <span>Dashboard</span>
             </button>
           </Link>
           )}
