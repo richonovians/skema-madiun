@@ -162,14 +162,44 @@ sudah ada sejak awal dan belum pernah dipakai; v2 memakainya.
 SKM1 | 0x02 | panjang_bungkusan (2 bita) | bungkusan | IV 12 | tag 16 | ciphertext
 ```
 
-Garam HKDF hilang pada v2 karena kuncinya tak lagi diturunkan. `dekripsi()` saat
-ini **tidak memeriksa byte versi** dan pesan galatnya menyebut "v1" secara
-tertulis; itu harus diperbaiki lebih dulu, sebagai perubahan tersendiri, sebelum
-v2 ada. Perbaikan itu pekerjaan repo ini dan tidak menunggu siapa pun.
+Garam HKDF hilang pada v2 karena kuncinya tak lagi diturunkan.
 
 Keduanya hidup berdampingan. Blob v1 tetap terbuka dengan `DATA_ENCRYPTION_KEY`
 selama masa peralihan, dan kolom basis data memakai awalan `enc:v2:` di samping
 `enc:v1:` yang sudah ada.
+
+#### Satu hal harus dibereskan lebih dulu: `terenkripsi()` mencampur dua pertanyaan
+
+`terenkripsi()` memeriksa penanda `SKM1` **dan** menuntut byte versinya tepat
+`0x01` (`envelope.ts`, dan salinan CJS-nya di `scripts/lib/envelope.cjs`). Dua
+pertanyaan yang berbeda dijawab satu fungsi: "apakah ini amplop SKM1?" dan
+"versinya berapa?"
+
+Selama hanya ada v1, itu tidak pernah menjadi masalah. Begitu v2 ada, blob v2
+dijawab `false` — artinya **dianggap bukan amplop sama sekali**, bukan dianggap
+amplop berversi lain. Tiga pemanggilnya menanggapinya dengan tiga cara yang
+semuanya salah:
+
+| Pemanggil                         | Yang terjadi pada blob v2                        |
+| --------------------------------- | ------------------------------------------------ |
+| `app.setup.ts:201`                | lampiran disajikan apa adanya: ciphertext mentah |
+| `scripts/enkripsi-lampiran-lama.cjs:62` | dianggap belum terenkripsi, lalu dienkripsi lagi |
+| `scripts/lib/rotasi.cjs:27`       | berstatus `polos`, dibungkus ulang dengan kunci baru |
+| `scripts/cadangan.cjs:89`         | dilaporkan sebagai berkas polos                  |
+
+Dua yang tengah itu yang berbahaya: skrip migrasi akan **melapisi blob yang
+sudah terenkripsi**, membungkus v2 di dalam v1. Masih dapat dipulihkan, tetapi
+hanya bila ada yang menyadarinya.
+
+Karena itu langkah pertama di bagian 6 bukan menambahkan pemeriksaan versi —
+pemeriksaan itu sudah ada — melainkan **memisahkan deteksi amplop dari
+versinya**, sehingga tiap pemanggil memutuskan dengan sadar apa yang dilakukan
+terhadap versi yang tidak dikenalnya. Pesan galat `dekripsi()` juga menyebut
+"v1" secara tertulis dan ikut diperbaiki di situ.
+
+Ujinya belum ada: `envelope.spec.ts:51` menguji masukan yang terlalu pendek,
+bukan byte versi yang tidak dikenal. Perbaikan ini pekerjaan repo ini dan tidak
+menunggu siapa pun.
 
 ### Kontrak layanan pembuka
 
@@ -242,7 +272,7 @@ bagian 6–7). Yang diperlukan adalah memperluasnya, bukan menulis dari nol.
 
 | #   | Langkah                                                                  | Sisi                             |
 | --- | ------------------------------------------------------------------------ | -------------------------------- |
-| 1   | Perbaiki `dekripsi()` agar memeriksa byte versi. Sendirian, lebih dulu   | repo ini                         |
+| 1   | Pisahkan deteksi amplop dari versinya di `terenkripsi()`, TS maupun CJS, beserta ujinya. Sendirian, lebih dulu | repo ini |
 | 2   | Tambahkan format v2 beserta ujinya; belum ada yang menulisnya            | repo ini                         |
 | 3   | Layanan pembuka versi lokal, untuk pengembangan dan uji                  | repo ini                         |
 | 4   | Layanan pembuka produksi, sesuai kontrak bagian 4, beserta TLS-nya       | **Helpdesk**                     |
@@ -354,3 +384,22 @@ mereka tidak memuat `nik`, `phone_number`, `alamat`, maupun `jenis_kelamin`,
 padahal keempatnya dipetakan `sso-identitas.mapper.ts` dan berjalan. Itu bukti
 terukur bagi peringatan yang sudah lama tertulis di `CLAUDE.md`, dan dicatat di
 sana, bukan di sini.
+
+**4 Oktober 2026, suntingan ketiga — memperbaiki kesalahan dokumen ini
+sendiri.** Dua versi sebelumnya menyatakan bahwa `dekripsi()` **tidak**
+memeriksa byte versi. Itu tidak benar, dan tertulis dua kali tanpa diperiksa:
+`dekripsi()` memeriksanya melalui `terenkripsi()`, yang menguji
+`data[MAGIC.length] === VERSI`. Saya menulisnya dari ingatan atas berkas itu
+alih-alih membacanya, dan langkah pertama di bagian 6 karena itu menyuruh
+mengerjakan hal yang sudah ada.
+
+Cacatnya sungguh ada, hanya berbeda bentuk, dan baru terlihat ketika berkasnya
+dibaca utuh: `terenkripsi()` menjawab dua pertanyaan sekaligus, sehingga blob
+berversi tak dikenal dilaporkan sebagai bukan-amplop. Uraiannya ada di bagian 4
+beserta keempat pemanggil yang menanggapinya dengan salah, dua di antaranya
+skrip migrasi yang akan membungkus ulang blob yang sudah terenkripsi.
+
+Langkah 1 di bagian 6 diganti sesuai temuan itu. Pelajarannya dicatat di sini
+karena pembaca dokumen ini akan membaca kodenya juga: pernyataan tentang kode
+dalam dokumen ini harus berasal dari berkasnya, bukan dari ingatan tentang
+berkasnya.
