@@ -129,6 +129,12 @@ Satu payload nyata memakai **tiga bentuk kekosongan sekaligus**: `null`, `''`, d
 
 `claims_supported` pada metadata penyedia adalah **petunjuk, bukan jaminan tertutup**. Pernah ada keputusan desain yang salah karena daftar itu dianggap lengkap, padahal payload sungguhannya memuat medan yang tidak terdaftar.
 
+Itu kini terukur, bukan sekadar peringatan. Metadata yang hidup di `https://helpdesk.madiunkab.go.id/.well-known/openid-configuration`, dibaca 4 Oktober 2026, mendaftarkan `claims_supported` hanya sebagai `sub`, `email`, `name`, `preferred_username`, `nickname`, `groups`, `role`. **`nik`, `phone_number`, `alamat`, dan `jenis_kelamin` tidak ada di daftar itu** — padahal keempatnya dipetakan `sso-identitas.mapper.ts` dari payload sungguhan dan berjalan. Jangan pernah memutuskan apa pun berdasarkan daftar itu; baca payloadnya.
+
+`scopes_supported` juga hanya `openid profile email`, tanpa scope yang menampung data demografis. Hari ini payloadnya tetap mengirim NIK dan alamat, jadi tak ada yang rusak — tetapi bila penyedia suatu saat menegakkan scope secara ketat, pemetaan identitas berhenti bekerja tanpa ada satu pun perubahan di sisi kita. Gejalanya akan terbaca seperti bug di `sso-identitas.mapper.ts`, padahal bukan.
+
+Dua fakta lain dari metadata yang sama. Issuer-nya **`https://api.madiunkab.go.id/api/oauth`**, bukan host `helpdesk.` yang dipakai portalnya; SSO dan portal tinggal di host berbeda. JWKS-nya memuat satu kunci: `RSA 2048`, `RS256`, `use: sig`, `kid: sso-key-1`.
+
 ### apps/web (Next.js 16 App Router, React 19, Tailwind v4)
 
 **JavaScript saja.** 394 berkas `.jsx`, nol `.tsx`. Aturan frontend yang berlaku ada di `apps/web/AGENTS.md` (diimpor oleh `apps/web/CLAUDE.md`):
@@ -176,7 +182,7 @@ Catatan: `AGENTS.md` berisi blok `nextjs-agent-rules` yang **ditulis ulang `next
 
 Beberapa hal sudah ditulis lengkap tetapi belum bisa dinyalakan karena menunggu pihak lain, dan itu bukan bug:
 
-- **SSO Helpdesk** menunggu `client_id` dan `client_secret` dari tim Helpdesk. Sementara itu lingkungan pengembangan memakai jalur masuk sementara yang mati sendiri di produksi.
+- **SSO Helpdesk** tidak lagi menunggu kredensial: `HELPDESK_SSO_CLIENT_ID` dan `HELPDESK_SSO_CLIENT_SECRET` sudah ada di `apps/api/.env` sejak 4 Oktober 2026. Yang belum pernah diperiksa adalah apakah alur masuknya tuntas dari ujung ke ujung — keberadaan kredensial sudah dipastikan, keberhasilan masuknya belum. Lingkungan pengembangan tetap menyediakan jalur masuk sementara yang mati sendiri di produksi.
 - **Captcha** (Cloudflare Turnstile) belum punya kunci produksi atas nama Diskominfo.
 - **Docker** baru menjalankan basis data dan reverse proxy; backend dan frontend masih dijalankan langsung.
 - **Daftar OPD** disinkronkan dari Helpdesk dan bersifat baca saja, tidak diketik manual.
