@@ -272,7 +272,15 @@ Uji otomatis memakai pasangan kunci tetap, mengikuti pola `KUNCI_UJI` di
 ## 8. Pertanyaan untuk developer Helpdesk
 
 1. **Layanan pembuka, atau sekadar tempat menyimpan berkas kunci?** (Bagian 3.1)
-2. Algoritma pembungkusnya apa — RSA-OAEP, atau X25519/HPKE?
+2. **RSA-OAEP, bukan X25519/HPKE?** Usulan kami RSA-OAEP, dan alasannya
+   terukur: JWKS Helpdesk per 4 Oktober 2026 sudah memuat kunci RSA 2048 dengan
+   RS256 (`kid: sso-key-1`), jadi RSA sudah ada di tumpukan kalian beserta
+   tempat penyimpanan kunci privatnya dan praktik `kid` untuk membedakan kunci.
+   X25519 berarti memperkenalkan hal baru tanpa sebab.
+   **Peringatan yang menyertainya:** `sso-key-1` itu `use: sig` — kunci tanda
+   tangan. Yang dibutuhkan pasangan kunci **baru** dengan `use: enc`. Satu kunci
+   dipakai menandatangani sekaligus mengenkripsi tidak dibenarkan, dan itu
+   berlaku terlepas dari seberapa praktis kelihatannya.
 3. Siapa yang boleh memanggil layanan itu, dan bagaimana pemanggilnya dibuktikan
    sah?
 4. Berapa laju maksimum yang diizinkan, dan apa yang terjadi bila dilampaui?
@@ -324,3 +332,25 @@ perubahan pembaca:
   kunci asimetris hanya sepasang. Istilah "publik, secret, privat" sebagai tiga
   sekawan sempat menimbulkan salah paham dalam pembahasan, dan dokumen yang
   tidak meluruskannya akan mengulanginya pada pembaca berikutnya.
+
+**4 Oktober 2026, suntingan kedua.** Pertanyaan 2 di bagian 8 berubah dari
+pertanyaan terbuka menjadi usulan beserta alasannya, sesudah metadata OIDC dan
+JWKS Helpdesk dibaca langsung dari sumbernya hari itu:
+`https://helpdesk.madiunkab.go.id/.well-known/openid-configuration` dan
+`https://api.madiunkab.go.id/api/oauth/jwks`. Keduanya terbitan umum untuk
+integrator, dan repo ini sudah mengonsumsinya; tidak ada endpoint yang
+ditebak-tebak atau dipindai.
+
+Yang terbaca di sana dan mengubah isi dokumen: Helpdesk sudah menjalankan RSA
+2048/RS256, sehingga RSA-OAEP menjadi pilihan yang tidak menambah apa pun yang
+baru bagi mereka. Yang terbaca dan **tidak** mengubah isi dokumen tapi perlu
+dicatat: kunci yang ada itu `use: sig`, jadi ia tak boleh dipakai ulang untuk
+enkripsi; dan sisi Helpdesk sudah memakai TLS, sehingga prasyarat TLS di bagian
+4 kurang dari yang dibayangkan — yang belum memakai TLS adalah lingkungan
+pengembangan kita sendiri di porta 80.
+
+Satu temuan yang terbawa ke luar dokumen ini: `claims_supported` pada metadata
+mereka tidak memuat `nik`, `phone_number`, `alamat`, maupun `jenis_kelamin`,
+padahal keempatnya dipetakan `sso-identitas.mapper.ts` dan berjalan. Itu bukti
+terukur bagi peringatan yang sudah lama tertulis di `CLAUDE.md`, dan dicatat di
+sana, bukan di sini.
