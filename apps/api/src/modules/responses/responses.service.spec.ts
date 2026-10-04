@@ -441,6 +441,103 @@ describe('ResponsesService', () => {
       );
     });
 
+    /**
+     * NOMOR RESPONS ADALAH URUTAN MASUK, BUKAN POSISI DI LAYAR (4 Oktober 2026,
+     * laporan pengguna: "urutan respon survei terbalik, respon paling pertama
+     * masuk akan tertimbun").
+     *
+     * Sebelumnya layar menomori dari POSISI ARRAY (`index + 1`) atas daftar yang
+     * diurutkan terbaru-dahulu. Akibatnya nomor itu bukan identitas: respons
+     * yang kemarin "#1" menjadi "#2" begitu ada pengisi baru, dan respons yang
+     * benar-benar pertama justru memperoleh angka terbesar. Nomor yang berubah
+     * sendiri tak dapat dipakai merujuk apa pun -- admin yang mencatat "lihat
+     * respons #3" menunjuk respons yang berbeda keesokan harinya.
+     *
+     * Frontend TIDAK DAPAT menghitungnya sendiri: ia hanya memegang satu
+     * halaman dan tak tahu ada berapa respons sebelum baris pertamanya. Karena
+     * itu nomornya dihitung di sini, dari `total` yang memang sudah diambil
+     * transaksi yang sama.
+     *
+     * URUTANNYA MENAIK sejak 4 Oktober 2026 (permintaan kedua pengguna pada
+     * hari yang sama: "respon #1 di posisi paling atas dan seterusnya").
+     * Keputusan sebelumnya -- terbaru-dahulu, nomor dihitung mundur dari
+     * `total` -- dibalik pada hari ia ditulis, dan itu ikut dicatat di sini
+     * supaya pembaca berikutnya tak menyangka salah satunya kekeliruan.
+     *
+     * Menaik juga membuat nomornya lebih murah: `offset + index + 1` tak
+     * bergantung pada `total` sama sekali, jadi respons yang masuk di tengah
+     * paginasi tak dapat menggeser nomor siapa pun.
+     */
+    it('menomori respons menurut urutan masuk, dari yang paling lama', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      // 3 respons, terlama dahulu. Nomornya 1, 2, 3.
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [
+          { id: 10, surveyId: 1, submittedAt: new Date('2026-10-01T00:00:00.000Z'), answers: [] },
+          { id: 20, surveyId: 1, submittedAt: new Date('2026-10-02T00:00:00.000Z'), answers: [] },
+          { id: 30, surveyId: 1, submittedAt: new Date('2026-10-03T00:00:00.000Z'), answers: [] },
+        ],
+        3,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items.map((r) => r.nomor)).toEqual([1, 2, 3]);
+      // Yang paling lama masuk berada di BARIS PERTAMA dan bernomor 1.
+      expect(hasil.items[0]).toEqual(expect.objectContaining({ id: 10, nomor: 1 }));
+    });
+
+    it('nomor pada halaman kedua melanjutkan, tidak mengulang dari 1', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      // total 25, limit 20, halaman 2 berisi 5 respons terbaru → nomor 21..25.
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [21, 22, 23, 24, 25].map((n) => ({
+          id: n,
+          surveyId: 1,
+          submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+          answers: [],
+        })),
+        25,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 2, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items.map((r) => r.nomor)).toEqual([21, 22, 23, 24, 25]);
+    });
+
+    /**
+     * `submittedAt` KEMBAR BUKAN PERKARA TEORETIS: dua pengisi dapat mengirim
+     * dalam milidetik yang sama, dan Postgres tak menjanjikan urutan apa pun
+     * bagi baris yang kunci urutnya seri. Tanpa pemecah seri, kedua respons itu
+     * dapat bertukar tempat antar-permintaan, dan karena nomornya diturunkan
+     * dari posisi, nomor keduanya ikut bertukar. `id` menaik monoton, jadi ia
+     * pemecah seri yang stabil.
+     */
+    it('urutannya punya pemecah seri id supaya nomornya tidak goyah', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+
+      await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(prisma.surveyResponse.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
+        }),
+      );
+    });
+
     it('survei tidak ada → NotFound', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(

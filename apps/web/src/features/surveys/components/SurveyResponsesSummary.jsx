@@ -30,7 +30,13 @@ export default function SurveyResponsesSummary({ totalResponses, averageScore, l
         </div>
         <div>
           <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">Nilai Rata-Rata</p>
-          <p className="font-h3 text-h3 text-on-surface">{averageScore.toFixed(2)}</p>
+          {/* `null` DIBEDAKAN dari nol (4 Oktober 2026). Survei yang belum
+              punya responden -- atau yang 9 unsur bakunya dihapus, sehingga
+              rumus IKM tak punya pijakan -- tak dapat dinilai, dan itu keadaan
+              yang sama sekali berbeda dari "dinilai, hasilnya 0,00". */}
+          <p className="font-h3 text-h3 text-on-surface">
+            {averageScore == null ? '–' : averageScore.toFixed(2)}
+          </p>
         </div>
       </Card>
       

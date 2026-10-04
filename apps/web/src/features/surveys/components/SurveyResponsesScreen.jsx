@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useState } from 'react';
 import SurveyResponsesHeader from './SurveyResponsesHeader';
 import SurveyResponsesSummary from './SurveyResponsesSummary';
 import SurveyResponsesTable from './SurveyResponsesTable';
+import Pagination from '@/components/ui/Pagination';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -24,50 +25,64 @@ import { adaptSurveyResponseList } from '@/features/surveys/adapters/survey.adap
  * `className` diserahkan pemanggil karena padding kedua area BEDA: <main>
  * admin-opd sudah ber-`p-4 md:p-lg`, sedangkan <main> admin-kab tidak punya
  * padding horizontal sama sekali (lihat AdminLayout.jsx vs AdminKabLayout.jsx).
+ *
+ * PAGINASI SUNGGUHAN sejak 4 Oktober 2026 (permintaan pengguna). Sebelumnya
+ * layar ini mengambil 100 baris sekali jalan lalu berhenti, dan memasang pita
+ * peringatan yang mengakui batas itu. Selama urutannya menurun, 100 itu berarti
+ * "100 terbaru" -- merugikan tapi masuk akal. Begitu urutannya dibalik menjadi
+ * menaik supaya respons #1 berada di atas, 100 itu berubah arti menjadi
+ * "100 TERLAMA": respons yang baru masuk tak akan terlihat sama sekali pada
+ * survei yang melewati angka itu. Paginasi menghapus perkaranya alih-alih
+ * menambalnya, dan backend memang sudah menerima `page` sejak awal.
  */
 
-// Batas maksimum `limit` backend (PaginationQueryDto: @Max(100)) -- bukan angka pilihan sendiri.
-const RESPONSES_LIMIT = 100;
+/**
+ * Sengaja JAUH di bawah batas backend (100). Angka ini bukan batas teknis
+ * melainkan sebanyak apa yang nyaman dibaca sekali layar, dan sama dengan
+ * daftar berpaginasi lain di area admin.
+ */
+const PER_HALAMAN = 20;
 
 export default function SurveyResponsesScreen({ surveyId, basePath, className = 'w-full pt-4' }) {
+  const [page, setPage] = useState(1);
+
   const fetchData = useCallback(async () => {
     const [survey, questions, responsesResult] = await Promise.all([
       getSurveyById(surveyId),
       getQuestions(surveyId),
-      getSurveyResponses(surveyId, { limit: RESPONSES_LIMIT }),
+      getSurveyResponses(surveyId, { page, limit: PER_HALAMAN }),
     ]);
     // Daftar pertanyaan diteruskan UTUH & TERURUT, bukan sebagai peta id:
     // nomor soal pada jawaban diambil dari posisinya di survei, dan posisi itu
     // hilang begitu daftarnya diubah menjadi peta (13 September 2026).
     const responses = adaptSurveyResponseList(responsesResult.data, questions);
+    const pagination = responsesResult.meta?.pagination;
     return {
       survey,
       responses,
       // Total sesungguhnya dari backend, BUKAN `responses.length`: yang kedua
-      // berhenti di 100 dan akan melaporkan jumlah responden lebih kecil dari
-      // kenyataan begitu survei melewati batas itu.
-      total: responsesResult.meta?.pagination?.total ?? responses.length,
+      // kini hanya sepanjang satu halaman.
+      total: pagination?.total ?? responses.length,
+      totalPages: pagination?.totalPages ?? 1,
     };
-  }, [surveyId]);
+  }, [surveyId, page]);
 
   const { data, isLoading, error, refetch } = useAsync(fetchData);
 
-  const summary = useMemo(() => {
-    const responses = data?.responses ?? [];
-    const withScore = responses.filter((r) => r.averageScore != null);
-    const averageScore =
-      withScore.length > 0
-        ? withScore.reduce((sum, r) => sum + r.averageScore, 0) / withScore.length
-        : 0;
-    const lastResponseDate =
-      responses.length > 0
-        ? [...responses].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0]
-            .submittedAt
-        : null;
-    return { total: data?.total ?? 0, averageScore, lastResponseDate };
-  }, [data]);
-
-  const isTruncated = (data?.total ?? 0) > (data?.responses.length ?? 0);
+  /*
+   * RINGKASAN DIAMBIL DARI SURVEI, BUKAN DIHITUNG DARI BARIS YANG TERMUAT
+   * (4 Oktober 2026).
+   *
+   * Dulu kedua angka ini dihitung di sini dari 100 baris yang kebetulan ada,
+   * dan pita peringatan mengakuinya. Pada layar berpaginasi menaik, cara itu
+   * tak sekadar kurang tepat melainkan TERBALIK: "Respons Terakhir" di halaman
+   * pertama akan menampilkan respons yang paling lama masuk.
+   *
+   * `ikmScore` berskala 0-100 (nilai IKM PermenPANRB); kartu ini memakai skala
+   * 1-4, jadi dibagi 25. `null` dipertahankan apa adanya -- survei tanpa
+   * responden, atau yang 9 unsur bakunya dihapus, memang belum dapat dinilai.
+   */
+  const nilaiRataRata = data?.survey?.ikmScore == null ? null : data.survey.ikmScore / 25;
 
   return (
     <div className={className}>
@@ -84,26 +99,27 @@ export default function SurveyResponsesScreen({ surveyId, basePath, className = 
       ) : (
         <>
           <SurveyResponsesSummary
-            totalResponses={summary.total}
-            averageScore={summary.averageScore}
-            lastResponseDate={summary.lastResponseDate}
+            totalResponses={data.total}
+            averageScore={nilaiRataRata}
+            lastResponseDate={data.survey.terakhirMasuk}
           />
-
-          {/* Jujur soal batas: tabel di bawah cuma memuat 100 respons pertama,
-              dan "Nilai Rata-Rata" di ringkasan pun dihitung dari 100 itu saja.
-              Tanpa keterangan ini, angkanya terbaca seolah mencakup semuanya. */}
-          {isTruncated && (
-            <div className="mb-lg p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
-              Menampilkan {data.responses.length} respons terbaru dari total {data.total}. Nilai
-              rata-rata pada ringkasan dihitung dari yang ditampilkan saja.
-            </div>
-          )}
 
           <SurveyResponsesTable
             surveyId={surveyId}
             responses={data.responses}
             basePath={basePath}
           />
+
+          {data.totalPages > 1 && (
+            <Pagination
+              currentPage={page}
+              totalPages={data.totalPages}
+              totalItems={data.total}
+              itemsPerPage={PER_HALAMAN}
+              itemName="respons"
+              onPageChange={setPage}
+            />
+          )}
         </>
       )}
     </div>

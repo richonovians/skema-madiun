@@ -59,7 +59,19 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
           {responses.map((response, index) => (
             <Tr key={response.id}>
               <Td>
-                <span className="font-medium text-on-surface">Respons #{index + 1}</span>
+                {/* NOMOR DARI BACKEND, bukan posisi baris (4 Oktober 2026,
+                    laporan pengguna "respon paling pertama masuk akan
+                    tertimbun"). `index + 1` membuat nomor berubah sendiri tiap
+                    ada pengisi baru, dan mengulang dari 1 di tiap halaman.
+                    Frontend tak dapat menghitungnya: ia hanya memegang satu
+                    potongan dan tak tahu ada berapa respons sebelumnya.
+
+                    Tanpa `nomor` (mis. jalur yang tak berpaginasi), labelnya
+                    kehilangan angka alih-alih jatuh kembali ke posisi array --
+                    jatuh ke posisi berarti mengembalikan cacat ini. */}
+                <span className="font-medium text-on-surface">
+                  {response.nomor != null ? `Respons #${response.nomor}` : 'Respons'}
+                </span>
               </Td>
               {/* "Anonim" DITULIS di sini, bukan di adapter. Null dari backend
                   berarti pengisi memilih tidak memberi datanya, dan adapter

@@ -85,6 +85,11 @@ export function adaptSurvey(survey) {
     period: survey.periode,
     respondentsCount: survey.respondentsCount ?? 0,
     ikmScore: survey.nilaiIkm ?? null,
+    // Kapan respons TERAKHIR masuk, dihitung backend atas seluruh respons
+    // (4 Oktober 2026). Hanya `GET /surveys/:id` yang mengisinya; pada daftar
+    // ia memang tak ada, dan `null` di sana berarti "tak diambil", bukan
+    // "belum ada respons" -- pembacanya satu-satunya layar daftar respons.
+    terakhirMasuk: survey.terakhirMasuk ?? null,
     // Dipakai formulir kelola survei (saklar "izinkan tanpa login") dan modal
     // bagikan (keterangan tautannya menyesuaikan diri).
     izinkanAnonim: survey.izinkanAnonim === true,
@@ -432,6 +437,11 @@ export function adaptSurveyResponse(response, questions) {
   return {
     id: response.id,
     surveyId: response.surveyId,
+    // Urutan masuk respons di dalam surveinya, dihitung backend dari `total`
+    // paginasi (4 Oktober 2026). `?? null` disengaja: jalur yang tak
+    // berpaginasi tak mengirimnya, dan tampilan harus dapat membedakan "tidak
+    // dikirim" dari sebuah angka.
+    nomor: response.nomor ?? null,
     submittedAt: response.submittedAt,
     respondent,
     answers,
