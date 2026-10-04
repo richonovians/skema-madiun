@@ -1,12 +1,34 @@
-# Usulan: Kunci Privat di Luar Server Aplikasi
+# Spesifikasi Serah-Terima: Kunci Privat di Luar Server Aplikasi
 
-**Status:** usulan, belum disetujui, belum dikerjakan.
-**Tanggal:** 4 Oktober 2026.
+**Status:** spesifikasi, belum disetujui, belum dikerjakan.
+**Tanggal:** 4 Oktober 2026 (lihat "Riwayat suntingan" di akhir).
+**Pembaca yang dituju:** developer Helpdesk, sebagai pihak yang akan memegang
+produksi.
 **Asal usul:** rekomendasi developer Helpdesk — pakai kunci publik/privat agar
 penyerang yang membobol aplikasi tidak langsung memperoleh data aslinya.
 
 Dokumen ini melengkapi `enkripsi-at-rest.md`, tidak menggantikannya. Bacalah
 dokumen itu lebih dulu; seluruh istilah di sini mengikuti istilah di sana.
+
+**Pembagian tanggung jawab.** Pada tahap produksi, developer Helpdesk
+bertanggung jawab penuh atas pengoperasian aplikasi ini, termasuk pemegangan
+kunci privat yang dibicarakan di sini. Karena itu dokumen ini bukan memo
+keputusan untuk Diskominfo, melainkan **spesifikasi atas apa yang perlu
+disediakan pihak Helpdesk** dan apa yang dikerjakan di dalam repo ini. Bagian 6
+menyebut sisi mana yang mengerjakan tiap langkah.
+
+Satu pembedaan dicatat sekali, karena berpengaruh pada siapa menandatangani apa
+dan tidak pada rancangan teknisnya: tanggung jawab penuh atas pengoperasian
+menjadikan Helpdesk **pengelola** sistem, sementara kedudukan **pengendali
+data** menurut UU PDP ditentukan oleh siapa yang menetapkan tujuan pemrosesan —
+dan itu tetap Diskominfo sebagai pemilik produk. Keduanya boleh berbeda pihak.
+Bila sudah ada kesepakatan tertulis yang mengatur ini, kesepakatan itulah yang
+berlaku, bukan catatan ini.
+
+**Istilah.** Kata "end-to-end" tidak dipakai di dokumen ini; alasannya di bagian
+2. Yang dirancang di sini adalah _envelope encryption_ dengan pemegang kunci di
+luar server aplikasi. Keduanya bukan hal yang sama, dan tujuan yang disebut pada
+baris "Asal usul" tercapai dengan yang kedua.
 
 ---
 
@@ -21,26 +43,28 @@ membaca `apps/api/.env`, memperoleh `DATA_ENCRYPTION_KEY`, lalu mendekripsi
 seluruh arsip dalam hitungan detik. Kunci dan data terenkripsi berada di mesin
 yang sama, jadi satu pembobolan memberi keduanya sekaligus.
 
-Celah inilah yang ditutup usulan ini, dan hanya ini.
+Celah inilah yang ditutup spesifikasi ini, dan hanya ini.
 
-## 2. Yang TIDAK diberikan usulan ini
+## 2. Yang TIDAK diberikan spesifikasi ini
 
 Bagian ini didahulukan supaya tak ada yang berharap lebih daripada yang ada.
 
 **Ini bukan end-to-end encryption.** Pada E2E yang sesungguhnya, server tak
 pernah dapat membaca data. SKEMA harus dapat membacanya: backend menghitung IKM,
 Admin OPD membaca dan membalas pengaduan, pencarian log audit memakai nama, dan
-laporan diekspor. E2E sejati mematikan semuanya.
+laporan diekspor. E2E sejati mematikan semuanya. Pada E2E sejati, kunci privat
+juga berada di peramban warga — bukan di server Helpdesk — sehingga warga yang
+kehilangan perambannya kehilangan pengaduannya tanpa ada yang dapat menolong.
 
 **Penyerang yang menguasai server API tetap dapat membuka data, satu per satu.**
 Selama aplikasi boleh meminta pembukaan, penyerang yang menguasai aplikasi juga
 boleh. Yang berubah adalah bentuk serangannya:
 
-| Hari ini                                        | Sesudah usulan ini                                    |
-| ----------------------------------------------- | ----------------------------------------------------- |
-| Satu pembacaan `.env`, lalu seluruh arsip dibuka | Setiap blob harus diminta ke layanan pembuka           |
-| Senyap — tak ada yang mencatat                   | Tiap permintaan tercatat dan dapat dibatasi lajunya    |
-| Hitungan detik                                   | Lambat, dan polanya menyimpang dari pemakaian normal   |
+| Hari ini                                         | Sesudah spesifikasi ini                              |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| Satu pembacaan `.env`, lalu seluruh arsip dibuka | Setiap blob harus diminta ke layanan pembuka         |
+| Senyap — tak ada yang mencatat                   | Tiap permintaan tercatat dan dapat dibatasi lajunya  |
+| Hitungan detik                                   | Lambat, dan polanya menyimpang dari pemakaian normal |
 
 Penyedotan data besar-besaran berubah dari tak terlihat menjadi berisik dan
 lambat. Itu nyata dan berharga. Itu juga bukan kekebalan, dan tak boleh
@@ -50,44 +74,74 @@ dilaporkan sebagai kekebalan.
 audit, `users.email` dan judul pengaduan dipakai daftar. Alasannya ada di
 `kolom.ts` dan tidak berubah.
 
-## 3. Pemegang kunci: keputusan tata kelola, bukan keputusan teknis
+## 3. Pemegang kunci
 
-Rencananya kunci privat berada di server Helpdesk/Diskominfo **pada tahap
-produksi**; pengembangan tetap memakai kunci lokal.
+Kunci privat berada di server Helpdesk **pada tahap produksi**; pengembangan
+tetap memakai kunci lokal (bagian 7). Pemegangnya karena itu sudah tertentu, dan
+dokumen ini tidak membuka lagi pertanyaan siapa.
 
-Siapa pun yang memegang kunci privat memperoleh kemampuan membaca isi pengaduan
-warga, NIK, nomor HP, dan alamat — seluruhnya. Menurut UU PDP, Diskominfo
-sebagai pengendali data perlu memutuskan itu **secara tersurat**, bukan
-menerimanya sebagai efek samping sebuah perubahan teknis. Dokumen ini tidak
-dapat memutuskannya.
+Yang tersisa hanya satu pertanyaan, dan ia menentukan apakah seluruh pekerjaan
+ini ada gunanya.
 
-Tiga hal yang harus terjawab sebelum pekerjaan dimulai:
+### 3.1 Layanan pembuka, atau sekadar tempat menyimpan berkas kunci?
 
-1. **Layanan pembuka, atau sekadar tempat menyimpan?** Ini pembeda yang
-   menentukan segalanya. Bila Helpdesk hanya *menyimpan berkas kunci* dan
-   aplikasi mengambilnya saat boot, kunci itu berakhir di memori server API dan
-   **tak ada perlindungan tambahan sama sekali** — persis keadaan hari ini,
-   hanya berkasnya pindah. Perlindungan baru lahir bila mereka menyediakan
-   layanan yang membuka atas nama kita tanpa pernah menyerahkan kuncinya.
-2. **Siapa bertanggung jawab bila kunci hilang?** Kehilangan kunci privat
-   berarti kehilangan seluruh lampiran dan isi pengaduan secara permanen.
-   Cadangan tidak menolong karena terenkripsi kunci yang sama. Prosedur
-   pencadangan di `enkripsi-at-rest.md` bagian 2 harus diperluas ke pemegang
-   baru, beserta nama penanggung jawabnya.
-3. **Jaminan ketersediaan.** Bila jaringan ke pemegang kunci putus, SKEMA tidak
-   dapat membuka satu pun data terenkripsi — bukan melambat, melainkan berhenti.
-   Preseden ketergantungan sudah ada: SSO Helpdesk masih menunggu `client_id`
-   dari mereka sampai hari ini.
+Bila Helpdesk hanya **menyimpan berkas** kunci privat dan server API
+mengambilnya saat boot, kunci itu berakhir di memori server API. Penyerang yang
+menguasai server itu tetap memperoleh seluruhnya, dan **celah di bagian 1 tidak
+tertutup sama sekali** — hanya berkasnya yang berpindah tempat.
+
+Perlindungan baru lahir bila Helpdesk menyediakan **layanan yang membuka atas
+nama aplikasi tanpa pernah menyerahkan kuncinya**.
+
+Pembedaan ini tidak berubah oleh pembagian tanggung jawab, dan itu perlu
+dinyatakan tersurat supaya tidak disangka sudah selesai: tanggung jawab
+menentukan siapa menanggung akibat **sesudah** pembobolan; arsitektur menentukan
+**apakah** pembobolan menghasilkan data asli. Keduanya berdiri di sumbu yang
+berbeda. Yang dirancang di sini hanya sumbu kedua.
+
+### 3.2 Dua akibat yang menyertai
+
+Keduanya bukan pertanyaan terbuka lagi, melainkan konsekuensi yang perlu
+diketahui pemegangnya.
+
+**Kehilangan kunci privat berarti kehilangan seluruh lampiran dan isi pengaduan
+secara permanen.** Cadangan basis data tidak menolong karena terenkripsi kunci
+yang sama. Prosedur pencadangan di `enkripsi-at-rest.md` bagian 2 berlaku atas
+kunci baru ini. Yang masih kosong bukan siapa penanggung jawabnya, melainkan
+prosedurnya sendiri — ditanyakan di bagian 8.
+
+**Ketersediaan.** Bila layanan pembuka tak terjangkau, SKEMA tidak dapat membuka
+satu pun data terenkripsi; bukan melambat, melainkan berhenti (bagian 4, "Gagal
+tertutup"). Risiko ini lebih ringan daripada dugaan versi pertama dokumen ini:
+aplikasi dan pemegang kunci dua-duanya berada di bawah Helpdesk pada tahap
+produksi, jadi ini urusan di dalam satu pihak, bukan ketergantungan lintas
+lembaga. Angka tolerannya tetap perlu disepakati (bagian 8).
 
 ## 4. Bentuk yang diusulkan
 
-**Yang dibungkus kunci publik adalah KUNCI DATANYA, bukan datanya.**
+### Tiga bahan kunci, bukan tiga kunci asimetris
+
+Perlu dijelaskan lebih dulu karena mudah tertukar. Kriptografi kunci publik
+hanya mengenal **sepasang** kunci; "secret key" bukan anggota ketiga pasangan
+itu, melainkan istilah baku untuk kunci simetris. Yang dipakai rancangan ini ada
+tiga **bahan**:
+
+| Bahan                      | Letaknya                              | Tugasnya                        |
+| -------------------------- | ------------------------------------- | ------------------------------- |
+| Kunci publik               | server API; boleh diketahui siapa pun | hanya membungkus                |
+| Kunci privat               | server Helpdesk, di luar server API   | hanya ia yang membuka bungkusan |
+| Kunci data (simetris, AES) | di dalam blob, sudah terbungkus       | mengenkripsi datanya sendiri    |
+
+**AES-256-GCM tidak digantikan.** RSA maupun X25519 tak dapat mengenkripsi teks
+panjang, apalagi lampiran. Yang dibungkus kunci publik adalah **kunci datanya,
+bukan datanya.**
 
 Hari ini tiap blob memakai kunci yang diturunkan HKDF dari kunci induk ditambah
-garam 128-bit per blob (`envelope.ts`). Usulannya mengubah asal kunci itu, bukan
+garam 128-bit per blob (`envelope.ts`). Karena _diturunkan_, siapa yang memegang
+kunci induk memegang semua blob. Spesifikasi ini mengubah asal kunci itu, bukan
 cara pemakaiannya:
 
-1. Acak kunci data 256-bit untuk blob ini.
+1. Acak kunci data 256-bit untuk blob ini — diacak, tidak diturunkan.
 2. Enkripsi blobnya AES-256-GCM dengan kunci data itu — **tidak berubah**.
 3. Bungkus kunci data itu dengan kunci publik, simpan bungkusannya di header.
 
@@ -95,9 +149,9 @@ Untuk membaca, aplikasi mengirim **bungkusan beberapa ratus bita** ke layanan
 pembuka dan menerima kunci datanya kembali, lalu mendekripsi blobnya sendiri.
 
 Alternatif yang ditolak: mengirim seluruh blob untuk dibuka di sana. Lampiran
-dibatasi 5 MB × 5 berkas per pengaduan (`complaints.constants.ts`), jadi membuka
+dibatasi 5 MB x 5 berkas per pengaduan (`complaints.constants.ts`), jadi membuka
 satu tiket memindahkan sampai 25 MB bolak-balik, dan **plaintext-nya melintas
-jaringan** — sementara pengembangan hari ini belum memakai TLS sama sekali.
+jaringan**.
 
 ### Format amplop `SKM1 v2`
 
@@ -111,13 +165,15 @@ SKM1 | 0x02 | panjang_bungkusan (2 bita) | bungkusan | IV 12 | tag 16 | cipherte
 Garam HKDF hilang pada v2 karena kuncinya tak lagi diturunkan. `dekripsi()` saat
 ini **tidak memeriksa byte versi** dan pesan galatnya menyebut "v1" secara
 tertulis; itu harus diperbaiki lebih dulu, sebagai perubahan tersendiri, sebelum
-v2 ada.
+v2 ada. Perbaikan itu pekerjaan repo ini dan tidak menunggu siapa pun.
 
 Keduanya hidup berdampingan. Blob v1 tetap terbuka dengan `DATA_ENCRYPTION_KEY`
 selama masa peralihan, dan kolom basis data memakai awalan `enc:v2:` di samping
 `enc:v1:` yang sudah ada.
 
 ### Kontrak layanan pembuka
+
+Ini yang perlu disediakan pihak Helpdesk.
 
 ```
 POST /buka-kunci
@@ -128,6 +184,14 @@ POST /buka-kunci
 **Berkelompok sejak hari pertama, bukan ditambahkan belakangan.** Satu halaman
 daftar pengaduan mendekripsi `uraian` tiap baris; tanpa pengelompokan, satu
 halaman berisi 20 baris berarti 20 perjalanan jaringan berurutan.
+
+**Jalur ini wajib TLS, dan itu prasyarat yang hari ini belum ada.** Yang
+dikembalikan layanan pembuka adalah kunci data dalam keadaan terbuka. Tanpa TLS,
+penyadap pada jalur itu memperoleh kunci tanpa perlu membobol apa pun — dan
+seluruh gunanya hilang. Pengembangan hari ini berjalan di porta 80 tanpa TLS
+sama sekali (`infra/nginx/dev.conf`). Versi pertama dokumen ini menyebut TLS
+hanya sebagai alasan menolak pengiriman seluruh blob; ia luput menyebut bahwa
+kunci yang dikembalikan sendiri adalah rahasia yang melintas jaringan.
 
 Layanan itu mencatat tiap permintaan (jumlah, pemanggil, waktu) dan membatasi
 lajunya. Catatan itulah yang membuat penyedotan massal terlihat.
@@ -151,42 +215,48 @@ cadangan semacam itu meniadakan seluruh gunanya.
 
 ## 5. Akibat terbesar pada kode: dekripsi menjadi asinkron
 
-Ini bagian yang paling mudah diremehkan dan paling banyak menyentuh berkas.
+Seluruh bagian ini pekerjaan repo ini, bukan pihak Helpdesk. Ia yang paling
+mudah diremehkan dan paling banyak menyentuh berkas.
 
 `dekripsiKolom` hari ini **sinkron**, dipanggil langsung di tengah pemetaan
 entity. Layanan pembuka di jaringan membuatnya asinkron, dan itu menjalar ke
 setiap pemanggil:
 
-| Berkas                       | Yang didekripsi                        |
-| ---------------------------- | -------------------------------------- |
-| `auth.service.ts:201-203`    | `nik`, `nomorHp`, `alamat`             |
-| `complaints.service.ts:696`  | pembantu dekripsi umum                 |
-| `complaints.service.ts:707`  | `uraian`, per baris daftar             |
-| `complaints.service.ts:752`  | `pesan` balasan                        |
-| `responses.service.ts:321`   | `nomorHp` responden                    |
-| `app.setup.ts:208`           | lampiran, di middleware `/uploads/*`   |
+| Berkas                      | Yang didekripsi                      |
+| --------------------------- | ------------------------------------ |
+| `auth.service.ts:201-203`   | `nik`, `nomorHp`, `alamat`           |
+| `complaints.service.ts:696` | pembantu dekripsi umum               |
+| `complaints.service.ts:707` | `uraian`, per baris daftar           |
+| `complaints.service.ts:752` | `pesan` balasan                      |
+| `responses.service.ts:321`  | `nomorHp` responden                  |
+| `app.setup.ts:208`          | lampiran, di middleware `/uploads/*` |
 
 Jalur daftar pengaduan adalah yang terberat: ia mendekripsi per baris, jadi
 pengumpulan bungkusan harus dilakukan **sebelum** pemetaan, bukan di dalamnya.
 
-## 6. Migrasi
+## 6. Migrasi, dan sisi yang mengerjakannya
 
 Jalurnya sudah ada dan teruji — `rotasi-kunci.cjs`, `enkripsi-kolom-lama.cjs`,
 dan `enkripsi-lampiran-lama.cjs`, ketiganya idempoten (`enkripsi-at-rest.md`
 bagian 6–7). Yang diperlukan adalah memperluasnya, bukan menulis dari nol.
 
-Urutannya:
+| #   | Langkah                                                                  | Sisi                             |
+| --- | ------------------------------------------------------------------------ | -------------------------------- |
+| 1   | Perbaiki `dekripsi()` agar memeriksa byte versi. Sendirian, lebih dulu   | repo ini                         |
+| 2   | Tambahkan format v2 beserta ujinya; belum ada yang menulisnya            | repo ini                         |
+| 3   | Layanan pembuka versi lokal, untuk pengembangan dan uji                  | repo ini                         |
+| 4   | Layanan pembuka produksi, sesuai kontrak bagian 4, beserta TLS-nya       | **Helpdesk**                     |
+| 5   | Ubah seluruh jalur dekripsi menjadi asinkron (bagian 5)                  | repo ini                         |
+| 6   | Tulis baru dalam v2; baca masih menerima v1 dan v2                       | repo ini                         |
+| 7   | Jalankan migrasi ulang atas data lama                                    | repo ini, di lingkungan Helpdesk |
+| 8   | Sesudah dipastikan tak ada lagi blob v1, pensiunkan `DATA_ENCRYPTION_KEY` | bersama                         |
 
-1. Perbaiki `dekripsi()` agar memeriksa byte versi. Sendirian, lebih dulu.
-2. Tambahkan format v2 beserta ujinya; belum ada yang menulisnya.
-3. Bangun layanan pembuka, mulai dari versi lokal untuk pengembangan.
-4. Ubah seluruh jalur dekripsi menjadi asinkron.
-5. Tulis baru dalam v2; baca masih menerima v1 dan v2.
-6. Jalankan migrasi ulang atas data lama.
-7. Sesudah dipastikan tak ada lagi blob v1, dan tidak sebelum itu, pensiunkan
-   `DATA_ENCRYPTION_KEY`.
+Langkah 1 sampai 3 tidak bergantung pada jawaban siapa pun dan dapat dikerjakan
+lebih dulu. Langkah 5 ke atas bergantung pada jawaban bagian 3.1; bila
+jawabannya "sekadar menyimpan berkas", langkah-langkah itu tak menutup celah apa
+pun dan tidak layak dikerjakan dalam bentuk ini.
 
-Langkah 7 tak boleh didahulukan. Membuang kunci lama selagi masih ada blob v1
+Langkah 8 tak boleh didahulukan. Membuang kunci lama selagi masih ada blob v1
 berarti kehilangan data itu selamanya.
 
 ## 7. Pengembangan tanpa server Helpdesk
@@ -201,16 +271,20 @@ Uji otomatis memakai pasangan kunci tetap, mengikuti pola `KUNCI_UJI` di
 
 ## 8. Pertanyaan untuk developer Helpdesk
 
-1. Layanan pembuka, atau sekadar tempat menyimpan berkas kunci? (Bagian 3.1)
+1. **Layanan pembuka, atau sekadar tempat menyimpan berkas kunci?** (Bagian 3.1)
 2. Algoritma pembungkusnya apa — RSA-OAEP, atau X25519/HPKE?
-3. Siapa yang boleh memanggilnya, dan bagaimana pemanggilnya dibuktikan sah?
+3. Siapa yang boleh memanggil layanan itu, dan bagaimana pemanggilnya dibuktikan
+   sah?
 4. Berapa laju maksimum yang diizinkan, dan apa yang terjadi bila dilampaui?
-5. Siapa penanggung jawab kunci, dan bagaimana prosedur cadangannya?
-6. Jaminan ketersediaan: berapa lama SKEMA boleh menganggap layanan itu mati?
-7. Bagaimana rotasi kunci dilakukan dari sisi mereka?
+5. Bagaimana prosedur pencadangan kunci privatnya, dan di mana cadangan itu
+   disimpan? (Bagian 3.2)
+6. Berapa lama SKEMA boleh menganggap layanan itu mati sebelum dianggap
+   gangguan? (Bagian 3.2)
+7. Bagaimana rotasi kunci dilakukan dari sisi Helpdesk?
+8. Apakah jalur ke layanan pembuka sudah memakai TLS di produksi? (Bagian 4)
 
-Tanpa jawaban nomor 1, pekerjaan ini tidak boleh dimulai: bila jawabannya
-"sekadar menyimpan", seluruh usulan ini tak menutup celah apa pun.
+Tanpa jawaban nomor 1, langkah 5 ke atas di bagian 6 tidak boleh dimulai: bila
+jawabannya "sekadar menyimpan", seluruh pekerjaan itu tak menutup celah apa pun.
 
 ## 9. Perkiraan besarnya pekerjaan
 
@@ -218,4 +292,35 @@ Bukan janji tanggal, melainkan urutan besaran. Bagian 5 — mengubah seluruh jal
 dekripsi menjadi asinkron — lebih besar daripada bagian kriptonya sendiri, dan
 ia menyentuh jalur yang dilalui setiap pembacaan pengaduan dan setiap pembukaan
 profil. Setiap langkah di bagian 6 adalah satu commit tersendiri dengan ujinya
-sendiri, dan langkah 1 sampai 3 dapat dikerjakan sebelum Helpdesk menjawab.
+sendiri.
+
+Pembagiannya kasar: langkah 1 dan 2 kecil, langkah 3 sedang, langkah 5 adalah
+bagian terbesar dari sisi repo ini, dan langkah 4 seluruhnya di luar repo ini
+sehingga tak dapat diperkirakan dari sini.
+
+## Riwayat suntingan
+
+**4 Oktober 2026, suntingan pertama.** Versi pertama ditulis sebagai memo
+keputusan untuk Diskominfo: bagian 3 memanggil Diskominfo memutuskan siapa
+pemegang kunci, dan bagian 6 serta 9 memperkirakan seluruh pekerjaan sebagai
+pekerjaan repo ini. Keduanya tidak tepat — pada tahap produksi developer
+Helpdesk bertanggung jawab penuh atas pengoperasian aplikasi, jadi pemegang
+kunci sudah tertentu dan sebagian pekerjaan berada di luar repo ini.
+
+Yang berubah: pembacanya menjadi developer Helpdesk; bagian 3 menjadi pernyataan
+beserta satu pertanyaan yang tersisa alih-alih tiga pertanyaan terbuka;
+pertanyaan "siapa penanggung jawab kunci" dicabut dari bagian 8 karena sudah
+terjawab, sementara prosedur pencadangannya tetap ditanyakan; bagian 6 memisah
+sisi pengerjaan tiap langkah.
+
+Dua hal ditambahkan yang luput pada versi pertama, dan keduanya bukan akibat
+perubahan pembaca:
+
+- Bagian 4 kini menyebut bahwa **kunci data yang dikembalikan layanan pembuka
+  sendiri adalah rahasia yang melintas jaringan**, jadi TLS adalah prasyarat,
+  bukan penyempurnaan. Versi pertama menyebut TLS hanya sebagai alasan menolak
+  pengiriman seluruh blob.
+- Bagian 4 kini menjelaskan tiga **bahan** kunci dan menyatakan tersurat bahwa
+  kunci asimetris hanya sepasang. Istilah "publik, secret, privat" sebagai tiga
+  sekawan sempat menimbulkan salah paham dalam pembahasan, dan dokumen yang
+  tidak meluruskannya akan mengulanginya pada pembaca berikutnya.
