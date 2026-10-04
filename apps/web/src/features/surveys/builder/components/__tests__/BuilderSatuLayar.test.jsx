@@ -181,22 +181,54 @@ describe('BuilderToolbar — menutup navbar yang ditimpanya', () => {
 
   /**
    * PASANGAN kontrol. Di `md` ke atas builder menjadi lapisan `fixed` sendiri
-   * dan navbar admin tak lagi ikut bermain, jadi tinggi 72px di sana memang
-   * miliknya sendiri dan harus bertahan.
+   * dan navbar admin tak lagi ikut bermain, jadi tinggi di sana miliknya
+   * sendiri.
+   *
+   * ANGKANYA 80px SEJAK 4 OKTOBER 2026 (laporan pengguna: "luruskan garis
+   * navbar builder survei dengan garis di bawah logo pada sidebar"). Dulu 72px,
+   * dan itu dipilih sengaja ketika bilah ini berdiri sendiri. Begitu
+   * disandingkan dengan sidebar, keduanya sama-sama memasang `border-b` dan
+   * selisih 8px itu menjadi dua garis yang tidak bertemu.
+   *
+   * Angka ini TURUNAN, bukan selera: ia harus sama dengan kepala sidebar
+   * (`h-[64px] md:h-[80px]` di AdminSidebar maupun AdminKabSidebar). Jangan
+   * menggesernya tanpa menggeser keduanya.
    */
-  it('KONTROL: tinggi khusus md tetap dipertahankan', () => {
+  it('KONTROL: tinggi khusus md sama dengan kepala sidebar', () => {
     const { container } = render(<BuilderToolbar />);
 
     // Tanpa `\b` di ujung: `]` dan spasi sama-sama bukan karakter kata, jadi
     // batas kata di sana tak pernah cocok dan ujinya memerah tanpa sebab.
     const bilah = container.querySelector('header');
 
-    expect(bilah.className).toMatch(/md:h-\[72px\]/);
+    expect(bilah.className).toMatch(/md:h-\[80px\]/);
     // `min-height` MENGALAHKAN `height` bila ia lebih besar. Tanpa penyetelan
-    // ulang ini, batas 80px dari token ikut berlaku di md dan bilah tumbuh jadi
-    // 80px -- menimpa 8px pertama kanvas, yang barisnya hanya menyisakan 72px.
-    // Terukur di Chrome: 80px di 768/1024/1280 sebelum `md:min-h-0` dipasang.
+    // ulang ini, batas dari token navbar (112px) ikut berlaku di md dan bilah
+    // tumbuh melampaui tingginya sendiri, menimpa awal kanvas.
     expect(bilah.className).toMatch(/md:min-h-0/);
+  });
+
+  /**
+   * KEDUANYA TERIKAT. Tinggi bilah dan ruang yang disediakan kanvas untuknya
+   * adalah SATU angka yang ditulis di dua berkas. Menggeser salah satunya saja
+   * mengembalikan cacat yang dulu menurunkan angkanya ke 72: bilah menimpa
+   * awal kanvas, atau tersisa pita kosong di bawah bilah.
+   *
+   * Uji ini tak memeriksa "80" di dua tempat melainkan bahwa KEDUANYA ANGKA
+   * YANG SAMA, sehingga ia tetap menjaga apa pun nilai yang kelak dipilih.
+   */
+  it('ruang yang disediakan kanvas sama persis dengan tinggi bilahnya', () => {
+    const { container: wadahBilah } = render(<BuilderToolbar />);
+    const { container: wadahTata } = render(<BuilderLayout>isi</BuilderLayout>);
+
+    const tinggi = wadahBilah.querySelector('header').className.match(/md:h-\[(\d+)px\]/);
+    const ruang = wadahTata
+      .querySelector('[data-baris-builder]')
+      .className.match(/md:pt-\[(\d+)px\]/);
+
+    expect(tinggi).not.toBeNull();
+    expect(ruang).not.toBeNull();
+    expect(ruang[1]).toBe(tinggi[1]);
   });
 });
 

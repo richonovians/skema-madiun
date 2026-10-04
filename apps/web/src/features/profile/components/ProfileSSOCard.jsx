@@ -40,18 +40,39 @@ export default function ProfileSSOCard({ user }) {
         </div>
       </div>
 
-      {/* Information Banner */}
-      <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-800/40 flex items-start gap-3.5 text-blue-900 dark:text-blue-200">
-        <Info size={18} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+      {/* Information Banner.
+
+          TANPA VARIAN `dark:` (4 Oktober 2026, laporan pengguna berikut
+          tangkapan layar). Banner ini dulu membawa dua palet sekaligus,
+          `bg-blue-50/70 dark:bg-blue-950/20` dan seterusnya, padahal proyek ini
+          TAK PUNYA tema gelap: tak ada @custom-variant dark, tak ada kelas
+          .dark, tak satu pun token gelap di globals.css. Di Tailwind v4 varian
+          `dark:` menyala sendiri mengikuti `prefers-color-scheme` perangkat,
+          jadi pada ponsel bermode gelap hanya banner inilah yang berganti rupa
+          sementara halaman di sekelilingnya tetap terang.
+
+          Terukur: latar menjadi #D0D3DD (blue-950 20% di atas putih) dengan
+          teks #C1DAFB (blue-200 90%) -- kontras 1,05:1, ambang AA 4,5:1. Palet
+          terangnya sendiri tak bermasalah, 8,1:1. Jadi yang dibuang varian
+          keduanya, bukan warnanya yang diganti.
+
+          Menambahkan `dark:` di sini lagi berarti mengembalikan cacat yang sama;
+          tema gelap sungguhan dimulai dari token di globals.css, bukan dari satu
+          komponen. */}
+      <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200/80 flex items-start gap-3.5 text-blue-900">
+        <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
         <div className="space-y-1 text-xs sm:text-sm">
-          <p className="font-semibold text-blue-950 dark:text-blue-100">
+          <p className="font-semibold text-blue-950">
             Manajemen Identitas Terpadu
           </p>
           {/* Teks "belum tersambung" diperbaiki 2026-08-27: dulu berbunyi
               "integrasi ... belum aktif", dan itu tak lagi benar — modulnya sudah
               ada. Yang belum tertaut adalah AKUN INI, dan itu keadaan yang
               berbeda serta punya jalan keluar yang jelas. */}
-          <p className="leading-relaxed text-blue-800/90 dark:text-blue-200/90">
+          {/* Alpha `/90` dibuang bersama varian gelapnya: ia hanya menipiskan
+              huruf tanpa memberi apa pun, dan tanpanya warnanya persis seperti
+              yang tertulis. */}
+          <p className="leading-relaxed text-blue-800">
             {isSsoConnected
               ? 'Informasi akun pada halaman ini dikelola melalui penyedia SSO di atas. Untuk mengubah biodata, gunakan portal SSO resmi.'
               : 'Akun ini belum tertaut ke akun Helpdesk Anda, sehingga biodata belum dapat disinkronkan dari portal SSO. Penautan terjadi otomatis saat Anda pertama kali masuk lewat tombol "Masuk via SSO Helpdesk". Data yang tampil sekarang berasal dari akun yang terdaftar pada sistem SKEMA.'}
@@ -62,7 +83,7 @@ export default function ProfileSSOCard({ user }) {
                 href={sso.portalUrl} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="inline-flex items-center gap-1 font-semibold text-blue-700 dark:text-blue-300 hover:underline text-xs"
+                className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline text-xs"
               >
                 <span>Buka Portal SSO Helpdesk</span>
                 <ExternalLink size={12} />
@@ -82,7 +103,7 @@ export default function ProfileSSOCard({ user }) {
             <CheckCircle2 size={18} className="text-emerald-500" />
             <span className="text-sm font-semibold text-text-secondary">Sesi</span>
           </div>
-          <div className="flex items-center gap-1.5 font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1 rounded-full text-xs border border-emerald-200/60 dark:border-emerald-800/40">
+          <div className="flex items-center gap-1.5 font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-xs border border-emerald-200/60">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Aktif</span>
           </div>

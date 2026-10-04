@@ -30,6 +30,18 @@ export class ResponseEntity extends BaseEntity<ResponseEntity> {
   surveyId: number;
   submittedAt: Date;
 
+  /**
+   * URUTAN MASUK respons ini di dalam surveinya, dimulai dari 1 (4 Oktober
+   * 2026). Dihitung di service dari `total` paginasi, bukan disimpan di basis
+   * data: ia turunan dari urutan `submittedAt`, dan kolom tersimpan hanya akan
+   * menjadi salinan yang bisa menyimpang.
+   *
+   * ADA HANYA PADA DAFTAR. `findOne` mengembalikan satu baris tanpa konteks
+   * berapa respons yang mendahuluinya, jadi di sana medan ini `undefined` dan
+   * tampilan tak boleh mengandaikannya ada.
+   */
+  nomor?: number;
+
   /** Dari akun pengirim (jalur bersesi) atau diketik (jalur publik). */
   nama: string | null;
 

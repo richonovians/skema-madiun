@@ -48,7 +48,7 @@ describe('SurveysService', () => {
       delete: jest.fn(),
     },
     opd: { findUnique: jest.fn() },
-    surveyResponse: { count: jest.fn() },
+    surveyResponse: { count: jest.fn(), aggregate: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const ikmService = {
@@ -62,6 +62,11 @@ describe('SurveysService', () => {
     // Bakunya NOL jawaban: keadaan seluruh uji yang ditulis sebelum aturan ubah
     // bertingkat ada. Uji yang menguji penguncian menyebut angkanya sendiri.
     (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+    // Bakunya BELUM ADA respons, sejalan dengan `count` nol di atas. Uji yang
+    // memang menguji tanggalnya menyebut nilainya sendiri.
+    (prisma.surveyResponse.aggregate as jest.Mock).mockResolvedValue({
+      _max: { submittedAt: null },
+    });
     // `$transaction` dipakai DUA bentuk di service ini: deretan janji (findAll,
     // findActive, findTrashed) dan panggilan balik (update, sejak survei utama
     // per OPD). Tiruan ini melayani bentuk panggilan balik dengan meneruskan
@@ -187,6 +192,60 @@ describe('SurveysService', () => {
     const hasil = await service.findOne(1, opdUser(5));
 
     expect(hasil.respondentsCount).toBe(142);
+  });
+
+  /**
+   * KAPAN RESPONS TERAKHIR MASUK (4 Oktober 2026).
+   *
+   * Layar daftar respons kini dipaginasi sungguhan, dan itu mematahkan dua
+   * angka pada kartu ringkasannya: keduanya dulu dihitung dari 100 baris yang
+   * kebetulan termuat. Sesudah paginasi, "Respons Terakhir" pada halaman 1
+   * yang menaik justru akan menampilkan respons PALING LAMA -- bukan sekadar
+   * kurang tepat, melainkan terbalik.
+   *
+   * Diambil dari survei, bukan dari daftar responsnya, karena di sinilah
+   * frontend sudah memanggil satu kali untuk judul & periode; menaruhnya di
+   * meta daftar menuntut PaginatedResult berubah bentuk untuk SELURUH API.
+   *
+   * `null` ketika belum ada satu pun respons -- `_max` atas himpunan kosong
+   * memang null, dan itu keadaan yang benar untuk ditampilkan sebagai "belum
+   * ada", bukan sebagai tanggal palsu.
+   */
+  it('findOne menyertakan kapan respons terakhir masuk', async () => {
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.aktif }),
+    );
+    (ikmService.getSummary as jest.Mock).mockResolvedValue({
+      respondentsCount: 3,
+      nilaiIkm: 81.25,
+    });
+    (prisma.surveyResponse.aggregate as jest.Mock).mockResolvedValue({
+      _max: { submittedAt: new Date('2026-10-03T07:15:00.000Z') },
+    });
+
+    const hasil = await service.findOne(1, opdUser(5));
+
+    expect(hasil.terakhirMasuk).toEqual(new Date('2026-10-03T07:15:00.000Z'));
+    expect(prisma.surveyResponse.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { surveyId: 1 }, _max: { submittedAt: true } }),
+    );
+  });
+
+  it('findOne: survei tanpa respons → terakhirMasuk null, bukan tanggal karangan', async () => {
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.draft }),
+    );
+    (ikmService.getSummary as jest.Mock).mockResolvedValue({
+      respondentsCount: 0,
+      nilaiIkm: null,
+    });
+    (prisma.surveyResponse.aggregate as jest.Mock).mockResolvedValue({
+      _max: { submittedAt: null },
+    });
+
+    const hasil = await service.findOne(1, opdUser(5));
+
+    expect(hasil.terakhirMasuk).toBeNull();
   });
 
   // ATURAN BERGANTI 11 September 2026: "hanya draf" menjadi bertingkat menurut

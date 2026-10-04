@@ -31,6 +31,7 @@ describe('OpdService', () => {
     },
     survey: { groupBy: jest.fn() },
     complaint: { groupBy: jest.fn() },
+    user: { groupBy: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const opdSource = { fetchOpdList: jest.fn() };
@@ -41,6 +42,7 @@ describe('OpdService', () => {
     (prisma.opd.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
     (prisma.survey.groupBy as jest.Mock).mockResolvedValue([]);
     (prisma.complaint.groupBy as jest.Mock).mockResolvedValue([]);
+    (prisma.user.groupBy as jest.Mock).mockResolvedValue([]);
   });
 
   it('findAll mengembalikan PaginatedResult dengan meta yang benar', async () => {
@@ -94,6 +96,55 @@ describe('OpdService', () => {
 
     expect(prisma.survey.groupBy).not.toHaveBeenCalled();
     expect(prisma.complaint.groupBy).not.toHaveBeenCalled();
+  });
+
+  /**
+   * JUMLAH ADMIN PER OPD (4 Oktober 2026, permintaan pengguna: "tambah
+   * notifikasi jika opd tersebut belum ada adminnya").
+   *
+   * OPD tanpa admin bukan kejadian langka melainkan keadaan BAKU: daftar OPD
+   * disinkronkan dari Helpdesk dan bersifat baca saja, jadi tiap OPD baru masuk
+   * tanpa seorang pun yang mengelolanya. Selama tak terlihat, akibatnya diam:
+   * pengaduan yang ditujukan ke sana tak pernah dibaca, dan surveinya tak
+   * pernah disusun. Admin Kabupaten adalah satu-satunya yang dapat
+   * membereskannya, dan ia perlu melihatnya.
+   *
+   * `roles: { has: opd }`, bukan `role: opd`: kolomnya larik sejak peran jamak
+   * (15 September 2026). Memeriksa kesamaan pada larik tak akan cocok dengan
+   * akun yang memegang peran opd bersama peran lain, dan akun itu TETAP seorang
+   * admin bagi OPD-nya.
+   *
+   * Hanya akun AKTIF yang dihitung. Akun yang dinonaktifkan tak dapat masuk,
+   * jadi menghitungnya membuat OPD tanpa pengelola terlihat seperti terkelola.
+   */
+  it('findAll menyisipkan adminCount per OPD', async () => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
+    (prisma.user.groupBy as jest.Mock).mockResolvedValue([{ opdId: 1, _count: { _all: 2 } }]);
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+
+    expect(result.items[0].adminCount).toBe(2);
+    expect(prisma.user.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          opdId: { in: [1] },
+          roles: { has: 'opd' },
+          isActive: true,
+        }),
+      }),
+    );
+  });
+
+  it('findAll: OPD tanpa admin → adminCount 0, bukan undefined', async () => {
+    // Pagar utama perubahan ini. `undefined` di tampilan terbaca sebagai
+    // "belum dimuat" dan tak menimbulkan peringatan apa pun, sehingga OPD yang
+    // benar-benar tak punya admin justru lolos dari pemberitahuan yang
+    // seluruh perubahan ini dibuat untuknya.
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+
+    expect(result.items[0].adminCount).toBe(0);
   });
 
   it('findOne melempar NotFoundException bila OPD tidak ada', async () => {

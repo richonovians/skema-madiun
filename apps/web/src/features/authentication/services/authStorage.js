@@ -313,9 +313,10 @@ function matikanSesiDiServer() {
  *
  * Sampai 8 September 2026 fungsi ini hanya membersihkan sisi klien, dan
  * batasannya dinyatakan terus terang: cookie `session` HttpOnly tak dapat
- * dihapus dari JavaScript, jadi ketiga pemanggil logout (useLogout,
- * ProfileActions, ProfileAvatarDropdown) memanggil `POST /auth/logout` lebih
- * dulu. Yang terlewat: pemanggil LAIN tidak.
+ * dihapus dari JavaScript, jadi para pemanggil logout (useLogout,
+ * ProfileAvatarDropdown; ProfileActions ikut sampai dihapus 4 Oktober 2026)
+ * memanggil `POST /auth/logout` lebih dulu. Yang terlewat: pemanggil LAIN
+ * tidak.
  *
  * `isAuthenticated()` memanggilnya begitu `sso_expires_at` hilang atau lewat,
  * dan interceptor 401 di `api.js` juga. Pada jalur-jalur itu sesi server tetap

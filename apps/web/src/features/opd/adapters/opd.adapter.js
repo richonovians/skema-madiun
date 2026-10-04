@@ -16,6 +16,10 @@ export function adaptOpd(opd) {
     serviceType: opd.jenisLayanan,
     activeSurveys: opd.activeSurveys ?? 0,
     openComplaints: opd.openComplaints ?? 0,
+    // `?? null`, BUKAN `?? 0`: backend yang belum mengirim medan ini berarti
+    // "belum terbaca", dan menjadikannya 0 akan membuat setiap OPD dituduh tak
+    // punya admin (4 Oktober 2026). Nol yang sungguhan datang dari backend.
+    adminCount: opd.adminCount ?? null,
     status: opd.isActive ? 'ACTIVE' : 'INACTIVE',
     // Kapan cache lokal ini terakhir disinkron dari Helpdesk -- satu-satunya
     // "aksi" nyata yang tersedia utk baris OPD (lihat OPDTable.jsx: tak ada

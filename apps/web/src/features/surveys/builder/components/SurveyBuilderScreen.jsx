@@ -11,11 +11,13 @@ import QuestionOptionsModal from './QuestionOptionsModal';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAsync } from '@/hooks/useAsync';
 import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
 import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
 import {
   getSurveyById,
+  getSurveys,
   getQuestions,
   createSurvey,
   updateSurvey,
@@ -78,6 +80,9 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   // lahir tertutup.
   const [izinkanAnonim, setIzinkanAnonim] = useState(false);
   const [isUtama, setIsUtama] = useState(false);
+  /** Survei utama lain yang akan diturunkan, atau null bila tak ada konfirmasi tertunda. */
+  const [konfirmasiUtama, setKonfirmasiUtama] = useState(null);
+  const [konfirmasiHapusBaku, setKonfirmasiHapusBaku] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -230,7 +235,8 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
    * survei utama, dan ia baru tahu keliru ketika warga mengadu lalu mendarat di
    * daftar alih-alih di kuesionernya.
    */
-  const handleIsUtamaCommit = async (nilai) => {
+  /** Mengirim perubahan status utama. Dipakai jalur langsung maupun sesudah konfirmasi. */
+  const kirimIsUtama = async (nilai) => {
     setIsUtama(nilai);
     if (!surveyId) return;
     setIsSaving(true);
@@ -243,6 +249,48 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     } finally {
       setIsSaving(false);
     }
+  };
+
+  /**
+   * KONFIRMASI SEBELUM MENGGANTI SURVEI UTAMA (4 Oktober 2026, permintaan
+   * pengguna).
+   *
+   * Backend menurunkan survei utama lama dalam transaksi yang sama, tanpa
+   * memberi tahu siapa pun. Yang hilang bukan hanya lencana di kartu: tombol
+   * "Lanjut Isi Survei" pada halaman sukses pengaduan menuju survei utama OPD,
+   * jadi menggantinya mengalihkan setiap warga yang baru mengadu ke kuesioner
+   * yang berbeda.
+   *
+   * HANYA saat MENYALAKAN, dan hanya bila memang ada yang akan diturunkan.
+   * Mematikan saklar tak menyentuh survei lain, dan OPD yang belum punya utama
+   * tidak sedang mengganti apa pun. Modal yang muncul pada kejadian tak
+   * berbahaya melatih orang menekan "Ya" tanpa membaca.
+   *
+   * Kegagalan memuat daftar TIDAK memblokir: bila daftarnya tak terbaca, lebih
+   * baik melanjutkan tanpa konfirmasi daripada mengunci admin dari sakelarnya
+   * sendiri. Penegakan "paling banyak satu" tetap di indeks unik parsial
+   * backend, dan itulah yang menjaga kebenarannya.
+   */
+  const handleIsUtamaCommit = async (nilai) => {
+    if (nilai !== true || !surveyId) {
+      await kirimIsUtama(nilai);
+      return;
+    }
+
+    setIsUtama(true);
+    let utamaLain = null;
+    try {
+      const { data } = await getSurveys({ limit: 100 });
+      utamaLain = (data ?? []).find((s) => s.isUtama && Number(s.id) !== Number(surveyId)) ?? null;
+    } catch {
+      utamaLain = null;
+    }
+
+    if (!utamaLain) {
+      await kirimIsUtama(true);
+      return;
+    }
+    setKonfirmasiUtama(utamaLain);
   };
 
   const handleDelete = async (id) => {
@@ -262,6 +310,37 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       }
     } catch (err) {
       setActionError(err.message);
+    }
+  };
+
+  /**
+   * HAPUS SELURUH 9 UNSUR BAKU SEKALIGUS (4 Oktober 2026, permintaan pengguna).
+   *
+   * SATU-SATU, BUKAN `Promise.all`. Bila satu panggilan gagal di tengah jalan,
+   * penghapusan serentak meninggalkan sebagian terhapus di server sementara
+   * layar menampilkan keadaan yang lain, dan tak ada yang dapat memberi tahu
+   * mana yang mana. Berurutan membuat kegagalan berhenti di tempat: yang sudah
+   * lewat memang sudah terhapus, yang belum tak pernah diminta, dan daftar di
+   * layar persis mencerminkan keduanya.
+   *
+   * Karena itu pula daftar dipangkas PER BARIS sesudah tiap panggilan berhasil,
+   * bukan sekaligus di awal dengan rollback bila gagal -- rollback atas
+   * penghapusan separuh jalan akan mengembalikan baris yang sudah tiada.
+   */
+  const handleDeleteBaku = async () => {
+    setActionError(null);
+    const baku = questions.filter((q) => q.isBaku);
+    setIsSaving(true);
+    try {
+      assertDraftOrThrow();
+      for (const q of baku) {
+        await deleteQuestion(q.id);
+        setQuestions((prev) => prev.filter((lain) => lain.id !== q.id));
+      }
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -586,6 +665,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onDropAt={handleDropAt}
         onMove={moveQuestion}
         onEditOptions={handleEditOptions}
+        onDeleteBaku={() => setKonfirmasiHapusBaku(true)}
       />
       <FloatingStatus questionCount={questions.length} />
 
@@ -644,6 +724,47 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           }}
         />
       )}
+      <ConfirmDialog
+        isOpen={konfirmasiUtama !== null}
+        tone="primary"
+        title="Ganti survei utama OPD?"
+        description={
+          konfirmasiUtama
+            ? `"${konfirmasiUtama.title}" sedang menjadi survei utama OPD ini dan akan diturunkan menjadi survei biasa. Tombol "Lanjut Isi Survei" pada halaman sukses pengaduan akan mengarah ke survei ini.`
+            : ''
+        }
+        confirmLabel="Ya, ganti"
+        cancelLabel="Batal"
+        isProcessing={isSaving}
+        onCancel={() => {
+          setKonfirmasiUtama(null);
+          setIsUtama(false);
+        }}
+        onConfirm={async () => {
+          setKonfirmasiUtama(null);
+          await kirimIsUtama(true);
+        }}
+      />
+
+      {/* Akibatnya disebutkan, bukan disembunyikan di balik "Anda yakin?":
+          menghapus kesembilannya membuat Nilai IKM tak dapat dihitung sama
+          sekali, sebab rumus PermenPANRB 14/2017 berdiri di atas unsur-unsur
+          itu. Jalan kembalinya ikut disebut supaya keputusan ini tak terasa
+          lebih besar daripada yang sebenarnya. */}
+      <ConfirmDialog
+        isOpen={konfirmasiHapusBaku}
+        tone="danger"
+        title="Hapus seluruh 9 unsur baku?"
+        description="Kesembilan pertanyaan unsur baku SKM akan dihapus sekaligus dari survei ini, dan Nilai IKM tidak lagi dapat dihitung karena perhitungannya berdiri di atas kesembilan unsur itu. Jawaban yang sudah masuk untuk unsur-unsur ini ikut terhapus. Anda dapat memasangnya kembali lewat tombol 'Tambah 9 Unsur Baku' di panel kiri."
+        confirmLabel="Ya, hapus 9 unsur"
+        cancelLabel="Batal"
+        isProcessing={isSaving}
+        onCancel={() => setKonfirmasiHapusBaku(false)}
+        onConfirm={async () => {
+          setKonfirmasiHapusBaku(false);
+          await handleDeleteBaku();
+        }}
+      />
     </BuilderLayout>
   );
 }

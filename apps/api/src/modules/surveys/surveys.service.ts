@@ -100,8 +100,24 @@ export class SurveysService {
     // GET /surveys yang mengisinya). Builder survei memakainya untuk mengunci
     // susunan pertanyaan; tanpa angka ini ia selalu membaca 0 dan penguncian
     // tak pernah menyala -- pengguna baru tahu aturannya dari galat backend.
-    const summary = await this.ikmService.getSummary(survey);
-    return new SurveyEntity({ ...survey, ...summary });
+    // `terakhirMasuk` ikut sejak 4 Oktober 2026, untuk kartu ringkasan pada
+    // layar daftar respons yang kini dipaginasi sungguhan. Sebelum paginasi,
+    // layar itu menghitungnya sendiri dari 100 baris yang kebetulan termuat;
+    // sesudahnya, halaman 1 yang menaik justru akan melaporkan respons PALING
+    // LAMA sebagai "terakhir". Satu agregat kecil di sini menjawabnya untuk
+    // seluruh survei, berapa pun halamannya.
+    const [summary, agregat] = await Promise.all([
+      this.ikmService.getSummary(survey),
+      this.prisma.surveyResponse.aggregate({
+        where: { surveyId: id },
+        _max: { submittedAt: true },
+      }),
+    ]);
+    return new SurveyEntity({
+      ...survey,
+      ...summary,
+      terakhirMasuk: agregat._max.submittedAt ?? null,
+    });
   }
 
   /** Buat paket survei. Admin OPD → OPD-nya sendiri; kabupaten (=superuser) → wajib `opdId`. */

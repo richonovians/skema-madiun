@@ -9,7 +9,6 @@ import ProfileHero from './ProfileHero';
 import ProfileBiodataCard from './ProfileBiodataCard';
 import ProfileAccountCard from './ProfileAccountCard';
 import ProfileSSOCard from './ProfileSSOCard';
-import ProfileActions from './ProfileActions';
 
 /**
  * Ambil profil sungguhan (GET /auth/me) dan teruskan ke sub-komponen lewat prop
@@ -43,8 +42,12 @@ export default function ProfileContent() {
         </div>
 
         <div className="lg:col-span-5 space-y-6 sm:space-y-8 w-full lg:sticky lg:top-24">
+          {/* ProfileActions (tombol Logout) DIHAPUS 4 Oktober 2026 atas
+              permintaan pengguna: pintu keluar sudah ada di menu akun pada
+              navbar, dan yang di sini hanya menduakannya. Berkasnya ikut
+              dihapus -- isinya cuma tombol itu, dan ia menyalin sendiri urutan
+              logout alih-alih memakai hook bersama useLogout. */}
           <ProfileSSOCard user={user} />
-          <ProfileActions />
         </div>
       </div>
     </>

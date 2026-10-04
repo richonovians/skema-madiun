@@ -361,13 +361,38 @@ export class ResponsesService {
         include: { answers: { orderBy: { question: { urutan: 'asc' } } } },
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { submittedAt: 'desc' },
+        // TERLAMA DAHULU, `id` sebagai pemecah seri (4 Oktober 2026, permintaan
+        // tersurat pengguna: "respon #1 di posisi paling atas dan seterusnya").
+        // Keputusan hari sebelumnya pada hari yang sama -- terbaru dahulu --
+        // dibalik di sini; dicatat supaya pembaca berikutnya tak menyangka
+        // salah satunya kekeliruan.
+        //
+        // Dua pengisi dapat mengirim pada milidetik yang sama, dan baris yang
+        // kunci urutnya seri boleh dikembalikan Postgres dalam urutan apa pun;
+        // karena `nomor` di bawah diturunkan dari POSISI, seri yang goyah akan
+        // menukar nomor dua respons antar-permintaan. `id` menaik monoton, jadi
+        // ia memutus seri itu secara tetap.
+        orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.surveyResponse.count({ where: { surveyId } }),
     ]);
 
+    // NOMOR URUT MASUK (4 Oktober 2026, laporan pengguna "respon paling pertama
+    // masuk akan tertimbun"). Barisnya menaik -- indeks 0 pada halaman 1 adalah
+    // yang paling lama, jadi nomornya 1.
+    //
+    // Tak bergantung pada `total` sama sekali, dan itu bukan kebetulan: nomor
+    // yang dihitung mundur dari `total` (bentuk pertamanya hari itu juga)
+    // berubah bagi SETIAP respons begitu ada satu pengisi baru. Dihitung maju
+    // dari offset, nomor sebuah respons tetap seumur hidupnya.
+    const offset = (page - 1) * limit;
+
     return paginate(
-      rows.map((r) => this.toResponseEntity(r, r.answers)),
+      rows.map((r, index) => {
+        const entity = this.toResponseEntity(r, r.answers);
+        entity.nomor = offset + index + 1;
+        return entity;
+      }),
       total,
       page,
       limit,

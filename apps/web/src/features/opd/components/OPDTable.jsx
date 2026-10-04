@@ -1,6 +1,7 @@
 import React from 'react';
 import Badge from '@/components/ui/Badge';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
+import { AlertTriangle } from 'lucide-react';
 import { formatDateId } from '@/utils/format';
 
 /**
@@ -58,6 +59,27 @@ export default function OPDTable({ data, pagination }) {
                     Helpdesk (D7): menambah kolom lokal berarti data itu tak
                     akan pernah tersinkronisasi. */}
                 <div className="font-bold text-text-primary">{item.name}</div>
+                {/* PERINGATAN OPD TANPA ADMIN (4 Oktober 2026, permintaan
+                    pengguna). Daftar OPD disinkronkan dari Helpdesk dan bersifat
+                    baca saja, jadi OPD baru SELALU masuk tanpa pengelola, dan
+                    sampai sekarang tak ada satu pun layar yang menyebutkannya.
+                    Pengaduan yang ditujukan ke sana tak pernah dibaca, dan
+                    surveinya tak pernah disusun.
+
+                    `=== 0`, bukan `!item.adminCount`: medan yang tidak dikirim
+                    bernilai `undefined` dan itu berarti "belum terbaca", bukan
+                    "tidak ada". Menuduhnya nol akan memasang peringatan palsu,
+                    dan peringatan palsu membuat kolom ini diabaikan seluruhnya.
+
+                    Teksnya ditulis, bukan sekadar warna: tanda yang hanya
+                    berupa warna tak sampai kepada pengguna yang tak dapat
+                    membedakannya. */}
+                {item.adminCount === 0 && (
+                  <div className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                    <AlertTriangle size={12} aria-hidden="true" className="shrink-0" />
+                    <span>Belum ada admin</span>
+                  </div>
+                )}
               </Td>
               <Td>
                 {/* PENGHITUNG DIBACA ULANG (1 September 2026, laporan pengguna:

@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
+import Navbar from '@/components/layouts/Navbar';
+import Footer from '@/components/layouts/Footer';
 
 export const metadata = {
   title: 'Kebijakan Privasi',
@@ -83,153 +85,161 @@ function Bagian({ judul, children }) {
 
 export default function KebijakanPrivasi() {
   return (
-    <main className="flex-1">
-      <article className="mx-auto w-full max-w-[760px] px-4 sm:px-6 py-12 sm:py-16">
-        <h1 className="text-headline-lg font-headline-lg text-text-primary leading-tight">
-          Kebijakan Privasi
-        </h1>
-        <p className="mt-3 text-body-md font-body-md text-text-secondary leading-relaxed">
-          Halaman ini menjelaskan data pribadi apa yang dikumpulkan SKEMA Madiun, untuk apa
-          dipakai, berapa lama disimpan, dan hak apa yang Anda miliki atasnya.
-        </p>
+    /* KERANGKA HALAMAN PUBLIK (4 Oktober 2026, laporan pengguna). `app/layout.jsx`
+       hanya merender `{children}`, jadi tiap halaman publik memasang navbar dan
+       footernya sendiri; halaman ini satu-satunya yang terlewat. Susunannya
+       disamakan dengan /about dan /statistics supaya terbaca satu keluarga.
 
-        <Bagian judul="Pengendali data">
-          <p>
-            Pengendali data pribadi dalam layanan ini adalah Dinas Komunikasi dan Informatika
-            Kabupaten Madiun, bersama Organisasi Perangkat Daerah yang menerima pengaduan atau
-            menyelenggarakan survei Anda.
+       Ini bukan perkara rapi-rapian: halaman ini ditaut dari footer dan dari
+       gerbang persetujuan, dua tempat yang warganya sedang memutuskan soal
+       datanya sendiri. Mendarat tanpa navigasi membuat satu-satunya jalan
+       keluar adalah tombol mundur peramban. */
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+      <main className="flex-1">
+        <article className="mx-auto w-full max-w-[760px] px-4 sm:px-6 py-12 sm:py-16">
+          <h1 className="text-headline-lg font-headline-lg text-text-primary leading-tight">
+            Kebijakan Privasi
+          </h1>
+          <p className="mt-3 text-body-md font-body-md text-text-secondary leading-relaxed">
+            Halaman ini menjelaskan data pribadi apa yang dikumpulkan SKEMA Madiun, untuk apa
+            dipakai, berapa lama disimpan, dan hak apa yang Anda miliki atasnya.
           </p>
-          <p>
-            Pertanyaan mengenai kebijakan ini dapat dikirim ke{' '}
-            <a className="text-primary underline underline-offset-4" href={`mailto:${ALAMAT_PDP}`}>
-              {ALAMAT_PDP}
-            </a>
-            .
-          </p>
-        </Bagian>
 
-        <Bagian judul="Data yang kami kumpulkan">
-          <dl className="space-y-4">
-            {DATA_DIKUMPULKAN.map(({ kelompok, isi }) => (
-              <div key={kelompok}>
-                <dt className="font-semibold text-text-primary">{kelompok}</dt>
-                <dd className="mt-0.5">{isi}</dd>
-              </div>
-            ))}
-          </dl>
-        </Bagian>
-
-        <Bagian judul="Tujuan pemrosesan">
-          <p>
-            Data survei dipakai untuk menghitung Indeks Kepuasan Masyarakat dan memperbaiki mutu
-            pelayanan. Hasilnya ditampilkan kepada petugas dalam bentuk gabungan, tanpa
-            mengidentifikasi Anda.
-          </p>
-          <p>
-            Data pengaduan dipakai untuk menyalurkan aduan Anda ke OPD yang berwenang,
-            menindaklanjutinya, dan memberi tahu Anda perkembangannya.
-          </p>
-          <p>
-            Data Anda tidak diperjualbelikan, tidak dipakai untuk iklan, dan tidak dibagikan ke
-            pihak di luar Pemerintah Kabupaten Madiun kecuali diwajibkan peraturan
-            perundang-undangan.
-          </p>
-        </Bagian>
-
-        <Bagian judul="Dasar hukum pemrosesan">
-          <p>
-            Pemrosesan dilakukan berdasarkan persetujuan yang Anda berikan sebelum mengirim survei
-            atau pengaduan, serta dalam rangka pelaksanaan tugas pelayanan publik, sebagaimana
-            diatur Undang-Undang Nomor 27 Tahun 2022 tentang Pelindungan Data Pribadi.
-          </p>
-        </Bagian>
-
-        <Bagian judul="Siapa yang dapat mengakses">
-          <p>
-            Pengaduan Anda dapat dilihat petugas OPD tujuan dan Admin Kabupaten, sebatas yang
-            diperlukan untuk menindaklanjuti. Setiap akses petugas atas data Anda tercatat beserta
-            waktunya.
-          </p>
-        </Bagian>
-
-        <Bagian judul="Masa simpan">
-          <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-text-primary">
-            <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" aria-hidden="true" />
-            <p className="text-body-sm font-body-md leading-relaxed">
-              Masa simpan di bawah ini <strong className="font-semibold">belum ditetapkan</strong>{' '}
-              secara resmi. Angkanya masih berupa usulan yang menunggu penetapan Diskominfo
-              Kabupaten Madiun, dan dicantumkan di sini supaya dapat ditinjau secara terbuka, bukan
-              karena sudah berlaku.
+          <Bagian judul="Pengendali data">
+            <p>
+              Pengendali data pribadi dalam layanan ini adalah Dinas Komunikasi dan Informatika
+              Kabupaten Madiun, bersama Organisasi Perangkat Daerah yang menerima pengaduan atau
+              menyelenggarakan survei Anda.
             </p>
-          </div>
+            <p>
+              Pertanyaan mengenai kebijakan ini dapat dikirim ke{' '}
+              <a className="text-primary underline underline-offset-4" href={`mailto:${ALAMAT_PDP}`}>
+                {ALAMAT_PDP}
+              </a>
+              .
+            </p>
+          </Bagian>
 
-          <table className="w-full mt-4 text-left text-body-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th scope="col" className="py-2 pr-4 font-semibold text-text-primary">
-                  Data
-                </th>
-                <th scope="col" className="py-2 font-semibold text-text-primary">
-                  Usulan masa simpan
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {MASA_SIMPAN.map(({ data, usulan }) => (
-                <tr key={data} className="border-b border-border/60 align-top">
-                  <td className="py-2.5 pr-4">{data}</td>
-                  <td className="py-2.5">{usulan}</td>
-                </tr>
+          <Bagian judul="Data yang kami kumpulkan">
+            <dl className="space-y-4">
+              {DATA_DIKUMPULKAN.map(({ kelompok, isi }) => (
+                <div key={kelompok}>
+                  <dt className="font-semibold text-text-primary">{kelompok}</dt>
+                  <dd className="mt-0.5">{isi}</dd>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </dl>
+          </Bagian>
 
-          <p>
-            Selama masa simpan belum ditetapkan, data tidak dihapus otomatis. Anda tetap dapat
-            meminta penghapusan lebih awal lewat alamat di bawah.
-          </p>
-        </Bagian>
+          <Bagian judul="Tujuan pemrosesan">
+            <p>
+              Data survei dipakai untuk menghitung Indeks Kepuasan Masyarakat dan memperbaiki mutu
+              pelayanan. Hasilnya ditampilkan kepada petugas dalam bentuk gabungan, tanpa
+              mengidentifikasi Anda.
+            </p>
+            <p>
+              Data pengaduan dipakai untuk menyalurkan aduan Anda ke OPD yang berwenang,
+              menindaklanjutinya, dan memberi tahu Anda perkembangannya.
+            </p>
+            <p>
+              Data Anda tidak diperjualbelikan, tidak dipakai untuk iklan, dan tidak dibagikan ke
+              pihak di luar Pemerintah Kabupaten Madiun kecuali diwajibkan peraturan
+              perundang-undangan.
+            </p>
+          </Bagian>
 
-        <Bagian judul="Keamanan">
-          <p>
-            Lampiran pengaduan, uraian pengaduan, dan isi percakapan tindak lanjut disimpan dalam
-            keadaan terenkripsi. Sambungan ke layanan ini memakai enkripsi, dan setiap tindakan
-            petugas atas data Anda tercatat.
-          </p>
-          <p>
-            Perlu dinyatakan apa adanya: yang terenkripsi adalah bagian di atas, bukan seluruh isi
-            basis data. Identitas pelapor, yaitu nama dan alamat surel, tersimpan tanpa enkripsi
-            karena diperlukan untuk menjalankan layanan.
-          </p>
-        </Bagian>
+          <Bagian judul="Dasar hukum pemrosesan">
+            <p>
+              Pemrosesan dilakukan berdasarkan persetujuan yang Anda berikan sebelum mengirim survei
+              atau pengaduan, serta dalam rangka pelaksanaan tugas pelayanan publik, sebagaimana
+              diatur Undang-Undang Nomor 27 Tahun 2022 tentang Pelindungan Data Pribadi.
+            </p>
+          </Bagian>
 
-        <Bagian judul="Hak Anda">
-          <ul className="list-disc pl-5 space-y-2">
-            {HAK.map((h) => (
-              <li key={h}>{h}</li>
-            ))}
-          </ul>
-          <p>
-            Untuk menggunakan hak tersebut, kirim permintaan ke{' '}
-            <a className="text-primary underline underline-offset-4" href={`mailto:${ALAMAT_PDP}`}>
-              {ALAMAT_PDP}
-            </a>{' '}
-            dengan menyebutkan nama dan alamat surel akun Anda.
-          </p>
-        </Bagian>
+          <Bagian judul="Siapa yang dapat mengakses">
+            <p>
+              Pengaduan Anda dapat dilihat petugas OPD tujuan dan Admin Kabupaten, sebatas yang
+              diperlukan untuk menindaklanjuti. Setiap akses petugas atas data Anda tercatat beserta
+              waktunya.
+            </p>
+          </Bagian>
 
-        <Bagian judul="Perubahan">
-          <p>
-            Bila kebijakan ini berubah, versi terbarunya diterbitkan di halaman ini. Perubahan yang
-            memperluas pemrosesan data akan dimintakan persetujuan ulang.
-          </p>
-          <p className="pt-2">
-            <Link className="text-primary underline underline-offset-4" href="/">
-              Kembali ke beranda
-            </Link>
-          </p>
-        </Bagian>
-      </article>
-    </main>
+          <Bagian judul="Masa simpan">
+            <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-text-primary">
+              <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" aria-hidden="true" />
+              <p className="text-body-sm font-body-md leading-relaxed">
+                Masa simpan di bawah ini <strong className="font-semibold">belum ditetapkan</strong>{' '}
+                secara resmi. Angkanya masih berupa usulan yang menunggu penetapan Diskominfo
+                Kabupaten Madiun, dan dicantumkan di sini supaya dapat ditinjau secara terbuka, bukan
+                karena sudah berlaku.
+              </p>
+            </div>
+
+            <table className="w-full mt-4 text-left text-body-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th scope="col" className="py-2 pr-4 font-semibold text-text-primary">
+                    Data
+                  </th>
+                  <th scope="col" className="py-2 font-semibold text-text-primary">
+                    Usulan masa simpan
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {MASA_SIMPAN.map(({ data, usulan }) => (
+                  <tr key={data} className="border-b border-border/60 align-top">
+                    <td className="py-2.5 pr-4">{data}</td>
+                    <td className="py-2.5">{usulan}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <p>
+              Selama masa simpan belum ditetapkan, data tidak dihapus otomatis. Anda tetap dapat
+              meminta penghapusan lebih awal lewat alamat di bawah.
+            </p>
+          </Bagian>
+
+          <Bagian judul="Keamanan">
+            <p>
+              Lampiran pengaduan, uraian pengaduan, dan isi percakapan tindak lanjut disimpan dalam
+              keadaan terenkripsi. Sambungan ke layanan ini memakai enkripsi, dan setiap tindakan
+              petugas atas data Anda tercatat.
+            </p>
+            <p>
+              Perlu dinyatakan apa adanya: yang terenkripsi adalah bagian di atas, bukan seluruh isi
+              basis data. Identitas pelapor, yaitu nama dan alamat surel, tersimpan tanpa enkripsi
+              karena diperlukan untuk menjalankan layanan.
+            </p>
+          </Bagian>
+
+          <Bagian judul="Hak Anda">
+            <ul className="list-disc pl-5 space-y-2">
+              {HAK.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
+            </ul>
+            <p>
+              Untuk menggunakan hak tersebut, kirim permintaan ke{' '}
+              <a className="text-primary underline underline-offset-4" href={`mailto:${ALAMAT_PDP}`}>
+                {ALAMAT_PDP}
+              </a>{' '}
+              dengan menyebutkan nama dan alamat surel akun Anda.
+            </p>
+          </Bagian>
+
+          <Bagian judul="Perubahan">
+            <p>
+              Bila kebijakan ini berubah, versi terbarunya diterbitkan di halaman ini. Perubahan yang
+              memperluas pemrosesan data akan dimintakan persetujuan ulang.
+            </p>
+          </Bagian>
+        </article>
+      </main>
+      <Footer />
+    </div>
   );
 }

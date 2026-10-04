@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import KebijakanPrivasi from '../page';
 import Footer from '@/components/layouts/Footer';
 import ConsentGate from '@/features/authentication/components/ConsentGate';
@@ -11,9 +11,21 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/features/authentication/services/sso.api', () => ({
   authApi: { logout: jest.fn(), setujuiPdp: jest.fn() },
 }));
+/**
+ * Mock ini SEMULA hanya memuat dua fungsi yang dipakai ConsentGate. Begitu
+ * halaman kebijakan memasang `Navbar` (4 Oktober 2026), seluruh berkas ini
+ * patah dengan "isAuthenticated is not a function": `jest.mock` mengganti
+ * MODULNYA, bukan menambal sebagiannya, jadi apa pun yang tak disebut di sini
+ * menjadi undefined bagi setiap pemakainya.
+ *
+ * `isAuthenticated` dibuat mengembalikan false supaya navbar dirender dalam
+ * keadaan belum masuk, yang memang keadaan pengunjung halaman publik.
+ */
 jest.mock('@/features/authentication/services/authStorage', () => ({
   saveConsentFlag: jest.fn(),
   clearSession: jest.fn(),
+  isAuthenticated: jest.fn(() => false),
+  SESSION_CHANGED_EVENT: 'sesi-berubah',
 }));
 
 /**
@@ -44,6 +56,41 @@ describe('halaman kebijakan privasi', () => {
     render(<KebijakanPrivasi />);
 
     expect(screen.getByRole('heading', { level: 1, name: /kebijakan privasi/i })).toBeInTheDocument();
+  });
+
+  /**
+   * KERANGKA HALAMAN PUBLIK (4 Oktober 2026, laporan pengguna: "seharusnya
+   * tetap ada navbar ataupun lainnya").
+   *
+   * `app/layout.jsx` hanya merender `{children}`, tanpa navbar. Setiap halaman
+   * publik memasang kerangkanya sendiri, dan halaman ini satu-satunya yang
+   * terlewat: `/`, `/about`, dan `/statistics` ketiganya mengimpor `Navbar` dan
+   * `Footer`, halaman ini tidak.
+   *
+   * Akibatnya bukan sekadar kurang cantik. Halaman ini ditaut dari footer dan
+   * dari gerbang persetujuan, yaitu dua tempat yang warganya SEDANG mengambil
+   * keputusan tentang datanya. Mendarat di halaman tanpa navigasi apa pun
+   * membuat satu-satunya jalan keluar adalah tombol mundur peramban, dan
+   * halaman kebijakan yang terasa terlepas dari situsnya juga terbaca kurang
+   * sah.
+   */
+  it('memasang navbar seperti halaman publik lainnya', () => {
+    render(<KebijakanPrivasi />);
+
+    expect(screen.getByRole('navigation')).toBeInTheDocument();
+  });
+
+  it('menautkan kembali ke halaman publik utama lewat navbar', () => {
+    render(<KebijakanPrivasi />);
+
+    const nav = screen.getByRole('navigation');
+    expect(within(nav).getByRole('link', { name: /beranda/i })).toBeInTheDocument();
+  });
+
+  it('memasang footer, tempat kebijakan ini ditaut dari halaman lain', () => {
+    render(<KebijakanPrivasi />);
+
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
 
   it.each([
