@@ -164,6 +164,8 @@ export default function QuestionBlock({
   onUpdate,
   onTextCommit,
   onEditOptions,
+  /** Hapus SELURUH 9 unsur baku sekaligus; hanya dipasang pada kartu baku. */
+  onDeleteBaku,
   /** Sebab susunan terkunci, atau `null` bila bebas diubah. */
   alasanTerkunci = null,
 }) {
@@ -231,6 +233,27 @@ export default function QuestionBlock({
                 membedakan baku/kustom, dan nilai IKM dihitung dari kodeUnsur,
                 bukan dari posisi, jadi memindahkannya tidak mengubah hitungan. */}
             {controls}
+            {/* HAPUS SELURUH 9 UNSUR SEKALIGUS (4 Oktober 2026, permintaan
+                pengguna). Tombolnya ada di SETIAP kartu baku, bukan hanya di
+                kartu pertama, karena di situlah mata mencari tombol hapus --
+                dan ditekan dari mana pun hasilnya sama. Namanya menyebutkan
+                angka 9 supaya tak ada yang menyangka ia menghapus satu kartu
+                ini saja; akibatnya pada Nilai IKM disebutkan di dialognya.
+
+                Ikut mati ketika susunan terkunci, aturan yang sama dengan
+                tombol pindah urutan: backend pasti menolaknya, jadi tombolnya
+                tak perlu mengundang. */}
+            {canReorder && (
+              <button
+                type="button"
+                onClick={() => onDeleteBaku?.()}
+                title="Hapus 9 unsur baku"
+                aria-label="Hapus 9 unsur baku"
+                className={`${CONTROL_CLASS} text-error hover:border-error hover:bg-error/5`}
+              >
+                <Trash2 size={20} />
+              </button>
+            )}
             <span className="px-2 py-1 bg-surface-variant text-[10px] font-bold rounded-full text-on-surface-variant">
               TEMPLATE BAKU
             </span>
@@ -283,8 +306,14 @@ export default function QuestionBlock({
           <label className="block text-xs font-bold text-primary mb-xs uppercase">
             {question.title}
           </label>
+          {/* BERGARIS, BUKAN TAMPAK SEPERTI JUDUL (4 Oktober 2026, permintaan
+              pengguna). Dulu `border-none p-0`: satu-satunya petunjuk bahwa ini
+              kotak isian adalah teks pengganti yang lenyap begitu diisi, jadi
+              pertanyaan yang sudah terisi terbaca sebagai judul mati. Kotak
+              teks unsur baku di atas SUDAH bergaris sejak awal; ini
+              menyamakannya, bukan memperkenalkan gaya baru. */}
           <input
-            className="w-full text-headline-md font-headline-md border-none focus:ring-0 p-0 text-text-primary cursor-text"
+            className="w-full text-headline-md font-headline-md bg-white rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-md py-sm text-text-primary cursor-text"
             placeholder="Tulis pertanyaan di sini..."
             type="text"
             value={question.text}

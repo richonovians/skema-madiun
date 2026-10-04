@@ -55,7 +55,7 @@ export default function BuilderLayout({
           80px di bawah bilah atas. */}
       <div
         data-baris-builder
-        className="flex flex-1 flex-col md:h-full md:flex-row md:overflow-hidden md:pt-[72px]"
+        className="flex flex-1 flex-col md:h-full md:flex-row md:overflow-hidden md:pt-[80px]"
       >
         <BuilderSidebar
           onAddBaku={onAddBaku}

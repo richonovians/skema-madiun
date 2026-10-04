@@ -58,6 +58,8 @@ export default function BuilderCanvas({
   onDropAt,
   onMove,
   onEditOptions,
+  /** Hapus SELURUH 9 unsur baku sekaligus (4 Oktober 2026). */
+  onDeleteBaku,
 }) {
   const [overSlot, setOverSlot] = useState(null);
 
@@ -142,7 +144,13 @@ export default function BuilderCanvas({
               placeholder="Kuesioner Kepuasan Layanan"
               aria-label="Judul survei"
               title="Klik untuk mengubah judul survei"
-              className="w-full font-headline-lg text-headline-lg text-center bg-transparent rounded-lg border border-transparent hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-sm py-xs"
+              /* GARISNYA TETAP TERLIHAT SAAT DIAM (4 Oktober 2026, permintaan
+                 pengguna). Dulu `border-transparent`: medannya memang dapat
+                 disunting, tetapi tak mengatakannya -- garisnya baru lahir
+                 ketika penunjuk kebetulan lewat di atasnya, dan bagi yang
+                 pertama kali menyusun survei tak ada yang menunjukkan di mana
+                 ia boleh mengetik. Keadaan sorot & fokus tak diubah. */
+              className="w-full font-headline-lg text-headline-lg text-center bg-transparent rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-sm py-xs"
             />
           ) : (
             <h2 className="font-headline-lg text-headline-lg">
@@ -157,7 +165,7 @@ export default function BuilderCanvas({
                 periode={periode}
                 onCommit={onPeriodeCommit}
                 className="flex items-center gap-xs"
-                selectClassName="font-body-md text-body-md text-text-secondary bg-transparent rounded-lg border border-transparent hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-xs py-0.5"
+                selectClassName="font-body-md text-body-md text-text-secondary bg-transparent rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-xs py-0.5"
               />
             </div>
           ) : (
@@ -250,6 +258,7 @@ export default function BuilderCanvas({
                 onUpdate={onUpdate}
                 onTextCommit={onTextCommit}
                 onEditOptions={onEditOptions}
+                onDeleteBaku={onDeleteBaku}
               />
             </div>
           ))}
