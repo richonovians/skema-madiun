@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ComplaintStatus, Prisma, SurveyStatus } from '@prisma/client';
+import { ComplaintStatus, Prisma, Role, SurveyStatus } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
@@ -49,7 +49,7 @@ export class OpdService {
       this.prisma.opd.count({ where }),
     ]);
 
-    const { activeSurveysByOpd, openComplaintsByOpd } = await this.countsByOpd(
+    const { activeSurveysByOpd, openComplaintsByOpd, adminsByOpd } = await this.countsByOpd(
       rows.map((row) => row.id),
     );
 
@@ -59,6 +59,7 @@ export class OpdService {
           ...row,
           activeSurveys: activeSurveysByOpd.get(row.id) ?? 0,
           openComplaints: openComplaintsByOpd.get(row.id) ?? 0,
+          adminCount: adminsByOpd.get(row.id) ?? 0,
         }),
     );
 
@@ -69,12 +70,17 @@ export class OpdService {
   private async countsByOpd(opdIds: number[]): Promise<{
     activeSurveysByOpd: Map<number, number>;
     openComplaintsByOpd: Map<number, number>;
+    adminsByOpd: Map<number, number>;
   }> {
     if (opdIds.length === 0) {
-      return { activeSurveysByOpd: new Map(), openComplaintsByOpd: new Map() };
+      return {
+        activeSurveysByOpd: new Map(),
+        openComplaintsByOpd: new Map(),
+        adminsByOpd: new Map(),
+      };
     }
 
-    const [surveyCounts, complaintCounts] = await Promise.all([
+    const [surveyCounts, complaintCounts, adminCounts] = await Promise.all([
       this.prisma.survey.groupBy({
         by: ['opdId'],
         where: { opdId: { in: opdIds }, status: SurveyStatus.aktif, ...TIDAK_DIBUANG },
@@ -88,10 +94,29 @@ export class OpdService {
         },
         _count: { _all: true },
       }),
+      // ADMIN AKTIF PER OPD (4 Oktober 2026). `roles: { has: opd }`, bukan
+      // kesamaan: kolomnya larik sejak peran jamak, dan akun yang memegang
+      // peran `opd` bersama peran lain tetap seorang admin bagi OPD-nya.
+      //
+      // `isActive: true` disengaja. Akun yang dinonaktifkan tak dapat masuk,
+      // jadi menghitungnya akan membuat OPD tanpa pengelola terlihat terkelola
+      // -- persis kekeliruan yang hitungan ini dibuat untuk mencegahnya.
+      this.prisma.user.groupBy({
+        by: ['opdId'],
+        where: { opdId: { in: opdIds }, roles: { has: Role.opd }, isActive: true },
+        _count: { _all: true },
+      }),
     ]);
 
     return {
       activeSurveysByOpd: new Map(surveyCounts.map((c) => [c.opdId, c._count._all])),
+      // `opdId` boleh null pada `users` (akun warga & kabupaten), jadi penjagaan
+      // null di sini wajib sebagaimana pada pengaduan di bawah.
+      adminsByOpd: new Map(
+        adminCounts.flatMap((c) =>
+          c.opdId == null ? [] : [[c.opdId, c._count._all] as [number, number]],
+        ),
+      ),
       // `flatMap` + penjagaan null, bukan `map`: sejak `complaints.opd_id`
       // boleh NULL (6 September 2026) groupBy mengembalikan `number | null`.
       // Penyaring `where` di atas sudah membatasi ke opdIds yang ada, jadi ini

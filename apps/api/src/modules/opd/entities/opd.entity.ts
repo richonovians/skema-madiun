@@ -19,4 +19,11 @@ export class OpdEntity extends BaseEntity<OpdEntity> {
   activeSurveys?: number;
   /** Jumlah pengaduan belum tuntas (`diterima`/`diproses`) milik OPD ini. Hanya diisi pada `GET /opd` (INT-10). */
   openComplaints?: number;
+  /**
+   * Jumlah akun AKTIF berperan `opd` yang tertaut ke OPD ini (4 Oktober 2026).
+   * Hanya diisi pada `GET /opd`. Nol berarti tak seorang pun mengelola OPD ini,
+   * dan itulah keadaan yang perlu terlihat Admin Kabupaten: daftar OPD datang
+   * dari Helpdesk secara baca-saja, jadi OPD baru selalu masuk tanpa admin.
+   */
+  adminCount?: number;
 }
