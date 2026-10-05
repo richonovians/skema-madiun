@@ -91,6 +91,38 @@ const eslintConfig = defineConfig([
       'jsx-a11y/label-has-for': 'off',
     },
   },
+  // VARIAN `dark:` DILARANG (5 Oktober 2026). Proyek ini tak punya tema gelap:
+  // tak ada `@custom-variant dark`, tak ada kelas `.dark`, tak ada token gelap di
+  // globals.css. Tetapi Tailwind v4 MENYALAKAN `dark:` secara bawaan lewat
+  // `prefers-color-scheme`, jadi satu kelas `dark:` menumpangkan palet kedua yang
+  // tak pernah dirancang -- dua kali sudah memunculkan teks nyaris tak terbaca
+  // (ProfileSSOCard, 4 Oktober). Sampai ada tema gelap sungguhan, kelas ini
+  // selalu cacat, dan menahannya di waktu tulis lebih murah daripada memburunya
+  // di layar.
+  //
+  // Dicocokkan `dark:` YANG DIIKUTI karakter bukan-spasi, supaya menangkap
+  // `dark:bg-...` tapi melewatkan untai `'dark:'` telanjang yang dipakai uji
+  // keterbacaan untuk MEMASTIKAN ketiadaannya (ProfileSSOCardKeterbacaan.test).
+  // Kunci objek seperti `{ dark: '#0F172A' }` (warna QR di ShareSurveyModal)
+  // bukan Literal, jadi tak tersentuh selektor ini. Komentar juga bukan Literal.
+  {
+    files: ['src/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/dark:\\S/]',
+          message:
+            'Kelas `dark:` dilarang: proyek ini tak punya tema gelap, dan Tailwind v4 menyalakan dark: lewat prefers-color-scheme sehingga memunculkan palet tak terduga. Lihat komentar di eslint.config.mjs.',
+        },
+        {
+          selector: 'TemplateElement[value.cooked=/dark:\\S/]',
+          message:
+            'Kelas `dark:` dilarang: proyek ini tak punya tema gelap, dan Tailwind v4 menyalakan dark: lewat prefers-color-scheme sehingga memunculkan palet tak terduga. Lihat komentar di eslint.config.mjs.',
+        },
+      ],
+    },
+  },
   // Konfigurasi Jest DIMUAT NODE SEBAGAI CommonJS, bukan sebagai modul ESM:
   // `apps/web/package.json` tidak menyetel `"type": "module"`, sehingga `.js` di
   // sini memang berformat CJS. `require('next/jest')` + `module.exports` bukan
