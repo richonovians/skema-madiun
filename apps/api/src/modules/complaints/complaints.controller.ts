@@ -16,6 +16,7 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
@@ -54,6 +55,9 @@ export class ComplaintsController {
    * keluhannya.
    */
   @Post()
+  @ApiOperation({
+    summary: 'Ajukan pengaduan dan dapatkan nomor tiket. Lampiran opsional (multipart).',
+  })
   @Roles(Role.responden)
   @Audit('complaint')
   @UseInterceptors(
@@ -77,6 +81,7 @@ export class ComplaintsController {
    * `@Roles` = seluruh peran terautentikasi boleh, isolasi ditegakkan di service.
    */
   @Get()
+  @ApiOperation({ summary: 'Daftar pengaduan, tersaring menurut kepemilikan dan OPD pengguna.' })
   @ApiOkResponse({ type: ComplaintEntity, isArray: true })
   findAll(
     @Query() query: ListComplaintQueryDto,
@@ -124,6 +129,7 @@ export class ComplaintsController {
    * di service tetap ada, dengan pesan yang lebih spesifik.
    */
   @Patch(':id/opd')
+  @ApiOperation({ summary: 'Teruskan pengaduan yang belum bertujuan ke OPD yang berwenang.' })
   @Roles(Role.kabupaten)
   @Audit('complaint', 'forward')
   @ApiOkResponse({ type: ComplaintEntity })
@@ -153,6 +159,7 @@ export class ComplaintsController {
    * pernah tercatat, dan itu celah yang sama.
    */
   @Post(':id/replies')
+  @ApiOperation({ summary: 'Tambah tanggapan pada pengaduan. Lampiran opsional (multipart).' })
   @Roles(Role.kabupaten, Role.opd, Role.responden)
   @Audit('complaint_reply')
   @UseInterceptors(

@@ -2,11 +2,15 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { dekripsi, INFO_LAMPIRAN, terenkripsi } from './common/crypto/envelope';
 import { resolveLampiran, tipeKonten } from './common/crypto/jalur-lampiran';
 import { kunciData } from './common/crypto/kunci';
 import { verifyAttachmentPath } from './modules/complaints/attachment-url.util';
+import { DokumentasiService } from './modules/dokumentasi/dokumentasi.service';
+import { anotasiRute } from './modules/dokumentasi/anotasi-rute';
+import { bangunKonfigOpenApi } from './modules/dokumentasi/openapi.config';
 import { HEADER_SESI_BERAKHIR } from './modules/auth/session/session-refresh.interceptor';
 
 /**
@@ -248,4 +252,21 @@ export function configureApp(app: INestApplication): void {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+
+  // PEMBANGUN DOKUMEN OPENAPI didaftarkan DI SINI, bukan di `main.ts`.
+  //
+  // `configureApp()` dipakai `main.ts` DAN seluruh berkas e2e; menaruhnya di
+  // `main.ts` membuat endpoint `/dokumentasi/openapi` tak ada saat e2e,
+  // sehingga penjaga perannya tak pernah teruji pada jalur yang sama dengan
+  // produksi. Aturan itu tertulis tersurat di CLAUDE.md, dan endpoint
+  // ber-penjaga peran termasuk perilaku keamanan.
+  //
+  // Hanya MENDAFTARKAN, bukan membangun. Pembangunan menuntut rute sudah
+  // terdaftar -- yang baru terjadi di `app.init()` -- dan ditunda sampai ada
+  // permintaan pertama. Lihat DokumentasiService.
+  app
+    .get(DokumentasiService)
+    .daftarkanPembangun(() =>
+      anotasiRute(app, SwaggerModule.createDocument(app, bangunKonfigOpenApi())),
+    );
 }

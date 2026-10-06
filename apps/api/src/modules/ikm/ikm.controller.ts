@@ -1,5 +1,5 @@
 import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -33,6 +33,10 @@ export class IkmController {
    * tidak masuk akal untuk file unduhan).
    */
   @Get('surveys/:surveyId/results/export')
+  @ApiOperation({
+    summary:
+      'Ekspor laporan hasil IKM sebagai CSV, Excel, atau PDF. Membalas berkas, bukan envelope JSON.',
+  })
   @Roles(Role.kabupaten, Role.opd)
   @ApiProduces(
     'text/csv',

@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { Audit } from '../../common/decorators/audit.decorator';
@@ -35,6 +35,9 @@ export class OpdController {
    * sekali (403 diam-diam tertelan di frontend, ditemukan saat wiring INT-18).
    */
   @Get()
+  @ApiOperation({
+    summary: 'Daftar OPD dari cache lokal. Terbuka bagi semua peran terautentikasi.',
+  })
   @ApiOkResponse({ type: OpdEntity, isArray: true })
   findAll(@Query() query: ListOpdQueryDto): Promise<PaginatedResult<OpdEntity>> {
     return this.opdService.findAll(query);

@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -39,7 +39,7 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  /** Daftar akun admin (paginated + filter role/OPD). Khusus superuser. */
+  /** Daftar akun admin (paginated + filter role/OPD). Khusus Admin Kabupaten. */
   @Get()
   @ApiOkResponse({ type: UserEntity, isArray: true })
   findAll(
@@ -58,19 +58,20 @@ export class UsersController {
   }
 
   /**
-   * Jumlah akun aktif & total. Khusus superuser.
+   * Jumlah akun aktif & total. Khusus Admin Kabupaten.
    *
    * DIDEKLARASIKAN SEBELUM `@Get(':id')`, dan urutannya bukan selera: Nest
    * memadankan rute berurutan, jadi bila ia di bawah, '/users/stats' tertangkap
    * sebagai ':id' dan ParseIntPipe menjawab 400 untuk kata "stats".
    */
   @Get('stats')
+  @ApiOperation({ summary: 'Jumlah akun aktif dan total. Khusus Admin Kabupaten.' })
   @ApiOkResponse({ type: UserStatsEntity })
   getStats(@CurrentUser() actor: CurrentUser): Promise<UserStatsEntity> {
     return this.usersService.getStats(actor);
   }
 
-  /** Detail akun. Khusus superuser. */
+  /** Detail akun. Khusus Admin Kabupaten. */
   @Get(':id')
   @ApiOkResponse({ type: UserEntity })
   findOne(
@@ -109,6 +110,7 @@ export class UsersController {
    * 2026-08-05: sebelumnya kolom `deletedAt` ada di skema tapi tanpa endpoint sama sekali.
    */
   @Delete(':id')
+  @ApiOperation({ summary: 'Hapus akun (soft delete). Barisnya tetap ada, akun dinonaktifkan.' })
   @Audit('user', 'delete')
   @ApiOkResponse({ type: UserEntity })
   remove(

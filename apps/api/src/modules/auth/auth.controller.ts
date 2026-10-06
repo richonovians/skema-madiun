@@ -92,6 +92,9 @@ export class AuthController {
   @Public()
   @UseGuards(NonProductionGuard)
   @Post('dev-login')
+  @ApiOperation({
+    summary: 'Login sementara tanpa SSO untuk dev/staging. Tidak tersedia di produksi.',
+  })
   @Throttle(DEV_LOGIN_PER_MINUTE)
   @ApiOkResponse({ type: SessionEntity })
   devLogin(@Body() dto: DevLoginDto): Promise<SessionEntity> {
@@ -211,6 +214,7 @@ export class AuthController {
    * ditelusuri bersamaan), keduanya memakai pemanggilan langsung.
    */
   @Post('logout')
+  @ApiOperation({ summary: 'Keluar sesi. Cookie sesi dihapus di sisi server.' })
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser() user: CurrentUser,
@@ -236,6 +240,7 @@ export class AuthController {
    * tanpa menggesernya. Lihat ConsentService.record.
    */
   @Post('consent')
+  @ApiOperation({ summary: 'Catat persetujuan pemrosesan data pribadi (UU PDP).' })
   @HttpCode(HttpStatus.OK)
   async consent(@CurrentUser() user: CurrentUser): Promise<{ consentAt: string }> {
     const consentAt = await this.consentService.record(user);
@@ -309,6 +314,7 @@ export class AuthController {
    * halaman log aktivitas. Isi datanya disunting lewat kunci `nama`.
    */
   @Patch('profile')
+  @ApiOperation({ summary: 'Ubah profil dan data diri. Medan demografis khusus responden.' })
   @Audit('user', 'update_profile')
   @ApiOkResponse({ type: MeEntity })
   updateProfile(

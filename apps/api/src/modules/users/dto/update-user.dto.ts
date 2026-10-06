@@ -39,7 +39,7 @@ export class UpdateUserDto {
     enum: ASSIGNABLE_ROLES,
     isArray: true,
     description:
-      'Himpunan role akun. Minimal satu. Hanya superuser yang boleh mengubahnya, dan ' +
+      'Himpunan role akun. Minimal satu. Hanya Admin Kabupaten yang boleh mengubahnya, dan ' +
       'tidak untuk akunnya sendiri (cegah self-lockout). Satu-satunya field yang ' +
       'dapat diubah dari SKEMA — nama, email & OPD berasal dari Helpdesk.',
   })

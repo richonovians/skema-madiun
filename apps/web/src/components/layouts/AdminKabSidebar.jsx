@@ -12,6 +12,7 @@ import {
   ClipboardList,
   X,
   History,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -260,6 +261,18 @@ export default function AdminKabSidebar() {
               className="shrink-0 transition-transform duration-300 group-hover:scale-110"
             />
             <span className={kelasLabelCiut}>Audit Logs</span>
+          </Link>
+          <Link
+            href="/admin-kab/dokumentasi-api"
+            title="Dokumentasi API"
+            className={getLinkClass('/admin-kab/dokumentasi-api')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <BookOpen
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Dokumentasi API</span>
           </Link>
         </nav>
 
