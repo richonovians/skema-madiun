@@ -29,6 +29,16 @@ export function adaptUser(user) {
     // perlu diingat di dua tempat.
     roles: (user.roles ?? []).map((r) => ROLE_MAP[r] ?? r),
     opdId: user.opdId ?? null,
+    // DILEWATKAN, bukan dihitung di sini (6 Oktober 2026). Aturannya
+    // bergantung pada `NODE_ENV` backend -- gerbang ASN hanya hidup di
+    // produksi -- dan frontend tak tahu apa pun tentang itu. Dua salinan
+    // aturan berarti kotak centang yang dapat ditekan tetapi ditolak 400.
+    //
+    // `null` berarti BACKEND TAK MEMBERITAHU, dan sengaja bukan `true` atau
+    // `false`: keduanya pernyataan yang belum dibuat siapa pun. Komponennya
+    // menonaktifkan pilihan hanya pada `false` tersurat -- penegakan
+    // sebenarnya tetap di `UsersService`, halaman ini cuma pengarahan UX.
+    bolehJadiAdminOpd: user.bolehJadiAdminOpd ?? null,
     organization: user.opdNama ?? null,
     createdAt: formatDateId(user.createdAt),
     status: user.isActive ? 'ACTIVE' : 'INACTIVE',

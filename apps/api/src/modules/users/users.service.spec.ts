@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { instanceToPlain } from 'class-transformer';
+import { JenisPengguna, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -36,6 +38,15 @@ const userRow = {
   updatedAt: new Date(),
 };
 
+/**
+ * `ConfigService` tiruan. HANYA `app.nodeEnv` yang dibaca UsersService, dan
+ * kunci itu menentukan hidup-matinya gerbang ASN.
+ */
+const konfig = (nodeEnv: string): ConfigService =>
+  ({
+    get: (key: string) => (key === 'app.nodeEnv' ? nodeEnv : undefined),
+  }) as unknown as ConfigService;
+
 describe('UsersService', () => {
   const prisma = {
     user: {
@@ -48,7 +59,7 @@ describe('UsersService', () => {
     opd: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
-  const service = new UsersService(prisma);
+  const service = new UsersService(prisma, konfig('development'));
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -431,5 +442,250 @@ describe('UsersService', () => {
       await expect(service.getStats(OPD)).rejects.toThrow(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('UsersService — gerbang Admin OPD hanya untuk ASN', () => {
+  /**
+   * PERMINTAAN PENGGUNA 6 Oktober 2026: "perketat opsi jadikan admin opd hanya
+   * untuk user type asn", dengan satu syarat tersurat yang ia tambahkan
+   * sendiri: "penerapan ... digunakan saat projek ini sudah pada tahap
+   * produksi. karena projek ini masih pengembangan, akun seed/pending masih
+   * tetap bisa mengambil peran opd."
+   *
+   * Itu sebabnya setiap uji di bawah menyebut lingkungannya tersurat. Gerbang
+   * yang hanya diuji pada satu lingkungan bukan gerbang yang teruji: yang perlu
+   * dibuktikan justru DUA-DUANYA -- ia menolak di produksi, dan ia membiarkan
+   * di pengembangan.
+   */
+  const buat = (nodeEnv: string) => {
+    const prisma = {
+      user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+      opd: { findUnique: jest.fn().mockResolvedValue({ id: 1 }) },
+    } as unknown as PrismaService;
+    return { prisma, service: new UsersService(prisma, konfig(nodeEnv)) };
+  };
+
+  const target = (overrides: Record<string, unknown> = {}) => ({
+    ...userRow,
+    id: 10,
+    roles: [Role.responden],
+    opdId: 5,
+    jenisPengguna: null,
+    ...overrides,
+  });
+
+  describe('produksi: menolak', () => {
+    it('menolak memberi peran opd pada akun yang jenis penggunanya BELUM DIKETAHUI', async () => {
+      // `null` bukan "warga", melainkan "belum diberitahu" -- dan gerbangnya
+      // gagal TERTUTUP, sebab memberi hak atas dasar ketidaktahuan lebih buruk
+      // daripada menundanya.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(target());
+
+      await expect(
+        service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('pesan galatnya menyebut ASN, bukan menyebut opdId', async () => {
+      // Penjaga yang ADA SEBELUM ini menolak dengan alasan "opdId wajib diisi",
+      // yang tak pernah menjelaskan aturan sebenarnya kepada siapa pun.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(target());
+
+      await expect(
+        service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN),
+      ).rejects.toThrow(/ASN/);
+    });
+
+    it('menolak akun yang Helpdesk nyatakan sebagai warga', async () => {
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ jenisPengguna: JenisPengguna.masyarakat }),
+      );
+
+      await expect(
+        service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('menolak akun BARU yang dibuat langsung berperan opd', async () => {
+      // `POST /users` tak punya halaman lagi, tapi endpointnya masih ada. Tanpa
+      // gerbang di sini, seluruh pengetatan dapat dilewati satu permintaan.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.create(
+          {
+            nama: 'Admin Baru',
+            email: 'baru@x.go.id',
+            roles: [Role.opd],
+            opdId: 1,
+          } as CreateUserDto,
+          KABUPATEN,
+        ),
+      ).rejects.toThrow(/ASN/);
+      expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('produksi: membiarkan', () => {
+    it('mengizinkan pemberian peran opd pada akun ASN', async () => {
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ jenisPengguna: JenisPengguna.asn }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden], jenisPengguna: JenisPengguna.asn }),
+      );
+
+      await service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('tidak menghalangi penyuntingan akun yang SUDAH berperan opd', async () => {
+      // Gerbangnya menjaga PEMBERIAN, bukan pemeliharaan. Kalau ia juga
+      // menghalangi penyuntingan akun yang sudah memegang peran itu, Admin
+      // Kabupaten tak dapat lagi menyentuh akun Admin OPD mana pun -- termasuk
+      // untuk mencabut perannya.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden], jenisPengguna: null }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden] }),
+      );
+
+      await service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('tidak menghalangi PENCABUTAN peran opd dari akun non-ASN', async () => {
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden], jenisPengguna: null }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(target({ roles: [Role.responden] }));
+
+      await service.update(10, { roles: [Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('pengembangan: gerbang MATI', () => {
+    it('mengizinkan akun seed/pending mengambil peran opd', async () => {
+      // Syarat tersurat pengguna. Kalau uji ini memerah, gerbangnya sudah
+      // merembes ke lingkungan yang bukan tempatnya.
+      const { prisma, service } = buat('development');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(target());
+      (prisma.user.update as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden] }),
+      );
+
+      await service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('mengizinkan pembuatan akun berperan opd', async () => {
+      const { prisma, service } = buat('development');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.user.create as jest.Mock).mockResolvedValue(target({ roles: [Role.opd] }));
+
+      await service.create(
+        { nama: 'Admin Baru', email: 'baru@x.go.id', roles: [Role.opd], opdId: 1 } as CreateUserDto,
+        KABUPATEN,
+      );
+
+      expect(prisma.user.create).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+describe('UsersService — UserEntity.bolehJadiAdminOpd', () => {
+  /**
+   * SATU ATURAN YANG SAMA, DISALURKAN KE ANTARMUKA. Halaman manajemen pengguna
+   * tidak boleh menghitung sendiri siapa yang boleh dijadikan Admin OPD: ia tak
+   * tahu `NODE_ENV` backend, dan dua salinan aturan akan menghasilkan kotak
+   * centang yang dapat ditekan tetapi pasti ditolak.
+   */
+  const buat = (nodeEnv: string) => {
+    const prisma = {
+      user: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      $transaction: jest.fn(),
+    } as unknown as PrismaService;
+    return { prisma, service: new UsersService(prisma, konfig(nodeEnv)) };
+  };
+
+  it('produksi: akun ASN -> true', async () => {
+    const { prisma, service } = buat('production');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: JenisPengguna.asn,
+    });
+
+    const hasil = await service.findOne(10, KABUPATEN);
+
+    expect(hasil.bolehJadiAdminOpd).toBe(true);
+  });
+
+  it('produksi: akun yang belum diketahui -> false', async () => {
+    const { prisma, service } = buat('production');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: null,
+    });
+
+    const hasil = await service.findOne(10, KABUPATEN);
+
+    expect(hasil.bolehJadiAdminOpd).toBe(false);
+  });
+
+  it('pengembangan: siapa pun -> true', async () => {
+    const { prisma, service } = buat('development');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: null,
+    });
+
+    const hasil = await service.findOne(10, KABUPATEN);
+
+    expect(hasil.bolehJadiAdminOpd).toBe(true);
+  });
+
+  it('daftar pengguna ikut membawanya pada setiap baris', async () => {
+    // Halaman daftar yang menampilkan tombol sunting perlu tahu ini tanpa
+    // memanggil satu endpoint per baris.
+    const { prisma, service } = buat('production');
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [{ ...userRow, jenisPengguna: JenisPengguna.asn, opd: { nama: 'Dinas Kesehatan' } }],
+      1,
+    ]);
+
+    const hasil = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, KABUPATEN);
+
+    expect(hasil.items[0].bolehJadiAdminOpd).toBe(true);
+  });
+
+  it('TIDAK mengirim `jenisPengguna` itu sendiri ke klien', async () => {
+    // Status kepegawaian adalah keterangan tentang orangnya; yang dibutuhkan
+    // antarmuka hanyalah boleh atau tidak. Kolomnya dideklarasikan di
+    // `UserEntity` justru supaya dapat DITAHAN -- serialisasi di repo ini
+    // expose-all, jadi kolom yang tak disebut ikut keluar sendiri.
+    const { prisma, service } = buat('production');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: JenisPengguna.asn,
+    });
+
+    const keluar = instanceToPlain(await service.findOne(10, KABUPATEN));
+
+    expect(keluar).not.toHaveProperty('jenisPengguna');
+    expect(keluar.bolehJadiAdminOpd).toBe(true);
   });
 });

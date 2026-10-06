@@ -333,3 +333,71 @@ describe('UsersTable — menu aksi per baris', () => {
     expect(onRequestAction).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }), 'delete');
   });
 });
+
+/**
+ * PINTASAN "Jadikan Admin OPD" ikut digerbang ASN (6 Oktober 2026).
+ *
+ * JALUR KEDUA, dan itu sebabnya blok ini ada. Halaman Ubah Role sudah
+ * menonaktifkan kotak centang Admin OPD bagi akun non-ASN, tetapi pintasan di
+ * menu baris ini memanggil `PATCH /users/:id` dengan peran `opd` tanpa pernah
+ * melewati halaman itu. Gerbang yang hanya menutup satu dari dua pintu bukan
+ * gerbang; yang terjadi adalah tombol yang pasti dijawab 400 di produksi.
+ */
+describe('UsersTable — pintasan Admin OPD hanya untuk ASN', () => {
+  const asn = (over = {}) =>
+    baris({ opdId: 16, organization: 'Dinas Uji', bolehJadiAdminOpd: true, ...over });
+
+  it('`false` menonaktifkan butir pintasannya', () => {
+    render(<UsersTable data={[asn({ bolehJadiAdminOpd: false })]} />);
+
+    expect(within(bukaMenu()).getByRole('menuitem', { name: /jadikan admin opd/i })).toBeDisabled();
+  });
+
+  it('menerangkan sebabnya, menyebut ASN', () => {
+    render(<UsersTable data={[asn({ bolehJadiAdminOpd: false })]} />);
+
+    expect(within(bukaMenu()).getByText(/hanya untuk akun ASN/i)).toBeInTheDocument();
+  });
+
+  it('menekannya tidak meminta aksi apa pun', () => {
+    const onRequestAction = jest.fn();
+    render(
+      <UsersTable
+        data={[asn({ bolehJadiAdminOpd: false })]}
+        onRequestAction={onRequestAction}
+      />,
+    );
+
+    fireEvent.click(within(bukaMenu()).getByRole('menuitem', { name: /jadikan admin opd/i }));
+
+    expect(onRequestAction).not.toHaveBeenCalled();
+  });
+
+  it('`true` membiarkan pintasannya hidup', () => {
+    render(<UsersTable data={[asn()]} />);
+
+    expect(
+      within(bukaMenu()).getByRole('menuitem', { name: /jadikan admin opd/i }),
+    ).not.toBeDisabled();
+  });
+
+  it('tanpa keterangan dari backend: TIDAK dimatikan', () => {
+    // `null`/tak dikirim berarti belum diberitahu. Mematikan pintasan atas
+    // dasar ketidaktahuan akan merusak halaman ini di pengembangan, tempat
+    // gerbangnya memang mati.
+    render(<UsersTable data={[asn({ bolehJadiAdminOpd: null })]} />);
+
+    expect(
+      within(bukaMenu()).getByRole('menuitem', { name: /jadikan admin opd/i }),
+    ).not.toBeDisabled();
+  });
+
+  it('tautan instansi yang belum ada tetap menjadi sebab yang disebut lebih dulu', () => {
+    // Dua sebab dapat berlaku sekaligus. Yang ditampilkan adalah yang paling
+    // dekat dengan tindakan berikutnya: tanpa tautan instansi, menjadikannya
+    // Admin OPD tak punya arti sama sekali -- bahkan bagi seorang ASN.
+    render(<UsersTable data={[asn({ opdId: null, bolehJadiAdminOpd: false })]} />);
+
+    expect(within(bukaMenu()).getByText(/Instansi belum ditautkan Helpdesk/i)).toBeInTheDocument();
+  });
+});

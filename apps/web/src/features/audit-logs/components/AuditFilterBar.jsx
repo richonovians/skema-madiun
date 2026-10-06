@@ -11,6 +11,17 @@ export const MODULE_OPTIONS = [
   ),
 ];
 
+/**
+ * LENGKAP terhadap aksi yang dapat tercatat (6 Oktober 2026). Lima di antaranya
+ * sebelumnya tak ada di sini sama sekali -- `forward`, `restore`, `purge`,
+ * `sso_grant_kabupaten`, `sso_cabut_peran_opd` -- sehingga barisnya tak dapat
+ * dicari pada halaman berisi ribuan entri. Dua aksi SSO itu perubahan hak akses
+ * yang terjadi tanpa ada manusia menekan apa pun, dan justru itu yang dicari
+ * seorang pemeriksa.
+ *
+ * Urutannya mengikuti `AKSI_LABEL` supaya kedua daftar dapat dibandingkan
+ * sekilas saat salah satunya bertambah.
+ */
 export const ACTION_OPTIONS = [
   { value: '', label: 'Semua Aksi' },
   ...[
@@ -18,14 +29,19 @@ export const ACTION_OPTIONS = [
     'update',
     'delete',
     'update_status',
+    'update_profile',
     'login',
     'logout',
     'consent',
-    'update_profile',
     'sync',
     'apply_template',
     'reorder',
     'duplicate',
+    'forward',
+    'restore',
+    'purge',
+    'sso_grant_kabupaten',
+    'sso_cabut_peran_opd',
   ].map((value) => ({ value, label: aksiLabel(value) })),
 ];
 

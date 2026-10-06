@@ -60,6 +60,22 @@ const ROLE_LABEL = ROLE_CHOICES.reduce((acc, r) => ({ ...acc, [r.value]: r.label
  * Admin OPD perlu tahu instansi mana yang akan dipegang akun itu. Dipakai
  * halaman EDIT saja; halaman TAMBAH admin tetap memakai dropdown, karena akun
  * manual (`pending:email`) belum punya data Helpdesk sama sekali.
+ *
+ * `bolehJadiAdminOpd` (6 Oktober 2026, permintaan pengguna "perketat opsi
+ * jadikan admin opd hanya untuk user type asn") datang dari backend, yang
+ * menghitungnya dengan aturan yang sama dengan gerbang penolaknya -- termasuk
+ * `NODE_ENV`, yang tak dapat diketahui dari sini. Tiga keadaan dibedakan:
+ *
+ *   `false`               -> pilihannya dimatikan DAN sebabnya diterangkan
+ *   `true`                -> seperti biasa
+ *   `null`/tak diberikan  -> seperti biasa; backend tak memberitahu, dan
+ *                            mematikan pilihan atas dasar ketidaktahuan akan
+ *                            merusak halaman ini di pengembangan
+ *
+ * PILIHANNYA TETAP HIDUP BILA SUDAH TERCENTANG. Mematikannya tanpa syarat
+ * berarti peran Admin OPD tak dapat lagi DICABUT dari akun non-ASN -- padahal
+ * backend mengizinkan pencabutan, dan justru itulah yang dibutuhkan ketika
+ * seseorang ternyata bukan ASN.
  */
 export default function RoleAssignmentCard({
   formData,
@@ -69,9 +85,13 @@ export default function RoleAssignmentCard({
   opdOptions = [],
   roleLocked = false,
   opdLocked = false,
+  bolehJadiAdminOpd = null,
 }) {
   const roles = formData.roles ?? [];
   const isAdminOPD = roles.includes(USER_ROLES.ADMIN_OPD);
+  // Hanya `false` yang tersurat mematikan pilihan, dan hanya selama perannya
+  // BELUM dipegang -- lihat catatan di docblock.
+  const opdTerlarang = bolehJadiAdminOpd === false && !isAdminOPD;
   // Label dicari dari `opdOptions` supaya nama instansinya benar-benar yang
   // dikenal backend, bukan salinan kedua yang bisa basi. `null` = tak tertaut.
   //
@@ -84,6 +104,13 @@ export default function RoleAssignmentCard({
     : null;
 
   const toggle = (value) => {
+    // ATRIBUT `disabled` SENDIRI TIDAK CUKUP, dan itu terukur: uji "klik pada
+    // pilihan yang dinonaktifkan" memerah walau kotak centangnya benar-benar
+    // ber-`disabled` -- peristiwa `change` tetap sampai ke penangannya. Aturan
+    // yang hanya hidup di atribut bukan aturan, melainkan penampilan.
+    if (opdTerlarang && value === USER_ROLES.ADMIN_OPD) {
+      return;
+    }
     const next = roles.includes(value) ? roles.filter((r) => r !== value) : [...roles, value];
     onRolesChange(next);
   };
@@ -125,11 +152,14 @@ export default function RoleAssignmentCard({
             <div className="space-y-2">
               {ROLE_CHOICES.map((pilihan) => {
                 const tercentang = roles.includes(pilihan.value);
+                const terlarang = opdTerlarang && pilihan.value === USER_ROLES.ADMIN_OPD;
                 return (
                   <label
                     key={pilihan.value}
                     htmlFor={`role-${pilihan.value}`}
-                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                    className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${
+                      terlarang ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                    } ${
                       tercentang
                         ? 'border-primary bg-primary-container/20'
                         : 'border-border bg-surface hover:bg-surface-container-low'
@@ -147,9 +177,12 @@ export default function RoleAssignmentCard({
                       type="checkbox"
                       checked={tercentang}
                       onChange={() => toggle(pilihan.value)}
+                      disabled={terlarang}
                       aria-label={pilihan.label}
                       aria-describedby={`role-${pilihan.value}-ket`}
-                      className="w-5 h-5 mt-0.5 shrink-0 accent-primary cursor-pointer"
+                      className={`w-5 h-5 mt-0.5 shrink-0 accent-primary ${
+                        terlarang ? 'cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                     />
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-text-primary">
@@ -160,6 +193,17 @@ export default function RoleAssignmentCard({
                         className="block text-xs text-text-secondary mt-0.5 leading-relaxed"
                       >
                         {pilihan.keterangan}
+                        {/* SEBABNYA DITERANGKAN, bukan pilihannya dimatikan
+                            diam-diam: kotak centang mati tanpa keterangan
+                            terbaca sebagai aplikasi yang rusak. Ikut di dalam
+                            elemen `aria-describedby`, jadi pembaca layar
+                            memperolehnya bersama keterangan perannya. */}
+                        {terlarang && (
+                          <span className="block mt-1 text-text-secondary">
+                            Hanya untuk akun ASN menurut Helpdesk. Akun ini belum pernah dinyatakan
+                            ASN, jadi perannya belum dapat diberikan.
+                          </span>
+                        )}
                       </span>
                     </span>
                   </label>

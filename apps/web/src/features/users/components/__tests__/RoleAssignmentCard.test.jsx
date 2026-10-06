@@ -138,3 +138,90 @@ describe('RoleAssignmentCard', () => {
     });
   });
 });
+
+describe('RoleAssignmentCard — Admin OPD hanya untuk akun ASN', () => {
+  /**
+   * PERMINTAAN PENGGUNA 6 Oktober 2026: "perketat opsi jadikan admin opd hanya
+   * untuk user type asn".
+   *
+   * HALAMAN INI HANYA PENGARAHAN UX. Penegakannya `UsersService`, yang menolak
+   * 400. Yang dicegah di sini adalah menawarkan pilihan yang pasti ditolak --
+   * sebab penggunanya akan menyalahkan aplikasinya, bukan aturannya.
+   */
+  const kartu = (props = {}) =>
+    render(
+      <RoleAssignmentCard
+        formData={{ ...dasar, ...(props.formData ?? {}) }}
+        onRolesChange={props.onRolesChange ?? (() => {})}
+        onDropdownChange={() => {}}
+        errors={{}}
+        opdOptions={[]}
+        bolehJadiAdminOpd={props.bolehJadiAdminOpd}
+      />,
+    );
+
+  it('`false` menonaktifkan kotak centang Admin OPD', () => {
+    kartu({ bolehJadiAdminOpd: false });
+
+    expect(screen.getByLabelText('Admin OPD')).toBeDisabled();
+  });
+
+  it('`false` TIDAK menonaktifkan peran lain', () => {
+    // Yang dibatasi satu peran, bukan seluruh kartunya.
+    kartu({ bolehJadiAdminOpd: false });
+
+    expect(screen.getByLabelText('Admin Kabupaten')).not.toBeDisabled();
+    expect(screen.getByLabelText('Masyarakat (Responden)')).not.toBeDisabled();
+  });
+
+  it('menerangkan SEBABNYA, bukan sekadar mematikan pilihannya', () => {
+    // Pilihan yang mati tanpa keterangan terbaca sebagai aplikasi yang rusak.
+    kartu({ bolehJadiAdminOpd: false });
+
+    expect(screen.getByText(/hanya untuk akun ASN/i)).toBeInTheDocument();
+  });
+
+  it('klik pada pilihan yang dinonaktifkan tidak melaporkan perubahan apa pun', () => {
+    const onRolesChange = jest.fn();
+    kartu({ bolehJadiAdminOpd: false, onRolesChange });
+
+    fireEvent.click(screen.getByLabelText('Admin OPD'));
+
+    expect(onRolesChange).not.toHaveBeenCalled();
+  });
+
+  it('akun yang SUDAH berperan Admin OPD tetap dapat dicabut perannya', () => {
+    // INI yang paling mudah dirusak. Menonaktifkan kotak centangnya tanpa syarat
+    // berarti Admin Kabupaten tak dapat lagi MENCABUT peran Admin OPD dari akun
+    // non-ASN -- padahal backend mengizinkannya, dan justru pencabutan itulah
+    // yang dibutuhkan ketika seseorang ternyata bukan ASN.
+    const onRolesChange = jest.fn();
+    kartu({
+      bolehJadiAdminOpd: false,
+      formData: { roles: [USER_ROLES.ADMIN_OPD] },
+      onRolesChange,
+    });
+
+    const centang = screen.getByLabelText('Admin OPD');
+    expect(centang).not.toBeDisabled();
+
+    fireEvent.click(centang);
+    expect(onRolesChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it('`true` membiarkan pilihannya seperti biasa', () => {
+    kartu({ bolehJadiAdminOpd: true });
+
+    expect(screen.getByLabelText('Admin OPD')).not.toBeDisabled();
+    expect(screen.queryByText(/hanya untuk akun ASN/i)).not.toBeInTheDocument();
+  });
+
+  it('tanpa prop sama sekali: pilihannya TIDAK dimatikan', () => {
+    // `null`/`undefined` berarti backend tak memberitahu. Mematikan pilihan
+    // atas dasar ketidaktahuan akan membuat halaman ini rusak di pengembangan,
+    // tempat gerbangnya memang mati.
+    kartu({});
+
+    expect(screen.getByLabelText('Admin OPD')).not.toBeDisabled();
+  });
+});

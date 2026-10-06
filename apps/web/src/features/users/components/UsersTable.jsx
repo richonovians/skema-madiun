@@ -187,15 +187,31 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
                         key: 'promote',
                         label: 'Jadikan Admin OPD',
                         icon: <Building2 size={14} />,
-                        // Tanpa tautan instansi backend menolak 400 -- `opdId`
-                        // milik Helpdesk dan UpdateUserDto tak menerimanya.
-                        // Ditampilkan MATI beserta alasannya, bukan
-                        // disembunyikan: justru inilah keadaan yang akan
-                        // ditanyakan Admin Kabupaten.
-                        disabled: !user.opdId,
-                        keterangan: user.opdId
-                          ? undefined
-                          : 'Instansi belum ditautkan Helpdesk',
+                        // DUA SEBAB, keduanya ditampilkan MATI beserta
+                        // alasannya alih-alih disembunyikan: justru inilah
+                        // keadaan yang akan ditanyakan Admin Kabupaten.
+                        //
+                        //  1. Tanpa tautan instansi backend menolak 400 --
+                        //     `opdId` milik Helpdesk dan UpdateUserDto tak
+                        //     menerimanya.
+                        //  2. Gerbang ASN (6 Oktober 2026). Pintasan ini jalur
+                        //     KEDUA menuju peran `opd`; halaman Ubah Role sudah
+                        //     digerbang, dan gerbang yang hanya menutup satu
+                        //     dari dua pintu bukan gerbang.
+                        //
+                        // `bolehJadiAdminOpd` datang dari backend, yang
+                        // menghitungnya dengan aturan yang sama dengan gerbang
+                        // penolaknya. `null` berarti belum diberitahu, dan TIDAK
+                        // mematikan apa pun -- lihat user.adapter.js.
+                        disabled: !user.opdId || user.bolehJadiAdminOpd === false,
+                        // Tautan instansi disebut LEBIH DULU bila keduanya
+                        // berlaku: tanpa instansi, menjadikan seseorang Admin
+                        // OPD tak punya arti sama sekali -- bahkan bagi ASN.
+                        keterangan: !user.opdId
+                          ? 'Instansi belum ditautkan Helpdesk'
+                          : user.bolehJadiAdminOpd === false
+                            ? 'Hanya untuk akun ASN menurut Helpdesk'
+                            : undefined,
                         onSelect: () => onRequestAction?.(user, 'promote-opd'),
                       },
                       {

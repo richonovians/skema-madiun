@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JenisKelamin, Role, User } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role, User } from '@prisma/client';
 import { enkripsiKolom } from '../../common/crypto/kolom';
 import { kunciData } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -21,6 +21,7 @@ import { ambilJalurKlaim } from './sso-claim-path';
 import { bentukKlaim } from './sso-claim-shape';
 import { ambilIdentitasKlaim } from './sso-identitas.mapper';
 import { petakanJenisKelamin } from './sso-jenis-kelamin.mapper';
+import { petakanJenisPengguna } from './sso-jenis-pengguna.mapper';
 import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
 import {
   extractRoleClaimValues,
@@ -28,6 +29,7 @@ import {
   parseRolePackages,
   resolveRolesFromClaims,
 } from './sso-role.mapper';
+import { peranSetelahSinkron } from './sinkron-peran-opd';
 import { SsoStateService } from './sso-state.service';
 
 /** Batas kolom `users.nama` (VarChar(50)) & `users.email` (VarChar(100)). */
@@ -143,7 +145,7 @@ export class SsoService {
   /**
    * Catat BENTUK payload klaim Helpdesk sekali per proses (9 September 2026).
    *
-   * MENGAPA PERLU, padahal `opdIdUntukSinkron` sudah mencatat nama klaim.
+   * MENGAPA PERLU, padahal `opdIdDariKlaim` sudah mencatat nama klaim.
    * Pencatatan itu punya empat batas yang justru mengenai kasus yang sedang
    * diselidiki: ia hanya berjalan pada jalur sinkronisasi (akun yang sudah
    * dikenal lewat `sub`), sehingga bungkam pada login pertama; ia mencatat NAMA
@@ -519,8 +521,16 @@ export class SsoService {
   }
 
   /**
-   * `opdId` yang perlu ditulis saat login, atau `null` bila TAK ADA yang perlu
-   * diubah (8 September 2026).
+   * OPD yang DITUNJUK KLAIM login ini, atau `null` bila klaimnya tak ada atau
+   * tak cocok ke OPD aktif mana pun (8 September 2026).
+   *
+   * MENGEMBALIKAN OPD KLAIM, BUKAN "YANG PERLU DITULIS" (6 Oktober 2026).
+   * Dulu fungsi ini mengembalikan `null` untuk DUA keadaan yang berbeda artinya:
+   * klaim tidak ada, dan klaim sama dengan yang tersimpan. Peleburan itu tak
+   * merugikan selama satu-satunya pertanyaan adalah "perlu menulis?", tetapi
+   * `peranSetelahSinkron` menuntut bedanya -- klaim yang hilang tak boleh
+   * mencabut apa pun, sedangkan klaim yang sama hanya berarti tak ada yang
+   * berubah. Pemanggil yang memutuskan perlu-tulis sekarang, dari nilai ini.
    *
    * Permintaan pengguna: data yang berasal dari Helpdesk harus tetap sinkron dan
    * tak dapat diacak-acak dari SKEMA. Karena itu login menjadi satu-satunya
@@ -533,7 +543,7 @@ export class SsoService {
    * hak setiap Admin OPD sekaligus, dan kegagalan itu SENYAP. Peran pun tetap
    * TIDAK disinkronkan di sini; yang disinkronkan hanya OPD.
    */
-  private async opdIdUntukSinkron(user: User, profile: SsoProfile): Promise<number | null> {
+  private async opdIdDariKlaim(user: User, profile: SsoProfile): Promise<number | null> {
     const values = this.nilaiKandidatOpd(profile);
     if (values.length === 0) {
       // Lazim & benar bagi non-ASN. Nama-nama field dicatat di tingkat debug
@@ -556,15 +566,31 @@ export class SsoService {
       );
       return null;
     }
-    if (opd.id === user.opdId) {
-      return null;
+    if (opd.id !== user.opdId) {
+      this.logger.log(
+        `Tautan OPD akun ${user.id} disinkronkan dari Helpdesk: ` +
+          `${user.opdId ?? '(kosong)'} -> ${opd.id}`,
+      );
     }
-
-    this.logger.log(
-      `Tautan OPD akun ${user.id} disinkronkan dari Helpdesk: ` +
-        `${user.opdId ?? '(kosong)'} -> ${opd.id}`,
-    );
     return opd.id;
+  }
+
+  /**
+   * Jenis pengguna (ASN atau warga) dari klaim login ini, atau `null`.
+   *
+   * Jalur bercabang bersarang-dahulu-lalu-rata, pola yang sama dengan ketiga
+   * medan identitas: payload `userinfo` menaruhnya di `identity.user_type`,
+   * sedangkan `/api/me` meratakannya menjadi `user_type`.
+   *
+   * `null` berarti TAK DIBERITAHU -- bukan "bukan ASN". Dua pemakainya
+   * memperlakukannya begitu: yang satu tak menulis kuncinya sama sekali, yang
+   * lain tak mencabut apa pun.
+   */
+  private jenisPenggunaDariKlaim(profile: SsoProfile): JenisPengguna | null {
+    return (
+      petakanJenisPengguna(ambilJalurKlaim(profile.klaim, 'identity.user_type')) ??
+      petakanJenisPengguna(ambilJalurKlaim(profile.klaim, 'user_type'))
+    );
   }
 
   /**
@@ -608,7 +634,16 @@ export class SsoService {
     };
   }
 
-  /** Tolak akun nonaktif, lalu segarkan nama & waktu login. */
+  /**
+   * Tolak akun nonaktif, lalu segarkan nama & waktu login.
+   *
+   * SATU-SATUNYA TEMPAT SSO MENURUNKAN HAK (6 Oktober 2026). Peran tetap TIDAK
+   * disinkronkan di sini -- klaim tak pernah MENAIKKAN peran akun lama, dan
+   * keputusan 27 Agustus 2026 itu utuh. Yang ditambahkan hanya satu arah:
+   * peran `opd` dicabut ketika klaim HADIR dan BERTENTANGAN dengan yang
+   * tersimpan. Aturannya ada di `sinkron-peran-opd.ts`, beserta alasan mengapa
+   * klaim yang hilang tak boleh mencabut apa pun.
+   */
   private async acceptLogin(user: User, profile: SsoProfile): Promise<User> {
     if (!user.isActive) {
       throw new ForbiddenException('Akun tidak aktif');
@@ -617,12 +652,30 @@ export class SsoService {
     const nama = profile.nama ? truncate(profile.nama, NAMA_MAX) : null;
     // OPD ikut disegarkan setiap login (8 September 2026), dengan sifat yang
     // sama seperti nama di bawah: hanya bila Helpdesk benar-benar mengirimnya.
-    const opdId = await this.opdIdUntukSinkron(user, profile);
-    return this.prisma.user.update({
+    const opdKlaim = await this.opdIdDariKlaim(user, profile);
+    const opdId = opdKlaim !== null && opdKlaim !== user.opdId ? opdKlaim : null;
+
+    const jenisPengguna = this.jenisPenggunaDariKlaim(profile);
+    const sinkron = peranSetelahSinkron({
+      roles: user.roles,
+      opdIdTersimpan: user.opdId,
+      opdIdDariKlaim: opdKlaim,
+      jenisPenggunaDariKlaim: jenisPengguna,
+    });
+
+    const diperbarui = await this.prisma.user.update({
       where: { id: user.id },
       data: {
         lastLoginAt: new Date(),
         ...(opdId === null ? {} : { opdId }),
+        // `roles` DITULIS HANYA bila ada sebab tersurat. Tanpa penjaga ini
+        // setiap login menimpa kolom peran dengan nilai hasil hitungan, dan
+        // satu kekeliruan di `peranSetelahSinkron` akan melucuti seluruh Admin
+        // OPD tanpa suara -- tepat kegagalan yang ditolak 27 Agustus 2026.
+        ...(sinkron.alasan ? { roles: sinkron.roles } : {}),
+        // `jenis_pengguna` disegarkan tiap login (6 Oktober 2026). Dipakai
+        // gerbang Admin OPD di UsersService, bukan oleh jalur login ini.
+        ...(jenisPengguna ? { jenisPengguna } : {}),
         // Nama disegarkan dari Helpdesk (sumbernya di sana), tapi EMAIL TIDAK.
         // Alasannya: `users.email` unik, sehingga menyalin email baru bisa
         // bertabrakan dengan akun lain dan menggagalkan login karena hal yang
@@ -634,6 +687,29 @@ export class SsoService {
         ...this.identitasUntukDisimpan(profile),
       },
     });
+
+    if (sinkron.alasan) {
+      // DICATAT SESUDAH tulisannya berhasil, bukan sebelum: jejak audit yang
+      // menyatakan hak seseorang dicabut sementara tulisannya gagal lebih
+      // menyesatkan daripada tak ada jejak sama sekali.
+      //
+      // Masuk `audit_logs`, bukan cuma log aplikasi. Ini perubahan hak akses
+      // yang terjadi tanpa ada manusia menekan apa pun, dan aktornya adalah
+      // pemilik akun itu sendiri -- satu-satunya orang yang terlibat.
+      this.logger.warn(
+        `Peran Admin OPD akun ${user.id} dicabut saat login (${sinkron.alasan}): ` +
+          `opd ${user.opdId ?? '(kosong)'} -> ${opdKlaim ?? '(tak ada klaim)'}, ` +
+          `peran sisa: ${sinkron.roles.join(',')}`,
+      );
+      await this.audit.record(user.id, 'sso_cabut_peran_opd', 'auth', {
+        alasan: sinkron.alasan,
+        opdIdLama: user.opdId,
+        opdIdBaru: opdKlaim,
+        peranSisa: sinkron.roles,
+      });
+    }
+
+    return diperbarui;
   }
 
   /**

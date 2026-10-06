@@ -33,19 +33,47 @@ const ENTITAS_LABEL = {
   user: 'Pengguna',
 };
 
+/**
+ * Label aksi, SELURUHNYA bahasa Indonesia (6 Oktober 2026, permintaan pengguna).
+ *
+ * Sebelum ini petanya campur bahasa: `CREATE`, `LOGIN`, dan `UPDATE STATUS`
+ * bersebelahan dengan `PERSETUJUAN PDP` dan `UBAH PROFIL`, padahal teks
+ * antarmuka di repo ini berbahasa Indonesia. Kecampurannya itu sendiri yang
+ * menjadi cacatnya -- bukan hanya lima aksi yang belum berlabel.
+ *
+ * LENGKAP TERHADAP KODE BACKEND, bukan terhadap basis data. Aksi datang dari
+ * tiga sumber, dan hanya dua yang pertama pernah muncul di `audit_logs` hari
+ * ini: `AuditInterceptor` menurunkan create/update/delete dari metode HTTP,
+ * `@Audit('entitas', 'aksi')` pada controller, dan `AuditService.record`
+ * langsung di service. Menyusun daftar ini dari `select distinct aksi` akan
+ * melewatkan setiap aksi yang belum pernah terjadi -- dan `purge` maupun
+ * `sso_cabut_peran_opd` justru jenis aksi yang jarang.
+ *
+ * KUNCINYA TIDAK DITERJEMAHKAN, hanya labelnya. Nilai `audit_logs.aksi` adalah
+ * data yang sudah tersimpan dan dipakai penyaring; mengubahnya berarti migrasi
+ * atas tabel yang tak boleh disentuh.
+ */
 const AKSI_LABEL = {
-  create: 'CREATE',
-  login: 'LOGIN',
-  logout: 'LOGOUT',
-  consent: 'PERSETUJUAN PDP',
+  create: 'BUAT',
+  update: 'UBAH',
+  delete: 'HAPUS',
+  update_status: 'UBAH STATUS',
   update_profile: 'UBAH PROFIL',
-  update: 'UPDATE',
-  delete: 'DELETE',
-  update_status: 'UPDATE STATUS',
-  sync: 'SYNC',
-  apply_template: 'APPLY TEMPLATE',
-  reorder: 'REORDER',
-  duplicate: 'DUPLICATE',
+  login: 'MASUK',
+  logout: 'KELUAR',
+  consent: 'PERSETUJUAN PDP',
+  sync: 'SINKRONISASI',
+  apply_template: 'TERAPKAN TEMPLATE',
+  reorder: 'UBAH URUTAN',
+  duplicate: 'DUPLIKAT',
+  forward: 'TERUSKAN KE OPD',
+  restore: 'PULIHKAN',
+  purge: 'MUSNAHKAN',
+  // Dua aksi SSO. Keduanya perubahan hak akses yang terjadi tanpa ada manusia
+  // menekan apa pun, jadi awalan "SSO" disebut tersurat: yang membacanya perlu
+  // tahu bahwa bukan seorang Admin Kabupaten yang melakukannya.
+  sso_grant_kabupaten: 'SSO BERI PERAN KABUPATEN',
+  sso_cabut_peran_opd: 'SSO CABUT PERAN ADMIN OPD',
 };
 
 export function entitasLabel(entitas) {
