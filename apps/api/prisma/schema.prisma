@@ -40,6 +40,19 @@ enum Role {
   @@map("user_role")
 }
 
+enum JenisPengguna {
+  asn
+  masyarakat
+
+  // Dari klaim Helpdesk `identity.user_type` (6 Oktober 2026). DUA NILAI SAJA,
+  // dan sengaja tidak lebih: payload sungguhan hanya pernah mengirim keduanya,
+  // dan menambah nilai yang belum pernah terlihat berarti menebak. Nilai di
+  // luar daftar ini dipetakan menjadi `null` oleh sso-jenis-pengguna.mapper.ts,
+  // bukan disimpan apa adanya.
+
+  @@map("jenis_pengguna")
+}
+
 enum JenisKelamin {
   laki_laki
   perempuan
@@ -152,6 +165,14 @@ model User {
   // Dipetakan dari klaim Helpdesk yang pengkodeannya TIDAK SERAGAM antar
   // endpoint ("Laki-laki" vs "L") -- lihat sso-jenis-kelamin.mapper.ts.
   jenisKelamin JenisKelamin? @map("jenis_kelamin")
+  // ASN atau warga, menurut Helpdesk (6 Oktober 2026). SATU-SATUNYA ukuran
+  // yang dipakai gerbang "boleh dijadikan Admin OPD" di produksi.
+  //
+  // `null` BUKAN berarti warga. Ia berarti SKEMA belum pernah diberitahu --
+  // akun yang belum login lewat SSO, atau payload yang tak membawa medannya.
+  // Gerbangnya karena itu menuntut `asn` secara tersurat dan tidak pernah
+  // menyimpulkan apa pun dari `null`.
+  jenisPengguna JenisPengguna? @map("jenis_pengguna")
   isActive    Boolean   @default(true) @map("is_active")
   consentAt   DateTime? @map("consent_at") // persetujuan PDP saat pertama login
   lastLoginAt DateTime? @map("last_login_at")

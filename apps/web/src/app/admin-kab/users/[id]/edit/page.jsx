@@ -197,6 +197,11 @@ export default function EditUserPage() {
               errors={errors}
               opdOptions={opdOptions}
               roleLocked={isSelf}
+              // DARI BACKEND, tidak dihitung di sini (6 Oktober 2026).
+              // Aturannya bergantung pada `NODE_ENV` backend -- gerbang ASN
+              // hanya hidup di produksi -- dan halaman ini tak tahu apa pun
+              // tentang itu. Lihat catatan di RoleAssignmentCard.
+              bolehJadiAdminOpd={data?.user?.bolehJadiAdminOpd ?? null}
               // Instansi milik Helpdesk (8 September 2026): ditampilkan, tak
               // dapat diubah. Halaman TAMBAH admin tidak memasang ini, karena
               // akun manual belum punya data Helpdesk sama sekali.

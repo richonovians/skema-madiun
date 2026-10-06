@@ -99,6 +99,16 @@ Tiga titik penegakan, semuanya di `src/common/auth/`:
 
 Dekorator pendukung ada di `src/common/decorators/`: `@Roles`, `@Public`, `@CurrentUser`, `@AllowUnselectedRole`, `@Audit`, `@BatasPerSurvei`.
 
+#### Peran `opd`: siapa yang boleh memberinya, dan kapan ia hangus
+
+Dua aturan lahir 6 Oktober 2026 dan keduanya mudah dilanggar tanpa sengaja.
+
+**Gerbang ASN hanya hidup di produksi.** `users.jenis_pengguna` (enum `asn` / `masyarakat`) disalin dari klaim Helpdesk `identity.user_type` pada setiap login. `UsersService` menolak **pemberian** peran `opd` kepada akun yang bukan `asn` — tetapi hanya ketika `app.nodeEnv === 'production'`, kunci yang sama dengan `NonProductionGuard`. Itu syarat tersurat pemilik produk: akun `seed-*`/`pending:*` masuk lewat dev-login, tak pernah melewati SSO, sehingga `jenis_pengguna` mereka tak akan pernah terisi dan di pengembangan mereka harus tetap bisa memegang peran `opd`. Aturannya ada satu kali di `boleh-admin-opd.ts` dan disalurkan ke antarmuka sebagai `UserEntity.bolehJadiAdminOpd`; **jangan menghitungnya ulang di frontend** — ia tak dapat mengetahui `NODE_ENV` backend. `null` berarti belum diberitahu, bukan "bukan ASN", dan di produksi tetap ditolak.
+
+**Login dapat MENCABUT peran `opd`, dan hanya itu.** `sinkron-peran-opd.ts` mencabutnya bila klaim **hadir dan bertentangan**: OPD dari klaim berbeda dari `opd_id` tersimpan, atau `user_type` berbunyi `masyarakat`. Sisa peran kosong menjadi `[responden]`, `opd_id` baru tetap ditulis, dan pencabutannya masuk `audit_logs` sebagai `sso_cabut_peran_opd`. Keputusan 27 Agustus 2026 yang menolak sinkronisasi peran saat login **tetap berlaku**: klaim yang hilang tidak pernah mencabut apa pun, dan SSO tetap tak pernah menaikkan peran akun lama. Melonggarkan syarat "hadir dan bertentangan" berarti satu perubahan di sisi Helpdesk melucuti seluruh Admin OPD tanpa suara.
+
+**Kolom barunya ikut bocor sendiri.** `jenis_pengguna` muncul di `GET /auth/me` begitu kolomnya lahir — terukur, bukan dikira: uji kebocorannya memerah sebelum penahannya ada. Ia `@Exclude()` di `MeEntity` maupun `UserEntity`; yang keluar hanya boolean `bolehJadiAdminOpd`.
+
 ### Enkripsi at-rest
 
 `src/common/crypto/`: `envelope.ts` (AES-256-GCM untuk lampiran), `kolom.ts` (`enkripsiKolom`/`dekripsiKolom`, berawalan `enc:v1:`, idempoten, `''` tetap `''`, teks polos dilewatkan apa adanya saat dekripsi), `kunci.ts` (`kunciData(config)`).

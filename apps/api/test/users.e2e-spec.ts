@@ -423,4 +423,75 @@ describe('Users (e2e)', () => {
       expect(res.body.data.isActive).toBe(false);
     });
   });
+
+  /**
+   * Gerbang ASN (6 Oktober 2026) — DIUJI SEBAGAI GERBANG YANG MATI.
+   *
+   * Pengguna meminta pengetatan ini berlaku HANYA di produksi, karena akun
+   * `seed-*`/`pending:*` di pengembangan tak pernah melewati SSO dan
+   * `jenis_pengguna`-nya tak akan pernah terisi. Suite e2e berjalan dengan
+   * `NODE_ENV=test`, jadi yang dapat dibuktikan di sini bukan penolakannya,
+   * melainkan bahwa gerbangnya TIDAK merembes ke lingkungan yang bukan
+   * tempatnya.
+   *
+   * Dinyatakan tersurat supaya tak ada yang membaca kelulusan blok ini sebagai
+   * bukti bahwa gerbangnya bekerja. Yang membuktikan penolakannya adalah uji
+   * unit `users.service.spec.ts`, yang menjalankan kedua lingkungan.
+   */
+  describe('gerbang ASN tidak aktif di luar produksi', () => {
+    it('akun tanpa `jenis_pengguna` TETAP dapat diberi peran `opd` di NODE_ENV=test', async () => {
+      // LAHIR BERPERAN `opd`, lalu dicabut. Membuatnya langsung sebagai
+      // `responden` ber-`opdId` TIDAK bisa: `normalisasiRoles` mengosongkan
+      // tautan OPD begitu peran `opd` tak ikut dikirim, sehingga akunnya lahir
+      // tanpa tautan dan yang menolak PATCH nanti adalah penjaga LAMA
+      // ("opdId wajib diisi") -- uji ini akan gagal karena sebab yang salah.
+      const created = await buatAkun({
+        nama: 'Non ASN E2E',
+        email: 'non-asn@users.e2e.test',
+        roles: ['opd', 'responden'],
+        opdId,
+      });
+      const id: number = created.body.data.id;
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asKab())
+        .send({ roles: ['responden'] })
+        .expect(200);
+
+      // Prasyarat diperiksa, bukan diandaikan: tautan OPD TETAP ada sesudah
+      // pencabutan (milik Helpdesk, tak ikut terhapus), sementara
+      // `jenis_pengguna` memang kosong -- akun ini tak pernah melewati SSO.
+      const baris = await prisma.user.findUnique({
+        where: { id },
+        select: { jenisPengguna: true, opdId: true },
+      });
+      expect(baris?.jenisPengguna).toBeNull();
+      expect(baris?.opdId).not.toBeNull();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asKab())
+        .send({ roles: ['opd', 'responden'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.roles).toEqual(expect.arrayContaining(['opd']));
+    });
+
+    it('`bolehJadiAdminOpd` ikut terkirim, dan di luar produksi bernilai true', async () => {
+      const created = await buatAkun({
+        nama: 'Boleh Flag E2E',
+        email: 'boleh-flag@users.e2e.test',
+        roles: ['responden'],
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer()).get(`/api/v1/users/${id}`).set(asKab());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.bolehJadiAdminOpd).toBe(true);
+      // Status kepegawaiannya sendiri TIDAK ikut keluar.
+      expect(res.body.data).not.toHaveProperty('jenisPengguna');
+    });
+  });
 });

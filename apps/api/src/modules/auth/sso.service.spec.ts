@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JenisKelamin, Role } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
 import { AWALAN_KOLOM, dekripsiKolom } from '../../common/crypto/kolom';
 import { KUNCI_UJI } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -1411,5 +1411,162 @@ describe('SsoService — identitas pelapor dari klaim', () => {
     await service.completeLogin('kode-1', 'nonce-1', 'c');
 
     expect(prisma.user.update.mock.calls[0][0].data).not.toHaveProperty('jenisKelamin');
+  });
+});
+
+describe('SsoService — jenis pengguna & pencabutan peran OPD saat login', () => {
+  const DINKES = { id: 42, nama: 'Dinas Kesehatan' };
+  const DISKOMINFO = { id: 43, nama: 'Dinas Komunikasi dan Informatika' };
+
+  /**
+   * Satu login akun LAMA. Mengembalikan `data` yang dikirim ke
+   * `prisma.user.update`, karena di situlah seluruh keputusan berkas ini
+   * terlihat: apa yang ditulis, dan yang lebih penting, apa yang TIDAK ditulis.
+   */
+  const login = async (
+    m: Mocked,
+    profileOverrides: Partial<SsoProfile>,
+    rowOverrides: Record<string, unknown> = {},
+  ) => {
+    m.prisma.user.findFirst.mockResolvedValue(userRow(rowOverrides));
+    m.prisma.user.update.mockResolvedValue(userRow(rowOverrides));
+    m.source.exchangeCodeForProfile.mockResolvedValue(profil(profileOverrides));
+    await m.service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+    return m.prisma.user.update.mock.calls[0][0].data as Record<string, unknown>;
+  };
+
+  describe('menyimpan jenis pengguna', () => {
+    it('membaca `identity.user_type` yang BERSARANG (bentuk /api/oauth/userinfo)', async () => {
+      const m = buat();
+      const data = await login(m, { klaim: { identity: { user_type: 'asn' } } });
+      expect(data.jenisPengguna).toBe(JenisPengguna.asn);
+    });
+
+    it('membaca `user_type` yang RATA (bentuk /api/me)', async () => {
+      // Penyedia yang SAMA mengirim dua bentuk; lihat sso-identitas.mapper.ts.
+      const m = buat();
+      const data = await login(m, { klaim: { user_type: 'masyarakat' } });
+      expect(data.jenisPengguna).toBe(JenisPengguna.masyarakat);
+    });
+
+    it('klaim TIDAK ADA -> kuncinya tak muncul, nilai tersimpan tak terhapus', async () => {
+      // Menulis `null` adalah pernyataan "orang ini bukan ASN". Klaim yang
+      // hilang tidak pernah menyatakan itu.
+      const m = buat();
+      const data = await login(m, { klaim: {} });
+      expect(data).not.toHaveProperty('jenisPengguna');
+    });
+
+    it('nilai tak dikenali -> kuncinya tak muncul, bukan diterka', async () => {
+      const m = buat();
+      const data = await login(m, { klaim: { identity: { user_type: 'pegawai' } } });
+      expect(data).not.toHaveProperty('jenisPengguna');
+    });
+  });
+
+  describe('mencabut peran opd', () => {
+    it('OPD dari klaim BERBEDA dari yang tersimpan -> peran opd dicabut', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data.roles).toEqual([Role.responden]);
+    });
+
+    it('opdId BARU tetap ditulis bersama pencabutannya', async () => {
+      // Inilah yang membuat "sampai admin kab mengatur menjadi admin opd lagi"
+      // dapat dikerjakan segera: tautan instansi barunya sudah ada, jadi Admin
+      // Kabupaten tak perlu menunggu login kedua untuk menaikkannya.
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data.opdId).toBe(DISKOMINFO.id);
+    });
+
+    it('`user_type: masyarakat` -> peran opd dicabut walau instansinya tak berubah', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Kesehatan', identity: { user_type: 'masyarakat' } } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data.roles).toEqual([Role.responden]);
+    });
+
+    it('mencatat pencabutan ke audit_logs, bukan hanya ke log aplikasi', async () => {
+      // Perubahan hak akses yang terjadi tanpa ada manusia menekan apa pun
+      // WAJIB meninggalkan jejak yang dapat ditelusuri.
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { id: 9, roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(m.audit.record).toHaveBeenCalledWith(
+        9,
+        'sso_cabut_peran_opd',
+        'auth',
+        expect.objectContaining({ alasan: 'opd-berganti' }),
+      );
+    });
+  });
+
+  describe('TIDAK mencabut', () => {
+    it('klaim OPD TIDAK ADA -> `roles` tak ikut ditulis sama sekali', async () => {
+      // Penjaga terpenting di blok ini. Bila Helpdesk berhenti mengirim klaim,
+      // tak satu pun Admin OPD boleh kehilangan apa pun.
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+
+      const data = await login(
+        m,
+        { klaim: {} },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data).not.toHaveProperty('roles');
+    });
+
+    it('OPD dari klaim SAMA -> `roles` tak ikut ditulis', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Kesehatan' } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data).not.toHaveProperty('roles');
+    });
+
+    it('akun yang tak berperan opd -> `roles` tak ikut ditulis', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { roles: [Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data).not.toHaveProperty('roles');
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { ApiHideProperty } from '@nestjs/swagger';
-import { JenisKelamin, Role } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
@@ -55,6 +55,21 @@ export class MeEntity extends BaseEntity<MeEntity> {
   nik: string | null;
   nomorHp: string | null;
   alamat: string | null;
+
+  /**
+   * TIDAK PERNAH KELUAR, dan hanya dideklarasikan agar dapat ditahan.
+   *
+   * Kolom `users.jenis_pengguna` (6 Oktober 2026) ikut tersebar `Object.assign`
+   * persis seperti `jenis_kelamin` di bawahnya -- TERUKUR: uji
+   * "TIDAK mengirim jenis pengguna" memerah begitu kolomnya lahir, sebelum
+   * penahan ini ada. Status kepegawaian seseorang tak digambar satu pun layar
+   * dari endpoint ini. Yang membutuhkan aturan ASN adalah halaman manajemen
+   * pengguna, dan ia menerima `bolehJadiAdminOpd` dari `GET /users` -- sebuah
+   * boolean, bukan statusnya.
+   */
+  @Exclude()
+  @ApiHideProperty()
+  jenisPengguna: JenisPengguna | null;
 
   /**
    * TIDAK PERNAH KELUAR, dan hanya dideklarasikan agar dapat ditahan.

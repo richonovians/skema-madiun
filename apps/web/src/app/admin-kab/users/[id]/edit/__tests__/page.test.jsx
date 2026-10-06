@@ -126,4 +126,40 @@ describe('Halaman Ubah Role Admin', () => {
     expect(adminKab).toBeChecked();
     expect(responden).toBeChecked();
   });
+
+  /**
+   * Gerbang ASN (6 Oktober 2026). Uji TINGKAT HALAMAN, dan itu yang menentukan:
+   * komponennya sudah terbukti menonaktifkan pilihan bila diberi `false`, tetapi
+   * tak ada artinya bila halaman ini tak pernah MENYALURKAN nilai itu dari
+   * backend. Tanpa uji ini, propnya bisa hilang dari `page.jsx` tanpa satu pun
+   * uji memerah.
+   */
+  it('menyalurkan `bolehJadiAdminOpd: false` dari backend ke pilihan perannya', async () => {
+    // Akun yang BELUM berperan opd -- pilihan yang dilarang hanya pemberian,
+    // bukan pencabutan.
+    server.use(
+      http.get(`${API_BASE}/users/:id`, () =>
+        ok({ ...TARGET, roles: ['responden'], bolehJadiAdminOpd: false }, '/users/22'),
+      ),
+    );
+    render(<EditUserPage />);
+
+    await screen.findByLabelText(NAMA);
+
+    expect(screen.getByLabelText('Admin OPD')).toBeDisabled();
+    expect(screen.getByText(/hanya untuk akun ASN/i)).toBeInTheDocument();
+  });
+
+  it('`bolehJadiAdminOpd: true` membiarkan pilihannya seperti biasa', async () => {
+    server.use(
+      http.get(`${API_BASE}/users/:id`, () =>
+        ok({ ...TARGET, roles: ['responden'], bolehJadiAdminOpd: true }, '/users/22'),
+      ),
+    );
+    render(<EditUserPage />);
+
+    await screen.findByLabelText(NAMA);
+
+    expect(screen.getByLabelText('Admin OPD')).not.toBeDisabled();
+  });
 });

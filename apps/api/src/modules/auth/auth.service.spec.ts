@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JenisKelamin, Role } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -130,6 +130,25 @@ describe('AuthService', () => {
 
       expect(sesi.user.consentRequired).toBe(true);
       expect(sesi.user.ssoLinked).toBe(false);
+    });
+
+    /**
+     * JALUR KEDUA kolom `jenis_pengguna` keluar ke klien, dan ia tidak terlihat
+     * dari `getMe`: `devLogin` membungkus `MeEntity` di dalam `SessionEntity`,
+     * jadi yang harus bekerja adalah `@Exclude()` pada entity BERSARANG.
+     * Penahan yang benar di satu jalur tak membuktikan apa pun tentang jalur
+     * lain -- dan respons dev-login inilah yang dibaca frontend saat masuk.
+     */
+    it('jenis pengguna TIDAK bocor lewat SessionEntity dev-login', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        userRow({ jenisPengguna: JenisPengguna.asn }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
+
+      const sesi = await service.devLogin({ identifier: 'a@x.go.id' });
+      const keluar = instanceToPlain(sesi) as { user: Record<string, unknown> };
+
+      expect(keluar.user).not.toHaveProperty('jenisPengguna');
     });
 
     it('consentAt sendiri TIDAK ikut keluar', async () => {
@@ -374,6 +393,7 @@ describe('AuthService.getMe -- identitas dari akun', () => {
       nomorHp: enkripsiKolom('+62895396662038', KUNCI),
       alamat: enkripsiKolom('Dusun Timang Desa Waduk', KUNCI),
       jenisKelamin: JenisKelamin.perempuan,
+      jenisPengguna: JenisPengguna.asn,
       ...over,
     });
 
@@ -420,6 +440,22 @@ describe('AuthService.getMe -- identitas dari akun', () => {
     const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
 
     expect(keluar).not.toHaveProperty('jenisKelamin');
+  });
+
+  /**
+   * Alasan yang sama seperti jenis kelamin di atas, dan kolomnya lahir dengan
+   * jebakan yang sama: `jenis_pengguna` (6 Oktober 2026) ikut tersebar
+   * `Object.assign` tanpa ada yang memutuskan mengirimkannya. Status kepegawaian
+   * seseorang tak digambar satu pun layar dari endpoint ini; yang membutuhkan
+   * aturan ASN adalah halaman manajemen pengguna, dan ia menerima
+   * `bolehJadiAdminOpd` dari `GET /users` -- sebuah boolean, bukan statusnya.
+   */
+  it('TIDAK mengirim jenis pengguna (ASN atau warga)', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
+
+    expect(keluar).not.toHaveProperty('jenisPengguna');
   });
 
   it('kolom yang kosong tetap null, bukan string kosong', async () => {
