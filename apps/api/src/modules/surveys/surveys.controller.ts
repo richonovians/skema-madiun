@@ -62,6 +62,7 @@ export class SurveysController {
    * urutan registrasi, sehingga literal `active` harus mendahului param `:id`.
    */
   @Get('active')
+  @ApiOperation({ summary: 'Daftar survei aktif yang dapat dipilih responden.' })
   @Roles(Role.responden)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
   findActive(@Query() query: ListActiveSurveyQueryDto): Promise<PaginatedResult<SurveyEntity>> {
@@ -74,6 +75,7 @@ export class SurveysController {
    * mendahului param `:id`. Alasan yang sama berlaku bagi `active` di atas.
    */
   @Get('trash')
+  @ApiOperation({ summary: 'Isi Sampah: survei yang dibuang dan belum dimusnahkan.' })
   @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: TrashedSurveyEntity, isArray: true })
   findTrashed(
@@ -128,6 +130,9 @@ export class SurveysController {
    * permanennya ada di `DELETE /surveys/:id/purge`.
    */
   @Delete(':id')
+  @ApiOperation({
+    summary: 'Buang survei ke Sampah (soft delete). Pemusnahan permanen ada di /surveys/:id/purge.',
+  })
   @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @HttpCode(HttpStatus.OK)
@@ -163,6 +168,7 @@ export class SurveysController {
    * dan ia lebih penting daripada uji jalur bahagianya.
    */
   @Delete(':id/purge')
+  @ApiOperation({ summary: 'Musnahkan survei permanen dari Sampah. Tidak dapat dibatalkan.' })
   @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'purge')
   @HttpCode(HttpStatus.OK)

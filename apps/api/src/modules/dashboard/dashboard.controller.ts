@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -25,6 +25,9 @@ export class DashboardController {
    * permintaan pengguna). Yang berubah cuma lapis mana yang menjawab 403.
    */
   @Get('dashboard/opd')
+  @ApiOperation({
+    summary: 'Ringkasan dashboard satu OPD: IKM terbaru, tiket aktif, SLA, dan umpan balik.',
+  })
   @ApiBearerAuth()
   @Roles(Role.opd)
   @ApiOkResponse({ type: OpdDashboardEntity })

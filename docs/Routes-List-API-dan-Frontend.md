@@ -8,6 +8,20 @@
 | **Tanggal** | 28 Agustus 2026 (v2.1: 27 Agustus 2026; v2.0: 5 Agustus 2026; v1.0: 13 Juli 2026) |
 | **Cakupan** | Kontrak routes REST API (Nest.js) & routes halaman frontend (Next.js) sesuai implementasi saat ini |
 
+> **CATATAN 6 Oktober 2026 — dokumen ini TIDAK lagi rujukan paling hidup.**
+>
+> Isinya dirawat tangan dan berhenti di 28 Agustus 2026. Sejak itu tiga hal
+> berubah dan belum tercermin di bawah: bypass `@Roles` milik Kabupaten
+> dibongkar (temuan audit T6, 7 September 2026), peran `superuser` dilebur ke
+> `kabupaten` dan nilai enumnya dibuang (15 September 2026), dan batas laju
+> global membuat `429` dapat terjadi di setiap endpoint.
+>
+> Sumber yang terbit otomatis dari kode: halaman **Dokumentasi API** di panel
+> Admin Kabupaten (`/admin-kab/dokumentasi-api`) dan dokumen mentahnya di
+> `GET /api/v1/dokumentasi/openapi`. Keduanya memuat peran, batas laju, skema
+> permintaan dan respons, serta contoh respons berhasil dan gagal. Bila daftar
+> di bawah berselisih dengan keduanya, yang benar adalah keduanya.
+
 Dokumen ini adalah **rujukan resmi** daftar routes. Versi 1.0 ditulis di awal perencanaan dan sejak itu **arsitektur berubah signifikan** (autentikasi lokal digantikan SSO Helpdesk, OPD jadi cache read-only) — versi ini menggantikannya dengan apa yang sungguhan berjalan di kode. Swagger (`/api/docs`) tetap kontrak paling hidup untuk detail request/response; dokumen ini untuk peta cepat.
 
 **Konvensi umum:**
@@ -15,8 +29,8 @@ Dokumen ini adalah **rujukan resmi** daftar routes. Versi 1.0 ditulis di awal pe
 - Autentikasi: sesi lokal berbasis JWT, diterbitkan sistem sendiri setelah login SSO Helpdesk (OAuth2) — **bukan** JWT dari Helpdesk langsung. Dua cara penyerahan, keduanya berlaku: cookie **`session` HttpOnly** (jalur SSO, lihat A.1) atau header `Authorization: Bearer <token>` (jalur `dev-login`, non-produksi, 404 di produksi). Bila keduanya ada, header didahulukan.
 - Format data: `application/json` (kecuali unggah lampiran pengaduan: `multipart/form-data`; unduhan ekspor hasil IKM: file biner mentah)
 - **Envelope respons sukses baku**: `{ success, statusCode, message, data, meta }`. Endpoint list menyisipkan `meta.pagination = { total, page, limit, totalPages }`. Endpoint unduhan (`/results/export`) mengembalikan file mentah, bukan envelope.
-- Kode status: `200` OK, `201` Created, `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict
-- Peran: `responden`, `opd`, `kabupaten` (= superuser, digabung 2026-08-05 — bypass seluruh `@Roles`, melampaui kolom Peran di tabel bawah, tidak dicantumkan berulang)
+- Kode status: `200` OK, `201` Created, `400` Bad Request, `401` Unauthorized, `403` Forbidden, `404` Not Found, `409` Conflict, `429` Too Many Requests (batas laju global berlaku di setiap endpoint)
+- Peran: `responden`, `opd`, `kabupaten`. **Kabupaten TIDAK lagi mem-bypass `@Roles`** — bypass menyeluruh itu dibongkar pada temuan audit T6 (7 September 2026), dan `@Roles` kini ditegakkan apa adanya (fail-closed). Peran `superuser` dilebur ke `kabupaten` pada 15 September 2026 dan nilai enumnya dibuang. Kolom Peran di tabel bawah karena itu mengikat, bukan indikatif.
 
 ---
 

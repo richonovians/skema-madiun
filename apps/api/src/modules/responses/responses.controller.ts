@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
@@ -45,6 +51,7 @@ export class ResponsesController {
    * `audit-warga.e2e-spec.ts`.
    */
   @Post('surveys/:surveyId/responses')
+  @ApiOperation({ summary: 'Kirim jawaban survei. Pengiriman ganda dibalas 409.' })
   @Roles(Role.responden)
   @Audit('response')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -65,6 +72,7 @@ export class ResponsesController {
    * yang di sini hanya akan melihat riwayatnya sendiri.
    */
   @Get('me/survey-responses')
+  @ApiOperation({ summary: 'Riwayat survei yang sudah diisi pengguna yang sedang masuk.' })
   @Roles(Role.responden)
   @ApiOkResponse({ type: MyResponseEntity, isArray: true })
   findMine(

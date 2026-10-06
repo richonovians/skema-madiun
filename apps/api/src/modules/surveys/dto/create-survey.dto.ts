@@ -41,7 +41,7 @@ export class CreateSurveyDto {
 
   @ApiPropertyOptional({
     description:
-      'OPD tujuan — hanya dipakai oleh kabupaten (=superuser; Admin OPD memakai OPD-nya sendiri)',
+      'OPD tujuan — hanya dipakai oleh Admin Kabupaten; Admin OPD memakai OPD-nya sendiri',
   })
   @IsOptional()
   @IsInt()

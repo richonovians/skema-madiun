@@ -16,6 +16,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { SessionRefreshInterceptor } from './modules/auth/session/session-refresh.interceptor';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DokumentasiModule } from './modules/dokumentasi/dokumentasi.module';
 import { IkmModule } from './modules/ikm/ikm.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpdModule } from './modules/opd/opd.module';
@@ -60,6 +61,7 @@ import { UsersModule } from './modules/users/users.module';
     ReferenceModule,
     DashboardModule,
     NotificationsModule,
+    DokumentasiModule,
   ],
   controllers: [AppController],
   providers: [

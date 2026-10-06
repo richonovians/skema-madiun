@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ComplaintCategoryEntity } from './entities/complaint-category.entity';
@@ -27,6 +27,7 @@ export class ReferenceController {
    * bersama taksonomi sub-kategori (D12/INT-42) -- lihat reference.constants.ts.
    */
   @Get('complaint-categories')
+  @ApiOperation({ summary: 'Daftar kategori baku pengaduan.' })
   @ApiOkResponse({ type: ComplaintCategoryEntity, isArray: true })
   getComplaintCategories(): ComplaintCategoryEntity[] {
     return this.referenceService.getComplaintCategories();
