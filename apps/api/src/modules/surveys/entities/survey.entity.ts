@@ -22,6 +22,13 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   /** Nilai IKM live-compute (null bila belum ada unsur/responden). Hanya diisi pada `GET /surveys` (INT-9). */
   nilaiIkm?: number | null;
   /**
+   * Rata-rata SEMUA jawaban skala (1-4) pada survei ini, atau `null` bila belum
+   * ada jawaban skala (7 Oktober 2026). BEDA dari `nilaiIkm`: tetap terisi untuk
+   * survei tanpa 9 unsur baku yang IKM-nya `null`. Diisi pada `GET /surveys` dan
+   * `GET /surveys/:id`, bersama `nilaiIkm`.
+   */
+  nilaiRataRata?: number | null;
+  /**
    * Kapan respons TERAKHIR masuk ke survei ini, atau `null` bila belum ada satu
    * pun (4 Oktober 2026). Hanya diisi pada `GET /surveys/:id`.
    *

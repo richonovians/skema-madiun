@@ -101,6 +101,7 @@ export default function SurveyMonitoringTable({
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">PERIODE</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">RESPONDEN</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NILAI IKM</th>
+            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NILAI RATA-RATA</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
           </tr>
@@ -108,7 +109,7 @@ export default function SurveyMonitoringTable({
         <tbody className="divide-y divide-outline-variant">
           {surveys.length === 0 ? (
             <tr>
-              <td colSpan="7" className="text-center py-xl text-text-secondary">
+              <td colSpan="8" className="text-center py-xl text-text-secondary">
                 Tidak ada survei yang ditemukan.
               </td>
             </tr>
@@ -163,6 +164,19 @@ export default function SurveyMonitoringTable({
                   <td className="px-lg py-lg">
                     <span className="font-bold text-on-surface">
                       {survey.ikmScore != null ? survey.ikmScore.toFixed(2) : '-'}
+                    </span>
+                  </td>
+
+                  {/* NILAI RATA-RATA (7 Oktober 2026, permintaan pengguna):
+                      rata-rata SEMUA jawaban skala (1-4), BUKAN IKM. Kolom
+                      sendiri, bukan pengganti: IKM menuntut 9 unsur baku, jadi
+                      survei yang unsur bakunya dihapus menampilkan "-" di
+                      kolom IKM padahal jawabannya ada. Draf dan survei yang
+                      belum dijawab tak punya jawaban skala, jadi "-" -- bukan
+                      0,00 yang terbaca sebagai hasil ukur terburuk. */}
+                  <td className="px-lg py-lg">
+                    <span className="font-bold text-on-surface">
+                      {survey.averageScore != null ? survey.averageScore.toFixed(2) : '-'}
                     </span>
                   </td>
 

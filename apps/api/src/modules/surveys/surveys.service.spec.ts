@@ -116,6 +116,26 @@ describe('SurveysService', () => {
     expect(ikmService.getSummary).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
+  it('findAll menyisipkan nilaiRataRata, juga untuk survei yang IKM-nya null (tanpa 9 unsur baku)', async () => {
+    // Di data pengembangan, survei aktif yang sudah menerima jawaban tetapi tak
+    // memuat 9 unsur baku menampilkan "-" di setiap layar. Rata-rata jawaban
+    // skalanya tetap terhitung, dan tabel survei Kabupaten membacanya dari sini.
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [surveyRow({ id: 7 }), surveyRow({ id: 8 })],
+      2,
+    ]);
+    (ikmService.getSummary as jest.Mock)
+      .mockResolvedValueOnce({ respondentsCount: 5, nilaiIkm: null, nilaiRataRata: 3.84 })
+      .mockResolvedValueOnce({ respondentsCount: 0, nilaiIkm: null, nilaiRataRata: null });
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListSurveyQueryDto, opdUser(5));
+
+    expect(result.items[0].nilaiIkm).toBeNull();
+    expect(result.items[0].nilaiRataRata).toBe(3.84);
+    // Tak ada jawaban skala -> null, bukan 0.
+    expect(result.items[1].nilaiRataRata).toBeNull();
+  });
+
   it('findActive (INT-17) menyisipkan opdNama & questionsCount, tanpa membocorkan objek opd/_count mentah', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([
       [
@@ -192,6 +212,21 @@ describe('SurveysService', () => {
     const hasil = await service.findOne(1, opdUser(5));
 
     expect(hasil.respondentsCount).toBe(142);
+  });
+
+  it('findOne menyertakan nilaiRataRata (kartu ringkasan halaman respons membacanya dari sini)', async () => {
+    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+      surveyRow({ status: SurveyStatus.aktif }),
+    );
+    (ikmService.getSummary as jest.Mock).mockResolvedValue({
+      respondentsCount: 5,
+      nilaiIkm: null,
+      nilaiRataRata: 3.84,
+    });
+
+    const hasil = await service.findOne(1, opdUser(5));
+
+    expect(hasil.nilaiRataRata).toBe(3.84);
   });
 
   /**

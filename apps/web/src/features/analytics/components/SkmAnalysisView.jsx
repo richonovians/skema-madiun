@@ -35,8 +35,11 @@ export default function SkmAnalysisView({
         </p>
       )}
 
-      {/* Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-lg">
+      {/* Summary Metrics. Empat kartu sejak 7 Oktober 2026 (Nilai Rata-Rata
+          ditambahkan): `sm:grid-cols-2 xl:grid-cols-4`, bukan `md:grid-cols-4`,
+          karena sidebar admin memakan 256px di md dan empat kartu sejajar di
+          lebar itu terlalu sempit untuk judul kartu yang panjang. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-lg">
         <div className="bg-white/95 backdrop-blur rounded-xl p-lg flex flex-col justify-between h-32 shadow-sm border border-border border-l-4 border-l-primary">
           <span className="text-label-md text-secondary uppercase tracking-wider font-semibold">Nilai IKM (Indeks Kepuasan Masyarakat)</span>
           <div className="flex items-baseline gap-sm">
@@ -48,6 +51,23 @@ export default function SkmAnalysisView({
                 <TrendingUp size={16} className="mr-1" />
                 {metrics.ikm.trend}
               </span>
+            )}
+          </div>
+        </div>
+
+        {/* NILAI RATA-RATA (7 Oktober 2026): rata-rata SEMUA jawaban skala, skala
+            1-4, BUKAN IKM. Kartu sendiri di samping IKM, bukan pengganti: IKM
+            menuntut 9 unsur baku dan "-" untuk survei yang tak memuatnya,
+            sedangkan rata-rata ini tetap terhitung selama ada jawaban skala.
+            `?.` karena pemanggil/tes lama membentuk `metrics` tanpa kuncinya. */}
+        <div className="bg-white/95 backdrop-blur rounded-xl p-lg flex flex-col justify-between h-32 shadow-sm border border-border border-l-4 border-l-secondary">
+          <span className="text-label-md text-secondary uppercase tracking-wider font-semibold">Nilai Rata-Rata</span>
+          <div className="flex items-baseline gap-sm">
+            <span className="font-headline-lg text-headline-lg text-on-surface">
+              {metrics.averageScore?.value != null ? metrics.averageScore.value.toFixed(2) : '-'}
+            </span>
+            {metrics.averageScore?.value != null && (
+              <span className="text-label-md text-secondary font-semibold">/ 4</span>
             )}
           </div>
         </div>
@@ -95,7 +115,12 @@ export default function SkmAnalysisView({
         </div>
         {!hasResponden ? (
           <div className="py-2xl text-center text-secondary">
-            Belum ada responden yang mengisi survei ini. NRR per unsur baru dapat dihitung setelah ada jawaban masuk.
+            {jumlahResponden > 0
+              ? /* Ada responden, tetapi tak ada unsur baku untuk dirata-ratakan.
+                   "Belum ada responden" di sini keliru dan bertentangan dengan
+                   kartu Total Responden dan Nilai Rata-Rata di atasnya. */
+                'Survei ini tidak memuat 9 unsur baku, sehingga NRR per unsur tidak dapat dihitung. Nilai rata-rata seluruh jawaban skala tetap ditampilkan di atas.'
+              : 'Belum ada responden yang mengisi survei ini. NRR per unsur baru dapat dihitung setelah ada jawaban masuk.'}
           </div>
         ) : (
           <div className="overflow-x-auto">

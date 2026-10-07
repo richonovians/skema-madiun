@@ -213,3 +213,137 @@ describe('SurveyMonitoringTable — aksi memanggil penanganya', () => {
     expect(menu.getByRole('menuitem', { name: /detail/i })).not.toBeDisabled();
   });
 });
+
+/**
+ * KOLOM NILAI RATA-RATA (7 Oktober 2026, permintaan pengguna: "tampilkan nilai
+ * rata-rata di tabel pada halaman admin-kab/surveys").
+ *
+ * Rata-rata SEMUA jawaban skala (1-4), BUKAN IKM. Kolom sendiri di samping
+ * NILAI IKM, bukan pengganti: IKM menuntut 9 unsur baku, jadi survei yang
+ * unsur bakunya dihapus menampilkan "-" di kolom IKM padahal jawabannya ada.
+ */
+describe('SurveyMonitoringTable — kolom nilai rata-rata', () => {
+  it('memuat kepala kolom NILAI RATA-RATA di samping NILAI IKM', () => {
+    render1([survei(1, 'Survei Aktif', 'AKTIF')]);
+
+    const kepala = screen.getAllByRole('columnheader').map((th) => th.textContent);
+
+    expect(kepala).toContain('NILAI IKM');
+    expect(kepala).toContain('NILAI RATA-RATA');
+    expect(kepala.indexOf('NILAI RATA-RATA')).toBe(kepala.indexOf('NILAI IKM') + 1);
+  });
+
+  it('menampilkan nilainya dengan dua desimal', () => {
+    render1([survei(1, 'Survei Aktif', 'AKTIF', { averageScore: 3.8 })]);
+
+    expect(within(baris('Survei Aktif')).getByText('3.80')).toBeInTheDocument();
+  });
+
+  it('survei TANPA 9 unsur baku: IKM "-" tetapi nilai rata-rata tetap tampil', () => {
+    // Kasus yang melahirkan kolom ini.
+    render1([survei(1, 'Survei Aktif', 'AKTIF', { ikmScore: null, averageScore: 3.84 })]);
+    const sel = within(baris('Survei Aktif'));
+
+    expect(sel.getByText('3.84')).toBeInTheDocument();
+    expect(sel.getByText('-')).toBeInTheDocument(); // satu-satunya "-": kolom IKM
+  });
+
+  it('belum ada jawaban skala -> "-", BUKAN 0.00', () => {
+    // 0,00 terbaca sebagai hasil ukur terburuk; skala dimulai dari 1.
+    render1([survei(1, 'Survei Draf', 'DRAF', { ikmScore: null, averageScore: null })]);
+    const sel = within(baris('Survei Draf'));
+
+    expect(sel.queryByText('0.00')).toBeNull();
+    expect(sel.getAllByText('-').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('dipagari PER BARIS, bukan oleh nilai baris pertama', () => {
+    render1([
+      survei(1, 'Survei Satu', 'AKTIF', { averageScore: 3.5 }),
+      survei(2, 'Survei Dua', 'AKTIF', { averageScore: 2.1 }),
+    ]);
+
+    expect(within(baris('Survei Satu')).getByText('3.50')).toBeInTheDocument();
+    expect(within(baris('Survei Dua')).getByText('2.10')).toBeInTheDocument();
+    expect(within(baris('Survei Dua')).queryByText('3.50')).toBeNull();
+  });
+
+  it('baris "tidak ada survei" melintasi SELURUH kolom, termasuk yang baru', () => {
+    // colSpan yang tak ikut bertambah meninggalkan satu sel kosong di kanan.
+    const { container } = render1([]);
+
+    const jumlahKolom = container.querySelectorAll('thead th').length;
+
+    expect(container.querySelector('tbody td[colspan]')).toHaveAttribute(
+      'colspan',
+      String(jumlahKolom),
+    );
+  });
+});
+
+describe('SurveyMonitoringTable — survei utama (7 Oktober 2026)', () => {
+  it('menampilkan lencana "Survei Utama" hanya pada baris yang utama', () => {
+    // Judul sengaja TANPA kata "utama" supaya /survei utama/i hanya cocok dengan
+    // lencananya, bukan dengan teks judulnya.
+    render1([
+      survei(1, 'Survei Andalan', 'AKTIF', { isUtama: true }),
+      survei(2, 'Survei Biasa', 'AKTIF'),
+    ]);
+
+    expect(within(baris('Survei Andalan')).getByText(/survei utama/i)).toBeInTheDocument();
+    expect(within(baris('Survei Biasa')).queryByText(/survei utama/i)).not.toBeInTheDocument();
+  });
+
+  it('"Jadikan Utama" ditawarkan pada DRAF & AKTIF yang belum utama', () => {
+    for (const status of ['DRAF', 'AKTIF']) {
+      const { unmount } = render1([survei(1, `Survei ${status}`, status)]);
+
+      expect(
+        within(bukaMenu(`Survei ${status}`)).getByRole('menuitem', { name: /jadikan utama/i }),
+      ).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('"Jadikan Utama" TIDAK ditawarkan pada survei DITUTUP (ditolak backend)', () => {
+    render1([survei(1, 'Survei Ditutup', 'DITUTUP')]);
+
+    expect(
+      within(bukaMenu('Survei Ditutup')).queryByRole('menuitem', { name: /jadikan utama/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('"Jadikan Utama" TIDAK ditawarkan pada survei yang SUDAH utama', () => {
+    // Lencana sudah menandainya; menunjuk ulang survei yang sama tak berarti.
+    render1([survei(1, 'Survei Sudah Utama', 'AKTIF', { isUtama: true })]);
+
+    expect(
+      within(bukaMenu('Survei Sudah Utama')).queryByRole('menuitem', { name: /jadikan utama/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('memilih "Jadikan Utama" meneruskan baris yang dipilih', () => {
+    const onJadikanUtama = jest.fn();
+    render1([survei(12, 'Survei Aktif', 'AKTIF')], { onJadikanUtama });
+
+    fireEvent.click(
+      within(bukaMenu('Survei Aktif')).getByRole('menuitem', { name: /jadikan utama/i }),
+    );
+
+    expect(onJadikanUtama).toHaveBeenCalledWith(expect.objectContaining({ id: '12' }));
+  });
+
+  it('"Jadikan Utama" dipagari PER BARIS, bukan oleh status baris pertama', () => {
+    // Baris pertama utama (butirnya hilang), baris kedua belum (butirnya ada).
+    // Pemagaran yang keliru memakai satu baris untuk seluruh tabel akan lolos
+    // uji per-baris di atas.
+    render1([
+      survei(1, 'Sudah Utama', 'AKTIF', { isUtama: true }),
+      survei(2, 'Belum Utama', 'AKTIF'),
+    ]);
+
+    expect(
+      within(bukaMenu('Belum Utama')).getByRole('menuitem', { name: /jadikan utama/i }),
+    ).toBeInTheDocument();
+  });
+});

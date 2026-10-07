@@ -60,6 +60,10 @@ describe('IkmService', () => {
       findMany: jest.fn().mockResolvedValue([]),
     },
     question: { findMany: jest.fn() },
+    // Bawaannya "belum ada jawaban skala": tes yang tak peduli rata-rata tak
+    // perlu tahu. `clearAllMocks` tak menghapus implementasi, jadi tes yang
+    // mengubahnya WAJIB memakai `...Once` supaya tak bocor ke tes berikutnya.
+    answer: { aggregate: jest.fn().mockResolvedValue({ _avg: { nilai: null } }) },
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
     complaint: { count: jest.fn().mockResolvedValue(0) },
@@ -161,7 +165,7 @@ describe('IkmService', () => {
 
       const result = await service.getSummary(survey() as never);
 
-      expect(result).toEqual({ respondentsCount: 2, nilaiIkm: 100 });
+      expect(result).toEqual({ respondentsCount: 2, nilaiIkm: 100, nilaiRataRata: null });
     });
 
     it('belum ada responden → nilaiIkm null, respondentsCount 0', async () => {
@@ -170,7 +174,7 @@ describe('IkmService', () => {
 
       const result = await service.getSummary(survey() as never);
 
-      expect(result).toEqual({ respondentsCount: 0, nilaiIkm: null });
+      expect(result).toEqual({ respondentsCount: 0, nilaiIkm: null, nilaiRataRata: null });
     });
 
     it('TIDAK memanggil prisma.survey.findUnique (survey sudah dipunyai caller)', async () => {
@@ -180,6 +184,97 @@ describe('IkmService', () => {
       await service.getSummary(survey() as never);
 
       expect(prisma.survey.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * NILAI RATA-RATA (7 Oktober 2026, permintaan pengguna: tampilkan nilai
+   * rata-rata di halaman respons, tabel survei, dan statistik).
+   *
+   * Rata-rata SEMUA jawaban skala (1-4), dan BUKAN IKM. Di data pengembangan
+   * empat survei aktif yang sudah menerima jawaban tak punya 9 unsur baku,
+   * sehingga IKM-nya `null` dan setiap layar menampilkan "-" -- padahal
+   * jawabannya ada. Itu kasus yang dijaga di sini.
+   */
+  describe('nilai rata-rata', () => {
+    const rataRata = (nilai: number | null) =>
+      (prisma.answer.aggregate as jest.Mock).mockResolvedValueOnce({ _avg: { nilai } });
+
+    it('dibulatkan dua desimal', async () => {
+      rataRata(3.842105);
+
+      await expect(service.hitungNilaiRataRata(7)).resolves.toBe(3.84);
+    });
+
+    it('belum ada jawaban skala -> null, BUKAN 0', async () => {
+      // 0 terbaca sebagai hasil ukur terburuk; skala dimulai dari 1.
+      rataRata(null);
+
+      await expect(service.hitungNilaiRataRata(7)).resolves.toBeNull();
+    });
+
+    it('hanya menghitung jawaban skala yang berNILAI, pada survei yang diminta', async () => {
+      rataRata(3);
+
+      await service.hitungNilaiRataRata(7);
+
+      expect(prisma.answer.aggregate).toHaveBeenCalledWith({
+        where: {
+          nilai: { not: null },
+          question: { tipe: 'skala' },
+          response: { surveyId: 7 },
+        },
+        _avg: { nilai: true },
+      });
+    });
+
+    it('getSummary: survei TANPA unsur baku -> IKM null tetapi rata-rata TERISI', async () => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]); // tak ada unsur baku
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(5);
+      rataRata(3.84);
+
+      const result = await service.getSummary(survey() as never);
+
+      expect(result).toEqual({ respondentsCount: 5, nilaiIkm: null, nilaiRataRata: 3.84 });
+    });
+
+    it('getSummary: survei ber-IKM memuat KEDUANYA, dan angkanya boleh berbeda', async () => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue(
+        unsurQuestions(Array.from({ length: 9 }, () => [4, 4])),
+      );
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+      // Satu pertanyaan skala tambahan di luar sembilan unsur menurunkan rata-rata
+      // semua jawaban, sementara IKM hanya melihat sembilan unsur.
+      rataRata(3.7);
+
+      const result = await service.getSummary(survey() as never);
+
+      expect(result.nilaiIkm).toBe(100);
+      expect(result.nilaiRataRata).toBe(3.7);
+    });
+
+    it('getResults memuat nilaiRataRata, juga saat survei belum dapat dinilai IKM-nya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(4);
+      rataRata(3.13);
+
+      const result = await service.getResults(1, kabupatenUser());
+
+      expect(result.nilaiIkm).toBeNull();
+      expect(result.nilaiRataRata).toBe(3.13);
+    });
+
+    it('computeResult TIDAK menghitung rata-rata: dashboard & statistik publik tak membutuhkannya', async () => {
+      // Dashboard dan GET /statistics memanggil computeResult untuk setiap survei
+      // aktif; menaruh agregat ini di sana menambah satu kueri per survei pada
+      // jalur yang tak memakainya.
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+
+      await service.computeResult(survey() as never);
+
+      expect(prisma.answer.aggregate).not.toHaveBeenCalled();
     });
   });
 

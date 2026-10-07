@@ -177,6 +177,10 @@ describe('IKM (e2e)', () => {
     expect(res.body.data.jumlahResponden).toBe(0);
     expect(res.body.data.nilaiIkm).toBeNull();
     expect(res.body.data.mutu).toBeNull();
+    // `toBeNull`, bukan `toBeFalsy`: kuncinya HARUS ada. Field yang hilang dari
+    // respons (undefined) berarti serializer tak mengeluarkannya, dan itu
+    // kegagalan yang berbeda dari "belum ada jawaban skala".
+    expect(res.body.data.nilaiRataRata).toBeNull();
   });
 
   it('GET /surveys/:id/results (Admin OPD lain) -> 403', async () => {
@@ -208,6 +212,34 @@ describe('IKM (e2e)', () => {
     expect(res.body.data.nilaiIkm).toBe(100);
     expect(res.body.data.mutu).toBe('A');
     expect(res.body.data.nrrPerUnsur).toHaveLength(2);
+    // Semua jawaban skala bernilai 4 -> rata-ratanya 4.
+    expect(res.body.data.nilaiRataRata).toBe(4);
+  });
+
+  /**
+   * NILAI RATA-RATA di respons HTTP sungguhan (7 Oktober 2026). Kueri agregatnya
+   * sudah diuji terhadap DB pengembangan, tetapi tak satu pun uji sebelumnya
+   * membuktikan bahwa kuncinya KELUAR di jawaban `GET /surveys` dan
+   * `GET /surveys/:id` -- jalur yang dibaca tabel survei Kabupaten dan kartu
+   * ringkasan halaman respons.
+   */
+  it('GET /surveys/:id dan GET /surveys memuat nilaiRataRata', async () => {
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/surveys/${surveyId}`)
+      .set(opdHeaders());
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.nilaiRataRata).toBe(4);
+
+    const daftar = await request(app.getHttpServer())
+      .get('/api/v1/surveys')
+      .query({ limit: 100 })
+      .set(opdHeaders());
+    expect(daftar.status).toBe(200);
+    const baris = (daftar.body.data as { id: number; nilaiRataRata: number | null }[]).find(
+      (s) => s.id === surveyId,
+    );
+    expect(baris).toBeDefined();
+    expect(baris?.nilaiRataRata).toBe(4);
   });
 
   it('menutup survei -> snapshot tersimpan di ikm_results', async () => {

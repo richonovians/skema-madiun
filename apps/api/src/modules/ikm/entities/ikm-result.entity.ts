@@ -21,5 +21,14 @@ export class IkmResultEntity extends BaseEntity<IkmResultEntity> {
   nrrPerUnsur: IkmUnsurEntity[];
   nilaiIkm: number | null;
   mutu: IkmMutu | null;
+  /**
+   * Rata-rata SEMUA jawaban skala (1-4) pada survei ini, atau `null` bila belum
+   * ada jawaban skala (7 Oktober 2026). Beda dari `nilaiIkm`: tetap ada untuk
+   * survei tanpa 9 unsur baku, yang IKM-nya `null`. Hanya diisi
+   * `IkmService.getResults` (`GET /surveys/:id/results`); `computeResult` tak
+   * mengisinya karena dashboard dan statistik publik ikut memanggilnya dan
+   * tak membutuhkan angka ini.
+   */
+  nilaiRataRata?: number | null;
   dihitungPada: Date;
 }

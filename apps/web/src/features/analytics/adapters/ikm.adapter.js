@@ -26,6 +26,13 @@ export function adaptIkmMetrics(result) {
       trend: null, // gap: butuh data historis, lihat catatan di atas
       status: null,
     },
+    // Rata-rata SEMUA jawaban skala (1-4), BUKAN IKM (7 Oktober 2026). Tetap
+    // terisi untuk survei tanpa 9 unsur baku, yang `ikm.value`-nya null. `?? null`:
+    // respons dari backend lama tak membawa kuncinya, dan `undefined` yang lolos
+    // akan menyeberang ke komponen sebagai nilai bertipe tak menentu.
+    averageScore: {
+      value: result.nilaiRataRata ?? null,
+    },
     totalRespondents: {
       value: result.jumlahResponden,
       badge: null,

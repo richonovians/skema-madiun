@@ -157,6 +157,11 @@ export function adaptSurvey(survey) {
     period: survey.periode,
     respondentsCount: survey.respondentsCount ?? 0,
     ikmScore: survey.nilaiIkm ?? null,
+    // Rata-rata SEMUA jawaban skala (1-4) pada survei ini (7 Oktober 2026).
+    // BEDA dari `ikmScore`: tetap terisi untuk survei tanpa 9 unsur baku yang
+    // IKM-nya null, dan definisinya sama dengan `averageScore` per respons di
+    // `adaptSurveyResponse`. `null` berarti belum ada jawaban skala -- bukan nol.
+    averageScore: survey.nilaiRataRata ?? null,
     // Kapan respons TERAKHIR masuk, dihitung backend atas seluruh respons
     // (4 Oktober 2026). Hanya `GET /surveys/:id` yang mengisinya; pada daftar
     // ia memang tak ada, dan `null` di sana berarti "tak diambil", bukan

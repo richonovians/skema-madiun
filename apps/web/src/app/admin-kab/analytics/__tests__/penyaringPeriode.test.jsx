@@ -1,5 +1,5 @@
 import React from 'react';
-import { configure, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { complaintFixture, handlers, ok, paginated, surveyFixture } from '@/mocks/handlers';
@@ -75,6 +75,7 @@ const pasangSurvei = (daftar = SURVEI) => {
           periode: survei?.periode,
           jumlahResponden: 5,
           nilaiIkm: 80,
+          nilaiRataRata: 3.2,
           mutu: 'B',
           nrrPerUnsur: [{ kode: 'U1', teks: 'Persyaratan', nrr: 3.2, nrrTertimbang: 0.35 }],
         },
@@ -168,6 +169,53 @@ describe('Tab Analisis SKM — pemilih survei mengikuti penyaring periode', () =
     render(<AnalyticsKabPage />);
 
     await waitFor(() => expect(screen.getByText(/Survei Triwulan Dua - Dinas Kesehatan/)).toBeInTheDocument());
+  });
+});
+
+describe('Tab Analisis SKM — nilai rata-rata', () => {
+  it('menampilkan nilai rata-rata survei terpilih di samping IKM', async () => {
+    pasangSurvei();
+    mockPeriode = '2026-Q2';
+
+    render(<AnalyticsKabPage />);
+
+    // Dicari DI DALAM kartunya: 3.20 juga muncul di sel NRR tabel 9 unsur pada
+    // fixture ini, jadi mencarinya di seluruh halaman ambigu -- dan lebih lemah,
+    // sebab tak membuktikan angka itu ada di kartu yang benar.
+    const kartu = (await screen.findByText('Nilai Rata-Rata')).closest('div');
+    expect(within(kartu).getByText('3.20')).toBeInTheDocument();
+    expect(within(kartu).getByText('/ 4')).toBeInTheDocument();
+  });
+
+  it('survei TANPA 9 unsur baku (IKM null) tetap menampilkan nilai rata-rata', async () => {
+    // Kasus yang melahirkan fitur ini: IKM null karena rumusnya berdiri di atas 9
+    // unsur baku, padahal jawaban skalanya ada.
+    pasangSurvei();
+    server.use(
+      http.get(`${API_BASE}/surveys/:id/results`, ({ params }) =>
+        ok(
+          {
+            surveyId: Number(params.id),
+            periode: '2026-Q2',
+            jumlahResponden: 5,
+            nilaiIkm: null,
+            nilaiRataRata: 3.84,
+            mutu: null,
+            nrrPerUnsur: [],
+          },
+          `/surveys/${params.id}/results`,
+        ),
+      ),
+    );
+    mockPeriode = '2026-Q2';
+
+    render(<AnalyticsKabPage />);
+
+    expect(await screen.findByText('3.84')).toBeInTheDocument();
+    // Tabel 9 unsur menjelaskan sebabnya, bukan menyatakan "belum ada responden"
+    // yang bertentangan dengan lima responden di kartu di atasnya.
+    expect(screen.getByText(/tidak memuat 9 unsur baku/i)).toBeInTheDocument();
+    expect(screen.queryByText(/belum ada responden/i)).toBeNull();
   });
 });
 
