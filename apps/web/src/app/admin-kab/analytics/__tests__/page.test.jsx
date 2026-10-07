@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok } from '@/mocks/handlers';
@@ -126,6 +126,43 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
       expect(container.querySelector('label[for="pilih-survei-kab"]')).toHaveClass('sr-only'),
     );
     expect(screen.getByLabelText('Survei')).toBeInTheDocument();
+  });
+
+  /**
+   * PANEL "DISTRIBUSI STATUS" (7 Oktober 2026). Komponennya dipakai bersama
+   * halaman Admin OPD, dan panel itu kini menggambar STATUS -- dulu kategori
+   * yang diulang. Halaman ini WAJIB ikut mengirim datanya, kalau tidak panelnya
+   * berubah menjadi "Belum ada data status." diam-diam di sini.
+   *
+   * Sumbernya PENGADUAN yang dimuat, bukan lagi `GET /statistics`: angkanya kini
+   * disaring per periode, dan `/statistics` menghitung sepanjang masa. Mock baku
+   * `/complaints` memuat dua pengaduan -- satu diterima, satu selesai.
+   */
+  it('panel "Distribusi Status" memuat sebaran status dari pengaduan yang dimuat', async () => {
+    render(<AnalyticsKabPage />);
+    await screen.findByRole('button', { name: /analisis skm/i });
+
+    fireEvent.click(screen.getByRole('button', { name: /analisis pengaduan/i }));
+
+    expect(await screen.findAllByText('1 pengaduan (50%)')).toHaveLength(2);
+    expect(screen.queryByText('Belum ada data status.')).toBeNull();
+  });
+
+  it('tab Pengaduan TIDAK lagi meminta GET /statistics (yang sepanjang masa dan tak mengenal periode)', async () => {
+    const diminta = jest.fn();
+    server.use(
+      http.get(`${API_BASE}/statistics`, () => {
+        diminta();
+        return ok({}, '/statistics');
+      }),
+    );
+
+    render(<AnalyticsKabPage />);
+    await screen.findByRole('button', { name: /analisis skm/i });
+    fireEvent.click(screen.getByRole('button', { name: /analisis pengaduan/i }));
+    await screen.findAllByText('1 pengaduan (50%)');
+
+    expect(diminta).not.toHaveBeenCalled();
   });
 
   it('judul survei pada pemilihnya menyebut OPD penyelenggaranya', async () => {

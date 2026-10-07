@@ -11,46 +11,56 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
+import { useAdminKabLayout } from '@/components/layouts/AdminKabLayoutProvider';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getSurveyResults } from '@/features/analytics/services/ikm.api';
-import { getComplaints } from '@/features/complaints/services/complaints.api';
+import {
+  hitungAnalitikPengaduan,
+  saringSurveiPeriode,
+} from '@/features/analytics/adapters/analitik.adapter';
+import { getAllComplaints } from '@/features/complaints/services/complaints.api';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { getStatistics } from '@/features/statistics/services/statistics.api';
+import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 const tabs = [
   { id: 'skm', label: 'Analisis SKM' },
   { id: 'complaints', label: 'Analisis Pengaduan' },
 ];
 
-const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
 /**
  * Statistik & Laporan lintas OPD, untuk Admin Kabupaten (6 Oktober 2026,
  * permintaan pengguna: "tambahkan juga halaman statistik & laporan yang ada di
  * halaman opd ke halaman kabupaten").
  *
- * BUKAN SALINAN HALAMAN ADMIN OPD, dan itu hasil pengukuran bukan selera.
- * `/admin-opd/analytics` mengambil angka resolusi pengaduannya dari
- * `GET /dashboard/opd`, yang dijaga `@Roles(Role.opd)`; seorang Admin Kabupaten
- * dijawab 403 dan seluruh tab Pengaduan runtuh. Sumbernya di sini
- * `GET /statistics` -- kabupaten-wide, dan memang sudah membawa angka yang sama
- * maksudnya.
+ * PENYARING TAHUN + TRIWULAN (7 Oktober 2026, permintaan pengguna: "tambahkan
+ * filter di halaman admin-kab/analytics"). Milik navbar (AdminKabLayoutProvider)
+ * dan dibaca di sini, persis seperti dashboard Kabupaten dan halaman Admin OPD.
+ * Seluruh penyaringan di klien -- lihat analitik.adapter.js. Bakunya TAHUN
+ * berjalan (bukan "semua"): pemilik produk menetapkan tahun wajib terisi.
  *
- * Tiga perbedaan yang lahir dari itu, semuanya dijaga uji:
+ * ANGKA PENGADUAN KINI DIHITUNG DARI PENGADUAN YANG TERSARING, bukan dari
+ * `GET /statistics`. Versi pertama halaman ini memakai endpoint itu karena
+ * `GET /dashboard/opd` (sumber halaman OPD) dijaga `@Roles(Role.opd)` dan
+ * menjawab 403 bagi Kabupaten. Alasannya masih benar, tetapi `/statistics`
+ * menghitung SEPANJANG MASA dan tak menerima parameter periode: menyandingkan
+ * "Tingkat Penyelesaian" sepanjang masa di bawah penyaring "Triwulan II"
+ * adalah klaim yang salah. Kabupaten dapat membaca pengaduan SELURUH OPD lewat
+ * `GET /complaints`, jadi tak ada lagi yang menghalangi menghitungnya per
+ * periode dengan rumus yang sama dengan halaman OPD (`hitungAnalitikPengaduan`).
+ * Akibat sampingnya, dua perbedaan lama hilang dengan sendirinya: satuan
+ * (jam vs hari) dan "tiket terbuka" tak perlu lagi diturunkan dari sebaran
+ * status karena keduanya terhitung langsung dari barisnya.
  *
- *  1. SATUAN. Halaman OPD memakai `avgResponseTime` dalam JAM; statistik
- *     Kabupaten memakai `avgSlaDays` dalam HARI. `ComplaintAnalysisView`
- *     menerima jam lalu memilih sendiri label Jam/Hari, jadi konversinya
- *     dilakukan SEKALI di sini -- bukan dengan mengganti label komponennya,
- *     yang akan membuat halaman OPD ikut salah.
- *  2. TIKET TERBUKA. `GET /dashboard/opd` punya `activeTickets`; statistik
- *     Kabupaten tidak, tetapi membawa sebaran status. Yang terbuka dihitung
- *     dari status `diterima` + `diproses`.
- *  3. NAMA OPD. `GET /surveys` mengembalikan survei SELURUH OPD bagi Kabupaten
- *     dan TIDAK mengirim `opdNama` (hanya `/surveys/active` yang mengisinya).
- *     Namanya digabungkan dari `GET /opd`, pola yang sama dengan halaman daftar
- *     survei Kabupaten.
+ * Yang MASIH berbeda dari halaman OPD:
+ *
+ *  - NAMA OPD. `GET /surveys` mengembalikan survei SELURUH OPD bagi Kabupaten
+ *    dan TIDAK mengirim `opdNama` (hanya `/surveys/active` yang mengisinya).
+ *    Namanya digabungkan dari `GET /opd`, pola yang sama dengan halaman daftar
+ *    survei Kabupaten.
+ *  - TANPA GRAFIK TREN IKM. Sumbernya di halaman OPD adalah `ikmTrend` milik
+ *    SATU OPD dari `GET /dashboard/opd`; lintas OPD yang tersedia hanya
+ *    `GET /statistics`, dan menempelkannya di sini belum pernah diminta.
  *
  * PADDING HALAMAN DIPASANG DI SINI, dan itu bukan hiasan. `AdminKabLayout`
  * tidak memberi padding apa pun; setiap halaman `admin-kab` memasangnya
@@ -78,6 +88,9 @@ export default function AnalyticsKabPage() {
 }
 
 function AnalyticsKabContent() {
+  const { periode } = useAdminKabLayout();
+  const labelPeriode = formatPeriodeLabel(periode);
+
   const [activeTab, setActiveTab] = useState('skm');
   const [selectedSurveyId, setSelectedSurveyId] = useState(null);
 
@@ -101,15 +114,28 @@ function AnalyticsKabContent() {
     () => (skmData?.surveys ?? []).filter((s) => s.status !== 'DRAF'),
     [skmData],
   );
-  const activeSurveyId = selectedSurveyId ?? eligibleSurveys[0]?.id ?? null;
+
+  // Pemilih survei hanya menawarkan survei yang periodenya lolos penyaring --
+  // `cocokPeriode`, bukan `===`, supaya "Semua Triwulan" (tahun saja) berlaku.
+  const periodSurveys = useMemo(
+    () => saringSurveiPeriode(eligibleSurveys, periode),
+    [eligibleSurveys, periode],
+  );
+
+  // Pilihan yang jatuh di luar penyaring (penyaring diganti) diganti survei
+  // pertama yang lolos, bukan dibiarkan menampilkan hasil survei yang tak lagi
+  // ada di daftar.
+  const activeSurveyId = periodSurveys.some((s) => String(s.id) === String(selectedSurveyId))
+    ? selectedSurveyId
+    : (periodSurveys[0]?.id ?? null);
 
   const surveyOptions = useMemo(
     () =>
-      eligibleSurveys.map((s) => {
+      periodSurveys.map((s) => {
         const opd = namaOpd(s.opdId);
         return { value: s.id, label: opd ? `${s.title} - ${opd}` : s.title };
       }),
-    [eligibleSurveys, namaOpd],
+    [periodSurveys, namaOpd],
   );
 
   const fetchResults = useCallback(() => {
@@ -123,13 +149,16 @@ function AnalyticsKabContent() {
     refetch: refetchResults,
   } = useAsync(fetchResults);
 
+  // SEMUA pengaduan, bukan 100 terbaru: angkanya kini disaring per periode di
+  // klien, dan menyaring irisan 100 baris membuat triwulan lama tampak kosong.
   const fetchPengaduan = useCallback(async () => {
-    const [complaintsRes, categories, statistik] = await Promise.all([
-      getComplaints({ limit: 100 }),
-      getComplaintCategories(),
-      getStatistics(),
-    ]);
-    return { complaints: complaintsRes.data ?? [], categories, statistik };
+    const [semua, categories] = await Promise.all([getAllComplaints(), getComplaintCategories()]);
+    return {
+      complaints: semua.data,
+      total: semua.total,
+      truncated: semua.truncated,
+      categories,
+    };
   }, []);
   const {
     data: pengaduanData,
@@ -138,53 +167,17 @@ function AnalyticsKabContent() {
     refetch: refetchComplaints,
   } = useAsync(fetchPengaduan);
 
-  const analitikPengaduan = useMemo(() => {
-    if (!pengaduanData) return null;
-    const { complaints, categories, statistik } = pengaduanData;
-
-    const labelKategori = Object.fromEntries(categories.map((c) => [c.kode, c.nama]));
-    const hitung = {};
-    for (const c of complaints) {
-      const kode = c.kategori || 'lainnya';
-      hitung[kode] = (hitung[kode] || 0) + 1;
-    }
-    const kategori = Object.entries(hitung)
-      .map(([kode, count]) => ({ name: labelKategori[kode] || kode, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const ember = {};
-    for (const c of complaints) {
-      if (!c.createdAt) continue;
-      const d = new Date(c.createdAt);
-      const kunci = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
-      if (!ember[kunci]) ember[kunci] = { month: BULAN[d.getMonth()], received: 0, completed: 0 };
-      ember[kunci].received += 1;
-      if (c.status === 'Selesai') ember[kunci].completed += 1;
-    }
-    const volumeBulanan = Object.entries(ember)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([, v]) => v);
-
-    const terbuka = (statistik.complaintStatus?.status ?? [])
-      .filter((s) => s.id === 'diterima' || s.id === 'diproses')
-      .reduce((jumlah, s) => jumlah + s.count, 0);
-
-    return {
-      categories: kategori,
-      totalComplaints: complaints.length,
-      resolutionStats: {
-        // HARI -> JAM. `ComplaintAnalysisView` menerima jam lalu memilih sendiri
-        // label Jam/Hari; mengirimkan hari apa adanya akan menampilkan angka
-        // hari di bawah tulisan "Jam".
-        averageHours:
-          statistik.summary?.avgSlaDays != null ? statistik.summary.avgSlaDays * 24 : null,
-        completionRate: statistik.summary?.completionRate ?? null,
-        openTickets: terbuka,
-      },
-      volumeMonthly: volumeBulanan,
-    };
-  }, [pengaduanData]);
+  const analitikPengaduan = useMemo(
+    () =>
+      pengaduanData
+        ? hitungAnalitikPengaduan({
+            complaints: pengaduanData.complaints,
+            categories: pengaduanData.categories,
+            periode,
+          })
+        : null,
+    [pengaduanData, periode],
+  );
 
   const tabSkm = () => {
     if (isLoadingSurveys) return <LoadingState label="Memuat daftar survei..." />;
@@ -197,6 +190,18 @@ function AnalyticsKabContent() {
           icon={<BarChart3 size={48} />}
           title="Belum ada survei aktif/ditutup"
           description="Analisis SKM baru tersedia setelah survei dipublikasikan dan mulai diisi responden."
+        />
+      );
+    }
+    // Ada survei, tetapi tak satu pun pada periode ini. Dibedakan dari keadaan di
+    // atas: pengguna perlu tahu bahwa PENYARINGNYA yang menyembunyikan, bukan
+    // bahwa survei belum pernah dibuat.
+    if (periodSurveys.length === 0) {
+      return (
+        <EmptyState
+          icon={<BarChart3 size={48} />}
+          title={`Tidak ada survei pada ${labelPeriode}`}
+          description="Ubah penyaring Tahun atau Triwulan di bilah atas untuk melihat periode lain."
         />
       );
     }
@@ -221,7 +226,6 @@ function AnalyticsKabContent() {
   };
 
   const tabPengaduan = () => {
-    if (isLoadingComplaints) return <LoadingState label="Memuat data pengaduan..." />;
     if (complaintsError) {
       return (
         <ErrorState
@@ -231,18 +235,53 @@ function AnalyticsKabContent() {
         />
       );
     }
+    if (isLoadingComplaints || !analitikPengaduan) {
+      return <LoadingState label="Memuat data pengaduan..." />;
+    }
+    if (analitikPengaduan.totalComplaints === 0) {
+      // Dibedakan: "tak ada pengaduan sama sekali" vs "tak ada pada periode ini".
+      const adaPengaduan = pengaduanData.total > 0;
+      return (
+        <EmptyState
+          icon={<BarChart3 size={48} />}
+          title={
+            adaPengaduan ? `Tidak ada pengaduan pada ${labelPeriode}` : 'Belum ada data pengaduan'
+          }
+          description={
+            adaPengaduan
+              ? 'Ubah penyaring Tahun atau Triwulan di bilah atas untuk melihat periode lain.'
+              : 'Analisis pengaduan akan muncul setelah ada pengaduan masuk.'
+          }
+        />
+      );
+    }
     return (
-      <ComplaintAnalysisView
-        categories={analitikPengaduan?.categories ?? []}
-        totalComplaints={analitikPengaduan?.totalComplaints ?? 0}
-        resolutionStats={analitikPengaduan?.resolutionStats ?? null}
-        volumeMonthly={analitikPengaduan?.volumeMonthly ?? []}
-      />
+      <div className="space-y-lg">
+        {pengaduanData.truncated && (
+          // Angka di bawah DIHITUNG dari baris yang dimuat, jadi bila tak seluruhnya
+          // termuat ia salah, bukan sekadar kurang lengkap -- pengguna wajib tahu.
+          <div
+            role="note"
+            className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-medium"
+          >
+            Hanya {pengaduanData.complaints.length.toLocaleString('id-ID')} dari{' '}
+            {pengaduanData.total.toLocaleString('id-ID')} pengaduan terbaru yang dimuat, sehingga
+            angka pada periode yang lebih lama bisa kurang dari sebenarnya.
+          </div>
+        )}
+        <ComplaintAnalysisView
+          categories={analitikPengaduan.categories}
+          totalComplaints={analitikPengaduan.totalComplaints}
+          resolutionStats={analitikPengaduan.resolutionStats}
+          volumeMonthly={analitikPengaduan.volumeMonthly}
+          statusDistribution={analitikPengaduan.statusDistribution}
+        />
+      </div>
     );
   };
 
   const pemilihSurvei =
-    activeTab === 'skm' && eligibleSurveys.length > 0 ? (
+    activeTab === 'skm' && periodSurveys.length > 0 ? (
       <div className="flex items-center gap-md min-w-0 w-full sm:w-auto">
         <Dropdown
           className="min-w-0 flex-1 sm:flex-none sm:w-80"
@@ -263,8 +302,7 @@ function AnalyticsKabContent() {
           Laporan" (PAGE_TITLES di AdminKabNavbar), jadi judul kedua di sini
           hanya mengulangnya sebaris di bawahnya -- dan saat digulir ia
           meluncur ke belakang navbar yang `fixed` lalu terpotong separuh.
-          Halaman Admin OPD TETAP memakai h2-nya: navbar di sana menampilkan
-          nama OPD, bukan judul halaman. */}
+          Halaman Admin OPD kini juga tanpa judul di badan halaman. */}
       <AnalyticsTabs
         tabs={tabs}
         activeTab={activeTab}

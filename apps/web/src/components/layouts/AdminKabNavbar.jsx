@@ -91,8 +91,13 @@ export default function AdminKabNavbar() {
   const pageTitle =
     PAGE_TITLES.find(([prefix]) => pathname?.startsWith(prefix))?.[1] ?? 'Panel Admin Kabupaten';
 
-  // Penyaring HANYA di dashboard -- satu-satunya halaman yang membacanya.
-  const isDashboard = pathname?.startsWith('/admin-kab/dashboard');
+  // Penyaring HANYA di halaman yang membacanya: dashboard, dan -- sejak 7 Oktober
+  // 2026 -- Statistik & Laporan, yang menyaring pemilih survei dan seluruh angka
+  // pengaduannya dengan `periode`. Menampilkannya di halaman lain mengulang
+  // masalah lama: kontrol yang tak berefek apa pun. Halaman yang ditambahkan ke
+  // daftar ini WAJIB membaca `periode` dari useAdminKabLayout().
+  const tampilkanPenyaring =
+    pathname?.startsWith('/admin-kab/dashboard') || pathname?.startsWith('/admin-kab/analytics');
 
   const fetchProfile = useCallback(() => getMyProfile(), []);
   const { data: user, isLoading, error, refetch } = useAsync(fetchProfile);
@@ -220,7 +225,7 @@ export default function AdminKabNavbar() {
           berkumpul di ujung kanan bersama lonceng & akun -- tanpa lagi menjadi
           SATU-SATUNYA yang mendorong ke kanan, yang membuat lima halaman
           tanpa penyaring tertinggal rata kiri. */}
-      {isDashboard && (
+      {tampilkanPenyaring && (
         <div className="order-last flex w-full items-center gap-2 pb-1 xl:order-3 xl:w-auto xl:shrink-0 xl:pb-0">
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
             <CalendarRange size={18} className="hidden lg:block text-secondary shrink-0" />

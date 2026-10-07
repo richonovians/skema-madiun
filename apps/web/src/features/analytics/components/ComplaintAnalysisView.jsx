@@ -29,6 +29,7 @@ export default function ComplaintAnalysisView({
   totalComplaints = 0,
   resolutionStats = null,
   volumeMonthly = [],
+  statusDistribution = null,
 }) {
   const [animate, setAnimate] = useState(false);
 
@@ -102,25 +103,38 @@ export default function ComplaintAnalysisView({
           </div>
         </div>
 
-        {/* Gap notice: SLA per prioritas dihapus */}
+        {/* Sebaran STATUS (7 Oktober 2026, permintaan pengguna: "tampilkan data
+            di statistic"). Panel ini berjudul "Distribusi Status" tetapi
+            sebelumnya menggambar ulang KATEGORI -- bilah yang sama dengan donat
+            di sebelahnya -- sehingga data status tak pernah tampil di mana pun
+            di halaman ini. Kini yang digambar status sungguhan. `statusDistribution`
+            dihitung pemanggil dari pengaduan yang sudah tersaring periode. */}
         <div className="bg-white/95 backdrop-blur border border-border rounded-xl p-lg shadow-sm">
           <h3 className="font-h3 text-h3 text-primary mb-lg">Distribusi Status</h3>
-          {categories.length === 0 ? (
-            <p className="text-text-secondary text-sm">Belum ada data kategori.</p>
+          {!statusDistribution || totalComplaints === 0 ? (
+            <p className="text-text-secondary text-sm">Belum ada data status.</p>
           ) : (
             <div className="space-y-lg">
-              {categoriesWithPercent.map((cat, idx) => (
-                <div key={cat.name} className="space-y-xs">
+              {statusDistribution.map((status, idx) => (
+                <div key={status.id} className="space-y-xs">
                   <div className="flex justify-between text-label-md">
-                    <span className="font-bold text-text-primary">{cat.name}</span>
-                    <span className="text-secondary">{cat.count} pengaduan</span>
+                    <span className="flex items-center gap-xs font-bold text-text-primary">
+                      <span
+                        className="w-3 h-3 rounded"
+                        style={{ backgroundColor: status.color }}
+                      ></span>
+                      {status.label}
+                    </span>
+                    <span className="text-secondary">
+                      {status.count} pengaduan ({status.percentage}%)
+                    </span>
                   </div>
                   <div className="w-full h-3 bg-surface-container rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-1000 ease-out"
                       style={{
-                        width: animate ? `${cat.percentage}%` : '0%',
-                        backgroundColor: cat.color,
+                        width: animate ? `${status.percentage}%` : '0%',
+                        backgroundColor: status.color,
                         transitionDelay: `${idx * 200}ms`,
                       }}
                     ></div>

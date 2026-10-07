@@ -46,6 +46,44 @@ export async function getComplaints(params = {}) {
   return { data: adaptComplaintList(response.data), meta: response.meta };
 }
 
+/** Batas `limit` PaginationQueryDto backend. */
+const BATAS_PER_HALAMAN = 100;
+
+/**
+ * SEMUA pengaduan yang boleh dilihat sesi ini, halaman demi halaman
+ * (7 Oktober 2026).
+ *
+ * Untuk layar yang MENYARING per periode di klien. `getComplaints` paling
+ * banyak 100 baris, terbaru dulu; menyaring irisan itu berarti triwulan lama
+ * tampak kosong atau kurang padahal datanya ada, dan tak ada yang memberi
+ * tahu pengguna. Dashboard Admin OPD menempuh jalan lain -- ia membiarkan
+ * terpotong dan berterus terang lewat `totalAll` -- tetapi di sini angkanya
+ * DIHITUNG dari baris-barisnya, jadi memotong berarti salah, bukan sekadar
+ * kurang lengkap.
+ *
+ * Berhenti di `maksHalaman` (baku 20 = 2.000 pengaduan) supaya akun dengan
+ * data tak terduga banyaknya tak melahirkan puluhan permintaan beruntun.
+ * `truncated` memberi tahu pemanggil bahwa hasilnya belum utuh; ia WAJIB
+ * menyampaikannya ke pengguna, bukan menelannya.
+ *
+ * @returns {Promise<{data: object[], total: number, truncated: boolean}>}
+ */
+export async function getAllComplaints({ maksHalaman = 20 } = {}) {
+  const data = [];
+  let total = 0;
+  let halaman = 1;
+  let totalHalaman = 1;
+  while (halaman <= totalHalaman && halaman <= maksHalaman) {
+    const hasil = await getComplaints({ page: halaman, limit: BATAS_PER_HALAMAN });
+    data.push(...hasil.data);
+    const paginasi = hasil.meta?.pagination;
+    total = paginasi?.total ?? data.length;
+    totalHalaman = paginasi?.totalPages ?? 1;
+    halaman += 1;
+  }
+  return { data, total, truncated: data.length < total };
+}
+
 export async function getComplaintByTicketNo(ticketNo) {
   const response = await api.get(`/complaints/${ticketNo}`);
   return adaptComplaint(response.data);

@@ -25,6 +25,26 @@ const entity = (over = {}) => ({
   ...over,
 });
 
+describe('adaptComplaint — updatedAt', () => {
+  /**
+   * Statistik & Laporan Admin OPD menyaring pengaduan per periode di klien dan
+   * menghitung rata-rata waktu penyelesaian dari `updatedAt - createdAt`
+   * pengaduan SELESAI -- rumus yang sama dengan `DashboardService`. Tanpa
+   * `updatedAt` yang diteruskan adapter, rata-rata itu tak dapat dihitung.
+   */
+  it('meneruskan updatedAt dari backend', () => {
+    const hasil = adaptComplaint(entity({ updatedAt: '2026-09-05T08:30:00.000Z' }));
+
+    expect(hasil.updatedAt).toBe('2026-09-05T08:30:00.000Z');
+  });
+
+  it('respons yang tak membawanya menjadi null, bukan undefined', () => {
+    // Fixture `entity()` memang tak punya `updatedAt`. `undefined` yang lolos
+    // akan menyeberang ke perhitungan selisih waktu sebagai NaN.
+    expect(adaptComplaint(entity()).updatedAt).toBeNull();
+  });
+});
+
 describe('adaptComplaint — pengaduan anonim', () => {
   it('menampilkan "Anonim" saat backend tak mengirim nama pelapor', () => {
     const hasil = adaptComplaint(entity({ isAnonim: true }));

@@ -52,6 +52,11 @@ export function adaptOpdDashboard(dashboard) {
     })),
     ikmTrend: dashboard.ikmTrend.map((p) => ({
       periode: formatPeriodeLabel(p.periode),
+      // Kode kanonik (`2026-Q2`) ikut dibawa, sebab `periode` di atas sudah
+      // menjadi LABEL ("Triwulan II - 2026") yang tak dapat disaring per tahun
+      // tanpa mengurai teks. Statistik & Laporan Admin OPD menyaring titik tren
+      // dengannya (7 Oktober 2026).
+      kode: p.periode,
       nilaiIkm: p.value,
     })),
   };

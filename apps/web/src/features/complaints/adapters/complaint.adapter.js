@@ -62,6 +62,13 @@ export function adaptComplaint(complaint) {
     description: complaint.uraian,
     dateStr: formatDateId(createdAt),
     createdAt,
+    // Dipakai Statistik & Laporan Admin OPD untuk rata-rata waktu penyelesaian
+    // pada periode terpilih. Backend menghitung `avgResponseHours` dari
+    // `updatedAt - createdAt` pengaduan SELESAI, jadi yang menyaring per periode
+    // harus memegang kedua ujungnya. `?? null`: kunci ini baru ikut diteruskan
+    // sekarang, dan respons lama/tiruan yang tak membawanya tak boleh menjadi
+    // `undefined` yang lolos ke perhitungan.
+    updatedAt: complaint.updatedAt ?? null,
     ageDays,
     status: STATUS_MAP[complaint.status] ?? complaint.status,
     // Kode kategori mentah ('aduan'/'lapor'/'lainnya') -- label ramah-baca

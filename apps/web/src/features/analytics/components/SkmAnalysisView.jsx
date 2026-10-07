@@ -2,6 +2,7 @@
 import React from 'react';
 import { TrendingUp, Verified, History } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import TrendChart from '@/features/statistics/components/charts/TrendChart';
 
 /**
  * Hasil IKM sungguhan per survei (GET /surveys/:id/results, INT-21) -- props
@@ -21,6 +22,8 @@ export default function SkmAnalysisView({
   serviceElements = [],
   periode,
   jumlahResponden,
+  ikmTrend,
+  judulTren = 'Tren Nilai IKM per Triwulan',
 }) {
   const hasResponden = jumlahResponden > 0 && serviceElements.length > 0;
 
@@ -120,20 +123,45 @@ export default function SkmAnalysisView({
         )}
       </div>
 
-      {/* Distribusi skor per unsur & tren tahunan: TIDAK ADA sumber backend --
-          IkmResultEntity cuma simpan NRR rata-rata per survei, bukan distribusi
-          per nilai jawaban maupun snapshot lintas periode (lihat gap di
-          ikm.adapter.js). Ditampilkan sbg gap eksplisit, bukan grafik karangan. */}
+      {/* TREN IKM LINTAS PERIODE (7 Oktober 2026). Catatan lama di sini --
+          "tren IKM lintas periode/tahun memerlukan agregasi data historis yang
+          belum dibangun di backend" -- sudah tidak benar: `GET /dashboard/opd`
+          dan `GET /statistics` membawa `ikmTrend`. Tren hanya digambar bila
+          pemanggil mengirimnya; halaman yang tak punya sumbernya tak
+          menampilkan apa pun di sini, bukan grafik karangan.
+
+          Larik KOSONG dibedakan dari `undefined`: yang pertama berarti "ada
+          sumbernya tetapi tak ada titik pada penyaring ini". */}
+      {Array.isArray(ikmTrend) &&
+        (ikmTrend.length > 0 ? (
+          <TrendChart
+            title={judulTren}
+            data={ikmTrend}
+            dataKey="nilaiIkm"
+            yMin={0}
+            yMax={100}
+          />
+        ) : (
+          <div className="bg-white/95 backdrop-blur border border-border rounded-xl p-lg shadow-sm text-body-md text-secondary">
+            Belum ada hasil IKM final yang tercatat pada tahun ini, jadi tren belum dapat
+            digambar.
+          </div>
+        ))}
+
+      {/* Distribusi skor per unsur: TIDAK ADA sumber backend per survei/OPD --
+          IkmResultEntity cuma simpan NRR rata-rata per unsur, bukan sebaran
+          jawaban 1-4. Sebaran yang ada hanya LINTAS OPD (`valueDistribution` di
+          GET /statistics). Ditampilkan sbg gap eksplisit, bukan grafik karangan. */}
       <div className="bg-white/95 backdrop-blur border border-border rounded-xl p-lg shadow-sm flex items-start gap-md">
         <div className="p-2 bg-surface-variant rounded-lg text-on-surface-variant flex-shrink-0">
           <History size={20} />
         </div>
         <div>
-          <h3 className="font-h3 text-h3 text-primary mb-xs">Tren & Distribusi Skor Belum Tersedia</h3>
+          <h3 className="font-h3 text-h3 text-primary mb-xs">Distribusi Skor Belum Tersedia</h3>
           <p className="text-body-md text-secondary max-w-[640px]">
-            Distribusi skor per unsur dan tren IKM lintas periode/tahun memerlukan agregasi
-            data historis yang belum dibangun di backend. Data yang ditampilkan di atas adalah
-            hasil hitung langsung (live) untuk survei terpilih saja.
+            Sebaran jawaban (1-4) per unsur untuk survei ini belum disediakan backend. Yang
+            tersedia hanya sebaran lintas seluruh OPD, dan data di atas adalah hasil hitung
+            langsung (live) untuk survei terpilih saja.
           </p>
         </div>
       </div>
