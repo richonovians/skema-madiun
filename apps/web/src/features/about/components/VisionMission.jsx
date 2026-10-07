@@ -25,7 +25,7 @@ export default function VisionMission() {
               </div>
               <div className="flex items-center">
                 <p className="font-body text-body text-text-secondary leading-relaxed">
-                  &quot;{vision}&quot;
+                  {vision}
                 </p>
               </div>
             </div>

@@ -158,7 +158,7 @@ export const aboutContent = {
     title: "Komitmen Kami",
     description: "Kami berkomitmen untuk terus meningkatkan kualitas pelayanan publik di Kabupaten Madiun melalui:",
     points: [
-      "Menjaga kerahasiaan data pelapor -- hanya OPD tujuan dan Admin Kabupaten yang dapat melihat pengaduan Anda, tidak pernah ditampilkan ke publik.",
+      "Menjaga kerahasiaan data pelapor: hanya OPD tujuan dan Admin Kabupaten yang dapat melihat pengaduan Anda, tidak pernah ditampilkan ke publik.",
       "Menjaga transparansi proses penyelesaian masalah.",
       "Menindaklanjuti setiap pengaduan sesuai dengan standar operasional prosedur.",
       "Melakukan evaluasi berkelanjutan berdasarkan hasil survei kepuasan masyarakat."
@@ -168,7 +168,7 @@ export const aboutContent = {
     {
       id: 1,
       question: "Apakah pengaduan saya aman?",
-      answer: "Ya, kami menggunakan sistem keamanan yang dienkripsi. Pengaduan Anda hanya dapat dilihat oleh OPD tujuan dan Admin Kabupaten -- tidak pernah ditampilkan ke publik."
+      answer: "Ya, kami menggunakan sistem keamanan yang dienkripsi. Pengaduan Anda hanya dapat dilihat oleh OPD tujuan dan Admin Kabupaten, tidak pernah ditampilkan ke publik."
     },
     {
       id: 2,

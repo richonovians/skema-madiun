@@ -11,7 +11,7 @@ const NOTICE_ITEMS = [
     icon: KeyRound,
     title: 'Mekanisme Login',
     description:
-      'Akun administrator login melalui SSO Helpdesk Diskominfo menggunakan email yang didaftarkan -- sistem ini tidak mengelola kata sandi terpisah.',
+      'Akun administrator login melalui SSO Helpdesk Diskominfo menggunakan email yang didaftarkan. Sistem ini tidak mengelola kata sandi terpisah.',
   },
   {
     icon: Shield,

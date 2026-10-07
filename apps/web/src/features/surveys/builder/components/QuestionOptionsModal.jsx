@@ -109,7 +109,7 @@ export default function QuestionOptionsModal({
         return;
       }
       if (new Set(labels.map((label) => label.toLowerCase())).size !== labels.length) {
-        setValidationError('Ada label yang sama -- setiap skor harus berbeda.');
+        setValidationError('Ada label yang sama. Setiap skor harus berbeda.');
         return;
       }
       setValidationError(null);
@@ -123,7 +123,7 @@ export default function QuestionOptionsModal({
       return;
     }
     if (new Set(filledOptions.map((opt) => opt.toLowerCase())).size !== filledOptions.length) {
-      setValidationError('Ada opsi jawaban yang sama -- setiap opsi harus berbeda.');
+      setValidationError('Ada opsi jawaban yang sama. Setiap opsi harus berbeda.');
       return;
     }
 

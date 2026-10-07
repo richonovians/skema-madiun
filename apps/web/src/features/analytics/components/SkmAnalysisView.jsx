@@ -92,7 +92,7 @@ export default function SkmAnalysisView({
         </div>
         {!hasResponden ? (
           <div className="py-2xl text-center text-secondary">
-            Belum ada responden yang mengisi survei ini -- NRR per unsur baru dapat dihitung setelah ada jawaban masuk.
+            Belum ada responden yang mengisi survei ini. NRR per unsur baru dapat dihitung setelah ada jawaban masuk.
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -434,7 +434,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       // menyangka harus mengulang dan jadi dobel).
       setQuestions(appended);
       setActionError(
-        'Pertanyaan berhasil dibuat, tetapi posisinya gagal disimpan -- untuk sementara diletakkan di akhir daftar.',
+        'Pertanyaan berhasil dibuat, tetapi posisinya gagal disimpan. Untuk sementara pertanyaan diletakkan di akhir daftar.',
       );
     }
   };
@@ -677,7 +677,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         title="Publikasikan Survei"
         description={`Survei ini akan terbit dengan ${questions.length} pertanyaan dan ${
           izinkanAnonim ? 'dapat diisi tanpa login' : 'hanya dapat diisi setelah login'
-        }. Setelah terbit dan jawaban pertama masuk, susunan pertanyaan tidak dapat diubah lagi -- hanya teksnya yang masih dapat diperbaiki.`}
+        }. Setelah terbit dan jawaban pertama masuk, susunan pertanyaan tidak dapat diubah lagi, dan hanya teksnya yang masih dapat diperbaiki.`}
         confirmLabel="Ya, Publikasikan"
         onConfirm={() => {
           setKonfirmasiTerbit(false);

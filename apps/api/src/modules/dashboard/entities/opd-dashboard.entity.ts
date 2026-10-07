@@ -13,7 +13,7 @@ export class PerformanceMetricEntity extends BaseEntity<PerformanceMetricEntity>
   @ApiProperty({ description: 'NRR unsur ini (realisasi), skala 1-4' })
   realization: number;
 
-  @ApiProperty({ description: 'Target NRR -- konstanta nilai skala maksimum (4.00)' })
+  @ApiProperty({ description: 'Target NRR: konstanta nilai skala maksimum (4.00)' })
   target: number;
 }
 
@@ -26,7 +26,7 @@ export class RecentFeedbackEntity extends BaseEntity<RecentFeedbackEntity> {
 
   @ApiPropertyOptional({
     description:
-      'Rata-rata nilai skala LAIN pada respons yang sama (proxy "rating", BUKAN field backend tersendiri) -- null bila respons ini tak punya jawaban skala',
+      'Rata-rata nilai skala LAIN pada respons yang sama (proxy "rating", BUKAN field backend tersendiri). Null bila respons ini tak punya jawaban skala',
   })
   ratingAvg: number | null;
 
@@ -76,7 +76,7 @@ export class OpdDashboardEntity extends BaseEntity<OpdDashboardEntity> {
   avgResponseHours: number | null;
 
   @ApiProperty({
-    description: 'Target SLA (jam) -- konstanta 24 jam/1 hari kerja (D3, dapat disesuaikan)',
+    description: 'Target SLA (jam): konstanta 24 jam/1 hari kerja (D3, dapat disesuaikan)',
   })
   slaTargetHours: number;
 
