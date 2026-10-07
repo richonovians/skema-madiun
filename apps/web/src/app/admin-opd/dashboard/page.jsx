@@ -14,7 +14,7 @@ import { useAdminLayout } from '@/components/layouts/AdminLayoutProvider';
 import { getOpdDashboard } from '@/features/dashboards/services/dashboardOpd.api';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
-import { periodeFromDate } from '@/features/surveys/adapters/survey.adapter';
+import { cocokPeriode, periodeFromDate } from '@/features/surveys/adapters/survey.adapter';
 
 const LIST_LIMIT = 100; // batas maksimum `limit` PaginationQueryDto backend
 
@@ -53,15 +53,29 @@ export default function AdminDashboardPage() {
 
   const { data, isLoading, error, refetch } = useAsync(fetchDashboard);
 
+  // `cocokPeriode`, BUKAN kesamaan string persis (7 Oktober 2026, laporan
+  // pengguna: "Kinerja Periode dan Status Pengaduan tidak menampilkan data"
+  // saat memilih Semua Triwulan).
+  //
+  // Sampai penyaring periode dipisah menjadi Tahun + Triwulan (6 Oktober 2026),
+  // `periode` SELALU berbentuk kanonik `2026-Q4` dan `===` memang memadai.
+  // "Semua Triwulan" melahirkan bentuk kedua -- tahun saja, `2026` -- yang tak
+  // pernah sama dengan periode survei mana pun, sehingga kedua bagian ini
+  // kosong total. `cocokPeriode` mengurai keduanya lebih dulu dan mencocokkan
+  // tahun lalu triwulan, jadi ia menerima kedua bentuk itu. Ia juga tidak
+  // memakai `startsWith`, yang akan menganggap `20261-Q1` cocok dengan `2026`.
   const periodSurveys = useMemo(
-    () => (data?.surveys ?? []).filter((survey) => survey.period === periode),
+    () => (data?.surveys ?? []).filter((survey) => cocokPeriode(survey.period, periode)),
     [data, periode],
   );
 
   const periodComplaints = useMemo(
     // Pengaduan tak punya field periode -- dibucket dari createdAt, cara yang
     // sama dipakai backend untuk tren pengaduan per triwulan.
-    () => (data?.complaints ?? []).filter((c) => periodeFromDate(c.createdAt) === periode),
+    () =>
+      (data?.complaints ?? []).filter((c) =>
+        cocokPeriode(periodeFromDate(c.createdAt), periode),
+      ),
     [data, periode],
   );
 

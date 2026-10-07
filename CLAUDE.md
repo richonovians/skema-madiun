@@ -24,6 +24,32 @@ pnpm dev                                          # api :3001 + web :3000 parale
 
 Buka **`http://skema.local`**, bukan `http://localhost:3000`. Hanya lewat origin tunggal itu cookie sesi terbaca frontend maupun backend, dan hanya alamat itu yang cocok dengan `redirect_uri` terdaftar di SSO Helpdesk.
 
+**Dari ponsel di Wi-Fi yang sama, `skema.local` harus tetap dipakai** -- bukan
+alamat IP laptop (7 Oktober 2026, laporan pengguna: masuk lewat SSO berhasil
+lalu tersangkut di URL callback). Mengetik IP laptop membuat tiga hal gagal
+beruntun, dan ketiganya di luar jangkauan kode:
+
+1. `HELPDESK_SSO_REDIRECT_URI` bernilai `http://skema.local/api/v1/auth/sso/callback`
+   dan Helpdesk mencocokkannya PERSIS, jadi peramban ponsel dipantulkan ke nama
+   yang tak dapat ia terjemahkan;
+2. pengalihan akhir backend dibangun dari `WEB_APP_URL`, yang juga `skema.local`
+   -- inilah yang terlihat sebagai "tersangkut di URL callback";
+3. cookie sesinya host-only (`SESSION_COOKIE_DOMAIN` sengaja kosong di dev),
+   sehingga cookie yang terbit untuk `skema.local` tak pernah terkirim kembali
+   ke `192.168.x.x` walau dua langkah pertama lolos.
+
+Jalan keluarnya membuat ponsel ikut menerjemahkan `skema.local` ke alamat IP
+laptop, lewat DNS lokal: entri DNS di router bila ia mendukungnya, atau sebuah
+DNS kecil di laptop yang lalu dipasang sebagai DNS statis pada Wi-Fi ponsel.
+Tak ada berkas hosts di ponsel tanpa akses root, dan menyalin `127.0.0.1` ke
+sana pun salah -- alamat itu menunjuk ke ponsel itu sendiri. Dengan cara ini
+tak ada nilai `.env` maupun baris kode yang perlu berubah, dan `redirect_uri`
+yang terdaftar tetap cocok.
+
+Alternatif tanpa DNS: pakai jalur dev-login di ponsel, yang memang disediakan
+untuk pengembangan dan mati sendiri di produksi. Jalur SSO-nya tak teruji dari
+ponsel, dan itu konsekuensi yang disengaja.
+
 ### Uji
 
 ```bash
@@ -44,8 +70,16 @@ pnpm --filter @skm-spm/web test -- GerbangPengisianBersesi --forceExit
 
 # apps/web E2E (Playwright, workers 1, channel 'chrome' terpasang di mesin)
 pnpm --filter @skm-spm/web test:e2e
-pnpm --filter @skm-spm/web test:e2e -- e2e/isi-survei-anonim.spec.ts
+pnpm --filter @skm-spm/web exec playwright test e2e/isi-survei-anonim.spec.ts
 ```
+
+**Satu berkas E2E dijalankan lewat `exec playwright test`, BUKAN `test:e2e --`.**
+Baris `pnpm --filter @skm-spm/web test:e2e -- e2e/<berkas>` pernah tertulis di
+sini dan **tidak menyaring apa pun**: `--` berhenti di pnpm dan argumennya tak
+sampai ke Playwright, sehingga seluruh 93 uji ikut jalan. Gejalanya menyesatkan
+karena uji yang dimaksud memang ikut jalan dan lulus; yang tak terlihat adalah
+92 uji lain yang ikut menulis baris ke basis data. Diperbaiki 7 Oktober 2026
+setelah dua kali tanpa sengaja menjalankan suite penuh.
 
 **`--forceExit` wajib untuk Jest `apps/web`.** Tanpa itu prosesnya menggantung sesudah uji selesai ("Jest did not exit one second after the test run has completed"), dan menyalurkannya ke `tail` menyembunyikan seluruh keluaran sampai proses berakhir. Uji biasanya tuntas di bawah 10 detik; jika terlihat menggantung lebih lama, itu gejalanya, bukan ujinya yang lambat.
 

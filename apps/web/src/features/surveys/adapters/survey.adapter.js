@@ -33,8 +33,13 @@ export function buildPeriode(tahun, triwulan) {
 /** "2026-Q2" -> "Triwulan II - 2026" (label ramah-baca, dipakai kartu/tampilan). */
 export function formatPeriodeLabel(periode) {
   const parsed = parsePeriode(periode);
-  if (!parsed) return periode; // data lama/tak dikenal -- tampilkan apa adanya
-  return `Triwulan ${ROMAN_BY_QUARTER[parsed.triwulan]} - ${parsed.tahun}`;
+  if (parsed) return `Triwulan ${ROMAN_BY_QUARTER[parsed.triwulan]} - ${parsed.tahun}`;
+  // Bentuk BERTAHUN SAJA (6 Oktober 2026), hasil memilih "Semua Triwulan".
+  // Beberapa layar menggemakan penyaring yang sedang aktif -- IkmLeaderboard
+  // dan KabFilterScopeNote -- dan "2026" sendirian di sana terbaca seperti
+  // potongan data, bukan seperti periode yang sedang dipilih.
+  if (/^\d{4}$/.test(periode ?? '')) return `Tahun ${periode}`;
+  return periode; // data lama/tak dikenal -- tampilkan apa adanya
 }
 
 /**
@@ -70,6 +75,73 @@ export function buildRecentPeriodeOptions({ back = 7, forward = 1, from = new Da
     options.push({ value: periode, label: formatPeriodeLabel(periode) });
   }
   return options;
+}
+
+/**
+ * PENYARING PERIODE: TAHUN + TRIWULAN (6 Oktober 2026, permintaan pengguna
+ * "ubah dropdown periode menjadi pisah antara triwulan dan tahun berbeda
+ * dropdown").
+ *
+ * Nilainya TETAP SATU STRING. Seluruh state halaman, parameter API, dan
+ * penyaringan klien sudah berbentuk begitu; memecahnya menjadi dua nilai akan
+ * menyentuh belasan tempat tanpa menambah kemampuan apa pun. Dua bentuk yang
+ * sah:
+ *
+ *   `2026-Q2`  satu triwulan  -- bentuk kanonik lama, tak berubah sedikit pun
+ *   `2026`     setahun penuh  -- bentuk baru, hasil memilih "Semua Triwulan"
+ *
+ * Bentuk kedua ikut dimengerti backend: `IkmService` menyaringnya dengan
+ * awalan, bukan kecocokan persis. Lihat catatan di sana.
+ */
+const TAHUN_REGEX = /^\d{4}$/;
+
+/** `''`/tak dikenal -> `null`. `null` BUKAN tahun karangan: tak ada penyaring. */
+export function parsePeriodeFilter(nilai) {
+  const teks = (nilai ?? '').trim();
+  if (!teks) return null;
+  if (TAHUN_REGEX.test(teks)) return { tahun: Number(teks), triwulan: null };
+  const kanonik = parsePeriode(teks);
+  return kanonik ? { tahun: kanonik.tahun, triwulan: kanonik.triwulan } : null;
+}
+
+/** `triwulan === null` berarti "semua triwulan" dan menghasilkan tahun saja. */
+export function buildPeriodeFilter(tahun, triwulan) {
+  return triwulan === null || triwulan === undefined
+    ? String(tahun)
+    : buildPeriode(tahun, triwulan);
+}
+
+/**
+ * Apakah sebuah periode survei lolos penyaring.
+ *
+ * TIDAK memakai `startsWith` begitu saja: `'20261-Q1'.startsWith('2026')`
+ * bernilai benar, padahal itu tahun yang sama sekali lain. Perbandingan
+ * dilakukan atas tahun yang sudah diurai, bukan atas hurufnya.
+ */
+export function cocokPeriode(periodeSurvei, filter) {
+  const dicari = parsePeriodeFilter(filter);
+  if (!dicari) return true;
+  const punya = parsePeriode(periodeSurvei);
+  if (!punya) return false;
+  if (punya.tahun !== dicari.tahun) return false;
+  return dicari.triwulan === null || punya.triwulan === dicari.triwulan;
+}
+
+/**
+ * Pilihan TAHUN untuk penyaring. Rentangnya mencerminkan
+ * `buildRecentPeriodeOptions`: 7 triwulan ke belakang + 1 ke depan, dipadatkan
+ * menjadi tahun-tahun unik supaya daftarnya tak memuat tahun yang tak punya
+ * satu pun triwulan di dalam jangkauan.
+ */
+export function buildTahunOptions({ back = 7, forward = 1, from = new Date() } = {}) {
+  const tahun = new Set(
+    buildRecentPeriodeOptions({ back, forward, from }).map(
+      (o) => parsePeriode(o.value).tahun,
+    ),
+  );
+  return [...tahun]
+    .sort((a, b) => b - a)
+    .map((t) => ({ value: String(t), label: String(t) }));
 }
 
 export function adaptSurvey(survey) {

@@ -20,18 +20,33 @@ const AdminKabLayoutContext = createContext({
  * sehingga hitungan pengaduan -- satu-satunya angka yang dulu mengikutinya --
  * kini selalu utuh.
  *
- * Kosong = tak menyaring (parameternya tak dikirim), dan itulah NILAI
- * AWALNYA. Berbeda dari penyaring Admin OPD yang default-nya triwulan berjalan:
- * di sana penyaring hanya melingkupi satu bagian di samping kartu kumulatif,
- * sedangkan di sini ia mempersempit angka UTAMA dashboard eksekutif. Dashboard
- * lintas-OPD yang langsung tampil kosong hanya karena triwulan berjalan belum
- * punya survei bernilai bukan default yang berguna -- mempersempit harus jadi
- * tindakan sadar pengguna.
+ * NILAI AWALNYA TAHUN BERJALAN sejak 6 Oktober 2026, dan itu PEMBALIKAN dari
+ * keputusan sebelumnya -- dicatat di sini karena alasan lamanya masih benar
+ * dan pembaca berikutnya berhak tahu apa yang menggantikannya.
+ *
+ * Dulu string kosong = tak menyaring, dengan alasan: penyaring ini
+ * mempersempit angka UTAMA dashboard eksekutif lintas-OPD (berbeda dari Admin
+ * OPD, yang penyaringnya hanya melingkupi satu bagian), jadi mempersempitnya
+ * harus menjadi tindakan sadar pengguna.
+ *
+ * Yang membatalkannya: sejak penyaring periode dipisah menjadi Tahun +
+ * Triwulan, pemilik produk menetapkan tahun WAJIB terisi. Penyaring tahun yang
+ * wajib tak dapat sekaligus berarti "tanpa penyaring" -- dan akibatnya terukur
+ * di layar sebelum diperbaiki: dropdown menampilkan "2027" sementara kotak
+ * keterangan di bawahnya berbunyi "Penyaring navbar aktif: semua periode".
+ *
+ * Tetap TANPA triwulan (tahun saja, bukan `2026-Q4`): triwulan berjalan di
+ * lingkup lintas-OPD sering belum punya satu pun survei tertutup, dan di situ
+ * alasan lama masih berlaku sepenuhnya.
+ *
+ * Diisi di sini, bukan dibiarkan `PenyaringPeriode` melaporkannya saat
+ * terpasang: nilai awal yang kosong membuat dashboard mengambil data sekali
+ * tanpa penyaring lalu sekali lagi dengan penyaring.
  */
 export function AdminKabLayoutProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
-  const [periode, setPeriode] = useState('');
+  const [periode, setPeriode] = useState(() => String(new Date().getFullYear()));
 
   return (
     <AdminKabLayoutContext.Provider

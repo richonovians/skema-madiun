@@ -6,7 +6,6 @@ import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
 import { periodeFromDate } from '../surveys/utils/periode.util';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
-import { UpdateInsightDto } from './dto/update-insight.dto';
 import {
   OpdDashboardEntity,
   PerformanceMetricEntity,
@@ -18,7 +17,6 @@ import {
   PeriodePointEntity,
   ServiceElementAggregateEntity,
   StatisticsEntity,
-  StatisticsInsightEntity,
   StatisticsSummaryEntity,
   TopOpdEntity,
   ValueDistributionEntity,
@@ -268,7 +266,6 @@ export class DashboardService {
       complaintStatusRows,
       complaintCategoryRows,
       scaleAnswerRows,
-      insightRow,
       activeSurveys,
     ] = await Promise.all([
       this.prisma.ikmResult.findMany({
@@ -297,7 +294,6 @@ export class DashboardService {
         where: { nilai: { not: null } },
         _count: { _all: true },
       }),
-      this.prisma.statisticsInsight.findUnique({ where: { id: 1 } }),
       this.prisma.survey.findMany({
         where: { status: SurveyStatus.aktif },
         include: { opd: { select: { nama: true } } },
@@ -398,11 +394,6 @@ export class DashboardService {
 
     const topOpd = this.topOpdByIkm(ikmResults);
 
-    const insight = new StatisticsInsightEntity({
-      text: insightRow?.text ?? null,
-      updatedAt: insightRow?.updatedAt ?? null,
-    });
-
     return new StatisticsEntity({
       summary,
       ikmTrend,
@@ -412,18 +403,7 @@ export class DashboardService {
       serviceElements,
       valueDistribution,
       topOpd,
-      insight,
     });
-  }
-
-  /** Isi/perbarui narasi `/statistics` (D6) -- Admin Kabupaten. Upsert baris tunggal (id=1). */
-  async updateInsight(dto: UpdateInsightDto, user: CurrentUser): Promise<StatisticsInsightEntity> {
-    const row = await this.prisma.statisticsInsight.upsert({
-      where: { id: 1 },
-      create: { id: 1, text: dto.text, updatedBy: user.userId },
-      update: { text: dto.text, updatedBy: user.userId },
-    });
-    return new StatisticsInsightEntity({ text: row.text, updatedAt: row.updatedAt });
   }
 
   /** Rata-rata (default) atau jumlah nilai per periode triwulan, terurut kronologis (format kanonik = sortable). */

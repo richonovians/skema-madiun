@@ -13,6 +13,7 @@ import {
   X,
   History,
   BookOpen,
+  TrendingUp,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -234,6 +235,18 @@ export default function AdminKabSidebar() {
               className="shrink-0 transition-transform duration-300 group-hover:scale-110"
             />
             <span className={kelasLabelCiut}>Pengaduan</span>
+          </Link>
+          <Link
+            href="/admin-kab/analytics"
+            title="Statistik & Laporan"
+            className={getLinkClass('/admin-kab/analytics')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <TrendingUp
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Statistik & Laporan</span>
           </Link>
           {/* Manajemen User & Audit Logs: milik Admin Kabupaten sejak peleburan
               peran superuser (15 September 2026). Sidebar ini memang hanya

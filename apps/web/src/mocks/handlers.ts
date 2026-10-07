@@ -746,9 +746,10 @@ export const handlers = [
   ),
 
   // [REKAM]
-  // SEMBILAN kunci — `insight`, `serviceElements`, `valueDistribution`, dan
-  // `topOpd` WAJIB ada: `adaptStatistics` membacanya tanpa penjagaan, sehingga
-  // respons yang kekurangan salah satunya membuat halaman statistik gagal render.
+  // DELAPAN kunci — `serviceElements`, `valueDistribution`, dan `topOpd` WAJIB
+  // ada: `adaptStatistics` membacanya tanpa penjagaan, sehingga respons yang
+  // kekurangan salah satunya membuat halaman statistik gagal render.
+  // `insight` dibuang 6 Oktober 2026 bersama fiturnya.
   http.get(`${API_BASE}/statistics`, () =>
     ok(
       {
@@ -804,10 +805,6 @@ export const handlers = [
             nilaiIkm: 82.7,
           },
         ],
-        insight: {
-          text: 'Kepuasan masyarakat naik tiga triwulan berturut-turut.',
-          updatedAt: '2026-08-09T04:00:00.000Z',
-        },
       },
       '/statistics',
     ),

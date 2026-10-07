@@ -326,11 +326,16 @@ function AnalyticsPageContent() {
 
   return (
     <div className="w-full flex flex-col">
-      {/* Judul halaman */}
-      <h2 className="font-headline-md text-headline-md font-extrabold text-primary mb-4">
-        Statistik &amp; Analisis
-      </h2>
+      {/* TANPA JUDUL DI BADAN HALAMAN (7 Oktober 2026, permintaan pengguna).
+          Sehari sebelumnya judul ini justru DIPERTAHANKAN saat padanannya di
+          halaman Kabupaten dibuang, dengan alasan navbar Admin OPD menampilkan
+          nama OPD dan bukan judul halaman. Pemilik produk menimbang lain.
 
+          Penanda lokasinya tidak hilang: `metadata.title` di layout.jsx tetap
+          "Statistik & Laporan", dan itulah yang diumumkan pembaca layar saat
+          pindah halaman. Bunyinya juga sempat BERBEDA dari menu sidebar yang
+          menuju ke sini ("Statistik & Laporan"); membuangnya sekaligus menutup
+          satu halaman bernama dua. */}
       {exportError && (
         <div className="mb-lg p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
           Gagal mengekspor: {exportError}
@@ -338,6 +343,7 @@ function AnalyticsPageContent() {
       )}
 
       <AnalyticsTabs
+        kelasSticky="top-[var(--tinggi-navbar-opd)]"
         tabs={tabs}
         activeTab={activeTab}
         onChange={setActiveTab}

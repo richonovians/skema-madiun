@@ -77,5 +77,20 @@ test('unduhan QR pada survei aktif berupa poster, bukan QR polos', async ({
 test('KONTROL: halaman survei Admin Kabupaten memang berisi', async ({ page, bukaSebagai }) => {
   await bukaSebagai('kabupaten', '/admin-kab/surveys');
 
-  await expect(page.getByRole('link', { name: /detail/i }).first()).toBeVisible();
+  // Aksinya ADA DI BALIK MENU TITIK-TIGA sejak 30 September 2026 (commit
+  // 22b2d03, "aksi survei Kabupaten jadi menu titik-tiga"). Uji ini ditulis 22
+  // September dan masih mencari tautan "Detail" di dalam baris tabel, padahal
+  // tautan itu kini baru ada di DOM setelah menunya dibuka -- jadi ia merah
+  // sejak hari pemindahan itu, bukan karena halamannya kosong. Dibetulkan 7
+  // Oktober 2026.
+  // Dua hal berubah, dan keduanya perlu disebut supaya pembaca berikutnya tak
+  // mengira yang satu cukup. Pertama, butirnya baru masuk DOM setelah menunya
+  // dibuka. Kedua, butir "Detail" memang `next/link`, tetapi ia membawa
+  // `role="menuitem"` yang MENIMPA peran `link` implisitnya -- jadi
+  // `getByRole('link')` tak akan pernah menemukannya berapa lama pun ditunggu.
+  const pemicuAksi = page.getByRole('button', { name: /^Aksi untuk / }).first();
+  await expect(pemicuAksi).toBeVisible();
+  await pemicuAksi.click();
+
+  await expect(page.getByRole('menuitem', { name: /detail/i }).first()).toBeVisible();
 });

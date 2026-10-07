@@ -61,6 +61,33 @@ function badanContoh(operasi) {
   return isi;
 }
 
+/**
+ * Contoh badan permintaan sebagai BLOK TERSENDIRI (6 Oktober 2026, permintaan
+ * pengguna: "tambahkan request body di halaman dokumentasi api").
+ *
+ * Sebelum ini contohnya hanya terbenam di dalam snippet curl/fetch, sehingga
+ * orang yang memakai klien lain harus menambangnya dari perintah shell.
+ *
+ * MEMAKAI `badanContoh` YANG SAMA dengan kedua snippet itu, bukan penyusun
+ * kedua: dua penyusun berarti dua contoh yang cepat atau lambat menyimpang, dan
+ * yang menyimpang tak akan terlihat siapa pun karena keduanya tampak masuk akal.
+ *
+ * `null` -- bukan string kosong -- bagi operasi tanpa badan, supaya komponennya
+ * dapat MENYEMBUNYIKAN tabnya alih-alih menggambar blok kosong tanpa keterangan.
+ */
+export function badanPermintaan(operasi) {
+  const badan = badanContoh(operasi);
+  if (!badan) return null;
+  // `multipart/form-data` tak pernah dikirim sebagai JSON; menggambarkannya
+  // begitu akan menyesatkan orang yang menyalinnya.
+  if (operasi.jenisBadan === 'multipart/form-data') {
+    return Object.entries(badan)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(String.fromCharCode(10));
+  }
+  return JSON.stringify(badan, null, 2);
+}
+
 /** `{id}` -> `<id>`. Pengisi, bukan angka contoh: angka contoh membuat orang
  * menyalin lalu menyentuh data milik orang lain tanpa sadar.
  *

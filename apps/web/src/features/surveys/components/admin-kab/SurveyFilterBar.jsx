@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import React, { useState, useRef, useEffect } from 'react';
 import Input from '@/components/ui/Input';
+import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
 import { Trash2, Search, Download, FileText, ChevronDown, Filter, Plus } from 'lucide-react';
@@ -26,7 +27,7 @@ export default function SurveyFilterBar({
   onExportExcel,
   onExportPDF,
   opdOptions = [],
-  periodeOptions = [],
+  tahunOptions = [],
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -221,10 +222,14 @@ export default function SurveyFilterBar({
           value={filters.status}
           onChange={(val) => handleChange('status', val)}
         />
-        <Dropdown
-          options={periodeOptions}
+        {/* DUA dropdown sejak 6 Oktober 2026 (permintaan pengguna). `periodeOptions`
+            yang lama -- daftar gabungan "Triwulan I - 2026" -- digantikan
+            `tahunOptions`; triwulannya tetap sama di mana pun dan tinggal di
+            dalam komponennya. */}
+        <PenyaringPeriode
           value={filters.periode}
           onChange={(val) => handleChange('periode', val)}
+          tahunOptions={tahunOptions}
         />
       </div>
     </div>

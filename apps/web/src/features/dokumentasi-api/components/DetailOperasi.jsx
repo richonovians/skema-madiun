@@ -162,16 +162,16 @@ export default function DetailOperasi({ operasi }) {
           endpoint JSON biasa, dan snippet `-F`-nya tampak sewenang-wenang. */}
       {operasi.jenisBadan === 'multipart/form-data' && (
         <p className="mt-sm text-body-md leading-relaxed text-on-surface-variant">
-          Badan permintaan dikirim sebagai <code>multipart/form-data</code>, bukan JSON. Lampiran
+          Request body dikirim sebagai <code>multipart/form-data</code>, bukan JSON. Lampiran
           berkas memakai medan terpisah di luar daftar ini.
         </p>
       )}
 
       <Daftar judul="Parameter path" properti={operasi.parameterPath} />
       <Daftar judul="Query wajib" properti={queryWajib} />
-      <Daftar judul="Kolom wajib di badan permintaan" properti={badanWajib} />
+      <Daftar judul="Kolom wajib di request body" properti={badanWajib} />
       <Daftar judul="Query opsional — boleh kamu tambahkan sendiri" properti={queryOpsional} />
-      <Daftar judul="Kolom opsional di badan permintaan" properti={badanOpsional} />
+      <Daftar judul="Kolom opsional di request body" properti={badanOpsional} />
 
       <TabSnippet operasi={operasi} />
     </li>

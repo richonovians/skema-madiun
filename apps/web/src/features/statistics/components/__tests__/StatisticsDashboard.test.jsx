@@ -39,7 +39,6 @@ const statistikKosong = (over = {}) => ({
   serviceElements: [],
   valueDistribution: [],
   topOpd: [],
-  insight: { text: null, updatedAt: null },
   ...over,
 });
 
@@ -50,24 +49,6 @@ describe('StatisticsDashboard', () => {
   it('menampilkan keadaan memuat sebelum data tiba', () => {
     render(<StatisticsDashboard />);
     expect(screen.getByText(/memuat statistik/i)).toBeInTheDocument();
-  });
-
-  it('menampilkan narasi insight dari API', async () => {
-    render(<StatisticsDashboard />);
-
-    // InsightCard membungkus teks dengan tanda kutip, jadi dicocokkan sebagian.
-    expect(
-      await screen.findByText(/kepuasan masyarakat naik tiga triwulan berturut-turut/i),
-    ).toBeInTheDocument();
-  });
-
-  it('memakai narasi cadangan ketika backend mengembalikan insight kosong', async () => {
-    givenStatistics(statistikKosong());
-    render(<StatisticsDashboard />);
-
-    expect(
-      await screen.findByText(/belum ada narasi analisis dari admin kabupaten/i),
-    ).toBeInTheDocument();
   });
 
   it('merender kategori pengaduan terbanyak beserta jumlahnya', async () => {
@@ -93,6 +74,126 @@ describe('StatisticsDashboard', () => {
     expect(screen.getByText('🥉')).toBeInTheDocument();
   });
 
+  /**
+   * EFEKTIVITAS DI KARTU KIRI (7 Oktober 2026).
+   *
+   * Bagian ini SEMULA berisi sebaran status pengaduan (Baru/Diproses/Selesai/
+   * Ditolak) dan ketiga ujinya lulus. Dibuang pada hari yang sama atas
+   * keputusan pemilik produk: keadaan per-kasus seperti "Ditolak 2" terbaca
+   * sebagai pemerintah menolak warga, padahal bisa berarti duplikat atau spam.
+   * Itu BUKAN penutupan kebocoran -- `GET /statistics` berdekorator `@Public()`
+   * tanpa autentikasi, jadi angka itu memang sudah terbuka lewat API dan tetap
+   * terbuka sesudah perubahan ini. Yang berubah hanya apa yang dipajang.
+   *
+   * Penggantinya tetap dari muatan permintaan yang sama: `summary.completionRate`,
+   * `summary.avgSlaDays`, dan `summary.totalComplaints` -- ketiganya ditandai D3
+   * (publik menurut rancangan) di statistics.entity.ts, seluruhnya agregat.
+   *
+   * Sebab kekosongannya sendiri tak berubah dan bukan cacat: hanya ada tiga
+   * kategori pengaduan di data, sementara kartu kanan menggambar empat kartu
+   * OPD berpadding tebal. Keduanya item `grid lg:grid-cols-2` yang meregang
+   * setinggi baris, dan `BarChart` ber-`h-full` -- kotaknya ikut tinggi, isinya
+   * tidak.
+   */
+  it('merender persentase aduan yang selesai ditangani', async () => {
+    render(<StatisticsDashboard />);
+
+    // Mock: completionRate 92.
+    expect(await screen.findByText(/selesai ditangani/i)).toBeInTheDocument();
+    expect(screen.getByText('92%')).toBeInTheDocument();
+  });
+
+  it('menyebut rata-rata waktu penyelesaian dengan koma desimal', async () => {
+    // Mock: avgSlaDays 3.4. Dibulatkan ke bilangan bulat angka ini menjadi
+    // "3 hari", dan pada nilai sekecil itu selisihnya setengah hari kerja.
+    render(<StatisticsDashboard />);
+
+    const kotak = (await screen.findByText(/^rata-rata penyelesaian$/i)).closest('div');
+    expect(kotak).toHaveTextContent('3,4 hari');
+  });
+
+  it('menyebut jumlah aduan masuk, supaya persentasenya punya penyebut', async () => {
+    // Mock: totalComplaints 34. Tanpa ini "92%" tak terbaca: 92% dari 34
+    // berbeda artinya dari 92% dari 3.
+    render(<StatisticsDashboard />);
+    await screen.findByText(/selesai ditangani/i);
+
+    // Angka dan labelnya dipisah ke dua baris dalam satu kotak statistik,
+    // jadi yang diperiksa keterikatannya, bukan satu untai teks.
+    const kotak = screen.getByText(/^aduan masuk$/i).closest('div');
+    expect(kotak).toHaveTextContent('34');
+  });
+
+  it('memberi bilah kemajuannya nama dan nilai yang terbaca pembaca layar', async () => {
+    render(<StatisticsDashboard />);
+
+    const bilah = await screen.findByRole('progressbar');
+    expect(bilah).toHaveAttribute('aria-valuenow', '92');
+    expect(bilah).toHaveAccessibleName(/selesai ditangani/i);
+  });
+
+  it('tidak merender bagian efektivitas ketika kedua angkanya belum ada', async () => {
+    // `completionRate` dan `avgSlaDays` nullable di statistics.entity.ts: OPD
+    // tanpa satu pun pengaduan tak punya persentase maupun rata-rata hari.
+    // "0%" di sana adalah karangan, bukan nol yang terukur.
+    givenStatistics(
+      statistikKosong({
+        summary: { ...statistikKosong().summary, completionRate: null, avgSlaDays: null },
+        complaintCategories: [{ kode: 'aduan', nama: 'Aduan', count: 3 }],
+      }),
+    );
+    render(<StatisticsDashboard />);
+
+    // Kartunya tetap digambar -- yang hilang hanya bagian bawahnya.
+    expect(await screen.findByText('Aduan')).toBeInTheDocument();
+    expect(screen.queryByText(/selesai ditangani/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    // Judulnya DAN penyebutnya ikut hilang. Tanpa kedua baris ini ujinya
+    // hampa: dengan `completionRate` null bilah kemajuannya memang tak
+    // tergambar walau penjaganya dicabut, sehingga yang tersisa adalah judul
+    // bagian plus "0 aduan masuk" yang menggantung sendiri. Terbukti lewat
+    // mutasi `if (false) return null`, yang lolos sebelum dua baris ini ada.
+    expect(screen.queryByText('Efektivitas Penyelesaian Aduan')).not.toBeInTheDocument();
+    expect(screen.queryByText(/aduan masuk/i)).not.toBeInTheDocument();
+  });
+
+  it('memberi jarak tetap ke bagian efektivitas, bukan mendorongnya ke dasar kartu', async () => {
+    // Percobaan sebelumnya memakai `mt-auto`, yang mendorong bagian ini ke
+    // dasar kartu yang diregangkan. Sisa ruangnya tidak hilang, hanya PINDAH:
+    // dari bawah bagian ini menjadi pita kosong di antara daftar kategori dan
+    // garis pemisahnya, dan terlihat sama kosongnya (laporan pengguna,
+    // 7 Oktober 2026). Jaraknya kini tetap; kekosongannya dibereskan dengan
+    // berhenti meregangkan kartunya, lihat uji berikutnya.
+    render(<StatisticsDashboard />);
+
+    const judul = await screen.findByText('Efektivitas Penyelesaian Aduan');
+    const pembungkus = judul.closest('div').parentElement;
+
+    expect(pembungkus).toHaveClass('mt-8');
+    expect(pembungkus).not.toHaveClass('mt-auto');
+  });
+
+  it('tidak meregangkan kartu melampaui isinya', async () => {
+    // Item grid bawaannya `stretch`: kartu kiri dipaksa setinggi kartu OPD di
+    // sebelahnya walau isinya lebih pendek, dan selisihnya menjadi ruang kosong
+    // DI DALAM kartu yang tak dapat diisi apa pun yang jujur. `items-start`
+    // membuat tinggi tiap kartu mengikuti isinya sendiri.
+    render(<StatisticsDashboard />);
+    await screen.findByText('Top Kategori Pengaduan');
+
+    const grid = document.querySelector('[class*="lg:grid-cols-2"]');
+    expect(grid).toHaveClass('items-start');
+  });
+
+  it('KONTROL: daftar kategori tetap utuh di kartu yang sama', async () => {
+    // Menambah bagian baru tak boleh menggusur yang sudah ada.
+    render(<StatisticsDashboard />);
+
+    expect(await screen.findByText('Aduan')).toBeInTheDocument();
+    expect(screen.getByText('Lapor')).toBeInTheDocument();
+    expect(screen.getByText('Lainnya')).toBeInTheDocument();
+  });
+
   it('menampilkan keadaan kosong ketika belum ada pengaduan maupun hasil IKM', async () => {
     givenStatistics(statistikKosong());
     render(<StatisticsDashboard />);
@@ -110,7 +211,11 @@ describe('StatisticsDashboard', () => {
         if (gagal) {
           return ok({ message: 'Server bermasalah' }, '/statistics', 500);
         }
-        return ok(statistikKosong({ insight: { text: 'Pulih kembali.', updatedAt: null } }), '/statistics');
+        // Penanda pemulihan DIPINDAHKAN dari narasi insight (dibuang
+        // 6 Oktober 2026) ke keadaan kosong yang masih digambar halaman ini.
+        // Yang dibuktikan uji ini tetap sama: tombol Coba Lagi benar-benar
+        // memicu pengambilan ulang.
+        return ok(statistikKosong(), '/statistics');
       }),
     );
 
@@ -122,6 +227,8 @@ describe('StatisticsDashboard', () => {
     gagal = false;
     fireEvent.click(screen.getByRole('button', { name: /coba lagi/i }));
 
-    await waitFor(() => expect(screen.getByText(/pulih kembali/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Belum ada data pengaduan.')).toBeInTheDocument(),
+    );
   });
 });

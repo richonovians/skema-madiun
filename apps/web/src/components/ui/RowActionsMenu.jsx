@@ -70,12 +70,50 @@ export default function RowActionsMenu({ label, items = [] }) {
       Math.max(JARAK_TEPI, kotak.right - LEBAR_MENU),
       Math.max(JARAK_TEPI, window.innerWidth - LEBAR_MENU - JARAK_TEPI),
     );
-    setPosisi({ top: kotak.bottom + 4, left: kiri });
+
+    // PENJEPITAN TEGAK (6 Oktober 2026, laporan pengguna: "ketika scroll
+    // halaman hingga bawah, daftar aksi tidak bisa tampil semuanya").
+    //
+    // Sebelum ini hanya sumbu MENDATAR yang dijepit, lalu `top` dipaku ke
+    // bawah tombol tanpa pernah memeriksa sisa ruang. Baris di dekat dasar
+    // layar karena itu menggambar panelnya keluar viewport, dan butir
+    // terakhirnya tak dapat ditekan sama sekali.
+    //
+    // Tinggi panel diukur dari panel yang SUDAH tergambar. Pada lari pertama
+    // ia belum ada -- panelnya baru dirender setelah `posisi` terisi -- jadi
+    // `0` berarti "belum terukur" dan perilaku lama dipakai apa adanya; lari
+    // kedua (dipicu `posisi` berubah) yang membetulkannya. Menebak tingginya
+    // dari jumlah butir akan salah begitu sebuah butir punya `keterangan`.
+    const tinggiPanel = panelRef.current?.getBoundingClientRect().height ?? 0;
+    const ruangBawah = window.innerHeight - kotak.bottom - JARAK_TEPI;
+    const ruangAtas = kotak.top - JARAK_TEPI;
+
+    // DIBALIK hanya bila ruang bawah benar-benar kurang DAN ruang atas lebih
+    // lega. Membalik sekadar karena bawah kurang dapat memindahkan panel ke
+    // tempat yang lebih sempit lagi.
+    const keAtas = tinggiPanel > 0 && tinggiPanel > ruangBawah && ruangAtas > ruangBawah;
+    const tinggiMaks = Math.max(JARAK_TEPI * 2, keAtas ? ruangAtas : ruangBawah);
+    const atas = keAtas
+      ? Math.max(JARAK_TEPI, kotak.top - 4 - Math.min(tinggiPanel, tinggiMaks))
+      : kotak.bottom + 4;
+
+    // Objek LAMA dikembalikan apa adanya bila tak ada yang berubah. Tanpa itu
+    // lari kedua menghasilkan objek baru pada setiap render dan efek di bawah
+    // berputar tanpa henti.
+    setPosisi((lama) =>
+      lama && lama.top === atas && lama.left === kiri && lama.tinggiMaks === tinggiMaks
+        ? lama
+        : { top: atas, left: kiri, tinggiMaks },
+    );
   }, []);
 
   useLayoutEffect(() => {
-    if (terbuka) hitungPosisi();
-  }, [terbuka, hitungPosisi]);
+    if (!terbuka) return;
+    // `posisi` ikut menjadi kebergantungan supaya pengukuran kedua berjalan
+    // SESUDAH panelnya tergambar -- itulah satu-satunya saat tingginya dapat
+    // diketahui.
+    hitungPosisi();
+  }, [terbuka, posisi, hitungPosisi]);
 
   useEffect(() => {
     if (!terbuka) return undefined;
@@ -148,8 +186,17 @@ export default function RowActionsMenu({ label, items = [] }) {
             // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role
             role="menu"
             aria-label={label}
-            style={{ top: posisi.top, left: posisi.left, width: LEBAR_MENU }}
-            className="fixed max-w-[calc(100vw-1rem)] bg-surface border border-border rounded-xl shadow-lg overflow-hidden z-[9999] py-1"
+            style={{
+              top: posisi.top,
+              left: posisi.left,
+              width: LEBAR_MENU,
+              // Jalan terakhir ketika KEDUA sisi sempit: panelnya tetap tak
+              // muat, dibalik atau tidak, jadi ia digulung sendiri alih-alih
+              // membiarkan butir terakhir tak terjangkau.
+              maxHeight: posisi.tinggiMaks,
+              overflowY: 'auto',
+            }}
+            className="fixed max-w-[calc(100vw-1rem)] bg-surface border border-border rounded-xl shadow-lg z-[9999] py-1"
           >
             {butir.map((item) => (
               <li key={item.key} className={item.pemisahSebelum ? 'border-t border-border mt-1 pt-1' : undefined}>

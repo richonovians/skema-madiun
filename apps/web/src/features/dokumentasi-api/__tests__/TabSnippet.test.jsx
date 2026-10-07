@@ -124,3 +124,102 @@ describe('TabSnippet', () => {
     expect(catatan.textContent).toContain('createdAt');
   });
 });
+
+/**
+ * TAB BADAN PERMINTAAN (6 Oktober 2026, permintaan pengguna: "tambahkan request
+ * body di halaman dokumentasi api").
+ *
+ * Sebelum ini contoh badannya hanya terbenam di dalam snippet curl/fetch, jadi
+ * orang yang memakai klien lain harus menambangnya dari perintah shell.
+ */
+/**
+ * ISTILAHNYA INGGRIS DI LAYAR (7 Oktober 2026, permintaan pengguna: "ubah teks
+ * badan/permintaan badan menjadi body/request body").
+ *
+ * Pengecualian tersurat dari aturan repo bahwa teks antarmuka berbahasa
+ * Indonesia. Pembaca halaman ini membaca dokumen OpenAPI, dan di sana medannya
+ * memang bernama `requestBody`; menerjemahkannya justru memutus kaitan dengan
+ * dokumen yang sedang mereka cocokkan. Nama identifier di kode TETAP Indonesia
+ * (`teksBadan`, `badanPermintaan`) -- yang berubah hanya yang terbaca pengguna.
+ */
+describe('TabSnippet — istilah request body', () => {
+  const dgnBadanIstilah = () => operasi('POST', '/api/v1/surveys');
+
+  it('tabnya bernama `body`, bukan `badan`', () => {
+    render(<TabSnippet operasi={dgnBadanIstilah()} />);
+
+    expect(screen.getByRole('button', { name: /^body$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^badan$/i })).not.toBeInTheDocument();
+  });
+
+  it('judul bloknya "Request body", dan tanpa em dash', () => {
+    // Em dash dilarang di seluruh teks keluaran repo ini; pemisahnya titik dua.
+    render(<TabSnippet operasi={dgnBadanIstilah()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^body$/i }));
+
+    const kepala = screen.getByTestId('kepala-badan').textContent;
+
+    expect(kepala).toMatch(/Request body/i);
+    expect(kepala).not.toMatch(/Badan permintaan/i);
+    expect(kepala).not.toContain(String.fromCharCode(8212));
+  });
+
+  it('label tombol salin ikut memakai istilah itu', () => {
+    render(<TabSnippet operasi={dgnBadanIstilah()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^body$/i }));
+
+    expect(
+      screen.getByRole('button', { name: /salin contoh request body/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('TabSnippet — badan permintaan', () => {
+  const dgnBadan = () => operasi('POST', '/api/v1/surveys');
+  const tanpaBadan = () => operasi('GET', '/api/v1/surveys');
+
+  it('menyediakan tab `badan` bagi operasi yang punya badan permintaan', () => {
+    render(<TabSnippet operasi={dgnBadan()} />);
+
+    expect(screen.getByRole('button', { name: /^body$/i })).toBeInTheDocument();
+  });
+
+  it('MENYEMBUNYIKAN tabnya bagi operasi tanpa badan', () => {
+    // Tab kosong tanpa keterangan terbaca sebagai halaman yang rusak; GET tak
+    // pernah punya badan permintaan.
+    render(<TabSnippet operasi={tanpaBadan()} />);
+
+    expect(screen.queryByRole('button', { name: /^body$/i })).not.toBeInTheDocument();
+  });
+
+  it('menampilkan contoh JSON-nya saat tab itu dibuka', () => {
+    render(<TabSnippet operasi={dgnBadan()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^body$/i }));
+
+    const teks = screen.getByTestId('contoh-badan').textContent;
+    expect(teks).toContain('judul');
+    expect(teks.trim().startsWith('{')).toBe(true);
+  });
+
+  it('contohnya SAMA dengan yang ada di dalam snippet curl', () => {
+    // Penjaga terpenting: dua contoh yang menyimpang tak akan terlihat siapa
+    // pun karena keduanya tampak masuk akal.
+    render(<TabSnippet operasi={dgnBadan()} />);
+    const curl = screen.getByTestId('snippet-curl').textContent;
+
+    fireEvent.click(screen.getByRole('button', { name: /^body$/i }));
+    const badan = screen.getByTestId('contoh-badan').textContent;
+
+    for (const baris of badan.split(String.fromCharCode(10))) {
+      expect(curl).toContain(baris.trim());
+    }
+  });
+
+  it('tab curl, fetch, dan respons tetap ada', () => {
+    render(<TabSnippet operasi={dgnBadan()} />);
+
+    expect(screen.getByRole('button', { name: /^curl$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^fetch$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^respons$/i })).toBeInTheDocument();
+  });
+});

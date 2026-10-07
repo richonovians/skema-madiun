@@ -28,6 +28,24 @@ function mutuFromNilai(nilaiIkm: number): IkmMutu {
  * NRR per unsur = Σnilai ÷ jumlah responden; bobot = 1 ÷ jumlah unsur;
  * Nilai IKM = (Σ NRR tertimbang) × 25; mutu dari tabel konversi.
  */
+/**
+ * Penyaring `periode` untuk Prisma (6 Oktober 2026).
+ *
+ * Penyaring di antarmuka dipisah menjadi Tahun (wajib) + Triwulan (boleh
+ * "Semua") atas permintaan pengguna, dan "Semua Triwulan" mengirim nilai
+ * BERTAHUN SAJA (`2026`) alih-alih periode kanonik (`2026-Q2`). Kecocokan
+ * persis akan mengembalikan nol baris untuk setiap survei yang ada.
+ *
+ * AWALAN YANG DIJANGKARKAN TANDA HUBUNG, bukan `contains` dan bukan
+ * `startsWith('2026')` begitu saja: tanpa tanda hubung, `20261-Q1` -- tahun
+ * yang sama sekali lain -- ikut tercocok.
+ */
+const TAHUN_SAJA = /^\d{4}$/;
+
+function filterPeriode(periode: string): Prisma.StringFilter | string {
+  return TAHUN_SAJA.test(periode) ? { startsWith: `${periode}-` } : periode;
+}
+
 @Injectable()
 export class IkmService {
   constructor(
@@ -148,7 +166,7 @@ export class IkmService {
   async getDashboard(query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
     const where: Prisma.IkmResultWhereInput = {};
     if (query.periode) {
-      where.periode = query.periode;
+      where.periode = filterPeriode(query.periode);
     }
     if (query.jenisLayanan) {
       where.survey = { opd: { jenisLayanan: query.jenisLayanan } };
@@ -186,7 +204,7 @@ export class IkmService {
       ...TIDAK_DIBUANG,
     };
     if (query.periode) {
-      activeSurveyWhere.periode = query.periode;
+      activeSurveyWhere.periode = filterPeriode(query.periode);
     }
     if (query.jenisLayanan) {
       activeSurveyWhere.opd = { jenisLayanan: query.jenisLayanan };

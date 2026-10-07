@@ -13,26 +13,43 @@ import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useAsync } from '@/hooks/useAsync';
 import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
-import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
+import { buildTahunOptions } from '@/features/surveys/adapters/survey.adapter';
+import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 
 // "Semua Periode" sengaja jadi opsi pertama DAN nilai awal -- lihat alasannya di
 // AdminKabLayoutProvider.jsx (dashboard eksekutif tak boleh tampil kosong hanya
 // karena triwulan berjalan belum punya survei bernilai).
-const ALL_PERIODS = { value: '', label: 'Semua Periode' };
-const PERIODE_OPTIONS = [ALL_PERIODS, ...buildRecentPeriodeOptions()];
+// "Semua Periode" DIBUANG bersama dropdown gabungannya (6 Oktober 2026).
+// Penggantinya "Semua Triwulan" pada dropdown Triwulan, yang menyaring setahun
+// penuh. Tahun kini WAJIB terisi: itu pilihan tersurat pemilik produk saat
+// desainnya disajikan, dengan akibat yang disebut di sana -- melihat SELURUH
+// tahun sekaligus tak lagi mungkin dari penyaring ini.
+const TAHUN_OPTIONS = buildTahunOptions();
 
 // Dipetakan dari rute yang BENAR-BENAR ada (lihat app/admin-kab/* dan tautan di
 // AdminKabSidebar.jsx). Judul lama mencocokkan '/management-opd' dan
 // '/management-users' -- dua rute yang tak pernah ada di proyek ini, sehingga
 // LIMA dari enam halaman jatuh ke judul umum "Panel Admin Kabupaten".
 // Diurut dari yang paling spesifik supaya pencocokan awalan tak salah ambil.
-const PAGE_TITLES = [
+//
+// DAFTAR INI MUDAH TERTINGGAL, dan sudah terjadi dua kali: `dokumentasi-api`
+// (5 Oktober 2026) dan `analytics` (6 Oktober 2026) dua-duanya dilupakan saat
+// halamannya ditambahkan, sehingga bilahnya berbunyi "Panel Admin Kabupaten"
+// -- terbaca seperti rute yang tak dikenal. Ditemukan lewat potret halamannya,
+// bukan oleh satu pun uji. Karena itu `JudulNavbarKab.test.jsx` kini
+// membandingkan daftar ini dengan tautan di AdminKabSidebar, dan halaman
+// berikutnya yang ditambahkan tanpa judul akan memerahkan uji itu.
+//
+// Diekspor HANYA untuk uji tersebut. Tak ada komponen lain yang membacanya.
+export const PAGE_TITLES = [
   ['/admin-kab/dashboard', 'Dashboard Eksekutif'],
   ['/admin-kab/opd', 'Daftar OPD'],
   ['/admin-kab/surveys', 'Monitoring Survei'],
   ['/admin-kab/complaints', 'Pengaduan'],
+  ['/admin-kab/analytics', 'Statistik & Laporan'],
   ['/admin-kab/users', 'Manajemen User'],
   ['/admin-kab/audit-logs', 'Audit Logs'],
+  ['/admin-kab/dokumentasi-api', 'Dokumentasi API'],
 ];
 
 
@@ -207,13 +224,12 @@ export default function AdminKabNavbar() {
         <div className="order-last flex w-full items-center gap-2 pb-1 xl:order-3 xl:w-auto xl:shrink-0 xl:pb-0">
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
             <CalendarRange size={18} className="hidden lg:block text-secondary shrink-0" />
-            <Dropdown
-              id="filter-kab-periode"
-              options={PERIODE_OPTIONS}
+            <PenyaringPeriode
               value={periode}
               onChange={setPeriode}
-              variant="primary"
-              className="w-full"
+              tahunOptions={TAHUN_OPTIONS}
+              className="flex w-full items-center gap-2"
+              dropdownClassName=""
             />
           </div>
         </div>

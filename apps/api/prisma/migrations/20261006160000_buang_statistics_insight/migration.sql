@@ -1,0 +1,25 @@
+-- Fitur "Insight & Kesimpulan" dibuang (6 Oktober 2026, permintaan pengguna:
+-- "hapus fitur insight & kesimpulan").
+--
+-- APA YANG DIHAPUS, DAN MENGAPA AMAN. Keputusan D6 (5 Agustus 2026) menyediakan
+-- tempat penyimpanan narasi analisis agar dapat diisi Admin Kabupaten -- sengaja
+-- bukan dibangkitkan dari angka, dan sengaja tidak dihapus dari antarmuka.
+-- Terukur pada basis data pengembangan hari ini, tepat sebelum migrasi ini
+-- ditulis dan sekali lagi sebelum diterapkan:
+--
+--   baris statistics_insight : 0
+--
+-- Selain kosong, fiturnya memang tak pernah hidup: tak ada satu pun penyunting
+-- di frontend, dan endpoint `PATCH /statistics/insight` tak pernah dipanggil
+-- antarmuka mana pun. Yang tampil di halaman publik hanyalah kalimat cadangan
+-- "Belum ada narasi analisis dari Admin Kabupaten."
+--
+-- PERINTAH MERUSAK, dan dinyatakan tersurat: DROP TABLE tidak dapat dibatalkan.
+-- Bila sebuah lingkungan lain sempat mengisi tabel ini antara hari ini dan saat
+-- migrasi dijalankan di sana, isinya ikut hilang tanpa cadangan. Periksa
+-- `select count(*) from statistics_insight;` lebih dahulu bila ragu.
+--
+-- Tak ada tabel lain yang merujuknya: tak ada foreign key masuk maupun keluar
+-- (`updated_by` sengaja TANPA relasi sejak awal), jadi penghapusannya tak
+-- menyentuh baris mana pun di luar tabel ini.
+DROP TABLE "statistics_insight";
