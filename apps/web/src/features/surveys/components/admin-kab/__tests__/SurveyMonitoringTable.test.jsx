@@ -24,7 +24,7 @@ import SurveyMonitoringTable from '../SurveyMonitoringTable';
  * Aturan status TIDAK bergeser sedikit pun -- itulah sebabnya berkas ini
  * memeriksa ketiga status untuk hampir setiap aksi.
  */
-const survei = (id, title, status) => ({
+const survei = (id, title, status, extra = {}) => ({
   id: String(id),
   title,
   status,
@@ -32,6 +32,8 @@ const survei = (id, title, status) => ({
   opdName: 'Dinas Contoh',
   respondentsCount: 0,
   ikmScore: null,
+  isUtama: false,
+  ...extra,
 });
 
 const render1 = (surveys, props = {}) =>
@@ -44,6 +46,7 @@ const render1 = (surveys, props = {}) =>
       onReopen={jest.fn()}
       onDelete={jest.fn()}
       onDuplicate={jest.fn()}
+      onJadikanUtama={jest.fn()}
       {...props}
     />,
   );
