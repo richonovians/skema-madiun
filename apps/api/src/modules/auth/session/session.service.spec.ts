@@ -161,4 +161,58 @@ describe('SessionService — jendela menganggur & pagu mutlak', () => {
 
     expect(service.perluDiperpanjang(tinggalSedikit)).toBe(true);
   });
+
+  /**
+   * KLAIM `sid` (7 Oktober 2026) -- penanda sesi, bukan penanda akun.
+   *
+   * Dipakai sebagai kunci pada daftar pencabutan (`PenyimpanSesi`). Tanpa ini
+   * tak ada yang membedakan satu sesi dari sesi lain milik akun yang sama,
+   * sehingga mencabut satu perangkat berarti mencabut semuanya.
+   */
+  describe('klaim sid', () => {
+    it('issue menyertakan sid acak sepanjang 32 hex', () => {
+      const service = buatService();
+
+      const payload = service.verify(service.issue(42));
+
+      expect(payload?.sid).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    it('dua sesi berbeda tidak pernah memakai sid yang sama', () => {
+      // Sid yang dapat ditebak atau berulang membuat pencabutan salah sasaran.
+      const service = buatService();
+
+      const a = service.verify(service.issue(42))?.sid;
+      const b = service.verify(service.issue(42))?.sid;
+
+      expect(a).not.toBe(b);
+    });
+
+    it('perpanjang MEMBAWA sid yang sama, tidak menerbitkan yang baru', () => {
+      // Ini yang paling mudah salah. Perpanjangan berjalan diam-diam lewat
+      // SessionRefreshInterceptor; sid baru di sana berarti catatan di penyimpan
+      // menjadi tanpa induk dan sesinya tak lagi dapat dicabut.
+      const service = buatService();
+      const awal = service.verify(service.issue(42));
+
+      const lanjutan = service.verify(service.perpanjang(awal!) as string);
+
+      expect(lanjutan?.sid).toBe(awal?.sid);
+    });
+
+    it('token terbitan lama tanpa sid tetap terbaca, sid-nya undefined', () => {
+      // Token yang terbit sebelum perubahan ini masih beredar. Menolaknya
+      // berarti memaksa semua orang login ulang; preseden yang sama dipakai
+      // saat klaim `abs` lahir 17 September 2026.
+      const jwt = new JwtService({ secret: 'test-secret', signOptions: { expiresIn: 3600 } });
+      const service = new SessionService(jwt, {
+        get: (kunci: string) => (kunci === 'session.idleMinutes' ? 60 : 12),
+      } as unknown as ConfigService);
+
+      const payload = service.verify(jwt.sign({ sub: 42 }));
+
+      expect(payload).toEqual(expect.objectContaining({ sub: 42 }));
+      expect(payload?.sid).toBeUndefined();
+    });
+  });
 });

@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { SessionService } from '../src/modules/auth/session/session.service';
+import { PenerbitSesi } from '../src/modules/auth/session/penerbit-sesi.service';
 
 /**
  * BUKTI POKOK seluruh fitur multi-role: hak akses mengikuti peran yang SEDANG
@@ -21,11 +21,18 @@ import { SessionService } from '../src/modules/auth/session/session.service';
  * milik `kabupaten` sejak peleburan 15 September 2026 (bersama manajemen pengguna), dan
  * penjagaannya ada DI DALAM service (`AuditService.assertSuperuser`), bukan di
  * `@Roles` -- karena peran berhak penuh melewati dekorator itu.
+ *
+ * TOKENNYA DITERBITKAN LEWAT `PenerbitSesi`, BUKAN `SessionService.issue()`
+ * (7 Oktober 2026). Sejak daftar pencabutan sesi hidup, `issue()` menempelkan
+ * klaim `sid` tanpa mendaftarkannya ke penyimpan, dan karena pemeriksaan sesi
+ * gagal tertutup setiap token semacam itu dijawab 401. Uji yang mencetak token
+ * di belakang pintu penerbitan karena itu menguji jalur yang tak pernah dilalui
+ * pengguna sungguhan.
  */
 describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let sessionService: SessionService;
+  let penerbit: PenerbitSesi;
   let opdId: number;
   let userId: number;
   const originalNodeEnv = process.env.NODE_ENV;
@@ -44,7 +51,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
-    sessionService = app.get(SessionService);
+    penerbit = app.get(PenerbitSesi);
 
     const opd = await prisma.opd.upsert({
       where: { kode: KODE_OPD },
@@ -84,7 +91,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
 
   describe('hak ikut turun sesuai peran yang dipakai', () => {
     it('act=kabupaten -> GET /audit-logs 200', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
@@ -99,7 +106,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * karena endpointnya memang terbuka bagi siapa pun.
      */
     it('act=opd -> GET /audit-logs 403, walau akun MEMILIKI kabupaten', async () => {
-      const token = sessionService.issue(userId, Role.opd);
+      const token = await penerbit.terbitkan(userId, Role.opd);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
@@ -109,7 +116,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('act=opd -> GET /users 403 (manajemen pengguna khusus Admin Kabupaten)', async () => {
-      const token = sessionService.issue(userId, Role.opd);
+      const token = await penerbit.terbitkan(userId, Role.opd);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/users')
@@ -119,7 +126,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('KONTROL: act=kabupaten -> GET /users 200', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/users')
@@ -131,7 +138,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
 
   describe('memilih peran', () => {
     it('tanpa klaim act & role banyak -> 401 berkode ROLE_SELECTION_REQUIRED', async () => {
-      const token = sessionService.issue(userId);
+      const token = await penerbit.terbitkan(userId);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/auth/me')
@@ -150,7 +157,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * seluruh uji unit dan baru ketangkap di peramban.
      */
     it('GET /auth/roles LOLOS walau peran belum dipilih', async () => {
-      const token = sessionService.issue(userId);
+      const token = await penerbit.terbitkan(userId);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/auth/roles')
@@ -164,7 +171,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('POST /auth/acting-role BERHASIL walau peran belum dipilih', async () => {
-      const token = sessionService.issue(userId);
+      const token = await penerbit.terbitkan(userId);
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
@@ -179,7 +186,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('token hasil ganti peran benar-benar membawa peran itu', async () => {
-      const awal = sessionService.issue(userId);
+      const awal = await penerbit.terbitkan(userId);
       const ganti = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
         .set('Authorization', `Bearer ${awal}`)
@@ -195,7 +202,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('MENOLAK 403 peran yang tidak dimiliki akun', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
@@ -206,7 +213,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('MENOLAK 400 peran di luar enum', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/acting-role')
@@ -228,7 +235,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
    */
   describe('dashboard OPD terikat dinas akun', () => {
     it('act=opd -> 200, memakai OPD akunnya sendiri tanpa parameter apa pun', async () => {
-      const token = sessionService.issue(userId, Role.opd);
+      const token = await penerbit.terbitkan(userId, Role.opd);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboard/opd')
@@ -242,7 +249,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * saja karena endpointnya terbuka bagi siapa pun.
      */
     it('act=kabupaten + ?opdId= -> 403, OPD lain tak dapat dibuka', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get(`/api/v1/dashboard/opd?opdId=${opdId}`)
@@ -256,7 +263,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('act=kabupaten tanpa parameter -> 403 juga', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboard/opd')
@@ -273,7 +280,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
      * seketika -- bukan menunggu token kedaluwarsa.
      */
     it('mencabut role membatalkan pilihan pada permintaan BERIKUTNYA', async () => {
-      const token = sessionService.issue(userId, Role.kabupaten);
+      const token = await penerbit.terbitkan(userId, Role.kabupaten);
 
       // Kontrol dulu: token ini memang sah SEBELUM pencabutan.
       const sebelum = await request(app.getHttpServer())
@@ -320,7 +327,7 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
     });
 
     it('token TANPA klaim act tetap berfungsi, tanpa langkah memilih', async () => {
-      const token = sessionService.issue(tunggalId);
+      const token = await penerbit.terbitkan(tunggalId);
 
       const res = await request(app.getHttpServer())
         .get('/api/v1/auth/me')

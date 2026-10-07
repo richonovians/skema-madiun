@@ -137,6 +137,16 @@ export default () => ({
     dataKey: process.env.DATA_ENCRYPTION_KEY ?? '',
     backupKey: process.env.BACKUP_ENCRYPTION_KEY ?? '',
   },
+  redis: {
+    /**
+     * Penyimpan daftar pencabutan sesi (7 Oktober 2026).
+     *
+     * KOSONG BERARTI DALAM MEMORI, dan itu hanya sah untuk pengembangan: isinya
+     * hilang saat proses mati, dan dua proses API tak saling melihat sesi satu
+     * sama lain. Gerbang boot menolak menyala di produksi tanpa nilai ini.
+     */
+    url: process.env.REDIS_URL,
+  },
   session: {
     jwtSecret: process.env.SESSION_JWT_SECRET,
     // PAGU MUTLAK sesi, bukan lagi umur tetapnya (17 September 2026). Sesi

@@ -159,7 +159,16 @@ describe('AuthController — penyambungan SSO', () => {
 
       await controller.ssoCallback({ code: 'kode-1', state: 'nonce-1' }, req('sso_state=ttd'), res);
 
-      expect(ssoService.completeLogin).toHaveBeenCalledWith('kode-1', 'nonce-1', 'sso_state=ttd');
+      // Argumen keempat: keterangan perangkat untuk daftar sesi aktif
+      // (7 Oktober 2026). Diperiksa sebagai objek, bukan diabaikan, supaya
+      // penyalurannya dari pengendali benar-benar terjaga di sini -- lapisan
+      // service diuji tanpa perangkat.
+      expect(ssoService.completeLogin).toHaveBeenCalledWith(
+        'kode-1',
+        'nonce-1',
+        'sso_state=ttd',
+        expect.any(Object),
+      );
     });
   });
 
