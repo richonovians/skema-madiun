@@ -5,7 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
-import { periksaPenyimpanan } from './config/gerbang-penyimpanan';
+import { periksaPenyimpanSesi, periksaPenyimpanan } from './config/gerbang-penyimpanan';
 import { anotasiRute } from './modules/dokumentasi/anotasi-rute';
 import { bangunKonfigOpenApi } from './modules/dokumentasi/openapi.config';
 
@@ -20,6 +20,7 @@ async function bootstrap(): Promise<void> {
   // yang mungkin tak terenkripsi. Ini PERNYATAAN, bukan verifikasi -- alasan
   // lengkapnya di gerbang-penyimpanan.ts.
   periksaPenyimpanan(process.env.NODE_ENV ?? 'development', process.env.DB_STORAGE_ENCRYPTED);
+  periksaPenyimpanSesi(process.env.NODE_ENV ?? 'development', process.env.REDIS_URL);
 
   // Prefiks + ValidationPipe global (konfigurasi bersama dengan e2e).
   configureApp(app);

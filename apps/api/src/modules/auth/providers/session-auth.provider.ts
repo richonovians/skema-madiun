@@ -1,9 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { User } from '@prisma/client';
 import type { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ROLE_SELECTION_REQUIRED, resolveActingRole } from '../acting-role.util';
 import { AuthProvider, AuthRequestLike } from '../interfaces/auth-provider.interface';
+import { PENYIMPAN_SESI } from '../session/penyimpan-sesi.interface';
+import type { PenyimpanSesi } from '../session/penyimpan-sesi.interface';
 import { SessionCookieService } from '../session/session-cookie.service';
 import { SessionService } from '../session/session.service';
 import type { SessionPayload } from '../session/session.service';
@@ -27,7 +29,10 @@ export class SessionAuthProvider implements AuthProvider {
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
     private readonly sessionCookie: SessionCookieService,
+    @Inject(PENYIMPAN_SESI) private readonly penyimpanSesi: PenyimpanSesi,
   ) {}
+
+  private readonly logger = new Logger(SessionAuthProvider.name);
 
   async resolveUser(request: AuthRequestLike): Promise<CurrentUser | null> {
     const sesi = await this.bacaSesi(request);
@@ -56,7 +61,7 @@ export class SessionAuthProvider implements AuthProvider {
       });
     }
 
-    return this.bentuk(user, hasil.actingRole);
+    return this.bentuk(user, hasil.actingRole, payload.sid);
   }
 
   /**
@@ -72,7 +77,7 @@ export class SessionAuthProvider implements AuthProvider {
     }
     // `roles[0]` PENAMPUNG belaka. Rute yang memakai jalur ini tak ber-@Roles
     // dan tak memakai `actingRole` untuk apa pun.
-    return this.bentuk(sesi.user, sesi.user.roles[0]);
+    return this.bentuk(sesi.user, sesi.user.roles[0], sesi.payload.sid);
   }
 
   /** Token -> payload -> baris user yang masih aktif. Satu-satunya tempat. */
@@ -86,6 +91,14 @@ export class SessionAuthProvider implements AuthProvider {
 
     const payload = this.sessionService.verify(token);
     if (!payload) {
+      return null;
+    }
+
+    // Daftar pencabutan DI SINI, sesudah tanda tangan terbukti sah: token palsu
+    // tak pernah menyentuh penyimpan. Token terbitan lama tanpa `sid` dilewati
+    // dan tetap diterima sampai habis umurnya; ia memang tak dapat dicabut, dan
+    // keadaan itu hilang sendiri dalam satu pagu sesi.
+    if (payload.sid && !(await this.sesiMasihBerlaku(payload.sid))) {
       return null;
     }
 
@@ -104,13 +117,33 @@ export class SessionAuthProvider implements AuthProvider {
     return { user, payload };
   }
 
-  private bentuk(user: User, actingRole: (typeof user.roles)[number]): CurrentUser {
+  /**
+   * GAGAL TERTUTUP. Penyimpan yang tak dapat menjawab berarti sesi DITOLAK,
+   * bukan diloloskan.
+   *
+   * Keputusan tersurat 7 Oktober 2026: daftar pencabutan yang dapat dilewati
+   * dengan menjatuhkan penyimpannya bukan daftar pencabutan sama sekali.
+   * Konsekuensinya penyimpan menjadi titik gagal tunggal bagi seluruh API, dan
+   * itu ditebus dengan persistensi AOF serta singgahan pendek di sisi
+   * implementasi Redis, bukan dengan melonggarkan baris ini.
+   */
+  private async sesiMasihBerlaku(sid: string): Promise<boolean> {
+    try {
+      return await this.penyimpanSesi.hidup(sid);
+    } catch (err) {
+      this.logger.error(`Penyimpan sesi tak dapat menjawab, sesi ditolak: ${String(err)}`);
+      return false;
+    }
+  }
+
+  private bentuk(user: User, actingRole: (typeof user.roles)[number], sid?: string): CurrentUser {
     return {
       userId: user.id,
       roles: user.roles,
       actingRole,
       opdId: user.opdId,
       ssoSubject: user.ssoSubject,
+      ...(sid ? { sid } : {}),
     };
   }
 

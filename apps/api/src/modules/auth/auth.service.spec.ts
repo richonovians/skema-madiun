@@ -7,7 +7,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { enkripsiKolom } from '../../common/crypto/kolom';
 import { AuthService } from './auth.service';
-import type { SessionService } from './session/session.service';
+import type { PenerbitSesi } from './session/penerbit-sesi.service';
+import { PenyimpanSesiMemori } from './session/penyimpan-sesi.memori';
 
 const cu = (actingRole: Role, userId = 1, over: Partial<CurrentUser> = {}): CurrentUser => ({
   userId,
@@ -47,9 +48,6 @@ describe('AuthService', () => {
     user: { findFirst: jest.fn(), update: jest.fn() },
     respondentProfile: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   } as unknown as PrismaService;
-  const sessionService = {
-    issue: jest.fn().mockReturnValue('signed.jwt.token'),
-  } as unknown as SessionService;
   const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
   /** Kunci uji untuk kolom terenkripsi `users.nik` / `nomor_hp` / `alamat`. */
   const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xd);
@@ -58,7 +56,12 @@ describe('AuthService', () => {
       kunci === 'crypto.dataKey' ? KUNCI_UJI_KOLOM.toString('hex') : undefined,
     ),
   } as unknown as ConfigService;
-  const service = new AuthService(prisma, sessionService, audit, config);
+  // `PenerbitSesi` menggantikan `SessionService` di sini (7 Oktober 2026):
+  // penerbitan sesi kini sekaligus mendaftarkannya ke daftar pencabutan.
+  const penerbitSesi = {
+    terbitkan: jest.fn().mockResolvedValue('signed.jwt.token'),
+  } as unknown as PenerbitSesi;
+  const service = new AuthService(prisma, penerbitSesi, audit, config, new PenyimpanSesiMemori());
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -267,7 +270,7 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('a@x.go.id');
       // Argumen kedua (peran yang dipilih) `undefined` di sini: akun uji ini
       // ber-role tunggal dan permintaannya tak menyebut peran apa pun.
-      expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 1 } }),
       );
@@ -282,8 +285,10 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('mengembalikan konfirmasi sukses (stateless — tak ada state server yang diubah)', () => {
-      expect(service.logout()).toEqual({ success: true });
+    it('mengembalikan konfirmasi sukses', async () => {
+      // Kini asinkron: logout mencabut sesinya di penyimpan, tak lagi sekadar
+      // menghapus cookie (7 Oktober 2026).
+      await expect(service.logout()).resolves.toEqual({ success: true });
     });
   });
 
@@ -294,14 +299,14 @@ describe('AuthService', () => {
    */
   describe('setActingRole', () => {
     it('menerbitkan sesi baru berisi klaim act yang diminta', async () => {
-      (sessionService.issue as jest.Mock).mockReturnValue('token-baru');
+      (penerbitSesi.terbitkan as jest.Mock).mockResolvedValue('token-baru');
 
       const hasil = await service.setActingRole(
         cu(Role.kabupaten, 9, { roles: [Role.kabupaten, Role.opd], opdId: 1 }),
         Role.opd,
       );
 
-      expect(sessionService.issue).toHaveBeenCalledWith(9, Role.opd);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(9, Role.opd, undefined);
       expect(hasil.token).toBe('token-baru');
     });
 
@@ -310,7 +315,7 @@ describe('AuthService', () => {
         service.setActingRole(cu(Role.opd, 9, { roles: [Role.opd], opdId: 1 }), Role.kabupaten),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(sessionService.issue).not.toHaveBeenCalled();
+      expect(penerbitSesi.terbitkan).not.toHaveBeenCalled();
     });
 
     it('MENOLAK role opd bila akun tak tertaut OPD', async () => {
@@ -332,7 +337,7 @@ describe('AuthService', () => {
 
       await service.devLogin({ identifier: 'a@x.go.id', role: Role.opd });
 
-      expect(sessionService.issue).toHaveBeenCalledWith(1, Role.opd);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(1, Role.opd, undefined);
     });
 
     /**
@@ -353,7 +358,7 @@ describe('AuthService', () => {
 
       await service.devLogin({ identifier: 'a@x.go.id' });
 
-      expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
     });
   });
 });
@@ -380,11 +385,12 @@ describe('AuthService.getMe -- identitas dari akun', () => {
   const KUNCI = Buffer.alloc(32, 0xd);
   const service = new AuthService(
     prisma,
-    { issue: jest.fn() } as unknown as SessionService,
+    { terbitkan: jest.fn().mockResolvedValue('token-sesi') } as unknown as PenerbitSesi,
     { record: jest.fn() } as unknown as AuditService,
     {
       get: jest.fn((k: string) => (k === 'crypto.dataKey' ? KUNCI.toString('hex') : undefined)),
     } as unknown as ConfigService,
+    new PenyimpanSesiMemori(),
   );
 
   const barisBeridentitas = (over: Record<string, unknown> = {}) =>
@@ -483,5 +489,78 @@ describe('AuthService.getMe -- identitas dari akun', () => {
     expect(prisma.user.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 7, deletedAt: null } }),
     );
+  });
+});
+
+/**
+ * PENCABUTAN SESI (7 Oktober 2026).
+ *
+ * Sebelum ini `logout` benar-benar tak mengubah apa pun di server: ia hanya
+ * menghapus cookie, dan salinan cookie yang terlanjur keluar tetap sah sampai
+ * pagu `abs` lewat. Docblock lama AuthService.logout menyebut keadaan itu
+ * tersurat ("sesi lokal bersifat stateless").
+ */
+describe('AuthService — pencabutan sesi', () => {
+  const buat = () => {
+    const penyimpan = new PenyimpanSesiMemori();
+    const service = new AuthService(
+      { user: { findFirst: jest.fn(), update: jest.fn() } } as unknown as PrismaService,
+      { terbitkan: jest.fn() } as unknown as PenerbitSesi,
+      { record: jest.fn() } as unknown as AuditService,
+      {
+        get: jest.fn((k: string) =>
+          k === 'crypto.dataKey' ? Buffer.alloc(32, 0xd).toString('hex') : undefined,
+        ),
+      } as unknown as ConfigService,
+      penyimpan,
+    );
+    return { service, penyimpan };
+  };
+
+  const catatan = (uid: number) => ({ uid, abs: Math.floor(Date.now() / 1000) + 3600 });
+
+  it('logout mencabut sesi yang memanggilnya', async () => {
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+
+    await service.logout('sid-a');
+
+    await expect(penyimpan.hidup('sid-a')).resolves.toBe(false);
+  });
+
+  it('logout tanpa sid tetap berhasil, tanpa mencabut apa pun', async () => {
+    // Token terbitan lama tak punya sid. Melemparkan galat di sini berarti
+    // pemiliknya tak dapat keluar sama sekali.
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+
+    await expect(service.logout()).resolves.toEqual({ success: true });
+    await expect(penyimpan.hidup('sid-a')).resolves.toBe(true);
+  });
+
+  it('keluarkan semua perangkat mencabut seluruh sesi akun itu saja', async () => {
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+    await penyimpan.simpan('sid-b', catatan(7));
+    await penyimpan.simpan('sid-lain', catatan(8));
+
+    await service.keluarkanSemuaPerangkat(7);
+
+    await expect(penyimpan.hidup('sid-a')).resolves.toBe(false);
+    await expect(penyimpan.hidup('sid-b')).resolves.toBe(false);
+    await expect(penyimpan.hidup('sid-lain')).resolves.toBe(true);
+  });
+
+  it('daftar sesi menandai mana yang sedang dipakai pemanggilnya', async () => {
+    // Tanpa penanda ini daftar perangkat tak dapat dibaca: pemiliknya tak tahu
+    // baris mana yang akan ia putus bila menekan "keluarkan".
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+    await penyimpan.simpan('sid-b', catatan(7));
+
+    const daftar = await service.daftarSesi(7, 'sid-b');
+
+    expect(daftar.find((s) => s.sid === 'sid-b')?.iniSesiIni).toBe(true);
+    expect(daftar.find((s) => s.sid === 'sid-a')?.iniSesiIni).toBe(false);
   });
 });

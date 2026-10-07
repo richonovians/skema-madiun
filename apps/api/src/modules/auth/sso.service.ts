@@ -16,6 +16,8 @@ import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { readCookie } from './session/cookie.util';
 import { SESSION_COOKIE } from './session/session-cookie.service';
+import { PenerbitSesi } from './session/penerbit-sesi.service';
+import type { PerangkatSesi } from './session/penyimpan-sesi.interface';
 import { SessionService } from './session/session.service';
 import { ambilJalurKlaim } from './sso-claim-path';
 import { bentukKlaim } from './sso-claim-shape';
@@ -58,6 +60,7 @@ export class SsoService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly sessionService: SessionService,
+    private readonly penerbitSesi: PenerbitSesi,
     private readonly stateService: SsoStateService,
     private readonly audit: AuditService,
     @Inject(SSO_SOURCE) private readonly ssoSource: SsoSource,
@@ -84,6 +87,7 @@ export class SsoService {
     code: string | undefined,
     state: string | undefined,
     cookieHeader: string | undefined,
+    perangkat?: PerangkatSesi,
   ): Promise<{ token: string; clearCookie: string }> {
     this.assertConfigured();
 
@@ -137,7 +141,7 @@ export class SsoService {
     await this.audit.record(user.id, 'login', 'auth', { via: 'sso', sub: profile.sub });
 
     return {
-      token: this.sessionService.issue(user.id),
+      token: await this.penerbitSesi.terbitkan(user.id, undefined, perangkat),
       clearCookie: this.stateService.clearCookie(),
     };
   }

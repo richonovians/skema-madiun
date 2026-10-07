@@ -44,3 +44,37 @@ export function periksaPenyimpanan(nodeEnv: string, nilai: string | undefined): 
       'Setelah benar-benar diperiksa, setel DB_STORAGE_ENCRYPTED=true.',
   );
 }
+
+/**
+ * Gerbang boot untuk penyimpan daftar pencabutan sesi (7 Oktober 2026).
+ *
+ * MENGAPA PRODUKSI MENOLAK PENYIMPAN DALAM MEMORI. Pemeriksaan sesi gagal
+ * tertutup, dan penyimpan dalam memori tidak dibagi antarproses. Dua pekerja
+ * API berarti sesi yang diterbitkan satu pekerja ditolak pekerja lainnya, dan
+ * gejalanya bagi pengguna adalah aplikasi yang melemparnya keluar secara acak.
+ * Satu pekerja pun tetap kehilangan seluruh sesi pada setiap penggelaran.
+ *
+ * Pola yang sama dengan `periksaPenyimpanan` di atas: kelalaian yang sunyi
+ * diubah menjadi kegagalan boot yang berisik, saat orang yang tepat masih
+ * memperhatikan.
+ */
+export function periksaPenyimpanSesi(nodeEnv: string, redisUrl: string | undefined): void {
+  if (nodeEnv !== 'production') {
+    return;
+  }
+  if ((redisUrl ?? '').trim() !== '') {
+    return;
+  }
+  throw new Error(
+    [
+      'REDIS_URL belum diisi.',
+      '',
+      'Daftar pencabutan sesi akan jatuh ke penyimpan DALAM MEMORI, yang tidak ' +
+        'dibagi antarproses dan hilang pada setiap penggelaran. Karena pemeriksaan ' +
+        'sesi gagal tertutup, akibatnya pengguna terlempar keluar tanpa sebab yang ' +
+        'terlihat.',
+      '',
+      'Isi REDIS_URL, dan pastikan Redis-nya berjalan dengan AOF menyala.',
+    ].join('\n'),
+  );
+}

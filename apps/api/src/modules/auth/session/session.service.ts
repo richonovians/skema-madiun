@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes } from 'node:crypto';
 import { Role } from '@prisma/client';
 
 export interface SessionPayload {
@@ -26,6 +27,17 @@ export interface SessionPayload {
    * Token semacam itu dibiarkan habis menurut umur lamanya, bukan diperpanjang.
    */
   abs?: number;
+  /**
+   * Penanda SESI, bukan penanda akun (7 Oktober 2026). Kunci pada daftar
+   * pencabutan `PenyimpanSesi`. Tanpa ini tak ada yang membedakan satu sesi
+   * dari sesi lain milik akun yang sama, sehingga mencabut satu perangkat
+   * berarti mencabut semuanya.
+   *
+   * Opsional karena token terbitan SEBELUM perubahan ini tak memilikinya. Token
+   * semacam itu tetap diterima sampai habis umurnya dan memang tak dapat
+   * dicabut; preseden yang sama dipakai saat klaim `abs` lahir.
+   */
+  sid?: string;
   /** Diisi JWT sendiri; dibaca untuk menghitung sisa jendela menganggur. */
   exp?: number;
 }
@@ -74,7 +86,10 @@ export class SessionService {
 
   issue(userId: number, act?: Role): string {
     const abs = SessionService.sekarang + this.paguDetik;
-    return this.tandaTangani({ sub: userId, ...(act ? { act } : {}), abs }, this.jendelaDetik);
+    // 128 bit acak kriptografis. Sid yang dapat ditebak membuat pencabutan
+    // salah sasaran: siapa pun yang menebaknya dapat mencabut sesi orang lain.
+    const sid = randomBytes(16).toString('hex');
+    return this.tandaTangani({ sub: userId, ...(act ? { act } : {}), abs, sid }, this.jendelaDetik);
   }
 
   /**
@@ -93,8 +108,17 @@ export class SessionService {
     if (sisaPagu <= 0) {
       return null;
     }
+    // `sid` DIBAWA apa adanya, tidak diterbitkan ulang. Perpanjangan berjalan
+    // diam-diam lewat SessionRefreshInterceptor; sid baru di sana membuat
+    // catatan di penyimpan menjadi tanpa induk dan sesinya tak lagi dapat
+    // dicabut, tanpa gejala apa pun sampai ada yang mencoba mencabutnya.
     return this.tandaTangani(
-      { sub: payload.sub, ...(payload.act ? { act: payload.act } : {}), abs: payload.abs },
+      {
+        sub: payload.sub,
+        ...(payload.act ? { act: payload.act } : {}),
+        abs: payload.abs,
+        ...(payload.sid ? { sid: payload.sid } : {}),
+      },
       Math.min(this.jendelaDetik, sisaPagu),
     );
   }
@@ -140,6 +164,7 @@ export class SessionService {
         sub: payload.sub,
         ...(act ? { act } : {}),
         ...(typeof payload.abs === 'number' ? { abs: payload.abs } : {}),
+        ...(typeof payload.sid === 'string' ? { sid: payload.sid } : {}),
         ...(typeof payload.exp === 'number' ? { exp: payload.exp } : {}),
       };
     } catch (err) {

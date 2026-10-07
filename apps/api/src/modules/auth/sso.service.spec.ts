@@ -12,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
+import type { PenerbitSesi } from './session/penerbit-sesi.service';
 import { SsoService } from './sso.service';
 import { SsoStateService } from './sso-state.service';
 
@@ -81,6 +82,7 @@ type Mocked = {
   source: { buildAuthorizeUrl: jest.Mock; exchangeCodeForProfile: jest.Mock };
   state: { issue: jest.Mock; verify: jest.Mock; clearCookie: jest.Mock };
   session: { issue: jest.Mock; verify: jest.Mock };
+  penerbit: { terbitkan: jest.Mock };
   audit: { record: jest.Mock };
 };
 
@@ -110,18 +112,20 @@ function buat(configOverrides: Record<string, string | boolean | undefined> = {}
     // dan membuatnya baku menjaga seluruh uji lain tetap menguji jalur normal.
     verify: jest.fn().mockReturnValue(null),
   };
+  const penerbit = { terbitkan: jest.fn().mockResolvedValue('token-sesi-skm') };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
 
   const service = new SsoService(
     prisma as unknown as PrismaService,
     mockConfig(configOverrides),
     session as unknown as SessionService,
+    penerbit as unknown as PenerbitSesi,
     state as unknown as SsoStateService,
     audit as unknown as AuditService,
     source as unknown as SsoSource,
   );
 
-  return { service, prisma, source, state, session, audit };
+  return { service, prisma, source, state, session, penerbit, audit };
 }
 
 describe('SsoService', () => {
@@ -180,14 +184,14 @@ describe('SsoService', () => {
 
   describe('provisioning: pencocokan lewat sub', () => {
     it('sub sudah dikenal -> pakai akun itu, tanpa membuat yang baru', async () => {
-      const { service, prisma, session } = buat();
+      const { penerbit, service, prisma } = buat();
       prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
       prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
 
       const hasil = await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
 
       expect(prisma.user.create).not.toHaveBeenCalled();
-      expect(session.issue).toHaveBeenCalledWith(42);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(42, undefined, undefined);
       expect(hasil.token).toBe('token-sesi-skm');
     });
 
@@ -232,7 +236,7 @@ describe('SsoService', () => {
     };
 
     it('email_verified false -> DITOLAK, akun lama tak disentuh', async () => {
-      const { service, prisma, source, session } = buat();
+      const { penerbit, service, prisma, source } = buat();
       source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
       siapkan(prisma);
 
@@ -242,7 +246,7 @@ describe('SsoService', () => {
       expect(prisma.user.update).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
       // Bukan cuma tak ditulis: tak ada sesi yang terbit sama sekali.
-      expect(session.issue).not.toHaveBeenCalled();
+      expect(penerbit.terbitkan).not.toHaveBeenCalled();
     });
 
     it('klaim email_verified HILANG -> juga ditolak (gagal tertutup)', async () => {
@@ -257,7 +261,7 @@ describe('SsoService', () => {
     });
 
     it('email_verified true -> penautan berjalan seperti biasa', async () => {
-      const { service, prisma, session } = buat();
+      const { penerbit, service, prisma } = buat();
       siapkan(prisma);
       prisma.user.update.mockResolvedValue(
         userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
@@ -269,7 +273,7 @@ describe('SsoService', () => {
         where: { id: 1 },
         data: { ssoSubject: 'hd-sub-abc123' },
       });
-      expect(session.issue).toHaveBeenCalledWith(1);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
     });
 
     it('penautan tercatat di audit walau emailnya terverifikasi', async () => {
@@ -319,14 +323,14 @@ describe('SsoService', () => {
     it('KONTROL: pencocokan lewat sub tak terpengaruh email_verified', async () => {
       // Kalau uji ini ikut merah, artinya penjaga barunya dipasang terlalu jauh
       // ke atas dan memutus login setiap pengguna yang sudah dikenal.
-      const { service, prisma, source, session } = buat();
+      const { penerbit, service, prisma, source } = buat();
       source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
       prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 9 })); // ketemu by sub
       prisma.user.update.mockResolvedValue(userRow({ id: 9 }));
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
 
-      expect(session.issue).toHaveBeenCalledWith(9);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(9, undefined, undefined);
     });
   });
 
@@ -337,7 +341,7 @@ describe('SsoService', () => {
    */
   describe('provisioning: penyelarasan akun lama lewat email (2026-08-27)', () => {
     it('sub belum dikenal tapi email cocok -> sso_subject DINAIKKAN, akun lama dipakai', async () => {
-      const { service, prisma, session } = buat();
+      const { penerbit, service, prisma } = buat();
       prisma.user.findFirst
         .mockResolvedValueOnce(null) // pencarian by sub
         .mockResolvedValueOnce(
@@ -361,7 +365,7 @@ describe('SsoService', () => {
       // ...dan tak ada akun baru yang dibuat, sehingga peran kabupaten & seluruh
       // riwayatnya tidak hilang.
       expect(prisma.user.create).not.toHaveBeenCalled();
-      expect(session.issue).toHaveBeenCalledWith(1);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
     });
 
     it('email dicocokkan dalam huruf kecil, bukan apa adanya dari klaim', async () => {

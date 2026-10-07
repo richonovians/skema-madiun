@@ -29,6 +29,14 @@ export interface CurrentUser {
   actingRole: Role;
   opdId: number | null;
   ssoSubject?: string;
+  /**
+   * Penanda SESI yang sedang dipakai (7 Oktober 2026), dari klaim `sid`.
+   *
+   * Ada di sini karena `logout` harus mencabut sesinya SENDIRI, dan tanpa
+   * penanda itu ia hanya dapat menghapus cookie seperti sebelumnya. Undefined
+   * untuk token terbitan lama, yang memang tak dapat dicabut.
+   */
+  sid?: string;
 }
 
 /** Param decorator: mengambil pengguna aktif dari request (diisi oleh RolesGuard). */
