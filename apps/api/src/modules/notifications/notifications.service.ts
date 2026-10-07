@@ -82,6 +82,33 @@ export class NotificationsService {
     );
   }
 
+  /**
+   * Pengaduan "lainnya" (tanpa tujuan) DITERUSKAN ke OPD berwenang -> beri tahu
+   * PELAPOR (7 Oktober 2026, permintaan pengguna).
+   *
+   * Kebalikan arah `notifyComplaintCreated`: di sana yang dikabari Admin OPD
+   * tujuan + Kabupaten, di sini justru pelapornya. `forward()` memanggil
+   * KEDUANYA -- instansi penerima perlu tahu ada tiket, dan warga yang memilih
+   * "Lainnya" perlu tahu pengaduannya sudah mendarat di instansi yang benar.
+   *
+   * Kabupaten TIDAK dikabari lagi di sini: ia pelaku penerusannya (satu-satunya
+   * peran yang boleh, `@Roles(kabupaten)` di controller), jadi sudah tahu.
+   *
+   * `namaOpd` disalurkan dari pemanggil, bukan dibaca ulang: `forward()` sudah
+   * memuat OPD-nya untuk memvalidasi keberadaannya, jadi query kedua di sini
+   * hanya mengulang kerja yang baru saja dilakukan.
+   */
+  async notifyComplaintForwarded(complaint: Complaint, namaOpd: string): Promise<void> {
+    await this.safeCreate({
+      userId: complaint.userId,
+      untukPeran: Role.responden,
+      type: NotificationType.complaint_forwarded,
+      title: 'Pengaduan Diteruskan',
+      message: `Pengaduan ${complaint.ticketNo} Anda telah diteruskan ke ${namaOpd} yang berwenang menanganinya`,
+      link: `/complaints/${complaint.ticketNo}`,
+    });
+  }
+
   /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik) + kabupaten (oversight). */
   async notifyComplaintStatusChanged(complaint: Complaint, actorUserId: number): Promise<void> {
     const label = STATUS_LABEL[complaint.status] ?? complaint.status;

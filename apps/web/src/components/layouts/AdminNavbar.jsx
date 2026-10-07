@@ -38,10 +38,14 @@ export default function AdminNavbar() {
   const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, periode, setPeriode } = useAdminLayout();
   const pathname = usePathname();
 
-  // Penyaring triwulan HANYA ditampilkan di dashboard -- itu satu-satunya
-  // halaman yang membacanya (lihat AdminLayoutProvider). Menampilkannya di
-  // halaman lain justru mengulang masalah lama: kontrol yang tak berefek apa pun.
-  const showPeriodeFilter = pathname?.startsWith('/admin-opd/dashboard');
+  // Penyaring triwulan HANYA ditampilkan di halaman yang membacanya (lihat
+  // AdminLayoutProvider): dashboard, dan -- sejak 7 Oktober 2026 -- Statistik &
+  // Laporan, yang menyaring pemilih survei, tren IKM, dan seluruh angka
+  // pengaduannya. Menampilkannya di halaman lain justru mengulang masalah lama:
+  // kontrol yang tak berefek apa pun. Menambah halaman ke daftar ini berarti
+  // halaman itu WAJIB membaca `periode` dari useAdminLayout().
+  const showPeriodeFilter =
+    pathname?.startsWith('/admin-opd/dashboard') || pathname?.startsWith('/admin-opd/analytics');
 
   const fetchIdentity = useCallback(async () => {
     const user = await getMyProfile();

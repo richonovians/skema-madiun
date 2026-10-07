@@ -161,6 +161,39 @@ describe('NotificationsService', () => {
     });
   });
 
+  describe('notifyComplaintForwarded', () => {
+    it('memberi tahu PELAPOR bahwa pengaduannya diteruskan, dgn NAMA OPD & link responden', async () => {
+      await service.notifyComplaintForwarded(complaint(), 'Dinas Kesehatan');
+
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 10,
+          untukPeran: Role.responden,
+          type: NotificationType.complaint_forwarded,
+          title: 'Pengaduan Diteruskan',
+          message:
+            'Pengaduan PGD20260805ABCD Anda telah diteruskan ke Dinas Kesehatan yang berwenang menanganinya',
+          link: '/complaints/PGD20260805ABCD',
+        },
+      });
+    });
+
+    it('TIDAK mengabari kabupaten: ia pelaku penerusannya, jadi sudah tahu', async () => {
+      // notifyKabupaten memakai prisma.user.findMany; jalur forwarded sengaja
+      // tak memanggilnya sama sekali.
+      await service.notifyComplaintForwarded(complaint(), 'Dinas X');
+
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('gagal membuat notifikasi TIDAK melempar error (efek samping)', async () => {
+      (prisma.notification.create as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
+      await expect(
+        service.notifyComplaintForwarded(complaint(), 'Dinas X'),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   /**
    * ARAH BALASAN DITENTUKAN PERAN YANG DIPAKAI, BUKAN ID PENULIS (22 September
    * 2026, laporan pengguna: "notifikasi balasan tidak muncul" pada akun ber-3

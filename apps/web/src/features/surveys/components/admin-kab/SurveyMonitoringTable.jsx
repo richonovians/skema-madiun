@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Copy,
   Share2,
+  Star,
 } from 'lucide-react';
 import ShareSurveyModal from '@/features/surveys/components/ShareSurveyModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
@@ -78,6 +79,7 @@ export default function SurveyMonitoringTable({
   onReopen,
   onDelete,
   onDuplicate,
+  onJadikanUtama,
   busySurveyId = null,
 }) {
   /**
@@ -99,6 +101,7 @@ export default function SurveyMonitoringTable({
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">PERIODE</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">RESPONDEN</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NILAI IKM</th>
+            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NILAI RATA-RATA</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
             <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
           </tr>
@@ -106,7 +109,7 @@ export default function SurveyMonitoringTable({
         <tbody className="divide-y divide-outline-variant">
           {surveys.length === 0 ? (
             <tr>
-              <td colSpan="7" className="text-center py-xl text-text-secondary">
+              <td colSpan="8" className="text-center py-xl text-text-secondary">
                 Tidak ada survei yang ditemukan.
               </td>
             </tr>
@@ -126,6 +129,20 @@ export default function SurveyMonitoringTable({
                     >
                       {survey.title}
                     </p>
+                    {/* Lencana survei utama OPD. Tanpa penanda di daftar lintas
+                        OPD ini, Admin Kabupaten hanya dapat mengetahui survei
+                        utama tiap OPD dengan membuka satu per satu -- dan karena
+                        menyalakan yang baru MELEPAS yang lama, ia juga tak punya
+                        cara memastikan penunjukannya berpindah. Teks & gaya sama
+                        dengan lencana di AdminSurveyCard (kartu Admin OPD). */}
+                    {survey.isUtama && (
+                      <Badge
+                        variant="info"
+                        className="mt-xs px-sm py-[2px] text-[10px] uppercase rounded"
+                      >
+                        Survei Utama
+                      </Badge>
+                    )}
                   </td>
 
                   <td className="px-lg py-lg">
@@ -147,6 +164,19 @@ export default function SurveyMonitoringTable({
                   <td className="px-lg py-lg">
                     <span className="font-bold text-on-surface">
                       {survey.ikmScore != null ? survey.ikmScore.toFixed(2) : '-'}
+                    </span>
+                  </td>
+
+                  {/* NILAI RATA-RATA (7 Oktober 2026, permintaan pengguna):
+                      rata-rata SEMUA jawaban skala (1-4), BUKAN IKM. Kolom
+                      sendiri, bukan pengganti: IKM menuntut 9 unsur baku, jadi
+                      survei yang unsur bakunya dihapus menampilkan "-" di
+                      kolom IKM padahal jawabannya ada. Draf dan survei yang
+                      belum dijawab tak punya jawaban skala, jadi "-" -- bukan
+                      0,00 yang terbaca sebagai hasil ukur terburuk. */}
+                  <td className="px-lg py-lg">
+                    <span className="font-bold text-on-surface">
+                      {survey.averageScore != null ? survey.averageScore.toFixed(2) : '-'}
                     </span>
                   </td>
 
@@ -214,6 +244,24 @@ export default function SurveyMonitoringTable({
                              tampak rusak begitu saja. */
                           keterangan: isClosed ? ALASAN_DITUTUP : undefined,
                         },
+                        /* JADIKAN SURVEI UTAMA (7 Oktober 2026, permintaan
+                           pengguna). Hanya bila belum utama dan belum DITUTUP:
+                           survei yang sudah utama tak perlu ditunjuk ulang (lencana
+                           di kolom judul sudah menandainya), dan survei DITUTUP
+                           ditolak backend (assertSurveyEditable mode 'meta' ->
+                           400). DRAF sengaja TIDAK dikecualikan: sejajar dengan
+                           saklar di builder yang memang tak terikat status, dan
+                           backend mengizinkannya. Backend juga MELEPAS survei
+                           utama lama OPD ini dalam satu transaksi; peringatannya
+                           ada di ConfirmDialog halaman. */
+                        !survey.isUtama &&
+                          !isClosed && {
+                            key: 'utama',
+                            label: 'Jadikan Utama',
+                            icon: <Star size={IKON} />,
+                            onSelect: () => onJadikanUtama?.(survey),
+                            disabled: isBusy,
+                          },
                         /* TANPA syarat status (8 September 2026):
                            `surveysService.duplicate` tidak memanggil
                            `assertDraft`, jadi survei aktif maupun yang sudah

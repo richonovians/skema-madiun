@@ -12,11 +12,22 @@ import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import { useAdminLayout } from '@/components/layouts/AdminLayoutProvider';
 import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getSurveyResults, exportSurveyResults } from '@/features/analytics/services/ikm.api';
-import { getComplaints } from '@/features/complaints/services/complaints.api';
+import {
+  hitungAnalitikPengaduan,
+  saringSurveiPeriode,
+  titikTrenTahun,
+} from '@/features/analytics/adapters/analitik.adapter';
+import { getAllComplaints } from '@/features/complaints/services/complaints.api';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
 import { getOpdDashboard } from '@/features/dashboards/services/dashboardOpd.api';
+import {
+  cocokPeriode,
+  formatPeriodeLabel,
+  parsePeriodeFilter,
+} from '@/features/surveys/adapters/survey.adapter';
 
 const tabs = [
   { id: 'skm', label: 'Analisis SKM' },
@@ -44,11 +55,22 @@ export default function AnalyticsPage() {
 
 function AnalyticsPageContent() {
   const searchParams = useSearchParams();
+  // PENYARING TAHUN + TRIWULAN dipegang navbar (lihat AdminLayoutProvider) dan
+  // dibaca di sini, persis seperti dashboard. Seluruh penyaringan di klien:
+  // lihat catatan di analitik.adapter.js.
+  const { periode, setPeriode } = useAdminLayout();
+  const labelPeriode = formatPeriodeLabel(periode);
+
+  const [activeTab, setActiveTab] = useState('skm');
   // Dipicu tombol "Lihat Hasil" di AdminSurveyCardActions.jsx (INT-32) --
   // survei yg tak eligible (Draf/tak ditemukan) jatuh wajar ke ErrorState
   // via fetchResults di bawah, bukan divalidasi khusus di sini.
-  const [activeTab, setActiveTab] = useState('skm');
-  const [selectedSurveyId, setSelectedSurveyId] = useState(() => searchParams.get('surveyId'));
+  //
+  // Dibaca SEKALI ke state, bukan dibaca ulang dari `searchParams`: objek itu
+  // dipakai sebagai dependensi `fetchSurveys`, dan identitasnya tak boleh
+  // menentukan kapan daftar survei diambil ulang.
+  const [tautanId] = useState(() => searchParams.get('surveyId'));
+  const [selectedSurveyId, setSelectedSurveyId] = useState(tautanId);
   const [exportingFormat, setExportingFormat] = useState(null);
   const [exportError, setExportError] = useState(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -72,7 +94,30 @@ function AnalyticsPageContent() {
   // Dipersempit ke OPD yang diperankan superuser bila ada (lihat
   // app/admin-opd/surveys/page.jsx) supaya pemilih survei di halaman ini tak
   // menawarkan survei OPD lain.
-  const fetchSurveys = useCallback(() => getSurveys({ limit: 100 }), []);
+  //
+  // TAUTAN `?surveyId=` DISESUAIKAN DI SINI, saat datanya tiba, bukan di sebuah
+  // efek. Survei yang diklik pengguna bisa berada di luar penyaring (bakunya
+  // triwulan berjalan), dan menimpanya dengan survei lain berarti pengguna
+  // mendarat di hasil yang tak ia minta. Yang disesuaikan PENYARINGNYA, bukan
+  // daftar: ia tampak di navbar, jadi pengguna melihat mengapa survei itu yang
+  // terbuka. Bentuk fungsional supaya penyaring yang SUDAH mencakup survei itu
+  // -- mis. "Semua Triwulan" -- tak dipersempit tanpa perlu.
+  //
+  // Penyetelan terjadi sebelum `useAsync` menyimpan datanya, jadi keduanya
+  // sampai ke render yang sama: tak ada render ketika daftar sudah ada tetapi
+  // penyaringnya belum, yang akan memuat hasil survei LAIN lebih dulu.
+  // Dependensinya hanya `tautanId` & `setPeriode` (keduanya stabil), jadi
+  // berganti penyaring TIDAK mengambil ulang daftar survei.
+  const fetchSurveys = useCallback(async () => {
+    const hasil = await getSurveys({ limit: 100 });
+    if (tautanId !== null) {
+      const target = hasil.data.find((s) => s.status !== 'DRAF' && String(s.id) === tautanId);
+      if (target) {
+        setPeriode((saatIni) => (cocokPeriode(target.period, saatIni) ? saatIni : target.period));
+      }
+    }
+    return hasil;
+  }, [tautanId, setPeriode]);
   const { data: surveysResponse, isLoading: isLoadingSurveys, error: surveysError } =
     useAsync(fetchSurveys);
 
@@ -83,7 +128,19 @@ function AnalyticsPageContent() {
     [surveysResponse],
   );
 
-  const activeSurveyId = selectedSurveyId ?? eligibleSurveys[0]?.id ?? null;
+  // Pemilih survei hanya menawarkan survei yang periodenya lolos penyaring --
+  // `cocokPeriode`, bukan `===`, supaya "Semua Triwulan" (tahun saja) berlaku.
+  const periodSurveys = useMemo(
+    () => saringSurveiPeriode(eligibleSurveys, periode),
+    [eligibleSurveys, periode],
+  );
+
+  // Pilihan yang jatuh di luar penyaring (penyaring diganti) diganti survei
+  // pertama yang lolos, bukan dibiarkan menampilkan hasil survei yang tak lagi
+  // ada di daftar.
+  const activeSurveyId = periodSurveys.some((s) => String(s.id) === String(selectedSurveyId))
+    ? selectedSurveyId
+    : (periodSurveys[0]?.id ?? null);
 
   const fetchResults = useCallback(() => {
     if (!activeSurveyId) return Promise.resolve(null);
@@ -97,9 +154,31 @@ function AnalyticsPageContent() {
   } = useAsync(fetchResults);
 
   const surveyOptions = useMemo(
-    () => eligibleSurveys.map((s) => ({ value: s.id, label: s.title })),
-    [eligibleSurveys],
+    () => periodSurveys.map((s) => ({ value: s.id, label: s.title })),
+    [periodSurveys],
   );
+
+  // Ringkasan OPD ini (`GET /dashboard/opd`): sumber TREN IKM per triwulan di tab
+  // SKM. Berdiri sendiri dan GALATNYA DITELAN: kegagalan di sini tak boleh
+  // meruntuhkan tab SKM yang sebenarnya sehat. Tanpanya tren tak digambar,
+  // bukan diganti angka karangan.
+  const fetchOpdDashboard = useCallback(() => getOpdDashboard(), []);
+  const { data: opdDashboard } = useAsync(fetchOpdDashboard);
+
+  // Tren memakai TAHUN penyaring saja -- lihat titikTrenTahun. `undefined`
+  // (bukan larik kosong) selama sumbernya belum ada: kosong berarti "tak ada
+  // titik pada tahun ini", dan itu klaim yang berbeda.
+  const titikTren = useMemo(
+    () =>
+      opdDashboard
+        ? titikTrenTahun(opdDashboard.ikmTrend, periode).map((p) => ({
+            month: p.periode,
+            nilaiIkm: p.nilaiIkm,
+          }))
+        : undefined,
+    [opdDashboard, periode],
+  );
+  const tahunPenyaring = parsePeriodeFilter(periode)?.tahun;
 
   const handleExport = async (format) => {
     if (!activeSurveyId) return;
@@ -132,6 +211,18 @@ function AnalyticsPageContent() {
         />
       );
     }
+    // Ada survei, tetapi tak satu pun pada periode ini. Dibedakan dari keadaan
+    // di atas: pengguna di sini perlu tahu bahwa PENYARINGNYA yang menyembunyikan,
+    // bukan bahwa survei belum pernah dibuat.
+    if (periodSurveys.length === 0) {
+      return (
+        <EmptyState
+          icon={<BarChart3 size={48} />}
+          title={`Tidak ada survei pada ${labelPeriode}`}
+          description="Ubah penyaring Tahun atau Triwulan di bilah atas untuk melihat periode lain."
+        />
+      );
+    }
     if (isLoadingResults || !results) {
       return <LoadingState label="Memuat hasil SKM..." />;
     }
@@ -150,12 +241,19 @@ function AnalyticsPageContent() {
         serviceElements={results.serviceElements}
         periode={results.periode}
         jumlahResponden={results.jumlahResponden}
+        ikmTrend={titikTren}
+        judulTren={
+          tahunPenyaring
+            ? `Tren Nilai IKM per Triwulan, Tahun ${tahunPenyaring}`
+            : 'Tren Nilai IKM per Triwulan'
+        }
       />
     );
   };
 
-  // Toolbar sejajar tab: dropdown survei + dropdown export
-  const tabRightSlot = activeTab === 'skm' && eligibleSurveys.length > 0 ? (
+  // Toolbar sejajar tab: dropdown survei + dropdown export. Hanya bila ada survei
+  // pada periode terpilih: pemilih yang kosong tak menawarkan apa pun.
+  const tabRightSlot = activeTab === 'skm' && periodSurveys.length > 0 ? (
     // `min-w-0` + `flex-1` (31 Agustus 2026): tanpa keduanya, judul survei yang
     // panjang membuat baris ini tak bisa menyusut sama sekali dan seluruh
     // halaman melebar. `Dropdown` sudah punya `truncate`, tapi ia baru bekerja
@@ -226,14 +324,18 @@ function AnalyticsPageContent() {
     </div>
   ) : null;
 
-  // --- Tab Pengaduan: fetch data saat tab aktif ---
+  // --- Tab Pengaduan ---
+  // SEMUA pengaduan OPD ini, bukan 100 terbaru. Angkanya kini disaring per
+  // periode di klien, dan menyaring irisan 100 baris membuat triwulan lama
+  // tampak kosong atau kurang padahal datanya ada.
   const fetchComplaintData = useCallback(async () => {
-    const [complaintsRes, categories, dashboard] = await Promise.all([
-      getComplaints({ limit: 100 }),
-      getComplaintCategories(),
-      getOpdDashboard(),
-    ]);
-    return { complaints: complaintsRes.data, categories, dashboard };
+    const [semua, categories] = await Promise.all([getAllComplaints(), getComplaintCategories()]);
+    return {
+      complaints: semua.data,
+      total: semua.total,
+      truncated: semua.truncated,
+      categories,
+    };
   }, []);
   const {
     data: complaintData,
@@ -242,67 +344,23 @@ function AnalyticsPageContent() {
     refetch: refetchComplaints,
   } = useAsync(fetchComplaintData);
 
-  // Distribusi kategori pengaduan (client-side groupBy)
-  const complaintAnalytics = useMemo(() => {
-    if (!complaintData) return null;
-    const { complaints, categories, dashboard } = complaintData;
-
-    // Buat map kode -> nama dari reference
-    const categoryLabelMap = Object.fromEntries(
-      categories.map((c) => [c.kode, c.nama]),
-    );
-
-    // GroupBy kategori
-    const catCounts = {};
-    for (const c of complaints) {
-      const kode = c.kategori || 'lainnya';
-      catCounts[kode] = (catCounts[kode] || 0) + 1;
-    }
-    const categoryDistribution = Object.entries(catCounts)
-      .map(([kode, count]) => ({ name: categoryLabelMap[kode] || kode, count }))
-      .sort((a, b) => b.count - a.count);
-
-    // Volume bulanan (groupBy bulan dari createdAt)
-    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    const monthBuckets = {};
-    for (const c of complaints) {
-      if (!c.createdAt) continue;
-      const d = new Date(c.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
-      if (!monthBuckets[key]) {
-        monthBuckets[key] = { month: MONTH_NAMES[d.getMonth()], received: 0, completed: 0 };
-      }
-      monthBuckets[key].received += 1;
-      if (c.status === 'Selesai') {
-        monthBuckets[key].completed += 1;
-      }
-    }
-    const volumeMonthly = Object.entries(monthBuckets)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6) // 6 bulan terakhir
-      .map(([, v]) => v);
-
-    // Stats resolusi dari dashboard OPD
-    const resolutionStats = {
-      averageHours: dashboard.summary.avgResponseTime !== 'Belum ada data'
-        ? parseFloat(dashboard.summary.avgResponseTime)
+  // Seluruh angka dihitung dari pengaduan yang LOLOS penyaring, termasuk tiga
+  // angka resolusi yang dulu diambil dari `GET /dashboard/opd`. Endpoint itu
+  // menghitung sepanjang masa; menyandingkannya dengan daftar yang tersaring
+  // akan memajang angka sepanjang masa di bawah judul triwulan tertentu.
+  const complaintAnalytics = useMemo(
+    () =>
+      complaintData
+        ? hitungAnalitikPengaduan({
+            complaints: complaintData.complaints,
+            categories: complaintData.categories,
+            periode,
+          })
         : null,
-      completionRate: dashboard.summary.completionRate,
-      openTickets: dashboard.summary.activeTickets,
-    };
-
-    return {
-      categories: categoryDistribution,
-      totalComplaints: complaints.length,
-      resolutionStats,
-      volumeMonthly,
-    };
-  }, [complaintData]);
+    [complaintData, periode],
+  );
 
   const renderComplaintsTab = () => {
-    if (isLoadingComplaints) {
-      return <LoadingState label="Memuat data pengaduan..." />;
-    }
     if (complaintsError) {
       return (
         <ErrorState
@@ -312,17 +370,51 @@ function AnalyticsPageContent() {
         />
       );
     }
+    if (isLoadingComplaints || !complaintAnalytics) {
+      return <LoadingState label="Memuat data pengaduan..." />;
+    }
+    if (complaintAnalytics.totalComplaints === 0) {
+      // Dibedakan: "tak ada pengaduan sama sekali" vs "tak ada pada periode ini".
+      // Pada yang kedua pengguna perlu tahu bahwa PENYARINGNYA yang menyembunyikan.
+      const adaPengaduan = complaintData.total > 0;
+      return (
+        <EmptyState
+          icon={<BarChart3 size={48} />}
+          title={
+            adaPengaduan ? `Tidak ada pengaduan pada ${labelPeriode}` : 'Belum ada data pengaduan'
+          }
+          description={
+            adaPengaduan
+              ? 'Ubah penyaring Tahun atau Triwulan di bilah atas untuk melihat periode lain.'
+              : 'Analisis pengaduan akan muncul setelah ada pengaduan masuk ke OPD Anda.'
+          }
+        />
+      );
+    }
     return (
-      <ComplaintAnalysisView
-        categories={complaintAnalytics?.categories ?? []}
-        totalComplaints={complaintAnalytics?.totalComplaints ?? 0}
-        resolutionStats={complaintAnalytics?.resolutionStats ?? null}
-        volumeMonthly={complaintAnalytics?.volumeMonthly ?? []}
-      />
+      <div className="space-y-lg">
+        {complaintData.truncated && (
+          // Angka di bawah DIHITUNG dari baris yang dimuat, jadi bila tak seluruhnya
+          // termuat ia salah, bukan sekadar kurang lengkap -- dan pengguna wajib tahu.
+          <div
+            role="note"
+            className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-medium"
+          >
+            Hanya {complaintData.complaints.length.toLocaleString('id-ID')} dari{' '}
+            {complaintData.total.toLocaleString('id-ID')} pengaduan terbaru yang dimuat, sehingga
+            angka pada periode yang lebih lama bisa kurang dari sebenarnya.
+          </div>
+        )}
+        <ComplaintAnalysisView
+          categories={complaintAnalytics.categories}
+          totalComplaints={complaintAnalytics.totalComplaints}
+          resolutionStats={complaintAnalytics.resolutionStats}
+          volumeMonthly={complaintAnalytics.volumeMonthly}
+          statusDistribution={complaintAnalytics.statusDistribution}
+        />
+      </div>
     );
   };
-
-
 
   return (
     <div className="w-full flex flex-col">
@@ -351,7 +443,8 @@ function AnalyticsPageContent() {
       />
 
       <div className="flex-1 mt-4">
-        {activeTab === 'skm' ? renderSkmTab() : renderComplaintsTab()}
+        {activeTab === 'skm' && renderSkmTab()}
+        {activeTab === 'complaints' && renderComplaintsTab()}
       </div>
     </div>
   );

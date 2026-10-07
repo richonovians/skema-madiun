@@ -491,6 +491,11 @@ export class ComplaintsService {
     // saat tiket itu benar-benar masuk. Tanpa ini ia tak akan pernah tahu ada
     // tanggung jawab baru -- persis keluhan 6 Agustus 2026 soal tiket baru.
     await this.notificationsService.notifyComplaintCreated(updated);
+    // DAN beri tahu PELAPOR bahwa pengaduan "Lainnya"-nya sudah mendarat di
+    // instansi yang berwenang (7 Oktober 2026). `complaint_created` di atas
+    // sengaja melewati pelapor; inilah satu-satunya kabar yang ia terima bahwa
+    // penerusannya terjadi.
+    await this.notificationsService.notifyComplaintForwarded(updated, opd.nama);
 
     return this.toEntity(updated as ComplaintWithAttachments);
   }

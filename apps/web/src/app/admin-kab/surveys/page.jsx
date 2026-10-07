@@ -70,6 +70,13 @@ const CONFIRM_COPY = {
     confirmLabel: 'Ya, Salin',
     tone: 'primary',
   },
+  jadikanUtama: {
+    title: 'Jadikan survei utama OPD ini?',
+    description: (survey) =>
+      `"${survey.title}" akan menjadi survei utama ${survey.opdName || 'OPD ini'} — tujuan tombol "Lanjut Isi Survei" pada halaman sukses pengaduan. Bila OPD ini sudah punya survei utama lain, penunjukannya otomatis berpindah ke survei ini (yang lama tak lagi menjadi utama).`,
+    confirmLabel: 'Ya, Jadikan Utama',
+    tone: 'primary',
+  },
   delete: {
     title: 'Pindahkan survei ini ke Sampah?',
     description: (survey) => pesanHapus(survey),
@@ -311,6 +318,17 @@ export default function AdminKabSurveysPage() {
       );
       return;
     }
+    if (type === 'jadikanUtama') {
+      // Hanya `isUtama` yang dikirim; medan lain `undefined` ikut dibuang
+      // JSON.stringify, jadi backend hanya mengubah status utama (mode 'meta')
+      // dan melepas survei utama lama OPD ini dalam satu transaksi.
+      await runRowAction(
+        survey.id,
+        () => updateSurvey(survey.id, { isUtama: true }),
+        `"${survey.title}" kini menjadi survei utama ${survey.opdName || 'OPD-nya'}.`,
+      );
+      return;
+    }
     await runRowAction(
       survey.id,
       () => deleteSurvey(survey.id),
@@ -431,6 +449,7 @@ export default function AdminKabSurveysPage() {
           onReopen={(survey) => setConfirmAction({ type: 'reopen', survey })}
           onDelete={(survey) => setConfirmAction({ type: 'delete', survey })}
           onDuplicate={(survey) => setConfirmAction({ type: 'duplicate', survey })}
+          onJadikanUtama={(survey) => setConfirmAction({ type: 'jadikanUtama', survey })}
           busySurveyId={busySurveyId}
         />
 

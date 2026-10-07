@@ -78,11 +78,24 @@ export default function SurveyResponsesScreen({ surveyId, basePath, className = 
    * tak sekadar kurang tepat melainkan TERBALIK: "Respons Terakhir" di halaman
    * pertama akan menampilkan respons yang paling lama masuk.
    *
-   * `ikmScore` berskala 0-100 (nilai IKM PermenPANRB); kartu ini memakai skala
-   * 1-4, jadi dibagi 25. `null` dipertahankan apa adanya -- survei tanpa
-   * responden, atau yang 9 unsur bakunya dihapus, memang belum dapat dinilai.
+   * SUMBERNYA BERUBAH 7 Oktober 2026 (permintaan pengguna: "tampilkan nilai
+   * rata-rata"). Dulu `ikmScore / 25` (IKM berskala 0-100, kartu ini 1-4). IKM
+   * menuntut 9 unsur baku, jadi survei yang unsur bakunya dihapus -- atau yang
+   * tak pernah memuatnya -- tampil "–" walau jawabannya ada; di data
+   * pengembangan, empat survei aktif yang sudah menerima jawaban begitu.
+   *
+   * Kini `averageScore`: rata-rata SEMUA jawaban skala (1-4) pada survei,
+   * dihitung backend atas seluruh respons. Definisinya sama dengan kolom
+   * "Nilai Rata-Rata" per respons di tabel di bawah, sehingga kartu ini memang
+   * agregat dari angka-angka di tabel itu -- yang tak berlaku bagi IKM÷25.
+   * Akibatnya terlihat: pada survei yang punya pertanyaan skala di luar 9
+   * unsur, angkanya dapat berbeda dari IKM÷25 yang dulu tampil.
+   *
+   * TIDAK jatuh kembali ke IKM bila `averageScore` null: dua definisi dalam
+   * satu kartu membuat angkanya tak lagi dapat dibaca. Backend mengembalikan
+   * null hanya bila belum ada satu pun jawaban skala, dan di situ IKM pun null.
    */
-  const nilaiRataRata = data?.survey?.ikmScore == null ? null : data.survey.ikmScore / 25;
+  const nilaiRataRata = data?.survey?.averageScore ?? null;
 
   return (
     <div className={className}>

@@ -31,16 +31,21 @@ jest.mock('@/features/surveys/services/surveys.api', () => ({
  * termuat. Pada layar berpaginasi menaik, "Respons Terakhir" di halaman 1
  * justru akan menampilkan respons PALING LAMA -- bukan sekadar kurang tepat,
  * melainkan terbalik. Keduanya kini diambil dari survei (`GET /surveys/:id`),
- * yang menghitungnya atas SELURUH respons: `ikmScore` (skala 0-100, dibagi 25
- * menjadi skala 1-4 yang dipakai kartu) dan `terakhirMasuk`.
+ * yang menghitungnya atas SELURUH respons: `averageScore` (rata-rata semua
+ * jawaban skala 1-4; sebelum 7 Oktober 2026 berasal dari `ikmScore / 25`) dan
+ * `terakhirMasuk`.
  */
 const PER_HALAMAN = 20;
 
+// `ikmScore` SENGAJA berbeda dari `averageScore` (50 -> 2,00 bila masih
+// diturunkan dari IKM, sedangkan rata-rata sebenarnya 3,25): fixture yang
+// menyamakan keduanya meloloskan kartu yang masih membaca sumber lama.
 const survei = (over = {}) => ({
   id: '7',
   title: 'Survei Kepuasan Layanan',
   period: '2026-Q1',
-  ikmScore: 81.25,
+  ikmScore: 50,
+  averageScore: 3.25,
   terakhirMasuk: '2026-10-03T07:15:00.000Z',
   ...over,
 });
@@ -101,26 +106,58 @@ describe('SurveyResponsesScreen — paginasi sungguhan', () => {
    * terlihat masuk akal tetapi diam-diam hanya mewakili satu halaman.
    */
   it('mengambil nilai rata-rata dari seluruh survei, bukan dari halaman', async () => {
-    // Halaman 1 seluruhnya bernilai 3, sementara survei sesungguhnya 81,25/25
-    // = 3,25. Bila kartunya menghitung sendiri dari halaman, yang muncul 3,00.
-    siapkan({ surveiOver: { ikmScore: 81.25 } });
+    // Halaman 1 seluruhnya bernilai 3, sementara rata-rata survei sesungguhnya
+    // 3,25. Bila kartunya menghitung sendiri dari halaman, yang muncul 3,00.
+    siapkan({ surveiOver: { averageScore: 3.25 } });
 
     render(<SurveyResponsesScreen surveyId="7" basePath="/admin-opd/surveys" />);
 
     expect(await screen.findByText('3.25')).toBeInTheDocument();
   });
 
-  it('tidak mengarang nilai rata-rata ketika survei belum dapat dinilai', async () => {
-    // `ikmScore` null terjadi pada survei tanpa responden ATAU yang 9 unsur
-    // bakunya dihapus -- rumus IKM berdiri di atas unsur-unsur itu. Menampilkan
+  it('TIDAK lagi menurunkan nilai rata-rata dari IKM (IKM ÷ 25)', async () => {
+    // Sumber lama. Dengan ikmScore 50 ia akan menampilkan 2.00; yang benar 3.25.
+    siapkan({ surveiOver: { ikmScore: 50, averageScore: 3.25 } });
+
+    render(<SurveyResponsesScreen surveyId="7" basePath="/admin-opd/surveys" />);
+    await screen.findByText('Respons #1');
+
+    expect(screen.getByText('3.25')).toBeInTheDocument();
+    expect(screen.queryByText('2.00')).not.toBeInTheDocument();
+  });
+
+  it('survei TANPA 9 unsur baku (IKM null) tetap menampilkan nilai rata-rata', async () => {
+    // Kasus yang melahirkan perubahan ini. IKM null karena rumusnya berdiri di
+    // atas 9 unsur baku, padahal jawaban skalanya ada dan rata-ratanya terhitung.
+    siapkan({ surveiOver: { ikmScore: null, averageScore: 3.84 } });
+
+    render(<SurveyResponsesScreen surveyId="7" basePath="/admin-opd/surveys" />);
+
+    expect(await screen.findByText('3.84')).toBeInTheDocument();
+    expect(screen.queryByText('–')).not.toBeInTheDocument();
+  });
+
+  it('tidak mengarang nilai rata-rata ketika belum ada jawaban skala', async () => {
+    // `averageScore` null hanya bila belum ada satu pun jawaban skala. Menampilkan
     // 0,00 di sana membuat survei yang belum dinilai terbaca sebagai bernilai
     // nol, dua keadaan yang sangat berbeda.
-    siapkan({ surveiOver: { ikmScore: null } });
+    siapkan({ surveiOver: { ikmScore: null, averageScore: null } });
 
     render(<SurveyResponsesScreen surveyId="7" basePath="/admin-opd/surveys" />);
     await screen.findByText('Respons #1');
 
     expect(screen.queryByText('0.00')).not.toBeInTheDocument();
+    expect(screen.getByText('–')).toBeInTheDocument();
+  });
+
+  it('TIDAK jatuh kembali ke IKM bila nilai rata-rata null', async () => {
+    // Dua definisi dalam satu kartu membuat angkanya tak lagi dapat dibaca.
+    siapkan({ surveiOver: { ikmScore: 81.25, averageScore: null } });
+
+    render(<SurveyResponsesScreen surveyId="7" basePath="/admin-opd/surveys" />);
+    await screen.findByText('Respons #1');
+
+    expect(screen.queryByText('3.25')).not.toBeInTheDocument();
     expect(screen.getByText('–')).toBeInTheDocument();
   });
 

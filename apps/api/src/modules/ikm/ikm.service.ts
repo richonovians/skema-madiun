@@ -1,5 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ComplaintStatus, IkmMutu, Prisma, Survey, SurveyStatus } from '@prisma/client';
+import {
+  ComplaintStatus,
+  IkmMutu,
+  Prisma,
+  QuestionType,
+  Survey,
+  SurveyStatus,
+} from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -62,7 +69,53 @@ export class IkmService {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }
     assertOpdAccess(user, survey.opdId);
-    return this.computeResult(survey);
+    const [result, nilaiRataRata] = await Promise.all([
+      this.computeResult(survey),
+      this.hitungNilaiRataRata(survey.id),
+    ]);
+    result.nilaiRataRata = nilaiRataRata;
+    return result;
+  }
+
+  /**
+   * NILAI RATA-RATA satu survei: rata-rata SEMUA jawaban skala (1-4) dari semua
+   * responden (7 Oktober 2026, permintaan pengguna: tampilkan nilai rata-rata di
+   * halaman respons, tabel survei, dan statistik).
+   *
+   * BUKAN IKM, dan sengaja tidak dihitung di `computeResult`. IKM menuntut 9
+   * unsur baku; survei yang unsur bakunya dihapus -- atau yang memang tak pernah
+   * memuatnya -- tak dapat dinilai IKM-nya, padahal jawaban skalanya ada. Di data
+   * pengembangan, empat survei aktif yang sudah menerima jawaban berada dalam
+   * keadaan itu dan menampilkan "-" di setiap layar. Rata-rata ini tetap terhitung
+   * bagi mereka.
+   *
+   * Keduanya bisa BERBEDA untuk survei yang sama. IKM merata-ratakan sembilan
+   * NRR berbobot sama; ini merata-ratakan setiap jawaban skala, termasuk
+   * pertanyaan skala tambahan di luar sembilan unsur. Karena itu angkanya
+   * dilabeli terpisah di antarmuka, dan definisinya sama dengan nilai rata-rata
+   * per respons yang sudah ada (survey.adapter.js `averageScore`).
+   *
+   * Hanya jawaban tipe `skala` yang berNILAI: jawaban teks dan pilihan tak punya
+   * `nilai`, sehingga penyaring tipenya tak mengubah hasil -- ia hanya membuat
+   * maksudnya tersurat dan menjaga angkanya bila kelak tipe lain ikut menyimpan
+   * `nilai`.
+   *
+   * `null` bila belum ada satu pun jawaban skala: tak ada rata-rata yang dapat
+   * diklaim, dan "0" akan terbaca sebagai hasil ukur terburuk.
+   *
+   * Satu agregat per survei, sama pola N+1-nya dengan `computeResult`; daftar
+   * survei dibatasi 100 baris per permintaan.
+   */
+  async hitungNilaiRataRata(surveyId: number): Promise<number | null> {
+    const agregat = await this.prisma.answer.aggregate({
+      where: {
+        nilai: { not: null },
+        question: { tipe: QuestionType.skala },
+        response: { surveyId },
+      },
+      _avg: { nilai: true },
+    });
+    return agregat._avg.nilai === null ? null : round(agregat._avg.nilai, 2);
   }
 
   /**
@@ -109,9 +162,20 @@ export class IkmService {
    * Ringkasan ringan (jumlah responden + nilai IKM) untuk daftar survei (INT-9) — reuse
    * rumus tunggal `computeResult` tanpa expose rincian NRR per unsur yang tak dibutuhkan di list.
    */
-  async getSummary(survey: Survey): Promise<{ respondentsCount: number; nilaiIkm: number | null }> {
-    const result = await this.computeResult(survey);
-    return { respondentsCount: result.jumlahResponden, nilaiIkm: result.nilaiIkm };
+  async getSummary(survey: Survey): Promise<{
+    respondentsCount: number;
+    nilaiIkm: number | null;
+    nilaiRataRata: number | null;
+  }> {
+    const [result, nilaiRataRata] = await Promise.all([
+      this.computeResult(survey),
+      this.hitungNilaiRataRata(survey.id),
+    ]);
+    return {
+      respondentsCount: result.jumlahResponden,
+      nilaiIkm: result.nilaiIkm,
+      nilaiRataRata,
+    };
   }
 
   /** Ekspor laporan hasil IKM (CSV/Excel/PDF) — akses sama dengan `getResults`. */

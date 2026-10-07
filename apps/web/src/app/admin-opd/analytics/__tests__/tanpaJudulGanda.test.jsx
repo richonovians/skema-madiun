@@ -9,6 +9,21 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn() }),
 }));
 
+// Halaman ini membaca penyaring periode dari layout sejak 7 Oktober 2026
+// (Tahun + Triwulan di navbar), dan `useAdminLayout` melempar galat di luar
+// `AdminLayoutProvider`. Dimock seperti tes dashboard OPD; yang diuji di sini
+// judulnya, bukan penyaringnya.
+//
+// `setPeriode` WAJIB satu fungsi yang sama di setiap render (awalan `mock`
+// diizinkan jest untuk dirujuk dari dalam pabrik). Setter `useState` di aplikasi
+// sungguhan stabil, dan `fetchSurveys` bergantung padanya: `jest.fn()` baru per
+// render akan mengubah identitasnya terus dan membuat daftar survei diambil
+// ulang tanpa henti.
+const mockSetPeriode = jest.fn();
+jest.mock('@/components/layouts/AdminLayoutProvider', () => ({
+  useAdminLayout: () => ({ periode: '2026-Q4', setPeriode: mockSetPeriode }),
+}));
+
 /**
  * JUDUL "Statistik & Analisis" DIBUANG (7 Oktober 2026, permintaan pengguna:
  * "pada halaman statistik & laporan khususnya opd, hapus teks Statistik &
