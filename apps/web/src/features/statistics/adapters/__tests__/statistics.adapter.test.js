@@ -2,7 +2,6 @@ import { adaptStatistics } from '../statistics.adapter';
 
 const MENTAH = {
   summary: { ikm: 82.64 },
-  insight: { text: null },
   ikmTrend: [],
   complaintCategories: [],
   complaintStatus: [

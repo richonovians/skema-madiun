@@ -82,7 +82,11 @@ describe('AdminKabNavbar — tanpa penyaring jenis layanan', () => {
   it('KONTROL: penyaring periode tetap berdiri', async () => {
     await pasang();
 
-    expect(document.querySelector('#filter-kab-periode')).not.toBeNull();
-    expect(screen.getByText(/semua periode/i)).toBeInTheDocument();
+    // Penyaringnya kini DUA dropdown (6 Oktober 2026). "Semua Periode" dibuang
+    // bersama dropdown gabungannya: tahun wajib terisi, dan "semua" tinggal
+    // pada triwulannya.
+    expect(document.querySelector('#filter-periode-tahun')).not.toBeNull();
+    expect(document.querySelector('#filter-periode-triwulan')).not.toBeNull();
+    expect(screen.getByText(/semua triwulan/i)).toBeInTheDocument();
   });
 });

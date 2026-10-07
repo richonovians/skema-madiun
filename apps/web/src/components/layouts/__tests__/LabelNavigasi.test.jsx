@@ -63,3 +63,49 @@ describe('AdminKabSidebar — penamaan menu', () => {
     expect(screen.queryByText(/manajemen opd/i)).toBeNull();
   });
 });
+
+/**
+ * URUTAN MENU (6 Oktober 2026, permintaan pengguna: "ubah posisi tombol
+ * statistik & laporan dibawah tombol Pengaduan pada halaman kabupaten").
+ *
+ * Diuji sebagai URUTAN, bukan sekadar keberadaan tautannya: yang diminta
+ * pengguna justru posisinya, dan tautan yang ada tetapi di tempat lain akan
+ * lolos dari uji yang hanya memeriksa `href`.
+ */
+describe('AdminKabSidebar — urutan menu', () => {
+  const urutanHref = () =>
+    screen
+      .getAllByRole('link')
+      .map((a) => a.getAttribute('href'))
+      .filter((href) => href?.startsWith('/admin-kab/'));
+
+  it('"Statistik & Laporan" tepat di bawah "Pengaduan"', () => {
+    render(<AdminKabSidebar />);
+
+    const urutan = urutanHref();
+    const pengaduan = urutan.indexOf('/admin-kab/complaints');
+
+    expect(pengaduan).toBeGreaterThanOrEqual(0);
+    expect(urutan[pengaduan + 1]).toBe('/admin-kab/analytics');
+  });
+
+  it('KONTROL: delapan menu, tak ada yang hilang atau kembar', () => {
+    // Memindahkan satu butir dengan menyalinnya tanpa membuang aslinya
+    // melahirkan dua tautan ke halaman yang sama -- dan uji urutan di atas
+    // tetap hijau.
+    render(<AdminKabSidebar />);
+
+    const urutan = urutanHref();
+
+    expect(urutan).toEqual([
+      '/admin-kab/dashboard',
+      '/admin-kab/opd',
+      '/admin-kab/surveys',
+      '/admin-kab/complaints',
+      '/admin-kab/analytics',
+      '/admin-kab/users',
+      '/admin-kab/audit-logs',
+      '/admin-kab/dokumentasi-api',
+    ]);
+  });
+});

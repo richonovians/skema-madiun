@@ -36,6 +36,20 @@ export default function Dropdown({
    * Di sana bawaan "Cari pilihan" tak membedakan tiga dropdown bersebelahan.
    */
   searchAriaLabel,
+  /**
+   * Label DISEMBUNYIKAN DARI LAYAR, bukan dibuang (6 Oktober 2026, permintaan
+   * pengguna: "perbaiki posisi teks tahun dan triwulan").
+   *
+   * Labelnya blok di ATAS kontrol, dan itu benar untuk formulir. Di bilah
+   * penyaring ia salah: tetangganya tak berlabel, sehingga dropdown berlabel
+   * terdorong turun dan menonjol keluar dari tinggi bilah.
+   *
+   * `sr-only`, TIDAK dihapus: nama aksesibel kontrol ini satu-satunya berasal
+   * dari `label`. Tanpa itu pembaca layar hanya mengumumkan "2026" tanpa
+   * memberi tahu penyaring apa -- dan `searchAriaLabel` di atas lahir dari
+   * masalah yang sama.
+   */
+  labelTersembunyi = false,
   // Tinggi maksimum daftar pilihan (kelas Tailwind). Daftar SELALU bisa
   // di-scroll (`overflow-y-auto` di bawah) -- prop ini hanya memperpendeknya
   // untuk pemakaian di ruang sempit, mis. di dalam modal yang punya tombol
@@ -112,9 +126,15 @@ export default function Dropdown({
   const styles = getVariantStyles();
 
   return (
-    <div className={`relative group space-y-1 ${className}`} ref={dropdownRef}>
+    <div
+      className={`relative group ${labelTersembunyi ? '' : 'space-y-1'} ${className}`}
+      ref={dropdownRef}
+    >
       {label && (
-        <label htmlFor={id} className={`block text-sm font-bold ${error ? 'text-red-600' : 'text-text-primary'}`}>
+        <label
+          htmlFor={id}
+          className={`${labelTersembunyi ? 'sr-only' : 'block'} text-sm font-bold ${error ? 'text-red-600' : 'text-text-primary'}`}
+        >
           {label}
         </label>
       )}

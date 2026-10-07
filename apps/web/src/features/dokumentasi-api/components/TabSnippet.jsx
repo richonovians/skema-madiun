@@ -2,11 +2,27 @@
 
 import React, { useState } from 'react';
 import { AlertTriangle, Check, Copy } from 'lucide-react';
-import { curlSnippet, fetchSnippet } from '../lib/snippet';
+import { badanPermintaan, curlSnippet, fetchSnippet } from '../lib/snippet';
 import { responsBerhasil, responsGagal, kodeGalatLain, mungkinBerpaginasi } from '../lib/respons';
 import { salinTeks } from '../lib/salin';
 
-const BENTUK = ['curl', 'fetch', 'respons'];
+/**
+ * ISTILAHNYA INGGRIS DI LAYAR (7 Oktober 2026, permintaan pengguna: "ubah teks
+ * badan/permintaan badan menjadi body/request body"). Pengecualian tersurat
+ * dari aturan repo bahwa teks antarmuka berbahasa Indonesia: pembaca halaman
+ * ini sedang mencocokkan dokumen OpenAPI, yang medannya memang bernama
+ * `requestBody`. Nama identifier di kode tetap Indonesia (`teksBadan`,
+ * `badanPermintaan`); yang berubah hanya yang terbaca pengguna.
+ *
+ * `body` DISISIPKAN SECARA BERSYARAT (6 Oktober 2026, permintaan pengguna:
+ * "tambahkan request body di halaman dokumentasi api").
+ *
+ * Operasi tanpa badan permintaan -- setiap GET, misalnya -- tak mendapat tabnya
+ * sama sekali. Tab yang ada tetapi kosong terbaca sebagai halaman yang rusak,
+ * dan daftar tab yang panjangnya berbeda-beda justru memberi tahu pembaca satu
+ * hal berguna sekilas: endpoint ini menerima badan, yang itu tidak.
+ */
+const BENTUK_DASAR = ['curl', 'fetch', 'respons'];
 
 function Blok({ judul, teks, testId, kepalaId, aksi = null }) {
   return (
@@ -44,6 +60,8 @@ function Blok({ judul, teks, testId, kepalaId, aksi = null }) {
  */
 export default function TabSnippet({ operasi }) {
   const [bentuk, setBentuk] = useState('curl');
+  const teksBadan = badanPermintaan(operasi);
+  const BENTUK = teksBadan ? ['curl', 'fetch', 'body', 'respons'] : BENTUK_DASAR;
   // null = belum dicoba, 'ok' = tersalin, 'gagal' = kedua jalur gagal.
   const [hasilSalin, setHasilSalin] = useState(null);
 
@@ -58,12 +76,20 @@ export default function TabSnippet({ operasi }) {
     .map((p) => p.nama);
 
   const teksSalin =
-    bentuk === 'curl' ? curlSnippet(operasi, { asal }) : bentuk === 'fetch' ? fetchSnippet(operasi) : berhasil;
+    bentuk === 'curl'
+      ? curlSnippet(operasi, { asal })
+      : bentuk === 'fetch'
+        ? fetchSnippet(operasi)
+        : bentuk === 'body'
+          ? teksBadan
+          : berhasil;
 
   const labelSalin =
     bentuk === 'respons'
       ? `Salin contoh respons berhasil untuk ${operasi.metode} ${operasi.path}`
-      : `Salin snippet ${bentuk} untuk ${operasi.metode} ${operasi.path}`;
+      : bentuk === 'body'
+        ? `Salin contoh request body untuk ${operasi.metode} ${operasi.path}`
+        : `Salin snippet ${bentuk} untuk ${operasi.metode} ${operasi.path}`;
 
   // TIDAK ADA `catch` kosong di sini lagi. `salinTeks` mengembalikan hasilnya,
   // dan kegagalan WAJIB terlihat: di `http://skema.local` Clipboard API memang
@@ -108,7 +134,26 @@ export default function TabSnippet({ operasi }) {
         ))}
       </div>
 
-      {bentuk !== 'respons' && (
+      {bentuk === 'body' && (
+        <div className="mt-sm space-y-2">
+          <Blok
+            judul={`Request body: ${operasi.jenisBadan ?? 'application/json'}`}
+            teks={teksBadan}
+            testId="contoh-badan"
+            kepalaId="kepala-badan"
+            aksi={TombolSalin}
+          />
+          {/* Sama persis dengan isi snippet di sebelahnya, dan itu dinyatakan:
+              pembaca yang menemukan keduanya berbeda perlu tahu bahwa itu
+              cacat, bukan dua contoh yang memang berlainan maksud. */}
+          <p className="text-body-md leading-relaxed text-on-surface-variant">
+            Hanya kolom wajib yang ditampilkan, dan isinya sama dengan request body di dalam
+            snippet curl maupun fetch. Kolom opsional ada di tabel di atas.
+          </p>
+        </div>
+      )}
+
+      {bentuk !== 'respons' && bentuk !== 'body' && (
         <div className="mt-sm">
           <Blok
             judul={bentuk}

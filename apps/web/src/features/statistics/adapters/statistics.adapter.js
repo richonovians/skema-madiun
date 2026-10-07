@@ -14,9 +14,6 @@ import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 export function adaptStatistics(statistics) {
   return {
     summary: statistics.summary,
-    insight: {
-      text: statistics.insight.text ?? 'Belum ada narasi analisis dari Admin Kabupaten.',
-    },
     ikmTrend: statistics.ikmTrend.map((p) => ({ month: formatPeriodeLabel(p.periode), value: p.value })),
     complaintCategories: statistics.complaintCategories.map((c) => ({
       category: c.nama,

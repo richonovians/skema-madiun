@@ -115,7 +115,6 @@ describe('Dashboard & Statistics (e2e)', () => {
       where: { ssoSubject: { in: ['e2e-dash-opd', 'e2e-dash-resp'] } },
     });
     await prisma.opd.deleteMany({ where: { kode: 'E2EDASH' } });
-    await prisma.statisticsInsight.deleteMany({ where: { id: 1 } });
     await app.close();
   }, 30000);
 
@@ -161,7 +160,7 @@ describe('Dashboard & Statistics (e2e)', () => {
       );
       expect(Array.isArray(res.body.data.ikmTrend)).toBe(true);
       expect(Array.isArray(res.body.data.complaintStatus)).toBe(true);
-      expect(res.body.data.insight).toEqual(expect.objectContaining({ text: null }));
+      expect(res.body.data).not.toHaveProperty('insight');
     });
 
     it('complaintStatus menyertakan pengaduan e2e ini (status diterima)', async () => {
@@ -197,34 +196,32 @@ describe('Dashboard & Statistics (e2e)', () => {
     });
   });
 
-  describe('PATCH /api/v1/statistics/insight (D6)', () => {
-    it('Admin Kabupaten -> 200, tersimpan & terbaca via GET /statistics', async () => {
-      const patchRes = await request(app.getHttpServer())
+  /**
+   * FITUR INSIGHT & KESIMPULAN DIBUANG (6 Oktober 2026, permintaan pengguna).
+   *
+   * Keputusan D6 (5 Agustus 2026) menyediakan tempat penyimpanan narasi agar
+   * dapat diisi Admin Kabupaten. Terukur sebelum dibuang: tabel
+   * `statistics_insight` berisi NOL baris, tak ada satu pun penyunting di
+   * frontend, dan endpoint ini tak pernah dipanggil antarmuka mana pun.
+   *
+   * Diuji sebagai KETIADAAN, bukan dihapus tanpa jejak: endpoint yang dibuang
+   * tanpa penjaga dapat kembali diam-diam lewat salinan kode lama.
+   */
+  describe('PATCH /api/v1/statistics/insight — sudah tiada', () => {
+    it('Admin Kabupaten pun menerima 404, bukan 200', async () => {
+      const res = await request(app.getHttpServer())
         .patch('/api/v1/statistics/insight')
         .set(devHeaders({ role: Role.kabupaten, userId: 999 }))
         .send({ text: 'Capaian pelayanan meningkat triwulan ini.' });
 
-      expect(patchRes.status).toBe(200);
-      expect(patchRes.body.data.text).toBe('Capaian pelayanan meningkat triwulan ini.');
-
-      const getRes = await request(app.getHttpServer()).get('/api/v1/statistics');
-      expect(getRes.body.data.insight.text).toBe('Capaian pelayanan meningkat triwulan ini.');
+      expect(res.status).toBe(404);
     });
 
-    it('Admin OPD -> 403 (hanya Kabupaten yang boleh mengisi narasi org-wide)', async () => {
-      const res = await request(app.getHttpServer())
-        .patch('/api/v1/statistics/insight')
-        .set(devHeaders({ role: Role.opd, opdId }))
-        .send({ text: 'X' });
-      expect(res.status).toBe(403);
-    });
+    it('GET /statistics tidak lagi membawa kunci `insight`', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/statistics');
 
-    it('teks kosong -> 400', async () => {
-      const res = await request(app.getHttpServer())
-        .patch('/api/v1/statistics/insight')
-        .set(devHeaders({ role: Role.kabupaten }))
-        .send({ text: '' });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
+      expect(res.body.data).not.toHaveProperty('insight');
     });
   });
 

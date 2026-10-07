@@ -28,9 +28,9 @@ const render1 = (props = {}) =>
       onFilterChange={jest.fn()}
       onResetFilters={jest.fn()}
       opdOptions={OPD_OPTIONS}
-      periodeOptions={[
-        { value: '', label: 'Semua Periode' },
-        { value: '2026-Q3', label: '2026-Q3' },
+      tahunOptions={[
+        { value: '2026', label: '2026' },
+        { value: '2025', label: '2025' },
       ]}
       {...props}
     />,
@@ -75,7 +75,10 @@ describe('SurveyFilterBar — pencarian OPD', () => {
     // pilihan yang sedang aktif muncul kedua kalinya sebagai tombol di dalam
     // daftar, dan pencarian berdasar nama menemukan dua elemen.
     const pemicuStatus = pemicu('Semua Status');
-    const pemicuPeriode = pemicu('Semua Periode');
+    // Penyaring periode kini DUA dropdown (6 Oktober 2026), dan keduanya
+    // BERLABEL -- berbeda dari Status yang dikenali lewat pilihan aktifnya.
+    // Karena itu pemicunya dicari lewat label, bukan lewat nama pilihan.
+    const pemicuPeriode = screen.getByLabelText('Triwulan');
 
     fireEvent.click(pemicuStatus);
     expect(screen.queryByRole('textbox', { name: /^cari/i })).not.toBeInTheDocument();

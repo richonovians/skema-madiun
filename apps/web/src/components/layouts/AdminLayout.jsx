@@ -47,12 +47,36 @@ function AdminLayoutInner({ children }) {
           padahal bilahnya 80px tinggi, dan judul halaman masuk ke bawah
           bilah. Selama `md:pt-24` masih ada, ia yang menutupi gejala itu.
           Dengan `p` tak lagi menyentuh sisi atas, tak ada apa pun yang bisa
-          menimpa hasil pengukuran lagi. */}
-      <main className={`${sidebarMargin} transition-all duration-300 pt-[calc(var(--tinggi-navbar-opd)+1rem)] px-4 pb-4 md:px-lg md:pb-lg space-y-4 md:space-y-lg min-h-screen`}>
+          menimpa hasil pengukuran lagi.
+
+          `transition-[margin]`, BUKAN `transition-all` (7 Oktober 2026,
+          laporan pengguna: halaman analytics "tiba-tiba sudah ter-scroll
+          sedikit ke bawah" saat pertama kali dibuka). Terukur, dan hasilnya
+          berbeda dari bunyi laporannya: `scrollY` tetap 0 sepanjang pemuatan
+          -- yang bergerak isinya.
+
+            ms  380  --tinggi-navbar-opd 112px  padding-top 128px
+            ms 1293  --tinggi-navbar-opd  80px  padding-top 126.2px
+            ...                                 (meluncur turun ke 96px)
+
+          globals.css memang menyiapkan 112px sebagai nilai pembuka dan
+          menyatakan ia "dipakai satu bingkai pertama saja". `transition-all`
+          membatalkan niat itu: `all` ikut menyapu `padding-top`, sehingga
+          koreksi satu bingkai menjadi luncuran 300ms. Isi yang melorot naik
+          32px itulah yang terbaca seperti halaman tergulir sendiri.
+
+          Transisi ini ada HANYA untuk margin sidebar saat menciut, jadi
+          mempersempitnya tak menghilangkan apa pun yang dikehendaki.
+          AdminKabLayout tak terkena karena ia memasang transisinya pada div
+          pembungkus, bukan pada `<main>` pemilik paddingnya -- transisi tidak
+          diwariskan. Nilai 112px sengaja dibiarkan: alasannya di globals.css
+          (kelebihan ruang sesaat hanya terlihat sebagai jarak, kekurangan
+          ruang menyembunyikan isi) masih berlaku. */}
+      <main className={`${sidebarMargin} transition-[margin] duration-300 pt-[calc(var(--tinggi-navbar-opd)+1rem)] px-4 pb-4 md:px-lg md:pb-lg space-y-4 md:space-y-lg min-h-screen`}>
         {children}
       </main>
 
-      <footer className={`${sidebarMargin} transition-all duration-300 py-6 text-center text-sm font-medium text-secondary`}>
+      <footer className={`${sidebarMargin} transition-[margin] duration-300 py-6 text-center text-sm font-medium text-secondary`}>
         © {new Date().getFullYear()} Pemerintah Daerah Kabupaten Madiun - Dashboard Kinerja OPD
       </footer>
     </div>

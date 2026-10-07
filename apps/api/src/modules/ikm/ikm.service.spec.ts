@@ -444,10 +444,15 @@ describe('IkmService', () => {
     });
 
     it('filter periode diteruskan ke where', async () => {
+      // Contoh nilainya DIGANTI menjadi periode kanonik (6 Oktober 2026).
+      // Sebelumnya uji ini memakai `'2025'` sebagai contoh sembarang, dan nilai
+      // itu kini punya arti tersendiri -- "setahun penuh" -- sehingga `where`
+      // yang dihasilkannya memang bukan kecocokan persis lagi. Lihat blok
+      // "penyaring periode setahun penuh" di bawah.
       (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
-      await service.getDashboard({ periode: '2025' });
+      await service.getDashboard({ periode: '2025-Q1' });
       expect(prisma.ikmResult.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { periode: '2025' } }),
+        expect.objectContaining({ where: { periode: '2025-Q1' } }),
       );
     });
 
@@ -503,6 +508,61 @@ describe('IkmService', () => {
           where: expect.objectContaining({ opd: { jenisLayanan: 'Kesehatan' } }),
         }),
       );
+    });
+  });
+
+  /**
+   * PENYARING SETAHUN PENUH (6 Oktober 2026).
+   *
+   * Penyaring periode di antarmuka dipisah menjadi dua dropdown -- Tahun
+   * (wajib) dan Triwulan (boleh "Semua") -- atas permintaan pengguna. Memilih
+   * "Semua Triwulan" mengirim nilai BERTAHUN SAJA (`2026`), bukan periode
+   * kanonik (`2026-Q2`), dan kecocokan persis di sini akan mengembalikan nol
+   * baris untuk setiap survei yang ada.
+   *
+   * AWALAN YANG DIJANGKARKAN, bukan `contains`: `periode: { startsWith: '2026-' }`
+   * dengan tanda hubung tersurat. Tanpa tanda hubung itu, `20261-Q1` -- tahun
+   * yang sama sekali lain -- ikut tercocok.
+   */
+  describe('getDashboard: penyaring periode setahun penuh', () => {
+    it('nilai bertahun menyaring dengan awalan, bukan kecocokan persis', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.getDashboard({ periode: '2026' });
+
+      const where = (prisma.ikmResult.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.periode).toEqual({ startsWith: '2026-' });
+    });
+
+    it('survei aktif disaring dengan aturan yang SAMA', async () => {
+      // Dua sumber, satu aturan: snapshot `ikm_results` dan live-compute survei
+      // aktif. Menyaring salah satunya saja menghasilkan dashboard yang
+      // isinya separuh benar.
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.survey.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.getDashboard({ periode: '2026' });
+
+      const where = (prisma.survey.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.periode).toEqual({ startsWith: '2026-' });
+    });
+
+    it('periode kanonik tetap dicocokkan PERSIS, seperti sebelumnya', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.getDashboard({ periode: '2026-Q2' });
+
+      const where = (prisma.ikmResult.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.periode).toBe('2026-Q2');
+    });
+
+    it('tanpa periode, kunci `periode` tak ikut ditulis sama sekali', async () => {
+      (prisma.ikmResult.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.getDashboard({});
+
+      const where = (prisma.ikmResult.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('periode');
     });
   });
 });

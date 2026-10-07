@@ -12,9 +12,10 @@ import { useAsync } from '@/hooks/useAsync';
 import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { getOpdById } from '@/features/opd/services/opd.api';
-import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
+import { buildTahunOptions } from '@/features/surveys/adapters/survey.adapter';
+import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 
-const PERIODE_OPTIONS = buildRecentPeriodeOptions();
+const TAHUN_OPTIONS = buildTahunOptions();
 
 /**
  * Navbar Admin OPD.
@@ -174,13 +175,12 @@ export default function AdminNavbar() {
           <div className="hidden xl:block h-8 w-[1px] bg-outline-variant shrink-0 xl:order-3"></div>
           <div className="order-last flex w-full items-center gap-2 xl:order-3 xl:w-auto xl:shrink-0">
             <CalendarRange size={18} className="hidden md:block text-secondary shrink-0" />
-            <Dropdown
-              id="filter-periode"
-              options={PERIODE_OPTIONS}
+            <PenyaringPeriode
               value={periode}
               onChange={setPeriode}
-              variant="primary"
-              className="w-full xl:w-auto"
+              tahunOptions={TAHUN_OPTIONS}
+              className="flex w-full items-center gap-2 xl:w-auto"
+              dropdownClassName="xl:w-auto"
             />
           </div>
         </>

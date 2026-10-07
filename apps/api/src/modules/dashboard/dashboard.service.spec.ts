@@ -45,7 +45,6 @@ describe('DashboardService', () => {
     opd: { count: jest.fn().mockResolvedValue(0) },
     ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
     user: { count: jest.fn().mockResolvedValue(0) },
-    statisticsInsight: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
   } as unknown as PrismaService;
   const ikmService = {
     getResults: jest.fn(),
@@ -221,7 +220,9 @@ describe('DashboardService', () => {
       expect(result.summary.totalRespondents).toBe(0);
       expect(result.summary.completionRate).toBeNull();
       expect(result.ikmTrend).toEqual([]);
-      expect(result.insight.text).toBeNull();
+      // `insight` DIBUANG 6 Oktober 2026 bersama fiturnya; diuji sebagai
+      // ketiadaan supaya ia tak kembali diam-diam lewat salinan kode lama.
+      expect(result).not.toHaveProperty('insight');
     });
 
     it('(2026-08-05) survei AKTIF yg sudah punya responden ikut masuk summary.ikm/ikmTrend', async () => {
@@ -421,40 +422,13 @@ describe('DashboardService', () => {
         { kode: 'aduan', nama: 'Aduan', count: 3 },
       ]);
     });
-
-    it('insight bawa teks tersimpan (D6), bukan dikarang', async () => {
-      (prisma.statisticsInsight.findUnique as jest.Mock).mockResolvedValue({
-        text: 'Capaian meningkat',
-        updatedAt: new Date('2026-08-01'),
-      });
-
-      const result = await service.getStatistics();
-
-      expect(result.insight.text).toBe('Capaian meningkat');
-    });
   });
 
-  describe('updateInsight', () => {
-    it('(D6) upsert baris tunggal id=1', async () => {
-      (prisma.statisticsInsight.upsert as jest.Mock).mockResolvedValue({
-        id: 1,
-        text: 'Narasi baru',
-        updatedAt: new Date('2026-08-01'),
-        updatedBy: 2,
-      });
-
-      const result = await service.updateInsight({ text: 'Narasi baru' }, kabupatenUser());
-
-      expect(prisma.statisticsInsight.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 1 },
-          create: expect.objectContaining({ id: 1, text: 'Narasi baru', updatedBy: 2 }),
-          update: expect.objectContaining({ text: 'Narasi baru', updatedBy: 2 }),
-        }),
-      );
-      expect(result.text).toBe('Narasi baru');
-    });
-  });
+  /**
+   * `updateInsight` DIBUANG 6 Oktober 2026 bersama seluruh fitur Insight &
+   * Kesimpulan (permintaan pengguna). Ketiadaan endpointnya dijaga
+   * `dashboard.e2e-spec.ts`; di sini tak ada lagi metode yang dapat diuji.
+   */
 
   /**
    * JUMLAH AKUN AKTIF (permintaan pengguna 6 September 2026): halaman superuser

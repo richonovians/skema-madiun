@@ -23,7 +23,11 @@ import {
   duplicateSurvey,
 } from '@/features/surveys/services/surveys.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import {
+  cocokPeriode,
+  formatPeriodeLabel,
+  parsePeriodeFilter,
+} from '@/features/surveys/adapters/survey.adapter';
 
 const ITEMS_PER_PAGE = 10;
 // Kabupaten melihat SEMUA survei lintas OPD (opdWhereFilter kosong utk role
@@ -168,12 +172,19 @@ export default function AdminKabSurveysPage() {
 
   // Periode kanonik "{tahun}-Q{1-4}" terurut leksikografis (lihat periode.util.ts
   // backend) -- diurutkan menurun supaya periode terbaru di atas.
-  const periodeOptions = useMemo(() => {
-    const unique = [...new Set(surveys.map((s) => s.period).filter(Boolean))].sort().reverse();
-    return [
-      { value: '', label: 'Semua Periode' },
-      ...unique.map((periode) => ({ value: periode, label: formatPeriodeLabel(periode) })),
-    ];
+  // TAHUN saja (6 Oktober 2026): triwulannya kini dropdown tersendiri. Diambil
+  // dari periode survei yang BENAR-BENAR ada, bukan dari rentang baku -- daftar
+  // ini menyaring data di layar, dan menawarkan tahun tanpa satu pun survei
+  // hanya menghasilkan tabel kosong.
+  const tahunOptions = useMemo(() => {
+    const unique = [
+      ...new Set(
+        surveys
+          .map((s) => parsePeriodeFilter(s.period)?.tahun)
+          .filter((t) => t !== undefined && t !== null),
+      ),
+    ].sort((a, b) => b - a);
+    return unique.map((t) => ({ value: String(t), label: String(t) }));
   }, [surveys]);
 
   // Opsi OPD untuk FORM buat-survei = SELURUH OPD (bukan cuma yang sudah punya
@@ -317,7 +328,9 @@ export default function AdminKabSurveysPage() {
 
       const matchOpd = !filters.opd || String(survey.opdId) === filters.opd;
       const matchStatus = !filters.status || survey.status === filters.status;
-      const matchPeriode = !filters.periode || survey.period === filters.periode;
+      // `cocokPeriode` (bukan `===`): penyaringnya kini dapat berupa TAHUN SAJA,
+      // yang harus cocok untuk seluruh triwulan tahun itu.
+      const matchPeriode = cocokPeriode(survey.period, filters.periode);
 
       return matchSearch && matchOpd && matchStatus && matchPeriode;
     });
@@ -407,7 +420,7 @@ export default function AdminKabSurveysPage() {
           onExportExcel={handleExportExcel}
           onExportPDF={handleExportPDF}
           opdOptions={opdOptions}
-          periodeOptions={periodeOptions}
+          tahunOptions={tahunOptions}
         />
 
         <SurveyMonitoringTable
