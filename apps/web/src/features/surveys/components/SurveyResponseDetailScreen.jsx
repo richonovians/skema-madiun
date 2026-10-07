@@ -96,7 +96,7 @@ export default function SurveyResponseDetailScreen({
                 dan itu benar: belum diketahui anonim atau bukan. */}
             {data?.response?.respondent?.isAnonim && (
               <p className="text-body-md text-on-surface-variant mt-xs">
-                Respons anonim -- SKM tidak menyimpan identitas pengisi
+                Respons anonim: SKM tidak menyimpan identitas pengisi
               </p>
             )}
           </div>
