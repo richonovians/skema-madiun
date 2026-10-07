@@ -104,6 +104,11 @@ enum NotificationType {
   // pernah tahu ada tiket baru kecuali lewat balasan susulan) -- beri tahu
   // Admin OPD tujuan + kabupaten (oversight), TIDAK beri tahu pelapor sendiri.
   complaint_created
+  // Pengaduan "lainnya" (tanpa tujuan) diteruskan ke OPD berwenang (7 Oktober
+  // 2026). Kebalikan arah `complaint_created`: ini justru beri tahu PELAPOR
+  // bahwa pengaduannya sudah sampai ke instansi yang menanganinya. Ditambahkan
+  // lewat migrasi 20261007090000_notifikasi_pengaduan_diteruskan.
+  complaint_forwarded
   // Jawaban survei masuk (13 September 2026, laporan pengguna). Dikirim pada
   // TONGGAK saja, bukan tiap jawaban: survei IKM bertarget ratusan responden
   // akan menenggelamkan notifikasi pengaduan yang butuh tindakan. Pesannya

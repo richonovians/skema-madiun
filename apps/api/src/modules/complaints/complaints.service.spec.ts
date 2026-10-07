@@ -116,6 +116,7 @@ describe('ComplaintsService', () => {
     notifyComplaintCreated: jest.fn(),
     notifyComplaintStatusChanged: jest.fn(),
     notifyComplaintReply: jest.fn(),
+    notifyComplaintForwarded: jest.fn(),
   } as unknown as NotificationsService;
   const consent = {
     assertConsented: jest.fn().mockResolvedValue(undefined),
@@ -868,8 +869,9 @@ describe('ComplaintsService', () => {
 
     it('Admin Kabupaten berhasil: opdId terisi, audit tercatat, OPD tujuan diberi tahu', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9 });
-      (prisma.complaint.update as jest.Mock).mockResolvedValue(complaintRow({ opdId: 9 }));
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9, nama: 'Dinas Kesehatan' });
+      const updatedRow = complaintRow({ opdId: 9 });
+      (prisma.complaint.update as jest.Mock).mockResolvedValue(updatedRow);
 
       const hasil = await service.forward(1, { opdId: 9 }, kabupatenUser());
 
@@ -886,6 +888,12 @@ describe('ComplaintsService', () => {
       // Tanpa ini OPD tujuan tak akan pernah tahu ada tiket yang menjadi
       // tanggung jawabnya -- persis keluhan 6 Agustus 2026 soal tiket baru.
       expect(notificationsService.notifyComplaintCreated).toHaveBeenCalled();
+      // DAN pelapor diberi tahu bahwa pengaduan "Lainnya"-nya sudah mendarat di
+      // instansi berwenang (7 Oktober 2026) -- dengan NAMA OPD-nya, bukan id.
+      expect(notificationsService.notifyComplaintForwarded).toHaveBeenCalledWith(
+        updatedRow,
+        'Dinas Kesehatan',
+      );
     });
 
     it('Superuser juga berhasil', async () => {
