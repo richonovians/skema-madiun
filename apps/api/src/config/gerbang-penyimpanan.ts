@@ -54,6 +54,13 @@ export function periksaPenyimpanan(nodeEnv: string, nilai: string | undefined): 
  * gejalanya bagi pengguna adalah aplikasi yang melemparnya keluar secara acak.
  * Satu pekerja pun tetap kehilangan seluruh sesi pada setiap penggelaran.
  *
+ * SATU GERBANG, DUA PENYIMPAN (7 Oktober 2026). `REDIS_URL` yang sama juga
+ * memilih penyimpan batas laju (lihat ThrottlerModule di app.module.ts). Jadi
+ * gerbang ini sekaligus mencegah penghitung laju jatuh ke `Map` per-proses di
+ * produksi -- di sana dua pekerja berarti batas yang dapat ditembus dengan
+ * berpindah pekerja. Keduanya dijaga satu syarat karena keduanya butuh Redis
+ * yang sama.
+ *
  * Pola yang sama dengan `periksaPenyimpanan` di atas: kelalaian yang sunyi
  * diubah menjadi kegagalan boot yang berisik, saat orang yang tepat masih
  * memperhatikan.
@@ -69,10 +76,11 @@ export function periksaPenyimpanSesi(nodeEnv: string, redisUrl: string | undefin
     [
       'REDIS_URL belum diisi.',
       '',
-      'Daftar pencabutan sesi akan jatuh ke penyimpan DALAM MEMORI, yang tidak ' +
-        'dibagi antarproses dan hilang pada setiap penggelaran. Karena pemeriksaan ' +
-        'sesi gagal tertutup, akibatnya pengguna terlempar keluar tanpa sebab yang ' +
-        'terlihat.',
+      'Daftar pencabutan sesi DAN penghitung batas laju akan jatuh ke penyimpan ' +
+        'DALAM MEMORI, yang tidak dibagi antarproses dan hilang pada setiap ' +
+        'penggelaran. Karena pemeriksaan sesi gagal tertutup, akibatnya pengguna ' +
+        'terlempar keluar tanpa sebab yang terlihat; dan batas lajunya dapat ' +
+        'ditembus dengan berpindah pekerja.',
       '',
       'Isi REDIS_URL, dan pastikan Redis-nya berjalan dengan AOF menyala.',
     ].join('\n'),

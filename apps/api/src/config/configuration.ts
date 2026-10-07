@@ -139,11 +139,13 @@ export default () => ({
   },
   redis: {
     /**
-     * Penyimpan daftar pencabutan sesi (7 Oktober 2026).
+     * Penyimpan daftar pencabutan sesi DAN penghitung batas laju (7 Oktober
+     * 2026). Satu URL memilih keduanya sekaligus.
      *
      * KOSONG BERARTI DALAM MEMORI, dan itu hanya sah untuk pengembangan: isinya
-     * hilang saat proses mati, dan dua proses API tak saling melihat sesi satu
-     * sama lain. Gerbang boot menolak menyala di produksi tanpa nilai ini.
+     * hilang saat proses mati, dan dua proses API tak saling melihat sesi
+     * maupun kuota laju satu sama lain. Gerbang boot menolak menyala di
+     * produksi tanpa nilai ini.
      */
     url: process.env.REDIS_URL,
   },
