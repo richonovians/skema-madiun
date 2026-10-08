@@ -2,7 +2,9 @@ import { ClassSerializerInterceptor, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
+import Redis from 'ioredis';
 import { ThrottlePenggunaGuard } from './common/guards/throttle-pengguna.guard';
+import { PenyimpanLajuRedis } from './common/guards/penyimpan-laju.redis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -37,14 +39,26 @@ import { UsersModule } from './modules/users/users.module';
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            ttl: config.get<number>('throttle.ttlMs') ?? 60_000,
-            limit: config.get<number>('throttle.limit') ?? 100,
-          },
-        ],
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('redis.url');
+        return {
+          throttlers: [
+            {
+              ttl: config.get<number>('throttle.ttlMs') ?? 60_000,
+              limit: config.get<number>('throttle.limit') ?? 100,
+            },
+          ],
+          // Penghitung batas laju di Redis bila `REDIS_URL` terisi; selain itu
+          // storage `Map` bawaan @nestjs/throttler. Percabangannya mengikuti
+          // kunci yang SAMA dengan daftar pencabutan sesi (SessionModule), jadi
+          // sekali `REDIS_URL` diisi keduanya ikut pindah ke Redis sekaligus.
+          // Yang menolak in-memory di PRODUKSI bukan baris ini melainkan gerbang
+          // boot `periksaPenyimpanSesi`, yang kini menjaga keduanya.
+          ...(url
+            ? { storage: new PenyimpanLajuRedis(new Redis(url, { maxRetriesPerRequest: 2 })) }
+            : {}),
+        };
+      },
     }),
     PrismaModule,
     // Modul fondasi autentikasi (menyediakan RolesGuard global via APP_GUARD).
