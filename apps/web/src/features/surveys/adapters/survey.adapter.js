@@ -250,6 +250,14 @@ export function toCreateSurveyPayload({
   };
 }
 
+/**
+ * Terjemahkan payload ganti-jenis -> ChangeSurveyJenisDto backend (8 Oktober 2026).
+ * Ketiganya wajib; hanya `jenis: 'custom'` yang diterima backend (SKM -> Custom).
+ */
+export function toChangeJenisPayload({ jenis, tujuan, metodeNilai }) {
+  return { jenis, tujuan, metodeNilai };
+}
+
 /** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
 export function toUpdateSurveyPayload({
   title,

@@ -41,16 +41,13 @@ describe('Surveys (e2e)', () => {
   const opdHeaders = () => devHeaders({ role: Role.opd, opdId });
 
   it('POST /surveys (Admin OPD) -> 201', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/surveys')
-      .set(opdHeaders())
-      .send({
-        judul: 'Survei E2E',
-        periode: '2026-Q1',
-        jenis: 'custom',
-        tujuan: 'kepuasan',
-        metodeNilai: 'rata_rata',
-      });
+    const res = await request(app.getHttpServer()).post('/api/v1/surveys').set(opdHeaders()).send({
+      judul: 'Survei E2E',
+      periode: '2026-Q1',
+      jenis: 'custom',
+      tujuan: 'kepuasan',
+      metodeNilai: 'rata_rata',
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.data.opdId).toBe(opdId);
@@ -358,6 +355,143 @@ describe('Surveys (e2e)', () => {
         expect(res.body.data.nilaiSurvei).toBeNull();
         expect(res.body.data.tujuan).toBeNull();
       });
+    });
+  });
+
+  // 8 Oktober 2026: ganti jenis SKM -> Custom. Satu-satunya jalan mengganti jenis,
+  // hanya selagi draf dan belum dijawab; PATCH /surveys/:id tetap menolak `jenis`.
+  describe('PATCH /surveys/:id/jenis (ganti jenis SKM -> Custom)', () => {
+    const lengkap = { jenis: 'custom', tujuan: 'evaluasi', metodeNilai: 'rata_rata' };
+
+    const buatSkm = async (tambahan = true) => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/surveys')
+        .set(opdHeaders())
+        .send({ judul: 'Ganti Jenis E2E', periode: '2026-Q1', jenis: 'skm_permenpanrb' });
+      expect(res.status).toBe(201);
+      const id = res.body.data.id as number;
+      if (tambahan) {
+        const q = await request(app.getHttpServer())
+          .post(`/api/v1/surveys/${id}/questions`)
+          .set(opdHeaders())
+          .send({ teks: 'Saran Anda untuk kami?', tipe: 'teks' });
+        expect(q.status).toBe(201);
+      }
+      return id;
+    };
+    const ganti = (id: number, badan: Record<string, unknown> = lengkap, headers = opdHeaders()) =>
+      request(app.getHttpServer()).patch(`/api/v1/surveys/${id}/jenis`).set(headers).send(badan);
+    const pertanyaan = async (id: number) =>
+      (await request(app.getHttpServer()).get(`/api/v1/surveys/${id}/questions`).set(opdHeaders()))
+        .body.data as { id: number; kodeUnsur: string | null; urutan: number; teks: string }[];
+
+    it('200: unsur lenyap, pertanyaan tambahan bertahan dengan urutan 1, jenis/tujuan/metode tersimpan', async () => {
+      const id = await buatSkm();
+      expect(await pertanyaan(id)).toHaveLength(10);
+
+      const res = await ganti(id);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.jenis).toBe('custom');
+      expect(res.body.data.tujuan).toBe('evaluasi');
+      expect(res.body.data.metodeNilai).toBe('rata_rata');
+      const sisa = await pertanyaan(id);
+      expect(sisa).toHaveLength(1);
+      expect(sisa[0].kodeUnsur).toBeNull();
+      expect(sisa[0].teks).toBe('Saran Anda untuk kami?');
+      expect(sisa[0].urutan).toBe(1);
+
+      const baca = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${id}`)
+        .set(opdHeaders());
+      expect(baca.body.data.jenis).toBe('custom');
+    });
+
+    it('SKM tanpa pertanyaan tambahan menjadi custom KOSONG yang tetap bisa diisi pertanyaan', async () => {
+      const id = await buatSkm(false);
+
+      expect((await ganti(id)).status).toBe(200);
+      expect(await pertanyaan(id)).toHaveLength(0);
+
+      const tambah = await request(app.getHttpServer())
+        .post(`/api/v1/surveys/${id}/questions`)
+        .set(opdHeaders())
+        .send({ teks: 'Seberapa puas Anda?', tipe: 'skala' });
+      expect(tambah.status).toBe(201);
+    });
+
+    it('400: survei aktif ditolak dan sembilan unsur utuh', async () => {
+      const id = await buatSkm();
+      await request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${id}/status`)
+        .set(opdHeaders())
+        .send({ status: 'aktif' })
+        .expect(200);
+
+      const res = await ganti(id);
+
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/berstatus draf/);
+      expect(await pertanyaan(id)).toHaveLength(10);
+    });
+
+    it('400: survei yang sudah dijawab ditolak dan pesannya menyebut jumlahnya', async () => {
+      const id = await buatSkm();
+      await prisma.surveyResponse.create({ data: { surveyId: id } });
+
+      const res = await ganti(id);
+
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/sudah menerima 1 jawaban/);
+      expect(await pertanyaan(id)).toHaveLength(10);
+    });
+
+    it('400: survei yang sudah custom', async () => {
+      const dibuat = await request(app.getHttpServer())
+        .post('/api/v1/surveys')
+        .set(opdHeaders())
+        .send({
+          judul: 'Sudah Custom',
+          periode: '2026-Q1',
+          jenis: 'custom',
+          tujuan: 'kepuasan',
+          metodeNilai: 'rata_rata',
+        });
+
+      const res = await ganti(dibuat.body.data.id);
+
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/sudah berjenis Custom/);
+    });
+
+    it('400: jenis tujuan skm_permenpanrb, tanpa tujuan, tanpa metode, tujuan di luar enum', async () => {
+      const id = await buatSkm();
+
+      expect((await ganti(id, { ...lengkap, jenis: 'skm_permenpanrb' })).status).toBe(400);
+      expect((await ganti(id, { jenis: 'custom', metodeNilai: 'rata_rata' })).status).toBe(400);
+      expect((await ganti(id, { jenis: 'custom', tujuan: 'evaluasi' })).status).toBe(400);
+      expect((await ganti(id, { ...lengkap, tujuan: 'lainnya' })).status).toBe(400);
+      expect(await pertanyaan(id)).toHaveLength(10);
+    });
+
+    it('403: Admin OPD lain', async () => {
+      const id = await buatSkm();
+
+      const res = await ganti(id, lengkap, devHeaders({ role: Role.opd, opdId: opdId + 99999 }));
+
+      expect(res.status).toBe(403);
+      expect(await pertanyaan(id)).toHaveLength(10);
+    });
+
+    it('regresi: PATCH /surveys/:id dengan jenis TETAP 400', async () => {
+      const id = await buatSkm();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${id}`)
+        .set(opdHeaders())
+        .send({ jenis: 'custom' });
+
+      expect(res.status).toBe(400);
     });
   });
 

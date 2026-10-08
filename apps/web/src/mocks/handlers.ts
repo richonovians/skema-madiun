@@ -500,6 +500,11 @@ export const handlers = [
     return ok(surveyFixture({ id: Number(params.id), status }), `/surveys/${params.id}/status`);
   }),
 
+  http.patch(`${API_BASE}/surveys/:id/jenis`, async ({ request, params }) => {
+    const body = (await request.json()) as JsonBody;
+    return ok(surveyFixture({ id: Number(params.id), ...body }), `/surveys/${params.id}/jenis`);
+  }),
+
   http.patch(`${API_BASE}/surveys/:id`, async ({ request, params }) => {
     const body = (await request.json()) as JsonBody;
     return ok(surveyFixture({ id: Number(params.id), ...body }), `/surveys/${params.id}`);

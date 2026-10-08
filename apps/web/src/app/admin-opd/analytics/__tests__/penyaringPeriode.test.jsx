@@ -253,7 +253,7 @@ describe('Tab Analisis SKM — tautan "Lihat Hasil" (?surveyId=)', () => {
     mockTautan = 'surveyId=3';
 
     render(<AnalyticsOpdPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
     await waitFor(() => expect(screen.queryByText(/memuat daftar survei/i)).toBeNull());
 
     expect(mockSetPeriode).not.toHaveBeenCalled();
@@ -455,12 +455,12 @@ describe('Tab Statistik Publik DIHAPUS (7 Oktober 2026, permintaan pengguna)', (
    * dari GET /statistics. Pengguna memintanya dibuang. Dua hal dijaga supaya ia
    * tak kembali diam-diam lewat salinan kode lama.
    */
-  it('hanya dua tab: Analisis SKM dan Analisis Pengaduan', async () => {
+  it('hanya dua tab: Analisis Survei dan Analisis Pengaduan', async () => {
     pasangSurvei();
 
     render(<AnalyticsOpdPage />);
 
-    expect(await screen.findByRole('button', { name: /analisis skm/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /analisis survei/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /analisis pengaduan/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /statistik publik/i })).toBeNull();
     expect(screen.getAllByRole('button', { name: /^analisis /i })).toHaveLength(2);
@@ -480,7 +480,7 @@ describe('Tab Statistik Publik DIHAPUS (7 Oktober 2026, permintaan pengguna)', (
     );
 
     render(<AnalyticsOpdPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
     await waitFor(() => expect(screen.queryByText(/memuat daftar survei/i)).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: /analisis pengaduan/i }));
     // Ditunggu sampai tab pengaduan selesai dimuat, supaya "tidak pernah

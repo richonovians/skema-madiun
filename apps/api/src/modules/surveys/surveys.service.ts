@@ -5,6 +5,7 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
+import { ChangeSurveyJenisDto } from './dto/change-survey-jenis.dto';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListActiveSurveyQueryDto } from './dto/list-active-survey-query.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
@@ -13,6 +14,7 @@ import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
 import { assertKerangkaLengkap, buatUnsurAwal, unsurHilang } from './kerangka-unsur.util';
+import { assertBolehGantiJenis } from './ganti-jenis.util';
 import { assertPengaturanNilaiBuat, assertPengaturanNilaiUbah } from './pengaturan-nilai.util';
 import { operasiPemusnahanSurvei } from './survey-pemusnahan.util';
 import { assertSurveyEditable, TIDAK_DIBUANG } from './survey-scope.util';
@@ -190,6 +192,54 @@ export class SurveysService {
           tujuan: dto.tujuan,
           metodeNilai: dto.metodeNilai,
         },
+      });
+    });
+    return new SurveyEntity(updated);
+  }
+
+  /**
+   * GANTI JENIS SKM -> CUSTOM (8 Oktober 2026). Hanya selagi survei DRAF dan belum
+   * menerima jawaban (aturan di `assertBolehGantiJenis`).
+   *
+   * Sembilan unsur dihapus, pertanyaan tambahan milik OPD dipertahankan dan
+   * diurut ulang 1..n, lalu jenis + tujuan + metode disimpan -- dalam SATU
+   * transaksi, dengan pemeriksaan jawaban di dalamnya supaya tak ada celah antara
+   * memeriksa dan menulis.
+   *
+   * Penjaga kerangka (`kerangka-unsur.util`) SENGAJA tidak dipakai untuk
+   * penghapusan ini: ia melarang menghapus unsur, dan di sinilah jenisnya berubah
+   * sehingga kerangka itu berhenti berlaku. Opsi pertanyaan ikut terhapus lewat
+   * ON DELETE CASCADE; tak ada jawaban yang menunjuknya karena survei belum dijawab.
+   */
+  async gantiJenis(
+    id: number,
+    dto: ChangeSurveyJenisDto,
+    user: CurrentUser,
+  ): Promise<SurveyEntity> {
+    const survey = await this.getAccessibleOrThrow(id, user);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const jumlahJawaban = await tx.surveyResponse.count({ where: { surveyId: id } });
+      assertBolehGantiJenis(survey, jumlahJawaban, dto.jenis);
+      // Sesudah pemeriksaan di atas jenis tujuan pasti `custom`, jadi galat di sini
+      // hanya "tujuan dan metode wajib".
+      assertPengaturanNilaiBuat(dto.jenis, dto.tujuan, dto.metodeNilai);
+
+      await tx.question.deleteMany({
+        where: { surveyId: id, OR: [{ isIkmUnsur: true }, { kodeUnsur: { not: null } }] },
+      });
+      const sisa = await tx.question.findMany({
+        where: { surveyId: id },
+        orderBy: { urutan: 'asc' },
+        select: { id: true },
+      });
+      for (const [i, q] of sisa.entries()) {
+        await tx.question.update({ where: { id: q.id }, data: { urutan: i + 1 } });
+      }
+
+      return tx.survey.update({
+        where: { id },
+        data: { jenis: dto.jenis, tujuan: dto.tujuan, metodeNilai: dto.metodeNilai },
       });
     });
     return new SurveyEntity(updated);

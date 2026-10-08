@@ -70,7 +70,7 @@ describe('SurveyMonitoringTable — Nilai Survei', () => {
     expect(within(baris('Custom Kosong')).getAllByText('-').length).toBeGreaterThan(0);
   });
 
-  it('baris SKM tak berubah: IKM dan rata-rata polos', () => {
+  it('baris SKM: NILAI IKM tetap, rata-rata polos TIDAK lagi tampil (kolom NILAI SURVEI kosong)', () => {
     render(
       <SurveyMonitoringTable
         surveys={[
@@ -85,6 +85,6 @@ describe('SurveyMonitoringTable — Nilai Survei', () => {
     );
 
     expect(within(baris('Survei SKM')).getByText('81.25')).toBeInTheDocument();
-    expect(within(baris('Survei SKM')).getByText('3.25')).toBeInTheDocument();
+    expect(within(baris('Survei SKM')).queryByText('3.25')).not.toBeInTheDocument();
   });
 });
