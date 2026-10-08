@@ -1,5 +1,6 @@
-import { JenisSurvei, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, MetodeNilai, SurveyStatus, TujuanSurvei } from '@prisma/client';
 import { BaseEntity } from '../../../common/entities/base.entity';
+import { NilaiSurveiEntity } from '../../ikm/entities/nilai-survei.entity';
 
 export class SurveyEntity extends BaseEntity<SurveyEntity> {
   id: number;
@@ -9,10 +10,17 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   status: SurveyStatus;
   /**
    * Jenis survei (8 Oktober 2026): `skm_permenpanrb` berkerangka U1-U9 yang tak
-   * dapat dihapus, `umum` bebas dan tanpa nilai IKM. Dipilih saat dibuat, tak
+   * dapat dihapus, `custom` bebas dan tanpa nilai IKM. Dipilih saat dibuat, tak
    * dapat diganti.
    */
   jenis: JenisSurvei;
+  /**
+   * Tujuan survei custom (8 Oktober 2026); `null` pada survei SKM. `null` pada
+   * custom (baris lama/fixture) dibaca bawaan `kepuasan`.
+   */
+  tujuan: TujuanSurvei | null;
+  /** Metode tampilan Nilai Survei; `null` pada SKM, pada custom dibaca `rata_rata`. */
+  metodeNilai: MetodeNilai | null;
   allowMultipleSubmit: boolean;
   /** Survei ini boleh diisi tanpa sesi lewat /survei/:id. Baku false. */
   izinkanAnonim: boolean;
@@ -34,6 +42,13 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
    * `GET /surveys/:id`, bersama `nilaiIkm`.
    */
   nilaiRataRata?: number | null;
+  /**
+   * NILAI SURVEI siap tampil untuk survei `custom` (8 Oktober 2026), menurut
+   * `tujuan` + `metodeNilai`. `null` pada survei SKM (yang punya `nilaiIkm`) dan
+   * pada custom yang belum punya jawaban skala. Diisi bersama `nilaiRataRata`
+   * pada `GET /surveys` dan `GET /surveys/:id`.
+   */
+  nilaiSurvei?: NilaiSurveiEntity | null;
   /**
    * Kapan respons TERAKHIR masuk ke survei ini, atau `null` bila belum ada satu
    * pun (4 Oktober 2026). Hanya diisi pada `GET /surveys/:id`.

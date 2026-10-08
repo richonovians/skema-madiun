@@ -513,7 +513,7 @@ describe('QuestionsService', () => {
    */
   describe('kerangka unsur survei SKM', () => {
     const surveiSkm = () => ({ ...draftSurvey(), jenis: JenisSurvei.skm_permenpanrb });
-    const surveiUmum = () => ({ ...draftSurvey(), jenis: JenisSurvei.umum });
+    const surveiCustom = () => ({ ...draftSurvey(), jenis: JenisSurvei.custom });
 
     const barisUnsur = (over: Record<string, unknown> = {}) => ({
       id: 7,
@@ -556,8 +556,10 @@ describe('QuestionsService', () => {
         expect(prisma.question.delete).toHaveBeenCalledWith({ where: { id: 7 } });
       });
 
-      it('survei umum bebas dihapus pertanyaannya', async () => {
-        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiUmum()));
+      it('survei custom bebas dihapus pertanyaannya', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanDariDb(surveiCustom()),
+        );
 
         await service.remove(7, opdUser(5));
 
@@ -576,7 +578,7 @@ describe('QuestionsService', () => {
     describe('buat', () => {
       it.each([
         ['SKM', surveiSkm],
-        ['umum', surveiUmum],
+        ['custom', surveiCustom],
       ])('menolak pertanyaan ber-kodeUnsur pada survei %s', async (_nama, survei) => {
         (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survei());
 
@@ -588,7 +590,7 @@ describe('QuestionsService', () => {
 
       it.each([
         ['SKM', surveiSkm],
-        ['umum', surveiUmum],
+        ['custom', surveiCustom],
       ])('menolak pertanyaan isIkmUnsur pada survei %s', async (_nama, survei) => {
         (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survei());
 
@@ -645,9 +647,9 @@ describe('QuestionsService', () => {
         ).resolves.toBeDefined();
       });
 
-      it('survei umum tidak boleh menandai pertanyaan sebagai unsur', async () => {
+      it('survei custom tidak boleh menandai pertanyaan sebagai unsur', async () => {
         (prisma.question.findUnique as jest.Mock).mockResolvedValue(
-          pertanyaanDariDb(surveiUmum(), { isIkmUnsur: false, kodeUnsur: null }),
+          pertanyaanDariDb(surveiCustom(), { isIkmUnsur: false, kodeUnsur: null }),
         );
 
         await expect(service.update(7, { isIkmUnsur: true }, opdUser(5))).rejects.toThrow(

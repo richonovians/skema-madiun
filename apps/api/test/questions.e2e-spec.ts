@@ -114,7 +114,7 @@ describe('Questions (e2e)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('POST question ber-kodeUnsur pada survei umum -> 400', async () => {
+  it('POST question ber-kodeUnsur pada survei custom -> 400', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/v1/surveys/${surveyId}/questions`)
       .set(opdHeaders())
@@ -418,7 +418,7 @@ describe('Questions (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/surveys/${skmId}`)
         .set(opdHeaders())
-        .send({ jenis: 'umum' });
+        .send({ jenis: 'custom' });
       expect(res.status).toBe(400);
     });
 

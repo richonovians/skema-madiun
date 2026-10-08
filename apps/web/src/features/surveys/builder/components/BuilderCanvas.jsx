@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import QuestionBlock from './QuestionBlock';
 import PeriodeSelect from './PeriodeSelect';
+import PengaturanNilaiSurvei from './PengaturanNilaiSurvei';
 import { Plus } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
@@ -43,6 +44,13 @@ export default function BuilderCanvas({
   onPeriodeCommit,
   izinkanAnonim = false,
   onIzinkanAnonimCommit,
+  // Survei CUSTOM (8 Oktober 2026): tujuan + metode nilai. Panelnya hanya tampil
+  // bila `jenisSurvei === 'custom'`; survei SKM menghasilkan Nilai IKM dan tak
+  // memakainya. `onNilaiSurveiChange({tujuan?, metodeNilai?})` menyimpan seketika.
+  jenisSurvei = null,
+  tujuan = null,
+  metodeNilai = null,
+  onNilaiSurveiChange,
   isUtama = false,
   onIsUtamaCommit,
   // Judul & izin pengisian ikut aturan 'meta' (boleh sampai survei ditutup),
@@ -237,6 +245,27 @@ export default function BuilderCanvas({
               </span>
             </span>
           </label>
+
+          {/* NILAI SURVEI (8 Oktober 2026): hanya survei custom. Mengikuti aturan
+              'meta' seperti judul dan izin pengisian: boleh diubah sampai survei
+              ditutup, juga sesudah jawaban masuk, karena keduanya hanya mengatur
+              TAMPILAN nilai -- jawaban yang sudah masuk tidak berubah. */}
+          {jenisSurvei === 'custom' && typeof onNilaiSurveiChange === 'function' && (
+            <div className="mt-sm p-3 rounded-xl border border-border bg-surface-container-low/60 text-left space-y-xs">
+              <p className="text-sm font-bold text-text-primary">Nilai Survei</p>
+              <PengaturanNilaiSurvei
+                tujuan={tujuan}
+                metode={metodeNilai}
+                onTujuan={(nilai) => onNilaiSurveiChange({ tujuan: nilai })}
+                onMetode={(nilai) => onNilaiSurveiChange({ metodeNilai: nilai })}
+                disabled={!isEditableMeta}
+                ringkas
+              />
+              <p className="text-xs text-text-secondary">
+                Hanya mengubah cara hasil ditampilkan; jawaban yang sudah masuk tidak berubah.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Questions List */}

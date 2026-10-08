@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { request } from '@playwright/test';
+import { request, type Page } from '@playwright/test';
 import { BERKAS_TOKEN } from './global-setup';
 import { expect, LEBAR_PONSEL_UMUM, test, ukurLuberan } from './fixtures/responsif';
 
@@ -51,6 +51,17 @@ async function ambilSurvei(): Promise<SurveiRingkas[]> {
   } finally {
     await api.dispose();
   }
+}
+
+/**
+ * Survei Custom wajib memilih TUJUAN dan METODE NILAI sebelum dialog konfirmasi
+ * (8 Oktober 2026): klik kartu Custom menampilkan dua isian, lalu "Lanjutkan".
+ */
+async function pilihCustomLengkap(page: Page): Promise<void> {
+  await page.getByRole('radiogroup', { name: /jenis survei/i }).locator('label').nth(1).click();
+  await page.getByRole('radio', { name: 'Kepuasan', exact: true }).check();
+  await page.getByRole('radio', { name: 'Nilai rata-rata', exact: true }).check();
+  await page.getByRole('button', { name: /^lanjutkan$/i }).click();
 }
 
 test.describe('pemilih jenis survei baru — Admin OPD', () => {
@@ -107,17 +118,17 @@ test.describe('pemilih jenis survei baru — Admin OPD', () => {
     expect(ukuran.pelanggar, JSON.stringify(ukuran.pelanggar)).toHaveLength(0);
   });
 
-  test('memilih Survei Umum membuka kanvas, dan jenis dapat diganti selama belum ada yang dibuat', async ({
+  test('memilih Survei Custom membuka kanvas, dan jenis dapat diganti selama belum ada yang dibuat', async ({
     page,
     bukaSebagai,
   }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await bukaSebagai('opd', '/admin-opd/surveys/builder/new');
 
-    // Klik kartunya, BUKAN `radio.check()`: begitu dipilih, pemilih diganti kanvas
-    // sehingga `check()` menunggu keadaan 'tercentang' pada elemen yang sudah hilang.
-    await page.getByRole('radiogroup', { name: /jenis survei/i }).locator('label').nth(1).click();
-    // Memilih jenis meminta konfirmasi lebih dulu.
+    // Klik kartunya, BUKAN `radio.check()` pada kartu jenis: begitu dipilih, pemilih
+    // diganti kanvas sehingga `check()` menunggu keadaan 'tercentang' pada elemen yang
+    // sudah hilang. Custom lebih dulu meminta tujuan + metode, lalu konfirmasi.
+    await pilihCustomLengkap(page);
     await page.getByRole('button', { name: /ya, pilih jenis ini/i }).click();
     await expect(page.getByText('Skala Nilai 1-4')).toBeVisible();
 
@@ -166,19 +177,19 @@ test.describe('konfirmasi jenis survei — Admin OPD', () => {
       await expect(dialog).toHaveCount(0);
       await expect(page.getByRole('radiogroup', { name: /jenis survei/i })).toBeVisible();
       await expect(page.getByRole('radio', { name: /skm permenpanrb/i })).not.toBeChecked();
-      await expect(page.getByRole('radio', { name: /survei umum/i })).not.toBeChecked();
+      await expect(page.getByRole('radio', { name: /survei custom/i })).not.toBeChecked();
     });
   }
 
-  test('Survei Umum: konfirmasi membuka kanvas kosong tanpa kerangka unsur', async ({
+  test('Survei Custom: konfirmasi membuka kanvas kosong tanpa kerangka unsur', async ({
     page,
     bukaSebagai,
   }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await bukaSebagai('opd', '/admin-opd/surveys/builder/new');
 
-    await page.getByRole('radiogroup', { name: /jenis survei/i }).locator('label').nth(1).click();
-    await expect(page.getByRole('dialog', { name: /pilih survei umum/i })).toContainText(
+    await pilihCustomLengkap(page);
+    await expect(page.getByRole('dialog', { name: /pilih survei custom/i })).toContainText(
       /tanpa nilai ikm/i,
     );
     await page.getByRole('button', { name: /ya, pilih jenis ini/i }).click();

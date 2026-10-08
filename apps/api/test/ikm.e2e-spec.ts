@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { QuestionType, Role, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
@@ -61,6 +61,7 @@ describe('IKM (e2e)', () => {
         opdId,
         judul: 'Survei IKM E2E',
         periode: '2026-Q1',
+        jenis: JenisSurvei.skm_permenpanrb,
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -111,6 +112,7 @@ describe('IKM (e2e)', () => {
         opdId: opdId2,
         judul: 'Survei IKM E2E 2',
         periode: '2026-Q1',
+        jenis: JenisSurvei.skm_permenpanrb,
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -358,6 +360,41 @@ describe('IKM (e2e)', () => {
   });
 
   describe('GET /surveys/:id/results/export (EXP-1)', () => {
+    // 8 Oktober 2026: laporan survei custom memuat Nilai Survei, bukan IKM.
+    it('survei custom: CSV memuat Nilai Survei + Kategori, tanpa Nilai IKM, nama berkas hasil-survei', async () => {
+      const custom = await prisma.survey.create({
+        data: {
+          opdId,
+          judul: 'Survei Custom Ekspor',
+          periode: '2026-Q1',
+          tujuan: 'evaluasi',
+          metodeNilai: 'indeks_persen',
+          questions: { create: [{ teks: 'Bagus?', tipe: QuestionType.skala, urutan: 1 }] },
+        },
+        include: { questions: true },
+      });
+      for (const nilai of [4, 3]) {
+        await prisma.surveyResponse.create({
+          data: {
+            surveyId: custom.id,
+            answers: { create: [{ questionId: custom.questions[0].id, nilai }] },
+          },
+        });
+      }
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${custom.id}/results/export`)
+        .query({ format: 'csv' })
+        .set(opdHeaders());
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toContain('hasil-survei-');
+      expect(res.text).toContain('Laporan Hasil Survei');
+      expect(res.text).toContain('Indeks Evaluasi,"87,5%"');
+      expect(res.text).toContain('Kategori,Sangat Baik');
+      expect(res.text).not.toContain('Nilai IKM');
+    });
+
     it('format=csv (Admin OPD pemilik) -> 200, Content-Type text/csv, berisi data survei', async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/surveys/${surveyId}/results/export`)

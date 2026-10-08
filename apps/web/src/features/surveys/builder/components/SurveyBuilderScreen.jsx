@@ -9,6 +9,7 @@ import BuilderCanvas from './BuilderCanvas';
 import FloatingStatus from './FloatingStatus';
 import QuestionOptionsModal from './QuestionOptionsModal';
 import PemilihJenisSurvei from './PemilihJenisSurvei';
+import PengaturanNilaiSurvei from './PengaturanNilaiSurvei';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
@@ -16,6 +17,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAsync } from '@/hooks/useAsync';
 import { buildPeriode } from '@/features/surveys/adapters/survey.adapter';
 import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
+import { labelMetode, labelTujuan } from '@/features/surveys/constants/nilaiSurvei';
 import {
   getSurveyById,
   getSurveys,
@@ -91,6 +93,15 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   // diganti sesudah survei dibuat, dan memilih SKM langsung membuat survei, jadi
   // klik pertama hanya membuka dialog -- tak ada yang dibuat sebelum "Ya".
   const [jenisTertunda, setJenisTertunda] = useState(null);
+  // Survei CUSTOM (8 Oktober 2026) butuh dua pilihan lagi sebelum dialog konfirmasi:
+  // tujuan dan metode nilai, tanpa pilihan bawaan. `jenisSorotan` = kartu Custom
+  // sudah diklik dan isiannya tampil, tetapi dialog BELUM terbuka (itu menunggu
+  // "Lanjutkan"). SKM tidak lewat sini: klik pertamanya langsung membuka dialog.
+  const [jenisSorotan, setJenisSorotan] = useState(null);
+  // Jenis survei yang SUDAH ADA (dimuat dari backend). Survei baru memakai `jenis` di atas.
+  const [jenisSurvei, setJenisSurvei] = useState(null);
+  const [tujuan, setTujuan] = useState(null);
+  const [metodeNilai, setMetodeNilai] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -128,6 +139,9 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       setJumlahJawaban(loaded.survey.respondentsCount ?? 0);
       setIzinkanAnonim(loaded.survey.izinkanAnonim === true);
       setIsUtama(loaded.survey.isUtama === true);
+      setJenisSurvei(loaded.survey.jenis ?? null);
+      setTujuan(loaded.survey.tujuan ?? null);
+      setMetodeNilai(loaded.survey.metodeNilai ?? null);
       setQuestions(loaded.loadedQuestions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,13 +162,15 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         title: title.trim() || 'Survei Tanpa Judul',
         period: periode,
         jenis: jenisDipilih,
+        // Hanya custom: backend menolak tujuan/metode pada survei SKM (400).
+        ...(jenisDipilih === 'custom' ? { tujuan, metodeNilai } : {}),
         izinkanAnonim,
       });
       setSurveyId(created.id);
       setStatus(created.status);
       return created.id;
     },
-    [surveyId, title, periode, izinkanAnonim, jenis],
+    [surveyId, title, periode, izinkanAnonim, jenis, tujuan, metodeNilai],
   );
 
   /**
@@ -188,13 +204,14 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   /**
    * Memilih jenis pada survei baru. SKM dibuat SEKARANG: kesembilan unsurnya
    * lahir bersama survei di backend, jadi kanvas baru berarti bila surveinya
-   * sudah ada. Survei umum tetap malas (dibuat pada aksi pertama) seperti
+   * sudah ada. Survei custom tetap malas (dibuat pada aksi pertama) seperti
    * sebelum jenis ada.
    */
   const handlePilihJenis = async (jenisDipilih) => {
     setActionError(null);
-    if (jenisDipilih === 'umum') {
-      setJenis('umum');
+    if (jenisDipilih === 'custom') {
+      setJenisSorotan(null);
+      setJenis('custom');
       return;
     }
     setIsSaving(true);
@@ -255,6 +272,46 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       // Dikembalikan ke keadaan semula: saklar yang tetap menyala padahal
       // backend menolak akan membuat admin mengira survei sudah terbuka.
       setIzinkanAnonim(!nilai);
+      setActionError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * TUJUAN / METODE NILAI survei custom (8 Oktober 2026). Disimpan SEKETIKA saat
+   * pilihannya berganti, dan dikembalikan bila backend menolak (pola sama saklar
+   * anonim): pilihan yang tetap berubah di layar padahal ditolak membuat admin
+   * mengira tampilan nilainya sudah berganti. Hanya kunci yang BERUBAH yang
+   * menjadi pasti; yang lain dikirim bila sudah ada, sehingga PATCH tak pernah
+   * menimpa pilihan tersimpan dengan kosong.
+   *
+   * Pada survei yang belum ada di basis data, cukup disimpan di state --
+   * `ensureSurveyExists` mengirimkannya saat survei dibuat.
+   */
+  const handleNilaiSurveiChange = async (perubahan) => {
+    const sebelum = { tujuan, metodeNilai };
+    const baru = {
+      // `||`, bukan `??`: nilai kosong dari placeholder harus diabaikan, bukan disimpan.
+      tujuan: perubahan.tujuan || tujuan,
+      metodeNilai: perubahan.metodeNilai || metodeNilai,
+    };
+    if (baru.tujuan === tujuan && baru.metodeNilai === metodeNilai) return;
+    setTujuan(baru.tujuan);
+    setMetodeNilai(baru.metodeNilai);
+    if (!surveyId || metaTerkunci) return;
+    setIsSaving(true);
+    setActionError(null);
+    try {
+      await updateSurvey(surveyId, {
+        title,
+        period: periode,
+        tujuan: baru.tujuan ?? undefined,
+        metodeNilai: baru.metodeNilai ?? undefined,
+      });
+    } catch (err) {
+      setTujuan(sebelum.tujuan);
+      setMetodeNilai(sebelum.metodeNilai);
       setActionError(err.message);
     } finally {
       setIsSaving(false);
@@ -619,22 +676,46 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           </div>
         )}
         <PemilihJenisSurvei
-          nilai={jenisTertunda ?? jenis}
-          onPilih={setJenisTertunda}
+          nilai={jenisTertunda ?? jenisSorotan ?? jenis}
+          // SKM langsung membuka dialog; Custom lebih dulu menampilkan tujuan + metode.
+          onPilih={(dipilih) =>
+            dipilih === 'custom' ? setJenisSorotan('custom') : setJenisTertunda(dipilih)
+          }
           disabled={isSaving}
         />
+        {/* Isian disembunyikan selagi dialog SKM terbuka, supaya tak ada dua jenis
+            yang tampak aktif sekaligus; pilihannya tetap tersimpan di state. */}
+        {jenisSorotan === 'custom' && jenisTertunda !== 'skm_permenpanrb' && (
+          <div className="flex flex-col gap-md">
+            <PengaturanNilaiSurvei
+              tujuan={tujuan}
+              metode={metodeNilai}
+              onTujuan={setTujuan}
+              onMetode={setMetodeNilai}
+              disabled={isSaving}
+            />
+            <button
+              type="button"
+              disabled={!tujuan || !metodeNilai || isSaving}
+              onClick={() => setJenisTertunda('custom')}
+              className="self-start min-h-[44px] px-lg rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Lanjutkan
+            </button>
+          </div>
+        )}
         <ConfirmDialog
           isOpen={jenisTertunda !== null}
           tone="primary"
           title={
             jenisTertunda === 'skm_permenpanrb'
               ? 'Pilih Survei SKM PermenPANRB?'
-              : 'Pilih Survei Umum?'
+              : 'Pilih Survei Custom?'
           }
           description={
             jenisTertunda === 'skm_permenpanrb'
               ? 'Survei langsung dibuat dengan sembilan unsur baku PermenPANRB 14/2017 (U1 sampai U9) dan menghasilkan Nilai IKM. Unsurnya tidak dapat dihapus, dan jenis survei tidak dapat diganti setelah dibuat.'
-              : 'Susunan pertanyaan bebas, tanpa unsur baku dan tanpa Nilai IKM. Jenis survei tidak dapat diganti setelah pertanyaan pertama ditambahkan.'
+              : `Susunan pertanyaan bebas, tanpa unsur baku dan tanpa Nilai IKM. Tujuan: ${labelTujuan(tujuan) ?? '-'}. Metode nilai: ${labelMetode(metodeNilai) ?? '-'}. Jenis survei tidak dapat diganti setelah pertanyaan pertama ditambahkan.`
           }
           confirmLabel="Ya, Pilih Jenis Ini"
           cancelLabel="Batal"
@@ -695,12 +776,13 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           <span>{alasanTerkunci}</span>
         </div>
       )}
-      {/* Pilihan "Survei Umum" dapat dibatalkan selama BELUM ada survei yang dibuat
+      {/* Pilihan "Survei Custom" dapat dibatalkan selama BELUM ada survei yang dibuat
           (pembuatannya malas, pada aksi pertama). Sesudahnya jenis tak dapat diganti. */}
-      {isNew && jenis === 'umum' && !surveyId && (
+      {isNew && jenis === 'custom' && !surveyId && (
         <div className="mx-lg mt-lg p-md rounded-xl border border-border bg-surface-container-low text-sm flex flex-wrap items-center justify-between gap-sm">
           <span>
-            Jenis survei: <strong className="font-semibold">Survei Umum</strong>
+            Jenis survei: <strong className="font-semibold">Survei Custom</strong>
+            {tujuan && metodeNilai ? ` · ${labelTujuan(tujuan)} · ${labelMetode(metodeNilai)}` : ''}
           </span>
           <button
             type="button"
@@ -738,6 +820,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onPeriodeCommit={handlePeriodeCommit}
         izinkanAnonim={izinkanAnonim}
         onIzinkanAnonimCommit={handleIzinkanAnonimCommit}
+        jenisSurvei={isNew ? jenis : jenisSurvei}
+        tujuan={tujuan}
+        metodeNilai={metodeNilai}
+        onNilaiSurveiChange={handleNilaiSurveiChange}
         isUtama={isUtama}
         onIsUtamaCommit={handleIsUtamaCommit}
         canEditMeta={!metaTerkunci}

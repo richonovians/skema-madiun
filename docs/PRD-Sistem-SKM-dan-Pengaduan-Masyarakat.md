@@ -142,12 +142,13 @@ Format kode: **FR-[Modul]-[Nomor]**.
 
 ### 8.3 Modul Survei (Admin OPD)
 - **FR-SVY-01** Membuat "paket survei" dengan judul, periode, dan status (draft/aktif/ditutup).
-- **FR-SVY-02** Menambah pertanyaan dari **template 9 unsur baku** dengan satu klik.
+- **FR-SVY-02** Survei berjenis **SKM** langsung memuat **9 unsur baku** (U1–U9) sejak dibuat; unsurnya tidak dapat dihapus, tetapi OPD mengubah kalimat pertanyaan tiap unsur.
 - **FR-SVY-03** Menambah pertanyaan **kustom** dengan tipe: skala 1–4, pilihan ganda, atau isian teks/saran.
 - **FR-SVY-04** Menandai pertanyaan mana yang dihitung ke IKM (pertanyaan berskala unsur) vs pertanyaan pelengkap.
 - **FR-SVY-05** Mengatur apakah satu responden boleh mengisi lebih dari sekali dalam satu periode.
 - **FR-SVY-06** Pratinjau (preview) kuesioner sebelum dipublikasikan.
 - **FR-SVY-07** Menyalin (duplicate) paket survei periode sebelumnya.
+- **FR-SVY-08** Jenis survei dipilih saat membuat: **SKM** (hasil: Nilai IKM menurut PermenPANRB) atau **Custom** (hasil: **Nilai Survei**). Survei Custom wajib memilih **tujuan** (Kepuasan / Evaluasi / Penilaian) dan **metode nilai** (rata-rata skala 1–4, mis. "3,40 / 4", atau indeks persen, mis. "85%"); keduanya menentukan nama angka dan kategori verbalnya (mis. Puas, Sangat Baik) serta boleh diganti sampai survei ditutup karena hanya mengatur tampilan.
 
 ### 8.4 Modul Pengisian Survei (Responden)
 - **FR-FILL-01** Melihat daftar survei aktif dari berbagai OPD.

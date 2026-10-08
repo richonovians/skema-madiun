@@ -1,5 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { MetodeNilai, TujuanSurvei } from '@prisma/client';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { PERIODE_REGEX } from '../utils/periode.util';
 
 export class UpdateSurveyDto {
@@ -39,4 +48,22 @@ export class UpdateSurveyDto {
   @IsOptional()
   @IsBoolean()
   isUtama?: boolean;
+
+  @ApiPropertyOptional({
+    enum: TujuanSurvei,
+    description:
+      'Hanya untuk survei `custom` (ditolak 400 pada SKM; boleh diubah sampai survei ditutup). Menentukan kamus kata kategori hasil dan nama angka pada metode `indeks_persen`.',
+  })
+  @IsOptional()
+  @IsEnum(TujuanSurvei)
+  tujuan?: TujuanSurvei;
+
+  @ApiPropertyOptional({
+    enum: MetodeNilai,
+    description:
+      'Hanya untuk survei `custom` (ditolak 400 pada SKM; boleh diubah sampai survei ditutup). `rata_rata` menampilkan "3,40 / 4"; `indeks_persen` menampilkan "85%". Hanya mengatur tampilan, jawabannya sama.',
+  })
+  @IsOptional()
+  @IsEnum(MetodeNilai)
+  metodeNilai?: MetodeNilai;
 }

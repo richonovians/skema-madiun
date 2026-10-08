@@ -8,7 +8,8 @@ import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, onDelete }) {
-  const { id, title, status, period, respondentsCount, ikmScore, isUtama } = survey;
+  const { id, title, status, period, respondentsCount, ikmScore, isUtama, jenis, nilaiSurvei } =
+    survey;
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showReopenModal, setShowReopenModal] = useState(false);
 
@@ -82,6 +83,8 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
         respondentsCount={respondentsCount}
         ikmScore={ikmScore}
         isDraft={isDraft}
+        jenis={jenis}
+        nilaiSurvei={nilaiSurvei}
       />
 
       {/* `survey` diteruskan utuh karena tombol "Bagikan" butuh judul & status
