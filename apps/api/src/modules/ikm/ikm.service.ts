@@ -13,9 +13,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardIkmQueryDto } from './dto/dashboard-ikm-query.dto';
 import type { ExportFormat } from './dto/export-results-query.dto';
 import { IkmDashboardEntity, IkmDashboardItemEntity } from './entities/ikm-dashboard.entity';
-import { IkmResultEntity, IkmUnsurEntity } from './entities/ikm-result.entity';
+import {
+  IkmResultEntity,
+  IkmUnsurEntity,
+  SebaranNilaiEntity,
+  SebaranSkorEntity,
+} from './entities/ikm-result.entity';
 import { EXPORT_CONTENT_TYPES, ExportedFile, IkmExportService } from './ikm-export.service';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
+
+/** Skala jawaban PermenPANRB 14/2017: 1 sampai 4. */
+const NILAI_SKALA = [1, 2, 3, 4];
 
 const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
@@ -69,12 +77,72 @@ export class IkmService {
       throw new NotFoundException(`Survei dengan id ${surveyId} tidak ditemukan`);
     }
     assertOpdAccess(user, survey.opdId);
-    const [result, nilaiRataRata] = await Promise.all([
+    const [result, nilaiRataRata, sebaranSkor] = await Promise.all([
       this.computeResult(survey),
       this.hitungNilaiRataRata(survey.id),
+      this.hitungSebaranSkor(survey.id),
     ]);
     result.nilaiRataRata = nilaiRataRata;
+    result.sebaranSkor = sebaranSkor;
     return result;
+  }
+
+  /**
+   * SEBARAN SKOR (8 Oktober 2026, permintaan pengguna: kartu "Distribusi Skor
+   * Belum Tersedia" diganti fitur sungguhan): berapa responden memilih tiap nilai
+   * 1-4 pada TIAP pertanyaan skala satu survei.
+   *
+   * SEMUA pertanyaan skala, bukan hanya 9 unsur baku. Survei yang unsur bakunya
+   * dihapus -- atau yang tak pernah memuatnya -- tak dapat dinilai IKM-nya;
+   * membatasi sebaran ke unsur baku membuat kartu ini kosong lagi tepat untuk
+   * survei yang sama (empat survei aktif di data pengembangan).
+   *
+   * Dua kueri, dan tak ada yang lebih: daftar pertanyaan skala berurut, lalu
+   * SATU `groupBy` jawaban per (pertanyaan, nilai). Sengaja bukan di
+   * `computeResult`, alasannya sama dengan `hitungNilaiRataRata`: dashboard dan
+   * statistik publik memanggilnya untuk setiap survei aktif, dan snapshot IKM
+   * menyimpan keluarannya.
+   *
+   * Keempat nilai SELALU ada per pertanyaan (0 bila tak dipilih): antarmuka
+   * menggambar bilah bertumpuk empat segmen dan tak perlu menebak yang hilang.
+   * Nilai di luar 1-4 diabaikan -- skala dijaga saat pengiriman, ini pagar
+   * terhadap baris lama yang menyimpang, bukan jalur yang diharapkan.
+   *
+   * Tanpa pertanyaan skala kueri jawaban dilewati sama sekali.
+   */
+  async hitungSebaranSkor(surveyId: number): Promise<SebaranSkorEntity[]> {
+    const pertanyaan = await this.prisma.question.findMany({
+      where: { surveyId, tipe: QuestionType.skala },
+      orderBy: { urutan: 'asc' },
+      select: { id: true, teks: true, kodeUnsur: true },
+    });
+    if (pertanyaan.length === 0) {
+      return [];
+    }
+
+    const baris = await this.prisma.answer.groupBy({
+      by: ['questionId', 'nilai'],
+      where: { nilai: { not: null }, question: { surveyId, tipe: QuestionType.skala } },
+      _count: { _all: true },
+    });
+    const jumlahPer = new Map<string, number>();
+    for (const b of baris) {
+      jumlahPer.set(`${b.questionId}:${b.nilai}`, b._count._all);
+    }
+
+    return pertanyaan.map((p) => {
+      const sebaran = NILAI_SKALA.map(
+        (nilai) =>
+          new SebaranNilaiEntity({ nilai, jumlah: jumlahPer.get(`${p.id}:${nilai}`) ?? 0 }),
+      );
+      return new SebaranSkorEntity({
+        pertanyaanId: p.id,
+        kodeUnsur: p.kodeUnsur,
+        teks: p.teks,
+        total: sebaran.reduce((acc, s) => acc + s.jumlah, 0),
+        sebaran,
+      });
+    });
   }
 
   /**

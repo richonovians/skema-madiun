@@ -1,8 +1,9 @@
 'use client';
 import React from 'react';
-import { TrendingUp, Verified, History } from 'lucide-react';
+import { TrendingUp, Verified } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 import TrendChart from '@/features/statistics/components/charts/TrendChart';
+import DistribusiSkor from './DistribusiSkor';
 
 /**
  * Hasil IKM sungguhan per survei (GET /surveys/:id/results, INT-21) -- props
@@ -10,12 +11,13 @@ import TrendChart from '@/features/statistics/components/charts/TrendChart';
  * lagi konstanta dummy (skmMetrics/skmServiceElements/skmDistribution/
  * skmYearlyTrend di constants/skmAnalytics.js, berkasnya kini sudah dihapus).
  *
- * CATATAN GAP (lihat komentar ikm.adapter.js): trend IKM, status/trend per
- * unsur, distribusi skor per unsur, dan tren tahunan multi-periode SEMUA
- * butuh data historis lintas periode yang belum dibangun backend (Fase 3,
- * INT-15 -- D5 SUDAH terjawab 2026-08-05/granularitas triwulan, tapi endpoint
- * agregasinya sendiri belum dibangun) -- field terkait bernilai `null` dan
- * ditampilkan sebagai gap eksplisit di bawah, bukan dikarang.
+ * CATATAN GAP (lihat komentar ikm.adapter.js): status/trend PER UNSUR belum
+ * punya sumber backend -- butuh data historis lintas periode yang belum
+ * dibangun (Fase 3, INT-15). Field terkait bernilai `null`, bukan dikarang.
+ *
+ * Dua yang dulu tercatat sebagai gap kini ada: tren IKM per triwulan (prop
+ * `ikmTrend`, hanya Admin OPD) dan distribusi skor per pertanyaan (prop
+ * `sebaranSkor`, 8 Oktober 2026).
  */
 export default function SkmAnalysisView({
   metrics,
@@ -24,6 +26,7 @@ export default function SkmAnalysisView({
   jumlahResponden,
   ikmTrend,
   judulTren = 'Tren Nilai IKM per Triwulan',
+  sebaranSkor,
 }) {
   const hasResponden = jumlahResponden > 0 && serviceElements.length > 0;
 
@@ -173,23 +176,12 @@ export default function SkmAnalysisView({
           </div>
         ))}
 
-      {/* Distribusi skor per unsur: TIDAK ADA sumber backend per survei/OPD --
-          IkmResultEntity cuma simpan NRR rata-rata per unsur, bukan sebaran
-          jawaban 1-4. Sebaran yang ada hanya LINTAS OPD (`valueDistribution` di
-          GET /statistics). Ditampilkan sbg gap eksplisit, bukan grafik karangan. */}
-      <div className="bg-white/95 backdrop-blur border border-border rounded-xl p-lg shadow-sm flex items-start gap-md">
-        <div className="p-2 bg-surface-variant rounded-lg text-on-surface-variant flex-shrink-0">
-          <History size={20} />
-        </div>
-        <div>
-          <h3 className="font-h3 text-h3 text-primary mb-xs">Distribusi Skor Belum Tersedia</h3>
-          <p className="text-body-md text-secondary max-w-[640px]">
-            Sebaran jawaban (1-4) per unsur untuk survei ini belum disediakan backend. Yang
-            tersedia hanya sebaran lintas seluruh OPD, dan data di atas adalah hasil hitung
-            langsung (live) untuk survei terpilih saja.
-          </p>
-        </div>
-      </div>
+      {/* DISTRIBUSI SKOR (8 Oktober 2026, permintaan pengguna). Menggantikan kartu
+          "Belum Tersedia": backend kini mengirim `sebaranSkor` (berapa responden
+          memilih tiap nilai 1-4 pada tiap pertanyaan skala). `undefined` --
+          backend lama yang belum membawanya -- tak menggambar apa pun; komponennya
+          menangani larik kosong dan pertanyaan yang belum dijawab. */}
+      <DistribusiSkor sebaran={sebaranSkor} />
     </section>
   );
 }

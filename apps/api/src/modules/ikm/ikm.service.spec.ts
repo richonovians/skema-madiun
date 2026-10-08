@@ -63,7 +63,11 @@ describe('IkmService', () => {
     // Bawaannya "belum ada jawaban skala": tes yang tak peduli rata-rata tak
     // perlu tahu. `clearAllMocks` tak menghapus implementasi, jadi tes yang
     // mengubahnya WAJIB memakai `...Once` supaya tak bocor ke tes berikutnya.
-    answer: { aggregate: jest.fn().mockResolvedValue({ _avg: { nilai: null } }) },
+    answer: {
+      aggregate: jest.fn().mockResolvedValue({ _avg: { nilai: null } }),
+      // Bawaan "tak ada jawaban": tes yang tak peduli sebaran tak perlu tahu.
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     surveyResponse: { count: jest.fn() },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
     complaint: { count: jest.fn().mockResolvedValue(0) },
@@ -275,6 +279,160 @@ describe('IkmService', () => {
       await service.computeResult(survey() as never);
 
       expect(prisma.answer.aggregate).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * SEBARAN SKOR (8 Oktober 2026, permintaan pengguna: kartu "Distribusi Skor
+   * Belum Tersedia" di Statistik & Laporan diganti fitur sungguhan).
+   *
+   * Berapa responden memilih tiap nilai 1-4 pada TIAP pertanyaan skala --
+   * unsur baku (U1-U9) maupun pertanyaan skala tambahan milik OPD. Semua
+   * pertanyaan skala, bukan hanya unsur baku: survei tanpa 9 unsur baku (empat
+   * survei aktif di data pengembangan) akan kosong lagi bila dibatasi ke unsur.
+   */
+  describe('sebaran skor', () => {
+    const pertanyaan = (id: number, over: Record<string, unknown> = {}) => ({
+      id,
+      teks: `Pertanyaan ${id}`,
+      kodeUnsur: null,
+      ...over,
+    });
+
+    // `...Once` yang TAK terpakai (tes yang melewati kueri jawaban) tertinggal di
+    // antrean dan dimakan tes berikutnya; `clearAllMocks` tak menghapusnya.
+    // Dipulihkan ke bawaan "tak ada jawaban" supaya antarkasus tak saling bocor.
+    afterEach(() => {
+      (prisma.answer.groupBy as jest.Mock).mockReset().mockResolvedValue([]);
+    });
+
+    /** `computeResult` meminta unsur baku (`isIkmUnsur`), sebaran meminta semua skala. */
+    const pasang = (skala: unknown[], baris: unknown[] = []) => {
+      (prisma.question.findMany as jest.Mock).mockImplementation(
+        ({ where }: { where: { isIkmUnsur?: boolean } }) =>
+          Promise.resolve(where.isIkmUnsur ? [] : skala),
+      );
+      (prisma.answer.groupBy as jest.Mock).mockResolvedValueOnce(baris);
+    };
+
+    it('satu entri per pertanyaan skala, berurutan, dengan keempat nilai selalu ada', async () => {
+      pasang(
+        [pertanyaan(10, { kodeUnsur: 'U1' }), pertanyaan(11)],
+        [{ questionId: 10, nilai: 4, _count: { _all: 2 } }],
+      );
+
+      const hasil = await service.hitungSebaranSkor(7);
+
+      expect(hasil.map((p) => p.pertanyaanId)).toEqual([10, 11]);
+      // Nilai yang tak dipilih siapa pun tetap ada dan bernilai 0, bukan hilang:
+      // tanpanya bilah bertumpuk di antarmuka tak punya empat segmen yang pasti.
+      expect(hasil[0].sebaran).toEqual([
+        { nilai: 1, jumlah: 0 },
+        { nilai: 2, jumlah: 0 },
+        { nilai: 3, jumlah: 0 },
+        { nilai: 4, jumlah: 2 },
+      ]);
+    });
+
+    it('unsur baku membawa kodenya, pertanyaan skala tambahan null', async () => {
+      pasang([pertanyaan(10, { kodeUnsur: 'U1' }), pertanyaan(11)]);
+
+      const hasil = await service.hitungSebaranSkor(7);
+
+      expect(hasil[0].kodeUnsur).toBe('U1');
+      expect(hasil[1].kodeUnsur).toBeNull();
+    });
+
+    it('jumlah dicocokkan ke pertanyaan dan nilai yang benar, total = jumlah keempatnya', async () => {
+      pasang(
+        [pertanyaan(10), pertanyaan(11)],
+        [
+          { questionId: 10, nilai: 1, _count: { _all: 1 } },
+          { questionId: 10, nilai: 3, _count: { _all: 4 } },
+          { questionId: 11, nilai: 3, _count: { _all: 9 } },
+        ],
+      );
+
+      const [p10, p11] = await service.hitungSebaranSkor(7);
+
+      expect(p10.total).toBe(5);
+      expect(p10.sebaran.map((s) => s.jumlah)).toEqual([1, 0, 4, 0]);
+      // Jawaban pertanyaan 11 tak boleh bocor ke pertanyaan 10.
+      expect(p11.total).toBe(9);
+      expect(p11.sebaran.map((s) => s.jumlah)).toEqual([0, 0, 9, 0]);
+    });
+
+    it('pertanyaan yang belum dijawab tetap tampil dengan total 0, bukan dibuang', async () => {
+      pasang([pertanyaan(10)]);
+
+      const [p] = await service.hitungSebaranSkor(7);
+
+      expect(p.total).toBe(0);
+      expect(p.sebaran.map((s) => s.jumlah)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('tanpa pertanyaan skala -> larik kosong, dan kueri jawaban TIDAK dijalankan', async () => {
+      pasang([]);
+
+      await expect(service.hitungSebaranSkor(7)).resolves.toEqual([]);
+
+      expect(prisma.answer.groupBy).not.toHaveBeenCalled();
+    });
+
+    it('nilai di luar 1-4 diabaikan, bukan merusak total', async () => {
+      // Skala dijaga saat pengiriman; ini pagar bila ada baris lama yang menyimpang.
+      pasang(
+        [pertanyaan(10)],
+        [
+          { questionId: 10, nilai: 4, _count: { _all: 2 } },
+          { questionId: 10, nilai: 9, _count: { _all: 5 } },
+        ],
+      );
+
+      const [p] = await service.hitungSebaranSkor(7);
+
+      expect(p.total).toBe(2);
+    });
+
+    it('kueri: pertanyaan skala survei itu berurut, dan jawaban dikelompokkan per pertanyaan & nilai', async () => {
+      pasang([pertanyaan(10)]);
+
+      await service.hitungSebaranSkor(7);
+
+      expect(prisma.question.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { surveyId: 7, tipe: 'skala' },
+          orderBy: { urutan: 'asc' },
+        }),
+      );
+      expect(prisma.answer.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          by: ['questionId', 'nilai'],
+          where: { nilai: { not: null }, question: { surveyId: 7, tipe: 'skala' } },
+          _count: { _all: true },
+        }),
+      );
+    });
+
+    it('getResults memuat sebaranSkor, juga saat survei belum dapat dinilai IKM-nya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(4);
+      pasang([pertanyaan(10)], [{ questionId: 10, nilai: 3, _count: { _all: 4 } }]);
+
+      const result = await service.getResults(1, kabupatenUser());
+
+      expect(result.nilaiIkm).toBeNull(); // tanpa unsur baku
+      expect(result.sebaranSkor).toHaveLength(1);
+      expect(result.sebaranSkor?.[0].total).toBe(4);
+    });
+
+    it('computeResult TIDAK menghitung sebaran: dashboard & statistik publik tak membutuhkannya', async () => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+
+      await service.computeResult(survey() as never);
+
+      expect(prisma.answer.groupBy).not.toHaveBeenCalled();
     });
   });
 

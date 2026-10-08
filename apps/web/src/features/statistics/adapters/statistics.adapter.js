@@ -62,7 +62,10 @@ function adaptComplaintStatus(rows) {
   };
 }
 
-const VALUE_LABEL = { 1: 'Buruk', 2: 'Kurang', 3: 'Baik', 4: 'Sangat Baik' };
+// Diekspor (8 Oktober 2026): kartu Distribusi Skor di Statistik & Laporan memakai
+// label yang sama, supaya "Kurang" tak berganti kata antara halaman publik dan
+// halaman admin.
+export const VALUE_LABEL = { 1: 'Buruk', 2: 'Kurang', 3: 'Baik', 4: 'Sangat Baik' };
 
 /** `{value:1-4,count}[]` backend -> `{label,percentage}[]` (BarChart.jsx). */
 function adaptValueDistribution(rows) {

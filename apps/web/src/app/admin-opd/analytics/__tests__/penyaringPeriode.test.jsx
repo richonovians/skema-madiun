@@ -87,6 +87,20 @@ const pasangSurvei = (daftar = SURVEI) => {
           nilaiIkm: 80,
           mutu: 'B',
           nrrPerUnsur: [{ kode: 'U1', teks: 'Persyaratan', nrr: 3.2, nrrTertimbang: 0.35 }],
+          sebaranSkor: [
+            {
+              pertanyaanId: 1,
+              kodeUnsur: 'U1',
+              teks: 'Persyaratan pelayanan',
+              total: 5,
+              sebaran: [
+                { nilai: 1, jumlah: 0 },
+                { nilai: 2, jumlah: 0 },
+                { nilai: 3, jumlah: 3 },
+                { nilai: 4, jumlah: 2 },
+              ],
+            },
+          ],
         },
         `/surveys/${params.id}/results`,
       );
@@ -292,14 +306,18 @@ describe('Tab Analisis SKM — tren IKM per triwulan (OPD ini)', () => {
     expect(screen.queryByText(/belum ada hasil ikm final/i)).toBeNull();
   });
 
-  it('catatan kekurangan kini hanya soal DISTRIBUSI: klaim "tren belum dibangun" sudah dicabut', async () => {
+  it('menampilkan distribusi skor per pertanyaan; kartu "Belum Tersedia" sudah diganti', async () => {
+    // 8 Oktober 2026 (permintaan pengguna): backend kini mengirim sebaranSkor.
     pasangSurvei();
     pasangDashboard();
 
     render(<AnalyticsOpdPage />);
 
-    expect(await screen.findByText('Distribusi Skor Belum Tersedia')).toBeInTheDocument();
-    expect(screen.queryByText(/tren & distribusi skor belum tersedia/i)).toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: /distribusi skor per pertanyaan/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Persyaratan pelayanan')).toBeInTheDocument();
+    expect(screen.queryByText(/belum tersedia/i)).toBeNull();
   });
 });
 
