@@ -10,7 +10,7 @@ import {
 } from './kerangka-unsur.util';
 
 const skm = { jenis: JenisSurvei.skm_permenpanrb };
-const umum = { jenis: JenisSurvei.umum };
+const custom = { jenis: JenisSurvei.custom };
 const unsurU1 = { isIkmUnsur: true, kodeUnsur: 'U1' };
 const tambahan = { isIkmUnsur: false, kodeUnsur: null };
 const semuaKode = ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9'];
@@ -25,16 +25,16 @@ describe('assertBolehHapusPertanyaan', () => {
     expect(() => assertBolehHapusPertanyaan(skm, tambahan)).not.toThrow();
   });
 
-  it('mengizinkan menghapus apa pun pada survei umum', () => {
-    expect(() => assertBolehHapusPertanyaan(umum, unsurU1)).not.toThrow();
-    expect(() => assertBolehHapusPertanyaan(umum, tambahan)).not.toThrow();
+  it('mengizinkan menghapus apa pun pada survei custom', () => {
+    expect(() => assertBolehHapusPertanyaan(custom, unsurU1)).not.toThrow();
+    expect(() => assertBolehHapusPertanyaan(custom, tambahan)).not.toThrow();
   });
 });
 
 describe('assertBolehBuatPertanyaan', () => {
   it.each([
     ['SKM', skm],
-    ['umum', umum],
+    ['custom', custom],
   ])('menolak pertanyaan ber-kodeUnsur pada survei %s', (_nama, survei) => {
     expect(() => assertBolehBuatPertanyaan(survei, { kodeUnsur: 'U1' })).toThrow(
       BadRequestException,
@@ -43,7 +43,7 @@ describe('assertBolehBuatPertanyaan', () => {
 
   it.each([
     ['SKM', skm],
-    ['umum', umum],
+    ['custom', custom],
   ])('menolak pertanyaan isIkmUnsur pada survei %s', (_nama, survei) => {
     expect(() => assertBolehBuatPertanyaan(survei, { isIkmUnsur: true })).toThrow(
       BadRequestException,
@@ -52,7 +52,7 @@ describe('assertBolehBuatPertanyaan', () => {
 
   it('mengizinkan pertanyaan tambahan biasa, juga dengan isIkmUnsur false', () => {
     expect(() => assertBolehBuatPertanyaan(skm, {})).not.toThrow();
-    expect(() => assertBolehBuatPertanyaan(umum, { isIkmUnsur: false })).not.toThrow();
+    expect(() => assertBolehBuatPertanyaan(custom, { isIkmUnsur: false })).not.toThrow();
   });
 });
 
@@ -88,11 +88,11 @@ describe('assertBolehUbahPenandaUnsur', () => {
     expect(() => assertBolehUbahPenandaUnsur(skm, unsurU1, {})).not.toThrow();
   });
 
-  it('menolak menjadikan pertanyaan unsur pada survei umum', () => {
-    expect(() => assertBolehUbahPenandaUnsur(umum, tambahan, { isIkmUnsur: true })).toThrow(
+  it('menolak menjadikan pertanyaan unsur pada survei custom', () => {
+    expect(() => assertBolehUbahPenandaUnsur(custom, tambahan, { isIkmUnsur: true })).toThrow(
       BadRequestException,
     );
-    expect(() => assertBolehUbahPenandaUnsur(umum, tambahan, { kodeUnsur: 'U1' })).toThrow(
+    expect(() => assertBolehUbahPenandaUnsur(custom, tambahan, { kodeUnsur: 'U1' })).toThrow(
       BadRequestException,
     );
   });
@@ -131,8 +131,8 @@ describe('assertKerangkaLengkap', () => {
     expect(() => assertKerangkaLengkap(skm, semuaKode)).not.toThrow();
   });
 
-  it('tidak memeriksa apa pun pada survei umum', () => {
-    expect(() => assertKerangkaLengkap(umum, [])).not.toThrow();
+  it('tidak memeriksa apa pun pada survei custom', () => {
+    expect(() => assertKerangkaLengkap(custom, [])).not.toThrow();
   });
 });
 

@@ -34,6 +34,12 @@ export function adaptIkmMetrics(result) {
     averageScore: {
       value: result.nilaiRataRata ?? null,
     },
+    // Jenis survei dan NILAI SURVEI survei custom (8 Oktober 2026), diteruskan
+    // apa adanya: layar analisis memakai `jenis` untuk memilih antara Nilai IKM
+    // dan Nilai Survei, tanpa menghitung ulang. `jenis` tidak dikarang bila
+    // backend lama belum mengirimnya.
+    jenis: result.jenis,
+    nilaiSurvei: result.nilaiSurvei ?? null,
     totalRespondents: {
       value: result.jumlahResponden,
       badge: null,

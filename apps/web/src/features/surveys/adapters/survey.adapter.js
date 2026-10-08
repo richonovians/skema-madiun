@@ -156,7 +156,7 @@ export function adaptSurvey(survey) {
     status: STATUS_MAP[survey.status] ?? survey.status,
     period: survey.periode,
     // Jenis survei (8 Oktober 2026) diteruskan APA ADANYA, tidak ditebak dari isi
-    // pertanyaan: 'skm_permenpanrb' berkerangka U1-U9 terkunci, 'umum' bebas.
+    // pertanyaan: 'skm_permenpanrb' berkerangka U1-U9 terkunci, 'custom' bebas.
     // undefined bila backend belum mengirimnya.
     jenis: survey.jenis,
     respondentsCount: survey.respondentsCount ?? 0,
@@ -166,6 +166,14 @@ export function adaptSurvey(survey) {
     // IKM-nya null, dan definisinya sama dengan `averageScore` per respons di
     // `adaptSurveyResponse`. `null` berarti belum ada jawaban skala -- bukan nol.
     averageScore: survey.nilaiRataRata ?? null,
+    // Survei custom (8 Oktober 2026): tujuan + metode yang dipilih saat membuat,
+    // dan NILAI SURVEI jadi dari backend (`{judul, nilai, tampilan, kategori}`).
+    // Diteruskan apa adanya: adapter tidak menghitung atau mengarang. `null` pada
+    // survei SKM dan pada custom tanpa jawaban skala; `tujuan`/`metodeNilai`
+    // undefined bila backend belum mengirimnya.
+    tujuan: survey.tujuan,
+    metodeNilai: survey.metodeNilai,
+    nilaiSurvei: survey.nilaiSurvei ?? null,
     // Kapan respons TERAKHIR masuk, dihitung backend atas seluruh respons
     // (4 Oktober 2026). Hanya `GET /surveys/:id` yang mengisinya; pada daftar
     // ia memang tak ada, dan `null` di sana berarti "tak diambil", bukan
@@ -222,11 +230,24 @@ export function toCreateSurveyPayload({
   title,
   period,
   jenis,
+  tujuan,
+  metodeNilai,
   allowMultipleSubmit,
   izinkanAnonim,
   opdId,
 }) {
-  return { judul: title, periode: period, jenis, allowMultipleSubmit, izinkanAnonim, opdId };
+  // `tujuan`/`metodeNilai` hanya diberikan untuk survei custom; pada SKM nilainya
+  // undefined sehingga kuncinya tak ikut terkirim (backend menolaknya pada SKM).
+  return {
+    judul: title,
+    periode: period,
+    jenis,
+    tujuan,
+    metodeNilai,
+    allowMultipleSubmit,
+    izinkanAnonim,
+    opdId,
+  };
 }
 
 /** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
@@ -236,8 +257,18 @@ export function toUpdateSurveyPayload({
   allowMultipleSubmit,
   izinkanAnonim,
   isUtama,
+  tujuan,
+  metodeNilai,
 }) {
-  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim, isUtama };
+  return {
+    judul: title,
+    periode: period,
+    allowMultipleSubmit,
+    izinkanAnonim,
+    isUtama,
+    tujuan,
+    metodeNilai,
+  };
 }
 
 /** Terjemahkan status frontend ('AKTIF' dkk) -> enum backend ('aktif' dkk). */

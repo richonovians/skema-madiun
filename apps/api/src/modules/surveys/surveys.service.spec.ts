@@ -1,5 +1,12 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { JenisSurvei, QuestionType, Role, SurveyStatus } from '@prisma/client';
+import {
+  JenisSurvei,
+  MetodeNilai,
+  QuestionType,
+  Role,
+  SurveyStatus,
+  TujuanSurvei,
+} from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
@@ -26,7 +33,7 @@ const surveyRow = (overrides: Record<string, unknown> = {}) => ({
   judul: 'Survei A',
   periode: '2026-Q1',
   status: SurveyStatus.draft,
-  jenis: JenisSurvei.umum,
+  jenis: JenisSurvei.custom,
   // `assertSurveyEditable` memeriksa `deletedAt !== null`; fixture tanpa medan
   // ini akan ditolak sebagai "survei di Sampah", galat yang menyesatkan.
   deletedAt: null,
@@ -189,7 +196,9 @@ describe('SurveysService', () => {
     const dto: CreateSurveyDto = {
       judul: 'Survei A',
       periode: '2026-Q1',
-      jenis: JenisSurvei.umum,
+      jenis: JenisSurvei.custom,
+      tujuan: TujuanSurvei.kepuasan,
+      metodeNilai: MetodeNilai.rata_rata,
     };
     const result = await service.create(dto, opdUser(5));
     expect(result.opdId).toBe(5);
@@ -199,7 +208,13 @@ describe('SurveysService', () => {
   });
 
   it('create (kabupaten/superuser) tanpa opdId → BadRequest', async () => {
-    const dto: CreateSurveyDto = { judul: 'A', periode: '2026-Q1', jenis: JenisSurvei.umum };
+    const dto: CreateSurveyDto = {
+      judul: 'A',
+      periode: '2026-Q1',
+      jenis: JenisSurvei.custom,
+      tujuan: TujuanSurvei.kepuasan,
+      metodeNilai: MetodeNilai.rata_rata,
+    };
     await expect(service.create(dto, superUser())).rejects.toThrow(BadRequestException);
   });
 
@@ -475,7 +490,7 @@ describe('SurveysService', () => {
   /**
    * JENIS SURVEI DAN KERANGKA 9 UNSUR (8 Oktober 2026). Survei SKM PermenPANRB
    * lahir bersama sembilan pertanyaan unsurnya dan hanya boleh diaktifkan bila
-   * kesembilannya lengkap; survei umum tidak berkerangka.
+   * kesembilannya lengkap; survei custom tidak berkerangka.
    */
   describe('jenis survei', () => {
     const kodeLengkap = ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9'];
@@ -506,11 +521,20 @@ describe('SurveysService', () => {
       ).toBe(true);
     });
 
-    it('create umum menyimpan jenis tanpa membuat pertanyaan apa pun', async () => {
-      await service.create({ judul: 'S', periode: '2026-Q1', jenis: JenisSurvei.umum }, opdUser(5));
+    it('create custom menyimpan jenis tanpa membuat pertanyaan apa pun', async () => {
+      await service.create(
+        {
+          judul: 'S',
+          periode: '2026-Q1',
+          jenis: JenisSurvei.custom,
+          tujuan: TujuanSurvei.kepuasan,
+          metodeNilai: MetodeNilai.rata_rata,
+        },
+        opdUser(5),
+      );
 
       const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
-      expect(data.jenis).toBe(JenisSurvei.umum);
+      expect(data.jenis).toBe(JenisSurvei.custom);
       expect(data.questions).toBeUndefined();
     });
 
@@ -582,8 +606,8 @@ describe('SurveysService', () => {
         expect(hasil).toHaveLength(9);
       });
 
-      it('survei umum tanpa unsur: salinan tidak ditambah unsur', async () => {
-        const hasil = await salin(JenisSurvei.umum, []);
+      it('survei custom tanpa unsur: salinan tidak ditambah unsur', async () => {
+        const hasil = await salin(JenisSurvei.custom, []);
 
         expect(hasil).toHaveLength(0);
       });
@@ -633,9 +657,9 @@ describe('SurveysService', () => {
         );
       });
 
-      it('survei umum tanpa unsur: draft → aktif lolos tanpa memeriksa kerangka', async () => {
+      it('survei custom tanpa unsur: draft → aktif lolos tanpa memeriksa kerangka', async () => {
         (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
-          surveyRow({ status: SurveyStatus.draft, jenis: JenisSurvei.umum }),
+          surveyRow({ status: SurveyStatus.draft, jenis: JenisSurvei.custom }),
         );
 
         const hasil = await service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
@@ -655,6 +679,167 @@ describe('SurveysService', () => {
         expect(prisma.question.findMany).not.toHaveBeenCalled();
         expect(ikmService.snapshot).toHaveBeenCalledWith(1);
       });
+    });
+  });
+
+  /**
+   * NILAI SURVEI (8 Oktober 2026): survei custom punya tujuan dan metode nilai.
+   * Aturan lintas-bidang diuji tersendiri di pengaturan-nilai.util.spec; di sini
+   * yang dibuktikan adalah penyambungannya ke service.
+   */
+  describe('tujuan dan metode nilai', () => {
+    beforeEach(() => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());
+    });
+
+    it('create custom meneruskan tujuan dan metodeNilai ke penulisan', async () => {
+      await service.create(
+        {
+          judul: 'S',
+          periode: '2026-Q1',
+          jenis: JenisSurvei.custom,
+          tujuan: TujuanSurvei.evaluasi,
+          metodeNilai: MetodeNilai.indeks_persen,
+        },
+        opdUser(5),
+      );
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.tujuan).toBe(TujuanSurvei.evaluasi);
+      expect(data.metodeNilai).toBe(MetodeNilai.indeks_persen);
+    });
+
+    it('create custom tanpa tujuan atau metode: ditolak SEBELUM menulis apa pun', async () => {
+      await expect(
+        service.create({ judul: 'S', periode: '2026-Q1', jenis: JenisSurvei.custom }, opdUser(5)),
+      ).rejects.toThrow('Tujuan dan metode nilai wajib dipilih untuk survei custom');
+      expect(prisma.survey.create).not.toHaveBeenCalled();
+    });
+
+    it('create SKM dengan tujuan: ditolak SEBELUM menulis apa pun', async () => {
+      await expect(
+        service.create(
+          {
+            judul: 'S',
+            periode: '2026-Q1',
+            jenis: JenisSurvei.skm_permenpanrb,
+            tujuan: TujuanSurvei.kepuasan,
+          },
+          opdUser(5),
+        ),
+      ).rejects.toThrow('Survei SKM tidak memakai tujuan dan metode nilai');
+      expect(prisma.survey.create).not.toHaveBeenCalled();
+    });
+
+    it('create SKM tidak menyimpan tujuan maupun metode', async () => {
+      await service.create(
+        { judul: 'S', periode: '2026-Q1', jenis: JenisSurvei.skm_permenpanrb },
+        opdUser(5),
+      );
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.tujuan).toBeUndefined();
+      expect(data.metodeNilai).toBeUndefined();
+    });
+
+    it('update custom meneruskan metodeNilai; undefined berarti tidak diubah', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({ status: SurveyStatus.aktif }),
+      );
+      (prisma.survey.update as jest.Mock).mockResolvedValue(surveyRow());
+
+      await service.update(1, { metodeNilai: MetodeNilai.indeks_persen }, opdUser(5));
+
+      const { data } = (prisma.survey.update as jest.Mock).mock.calls[0][0];
+      expect(data.metodeNilai).toBe(MetodeNilai.indeks_persen);
+      expect(data.tujuan).toBeUndefined();
+    });
+
+    it('update custom yang sudah dijawab: BOLEH (hanya tampilan yang berubah)', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({ status: SurveyStatus.aktif }),
+      );
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+      (prisma.survey.update as jest.Mock).mockResolvedValue(surveyRow());
+
+      await expect(
+        service.update(1, { tujuan: TujuanSurvei.penilaian }, opdUser(5)),
+      ).resolves.toBeDefined();
+    });
+
+    it('update custom pada survei DITUTUP: ditolak', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({ status: SurveyStatus.ditutup }),
+      );
+
+      await expect(
+        service.update(1, { metodeNilai: MetodeNilai.rata_rata }, opdUser(5)),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('update survei SKM dengan metodeNilai: ditolak', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({ jenis: JenisSurvei.skm_permenpanrb }),
+      );
+
+      await expect(
+        service.update(1, { metodeNilai: MetodeNilai.rata_rata }, opdUser(5)),
+      ).rejects.toThrow('Survei SKM tidak memakai tujuan dan metode nilai');
+      expect(prisma.survey.update).not.toHaveBeenCalled();
+    });
+
+    it('duplicate menyalin tujuan dan metodeNilai', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({
+          tujuan: TujuanSurvei.evaluasi,
+          metodeNilai: MetodeNilai.indeks_persen,
+          questions: [],
+        }),
+      );
+
+      await service.duplicate(1, opdUser(5));
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.tujuan).toBe(TujuanSurvei.evaluasi);
+      expect(data.metodeNilai).toBe(MetodeNilai.indeks_persen);
+    });
+
+    it('duplicate survei SKM tidak membawa tujuan maupun metode (CHECK basis data)', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({
+          jenis: JenisSurvei.skm_permenpanrb,
+          tujuan: null,
+          metodeNilai: null,
+          questions: [],
+        }),
+      );
+
+      await service.duplicate(1, opdUser(5));
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.tujuan).toBeNull();
+      expect(data.metodeNilai).toBeNull();
+    });
+
+    it('findOne membawa nilaiSurvei dari ringkasan IkmService', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyRow());
+      const nilaiSurvei = {
+        judul: 'Nilai Survei',
+        nilai: 3.4,
+        tampilan: '3,40 / 4',
+        kategori: 'Sangat Puas',
+      };
+      (ikmService.getSummary as jest.Mock).mockResolvedValue({
+        respondentsCount: 3,
+        nilaiIkm: null,
+        nilaiRataRata: 3.4,
+        nilaiSurvei,
+      });
+
+      const hasil = await service.findOne(1, opdUser(5));
+
+      expect(hasil.nilaiSurvei).toEqual(nilaiSurvei);
     });
   });
 

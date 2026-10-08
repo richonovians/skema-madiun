@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   ComplaintStatus,
   IkmMutu,
+  JenisSurvei,
   Prisma,
   QuestionType,
   Survey,
@@ -22,6 +23,8 @@ import {
 import { EXPORT_CONTENT_TYPES, ExportedFile, IkmExportService } from './ikm-export.service';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 import { namaUnsur } from '../reference/reference.constants';
+import { NilaiSurveiEntity } from './entities/nilai-survei.entity';
+import { hitungNilaiSurvei } from './nilai-survei.util';
 
 /** Skala jawaban PermenPANRB 14/2017: 1 sampai 4. */
 const NILAI_SKALA = [1, 2, 3, 4];
@@ -85,7 +88,24 @@ export class IkmService {
     ]);
     result.nilaiRataRata = nilaiRataRata;
     result.sebaranSkor = sebaranSkor;
+    result.jenis = survey.jenis;
+    result.nilaiSurvei = this.nilaiSurveiDari(survey, nilaiRataRata);
     return result;
+  }
+
+  /**
+   * NILAI SURVEI (8 Oktober 2026) dari rata-rata yang SUDAH dihitung -- tanpa
+   * kueri tambahan. Hanya survei `custom`; survei SKM punya Nilai IKM dan
+   * mendapat `null`. Aturan angkanya ada di `hitungNilaiSurvei`.
+   */
+  private nilaiSurveiDari(
+    survey: Pick<Survey, 'jenis' | 'tujuan' | 'metodeNilai'>,
+    nilaiRataRata: number | null,
+  ): NilaiSurveiEntity | null {
+    if (survey.jenis !== JenisSurvei.custom) {
+      return null;
+    }
+    return hitungNilaiSurvei(nilaiRataRata, survey.tujuan, survey.metodeNilai);
   }
 
   /**
@@ -235,6 +255,7 @@ export class IkmService {
     respondentsCount: number;
     nilaiIkm: number | null;
     nilaiRataRata: number | null;
+    nilaiSurvei: NilaiSurveiEntity | null;
   }> {
     const [result, nilaiRataRata] = await Promise.all([
       this.computeResult(survey),
@@ -244,6 +265,7 @@ export class IkmService {
       respondentsCount: result.jumlahResponden,
       nilaiIkm: result.nilaiIkm,
       nilaiRataRata,
+      nilaiSurvei: this.nilaiSurveiDari(survey, nilaiRataRata),
     };
   }
 
@@ -262,9 +284,20 @@ export class IkmService {
     }
     assertOpdAccess(user, survey.opdId);
     const result = await this.computeResult(survey);
-    const ctx = { surveyJudul: survey.judul, opdNama: survey.opd.nama, result };
+    // Survei custom: laporannya memuat Nilai Survei, bukan IKM. `undefined` pada
+    // SKM membuat pembangun berkas memakai bentuk laporan IKM seperti semula.
+    const custom = survey.jenis === JenisSurvei.custom;
+    const nilaiSurvei = custom
+      ? this.nilaiSurveiDari(survey, await this.hitungNilaiRataRata(survey.id))
+      : undefined;
+    const ctx = { surveyJudul: survey.judul, opdNama: survey.opd.nama, result, nilaiSurvei };
 
-    const filename = this.ikmExportService.buildFilename(surveyId, result.periode, format);
+    const filename = this.ikmExportService.buildFilename(
+      surveyId,
+      result.periode,
+      format,
+      custom ? 'hasil-survei' : 'hasil-ikm',
+    );
     if (format === 'csv') {
       return {
         buffer: this.ikmExportService.toCsv(ctx),

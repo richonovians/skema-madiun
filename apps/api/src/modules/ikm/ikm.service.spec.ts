@@ -226,7 +226,12 @@ describe('IkmService', () => {
 
       const result = await service.getSummary(survey() as never);
 
-      expect(result).toEqual({ respondentsCount: 2, nilaiIkm: 100, nilaiRataRata: null });
+      expect(result).toEqual({
+        respondentsCount: 2,
+        nilaiIkm: 100,
+        nilaiRataRata: null,
+        nilaiSurvei: null,
+      });
     });
 
     it('belum ada responden → nilaiIkm null, respondentsCount 0', async () => {
@@ -235,7 +240,12 @@ describe('IkmService', () => {
 
       const result = await service.getSummary(survey() as never);
 
-      expect(result).toEqual({ respondentsCount: 0, nilaiIkm: null, nilaiRataRata: null });
+      expect(result).toEqual({
+        respondentsCount: 0,
+        nilaiIkm: null,
+        nilaiRataRata: null,
+        nilaiSurvei: null,
+      });
     });
 
     it('TIDAK memanggil prisma.survey.findUnique (survey sudah dipunyai caller)', async () => {
@@ -296,7 +306,12 @@ describe('IkmService', () => {
 
       const result = await service.getSummary(survey() as never);
 
-      expect(result).toEqual({ respondentsCount: 5, nilaiIkm: null, nilaiRataRata: 3.84 });
+      expect(result).toEqual({
+        respondentsCount: 5,
+        nilaiIkm: null,
+        nilaiRataRata: 3.84,
+        nilaiSurvei: null,
+      });
     });
 
     it('getSummary: survei ber-IKM memuat KEDUANYA, dan angkanya boleh berbeda', async () => {
@@ -336,6 +351,96 @@ describe('IkmService', () => {
       await service.computeResult(survey() as never);
 
       expect(prisma.answer.aggregate).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * NILAI SURVEI (8 Oktober 2026): survei custom menghasilkan "Nilai Survei"
+   * menurut tujuan + metode, dari rata-rata jawaban skala yang SUDAH dihitung
+   * `hitungNilaiRataRata` -- tanpa kueri tambahan. Rumus tampilannya diuji di
+   * nilai-survei.util.spec; di sini yang dibuktikan adalah penyambungannya.
+   */
+  describe('nilai survei', () => {
+    const rataRata = (nilai: number | null) =>
+      (prisma.answer.aggregate as jest.Mock).mockResolvedValueOnce({ _avg: { nilai } });
+    const custom = (over: Record<string, unknown> = {}) =>
+      survey({ jenis: 'custom', tujuan: 'kepuasan', metodeNilai: 'rata_rata', ...over });
+
+    beforeEach(() => {
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(3);
+    });
+
+    it('getSummary custom: nilaiSurvei terisi menurut metode rata_rata', async () => {
+      rataRata(3.4);
+
+      const result = await service.getSummary(custom() as never);
+
+      expect(result.nilaiSurvei).toMatchObject({
+        judul: 'Nilai Survei',
+        tampilan: '3,40 / 4',
+        kategori: 'Sangat Puas',
+      });
+    });
+
+    it('getSummary custom dengan metode indeks_persen dan tujuan evaluasi', async () => {
+      rataRata(3.4);
+
+      const result = await service.getSummary(
+        custom({ tujuan: 'evaluasi', metodeNilai: 'indeks_persen' }) as never,
+      );
+
+      expect(result.nilaiSurvei).toMatchObject({
+        judul: 'Indeks Evaluasi',
+        tampilan: '85%',
+        kategori: 'Sangat Baik',
+      });
+    });
+
+    it('getSummary custom: tujuan dan metode NULL (fixture/baris lama) memakai bawaan', async () => {
+      rataRata(2.6);
+
+      const result = await service.getSummary(custom({ tujuan: null, metodeNilai: null }) as never);
+
+      expect(result.nilaiSurvei).toMatchObject({ judul: 'Nilai Survei', kategori: 'Puas' });
+    });
+
+    it('getSummary custom tanpa jawaban skala: nilaiSurvei null, BUKAN nol', async () => {
+      rataRata(null);
+
+      const result = await service.getSummary(custom() as never);
+
+      expect(result.nilaiSurvei).toBeNull();
+    });
+
+    it('getSummary SKM: nilaiSurvei selalu null walau ada jawaban skala', async () => {
+      rataRata(3.4);
+
+      const result = await service.getSummary(survey({ jenis: 'skm_permenpanrb' }) as never);
+
+      expect(result.nilaiSurvei).toBeNull();
+    });
+
+    it('getResults custom memuat jenis dan nilaiSurvei', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(custom());
+      rataRata(3.4);
+
+      const result = await service.getResults(1, kabupatenUser());
+
+      expect(result.jenis).toBe('custom');
+      expect(result.nilaiSurvei).toMatchObject({ tampilan: '3,40 / 4' });
+    });
+
+    it('getResults SKM memuat jenis dan nilaiSurvei null', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        survey({ jenis: 'skm_permenpanrb' }),
+      );
+      rataRata(3.4);
+
+      const result = await service.getResults(1, kabupatenUser());
+
+      expect(result.jenis).toBe('skm_permenpanrb');
+      expect(result.nilaiSurvei).toBeNull();
     });
   });
 
@@ -584,6 +689,63 @@ describe('IkmService', () => {
       expect(ikmExportService.toPdf).toHaveBeenCalled();
       expect(result.contentType).toBe('application/pdf');
       expect(result.filename).toBe('hasil-ikm-1-2026.csv');
+    });
+
+    // 8 Oktober 2026: laporan survei custom membawa Nilai Survei, bukan IKM.
+    describe('survei custom', () => {
+      const custom = (over: Record<string, unknown> = {}) =>
+        surveyWithOpd({ jenis: 'custom', tujuan: 'kepuasan', metodeNilai: 'rata_rata', ...over });
+
+      beforeEach(() => {
+        (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+        (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+        (ikmExportService.buildFilename as jest.Mock).mockClear();
+      });
+
+      it('mengirim nilaiSurvei ke pembangun berkas dan memakai awalan hasil-survei', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(custom());
+        (prisma.answer.aggregate as jest.Mock).mockResolvedValueOnce({ _avg: { nilai: 3.4 } });
+
+        await service.exportResults(1, 'csv', kabupatenUser());
+
+        expect(ikmExportService.toCsv).toHaveBeenCalledWith(
+          expect.objectContaining({
+            nilaiSurvei: expect.objectContaining({
+              judul: 'Nilai Survei',
+              tampilan: '3,40 / 4',
+              kategori: 'Sangat Puas',
+            }),
+          }),
+        );
+        expect(ikmExportService.buildFilename).toHaveBeenCalledWith(
+          1,
+          '2026',
+          'csv',
+          'hasil-survei',
+        );
+      });
+
+      it('custom tanpa jawaban skala: nilaiSurvei null (bukan undefined) agar laporan berkata "Belum dapat dinilai"', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(custom());
+        (prisma.answer.aggregate as jest.Mock).mockResolvedValueOnce({ _avg: { nilai: null } });
+
+        await service.exportResults(1, 'csv', kabupatenUser());
+
+        const ctx = (ikmExportService.toCsv as jest.Mock).mock.calls.at(-1)[0];
+        expect(ctx.nilaiSurvei).toBeNull();
+      });
+
+      it('survei SKM: nilaiSurvei tidak dikirim dan awalan tetap hasil-ikm', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+          surveyWithOpd({ jenis: 'skm_permenpanrb' }),
+        );
+
+        await service.exportResults(1, 'csv', kabupatenUser());
+
+        const ctx = (ikmExportService.toCsv as jest.Mock).mock.calls.at(-1)[0];
+        expect(ctx.nilaiSurvei).toBeUndefined();
+        expect(ikmExportService.buildFilename).toHaveBeenCalledWith(1, '2026', 'csv', 'hasil-ikm');
+      });
     });
   });
 

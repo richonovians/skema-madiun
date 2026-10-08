@@ -19,11 +19,11 @@ const PILIHAN = [
     ringkas: 'Sembilan unsur baku, menghasilkan Nilai IKM. Kalimat pertanyaan dapat diubah.',
   },
   {
-    nilai: 'umum',
-    judul: 'Survei Umum',
+    nilai: 'custom',
+    judul: 'Survei Custom',
     keterangan:
-      'Susunan pertanyaan bebas. Tidak memuat unsur baku, sehingga tidak menghasilkan Nilai IKM.',
-    ringkas: 'Pertanyaan bebas, tanpa Nilai IKM.',
+      'Susunan pertanyaan bebas. Tidak memuat unsur baku, sehingga tidak menghasilkan Nilai IKM; hasilnya berupa Nilai Survei menurut tujuan dan metode yang Anda pilih.',
+    ringkas: 'Pertanyaan bebas, tanpa Nilai IKM; hasilnya berupa Nilai Survei.',
   },
 ];
 

@@ -70,13 +70,33 @@ enum SurveyStatus {
 
 // Jenis survei (8 Oktober 2026). `skm_permenpanrb` memuat kerangka U1-U9 yang
 // tidak dapat dihapus -- hanya kalimat pertanyaannya yang boleh diubah OPD --
-// sedangkan `umum` bebas dan tidak menghasilkan nilai IKM. Dipilih saat survei
-// dibuat dan tidak dapat diganti sesudahnya.
+// sedangkan `custom` (dulu `umum`) bebas, tanpa nilai IKM, dan menghasilkan
+// "Nilai Survei" menurut `tujuan` + `metodeNilai`. Dipilih saat survei dibuat dan
+// tidak dapat diganti sesudahnya.
 enum JenisSurvei {
   skm_permenpanrb
-  umum
+  custom
 
   @@map("jenis_survei")
+}
+
+// Tujuan survei custom (8 Oktober 2026): menentukan kamus kata kategori hasil
+// (Puas / Baik ...) dan nama angka pada metode indeks persen.
+enum TujuanSurvei {
+  kepuasan
+  evaluasi
+  penilaian
+
+  @@map("tujuan_survei")
+}
+
+// Cara angka Nilai Survei ditampilkan: rata-rata skala 1-4 ("3,40 / 4") atau
+// indeks persen ("85%"). Hanya tampilan; jawabannya sama.
+enum MetodeNilai {
+  rata_rata
+  indeks_persen
+
+  @@map("metode_nilai")
 }
 
 enum QuestionType {
@@ -263,10 +283,17 @@ model Survey {
   periode             String       @db.VarChar(20)
   status              SurveyStatus @default(draft)
   // Pembuat survei lewat API WAJIB menyatakan jenisnya (CreateSurveyDto);
-  // `@default(umum)` hanya jaring pengaman bagi jalur yang membuat baris
+  // `@default(custom)` hanya jaring pengaman bagi jalur yang membuat baris
   // langsung. Migrasi 20261008090000_jenis_survei mengisi baris lama
-  // (berpertanyaan unsur = `skm_permenpanrb`, sisanya `umum`).
-  jenis               JenisSurvei  @default(umum)
+  // (berpertanyaan unsur = `skm_permenpanrb`, sisanya `custom`, dulu `umum`).
+  jenis               JenisSurvei  @default(custom)
+  // Hanya bermakna untuk survei custom (8 Oktober 2026). CHECK
+  // `surveys_nilai_survei_ck` hidup di migrasi 20261008120000_nilai_survei karena
+  // Prisma tak dapat menyatakannya: survei SKM tak boleh membawa keduanya. NULL
+  // pada custom dibaca bawaan (kepuasan + rata_rata); API mewajibkan keduanya
+  // saat membuat.
+  tujuan              TujuanSurvei?
+  metodeNilai         MetodeNilai? @map("metode_nilai")
   allowMultipleSubmit Boolean      @default(false) @map("allow_multiple_submit")
   // Pengisian TANPA sesi (4 September 2026). Baku `false`, sehingga seluruh
   // survei yang sudah ada tidak berubah perilakunya sedikit pun. Hanya

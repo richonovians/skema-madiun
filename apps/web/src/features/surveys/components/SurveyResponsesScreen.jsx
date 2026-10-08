@@ -114,6 +114,8 @@ export default function SurveyResponsesScreen({ surveyId, basePath, className = 
           <SurveyResponsesSummary
             totalResponses={data.total}
             averageScore={nilaiRataRata}
+            jenis={data.survey.jenis}
+            nilaiSurvei={data.survey.nilaiSurvei}
             lastResponseDate={data.survey.terakhirMasuk}
           />
 

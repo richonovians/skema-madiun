@@ -123,3 +123,30 @@ describe('adaptSebaranSkor', () => {
     },
   );
 });
+
+describe('adaptIkmMetrics — nilai survei (8 Oktober 2026)', () => {
+  const nilaiSurvei = {
+    judul: 'Nilai Survei',
+    nilai: 3.4,
+    tampilan: '3,40 / 4',
+    kategori: 'Sangat Puas',
+  };
+
+  it('meneruskan jenis dan nilaiSurvei apa adanya, tanpa menghitung ulang', () => {
+    const metrics = adaptIkmMetrics(hasil({ jenis: 'custom', nilaiSurvei }));
+
+    expect(metrics.jenis).toBe('custom');
+    expect(metrics.nilaiSurvei).toEqual(nilaiSurvei);
+  });
+
+  it('nilaiSurvei null tetap null (custom tanpa jawaban skala)', () => {
+    expect(adaptIkmMetrics(hasil({ jenis: 'custom', nilaiSurvei: null })).nilaiSurvei).toBeNull();
+  });
+
+  it('backend lama tanpa kuncinya: null untuk nilaiSurvei, jenis tidak dikarang', () => {
+    const metrics = adaptIkmMetrics(hasil());
+
+    expect(metrics.nilaiSurvei).toBeNull();
+    expect(metrics.jenis).toBeUndefined();
+  });
+});

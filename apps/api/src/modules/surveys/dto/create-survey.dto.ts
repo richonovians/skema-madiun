@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { JenisSurvei } from '@prisma/client';
+import { JenisSurvei, MetodeNilai, TujuanSurvei } from '@prisma/client';
 import {
   IsBoolean,
   IsEnum,
@@ -31,10 +31,28 @@ export class CreateSurveyDto {
   @ApiProperty({
     enum: JenisSurvei,
     description:
-      'Jenis survei, tidak dapat diganti sesudah dibuat. `skm_permenpanrb` langsung berisi 9 unsur baku (U1-U9) yang tidak dapat dihapus; `umum` bebas dan tanpa nilai IKM.',
+      'Jenis survei, tidak dapat diganti sesudah dibuat. `skm_permenpanrb` langsung berisi 9 unsur baku (U1-U9) yang tidak dapat dihapus; `custom` bebas dan tanpa nilai IKM.',
   })
   @IsEnum(JenisSurvei)
   jenis: JenisSurvei;
+
+  @ApiPropertyOptional({
+    enum: TujuanSurvei,
+    description:
+      'Hanya untuk survei `custom` (wajib saat membuat; ditolak 400 pada SKM). Menentukan kamus kata kategori hasil dan nama angka pada metode `indeks_persen`.',
+  })
+  @IsOptional()
+  @IsEnum(TujuanSurvei)
+  tujuan?: TujuanSurvei;
+
+  @ApiPropertyOptional({
+    enum: MetodeNilai,
+    description:
+      'Hanya untuk survei `custom` (wajib saat membuat; ditolak 400 pada SKM). `rata_rata` menampilkan "3,40 / 4"; `indeks_persen` menampilkan "85%". Hanya mengatur tampilan, jawabannya sama.',
+  })
+  @IsOptional()
+  @IsEnum(MetodeNilai)
+  metodeNilai?: MetodeNilai;
 
   @ApiPropertyOptional({ default: false, description: 'Boleh mengisi >1 kali per periode' })
   @IsOptional()

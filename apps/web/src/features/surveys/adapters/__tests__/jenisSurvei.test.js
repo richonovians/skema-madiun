@@ -3,11 +3,12 @@ import {
   adaptBuilderQuestions,
   adaptSurvey,
   toCreateSurveyPayload,
+  toUpdateSurveyPayload,
 } from '../survey.adapter';
 
 /**
  * JENIS SURVEI DAN KERANGKA UNSUR (8 Oktober 2026). `jenis` datang dari backend
- * (`skm_permenpanrb` atau `umum`) dan diteruskan APA ADANYA: adapter tidak
+ * (`skm_permenpanrb` atau `custom`) dan diteruskan APA ADANYA: adapter tidak
  * menebaknya dari isi pertanyaan. Pertanyaan unsur membawa `namaUnsur` resmi
  * terpisah dari `teks`, yang kini berisi kalimat pertanyaan buatan OPD.
  */
@@ -23,7 +24,7 @@ describe('adaptSurvey — jenis', () => {
 
   it('meneruskan jenis apa adanya', () => {
     expect(adaptSurvey(entity({ jenis: 'skm_permenpanrb' })).jenis).toBe('skm_permenpanrb');
-    expect(adaptSurvey(entity({ jenis: 'umum' })).jenis).toBe('umum');
+    expect(adaptSurvey(entity({ jenis: 'custom' })).jenis).toBe('custom');
   });
 
   it('tidak mengarang jenis bila backend belum mengirimnya', () => {
@@ -96,5 +97,82 @@ describe('adaptBuilderQuestion — unsur baku', () => {
       'Pertanyaan Kustom #1',
       'Pertanyaan Kustom #2',
     ]);
+  });
+});
+
+describe('tujuan, metode nilai, dan nilaiSurvei (8 Oktober 2026)', () => {
+  const entity = (over = {}) => ({
+    id: 7,
+    opdId: 1,
+    judul: 'Survei Uji',
+    periode: '2026-Q2',
+    status: 'draft',
+    jenis: 'custom',
+    ...over,
+  });
+  const nilaiSurvei = {
+    judul: 'Indeks Kepuasan',
+    nilai: 85,
+    tampilan: '85%',
+    kategori: 'Sangat Puas',
+  };
+
+  it('adaptSurvey meneruskan tujuan, metodeNilai, dan nilaiSurvei apa adanya', () => {
+    const s = adaptSurvey(
+      entity({ tujuan: 'kepuasan', metodeNilai: 'indeks_persen', nilaiSurvei }),
+    );
+
+    expect(s.tujuan).toBe('kepuasan');
+    expect(s.metodeNilai).toBe('indeks_persen');
+    expect(s.nilaiSurvei).toEqual(nilaiSurvei);
+  });
+
+  it('nilaiSurvei null tetap null; backend lama tanpa kuncinya juga null, bukan karangan', () => {
+    expect(adaptSurvey(entity({ nilaiSurvei: null })).nilaiSurvei).toBeNull();
+    expect(adaptSurvey(entity()).nilaiSurvei).toBeNull();
+    expect(adaptSurvey(entity()).tujuan).toBeUndefined();
+  });
+
+  it('toCreateSurveyPayload custom memuat tujuan dan metodeNilai', () => {
+    const payload = toCreateSurveyPayload({
+      title: 'S',
+      period: '2026-Q1',
+      jenis: 'custom',
+      tujuan: 'evaluasi',
+      metodeNilai: 'rata_rata',
+    });
+
+    expect(payload.tujuan).toBe('evaluasi');
+    expect(payload.metodeNilai).toBe('rata_rata');
+  });
+
+  it('toCreateSurveyPayload SKM tidak mengirim kunci tujuan/metodeNilai setelah diserialisasi', () => {
+    const payload = JSON.parse(
+      JSON.stringify(toCreateSurveyPayload({ title: 'S', period: '2026-Q1', jenis: 'skm_permenpanrb' })),
+    );
+
+    expect('tujuan' in payload).toBe(false);
+    expect('metodeNilai' in payload).toBe(false);
+  });
+
+  it('toUpdateSurveyPayload meneruskan tujuan dan metodeNilai bila diberikan', () => {
+    const payload = toUpdateSurveyPayload({
+      title: 'S',
+      period: '2026-Q1',
+      tujuan: 'penilaian',
+      metodeNilai: 'indeks_persen',
+    });
+
+    expect(payload.tujuan).toBe('penilaian');
+    expect(payload.metodeNilai).toBe('indeks_persen');
+  });
+
+  it('toUpdateSurveyPayload tanpa tujuan/metode tidak mengirim kuncinya (SKM)', () => {
+    const payload = JSON.parse(
+      JSON.stringify(toUpdateSurveyPayload({ title: 'S', period: '2026-Q1' })),
+    );
+
+    expect('tujuan' in payload).toBe(false);
+    expect('metodeNilai' in payload).toBe(false);
   });
 });

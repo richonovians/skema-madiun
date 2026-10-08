@@ -95,7 +95,13 @@ describe('Audit Log (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei Audit E2E', periode: '2026-Q2', jenis: 'umum' });
+      .send({
+        judul: 'Survei Audit E2E',
+        periode: '2026-Q2',
+        jenis: 'custom',
+        tujuan: 'kepuasan',
+        metodeNilai: 'rata_rata',
+      });
     expect(created.status).toBe(201);
 
     const res = await request(app.getHttpServer())
@@ -133,7 +139,13 @@ describe('Audit Log (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei Status Audit', periode: '2026-Q1', jenis: 'umum' });
+      .send({
+        judul: 'Survei Status Audit',
+        periode: '2026-Q1',
+        jenis: 'custom',
+        tujuan: 'kepuasan',
+        metodeNilai: 'rata_rata',
+      });
     const id = created.body.data.id;
 
     await request(app.getHttpServer())
@@ -156,7 +168,13 @@ describe('Audit Log (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei Hapus Audit', periode: '2026-Q1', jenis: 'umum' });
+      .send({
+        judul: 'Survei Hapus Audit',
+        periode: '2026-Q1',
+        jenis: 'custom',
+        tujuan: 'kepuasan',
+        metodeNilai: 'rata_rata',
+      });
     const id = created.body.data.id;
 
     await request(app.getHttpServer()).delete(`/api/v1/surveys/${id}`).set(opdHeaders());
@@ -231,7 +249,13 @@ describe('Audit Log (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei Detail Audit', periode: '2026-Q3', jenis: 'umum' });
+      .send({
+        judul: 'Survei Detail Audit',
+        periode: '2026-Q3',
+        jenis: 'custom',
+        tujuan: 'kepuasan',
+        metodeNilai: 'rata_rata',
+      });
 
     const list = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')

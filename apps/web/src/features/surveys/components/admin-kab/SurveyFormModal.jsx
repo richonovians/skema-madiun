@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import { buildPeriode, parsePeriode } from '@/features/surveys/adapters/survey.adapter';
 import PemilihJenisSurvei from '@/features/surveys/builder/components/PemilihJenisSurvei';
+import PengaturanNilaiSurvei from '@/features/surveys/builder/components/PengaturanNilaiSurvei';
 
 const CURRENT_YEAR = new Date().getFullYear();
 // Rentang tahun sama dgn BuilderToolbar.jsx: 1 tahun lalu s.d. 2 tahun ke depan.
@@ -85,6 +86,10 @@ export default function SurveyFormModal({
   // Jenis survei (8 Oktober 2026): dipilih eksplisit saat membuat, tanpa pilihan
   // bawaan, dan tak dapat diganti sesudahnya -- mode ubah hanya menampilkannya.
   const [jenis, setJenis] = useState(initialValues?.jenis ?? null);
+  // Tujuan + metode nilai (8 Oktober 2026): hanya survei custom. Wajib dipilih saat
+  // membuat; saat mengubah boleh diganti (hanya tampilan nilai yang berubah).
+  const [tujuan, setTujuan] = useState(initialValues?.tujuan ?? null);
+  const [metodeNilai, setMetodeNilai] = useState(initialValues?.metodeNilai ?? null);
   const [validationError, setValidationError] = useState(null);
 
   useEffect(() => {
@@ -127,11 +132,27 @@ export default function SurveyFormModal({
       return;
     }
 
+    if (!isEdit && jenis === 'custom') {
+      if (!tujuan) {
+        setValidationError('Tujuan survei wajib dipilih.');
+        return;
+      }
+      if (!metodeNilai) {
+        setValidationError('Metode nilai wajib dipilih.');
+        return;
+      }
+    }
+
     setValidationError(null);
     onSubmit({
       title: trimmedTitle,
       period: buildPeriode(tahun, triwulan),
       izinkanAnonim,
+      // Hanya survei custom, dan hanya yang terisi: backend menolak keduanya pada
+      // SKM (400), jadi pilihan yang tersisa dari Custom yang dibatalkan tak boleh ikut.
+      ...(jenis === 'custom'
+        ? { ...(tujuan ? { tujuan } : {}), ...(metodeNilai ? { metodeNilai } : {}) }
+        : {}),
       // Jenis hanya dikirim saat membuat: UpdateSurveyDto menolaknya (400).
       ...(isEdit ? {} : { opdId: Number(opdId), jenis }),
     });
@@ -277,8 +298,8 @@ export default function SurveyFormModal({
               <div className="min-h-[44px] flex items-center px-md rounded-lg bg-surface-container-low border border-outline-variant text-body-md text-text-secondary">
                 {jenis === 'skm_permenpanrb'
                   ? 'SKM PermenPANRB'
-                  : jenis === 'umum'
-                    ? 'Survei Umum'
+                  : jenis === 'custom'
+                    ? 'Survei Custom'
                     : 'Tidak diketahui'}
               </div>
               <p className="text-xs text-slate-500">
@@ -290,6 +311,19 @@ export default function SurveyFormModal({
               <span className="block text-sm font-bold text-text-primary">Jenis Survei</span>
               <PemilihJenisSurvei nilai={jenis} onPilih={setJenis} disabled={isSubmitting} ringkas />
             </div>
+          )}
+
+          {/* TUJUAN + METODE NILAI: hanya survei custom, dua <select> ringkas karena
+              tinggi modal tetap (badan modal menggulir bila tak muat). */}
+          {jenis === 'custom' && (
+            <PengaturanNilaiSurvei
+              tujuan={tujuan}
+              metode={metodeNilai}
+              onTujuan={setTujuan}
+              onMetode={setMetodeNilai}
+              disabled={isSubmitting}
+              ringkas
+            />
           )}
 
           {/* Kotak centang dibungkus labelnya sendiri (pola sama ConsentGate.jsx):

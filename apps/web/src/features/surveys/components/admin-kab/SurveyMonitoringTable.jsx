@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import ShareSurveyModal from '@/features/surveys/components/ShareSurveyModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import NilaiSurvei from '@/features/surveys/components/NilaiSurvei';
 
 const STATUS_VARIANT = {
   AKTIF: 'success',
@@ -175,8 +176,17 @@ export default function SurveyMonitoringTable({
                       belum dijawab tak punya jawaban skala, jadi "-" -- bukan
                       0,00 yang terbaca sebagai hasil ukur terburuk. */}
                   <td className="px-lg py-lg">
+                    {/* Survei CUSTOM (8 Oktober 2026): kolom ini memuat NILAI SURVEI
+                        jadi dari backend ("angka · kategori", judul metode sebagai
+                        title), bukan rata-rata polos. */}
                     <span className="font-bold text-on-surface">
-                      {survey.averageScore != null ? survey.averageScore.toFixed(2) : '-'}
+                      {survey.jenis === 'custom' ? (
+                        <NilaiSurvei nilaiSurvei={survey.nilaiSurvei} ukuran="sel" />
+                      ) : survey.averageScore != null ? (
+                        survey.averageScore.toFixed(2)
+                      ) : (
+                        '-'
+                      )}
                     </span>
                   </td>
 

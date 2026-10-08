@@ -1,5 +1,6 @@
-import { IkmMutu } from '@prisma/client';
+import { IkmMutu, JenisSurvei } from '@prisma/client';
 import { BaseEntity } from '../../../common/entities/base.entity';
+import { NilaiSurveiEntity } from './nilai-survei.entity';
 
 /** NRR (Nilai Rata-rata per unsur) satu unsur IKM. */
 export class IkmUnsurEntity extends BaseEntity<IkmUnsurEntity> {
@@ -58,5 +59,16 @@ export class IkmResultEntity extends BaseEntity<IkmResultEntity> {
    * skala.
    */
   sebaranSkor?: SebaranSkorEntity[];
+  /**
+   * Jenis survei (8 Oktober 2026), supaya layar analisis tahu apakah angka
+   * utamanya Nilai IKM (`skm_permenpanrb`) atau Nilai Survei (`custom`). Hanya
+   * diisi `IkmService.getResults`.
+   */
+  jenis?: JenisSurvei;
+  /**
+   * Nilai Survei siap tampil untuk survei `custom`; `null` pada SKM dan pada
+   * custom tanpa jawaban skala. Hanya diisi `IkmService.getResults`.
+   */
+  nilaiSurvei?: NilaiSurveiEntity | null;
   dihitungPada: Date;
 }

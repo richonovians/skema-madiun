@@ -10,7 +10,8 @@ import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/pa
  * jenisnya SEBELUM kanvas muncul, karena jenis tidak dapat diganti sesudah
  * dibuat:
  *  - "SKM PermenPANRB": survei langsung dibuat dan kesembilan unsur muncul;
- *  - "Survei Umum": tidak ada yang dibuat sampai aksi pertama (perilaku malas
+ *  - "Survei Custom": wajib memilih TUJUAN dan METODE NILAI (8 Oktober 2026)
+ *    sebelum lanjut; tidak ada yang dibuat sampai aksi pertama (perilaku malas
  *    builder yang sudah ada), dan kanvasnya kosong.
  *
  * Survei yang SUDAH ADA tidak melewati pemilih: jenisnya sudah tertentu.
@@ -70,8 +71,26 @@ const batalkan = async () => {
   });
 };
 
+const lanjutkan = () => screen.getByRole('button', { name: /^lanjutkan$/i });
+const klikRadio = async (nama) => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('radio', { name: nama }));
+  });
+};
+// Custom butuh tujuan + metode, lalu "Lanjutkan" baru membuka dialog konfirmasi.
+const pilihCustomLengkap = async ({ tujuan = 'Kepuasan', metode = 'Nilai rata-rata' } = {}) => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('radio', { name: /survei custom/i }));
+  });
+  await klikRadio(tujuan);
+  await klikRadio(metode);
+  await act(async () => {
+    fireEvent.click(lanjutkan());
+  });
+};
+
 const pilihSkm = () => screen.getByRole('radio', { name: /skm permenpanrb/i });
-const pilihUmum = () => screen.getByRole('radio', { name: /survei umum/i });
+const pilihCustom = () => screen.getByRole('radio', { name: /survei custom/i });
 
 describe('Builder survei baru — pemilihan jenis', () => {
   it('menampilkan pemilih jenis lebih dulu; kanvas dan palet belum ada, belum ada survei dibuat', async () => {
@@ -79,7 +98,7 @@ describe('Builder survei baru — pemilihan jenis', () => {
 
     expect(screen.getByRole('radiogroup', { name: /jenis survei/i })).toBeInTheDocument();
     expect(pilihSkm()).not.toBeChecked();
-    expect(pilihUmum()).not.toBeChecked();
+    expect(pilihCustom()).not.toBeChecked();
     expect(screen.queryByPlaceholderText(/tulis pertanyaan di sini/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Skala Nilai 1-4')).not.toBeInTheDocument();
     expect(postSurvei).toHaveLength(0);
@@ -98,12 +117,12 @@ describe('Builder survei baru — pemilihan jenis', () => {
       expect(postSurvei).toHaveLength(0);
     });
 
-    it('memilih Survei Umum membuka dialog dengan penjelasan yang sesuai', async () => {
+    it('Survei Custom: dialog terbuka sesudah tujuan dan metode dipilih, dengan penjelasan yang sesuai', async () => {
       await renderBuilder('new');
 
-      await klikJenis(pilihUmum());
+      await pilihCustomLengkap();
 
-      const dialog = screen.getByRole('dialog', { name: /pilih survei umum/i });
+      const dialog = screen.getByRole('dialog', { name: /pilih survei custom/i });
       expect(dialog).toHaveTextContent(/tanpa nilai ikm/i);
       expect(dialog).not.toHaveTextContent(/sembilan unsur baku/i);
       expect(screen.queryByText('Skala Nilai 1-4')).not.toBeInTheDocument();
@@ -118,7 +137,7 @@ describe('Builder survei baru — pemilihan jenis', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(screen.getByRole('radiogroup', { name: /jenis survei/i })).toBeInTheDocument();
       expect(pilihSkm()).not.toBeChecked();
-      expect(pilihUmum()).not.toBeChecked();
+      expect(pilihCustom()).not.toBeChecked();
       expect(postSurvei).toHaveLength(0);
     });
 
@@ -139,7 +158,7 @@ describe('Builder survei baru — pemilihan jenis', () => {
       await klikJenis(pilihSkm());
       await batalkan();
 
-      await klikJenis(pilihUmum());
+      await pilihCustomLengkap();
       await konfirmasi();
 
       expect(await screen.findByText('Skala Nilai 1-4')).toBeInTheDocument();
@@ -169,10 +188,10 @@ describe('Builder survei baru — pemilihan jenis', () => {
     expect(screen.queryByRole('radiogroup', { name: /jenis survei/i })).not.toBeInTheDocument();
   });
 
-  it('memilih Survei Umum membuka kanvas kosong tanpa membuat survei dulu', async () => {
+  it('memilih Survei Custom membuka kanvas kosong tanpa membuat survei dulu', async () => {
     await renderBuilder('new');
 
-    await klikJenis(pilihUmum());
+    await pilihCustomLengkap();
     await konfirmasi();
 
     expect(await screen.findByText('Skala Nilai 1-4')).toBeInTheDocument();
@@ -181,9 +200,9 @@ describe('Builder survei baru — pemilihan jenis', () => {
     expect(postSurvei).toHaveLength(0);
   });
 
-  it('aksi pertama pada survei umum membuat survei dengan jenis umum', async () => {
+  it('aksi pertama pada survei custom membuat survei dengan jenis custom', async () => {
     await renderBuilder('new');
-    await klikJenis(pilihUmum());
+    await pilihCustomLengkap();
     await konfirmasi();
 
     await act(async () => {
@@ -191,12 +210,14 @@ describe('Builder survei baru — pemilihan jenis', () => {
     });
 
     await waitFor(() => expect(postSurvei).toHaveLength(1));
-    expect(postSurvei[0].jenis).toBe('umum');
+    expect(postSurvei[0].jenis).toBe('custom');
+    expect(postSurvei[0].tujuan).toBe('kepuasan');
+    expect(postSurvei[0].metodeNilai).toBe('rata_rata');
   });
 
-  it('memilih Survei Umum bisa dibatalkan selama belum ada survei yang dibuat', async () => {
+  it('memilih Survei Custom bisa dibatalkan selama belum ada survei yang dibuat', async () => {
     await renderBuilder('new');
-    await klikJenis(pilihUmum());
+    await pilihCustomLengkap();
     await konfirmasi();
     await screen.findByText('Skala Nilai 1-4');
 
@@ -205,13 +226,13 @@ describe('Builder survei baru — pemilihan jenis', () => {
     });
 
     expect(screen.getByRole('radiogroup', { name: /jenis survei/i })).toBeInTheDocument();
-    expect(pilihUmum()).not.toBeChecked();
+    expect(pilihCustom()).not.toBeChecked();
     expect(postSurvei).toHaveLength(0);
   });
 
-  it('sesudah survei umum benar-benar dibuat, jenis tidak dapat diganti lagi', async () => {
+  it('sesudah survei custom benar-benar dibuat, jenis tidak dapat diganti lagi', async () => {
     await renderBuilder('new');
-    await klikJenis(pilihUmum());
+    await pilihCustomLengkap();
     await konfirmasi();
     await act(async () => {
       fireEvent.click(await screen.findByText('Skala Nilai 1-4'));
@@ -245,5 +266,106 @@ describe('Builder survei baru — pemilihan jenis', () => {
 
     expect(screen.queryByRole('radiogroup', { name: /jenis survei/i })).not.toBeInTheDocument();
     expect(await screen.findAllByPlaceholderText(/tulis pertanyaan di sini/i)).toHaveLength(9);
+  });
+
+  describe('tujuan dan metode nilai survei custom', () => {
+    it('memilih Custom menampilkan dua isian TANPA membuka dialog, belum ada yang terpilih', async () => {
+      await renderBuilder('new');
+
+      await klikJenis(pilihCustom());
+
+      expect(screen.getByRole('radiogroup', { name: /tujuan survei/i })).toBeInTheDocument();
+      expect(screen.getByRole('radiogroup', { name: /metode nilai/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Kepuasan' })).not.toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Nilai rata-rata' })).not.toBeChecked();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(postSurvei).toHaveLength(0);
+    });
+
+    it('"Lanjutkan" nonaktif sampai tujuan DAN metode dipilih', async () => {
+      await renderBuilder('new');
+      await klikJenis(pilihCustom());
+      expect(lanjutkan()).toBeDisabled();
+
+      await klikRadio('Evaluasi');
+      expect(lanjutkan()).toBeDisabled();
+
+      await klikRadio('Indeks persen');
+      expect(lanjutkan()).toBeEnabled();
+    });
+
+    it('isian tidak muncul untuk SKM', async () => {
+      await renderBuilder('new');
+
+      await klikJenis(pilihSkm());
+      await batalkan();
+
+      expect(screen.queryByRole('radiogroup', { name: /tujuan survei/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^lanjutkan$/i })).not.toBeInTheDocument();
+    });
+
+    it('dialog merangkum tujuan dan metode terpilih', async () => {
+      await renderBuilder('new');
+
+      await pilihCustomLengkap({ tujuan: 'Penilaian', metode: 'Indeks persen' });
+
+      const dialog = screen.getByRole('dialog', { name: /pilih survei custom/i });
+      expect(dialog).toHaveTextContent(/penilaian/i);
+      expect(dialog).toHaveTextContent(/indeks persen/i);
+    });
+
+    it('Batal di dialog Custom mempertahankan isian, dan tidak membuat apa pun', async () => {
+      await renderBuilder('new');
+      await pilihCustomLengkap({ tujuan: 'Evaluasi', metode: 'Indeks persen' });
+
+      await batalkan();
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Evaluasi' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Indeks persen' })).toBeChecked();
+      expect(postSurvei).toHaveLength(0);
+    });
+
+    it('survei custom pertama dibuat dengan tujuan dan metode PILIHAN, bukan bawaan', async () => {
+      await renderBuilder('new');
+      await pilihCustomLengkap({ tujuan: 'Penilaian', metode: 'Indeks persen' });
+      await konfirmasi();
+
+      await act(async () => {
+        fireEvent.click(await screen.findByText('Skala Nilai 1-4'));
+      });
+
+      await waitFor(() => expect(postSurvei).toHaveLength(1));
+      expect(postSurvei[0]).toMatchObject({
+        jenis: 'custom',
+        tujuan: 'penilaian',
+        metodeNilai: 'indeks_persen',
+      });
+    });
+
+    it('survei SKM dibuat TANPA kunci tujuan dan metodeNilai', async () => {
+      await renderBuilder('new');
+      await klikJenis(pilihSkm());
+      await konfirmasi();
+
+      await waitFor(() => expect(postSurvei).toHaveLength(1));
+      expect('tujuan' in postSurvei[0]).toBe(false);
+      expect('metodeNilai' in postSurvei[0]).toBe(false);
+    });
+
+    it('"Ganti jenis" mempertahankan tujuan dan metode yang sudah dipilih', async () => {
+      await renderBuilder('new');
+      await pilihCustomLengkap({ tujuan: 'Evaluasi', metode: 'Indeks persen' });
+      await konfirmasi();
+      await screen.findByText('Skala Nilai 1-4');
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /ganti jenis/i }));
+      });
+      await klikJenis(pilihCustom());
+
+      expect(screen.getByRole('radio', { name: 'Evaluasi' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Indeks persen' })).toBeChecked();
+    });
   });
 });

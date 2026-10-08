@@ -134,10 +134,10 @@ admin sepenuhnya di tangan Superuser.
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
 | GET | `/api/v1/surveys` | ✓ | OPD, Kabupaten | Daftar survei (OPD: milik sendiri; Kabupaten: semua). Filter opsional `opdId` mempersempit ke satu OPD — di-AND-kan dengan penyaring kepemilikan, jadi tak dapat melebarkan akses |
-| POST | `/api/v1/surveys` | ✓ | OPD | Buat paket survei (draft) |
+| POST | `/api/v1/surveys` | ✓ | OPD | Buat paket survei (draft). `jenis` wajib (`skm_permenpanrb` \| `custom`); survei `custom` wajib menyertakan `tujuan` (`kepuasan`\|`evaluasi`\|`penilaian`) dan `metodeNilai` (`rata_rata`\|`indeks_persen`), survei SKM menolaknya (400) |
 | GET | `/api/v1/surveys/active` | ✓ | Responden | Daftar survei berstatus aktif (harus dideklarasikan sebelum `:id` — lihat catatan routing Express 5) |
 | GET | `/api/v1/surveys/:id` | ✓ | OPD, Kabupaten | Detail survei |
-| PATCH | `/api/v1/surveys/:id` | ✓ | OPD | Ubah survei (judul/periode, hanya saat draft) |
+| PATCH | `/api/v1/surveys/:id` | ✓ | OPD | Ubah survei (judul/periode, hanya saat draft). `tujuan` dan `metodeNilai` (hanya survei `custom`, ditolak 400 pada SKM) boleh diubah sampai survei ditutup -- hanya mengatur tampilan Nilai Survei |
 | DELETE | `/api/v1/surveys/:id` | ✓ | OPD | Hapus survei (draft) |
 | PATCH | `/api/v1/surveys/:id/status` | ✓ | OPD | Transisi status: draft→aktif→ditutup (satu arah, tak bisa mundur) |
 | POST | `/api/v1/surveys/:id/duplicate` | ✓ | OPD | Salin survei (jadi draft baru) |
@@ -155,7 +155,7 @@ admin sepenuhnya di tangan Superuser.
 | POST | `/api/v1/surveys/:id/responses` | ✓ | Responden | Kirim jawaban. `userId` **disimpan** (kolom wajib) + `dedupeUserId` untuk anti-duplikat; keanoniman SKM ditegakkan di sisi PENYAJIAN — lihat baris di bawah |
 | GET | `/api/v1/surveys/:id/responses` | ✓ | OPD, Kabupaten | Daftar respons masuk (jawaban lengkap per respons). `ResponseEntity` sengaja tak memuat `userId`/`dedupeUserId`: admin tak boleh tahu SIAPA yang mengisi |
 | GET | `/api/v1/me/survey-responses` | ✓ | Responden | Riwayat survei yang diisi **pemanggil sendiri** (judul, periode, nama OPD, waktu kirim). Cakupan selalu `userId` dari token — tak ada parameter pemilik, jadi tak bisa dipakai mengintip riwayat orang lain. Dipakai riwayat aktivitas dashboard warga (2026-08-24) |
-| GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil live-compute: NRR per unsur + nilai IKM + mutu |
+| GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil live-compute: NRR per unsur + nilai IKM + mutu. Memuat juga `jenis` dan `nilaiSurvei` (`{judul, nilai, tampilan, kategori}` untuk survei `custom`, `null` untuk SKM atau custom tanpa jawaban skala) |
 | GET | `/api/v1/surveys/:id/results/export?format=` | ✓ | OPD, Kabupaten | Ekspor laporan (`csv`\|`excel`\|`pdf`) — file biner mentah, bukan envelope |
 | GET | `/api/v1/dashboard/opd?opdId=` | ✓ | OPD, **Superuser** | Ringkasan satu OPD (IKM survei terbaru, responden, tiket aktif, SLA, umpan balik). OPD: selalu OPD-nya sendiri, `opdId` diabaikan. Superuser: WAJIB mengirim `opdId`. **Admin Kabupaten 403** (keputusan user 2026-08-20) |
 | GET | `/api/v1/dashboard/ikm` | ✓ | Kabupaten | Agregat & perbandingan IKM seluruh OPD (dari snapshot `ikm_results`, bukan live-compute) |

@@ -1,8 +1,21 @@
 import React from 'react';
 import Card from '@/components/ui/Card';
 import { Users, Star, Clock } from 'lucide-react';
+import NilaiSurvei from './NilaiSurvei';
 
-export default function SurveyResponsesSummary({ totalResponses, averageScore, lastResponseDate }) {
+/**
+ * `jenis === 'custom'` (8 Oktober 2026): kartu kedua menampilkan NILAI SURVEI jadi
+ * dari backend (judul menurut metode, angka, kategori) menggantikan "Nilai
+ * Rata-Rata" polos. Survei lain tak berubah.
+ */
+export default function SurveyResponsesSummary({
+  totalResponses,
+  averageScore,
+  lastResponseDate,
+  jenis,
+  nilaiSurvei = null,
+}) {
+  const custom = jenis === 'custom';
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', {
@@ -29,13 +42,25 @@ export default function SurveyResponsesSummary({ totalResponses, averageScore, l
           <Star size={24} />
         </div>
         <div>
-          <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">Nilai Rata-Rata</p>
+          <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+            {custom ? (nilaiSurvei?.judul ?? 'Nilai Survei') : 'Nilai Rata-Rata'}
+          </p>
           {/* `null` DIBEDAKAN dari nol (4 Oktober 2026). Survei yang belum
               punya responden -- atau yang 9 unsur bakunya dihapus, sehingga
               rumus IKM tak punya pijakan -- tak dapat dinilai, dan itu keadaan
               yang sama sekali berbeda dari "dinilai, hasilnya 0,00". */}
           <p className="font-h3 text-h3 text-on-surface">
-            {averageScore == null ? '–' : averageScore.toFixed(2)}
+            {custom ? (
+              nilaiSurvei ? (
+                <NilaiSurvei nilaiSurvei={nilaiSurvei} ukuran="sel" />
+              ) : (
+                '–'
+              )
+            ) : averageScore == null ? (
+              '–'
+            ) : (
+              averageScore.toFixed(2)
+            )}
           </p>
         </div>
       </Card>

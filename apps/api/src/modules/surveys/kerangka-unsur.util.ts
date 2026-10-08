@@ -37,7 +37,7 @@ export function assertBolehHapusPertanyaan(
 /**
  * Unsur lahir bersama survei SKM. Pertanyaan baru tidak boleh membawa penanda
  * unsur, di jenis survei mana pun: pada SKM akan menggandakan unsur, pada
- * survei umum akan memunculkan IKM dari survei yang tak berkerangka.
+ * survei custom akan memunculkan IKM dari survei yang tak berkerangka.
  */
 export function assertBolehBuatPertanyaan(
   survey: JenisSurveiTerbaca,
@@ -49,7 +49,7 @@ export function assertBolehBuatPertanyaan(
   throw new BadRequestException(
     adalahSkm(survey)
       ? 'Unsur baku sudah tersedia di survei SKM dan tidak dapat ditambah. Tambahkan sebagai pertanyaan biasa.'
-      : 'Survei umum tidak memiliki unsur baku, sehingga pertanyaannya tidak dapat ditandai sebagai unsur IKM.',
+      : 'Survei custom tidak memiliki unsur baku, sehingga pertanyaannya tidak dapat ditandai sebagai unsur IKM.',
   );
 }
 
@@ -75,10 +75,10 @@ export function assertBolehUbahPenandaUnsur(
     return;
   }
 
-  // Survei umum: yang ditolak hanya MENJADIKAN pertanyaan sebagai unsur.
+  // Survei custom: yang ditolak hanya MENJADIKAN pertanyaan sebagai unsur.
   if ((kodeBerubah && dto.kodeUnsur) || (tandaBerubah && dto.isIkmUnsur === true)) {
     throw new BadRequestException(
-      'Survei umum tidak memiliki unsur baku, sehingga pertanyaannya tidak dapat ditandai sebagai unsur IKM.',
+      'Survei custom tidak memiliki unsur baku, sehingga pertanyaannya tidak dapat ditandai sebagai unsur IKM.',
     );
   }
 }

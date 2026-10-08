@@ -13,6 +13,7 @@ import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
 import { assertKerangkaLengkap, buatUnsurAwal, unsurHilang } from './kerangka-unsur.util';
+import { assertPengaturanNilaiBuat, assertPengaturanNilaiUbah } from './pengaturan-nilai.util';
 import { operasiPemusnahanSurvei } from './survey-pemusnahan.util';
 import { assertSurveyEditable, TIDAK_DIBUANG } from './survey-scope.util';
 
@@ -125,6 +126,8 @@ export class SurveysService {
   async create(dto: CreateSurveyDto, user: CurrentUser): Promise<SurveyEntity> {
     const opdId = this.resolveOpdId(dto, user);
     await this.assertOpdExists(opdId);
+    // Sebelum menulis apa pun: custom wajib memilih tujuan + metode, SKM tidak boleh.
+    assertPengaturanNilaiBuat(dto.jenis, dto.tujuan, dto.metodeNilai);
 
     const created = await this.prisma.survey.create({
       data: {
@@ -132,6 +135,8 @@ export class SurveysService {
         judul: dto.judul,
         periode: dto.periode,
         jenis: dto.jenis,
+        tujuan: dto.tujuan,
+        metodeNilai: dto.metodeNilai,
         allowMultipleSubmit: dto.allowMultipleSubmit ?? false,
         izinkanAnonim: dto.izinkanAnonim ?? false,
         // Survei SKM lahir bersama kesembilan unsurnya, dalam penulisan yang
@@ -155,6 +160,9 @@ export class SurveysService {
     // seluruh medannya.
     const periodeBerganti = dto.periode !== undefined && dto.periode !== survey.periode;
     assertSurveyEditable(survey, jumlahJawaban, periodeBerganti ? 'periode' : 'meta');
+    // Tujuan + metode hanya mengatur TAMPILAN (aksi `meta`: boleh sampai survei
+    // ditutup, juga sesudah jawaban masuk); survei SKM tidak memakainya.
+    assertPengaturanNilaiUbah(survey.jenis, dto.tujuan, dto.metodeNilai);
 
     // Satu transaksi, dan URUTANNYA mengikat: survei utama OPD yang lama harus
     // dilepas SEBELUM yang baru dinyalakan. Indeks unik parsial
@@ -178,6 +186,9 @@ export class SurveysService {
           // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
           izinkanAnonim: dto.izinkanAnonim,
           isUtama: dto.isUtama,
+          // undefined = tak diubah.
+          tujuan: dto.tujuan,
+          metodeNilai: dto.metodeNilai,
         },
       });
     });
@@ -352,6 +363,8 @@ export class SurveysService {
         judul: `${original.judul} (Salinan)`,
         periode: original.periode,
         jenis: original.jenis,
+        tujuan: original.tujuan,
+        metodeNilai: original.metodeNilai,
         allowMultipleSubmit: original.allowMultipleSubmit,
         izinkanAnonim: original.izinkanAnonim,
         status: SurveyStatus.draft,

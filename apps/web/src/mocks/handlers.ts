@@ -111,6 +111,11 @@ export const surveyFixture = (over = {}) => ({
   updatedAt: '2026-08-06T08:12:26.861Z',
   respondentsCount: 0,
   nilaiIkm: null,
+  // Survei custom (8 Oktober 2026): tujuan/metode dan nilai jadi dari backend.
+  // null pada survei SKM.
+  tujuan: null,
+  metodeNilai: null,
+  nilaiSurvei: null,
   ...over,
 });
 

@@ -4,6 +4,7 @@ import { TrendingUp, Verified } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 import TrendChart from '@/features/statistics/components/charts/TrendChart';
 import DistribusiSkor from './DistribusiSkor';
+import NilaiSurvei from '@/features/surveys/components/NilaiSurvei';
 
 /**
  * Hasil IKM sungguhan per survei (GET /surveys/:id/results, INT-21) -- props
@@ -29,6 +30,9 @@ export default function SkmAnalysisView({
   sebaranSkor,
 }) {
   const hasResponden = jumlahResponden > 0 && serviceElements.length > 0;
+  // Survei CUSTOM (8 Oktober 2026): angka utamanya Nilai Survei dari backend, tanpa
+  // kartu IKM/Mutu, tanpa tabel 9 unsur, dan tanpa tren IKM -- semuanya milik SKM.
+  const custom = metrics.jenis === 'custom';
 
   return (
     <section className="space-y-xl animate-in fade-in duration-500">
@@ -42,7 +46,16 @@ export default function SkmAnalysisView({
           ditambahkan): `sm:grid-cols-2 xl:grid-cols-4`, bukan `md:grid-cols-4`,
           karena sidebar admin memakan 256px di md dan empat kartu sejajar di
           lebar itu terlalu sempit untuk judul kartu yang panjang. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-lg">
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 gap-lg ${custom ? '' : 'xl:grid-cols-4'}`}
+      >
+        {custom && (
+          <div className="bg-white/95 backdrop-blur rounded-xl p-lg flex flex-col justify-center min-h-32 shadow-sm border border-border border-l-4 border-l-primary">
+            <NilaiSurvei nilaiSurvei={metrics.nilaiSurvei} />
+          </div>
+        )}
+        {!custom && (
+          <>
         <div className="bg-white/95 backdrop-blur rounded-xl p-lg flex flex-col justify-between h-32 shadow-sm border border-border border-l-4 border-l-primary">
           <span className="text-label-md text-secondary uppercase tracking-wider font-semibold">Nilai IKM (Indeks Kepuasan Masyarakat)</span>
           <div className="flex items-baseline gap-sm">
@@ -74,6 +87,8 @@ export default function SkmAnalysisView({
             )}
           </div>
         </div>
+          </>
+        )}
 
         <div className="bg-white/95 backdrop-blur rounded-xl p-lg flex flex-col justify-between h-32 shadow-sm border border-border border-l-4 border-l-tertiary">
           <span className="text-label-md text-secondary uppercase tracking-wider font-semibold">Total Responden</span>
@@ -87,6 +102,7 @@ export default function SkmAnalysisView({
           </div>
         </div>
 
+        {!custom && (
         <div className="bg-white/95 backdrop-blur rounded-xl p-lg flex flex-col justify-between h-32 shadow-sm border border-border border-l-4 border-l-green-600">
           <span className="text-label-md text-secondary uppercase tracking-wider font-semibold">Mutu Layanan</span>
           <div>
@@ -108,9 +124,12 @@ export default function SkmAnalysisView({
             )}
           </div>
         </div>
+        )}
       </div>
 
-      {/* 9 Unsur Table */}
+      {/* 9 Unsur Table. Survei custom tak punya unsur baku, jadi tabel ini (dan
+          pesan "tidak memuat 9 unsur baku"-nya) tidak ditampilkan. */}
+      {!custom && (
       <div className="bg-white/95 backdrop-blur rounded-xl overflow-hidden shadow-sm border border-border">
         <div className="px-lg py-md border-b border-outline-variant bg-surface-container-lowest flex justify-between items-center">
           <h3 className="font-h3 text-h3 text-primary">Analisis 9 Unsur Pelayanan</h3>
@@ -150,6 +169,7 @@ export default function SkmAnalysisView({
           </div>
         )}
       </div>
+      )}
 
       {/* TREN IKM LINTAS PERIODE (7 Oktober 2026). Catatan lama di sini --
           "tren IKM lintas periode/tahun memerlukan agregasi data historis yang
@@ -160,7 +180,8 @@ export default function SkmAnalysisView({
 
           Larik KOSONG dibedakan dari `undefined`: yang pertama berarti "ada
           sumbernya tetapi tak ada titik pada penyaring ini". */}
-      {Array.isArray(ikmTrend) &&
+      {!custom &&
+        Array.isArray(ikmTrend) &&
         (ikmTrend.length > 0 ? (
           <TrendChart
             title={judulTren}
