@@ -10,6 +10,7 @@ import FloatingStatus from './FloatingStatus';
 import QuestionOptionsModal from './QuestionOptionsModal';
 import PemilihJenisSurvei from './PemilihJenisSurvei';
 import PengaturanNilaiSurvei from './PengaturanNilaiSurvei';
+import GantiJenisModal from './GantiJenisModal';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
@@ -24,6 +25,7 @@ import {
   getQuestions,
   createSurvey,
   updateSurvey,
+  changeSurveyJenis,
   updateSurveyStatus,
   createCustomQuestion,
   deleteQuestion,
@@ -102,6 +104,11 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   const [jenisSurvei, setJenisSurvei] = useState(null);
   const [tujuan, setTujuan] = useState(null);
   const [metodeNilai, setMetodeNilai] = useState(null);
+  // Ganti jenis SKM -> Custom (8 Oktober 2026): modal, galat backend di dalamnya, dan
+  // penanda permintaan berjalan.
+  const [showGantiJenis, setShowGantiJenis] = useState(false);
+  const [gantiJenisError, setGantiJenisError] = useState(null);
+  const [isGantiJenis, setIsGantiJenis] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -195,6 +202,15 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         ? `Susunan pertanyaan tidak dapat diubah karena survei ini sudah menerima ${jumlahJawaban} jawaban. Teks pertanyaan dan label skala 1-4 masih dapat diperbaiki.`
         : null;
 
+  // Tombol "Ganti jenis" hanya selagi backend mau menerimanya: survei SKM yang sudah
+  // ada, masih DRAF, dan belum dijawab. Begitu terbit atau dijawab, alasannya sudah
+  // tampil lewat banner penguncian di atas kanvas.
+  const bolehGantiJenis =
+    (isNew ? jenis : jenisSurvei) === 'skm_permenpanrb' &&
+    Boolean(surveyId) &&
+    status === 'DRAF' &&
+    jumlahJawaban === 0;
+
   const assertDraftOrThrow = () => {
     if (susunanTerkunci) {
       throw new Error(alasanTerkunci);
@@ -224,6 +240,35 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
       setActionError(err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  /**
+   * Ganti jenis SKM -> Custom. Dikonfirmasi di GantiJenisModal; backend menghapus
+   * sembilan unsur dan menolak bila survei sudah terbit atau dijawab. Daftar
+   * pertanyaan dimuat ULANG dari backend (bukan disaring di sini) supaya urutan dan
+   * pertanyaan tambahan persis seperti yang tersimpan.
+   */
+  const handleGantiJenis = async ({ tujuan: tujuanBaru, metodeNilai: metodeBaru }) => {
+    setIsGantiJenis(true);
+    setGantiJenisError(null);
+    try {
+      await changeSurveyJenis(surveyId, {
+        jenis: 'custom',
+        tujuan: tujuanBaru,
+        metodeNilai: metodeBaru,
+      });
+      setQuestions(await getQuestions(surveyId));
+      setJenis('custom');
+      setJenisSurvei('custom');
+      setTujuan(tujuanBaru);
+      setMetodeNilai(metodeBaru);
+      setShowGantiJenis(false);
+    } catch (err) {
+      // Modal tetap terbuka dengan galatnya; survei tetap SKM.
+      setGantiJenisError(err.message);
+    } finally {
+      setIsGantiJenis(false);
     }
   };
 
@@ -793,6 +838,23 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           </button>
         </div>
       )}
+      {bolehGantiJenis && (
+        <div className="mx-lg mt-lg p-md rounded-xl border border-border bg-surface-container-low text-sm flex flex-wrap items-center justify-between gap-sm">
+          <span>
+            Jenis survei: <strong className="font-semibold">SKM PermenPANRB</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setGantiJenisError(null);
+              setShowGantiJenis(true);
+            }}
+            className="min-h-[44px] px-md rounded-lg border border-border text-label-md font-label-md text-primary hover:bg-primary-container/10"
+          >
+            Ganti jenis
+          </button>
+        </div>
+      )}
       {/* KERANGKA UNSUR (8 Oktober 2026). Ditampilkan sekali di atas kanvas, bukan
           pada tiap kartu: kesembilan kartu sudah memuat badge terkunci. */}
       {questions.some((q) => q.isBaku) && (
@@ -838,6 +900,17 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         canEditText={!metaTerkunci}
       />
       <FloatingStatus questionCount={questions.length} />
+
+      {/* Ganti jenis SKM -> Custom (8 Oktober 2026). Daftar unsur diambil dari kartu baku
+          yang sedang termuat, supaya kalimat yang disebut modal persis yang akan hilang. */}
+      <GantiJenisModal
+        isOpen={showGantiJenis}
+        unsur={questions.filter((q) => q.isBaku).map((q) => ({ kode: q.kode, text: q.text }))}
+        isSubmitting={isGantiJenis}
+        error={gantiJenisError}
+        onConfirm={handleGantiJenis}
+        onCancel={() => setShowGantiJenis(false)}
+      />
 
       {/* Gerbang publikasi. Menyebut dua hal yang paling sering luput diperiksa
           sebelum terbit -- berapa pertanyaannya dan siapa yang boleh mengisi --

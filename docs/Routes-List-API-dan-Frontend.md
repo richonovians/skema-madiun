@@ -139,6 +139,7 @@ admin sepenuhnya di tangan Superuser.
 | GET | `/api/v1/surveys/:id` | ✓ | OPD, Kabupaten | Detail survei |
 | PATCH | `/api/v1/surveys/:id` | ✓ | OPD | Ubah survei (judul/periode, hanya saat draft). `tujuan` dan `metodeNilai` (hanya survei `custom`, ditolak 400 pada SKM) boleh diubah sampai survei ditutup -- hanya mengatur tampilan Nilai Survei |
 | DELETE | `/api/v1/surveys/:id` | ✓ | OPD | Hapus survei (draft) |
+| PATCH | `/api/v1/surveys/:id/jenis` | ✓ | OPD, Kabupaten | Ganti jenis survei **SKM → Custom** (satu arah). Hanya selagi draf dan belum dijawab; sembilan unsur dihapus, pertanyaan tambahan dipertahankan. Badan `{jenis: "custom", tujuan, metodeNilai}` wajib. `PATCH /surveys/:id` tetap menolak `jenis` |
 | PATCH | `/api/v1/surveys/:id/status` | ✓ | OPD | Transisi status: draft→aktif→ditutup (satu arah, tak bisa mundur) |
 | POST | `/api/v1/surveys/:id/duplicate` | ✓ | OPD | Salin survei (jadi draft baru) |
 | GET | `/api/v1/surveys/:id/questions` | ✓ | OPD | Daftar pertanyaan survei |

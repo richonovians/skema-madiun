@@ -149,6 +149,7 @@ Format kode: **FR-[Modul]-[Nomor]**.
 - **FR-SVY-06** Pratinjau (preview) kuesioner sebelum dipublikasikan.
 - **FR-SVY-07** Menyalin (duplicate) paket survei periode sebelumnya.
 - **FR-SVY-08** Jenis survei dipilih saat membuat: **SKM** (hasil: Nilai IKM menurut PermenPANRB) atau **Custom** (hasil: **Nilai Survei**). Survei Custom wajib memilih **tujuan** (Kepuasan / Evaluasi / Penilaian) dan **metode nilai** (rata-rata skala 1–4, mis. "3,40 / 4", atau indeks persen, mis. "85%"); keduanya menentukan nama angka dan kategori verbalnya (mis. Puas, Sangat Baik) serta boleh diganti sampai survei ditutup karena hanya mengatur tampilan.
+- **FR-SVY-09** Survei SKM yang terlanjur dipilih dapat diganti menjadi Custom (satu arah) selama masih draf dan belum dijawab; sembilan unsur dihapus, pertanyaan tambahan dipertahankan. Statistik & Laporan dapat disaring menurut jenis survei (Semua / SKM / Custom).
 
 ### 8.4 Modul Pengisian Survei (Responden)
 - **FR-FILL-01** Melihat daftar survei aktif dari berbagai OPD.

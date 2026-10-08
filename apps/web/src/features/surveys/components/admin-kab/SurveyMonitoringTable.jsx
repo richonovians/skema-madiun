@@ -19,6 +19,7 @@ import {
 import ShareSurveyModal from '@/features/surveys/components/ShareSurveyModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 import NilaiSurvei from '@/features/surveys/components/NilaiSurvei';
+import { labelJenis } from '@/features/surveys/constants/jenisSurvei';
 
 const STATUS_VARIANT = {
   AKTIF: 'success',
@@ -97,20 +98,21 @@ export default function SurveyMonitoringTable({
       <table className="w-full text-left border-collapse">
         <thead className="bg-surface-container text-on-surface-variant">
           <tr>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">JUDUL SURVEI</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">OPD PENYELENGGARA</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">PERIODE</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">RESPONDEN</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NILAI IKM</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NILAI RATA-RATA</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">JUDUL SURVEI</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">OPD PENYELENGGARA</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">JENIS SURVEI</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">PERIODE</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">RESPONDEN</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">NILAI IKM</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">NILAI SURVEI</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-outline-variant">
           {surveys.length === 0 ? (
             <tr>
-              <td colSpan="8" className="text-center py-xl text-text-secondary">
+              <td colSpan="9" className="text-center py-xl text-text-secondary">
                 Tidak ada survei yang ditemukan.
               </td>
             </tr>
@@ -123,7 +125,7 @@ export default function SurveyMonitoringTable({
 
               return (
                 <tr key={survey.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-lg py-lg max-w-xs">
+                  <td className="px-md py-lg max-w-xs">
                     <p
                       className="font-body-md text-body-md font-bold text-slate-800 line-clamp-2"
                       title={survey.title}
@@ -146,57 +148,68 @@ export default function SurveyMonitoringTable({
                     )}
                   </td>
 
-                  <td className="px-lg py-lg">
+                  <td className="px-md py-lg">
                     <div className="font-body-md text-body-md text-on-surface">{survey.opdName || '-'}</div>
                   </td>
 
-                  <td className="px-lg py-lg">
+                  {/* JENIS SURVEI (8 Oktober 2026). `labelJenis` mengembalikan null bagi
+                      jenis kosong/tak dikenal (backend lama): tampil "-", bukan label karangan. */}
+                  <td className="px-md py-lg">
+                    {labelJenis(survey.jenis) ? (
+                      <Badge
+                        variant={survey.jenis === 'custom' ? 'default' : 'info'}
+                        className="px-sm py-[2px] text-[10px] uppercase rounded"
+                      >
+                        {labelJenis(survey.jenis)}
+                      </Badge>
+                    ) : (
+                      <span className="font-body-md text-body-md text-on-surface-variant">-</span>
+                    )}
+                  </td>
+
+                  <td className="px-md py-lg">
                     <span className="font-body-md text-body-md text-on-surface-variant">
                       {formatPeriodeLabel(survey.period)}
                     </span>
                   </td>
 
-                  <td className="px-lg py-lg">
+                  <td className="px-md py-lg">
                     <span className="font-body-md text-body-md text-on-surface">
                       {isDraft ? '-' : survey.respondentsCount.toLocaleString('id-ID')}
                     </span>
                   </td>
 
-                  <td className="px-lg py-lg">
+                  <td className="px-md py-lg">
                     <span className="font-bold text-on-surface">
                       {survey.ikmScore != null ? survey.ikmScore.toFixed(2) : '-'}
                     </span>
                   </td>
 
-                  {/* NILAI RATA-RATA (7 Oktober 2026, permintaan pengguna):
-                      rata-rata SEMUA jawaban skala (1-4), BUKAN IKM. Kolom
-                      sendiri, bukan pengganti: IKM menuntut 9 unsur baku, jadi
-                      survei yang unsur bakunya dihapus menampilkan "-" di
-                      kolom IKM padahal jawabannya ada. Draf dan survei yang
-                      belum dijawab tak punya jawaban skala, jadi "-" -- bukan
-                      0,00 yang terbaca sebagai hasil ukur terburuk. */}
-                  <td className="px-lg py-lg">
-                    {/* Survei CUSTOM (8 Oktober 2026): kolom ini memuat NILAI SURVEI
-                        jadi dari backend ("angka · kategori", judul metode sebagai
-                        title), bukan rata-rata polos. */}
+                  {/* NILAI SURVEI (8 Oktober 2026, permintaan pengguna: kolom "Nilai
+                      Rata-Rata" diganti nama, dan untuk survei SKM kosong). Hanya
+                      survei CUSTOM yang punya Nilai Survei -- jadi dari backend
+                      ("angka · kategori", judul metode sebagai title). Survei SKM
+                      punya kolom NILAI IKM sendiri, jadi di sini "-"; rata-rata
+                      polos tak lagi tampil di tabel ini (tetap ada di halaman
+                      respons dan analisis). Custom tanpa jawaban skala juga "-":
+                      bukan 0 yang terbaca sebagai hasil ukur terburuk. */}
+                  <td className="px-md py-lg">
                     <span className="font-bold text-on-surface">
                       {survey.jenis === 'custom' ? (
                         <NilaiSurvei nilaiSurvei={survey.nilaiSurvei} ukuran="sel" />
-                      ) : survey.averageScore != null ? (
-                        survey.averageScore.toFixed(2)
                       ) : (
                         '-'
                       )}
                     </span>
                   </td>
 
-                  <td className="px-lg py-lg">
+                  <td className="px-md py-lg">
                     <Badge variant={STATUS_VARIANT[survey.status] ?? 'default'}>
                       {STATUS_LABEL[survey.status] ?? survey.status}
                     </Badge>
                   </td>
 
-                  <td className="px-lg py-lg">
+                  <td className="px-md py-lg">
                     {/* SATU tombol, bukan sepuluh. Aturan statusnya tidak
                         bergeser sedikit pun dari versi tombol lepas -- yang
                         berubah hanya wadahnya. Entri `false` dibuang

@@ -48,7 +48,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
     const dipanggil = pasangPengintaiDashboardOpd();
 
     render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     // Ditunggu sampai pengambilan datanya tuntas, supaya ketiadaan panggilan
     // benar-benar berarti "tak pernah", bukan "belum".
@@ -59,7 +59,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
   it('menyediakan kedua tab, sama seperti halaman Admin OPD', async () => {
     render(<AnalyticsKabPage />);
 
-    expect(await screen.findByRole('button', { name: /analisis skm/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /analisis survei/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /analisis pengaduan/i })).toBeInTheDocument();
   });
 
@@ -76,7 +76,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
    */
   it('membawa padding halamannya sendiri, seperti seluruh halaman admin-kab lain', async () => {
     const { container } = render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     // AKAR HALAMANNYA, bukan `querySelector('.p-lg')`. Versi pertama uji ini
     // memakai pemilih itu dan HAMPA: beberapa komponen anak (kartu, kepala
@@ -101,14 +101,14 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
    */
   it('tidak mengulang judul halaman di badan, navbar sudah menuliskannya', async () => {
     render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     expect(screen.queryByRole('heading', { name: /statistik & laporan/i })).toBeNull();
   });
 
   it('bilah tab berhenti di bawah navbar, bukan di baliknya', async () => {
     const { container } = render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     const bilah = container.querySelector('.sticky');
 
@@ -120,7 +120,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
     // kontrol membuatnya tak sejajar dengan baris tab di sebelahnya. Namanya
     // tetap ada bagi pembaca layar.
     const { container } = render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     await waitFor(() =>
       expect(container.querySelector('label[for="pilih-survei-kab"]')).toHaveClass('sr-only'),
@@ -140,7 +140,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
    */
   it('panel "Distribusi Status" memuat sebaran status dari pengaduan yang dimuat', async () => {
     render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     fireEvent.click(screen.getByRole('button', { name: /analisis pengaduan/i }));
 
@@ -158,7 +158,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
     );
 
     render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
     fireEvent.click(screen.getByRole('button', { name: /analisis pengaduan/i }));
     await screen.findAllByText('1 pengaduan (50%)');
 
@@ -170,7 +170,7 @@ describe('Halaman Statistik & Laporan (Admin Kabupaten)', () => {
     // tak mengirim `opdNama`. Tanpa penggabungan nama, dua OPD berjudul serupa
     // tampak kembar dan orang memilih survei yang salah tanpa sadar.
     render(<AnalyticsKabPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     await waitFor(() =>
       expect(screen.getByText(/Dinas Kesehatan/i)).toBeInTheDocument(),

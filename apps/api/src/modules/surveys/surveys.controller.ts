@@ -22,6 +22,7 @@ import { ListActiveSurveyQueryDto } from './dto/list-active-survey-query.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
+import { ChangeSurveyJenisDto } from './dto/change-survey-jenis.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
 import { SurveiPemusnahanService } from './survei-pemusnahan.service';
@@ -187,6 +188,27 @@ export class SurveysController {
     @CurrentUser() user: CurrentUser,
   ): Promise<SurveyEntity> {
     return this.surveysService.updateStatus(id, dto, user);
+  }
+
+  /**
+   * Ganti jenis survei SKM menjadi Custom (8 Oktober 2026). Satu-satunya jalan
+   * mengganti jenis; `PATCH /surveys/:id` tetap menolak `jenis`.
+   */
+  @Patch(':id/jenis')
+  @Roles(Role.kabupaten, Role.opd)
+  @Audit('survey', 'ganti_jenis')
+  @ApiOperation({
+    summary: 'Ganti jenis survei SKM menjadi Custom (hanya draf tanpa jawaban).',
+    description:
+      'Hanya selagi survei berstatus draf dan belum ada jawaban. Sembilan unsur dihapus, pertanyaan tambahan dipertahankan dan diurut ulang. Tujuan dan metode nilai wajib. PATCH /surveys/:id tetap menolak jenis.',
+  })
+  @ApiOkResponse({ type: SurveyEntity })
+  gantiJenis(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ChangeSurveyJenisDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<SurveyEntity> {
+    return this.surveysService.gantiJenis(id, dto, user);
   }
 
   /** Duplikasi survei periode sebelumnya (Admin OPD). */

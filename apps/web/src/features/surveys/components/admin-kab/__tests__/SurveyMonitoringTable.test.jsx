@@ -215,37 +215,30 @@ describe('SurveyMonitoringTable — aksi memanggil penanganya', () => {
 });
 
 /**
- * KOLOM NILAI RATA-RATA (7 Oktober 2026, permintaan pengguna: "tampilkan nilai
- * rata-rata di tabel pada halaman admin-kab/surveys").
- *
- * Rata-rata SEMUA jawaban skala (1-4), BUKAN IKM. Kolom sendiri di samping
- * NILAI IKM, bukan pengganti: IKM menuntut 9 unsur baku, jadi survei yang
- * unsur bakunya dihapus menampilkan "-" di kolom IKM padahal jawabannya ada.
+ * KOLOM NILAI SURVEI (8 Oktober 2026, permintaan pengguna: "ubah nama kolom nilai
+ * rata rata menjadi nilai survei, dan untuk survei skm nilai survei berarti
+ * kosong"). Dulu "NILAI RATA-RATA" (7 Oktober 2026): rata-rata polos semua
+ * jawaban skala. Kini kolom Nilai Survei: hanya survei CUSTOM yang berisi (dari
+ * backend), survei SKM "-" karena punya kolom NILAI IKM sendiri. Pengujian
+ * lengkapnya di SurveyMonitoringTableJenis dan SurveyMonitoringTableNilaiSurvei;
+ * di sini hanya yang menjaga bentuk dasar tabel.
  */
-describe('SurveyMonitoringTable — kolom nilai rata-rata', () => {
-  it('memuat kepala kolom NILAI RATA-RATA di samping NILAI IKM', () => {
+describe('SurveyMonitoringTable — kolom nilai survei', () => {
+  it('kepala kolom NILAI SURVEI berada tepat di samping NILAI IKM', () => {
     render1([survei(1, 'Survei Aktif', 'AKTIF')]);
 
     const kepala = screen.getAllByRole('columnheader').map((th) => th.textContent);
 
     expect(kepala).toContain('NILAI IKM');
-    expect(kepala).toContain('NILAI RATA-RATA');
-    expect(kepala.indexOf('NILAI RATA-RATA')).toBe(kepala.indexOf('NILAI IKM') + 1);
+    expect(kepala).toContain('NILAI SURVEI');
+    expect(kepala).not.toContain('NILAI RATA-RATA');
+    expect(kepala.indexOf('NILAI SURVEI')).toBe(kepala.indexOf('NILAI IKM') + 1);
   });
 
-  it('menampilkan nilainya dengan dua desimal', () => {
-    render1([survei(1, 'Survei Aktif', 'AKTIF', { averageScore: 3.8 })]);
-
-    expect(within(baris('Survei Aktif')).getByText('3.80')).toBeInTheDocument();
-  });
-
-  it('survei TANPA 9 unsur baku: IKM "-" tetapi nilai rata-rata tetap tampil', () => {
-    // Kasus yang melahirkan kolom ini.
+  it('rata-rata polos TIDAK lagi tampil pada survei tanpa Nilai Survei', () => {
     render1([survei(1, 'Survei Aktif', 'AKTIF', { ikmScore: null, averageScore: 3.84 })]);
-    const sel = within(baris('Survei Aktif'));
 
-    expect(sel.getByText('3.84')).toBeInTheDocument();
-    expect(sel.getByText('-')).toBeInTheDocument(); // satu-satunya "-": kolom IKM
+    expect(within(baris('Survei Aktif')).queryByText('3.84')).toBeNull();
   });
 
   it('belum ada jawaban skala -> "-", BUKAN 0.00', () => {
@@ -255,17 +248,6 @@ describe('SurveyMonitoringTable — kolom nilai rata-rata', () => {
 
     expect(sel.queryByText('0.00')).toBeNull();
     expect(sel.getAllByText('-').length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('dipagari PER BARIS, bukan oleh nilai baris pertama', () => {
-    render1([
-      survei(1, 'Survei Satu', 'AKTIF', { averageScore: 3.5 }),
-      survei(2, 'Survei Dua', 'AKTIF', { averageScore: 2.1 }),
-    ]);
-
-    expect(within(baris('Survei Satu')).getByText('3.50')).toBeInTheDocument();
-    expect(within(baris('Survei Dua')).getByText('2.10')).toBeInTheDocument();
-    expect(within(baris('Survei Dua')).queryByText('3.50')).toBeNull();
   });
 
   it('baris "tidak ada survei" melintasi SELURUH kolom, termasuk yang baru', () => {

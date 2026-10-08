@@ -56,7 +56,7 @@ describe('SurveysService', () => {
       delete: jest.fn(),
     },
     opd: { findUnique: jest.fn() },
-    question: { findMany: jest.fn() },
+    question: { findMany: jest.fn(), deleteMany: jest.fn(), update: jest.fn() },
     surveyResponse: { count: jest.fn(), aggregate: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
@@ -679,6 +679,122 @@ describe('SurveysService', () => {
         expect(prisma.question.findMany).not.toHaveBeenCalled();
         expect(ikmService.snapshot).toHaveBeenCalledWith(1);
       });
+    });
+  });
+
+  /**
+   * GANTI JENIS SKM -> CUSTOM (8 Oktober 2026). Aturan boleh-tidaknya diuji di
+   * ganti-jenis.util.spec; di sini yang dibuktikan adalah penyambungannya: satu
+   * transaksi, unsur terhapus, pertanyaan tambahan bertahan dan diurut ulang, dan
+   * TIDAK ada yang ditulis bila ditolak.
+   */
+  describe('gantiJenis', () => {
+    const dto = {
+      jenis: JenisSurvei.custom,
+      tujuan: TujuanSurvei.evaluasi,
+      metodeNilai: MetodeNilai.indeks_persen,
+    };
+    const skm = (over: Record<string, unknown> = {}) =>
+      surveyRow({ jenis: JenisSurvei.skm_permenpanrb, status: SurveyStatus.draft, ...over });
+
+    beforeEach(() => {
+      (prisma.survey.update as jest.Mock).mockResolvedValue(
+        surveyRow({ jenis: JenisSurvei.custom, tujuan: dto.tujuan, metodeNilai: dto.metodeNilai }),
+      );
+      (prisma.question.deleteMany as jest.Mock).mockResolvedValue({ count: 9 });
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([{ id: 31 }, { id: 35 }]);
+      (prisma.question.update as jest.Mock).mockResolvedValue({});
+    });
+
+    const tidakMenulisApaPun = () => {
+      expect(prisma.question.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.question.update).not.toHaveBeenCalled();
+      expect(prisma.survey.update).not.toHaveBeenCalled();
+    };
+
+    it('menghapus unsur, mengurut ulang sisa pertanyaan 1..n, lalu menyimpan jenis + tujuan + metode', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm());
+
+      const hasil = await service.gantiJenis(1, dto, opdUser(5));
+
+      expect(prisma.question.deleteMany).toHaveBeenCalledWith({
+        where: { surveyId: 1, OR: [{ isIkmUnsur: true }, { kodeUnsur: { not: null } }] },
+      });
+      expect(prisma.question.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { surveyId: 1 }, orderBy: { urutan: 'asc' } }),
+      );
+      expect(prisma.question.update).toHaveBeenCalledTimes(2);
+      expect(prisma.question.update).toHaveBeenCalledWith({
+        where: { id: 31 },
+        data: { urutan: 1 },
+      });
+      expect(prisma.question.update).toHaveBeenCalledWith({
+        where: { id: 35 },
+        data: { urutan: 2 },
+      });
+      expect(prisma.survey.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { jenis: JenisSurvei.custom, tujuan: dto.tujuan, metodeNilai: dto.metodeNilai },
+      });
+      expect(hasil.jenis).toBe(JenisSurvei.custom);
+    });
+
+    it('semuanya dalam SATU transaksi, dengan pemeriksaan jawaban di dalamnya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm());
+
+      await service.gantiJenis(1, dto, opdUser(5));
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(typeof (prisma.$transaction as jest.Mock).mock.calls[0][0]).toBe('function');
+      expect(prisma.surveyResponse.count).toHaveBeenCalledWith({ where: { surveyId: 1 } });
+    });
+
+    it('SKM tanpa pertanyaan tambahan: tak ada yang diurut ulang, survei tetap menjadi custom', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm());
+      (prisma.question.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.gantiJenis(1, dto, opdUser(5));
+
+      expect(prisma.question.update).not.toHaveBeenCalled();
+      expect(prisma.survey.update).toHaveBeenCalled();
+    });
+
+    it.each([
+      ['aktif', { status: SurveyStatus.aktif }, 0, /berstatus draf/],
+      ['ditutup', { status: SurveyStatus.ditutup }, 0, /berstatus draf/],
+      ['sudah dijawab', {}, 4, /sudah menerima 4 jawaban/],
+      ['sudah custom', { jenis: JenisSurvei.custom }, 0, /sudah berjenis Custom/],
+    ])('ditolak (%s) tanpa menulis apa pun', async (_nama, over, jawaban, pesan) => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm(over));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(jawaban);
+
+      await expect(service.gantiJenis(1, dto, opdUser(5))).rejects.toThrow(pesan);
+      tidakMenulisApaPun();
+    });
+
+    it('jenis tujuan selain custom ditolak tanpa menulis apa pun', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm());
+
+      await expect(
+        service.gantiJenis(1, { ...dto, jenis: JenisSurvei.skm_permenpanrb }, opdUser(5)),
+      ).rejects.toThrow(/hanya dapat diganti menjadi Custom/);
+      tidakMenulisApaPun();
+    });
+
+    it('tujuan atau metode kosong ditolak tanpa menulis apa pun', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm());
+
+      await expect(
+        service.gantiJenis(1, { jenis: JenisSurvei.custom } as never, opdUser(5)),
+      ).rejects.toThrow('Tujuan dan metode nilai wajib dipilih untuk survei custom');
+      tidakMenulisApaPun();
+    });
+
+    it('Admin OPD lain ditolak (isolasi OPD), tanpa menulis apa pun', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(skm({ opdId: 99 }));
+
+      await expect(service.gantiJenis(1, dto, opdUser(5))).rejects.toThrow(ForbiddenException);
+      tidakMenulisApaPun();
     });
   });
 

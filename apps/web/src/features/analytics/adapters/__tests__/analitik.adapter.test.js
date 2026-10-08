@@ -1,5 +1,6 @@
 import {
   hitungAnalitikPengaduan,
+  saringSurveiJenis,
   saringSurveiPeriode,
   titikTrenTahun,
 } from '../analitik.adapter';
@@ -51,6 +52,38 @@ describe('saringSurveiPeriode', () => {
 
   it('penyaring kosong meloloskan semuanya', () => {
     expect(saringSurveiPeriode(survei, '')).toHaveLength(3);
+  });
+});
+
+/**
+ * Penyaring JENIS survei (8 Oktober 2026, permintaan pengguna: "tambah filter untuk
+ * statistic khusus survei custom dan skm"). Murni, tanpa mengubah masukan.
+ */
+describe('saringSurveiJenis', () => {
+  const survei = [
+    { id: '1', jenis: 'skm_permenpanrb' },
+    { id: '2', jenis: 'custom' },
+    { id: '3', jenis: 'custom' },
+    { id: '4' }, // backend lama: tanpa jenis
+  ];
+
+  it.each(['semua', undefined, null, ''])('%p meloloskan SEMUANYA, termasuk yang tanpa jenis', (nilai) => {
+    expect(saringSurveiJenis(survei, nilai).map((s) => s.id)).toEqual(['1', '2', '3', '4']);
+  });
+
+  it('skm_permenpanrb hanya meloloskan SKM', () => {
+    expect(saringSurveiJenis(survei, 'skm_permenpanrb').map((s) => s.id)).toEqual(['1']);
+  });
+
+  it('custom hanya meloloskan Custom; survei tanpa jenis tidak diperlakukan sebagai Custom', () => {
+    expect(saringSurveiJenis(survei, 'custom').map((s) => s.id)).toEqual(['2', '3']);
+  });
+
+  it('larik kosong aman, dan masukan tidak diubah', () => {
+    expect(saringSurveiJenis([], 'custom')).toEqual([]);
+    const salinan = survei.map((s) => ({ ...s }));
+    saringSurveiJenis(survei, 'custom');
+    expect(survei).toEqual(salinan);
   });
 });
 

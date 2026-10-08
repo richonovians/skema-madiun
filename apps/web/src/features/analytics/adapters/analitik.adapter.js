@@ -51,6 +51,17 @@ export function saringSurveiPeriode(surveys, periode) {
 }
 
 /**
+ * Survei yang jenisnya lolos penyaring (8 Oktober 2026). `semua` (atau kosong)
+ * meloloskan semuanya, TERMASUK survei dari backend lama yang belum membawa `jenis`;
+ * selain itu hanya yang `jenis`-nya persis sama. Survei tanpa `jenis` tidak
+ * diperlakukan sebagai Custom ataupun SKM: tak ada yang dikarang.
+ */
+export function saringSurveiJenis(surveys, jenis) {
+  if (!jenis || jenis === 'semua') return surveys;
+  return surveys.filter((survey) => survey.jenis === jenis);
+}
+
+/**
  * Titik tren IKM pada TAHUN penyaring.
  *
  * Yang dipakai hanya tahunnya, TIDAK triwulannya, dan itu disengaja: tren

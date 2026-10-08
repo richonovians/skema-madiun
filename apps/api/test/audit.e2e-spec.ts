@@ -164,6 +164,29 @@ describe('Audit Log (e2e)', () => {
     expect(entry).toBeDefined();
   });
 
+  it('PATCH jenis memakai aksi eksplisit "ganti_jenis" (8 Oktober 2026)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/surveys')
+      .set(opdHeaders())
+      .send({ judul: 'Survei Ganti Jenis Audit', periode: '2026-Q1', jenis: 'skm_permenpanrb' });
+    const id = created.body.data.id;
+
+    const ganti = await request(app.getHttpServer())
+      .patch(`/api/v1/surveys/${id}/jenis`)
+      .set(opdHeaders())
+      .send({ jenis: 'custom', tujuan: 'kepuasan', metodeNilai: 'rata_rata' });
+    expect(ganti.status).toBe(200);
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/audit-logs')
+      .query({ entitas: 'survey' })
+      .set(kabupatenHeaders());
+    const entry = (res.body.data as { aksi: string; detail: { params?: { id?: string } } }[]).find(
+      (e) => e.aksi === 'ganti_jenis' && String(e.detail?.params?.id) === String(id),
+    );
+    expect(entry).toBeDefined();
+  });
+
   it('DELETE survei tercatat dengan aksi "delete" (disimpulkan dari HTTP method)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
@@ -246,16 +269,13 @@ describe('Audit Log (e2e)', () => {
   });
 
   it('GET /audit-logs/:id (Superuser) mengembalikan satu entri sesuai id', async () => {
-    await request(app.getHttpServer())
-      .post('/api/v1/surveys')
-      .set(opdHeaders())
-      .send({
-        judul: 'Survei Detail Audit',
-        periode: '2026-Q3',
-        jenis: 'custom',
-        tujuan: 'kepuasan',
-        metodeNilai: 'rata_rata',
-      });
+    await request(app.getHttpServer()).post('/api/v1/surveys').set(opdHeaders()).send({
+      judul: 'Survei Detail Audit',
+      periode: '2026-Q3',
+      jenis: 'custom',
+      tujuan: 'kepuasan',
+      metodeNilai: 'rata_rata',
+    });
 
     const list = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')

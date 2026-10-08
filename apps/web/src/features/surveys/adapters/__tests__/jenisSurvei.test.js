@@ -3,6 +3,7 @@ import {
   adaptBuilderQuestions,
   adaptSurvey,
   toCreateSurveyPayload,
+  toChangeJenisPayload,
   toUpdateSurveyPayload,
 } from '../survey.adapter';
 
@@ -174,5 +175,13 @@ describe('tujuan, metode nilai, dan nilaiSurvei (8 Oktober 2026)', () => {
 
     expect('tujuan' in payload).toBe(false);
     expect('metodeNilai' in payload).toBe(false);
+  });
+});
+
+describe('toChangeJenisPayload (8 Oktober 2026)', () => {
+  it('meneruskan jenis, tujuan, dan metodeNilai ke ChangeSurveyJenisDto', () => {
+    expect(
+      toChangeJenisPayload({ jenis: 'custom', tujuan: 'evaluasi', metodeNilai: 'rata_rata' }),
+    ).toEqual({ jenis: 'custom', tujuan: 'evaluasi', metodeNilai: 'rata_rata' });
   });
 });

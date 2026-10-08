@@ -11,7 +11,7 @@
  * setiap kali pengguna pindah halaman.
  */
 export const metadata = {
-  title: 'Analisis SKM',
+  title: 'Analisis Survei',
 };
 
 export default function Layout({ children }) {

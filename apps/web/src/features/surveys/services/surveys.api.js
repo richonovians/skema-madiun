@@ -9,6 +9,7 @@ import {
   adaptSurveyList,
   adaptTrashedSurveyList,
   toBackendStatus,
+  toChangeJenisPayload,
   toCreateQuestionPayload,
   toCreateSurveyPayload,
   toSubmitAnswers,
@@ -44,6 +45,16 @@ export async function createSurvey(payload) {
 /** @param {{title?: string, period?: string, allowMultipleSubmit?: boolean}} payload */
 export async function updateSurvey(surveyId, payload) {
   const response = await api.patch(`/surveys/${surveyId}`, toUpdateSurveyPayload(payload));
+  return adaptSurvey(response.data);
+}
+
+/**
+ * Ganti jenis survei SKM menjadi Custom (8 Oktober 2026). Backend hanya menerimanya
+ * selagi survei DRAF dan belum dijawab; sembilan unsur dihapus.
+ * @param {{jenis: string, tujuan: string, metodeNilai: string}} payload
+ */
+export async function changeSurveyJenis(surveyId, payload) {
+  const response = await api.patch(`/surveys/${surveyId}/jenis`, toChangeJenisPayload(payload));
   return adaptSurvey(response.data);
 }
 

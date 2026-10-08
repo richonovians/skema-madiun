@@ -51,7 +51,7 @@ afterAll(() => server.close());
 describe('Halaman Statistik & Laporan (Admin OPD)', () => {
   it('tidak lagi menuliskan judul di badan halaman', async () => {
     render(<AnalyticsOpdPage />);
-    await screen.findByRole('button', { name: /analisis skm/i });
+    await screen.findByRole('button', { name: /analisis survei/i });
 
     expect(screen.queryByRole('heading', { name: /statistik & analisis/i })).toBeNull();
   });
@@ -59,7 +59,7 @@ describe('Halaman Statistik & Laporan (Admin OPD)', () => {
   it('KONTROL: kedua tabnya tetap ada', async () => {
     render(<AnalyticsOpdPage />);
 
-    expect(await screen.findByRole('button', { name: /analisis skm/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /analisis survei/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /analisis pengaduan/i })).toBeInTheDocument();
   });
 });

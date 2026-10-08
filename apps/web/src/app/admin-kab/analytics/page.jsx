@@ -7,6 +7,8 @@ import AnalyticsTabs from '@/features/analytics/components/AnalyticsTabs';
 import SkmAnalysisView from '@/features/analytics/components/SkmAnalysisView';
 import ComplaintAnalysisView from '@/features/analytics/components/ComplaintAnalysisView';
 import Dropdown from '@/components/ui/Dropdown';
+import PenyaringJenisSurvei from '@/features/analytics/components/PenyaringJenisSurvei';
+import { labelJenis } from '@/features/surveys/constants/jenisSurvei';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
@@ -16,6 +18,7 @@ import { getSurveys } from '@/features/surveys/services/surveys.api';
 import { getSurveyResults } from '@/features/analytics/services/ikm.api';
 import {
   hitungAnalitikPengaduan,
+  saringSurveiJenis,
   saringSurveiPeriode,
 } from '@/features/analytics/adapters/analitik.adapter';
 import { getAllComplaints } from '@/features/complaints/services/complaints.api';
@@ -24,7 +27,7 @@ import { getOpdList } from '@/features/opd/services/opd.api';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
 const tabs = [
-  { id: 'skm', label: 'Analisis SKM' },
+  { id: 'skm', label: 'Analisis Survei' },
   { id: 'complaints', label: 'Analisis Pengaduan' },
 ];
 
@@ -93,6 +96,8 @@ function AnalyticsKabContent() {
 
   const [activeTab, setActiveTab] = useState('skm');
   const [selectedSurveyId, setSelectedSurveyId] = useState(null);
+  // Penyaring JENIS survei (8 Oktober 2026): `semua` | `skm_permenpanrb` | `custom`.
+  const [jenisSaringan, setJenisSaringan] = useState('semua');
 
   const fetchSkm = useCallback(async () => {
     const [surveysRes, opdRes] = await Promise.all([
@@ -117,9 +122,15 @@ function AnalyticsKabContent() {
 
   // Pemilih survei hanya menawarkan survei yang periodenya lolos penyaring --
   // `cocokPeriode`, bukan `===`, supaya "Semua Triwulan" (tahun saja) berlaku.
-  const periodSurveys = useMemo(
+  const periodSurveysSemuaJenis = useMemo(
     () => saringSurveiPeriode(eligibleSurveys, periode),
     [eligibleSurveys, periode],
+  );
+  // Lalu jenisnya (8 Oktober 2026). Dipisah supaya keadaan kosong dapat dibedakan:
+  // tak ada survei SAMA SEKALI pada periode ini, atau ada tetapi bukan berjenis itu.
+  const periodSurveys = useMemo(
+    () => saringSurveiJenis(periodSurveysSemuaJenis, jenisSaringan),
+    [periodSurveysSemuaJenis, jenisSaringan],
   );
 
   // Pilihan yang jatuh di luar penyaring (penyaring diganti) diganti survei
@@ -189,19 +200,29 @@ function AnalyticsKabContent() {
         <EmptyState
           icon={<BarChart3 size={48} />}
           title="Belum ada survei aktif/ditutup"
-          description="Analisis SKM baru tersedia setelah survei dipublikasikan dan mulai diisi responden."
+          description="Analisis survei baru tersedia setelah survei dipublikasikan dan mulai diisi responden."
         />
       );
     }
     // Ada survei, tetapi tak satu pun pada periode ini. Dibedakan dari keadaan di
     // atas: pengguna perlu tahu bahwa PENYARINGNYA yang menyembunyikan, bukan
     // bahwa survei belum pernah dibuat.
-    if (periodSurveys.length === 0) {
+    if (periodSurveysSemuaJenis.length === 0) {
       return (
         <EmptyState
           icon={<BarChart3 size={48} />}
           title={`Tidak ada survei pada ${labelPeriode}`}
           description="Ubah penyaring Tahun atau Triwulan di bilah atas untuk melihat periode lain."
+        />
+      );
+    }
+    // Ada survei pada periode ini, tetapi tak satu pun berjenis yang dipilih.
+    if (periodSurveys.length === 0) {
+      return (
+        <EmptyState
+          icon={<BarChart3 size={48} />}
+          title={`Tidak ada survei ${labelJenis(jenisSaringan) ?? ''} pada ${labelPeriode}`.replace('  ', ' ')}
+          description="Ubah penyaring Jenis survei, atau Tahun/Triwulan di bilah atas, untuk melihat yang lain."
         />
       );
     }
@@ -282,18 +303,29 @@ function AnalyticsKabContent() {
   };
 
   const pemilihSurvei =
-    activeTab === 'skm' && periodSurveys.length > 0 ? (
-      <div className="flex items-center gap-md min-w-0 w-full sm:w-auto">
-        <Dropdown
-          className="min-w-0 flex-1 sm:flex-none sm:w-80"
-          label="Survei"
-          id="pilih-survei-kab"
-          options={surveyOptions}
-          value={activeSurveyId}
-          onChange={setSelectedSurveyId}
-          searchable
-          labelTersembunyi
+    activeTab === 'skm' && eligibleSurveys.length > 0 ? (
+      <div className="flex flex-wrap items-center gap-md min-w-0 w-full sm:w-auto">
+        {/* Penyaring jenis tetap ada selagi ada survei yang layak, juga saat hasil
+            penyaringnya kosong: tanpa itu memilih "Custom" yang kosong menghilangkan
+            kontrol untuk kembali. */}
+        <PenyaringJenisSurvei
+          id="penyaring-jenis-kab"
+          className="min-w-0 w-full sm:w-[11rem]"
+          nilai={jenisSaringan}
+          onChange={setJenisSaringan}
         />
+        {periodSurveys.length > 0 && (
+          <Dropdown
+            className="min-w-0 flex-1 sm:flex-none sm:w-80"
+            label="Survei"
+            id="pilih-survei-kab"
+            options={surveyOptions}
+            value={activeSurveyId}
+            onChange={setSelectedSurveyId}
+            searchable
+            labelTersembunyi
+          />
+        )}
       </div>
     ) : null;
 
