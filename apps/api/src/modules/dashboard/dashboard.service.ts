@@ -1,5 +1,9 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { ComplaintStatus, Role, SurveyStatus } from '@prisma/client';
+import {
+  PENYIMPAN_SINGGAHAN,
+  type PenyimpanSinggahan,
+} from '../../common/cache/penyimpan-singgahan.interface';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
@@ -38,6 +42,18 @@ const TOP_OPD_LIMIT = 5;
 const SLA_TARGET_HOURS = 24;
 const RECENT_FEEDBACK_LIMIT = 5;
 
+/**
+ * Singgahan statistik publik (7 Oktober 2026). Satu kunci tetap: `getStatistics`
+ * tak berparameter, jadi jawabannya tunggal dan global -- tak ada risiko bocor
+ * lintas-OPD, tak ada variasi kunci.
+ *
+ * TTL 60 detik. Statistik publik ikut menghitung survei AKTIF secara live, jadi
+ * umur pendek menjaga angkanya mendekati kini sekaligus meredam lonjakan dari
+ * poster/QR. Bukan lewat env: ini knob operasional kecil, bukan kebijakan.
+ */
+const KUNCI_SINGGAHAN_STATISTIK = 'statistik-publik';
+const TTL_SINGGAHAN_STATISTIK_DETIK = 60;
+
 const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
@@ -48,6 +64,7 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ikmService: IkmService,
+    @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {}
 
   /**
@@ -255,7 +272,26 @@ export class DashboardService {
   }
 
   /** `GET /statistics` (INT-14, D2: PUBLIK tanpa autentikasi). */
+  /**
+   * `GET /statistics` (INT-14, publik) -- dibungkus singgahan read-through.
+   *
+   * Pada meleset, hitung dari basis data lalu simpan; pada kena, bungkus ulang
+   * ke `StatisticsEntity` agar ClassSerializerInterceptor melihat bentuk yang
+   * sama dengan hitungan segar (aman: entity statistik tanpa `@Exclude`).
+   * Singgahan gagal-terbuka, jadi Redis yang mati hanya membuatnya selalu
+   * meleset -- lambat, tak pernah salah.
+   */
   async getStatistics(): Promise<StatisticsEntity> {
+    const tersimpan = await this.singgahan.ambil<StatisticsEntity>(KUNCI_SINGGAHAN_STATISTIK);
+    if (tersimpan) {
+      return new StatisticsEntity(tersimpan);
+    }
+    const hasil = await this.hitungStatistik();
+    await this.singgahan.simpan(KUNCI_SINGGAHAN_STATISTIK, hasil, TTL_SINGGAHAN_STATISTIK_DETIK);
+    return hasil;
+  }
+
+  private async hitungStatistik(): Promise<StatisticsEntity> {
     const [
       closedIkmRows,
       totalRespondents,

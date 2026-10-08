@@ -2,6 +2,8 @@ import { ForbiddenException } from '@nestjs/common';
 import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PenyimpanSinggahanNonaktif } from '../../common/cache/penyimpan-singgahan.nonaktif';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import { DashboardService } from './dashboard.service';
 import type { IkmService } from '../ikm/ikm.service';
 
@@ -50,7 +52,9 @@ describe('DashboardService', () => {
     getResults: jest.fn(),
     computeResult: jest.fn(),
   } as unknown as IkmService;
-  const service = new DashboardService(prisma, ikmService);
+  // Singgahan NONAKTIF: selalu meleset, jadi getStatistics tetap menghitung dari
+  // (mock) basis data dan seluruh assertion di bawah tetap menguji hitungannya.
+  const service = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -223,6 +227,28 @@ describe('DashboardService', () => {
       // `insight` DIBUANG 6 Oktober 2026 bersama fiturnya; diuji sebagai
       // ketiadaan supaya ia tak kembali diam-diam lewat salinan kode lama.
       expect(result).not.toHaveProperty('insight');
+    });
+
+    it('(7 Oktober 2026) kena singgahan -> kembalikan nilai tersimpan tanpa menyentuh basis data', async () => {
+      const tersimpan = { summary: { ikm: 77, totalRespondents: 9 }, ikmTrend: [] };
+      const singgahanKena = {
+        ambil: jest.fn().mockResolvedValue(tersimpan),
+        simpan: jest.fn(),
+      };
+      const svc = new DashboardService(
+        prisma,
+        ikmService,
+        singgahanKena as unknown as PenyimpanSinggahan,
+      );
+
+      const result = await svc.getStatistics();
+
+      expect(result.summary.ikm).toBe(77);
+      expect(result.summary.totalRespondents).toBe(9);
+      // Short-circuit terbukti: tak satu pun query statistik berjalan, dan nilai
+      // yang kena tidak ditulis ulang.
+      expect(prisma.surveyResponse.count).not.toHaveBeenCalled();
+      expect(singgahanKena.simpan).not.toHaveBeenCalled();
     });
 
     it('(2026-08-05) survei AKTIF yg sudah punya responden ikut masuk summary.ikm/ikmTrend', async () => {
