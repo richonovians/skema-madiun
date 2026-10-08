@@ -3,6 +3,7 @@ import 'dotenv/config';
 import {
   ComplaintStatus,
   JenisKelamin,
+  JenisSurvei,
   PrismaClient,
   QuestionType,
   Role,
@@ -158,6 +159,7 @@ async function main(): Promise<void> {
         judul: marker,
         periode: '2026-Q1',
         status: SurveyStatus.draft,
+        jenis: JenisSurvei.skm_permenpanrb,
         allowMultipleSubmit: false,
         questions: {
           create: SKM_UNSUR.map((unsur, index) => ({
@@ -188,6 +190,7 @@ async function main(): Promise<void> {
         judul: activeMarker,
         periode: '2026-Q3',
         status: SurveyStatus.aktif,
+        jenis: JenisSurvei.skm_permenpanrb,
         allowMultipleSubmit: false,
         questions: {
           create: SKM_UNSUR.map((unsur, index) => ({

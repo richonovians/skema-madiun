@@ -104,6 +104,7 @@ export const surveyFixture = (over = {}) => ({
   judul: 'Survei IKM 2026',
   periode: '2026-Q1',
   status: 'draft',
+  jenis: 'skm_permenpanrb',
   allowMultipleSubmit: false,
   izinkanAnonim: false,
   createdAt: '2026-08-06T08:10:04.832Z',
@@ -120,6 +121,7 @@ export const questionFixture = (over = {}) => ({
   tipe: 'skala',
   isIkmUnsur: true,
   kodeUnsur: 'U1',
+  namaUnsur: 'Persyaratan',
   urutan: 1,
   createdAt: '2026-08-03T04:17:14.864Z',
   updatedAt: '2026-08-03T04:17:14.864Z',
@@ -233,7 +235,7 @@ const SURVEY_LIST = [
 ];
 
 const QUESTION_LIST = UNSUR.map((u, i) =>
-  questionFixture({ id: i + 1, teks: u.teks, kodeUnsur: u.kode, urutan: i + 1 }),
+  questionFixture({ id: i + 1, teks: u.teks, kodeUnsur: u.kode, namaUnsur: u.teks, urutan: i + 1 }),
 );
 
 export const handlers = [
@@ -529,28 +531,13 @@ export const handlers = [
         tipe: body.tipe,
         isIkmUnsur: body.isIkmUnsur ?? false,
         kodeUnsur: body.kodeUnsur ?? null,
+        namaUnsur: null,
         urutan: QUESTION_LIST.length + 1,
         options: body.options ?? [],
       }),
       `/surveys/${params.id}/questions`,
     );
   }),
-
-  // [TURUN] menerapkan template 9 unsur baku; kode yang sudah ada dilewati.
-  http.post(`${API_BASE}/surveys/:id/questions/template`, ({ params }) =>
-    created(
-      UNSUR.map((u, i) =>
-        questionFixture({
-          id: 100 + i,
-          surveyId: Number(params.id),
-          teks: u.teks,
-          kodeUnsur: u.kode,
-          urutan: i + 1,
-        }),
-      ),
-      `/surveys/${params.id}/questions/template`,
-    ),
-  ),
 
   http.patch(`${API_BASE}/surveys/:id/questions/reorder`, async ({ request, params }) => {
     // Satu-satunya body yang dipakai sebagai ARRAY, bukan sekadar disebar ke

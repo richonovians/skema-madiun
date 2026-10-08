@@ -20,6 +20,22 @@ export const SKM_UNSUR: readonly SkmUnsur[] = [
 ];
 
 /**
+ * Nama resmi sebuah unsur menurut kodenya, atau `null` bila kodenya tidak
+ * dikenal (survei lama berkode kustom) atau kosong.
+ *
+ * Sejak 8 Oktober 2026 kolom `questions.teks` pada pertanyaan unsur berisi
+ * KALIMAT pertanyaan buatan OPD, bukan lagi nama unsur. Laporan IKM, tabel
+ * analitik, dan ekspor tetap harus menyebut nama resminya, jadi namanya
+ * diambil dari kode lewat tabel ini.
+ */
+export function namaUnsur(kode: string | null | undefined): string | null {
+  if (!kode) {
+    return null;
+  }
+  return SKM_UNSUR.find((unsur) => unsur.kode === kode)?.teks ?? null;
+}
+
+/**
  * Kategori baku pengaduan masyarakat. Data referensi statis — dipakai endpoint
  * GET /ref/complaint-categories dan validasi `complaints.kategori`.
  *

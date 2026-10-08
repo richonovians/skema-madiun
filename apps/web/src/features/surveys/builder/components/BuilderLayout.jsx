@@ -23,12 +23,10 @@ import BuilderSidebar from './BuilderSidebar';
  */
 export default function BuilderLayout({
   children,
-  onAddBaku,
   onAddCustom,
   onDragTypeStart,
   onDragEnd,
   canDrag,
-  alasanTerkunci,
 }) {
   /*
    * TEPI KIRINYA MENGIKUTI SIDEBAR (30 September 2026, laporan pengguna).
@@ -58,12 +56,10 @@ export default function BuilderLayout({
         className="flex flex-1 flex-col md:h-full md:flex-row md:overflow-hidden md:pt-[80px]"
       >
         <BuilderSidebar
-          onAddBaku={onAddBaku}
           onAddCustom={onAddCustom}
           onDragTypeStart={onDragTypeStart}
           onDragEnd={onDragEnd}
           canDrag={canDrag}
-          alasanTerkunci={alasanTerkunci}
         />
         <div data-wadah-kanvas className="w-full md:flex-1 md:overflow-y-auto">
           {children}

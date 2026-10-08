@@ -158,6 +158,63 @@ describe('IkmService', () => {
       expect(result.nilaiIkm).toBe(87.5);
       expect(result.mutu).toBe(IkmMutu.B);
     });
+
+    /**
+     * NAMA UNSUR DI LAPORAN (8 Oktober 2026). Pada survei SKM, `questions.teks`
+     * unsur berisi KALIMAT pertanyaan buatan OPD. Tabel analitik, ekspor, dan
+     * snapshot tetap harus menyebut nama resmi unsurnya, yang diambil dari kode.
+     * Hanya sumber nama yang berubah; rumusnya tidak.
+     */
+    describe('nama unsur di laporan', () => {
+      const hitung = async (pertanyaan: unknown[]) => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survey());
+        (prisma.question.findMany as jest.Mock).mockResolvedValue(pertanyaan);
+        (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+        return service.getResults(1, kabupatenUser());
+      };
+
+      it('unsur baku memakai nama resmi dari kodenya, bukan kalimat pertanyaan OPD', async () => {
+        const result = await hitung([
+          {
+            id: 1,
+            kodeUnsur: 'U3',
+            teks: 'Seberapa cepat layanan kami selesai?',
+            answers: [{ nilai: 4 }, { nilai: 4 }],
+          },
+        ]);
+
+        expect(result.nrrPerUnsur[0].kodeUnsur).toBe('U3');
+        expect(result.nrrPerUnsur[0].teks).toBe('Waktu Penyelesaian');
+      });
+
+      it('kode yang tidak dikenal (survei lama berkode kustom) memakai teks pertanyaannya', async () => {
+        const result = await hitung([
+          { id: 1, kodeUnsur: 'K1', teks: 'Unsur kustom', answers: [{ nilai: 3 }, { nilai: 3 }] },
+        ]);
+
+        expect(result.nrrPerUnsur[0].teks).toBe('Unsur kustom');
+      });
+
+      it('tanpa kode unsur: kodeUnsur kosong dan teks pertanyaan dipertahankan', async () => {
+        const result = await hitung([
+          { id: 1, kodeUnsur: null, teks: 'Tanpa kode', answers: [{ nilai: 2 }, { nilai: 2 }] },
+        ]);
+
+        expect(result.nrrPerUnsur[0].kodeUnsur).toBe('');
+        expect(result.nrrPerUnsur[0].teks).toBe('Tanpa kode');
+      });
+
+      it('mengganti sumber nama tidak menggeser hitungan: NRR, bobot, dan IKM tetap', async () => {
+        const result = await hitung([
+          { id: 1, kodeUnsur: 'U1', teks: 'Kalimat OPD', answers: [{ nilai: 3 }, { nilai: 4 }] },
+        ]);
+
+        expect(result.nrrPerUnsur[0]).toEqual(
+          expect.objectContaining({ nrr: 3.5, bobot: 1, nrrTertimbang: 3.5 }),
+        );
+        expect(result.nilaiIkm).toBe(87.5);
+      });
+    });
   });
 
   describe('getSummary', () => {

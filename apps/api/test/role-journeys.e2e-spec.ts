@@ -170,19 +170,19 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/surveys')
         .set(opdHeaders())
-        .send({ judul: 'Survei Journey E2E', periode: '2026-Q1' });
+        .send({ judul: 'Survei Journey E2E', periode: '2026-Q1', jenis: 'skm_permenpanrb' });
 
       expect(res.status).toBe(201);
       expect(res.body.data.status).toBe('draft');
       surveyId = res.body.data.id;
     });
 
-    it('POST /surveys/:id/questions/template -> 9 unsur baku terpasang', async () => {
+    it('GET /surveys/:id/questions -> 9 unsur baku sudah terpasang sejak survei SKM dibuat', async () => {
       const res = await request(app.getHttpServer())
-        .post(`/api/v1/surveys/${surveyId}/questions/template`)
+        .get(`/api/v1/surveys/${surveyId}/questions`)
         .set(opdHeaders());
 
-      expect(res.status).toBe(200); // @HttpCode(OK) eksplisit -- terapkan ke resource yg sudah ada
+      expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(9);
       expect(res.body.data[0].kodeUnsur).toBe('U1');
     });

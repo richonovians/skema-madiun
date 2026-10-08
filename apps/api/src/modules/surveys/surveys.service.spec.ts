@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Role, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
@@ -26,6 +26,7 @@ const surveyRow = (overrides: Record<string, unknown> = {}) => ({
   judul: 'Survei A',
   periode: '2026-Q1',
   status: SurveyStatus.draft,
+  jenis: JenisSurvei.umum,
   // `assertSurveyEditable` memeriksa `deletedAt !== null`; fixture tanpa medan
   // ini akan ditolak sebagai "survei di Sampah", galat yang menyesatkan.
   deletedAt: null,
@@ -48,6 +49,7 @@ describe('SurveysService', () => {
       delete: jest.fn(),
     },
     opd: { findUnique: jest.fn() },
+    question: { findMany: jest.fn() },
     surveyResponse: { count: jest.fn(), aggregate: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
@@ -184,7 +186,11 @@ describe('SurveysService', () => {
   it('create (Admin OPD) memakai opdId miliknya', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
     (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());
-    const dto: CreateSurveyDto = { judul: 'Survei A', periode: '2026-Q1' };
+    const dto: CreateSurveyDto = {
+      judul: 'Survei A',
+      periode: '2026-Q1',
+      jenis: JenisSurvei.umum,
+    };
     const result = await service.create(dto, opdUser(5));
     expect(result.opdId).toBe(5);
     expect(prisma.survey.create).toHaveBeenCalledWith(
@@ -193,7 +199,7 @@ describe('SurveysService', () => {
   });
 
   it('create (kabupaten/superuser) tanpa opdId → BadRequest', async () => {
-    const dto: CreateSurveyDto = { judul: 'A', periode: '2026-Q1' };
+    const dto: CreateSurveyDto = { judul: 'A', periode: '2026-Q1', jenis: JenisSurvei.umum };
     await expect(service.create(dto, superUser())).rejects.toThrow(BadRequestException);
   });
 
@@ -463,6 +469,192 @@ describe('SurveysService', () => {
       const hasil = await service.findOne(1, opdUser(5));
 
       expect(hasil.izinkanAnonim).toBe(true);
+    });
+  });
+
+  /**
+   * JENIS SURVEI DAN KERANGKA 9 UNSUR (8 Oktober 2026). Survei SKM PermenPANRB
+   * lahir bersama sembilan pertanyaan unsurnya dan hanya boleh diaktifkan bila
+   * kesembilannya lengkap; survei umum tidak berkerangka.
+   */
+  describe('jenis survei', () => {
+    const kodeLengkap = ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9'];
+    const unsur = (kode: string[]) => kode.map((kodeUnsur) => ({ kodeUnsur }));
+
+    beforeEach(() => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.survey.create as jest.Mock).mockResolvedValue(surveyRow());
+    });
+
+    it('create SKM menyimpan jenis dan membuat 9 pertanyaan unsur dalam penulisan yang sama', async () => {
+      await service.create(
+        { judul: 'S', periode: '2026-Q1', jenis: JenisSurvei.skm_permenpanrb },
+        opdUser(5),
+      );
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.jenis).toBe(JenisSurvei.skm_permenpanrb);
+      expect(data.questions.create).toHaveLength(9);
+      expect(data.questions.create.map((q: { kodeUnsur: string }) => q.kodeUnsur)).toEqual(
+        kodeLengkap,
+      );
+      expect(
+        data.questions.create.every(
+          (q: { isIkmUnsur: boolean; tipe: QuestionType }) =>
+            q.isIkmUnsur === true && q.tipe === QuestionType.skala,
+        ),
+      ).toBe(true);
+    });
+
+    it('create umum menyimpan jenis tanpa membuat pertanyaan apa pun', async () => {
+      await service.create({ judul: 'S', periode: '2026-Q1', jenis: JenisSurvei.umum }, opdUser(5));
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.jenis).toBe(JenisSurvei.umum);
+      expect(data.questions).toBeUndefined();
+    });
+
+    it('duplicate menyalin jenis dan kalimat pertanyaan hasil ubahan OPD', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        surveyRow({
+          jenis: JenisSurvei.skm_permenpanrb,
+          questions: [
+            {
+              teks: 'Seberapa mudah persyaratan layanan kami?',
+              tipe: QuestionType.skala,
+              isIkmUnsur: true,
+              kodeUnsur: 'U1',
+              urutan: 1,
+            },
+          ],
+        }),
+      );
+
+      await service.duplicate(1, opdUser(5));
+
+      const { data } = (prisma.survey.create as jest.Mock).mock.calls[0][0];
+      expect(data.jenis).toBe(JenisSurvei.skm_permenpanrb);
+      expect(data.questions.create[0]).toEqual(
+        expect.objectContaining({
+          teks: 'Seberapa mudah persyaratan layanan kami?',
+          kodeUnsur: 'U1',
+        }),
+      );
+    });
+
+    describe('duplicate melengkapi kerangka', () => {
+      const unsurRow = (kodeUnsur: string, urutan: number) => ({
+        teks: `Kalimat ${kodeUnsur}`,
+        tipe: QuestionType.skala,
+        isIkmUnsur: true,
+        kodeUnsur,
+        urutan,
+      });
+
+      const salin = async (jenis: JenisSurvei, questions: unknown[]) => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyRow({ jenis, questions }));
+        await service.duplicate(1, opdUser(5));
+        return (prisma.survey.create as jest.Mock).mock.calls[0][0].data.questions.create as Array<{
+          kodeUnsur: string | null;
+          teks: string;
+          urutan: number;
+        }>;
+      };
+
+      it('SKM kehilangan U3: salinan memuat U3 baru di akhir, kalimat lain tidak berubah', async () => {
+        const asal = kodeLengkap.filter((k) => k !== 'U3').map((k, i) => unsurRow(k, i + 1));
+
+        const hasil = await salin(JenisSurvei.skm_permenpanrb, asal);
+
+        expect(hasil).toHaveLength(9);
+        const u3 = hasil.find((q) => q.kodeUnsur === 'U3');
+        expect(u3).toEqual(
+          expect.objectContaining({ teks: 'Waktu Penyelesaian', isIkmUnsur: true, urutan: 9 }),
+        );
+        expect(hasil.find((q) => q.kodeUnsur === 'U1')?.teks).toBe('Kalimat U1');
+      });
+
+      it('SKM lengkap: salinan tidak menambah apa pun', async () => {
+        const asal = kodeLengkap.map((k, i) => unsurRow(k, i + 1));
+
+        const hasil = await salin(JenisSurvei.skm_permenpanrb, asal);
+
+        expect(hasil).toHaveLength(9);
+      });
+
+      it('survei umum tanpa unsur: salinan tidak ditambah unsur', async () => {
+        const hasil = await salin(JenisSurvei.umum, []);
+
+        expect(hasil).toHaveLength(0);
+      });
+    });
+
+    describe('aktivasi menuntut kerangka lengkap', () => {
+      const surveiSkm = (status: SurveyStatus) =>
+        surveyRow({ status, jenis: JenisSurvei.skm_permenpanrb });
+
+      beforeEach(() => {
+        (prisma.survey.update as jest.Mock).mockResolvedValue(
+          surveyRow({ status: SurveyStatus.aktif }),
+        );
+      });
+
+      it('SKM kehilangan U9: draft → aktif ditolak dan pesannya menyebut U9', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiSkm(SurveyStatus.draft));
+        (prisma.question.findMany as jest.Mock).mockResolvedValue(unsur(kodeLengkap.slice(0, 8)));
+
+        const aksi = service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
+
+        await expect(aksi).rejects.toThrow(BadRequestException);
+        await expect(aksi).rejects.toThrow(/U9/);
+        expect(prisma.survey.update).not.toHaveBeenCalled();
+      });
+
+      it('SKM kehilangan U3: ditutup → aktif (dibuka kembali) ditolak dan menyebut U3', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiSkm(SurveyStatus.ditutup));
+        (prisma.question.findMany as jest.Mock).mockResolvedValue(
+          unsur(kodeLengkap.filter((k) => k !== 'U3')),
+        );
+
+        await expect(
+          service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5)),
+        ).rejects.toThrow(/U3/);
+      });
+
+      it('SKM lengkap: draft → aktif lolos', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiSkm(SurveyStatus.draft));
+        (prisma.question.findMany as jest.Mock).mockResolvedValue(unsur(kodeLengkap));
+
+        const hasil = await service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
+
+        expect(hasil.status).toBe(SurveyStatus.aktif);
+        expect(prisma.question.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { surveyId: 1 } }),
+        );
+      });
+
+      it('survei umum tanpa unsur: draft → aktif lolos tanpa memeriksa kerangka', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+          surveyRow({ status: SurveyStatus.draft, jenis: JenisSurvei.umum }),
+        );
+
+        const hasil = await service.updateStatus(1, { status: SurveyStatus.aktif }, opdUser(5));
+
+        expect(hasil.status).toBe(SurveyStatus.aktif);
+        expect(prisma.question.findMany).not.toHaveBeenCalled();
+      });
+
+      it('SKM tak lengkap tetap boleh ditutup (aktif → ditutup tidak memeriksa kerangka)', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiSkm(SurveyStatus.aktif));
+        (prisma.survey.update as jest.Mock).mockResolvedValue(
+          surveyRow({ status: SurveyStatus.ditutup }),
+        );
+
+        await service.updateStatus(1, { status: SurveyStatus.ditutup }, opdUser(5));
+
+        expect(prisma.question.findMany).not.toHaveBeenCalled();
+        expect(ikmService.snapshot).toHaveBeenCalledWith(1);
+      });
     });
   });
 

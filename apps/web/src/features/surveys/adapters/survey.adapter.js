@@ -155,6 +155,10 @@ export function adaptSurvey(survey) {
     title: survey.judul,
     status: STATUS_MAP[survey.status] ?? survey.status,
     period: survey.periode,
+    // Jenis survei (8 Oktober 2026) diteruskan APA ADANYA, tidak ditebak dari isi
+    // pertanyaan: 'skm_permenpanrb' berkerangka U1-U9 terkunci, 'umum' bebas.
+    // undefined bila backend belum mengirimnya.
+    jenis: survey.jenis,
     respondentsCount: survey.respondentsCount ?? 0,
     ikmScore: survey.nilaiIkm ?? null,
     // Rata-rata SEMUA jawaban skala (1-4) pada survei ini (7 Oktober 2026).
@@ -217,11 +221,12 @@ const STATUS_TO_BACKEND = {
 export function toCreateSurveyPayload({
   title,
   period,
+  jenis,
   allowMultipleSubmit,
   izinkanAnonim,
   opdId,
 }) {
-  return { judul: title, periode: period, allowMultipleSubmit, izinkanAnonim, opdId };
+  return { judul: title, periode: period, jenis, allowMultipleSubmit, izinkanAnonim, opdId };
 }
 
 /** Terjemahkan payload edit-survei -> UpdateSurveyDto backend. */
@@ -365,10 +370,17 @@ export function builderTypeToBackendTipe(type) {
  */
 export function adaptBuilderQuestion(q, customIndex) {
   const isBaku = q.isIkmUnsur === true;
+  // Nama resmi unsur datang terpisah dari `teks` (kalimat pertanyaan buatan OPD).
+  // Backend lama belum mengirimnya; teks yang tersimpan saat itu masih nama unsur.
+  const namaUnsur = q.namaUnsur ?? null;
   return {
     id: q.id,
     isBaku,
-    title: isBaku ? `${q.kodeUnsur}: ${q.teks}` : `Pertanyaan Kustom #${customIndex}`,
+    kode: q.kodeUnsur ?? null,
+    namaUnsur,
+    title: isBaku
+      ? `${q.kodeUnsur} · ${namaUnsur ?? q.teks}`
+      : `Pertanyaan Kustom #${customIndex}`,
     text: q.teks,
     type: QUESTION_TYPE_TO_BUILDER[q.tipe] ?? q.tipe,
     isRequired: q.tipe !== 'teks',

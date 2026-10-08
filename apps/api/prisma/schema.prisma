@@ -68,6 +68,17 @@ enum SurveyStatus {
   @@map("survey_status")
 }
 
+// Jenis survei (8 Oktober 2026). `skm_permenpanrb` memuat kerangka U1-U9 yang
+// tidak dapat dihapus -- hanya kalimat pertanyaannya yang boleh diubah OPD --
+// sedangkan `umum` bebas dan tidak menghasilkan nilai IKM. Dipilih saat survei
+// dibuat dan tidak dapat diganti sesudahnya.
+enum JenisSurvei {
+  skm_permenpanrb
+  umum
+
+  @@map("jenis_survei")
+}
+
 enum QuestionType {
   skala
   pilihan
@@ -251,6 +262,11 @@ model Survey {
   judul               String       @db.VarChar(100)
   periode             String       @db.VarChar(20)
   status              SurveyStatus @default(draft)
+  // Pembuat survei lewat API WAJIB menyatakan jenisnya (CreateSurveyDto);
+  // `@default(umum)` hanya jaring pengaman bagi jalur yang membuat baris
+  // langsung. Migrasi 20261008090000_jenis_survei mengisi baris lama
+  // (berpertanyaan unsur = `skm_permenpanrb`, sisanya `umum`).
+  jenis               JenisSurvei  @default(umum)
   allowMultipleSubmit Boolean      @default(false) @map("allow_multiple_submit")
   // Pengisian TANPA sesi (4 September 2026). Baku `false`, sehingga seluruh
   // survei yang sudah ada tidak berubah perilakunya sedikit pun. Hanya

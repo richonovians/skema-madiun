@@ -3,12 +3,17 @@ import { Prisma, Question, QuestionOption, QuestionType, Survey } from '@prisma/
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SKM_UNSUR } from '../reference/reference.constants';
+import { namaUnsur } from '../reference/reference.constants';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { ReorderQuestionsDto } from './dto/reorder-questions.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { QuestionEntity } from './entities/question.entity';
 import { QuestionOptionEntity } from './entities/question-option.entity';
+import {
+  assertBolehBuatPertanyaan,
+  assertBolehHapusPertanyaan,
+  assertBolehUbahPenandaUnsur,
+} from '../surveys/kerangka-unsur.util';
 import { AksiUbah, assertSurveyEditable, TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 type QuestionWithOptions = Question & { options: QuestionOption[] };
@@ -45,6 +50,7 @@ export class QuestionsService {
   ): Promise<QuestionEntity> {
     const survey = await this.getSurveyOrThrow(surveyId, user);
     await this.assertEditable(survey, 'susunan');
+    assertBolehBuatPertanyaan(survey, dto);
     this.assertValidOptionsForType(dto.tipe, dto.options, dto.isIkmUnsur);
 
     const created = await this.prisma.question.create({
@@ -60,34 +66,6 @@ export class QuestionsService {
       include: { options: { orderBy: { urutan: 'asc' } } },
     });
     return this.toEntity(created);
-  }
-
-  /** Terapkan template 9 unsur baku (skip kode yang sudah ada). Hanya saat draft. */
-  async applyTemplate(surveyId: number, user: CurrentUser): Promise<QuestionEntity[]> {
-    const survey = await this.getSurveyOrThrow(surveyId, user);
-    await this.assertEditable(survey, 'susunan');
-
-    const existing = await this.prisma.question.findMany({ where: { surveyId } });
-    const existingCodes = new Set(existing.map((q) => q.kodeUnsur).filter(Boolean));
-    let urutan = existing.reduce((max, q) => Math.max(max, q.urutan), 0);
-
-    for (const unsur of SKM_UNSUR) {
-      if (existingCodes.has(unsur.kode)) {
-        continue;
-      }
-      urutan += 1;
-      await this.prisma.question.create({
-        data: {
-          surveyId,
-          teks: unsur.teks,
-          tipe: QuestionType.skala,
-          isIkmUnsur: true,
-          kodeUnsur: unsur.kode,
-          urutan,
-        },
-      });
-    }
-    return this.findAllForSurvey(surveyId, user);
   }
 
   /**
@@ -108,7 +86,13 @@ export class QuestionsService {
    */
   async update(id: number, dto: UpdateQuestionDto, user: CurrentUser): Promise<QuestionEntity> {
     const { question, survey } = await this.getQuestionSurveyOrThrow(id, user);
-    await this.assertEditable(survey, dto.options ? 'susunan' : 'teks');
+    // Label SKALA diperlakukan seperti teks (8 Oktober 2026): jawaban skala
+    // menyimpan skor, bukan penunjuk ke baris opsi, jadi mengganti labelnya tak
+    // merusak jawaban yang sudah masuk. Opsi PILIHAN GANDA tetap 'susunan':
+    // jawabannya menunjuk id opsi, dan menghapus opsi itu melanggar kuncinya.
+    const aksi: AksiUbah = dto.options && question.tipe !== QuestionType.skala ? 'susunan' : 'teks';
+    await this.assertEditable(survey, aksi);
+    assertBolehUbahPenandaUnsur(survey, question, dto);
     if (question.tipe === QuestionType.pilihan && dto.isIkmUnsur) {
       throw new BadRequestException(
         'Pertanyaan pilihan ganda tidak dapat ditandai sebagai unsur IKM (unsur IKM hanya tipe skala)',
@@ -140,8 +124,9 @@ export class QuestionsService {
 
   /** Hapus pertanyaan (beserta opsinya, cascade). Hanya saat survei draft. */
   async remove(id: number, user: CurrentUser): Promise<void> {
-    const { survey } = await this.getQuestionSurveyOrThrow(id, user);
+    const { question, survey } = await this.getQuestionSurveyOrThrow(id, user);
     await this.assertEditable(survey, 'susunan');
+    assertBolehHapusPertanyaan(survey, question);
     await this.prisma.question.delete({ where: { id } });
   }
 
@@ -302,6 +287,7 @@ export class QuestionsService {
   private toEntity(row: QuestionWithOptions): QuestionEntity {
     return new QuestionEntity({
       ...row,
+      namaUnsur: namaUnsur(row.kodeUnsur),
       options: row.options.map((o) => new QuestionOptionEntity(o)),
     });
   }

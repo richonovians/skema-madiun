@@ -52,18 +52,6 @@ export class QuestionsController {
     return this.questionsService.create(surveyId, dto, user);
   }
 
-  /** Terapkan template 9 unsur SKM. */
-  @Post('surveys/:surveyId/questions/template')
-  @Audit('question', 'apply_template')
-  @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: QuestionEntity, isArray: true })
-  applyTemplate(
-    @Param('surveyId', ParseIntPipe) surveyId: number,
-    @CurrentUser() user: CurrentUser,
-  ): Promise<QuestionEntity[]> {
-    return this.questionsService.applyTemplate(surveyId, user);
-  }
-
   /** Ubah urutan pertanyaan. */
   @Patch('surveys/:surveyId/questions/reorder')
   @Audit('question', 'reorder')

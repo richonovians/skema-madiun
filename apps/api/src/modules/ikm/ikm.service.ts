@@ -21,6 +21,7 @@ import {
 } from './entities/ikm-result.entity';
 import { EXPORT_CONTENT_TYPES, ExportedFile, IkmExportService } from './ikm-export.service';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
+import { namaUnsur } from '../reference/reference.constants';
 
 /** Skala jawaban PermenPANRB 14/2017: 1 sampai 4. */
 const NILAI_SKALA = [1, 2, 3, 4];
@@ -447,7 +448,11 @@ export class IkmService {
       nilaiIkmRaw += nrrTertimbang;
       return new IkmUnsurEntity({
         kodeUnsur: q.kodeUnsur ?? '',
-        teks: q.teks,
+        // Nama resmi dari KODE, bukan `q.teks`: pada survei SKM `teks` adalah
+        // kalimat pertanyaan buatan OPD (8 Oktober 2026), dan kalimat itu tak
+        // boleh menjadi nama unsur di tabel analitik, ekspor, dan snapshot.
+        // Kode yang tak dikenal (survei lama) memakai teksnya.
+        teks: namaUnsur(q.kodeUnsur) ?? q.teks,
         nrr: round(nrr, 2),
         bobot: round(bobot, 4),
         nrrTertimbang: round(nrrTertimbang, 4),

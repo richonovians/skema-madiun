@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { JenisSurvei } from '@prisma/client';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -25,6 +27,14 @@ export class CreateSurveyDto {
   @IsString()
   @Matches(PERIODE_REGEX, { message: 'periode harus berformat {tahun}-Q{1-4}, mis. "2026-Q1"' })
   periode: string;
+
+  @ApiProperty({
+    enum: JenisSurvei,
+    description:
+      'Jenis survei, tidak dapat diganti sesudah dibuat. `skm_permenpanrb` langsung berisi 9 unsur baku (U1-U9) yang tidak dapat dihapus; `umum` bebas dan tanpa nilai IKM.',
+  })
+  @IsEnum(JenisSurvei)
+  jenis: JenisSurvei;
 
   @ApiPropertyOptional({ default: false, description: 'Boleh mengisi >1 kali per periode' })
   @IsOptional()

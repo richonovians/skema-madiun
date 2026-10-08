@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SKEMA: Survei Kepuasan Masyarakat (SKM) dan pengaduan masyarakat untuk Kabupaten Madiun, pemilik produk Diskominfo. Monorepo pnpm. Bahasa kode, komentar, dan dokumen di repo ini adalah **bahasa Indonesia**; ikuti itu saat menulis komentar, pesan commit, maupun teks antarmuka.
 
-Perhitungan IKM mengikuti PermenPANRB 14/2017: sembilan unsur baku U1 sampai U9, skala jawaban 1 sampai 4, dihitung di backend (`apps/api/src/modules/ikm`). Sembilan unsur itu template, bukan skema mati, dan OPD boleh menambah pertanyaannya sendiri.
+Perhitungan IKM mengikuti PermenPANRB 14/2017: sembilan unsur baku U1 sampai U9, skala jawaban 1 sampai 4, dihitung di backend (`apps/api/src/modules/ikm`). Sejak 8 Oktober 2026 survei punya `jenis`: `skm_permenpanrb` memuat U1 sampai U9 sejak dibuat dan unsurnya **tidak dapat dihapus atau diganti kodenya** (satu pertanyaan per unsur), sedangkan OPD hanya mengubah _kalimat_ pertanyaannya; `umum` bebas dan tanpa nilai IKM. Aturan kerangka ada di `apps/api/src/modules/surveys/kerangka-unsur.util.ts`, dan nama unsur di laporan IKM diambil dari `kodeUnsur` (`namaUnsur()`), bukan dari `questions.teks` yang kini berisi kalimat buatan OPD. Pertanyaan tambahan di luar unsur tetap boleh dan tidak masuk hitungan IKM. **Label skala 1-4 boleh diganti sampai survei ditutup**, juga sesudah jawaban masuk (aksi `teks` di `survey-scope.util.ts`: jawaban skala menyimpan skor, bukan penunjuk ke baris opsi); opsi **pilihan ganda** tetap terkunci begitu ada jawaban.
 
 Latar belakang produk, peran pengguna, dan alur lengkap ada di `README.md` dan `docs/PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md`. **Peringatan membaca PRD:** dokumen itu masih menyebut peran `superuser`, padahal peran itu dilebur ke `kabupaten` pada 15 September 2026 dan nilai enumnya dibuang (migrasi `20260915140000_lebur_superuser_ke_kabupaten`). Sekarang hanya ada tiga peran.
 
@@ -72,6 +72,8 @@ pnpm --filter @skm-spm/web test -- GerbangPengisianBersesi --forceExit
 pnpm --filter @skm-spm/web test:e2e
 pnpm --filter @skm-spm/web exec playwright test e2e/isi-survei-anonim.spec.ts
 ```
+
+**Playwright butuh akun ber-tiga-peran yang tertaut ke OPD:** `E2E_IDENTIFIER=seed-superuser`. `seed-admin-kabupaten` di-_soft-delete_ sejak 15 September 2026, sehingga `dev-login`-nya dijawab 404 "pengguna tidak ditemukan" -- itu bukan server yang rusak. `e2e/kerangka-unsur-tata-letak.spec.ts` hanya membaca; `e2e/kerangka-unsur-alur.spec.ts` MENULIS survei berpenanda `[UJI ` (bersihkan sesudahnya, lihat di bawah).
 
 **Satu berkas E2E dijalankan lewat `exec playwright test`, BUKAN `test:e2e --`.**
 Baris `pnpm --filter @skm-spm/web test:e2e -- e2e/<berkas>` pernah tertulis di
@@ -181,6 +183,8 @@ Dua fakta lain dari metadata yang sama. Issuer-nya **`https://api.madiunkab.go.i
 
 ### apps/web (Next.js 16 App Router, React 19, Tailwind v4)
 
+**Jangan memakai `max-w-xs|sm|md|lg|xl|2xl|3xl`.** Tema mendefinisikan `--spacing-xs` sampai `--spacing-3xl`, dan di sini Tailwind memakai token spasi itu untuk `max-w-*`: `max-w-3xl` bernilai **64px**, bukan 48rem (terukur di Chrome 8 Oktober 2026; layar pemilih jenis survei menyempit jadi kolom 64px). Pakai nilai eksplisit seperti `max-w-[48rem]`. jsdom tidak memuat CSS, jadi cacat semacam ini hanya tertangkap Playwright.
+
 **JavaScript saja.** 394 berkas `.jsx`, nol `.tsx`. Aturan frontend yang berlaku ada di `apps/web/AGENTS.md` (diimpor oleh `apps/web/CLAUDE.md`):
 
 - jangan membuat definisi tipe TypeScript, jangan membuat folder `/types`
@@ -206,7 +210,7 @@ Catatan: `AGENTS.md` berisi blok `nextjs-agent-rules` yang **ditulis ulang `next
 
 ## Aturan tetap
 
-**Migrasi Prisma.** `prisma migrate dev` **tidak dipakai di repo ini**, meski skripnya ada di `package.json`. Tulis SQL migrasi dengan tangan di `apps/api/prisma/migrations/<timestamp>_<nama>/migration.sql`, lalu terapkan dengan `prisma:deploy`. Dua puluh delapan migrasi yang ada semuanya bertanggal tangan.
+**Migrasi Prisma.** `prisma migrate dev` **tidak dipakai di repo ini**, meski skripnya ada di `package.json`. Tulis SQL migrasi dengan tangan di `apps/api/prisma/migrations/<timestamp>_<nama>/migration.sql`, lalu terapkan dengan `prisma:deploy`. Tiga puluh dua migrasi yang ada semuanya bertanggal tangan.
 
 **Jangan `pnpm build` atau `next build` selagi `pnpm dev` hidup.** Keduanya menulis ke `.next` yang sama, dan akibatnya server pengembangan membalas 404 untuk semua halaman.
 
