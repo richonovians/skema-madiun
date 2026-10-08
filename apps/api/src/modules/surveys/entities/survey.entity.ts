@@ -1,4 +1,4 @@
-import { SurveyStatus } from '@prisma/client';
+import { JenisSurvei, SurveyStatus } from '@prisma/client';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
 export class SurveyEntity extends BaseEntity<SurveyEntity> {
@@ -7,6 +7,12 @@ export class SurveyEntity extends BaseEntity<SurveyEntity> {
   judul: string;
   periode: string;
   status: SurveyStatus;
+  /**
+   * Jenis survei (8 Oktober 2026): `skm_permenpanrb` berkerangka U1-U9 yang tak
+   * dapat dihapus, `umum` bebas dan tanpa nilai IKM. Dipilih saat dibuat, tak
+   * dapat diganti.
+   */
+  jenis: JenisSurvei;
   allowMultipleSubmit: boolean;
   /** Survei ini boleh diisi tanpa sesi lewat /survei/:id. Baku false. */
   izinkanAnonim: boolean;

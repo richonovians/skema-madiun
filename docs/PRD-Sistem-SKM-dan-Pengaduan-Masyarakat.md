@@ -302,7 +302,6 @@ Daftar endpoint berikut bersifat **final dan mengikat** sebagai kontrak antara b
 | POST | `/api/v1/surveys/:id/duplicate` | OPD | Duplikasi survei |
 | GET | `/api/v1/surveys/:id/questions` | OPD | Daftar pertanyaan |
 | POST | `/api/v1/surveys/:id/questions` | OPD | Tambah pertanyaan |
-| POST | `/api/v1/surveys/:id/questions/template` | OPD | Terapkan template 9 unsur |
 | PATCH | `/api/v1/questions/:id` | OPD | Ubah pertanyaan |
 | DELETE | `/api/v1/questions/:id` | OPD | Hapus pertanyaan |
 

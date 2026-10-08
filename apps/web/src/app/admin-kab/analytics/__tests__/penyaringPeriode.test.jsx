@@ -78,6 +78,20 @@ const pasangSurvei = (daftar = SURVEI) => {
           nilaiRataRata: 3.2,
           mutu: 'B',
           nrrPerUnsur: [{ kode: 'U1', teks: 'Persyaratan', nrr: 3.2, nrrTertimbang: 0.35 }],
+          sebaranSkor: [
+            {
+              pertanyaanId: 1,
+              kodeUnsur: 'U1',
+              teks: 'Persyaratan pelayanan',
+              total: 5,
+              sebaran: [
+                { nilai: 1, jumlah: 0 },
+                { nilai: 2, jumlah: 0 },
+                { nilai: 3, jumlah: 3 },
+                { nilai: 4, jumlah: 2 },
+              ],
+            },
+          ],
         },
         `/surveys/${params.id}/results`,
       );
@@ -216,6 +230,64 @@ describe('Tab Analisis SKM — nilai rata-rata', () => {
     // yang bertentangan dengan lima responden di kartu di atasnya.
     expect(screen.getByText(/tidak memuat 9 unsur baku/i)).toBeInTheDocument();
     expect(screen.queryByText(/belum ada responden/i)).toBeNull();
+  });
+});
+
+describe('Tab Analisis SKM — distribusi skor', () => {
+  it('menampilkan distribusi skor per pertanyaan; kartu "Belum Tersedia" sudah diganti', async () => {
+    // 8 Oktober 2026 (permintaan pengguna): backend kini mengirim sebaranSkor.
+    pasangSurvei();
+    mockPeriode = '2026-Q2';
+
+    render(<AnalyticsKabPage />);
+
+    expect(
+      await screen.findByRole('heading', { name: /distribusi skor per pertanyaan/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Persyaratan pelayanan')).toBeInTheDocument();
+    expect(screen.queryByText(/belum tersedia/i)).toBeNull();
+  });
+
+  it('survei TANPA 9 unsur baku tetap memperoleh distribusinya (pertanyaan skala tambahan)', async () => {
+    // Kasus yang membuat sebaran mencakup SEMUA pertanyaan skala: tanpa unsur
+    // baku, tabel 9 unsur kosong, tetapi jawaban skalanya ada.
+    pasangSurvei();
+    server.use(
+      http.get(`${API_BASE}/surveys/:id/results`, ({ params }) =>
+        ok(
+          {
+            surveyId: Number(params.id),
+            periode: '2026-Q2',
+            jumlahResponden: 5,
+            nilaiIkm: null,
+            nilaiRataRata: 3.84,
+            mutu: null,
+            nrrPerUnsur: [],
+            sebaranSkor: [
+              {
+                pertanyaanId: 77,
+                kodeUnsur: null,
+                teks: 'Keramahan petugas',
+                total: 5,
+                sebaran: [
+                  { nilai: 1, jumlah: 0 },
+                  { nilai: 2, jumlah: 0 },
+                  { nilai: 3, jumlah: 1 },
+                  { nilai: 4, jumlah: 4 },
+                ],
+              },
+            ],
+          },
+          `/surveys/${params.id}/results`,
+        ),
+      ),
+    );
+    mockPeriode = '2026-Q2';
+
+    render(<AnalyticsKabPage />);
+
+    expect(await screen.findByText('Keramahan petugas')).toBeInTheDocument();
+    expect(screen.getByText(/tidak memuat 9 unsur baku/i)).toBeInTheDocument();
   });
 });
 

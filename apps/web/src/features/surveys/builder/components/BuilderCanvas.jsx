@@ -58,8 +58,8 @@ export default function BuilderCanvas({
   onDropAt,
   onMove,
   onEditOptions,
-  /** Hapus SELURUH 9 unsur baku sekaligus (4 Oktober 2026). */
-  onDeleteBaku,
+  /** Kalimat pertanyaan boleh disunting (mati hanya saat survei ditutup). */
+  canEditText = true,
 }) {
   const [overSlot, setOverSlot] = useState(null);
 
@@ -258,7 +258,7 @@ export default function BuilderCanvas({
                 onUpdate={onUpdate}
                 onTextCommit={onTextCommit}
                 onEditOptions={onEditOptions}
-                onDeleteBaku={onDeleteBaku}
+                canEditText={canEditText}
               />
             </div>
           ))}

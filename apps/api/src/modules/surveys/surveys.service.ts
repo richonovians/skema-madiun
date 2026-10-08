@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Role, Survey, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, Prisma, Role, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess, opdWhereFilter } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
@@ -12,6 +12,7 @@ import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
+import { assertKerangkaLengkap, buatUnsurAwal, unsurHilang } from './kerangka-unsur.util';
 import { operasiPemusnahanSurvei } from './survey-pemusnahan.util';
 import { assertSurveyEditable, TIDAK_DIBUANG } from './survey-scope.util';
 
@@ -130,8 +131,14 @@ export class SurveysService {
         opdId,
         judul: dto.judul,
         periode: dto.periode,
+        jenis: dto.jenis,
         allowMultipleSubmit: dto.allowMultipleSubmit ?? false,
         izinkanAnonim: dto.izinkanAnonim ?? false,
+        // Survei SKM lahir bersama kesembilan unsurnya, dalam penulisan yang
+        // sama (nested create atomik): tak pernah ada survei SKM tanpa kerangka.
+        ...(dto.jenis === JenisSurvei.skm_permenpanrb
+          ? { questions: { create: buatUnsurAwal() } }
+          : {}),
       },
     });
     return new SurveyEntity(created);
@@ -300,6 +307,21 @@ export class SurveysService {
       );
     }
 
+    if (dto.status === SurveyStatus.aktif && survey.jenis === JenisSurvei.skm_permenpanrb) {
+      // Berlaku juga saat survei DIBUKA KEMBALI: survei SKM yang unsurnya sudah
+      // tak lengkap tak boleh menerima jawaban baru, karena IKM-nya dihitung
+      // dengan bobot yang keliru. Menutup tidak diperiksa -- hasil yang ada
+      // tetap harus dapat dikunci.
+      const pertanyaan = await this.prisma.question.findMany({
+        where: { surveyId: id },
+        select: { kodeUnsur: true },
+      });
+      assertKerangkaLengkap(
+        survey,
+        pertanyaan.map((q) => q.kodeUnsur),
+      );
+    }
+
     const updated = await this.prisma.survey.update({
       where: { id },
       data: { status: dto.status },
@@ -329,21 +351,48 @@ export class SurveysService {
         opdId: original.opdId,
         judul: `${original.judul} (Salinan)`,
         periode: original.periode,
+        jenis: original.jenis,
         allowMultipleSubmit: original.allowMultipleSubmit,
         izinkanAnonim: original.izinkanAnonim,
         status: SurveyStatus.draft,
         questions: {
-          create: original.questions.map((q) => ({
-            teks: q.teks,
-            tipe: q.tipe,
-            isIkmUnsur: q.isIkmUnsur,
-            kodeUnsur: q.kodeUnsur,
-            urutan: q.urutan,
-          })),
+          create: [
+            ...original.questions.map((q) => ({
+              teks: q.teks,
+              tipe: q.tipe,
+              isIkmUnsur: q.isIkmUnsur,
+              kodeUnsur: q.kodeUnsur,
+              urutan: q.urutan,
+            })),
+            ...this.unsurPelengkap(original),
+          ],
         },
       },
     });
     return new SurveyEntity(created);
+  }
+
+  /**
+   * Unsur yang hilang dari survei SKM lama, dibuat ulang pada salinannya (8
+   * Oktober 2026). Survei SKM yang unsurnya tak lengkap tak dapat diaktifkan dan
+   * tak punya jalan memperbaikinya (pertanyaan ber-kodeUnsur selalu ditolak),
+   * sehingga menggandakan adalah satu-satunya jalan pulih. Diletakkan di akhir
+   * dengan kalimat awal berupa nama unsur; kalimat yang sudah ada tidak diubah.
+   */
+  private unsurPelengkap(
+    original: Survey & { questions: { kodeUnsur: string | null; urutan: number }[] },
+  ) {
+    if (original.jenis !== JenisSurvei.skm_permenpanrb) {
+      return [];
+    }
+    const hilang = unsurHilang(original.questions.map((q) => q.kodeUnsur));
+    if (hilang.length === 0) {
+      return [];
+    }
+    const urutanTerakhir = original.questions.reduce((maks, q) => Math.max(maks, q.urutan), 0);
+    return buatUnsurAwal()
+      .filter((unsur) => hilang.includes(unsur.kodeUnsur))
+      .map((unsur, i) => ({ ...unsur, urutan: urutanTerakhir + 1 + i }));
   }
 
   private resolveOpdId(dto: CreateSurveyDto, user: CurrentUser): number {

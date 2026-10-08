@@ -6,7 +6,7 @@ import { handlers, ok, questionFixture } from '@/mocks/handlers';
 import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/page';
 
 /**
- * Uji integrasi builder survei — template 9 unsur baku & pertanyaan kustom.
+ * Uji integrasi builder survei — memuat dan menambah pertanyaan kustom.
  *
  * DITULIS ULANG 10 Agustus 2026. Versi sebelumnya tidak pernah bisa lulus:
  *   1. Menunggu `findByText('Pertanyaan Kustom 1')`, padahal judul yang
@@ -35,7 +35,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-describe('SurveyBuilder Integration (Template & Pertanyaan Kustom)', () => {
+describe('SurveyBuilder Integration (Pertanyaan Kustom)', () => {
   /**
    * `params` adalah Promise (App Router). Komponen membacanya lewat `use()`,
    * sehingga ia SUSPEND pada render pertama. React 19 hanya melepas suspense
@@ -57,8 +57,7 @@ describe('SurveyBuilder Integration (Template & Pertanyaan Kustom)', () => {
     mockPush.mockClear();
     jest.spyOn(window, 'confirm').mockImplementation(() => true);
 
-    // Kanvas dimulai dengan SATU pertanyaan kustom, supaya efek "Tambah 9 Unsur
-    // Baku" (yang mengganti seluruh isi kanvas) benar-benar terlihat berubah.
+    // Kanvas dimulai dengan SATU pertanyaan kustom.
     server.use(
       http.get(`${API_BASE}/surveys/:id/questions`, ({ params }) =>
         ok(
@@ -92,22 +91,7 @@ describe('SurveyBuilder Integration (Template & Pertanyaan Kustom)', () => {
     expect(screen.getByDisplayValue('Seberapa mudah prosedur layanan?')).toBeInTheDocument();
   });
 
-  it('Skenario 1: "Tambah 9 Unsur Baku" memanggil API template dan merender 9 unsur', async () => {
-    await renderBuilder('1');
-    await screen.findByText('Pertanyaan Kustom #1');
-
-    fireEvent.click(screen.getByText('Tambah 9 Unsur Baku'));
-
-    // POST /questions/template membalas SELURUH pertanyaan survei, dan
-    // kanvas diganti sepenuhnya oleh hasil itu.
-    expect(await screen.findByText('U1: Persyaratan')).toBeInTheDocument();
-    expect(screen.getByText('U9: Sarana dan Prasarana')).toBeInTheDocument();
-
-    // Pertanyaan kustom sebelumnya tidak lagi ada di kanvas.
-    expect(screen.queryByText('Pertanyaan Kustom #1')).not.toBeInTheDocument();
-  });
-
-  it('Skenario 2: menambah pertanyaan kustom baru lewat POST /questions', async () => {
+  it('menambah pertanyaan kustom baru lewat POST /questions', async () => {
     await renderBuilder('1');
     await screen.findByText('Pertanyaan Kustom #1');
 

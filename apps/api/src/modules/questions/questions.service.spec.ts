@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { QuestionType, Role, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -91,16 +91,6 @@ describe('QuestionsService', () => {
     (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey(99));
     const dto: CreateQuestionDto = { teks: 'Q', tipe: QuestionType.skala };
     await expect(service.create(1, dto, opdUser(5))).rejects.toThrow(ForbiddenException);
-  });
-
-  it('applyTemplate membuat 9 unsur (belum ada)', async () => {
-    (prisma.survey.findFirst as jest.Mock).mockResolvedValue(draftSurvey());
-    (prisma.question.findMany as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    (prisma.question.create as jest.Mock).mockResolvedValue({});
-
-    await service.applyTemplate(1, opdUser(5));
-
-    expect(prisma.question.create).toHaveBeenCalledTimes(9);
   });
 
   it('reorder dengan id tidak lengkap → BadRequest', async () => {
@@ -357,23 +347,91 @@ describe('QuestionsService', () => {
       expect(call.data.options).toBeUndefined();
     });
 
-    it('survei aktif yang sudah dijawab → BadRequest sebelum opsi disentuh', async () => {
-      (prisma.question.findUnique as jest.Mock).mockResolvedValue({
+    /**
+     * LABEL SKALA SESUDAH ADA JAWABAN (8 Oktober 2026, laporan pengguna: "label
+     * jawaban skala 1-4 masih belum bisa diubah"). Jawaban skala menyimpan
+     * SKOR (`answers.nilai`), bukan penunjuk ke baris `question_options`, jadi
+     * mengganti labelnya tidak merusak satu jawaban pun -- sama seperti
+     * memperbaiki kalimat pertanyaan, yang sudah boleh sesudah ada jawaban.
+     * Pilihan ganda berbeda: jawabannya menunjuk id opsi, jadi tetap terkunci.
+     */
+    describe('label skala pada survei yang sudah dijawab', () => {
+      const labelBaru = [
+        { label: 'Sangat Tidak Puas' },
+        { label: 'Tidak Puas' },
+        { label: 'Puas' },
+        { label: 'Sangat Puas' },
+      ];
+      const pertanyaanAktif = (tipe: QuestionType) => ({
         id: 5,
-        tipe: QuestionType.skala,
+        tipe,
+        isIkmUnsur: false,
+        kodeUnsur: null,
         survey: { opdId: 5, status: SurveyStatus.aktif, deletedAt: null },
       });
-      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
-      await expect(
-        service.update(
-          5,
-          {
-            options: [{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }],
-          },
-          opdUser(5),
-        ),
-      ).rejects.toThrow(BadRequestException);
-      expect(prisma.question.update).not.toHaveBeenCalled();
+
+      it('survei aktif berjawaban: label skala BOLEH diganti, skor tetap 1..4', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanAktif(QuestionType.skala),
+        );
+        (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+        (prisma.question.update as jest.Mock).mockResolvedValue(updatedRow(QuestionType.skala, []));
+
+        await service.update(5, { options: labelBaru }, opdUser(5));
+
+        expect(prisma.question.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              options: {
+                deleteMany: {},
+                create: [
+                  { label: 'Sangat Tidak Puas', nilai: 1, urutan: 1 },
+                  { label: 'Tidak Puas', nilai: 2, urutan: 2 },
+                  { label: 'Puas', nilai: 3, urutan: 3 },
+                  { label: 'Sangat Puas', nilai: 4, urutan: 4 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('jumlah label tetap harus TEPAT 4 walau survei sudah dijawab', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanAktif(QuestionType.skala),
+        );
+        (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+
+        await expect(
+          service.update(5, { options: [{ label: 'A' }, { label: 'B' }] }, opdUser(5)),
+        ).rejects.toThrow(/tepat 4/);
+        expect(prisma.question.update).not.toHaveBeenCalled();
+      });
+
+      it('survei DITUTUP: label skala tetap terkunci (hasil IKM sudah terbit)', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue({
+          ...pertanyaanAktif(QuestionType.skala),
+          survey: { opdId: 5, status: SurveyStatus.ditutup, deletedAt: null },
+        });
+        (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+
+        await expect(service.update(5, { options: labelBaru }, opdUser(5))).rejects.toThrow(
+          /ditutup/i,
+        );
+        expect(prisma.question.update).not.toHaveBeenCalled();
+      });
+
+      it('KONTROL: opsi PILIHAN GANDA pada survei berjawaban tetap ditolak (jawaban menunjuk id opsi)', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanAktif(QuestionType.pilihan),
+        );
+        (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(142);
+
+        await expect(
+          service.update(5, { options: [{ label: 'Ya' }, { label: 'Tidak' }] }, opdUser(5)),
+        ).rejects.toThrow(/142 jawaban/);
+        expect(prisma.question.update).not.toHaveBeenCalled();
+      });
     });
   });
   /**
@@ -446,6 +504,172 @@ describe('QuestionsService', () => {
       await expect(
         service.create(1, { teks: 'Pertanyaan baru', tipe: QuestionType.teks }, opdUser(5)),
       ).resolves.toBeDefined();
+    });
+  });
+
+  /**
+   * KERANGKA 9 UNSUR (8 Oktober 2026). Pada survei SKM PermenPANRB yang dapat
+   * diubah OPD adalah kalimat pertanyaannya, bukan standar ukurnya.
+   */
+  describe('kerangka unsur survei SKM', () => {
+    const surveiSkm = () => ({ ...draftSurvey(), jenis: JenisSurvei.skm_permenpanrb });
+    const surveiUmum = () => ({ ...draftSurvey(), jenis: JenisSurvei.umum });
+
+    const barisUnsur = (over: Record<string, unknown> = {}) => ({
+      id: 7,
+      surveyId: 1,
+      teks: 'Persyaratan',
+      tipe: QuestionType.skala,
+      isIkmUnsur: true,
+      kodeUnsur: 'U1',
+      urutan: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      options: [],
+      ...over,
+    });
+
+    const pertanyaanDariDb = (survey: object, over: Record<string, unknown> = {}) => ({
+      id: 7,
+      tipe: QuestionType.skala,
+      isIkmUnsur: true,
+      kodeUnsur: 'U1',
+      survey,
+      ...over,
+    });
+
+    describe('hapus', () => {
+      it('pertanyaan unsur ditolak dan barisnya tidak disentuh', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiSkm()));
+
+        await expect(service.remove(7, opdUser(5))).rejects.toThrow(/unsur/i);
+        expect(prisma.question.delete).not.toHaveBeenCalled();
+      });
+
+      it('pertanyaan tambahan pada survei SKM boleh dihapus', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanDariDb(surveiSkm(), { isIkmUnsur: false, kodeUnsur: null }),
+        );
+
+        await service.remove(7, opdUser(5));
+
+        expect(prisma.question.delete).toHaveBeenCalledWith({ where: { id: 7 } });
+      });
+
+      it('survei umum bebas dihapus pertanyaannya', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiUmum()));
+
+        await service.remove(7, opdUser(5));
+
+        expect(prisma.question.delete).toHaveBeenCalledWith({ where: { id: 7 } });
+      });
+
+      it('survei DITUTUP tetap menjawab dengan pesan "ditutup", bukan pesan kerangka', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanDariDb({ ...surveiSkm(), status: SurveyStatus.ditutup }),
+        );
+
+        await expect(service.remove(7, opdUser(5))).rejects.toThrow(/ditutup/i);
+      });
+    });
+
+    describe('buat', () => {
+      it.each([
+        ['SKM', surveiSkm],
+        ['umum', surveiUmum],
+      ])('menolak pertanyaan ber-kodeUnsur pada survei %s', async (_nama, survei) => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survei());
+
+        await expect(
+          service.create(1, { teks: 'Q', tipe: QuestionType.skala, kodeUnsur: 'U1' }, opdUser(5)),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.question.create).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['SKM', surveiSkm],
+        ['umum', surveiUmum],
+      ])('menolak pertanyaan isIkmUnsur pada survei %s', async (_nama, survei) => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(survei());
+
+        await expect(
+          service.create(1, { teks: 'Q', tipe: QuestionType.skala, isIkmUnsur: true }, opdUser(5)),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
+
+    describe('ubah', () => {
+      it('kalimat pertanyaan unsur boleh diganti OPD', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiSkm()));
+        (prisma.question.update as jest.Mock).mockResolvedValue(
+          barisUnsur({ teks: 'Seberapa mudah persyaratan layanan kami?' }),
+        );
+
+        const hasil = await service.update(
+          7,
+          { teks: 'Seberapa mudah persyaratan layanan kami?' },
+          opdUser(5),
+        );
+
+        expect(prisma.question.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ teks: 'Seberapa mudah persyaratan layanan kami?' }),
+          }),
+        );
+        expect(hasil.teks).toBe('Seberapa mudah persyaratan layanan kami?');
+      });
+
+      it('kode unsur tidak boleh diganti', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiSkm()));
+
+        await expect(service.update(7, { kodeUnsur: 'U2' }, opdUser(5))).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(prisma.question.update).not.toHaveBeenCalled();
+      });
+
+      it('tanda isIkmUnsur tidak boleh dilepas', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiSkm()));
+
+        await expect(service.update(7, { isIkmUnsur: false }, opdUser(5))).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('kiriman penanda yang sama dengan nilai tersimpan tidak dianggap perubahan', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(pertanyaanDariDb(surveiSkm()));
+        (prisma.question.update as jest.Mock).mockResolvedValue(barisUnsur({ teks: 'Baru' }));
+
+        await expect(
+          service.update(7, { teks: 'Baru', kodeUnsur: 'U1', isIkmUnsur: true }, opdUser(5)),
+        ).resolves.toBeDefined();
+      });
+
+      it('survei umum tidak boleh menandai pertanyaan sebagai unsur', async () => {
+        (prisma.question.findUnique as jest.Mock).mockResolvedValue(
+          pertanyaanDariDb(surveiUmum(), { isIkmUnsur: false, kodeUnsur: null }),
+        );
+
+        await expect(service.update(7, { isIkmUnsur: true }, opdUser(5))).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+    });
+
+    describe('daftar pertanyaan', () => {
+      it('unsur membawa namaUnsur resmi dari kodenya, walau teks sudah kalimat OPD', async () => {
+        (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveiSkm());
+        (prisma.question.findMany as jest.Mock).mockResolvedValue([
+          barisUnsur({ teks: 'Seberapa mudah persyaratan layanan kami?' }),
+          barisUnsur({ id: 8, isIkmUnsur: false, kodeUnsur: null, teks: 'Saran Anda?' }),
+        ]);
+
+        const [unsur, tambahan] = await service.findAllForSurvey(1, opdUser(5));
+
+        expect(unsur.namaUnsur).toBe('Persyaratan');
+        expect(unsur.teks).toBe('Seberapa mudah persyaratan layanan kami?');
+        expect(tambahan.namaUnsur).toBeNull();
+      });
     });
   });
 });

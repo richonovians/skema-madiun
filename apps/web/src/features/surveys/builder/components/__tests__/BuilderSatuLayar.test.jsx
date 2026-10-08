@@ -132,7 +132,6 @@ describe('BuilderSidebar — palet yang bisa ditutup di ponsel', () => {
   it('KONTROL: seluruh kendali penambah pertanyaan tetap ada', () => {
     render(<BuilderSidebar />);
 
-    expect(screen.getByRole('button', { name: /tambah 9 unsur baku/i })).toBeInTheDocument();
     for (const label of ['Skala Nilai 1-4', 'Pilihan Ganda', 'Uraian']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -252,19 +251,9 @@ describe('BuilderSidebar — bilahnya mengikuti navbar di ponsel', () => {
   /**
    * Panel yang terbuka DAN menempel akan menutupi kanvas yang sedang disusun.
    * Menutup sendiri sesudah pertanyaan ditambahkan yang membuat keduanya bisa
-   * hidup bersama.
+   * hidup bersama. (Tombol "Tambah 9 Unsur Baku" dibuang 8 Oktober 2026: unsur
+   * lahir bersama survei SKM.)
    */
-  it('menutup sendiri sesudah unsur baku ditambahkan', () => {
-    const onAddBaku = jest.fn();
-    const { container } = render(<BuilderSidebar canDrag onAddBaku={onAddBaku} />);
-    fireEvent.click(screen.getByRole('button', { name: /tambah pertanyaan/i }));
-
-    fireEvent.click(screen.getByRole('button', { name: /tambah 9 unsur baku/i }));
-
-    expect(onAddBaku).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[data-isi-palet]').className).toMatch(/(^|\s)hidden\b/);
-  });
-
   it('menutup sendiri sesudah komponen kustom ditambahkan', () => {
     const onAddCustom = jest.fn();
     const { container } = render(<BuilderSidebar canDrag onAddCustom={onAddCustom} />);

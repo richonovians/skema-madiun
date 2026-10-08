@@ -35,7 +35,7 @@ export async function getSurveyById(surveyId) {
   return adaptSurvey(response.data);
 }
 
-/** @param {{title: string, period: string, allowMultipleSubmit?: boolean, opdId?: number}} payload */
+/** @param {{title: string, period: string, jenis: string, allowMultipleSubmit?: boolean, opdId?: number}} payload */
 export async function createSurvey(payload) {
   const response = await api.post('/surveys', toCreateSurveyPayload(payload));
   return adaptSurvey(response.data);
@@ -135,12 +135,6 @@ export async function createCustomQuestion(surveyId, payload) {
     isRequired: q.tipe !== 'teks',
     options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label })),
   };
-}
-
-/** Terapkan template 9 unsur baku -- SATU panggilan backend, bukan disimulasikan lokal (lihat INT-30 -> INT-19). */
-export async function applyQuestionTemplate(surveyId) {
-  const response = await api.post(`/surveys/${surveyId}/questions/template`);
-  return adaptBuilderQuestions(response.data);
 }
 
 /** @param {number[]} orderedIds Seluruh id pertanyaan survei dalam urutan baru. */

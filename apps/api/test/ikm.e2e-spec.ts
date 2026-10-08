@@ -181,6 +181,16 @@ describe('IKM (e2e)', () => {
     // respons (undefined) berarti serializer tak mengeluarkannya, dan itu
     // kegagalan yang berbeda dari "belum ada jawaban skala".
     expect(res.body.data.nilaiRataRata).toBeNull();
+    // Sebaran skor (8 Oktober 2026): pertanyaannya tetap tampil walau belum
+    // dijawab -- total 0, bukan dibuang -- dengan keempat nilai berjumlah 0.
+    expect(res.body.data.sebaranSkor).toHaveLength(2);
+    for (const p of res.body.data.sebaranSkor as {
+      total: number;
+      sebaran: { jumlah: number }[];
+    }[]) {
+      expect(p.total).toBe(0);
+      expect(p.sebaran.map((s) => s.jumlah)).toEqual([0, 0, 0, 0]);
+    }
   });
 
   it('GET /surveys/:id/results (Admin OPD lain) -> 403', async () => {
@@ -214,6 +224,25 @@ describe('IKM (e2e)', () => {
     expect(res.body.data.nrrPerUnsur).toHaveLength(2);
     // Semua jawaban skala bernilai 4 -> rata-ratanya 4.
     expect(res.body.data.nilaiRataRata).toBe(4);
+    // ...dan sebarannya: dua responden memilih 4 pada tiap pertanyaan, berurut
+    // sesuai `urutan`, dengan kode unsur bakunya.
+    const sebaran = res.body.data.sebaranSkor as {
+      pertanyaanId: number;
+      kodeUnsur: string | null;
+      total: number;
+      sebaran: { nilai: number; jumlah: number }[];
+    }[];
+    expect(sebaran.map((p) => p.pertanyaanId)).toEqual([q1, q2]);
+    expect(sebaran.map((p) => p.kodeUnsur)).toEqual(['U1', 'U2']);
+    for (const p of sebaran) {
+      expect(p.total).toBe(2);
+      expect(p.sebaran).toEqual([
+        { nilai: 1, jumlah: 0 },
+        { nilai: 2, jumlah: 0 },
+        { nilai: 3, jumlah: 0 },
+        { nilai: 4, jumlah: 2 },
+      ]);
+    }
   });
 
   /**

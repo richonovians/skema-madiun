@@ -143,7 +143,6 @@ admin sepenuhnya di tangan Superuser.
 | POST | `/api/v1/surveys/:id/duplicate` | ✓ | OPD | Salin survei (jadi draft baru) |
 | GET | `/api/v1/surveys/:id/questions` | ✓ | OPD | Daftar pertanyaan survei |
 | POST | `/api/v1/surveys/:id/questions` | ✓ | OPD | Tambah pertanyaan kustom (survei harus draft) |
-| POST | `/api/v1/surveys/:id/questions/template` | ✓ | OPD | Terapkan template 9 unsur baku SKM |
 | PATCH | `/api/v1/surveys/:id/questions/reorder` | ✓ | OPD | Ubah urutan pertanyaan |
 | PATCH | `/api/v1/questions/:id` | ✓ | OPD | Ubah teks pertanyaan &/atau GANTI seluruh opsi jawaban — tipe `pilihan` min. 2 opsi, tipe `skala` tepat 4 label skor (`nilai` dipaksa 1-4); tipe pertanyaan sendiri tak bisa diubah |
 | DELETE | `/api/v1/questions/:id` | ✓ | OPD | Hapus pertanyaan |

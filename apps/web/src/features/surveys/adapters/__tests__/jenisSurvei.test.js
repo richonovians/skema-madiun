@@ -1,0 +1,100 @@
+import {
+  adaptBuilderQuestion,
+  adaptBuilderQuestions,
+  adaptSurvey,
+  toCreateSurveyPayload,
+} from '../survey.adapter';
+
+/**
+ * JENIS SURVEI DAN KERANGKA UNSUR (8 Oktober 2026). `jenis` datang dari backend
+ * (`skm_permenpanrb` atau `umum`) dan diteruskan APA ADANYA: adapter tidak
+ * menebaknya dari isi pertanyaan. Pertanyaan unsur membawa `namaUnsur` resmi
+ * terpisah dari `teks`, yang kini berisi kalimat pertanyaan buatan OPD.
+ */
+describe('adaptSurvey — jenis', () => {
+  const entity = (over = {}) => ({
+    id: 7,
+    opdId: 1,
+    judul: 'Survei Uji',
+    periode: '2026-Q2',
+    status: 'draft',
+    ...over,
+  });
+
+  it('meneruskan jenis apa adanya', () => {
+    expect(adaptSurvey(entity({ jenis: 'skm_permenpanrb' })).jenis).toBe('skm_permenpanrb');
+    expect(adaptSurvey(entity({ jenis: 'umum' })).jenis).toBe('umum');
+  });
+
+  it('tidak mengarang jenis bila backend belum mengirimnya', () => {
+    expect(adaptSurvey(entity()).jenis).toBeUndefined();
+  });
+});
+
+describe('toCreateSurveyPayload — jenis', () => {
+  it('mengirim jenis ke CreateSurveyDto', () => {
+    const payload = toCreateSurveyPayload({
+      title: 'Survei SKM',
+      period: '2026-Q1',
+      jenis: 'skm_permenpanrb',
+    });
+
+    expect(payload.jenis).toBe('skm_permenpanrb');
+    expect(payload.judul).toBe('Survei SKM');
+  });
+});
+
+describe('adaptBuilderQuestion — unsur baku', () => {
+  const unsur = (over = {}) => ({
+    id: 11,
+    teks: 'Seberapa mudah persyaratan layanan kami?',
+    tipe: 'skala',
+    isIkmUnsur: true,
+    kodeUnsur: 'U2',
+    namaUnsur: 'Sistem, Mekanisme, dan Prosedur',
+    options: [],
+    ...over,
+  });
+
+  it('judul kartu memuat kode dan NAMA RESMI unsur, kalimat OPD ada di text', () => {
+    const q = adaptBuilderQuestion(unsur(), 0);
+
+    expect(q.isBaku).toBe(true);
+    expect(q.kode).toBe('U2');
+    expect(q.namaUnsur).toBe('Sistem, Mekanisme, dan Prosedur');
+    expect(q.title).toBe('U2 · Sistem, Mekanisme, dan Prosedur');
+    expect(q.text).toBe('Seberapa mudah persyaratan layanan kami?');
+  });
+
+  it('tanpa namaUnsur (backend lama) judul memakai kode dan teks, tidak "undefined"', () => {
+    const q = adaptBuilderQuestion(unsur({ namaUnsur: undefined, teks: 'Persyaratan' }), 0);
+
+    expect(q.title).toBe('U2 · Persyaratan');
+    expect(q.namaUnsur).toBeNull();
+  });
+
+  it('pertanyaan tambahan: bukan baku, tanpa kode, judul bernomor', () => {
+    const q = adaptBuilderQuestion(
+      unsur({ isIkmUnsur: false, kodeUnsur: null, namaUnsur: null, teks: 'Saran Anda?' }),
+      3,
+    );
+
+    expect(q.isBaku).toBe(false);
+    expect(q.kode).toBeNull();
+    expect(q.title).toBe('Pertanyaan Kustom #3');
+  });
+
+  it('penomoran pertanyaan tambahan tidak menghitung unsur baku', () => {
+    const daftar = adaptBuilderQuestions([
+      unsur({ id: 1, kodeUnsur: 'U1', namaUnsur: 'Persyaratan' }),
+      unsur({ id: 2, isIkmUnsur: false, kodeUnsur: null, namaUnsur: null }),
+      unsur({ id: 3, isIkmUnsur: false, kodeUnsur: null, namaUnsur: null }),
+    ]);
+
+    expect(daftar.map((q) => q.title)).toEqual([
+      'U1 · Persyaratan',
+      'Pertanyaan Kustom #1',
+      'Pertanyaan Kustom #2',
+    ]);
+  });
+});

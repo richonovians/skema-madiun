@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
-import { PlusCircle, GripVertical, Info, ChevronDown } from 'lucide-react';
+import { GripVertical, Info, ChevronDown } from 'lucide-react';
 
 /**
  * Tiga komponen kustom sebelumnya ditulis tiga kali dengan markup identik --
@@ -9,7 +9,7 @@ import { PlusCircle, GripVertical, Info, ChevronDown } from 'lucide-react';
  * survey.adapter.js.
  */
 const TYPE_ITEMS = [
-  { type: 'Skala Penilaian 1-4', label: 'Skala Nilai 1-4', hint: 'Standard IKM' },
+  { type: 'Skala Penilaian 1-4', label: 'Skala Nilai 1-4', hint: 'Pertanyaan tambahan, tidak dihitung ke Nilai IKM' },
   { type: 'Pilihan Ganda', label: 'Pilihan Ganda', hint: 'Atur sendiri opsi jawabannya' },
   { type: 'Isian Teks', label: 'Uraian', hint: 'Isian teks bebas, tidak wajib' },
 ];
@@ -30,20 +30,12 @@ const TYPE_ITEMS = [
  * TAMPAK bisa diseret padahal dulu tidak. Sekarang seretnya sungguhan.
  */
 export default function BuilderSidebar({
-  onAddBaku,
   onAddCustom,
   onDragTypeStart,
   onDragEnd,
   canDrag = null,
-  /**
-   * Sebab susunan terkunci (11 September 2026), atau `null` bila bebas diubah.
-   * Dipakai sebagai `title` kendali yang mati -- keterangan panjangnya
-   * ditampilkan sekali di atas kanvas, bukan diulang di tiap tombol.
-   */
-  alasanTerkunci = null,
 }) {
   const isDraggable = canDrag === true;
-  const terkunci = alasanTerkunci != null;
   /**
    * Tertutup secara baku, dan itu hanya berlaku di bawah `md`: mulai `md` isinya
    * dilarutkan dengan `md:contents` tanpa memedulikan keadaan ini, sebab di sana palet memang
@@ -105,28 +97,8 @@ export default function BuilderSidebar({
            menjadi anak langsung <aside>, persis seperti sebelum panel ini ada. */
         className={clsx(terbuka ? 'flex' : 'hidden', 'flex-col gap-6 md:contents')}
       >
-        {/* Section 1: Template */}
-        <section>
-          <h3 className="text-label-md font-label-md text-text-secondary uppercase tracking-wider mb-md">
-            Template Unsur Baku
-          </h3>
-          <button
-            onClick={tambahLaluTutup(onAddBaku)}
-            disabled={terkunci}
-            title={alasanTerkunci ?? undefined}
-            className="w-full bg-primary-container/10 hover:bg-primary-container/20 text-primary border-2 border-dashed border-primary-container/30 rounded-xl p-lg text-left group transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div className="flex flex-col gap-xs">
-              <span className="font-headline-md text-[14px]">Tambah 9 Unsur Baku</span>
-              <span className="text-xs opacity-80">PermenPANRB 14/2017</span>
-            </div>
-            <div className="mt-md flex justify-end">
-              <PlusCircle className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
-        </section>
-
-        {/* Section 2: Custom Elements */}
+        {/* Komponen pertanyaan tambahan. "Tambah 9 Unsur Baku" dibuang 8 Oktober
+            2026: unsur lahir bersama survei SKM dan tidak dapat dipasang/dilepas. */}
         <section>
           <h3 className="text-label-md font-label-md text-text-secondary uppercase tracking-wider mb-md">
             Komponen Pertanyaan Kustom
@@ -174,7 +146,7 @@ export default function BuilderSidebar({
                      sama dua kali. Kalimat lama "survei sudah terbit" dibuang
                      karena sejak 11 September 2026 tidak selalu benar: survei
                      terbit tanpa jawaban masih bebas disusun ulang. */
-                    'Susunan pertanyaan sedang terkunci. Teks pertanyaan masih dapat diperbaiki.'}
+                    'Susunan pertanyaan sedang terkunci. Teks pertanyaan dan label skala masih dapat diperbaiki.'}
               </p>
             </div>
           </div>

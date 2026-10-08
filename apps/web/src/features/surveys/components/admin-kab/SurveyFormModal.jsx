@@ -6,6 +6,7 @@ import { X, Building2, Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import { buildPeriode, parsePeriode } from '@/features/surveys/adapters/survey.adapter';
+import PemilihJenisSurvei from '@/features/surveys/builder/components/PemilihJenisSurvei';
 
 const CURRENT_YEAR = new Date().getFullYear();
 // Rentang tahun sama dgn BuilderToolbar.jsx: 1 tahun lalu s.d. 2 tahun ke depan.
@@ -81,6 +82,9 @@ export default function SurveyFormModal({
   const [tahun, setTahun] = useState(initialPeriode.tahun);
   const [triwulan, setTriwulan] = useState(initialPeriode.triwulan);
   const [izinkanAnonim, setIzinkanAnonim] = useState(initialValues?.izinkanAnonim ?? false);
+  // Jenis survei (8 Oktober 2026): dipilih eksplisit saat membuat, tanpa pilihan
+  // bawaan, dan tak dapat diganti sesudahnya -- mode ubah hanya menampilkannya.
+  const [jenis, setJenis] = useState(initialValues?.jenis ?? null);
   const [validationError, setValidationError] = useState(null);
 
   useEffect(() => {
@@ -118,12 +122,18 @@ export default function SurveyFormModal({
       return;
     }
 
+    if (!isEdit && !jenis) {
+      setValidationError('Jenis survei wajib dipilih.');
+      return;
+    }
+
     setValidationError(null);
     onSubmit({
       title: trimmedTitle,
       period: buildPeriode(tahun, triwulan),
       izinkanAnonim,
-      ...(isEdit ? {} : { opdId: Number(opdId) }),
+      // Jenis hanya dikirim saat membuat: UpdateSurveyDto menolaknya (400).
+      ...(isEdit ? {} : { opdId: Number(opdId), jenis }),
     });
   };
 
@@ -184,10 +194,14 @@ export default function SurveyFormModal({
           </p>
         </div>
 
-        {/* TANPA `overflow-y-auto`: badan ini justru harus membiarkan daftar
-            dropdown mengapung melewati batasnya (ke ruang kosong di bawah).
-            Isinya cuma 3 field dengan tinggi tetap, jadi tak akan meluap. */}
-        <div className="px-6 py-4 sm:py-5 space-y-3 sm:space-y-4 flex-1 min-h-0">
+        {/* BADAN BISA DIGULIR (8 Oktober 2026). Dulu sengaja tanpa `overflow-y-auto`
+            supaya daftar dropdown mengapung ke ruang kosong di bawah field, sebab
+            isinya cuma 3 field bertinggi tetap. Pilihan jenis survei menambah
+            tinggi isi; pada layar pendek (laptop 768px, ponsel) isi yang lebih
+            tinggi daripada kartu akan MELUAP ke atas footer, jadi badan ini kini
+            menggulir. Konsekuensinya daftar dropdown yang mengapung memperpanjang
+            area gulir, bukan terpotong. */}
+        <div className="px-6 py-4 sm:py-5 space-y-3 sm:space-y-4 flex-1 min-h-0 overflow-y-auto">
           <Input
             id="survey-title"
             label="Judul Survei"
@@ -254,6 +268,29 @@ export default function SurveyFormModal({
               menuMaxHeight={MENU_MAX_HEIGHT_PERIODE}
             />
           </div>
+
+          {/* JENIS SURVEI. Mode buat: pilihan eksplisit. Mode ubah: hanya keterangan,
+              karena jenis menentukan kerangka pertanyaan dan tak dapat diganti. */}
+          {isEdit ? (
+            <div className="space-y-xs">
+              <span className="block text-sm font-bold text-text-primary">Jenis Survei</span>
+              <div className="min-h-[44px] flex items-center px-md rounded-lg bg-surface-container-low border border-outline-variant text-body-md text-text-secondary">
+                {jenis === 'skm_permenpanrb'
+                  ? 'SKM PermenPANRB'
+                  : jenis === 'umum'
+                    ? 'Survei Umum'
+                    : 'Tidak diketahui'}
+              </div>
+              <p className="text-xs text-slate-500">
+                Jenis survei tidak dapat diganti setelah survei dibuat.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-xs">
+              <span className="block text-sm font-bold text-text-primary">Jenis Survei</span>
+              <PemilihJenisSurvei nilai={jenis} onPilih={setJenis} disabled={isSubmitting} ringkas />
+            </div>
+          )}
 
           {/* Kotak centang dibungkus labelnya sendiri (pola sama ConsentGate.jsx):
               kotaknya 20px, tapi bidang sentuhnya seluruh label -- itulah yang

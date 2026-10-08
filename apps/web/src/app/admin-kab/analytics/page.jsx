@@ -221,6 +221,7 @@ function AnalyticsKabContent() {
         serviceElements={results.serviceElements}
         periode={results.periode}
         jumlahResponden={results.jumlahResponden}
+        sebaranSkor={results.sebaranSkor}
       />
     );
   };

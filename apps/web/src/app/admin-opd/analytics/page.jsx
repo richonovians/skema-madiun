@@ -241,6 +241,7 @@ function AnalyticsPageContent() {
         serviceElements={results.serviceElements}
         periode={results.periode}
         jumlahResponden={results.jumlahResponden}
+        sebaranSkor={results.sebaranSkor}
         ikmTrend={titikTren}
         judulTren={
           tahunPenyaring

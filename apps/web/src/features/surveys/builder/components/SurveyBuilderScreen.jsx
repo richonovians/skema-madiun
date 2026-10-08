@@ -8,6 +8,7 @@ import BuilderToolbar from './BuilderToolbar';
 import BuilderCanvas from './BuilderCanvas';
 import FloatingStatus from './FloatingStatus';
 import QuestionOptionsModal from './QuestionOptionsModal';
+import PemilihJenisSurvei from './PemilihJenisSurvei';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
@@ -23,7 +24,6 @@ import {
   updateSurvey,
   updateSurveyStatus,
   createCustomQuestion,
-  applyQuestionTemplate,
   deleteQuestion,
   updateQuestionText,
   updateQuestionOptions,
@@ -82,8 +82,15 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   const [isUtama, setIsUtama] = useState(false);
   /** Survei utama lain yang akan diturunkan, atau null bila tak ada konfirmasi tertunda. */
   const [konfirmasiUtama, setKonfirmasiUtama] = useState(null);
-  const [konfirmasiHapusBaku, setKonfirmasiHapusBaku] = useState(false);
   const [questions, setQuestions] = useState([]);
+  // Jenis survei BARU (8 Oktober 2026). `null` = belum dipilih; builder survei baru
+  // menampilkan pemilih jenis lebih dulu karena jenis tak dapat diganti sesudah
+  // dibuat. Survei yang sudah ada tak memakainya (jenisnya sudah di backend).
+  const [jenis, setJenis] = useState(null);
+  // Jenis yang baru DIKLIK dan menunggu konfirmasi (8 Oktober 2026). Jenis tak dapat
+  // diganti sesudah survei dibuat, dan memilih SKM langsung membuat survei, jadi
+  // klik pertama hanya membuka dialog -- tak ada yang dibuat sebelum "Ya".
+  const [jenisTertunda, setJenisTertunda] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -127,24 +134,28 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   }, [loaded]);
 
   /** Buat survei sungguhan bila belum ada -- dipicu aksi pertama yg butuh id nyata. */
-  const ensureSurveyExists = useCallback(async () => {
-    if (surveyId) return surveyId;
-    // `opdId` HANYA terisi bila superuser sedang memerankan satu OPD (2026-08-20).
-    // Tanpa itu backend menolak "opdId wajib diisi" untuk peran berhak penuh --
-    // akun superuser tak tertaut OPD mana pun (resolveOpdId di SurveysService).
-    // Admin OPD sungguhan tak terpengaruh: backend selalu memakai OPD akunnya
-    // sendiri dan mengabaikan field ini.
-    // `opdId` tak dikirim lagi: SurveysService.resolveOpdId memakai OPD akun
-    // bagi peran `opd`, dan area ini hanya terbuka bagi sesi berperan `opd`.
-    const created = await createSurvey({
-      title: title.trim() || 'Survei Tanpa Judul',
-      period: periode,
-      izinkanAnonim,
-    });
-    setSurveyId(created.id);
-    setStatus(created.status);
-    return created.id;
-  }, [surveyId, title, periode, izinkanAnonim]);
+  const ensureSurveyExists = useCallback(
+    async (jenisDipilih = jenis) => {
+      if (surveyId) return surveyId;
+      // `opdId` HANYA terisi bila superuser sedang memerankan satu OPD (2026-08-20).
+      // Tanpa itu backend menolak "opdId wajib diisi" untuk peran berhak penuh --
+      // akun superuser tak tertaut OPD mana pun (resolveOpdId di SurveysService).
+      // Admin OPD sungguhan tak terpengaruh: backend selalu memakai OPD akunnya
+      // sendiri dan mengabaikan field ini.
+      // `opdId` tak dikirim lagi: SurveysService.resolveOpdId memakai OPD akun
+      // bagi peran `opd`, dan area ini hanya terbuka bagi sesi berperan `opd`.
+      const created = await createSurvey({
+        title: title.trim() || 'Survei Tanpa Judul',
+        period: periode,
+        jenis: jenisDipilih,
+        izinkanAnonim,
+      });
+      setSurveyId(created.id);
+      setStatus(created.status);
+      return created.id;
+    },
+    [surveyId, title, periode, izinkanAnonim, jenis],
+  );
 
   /**
    * Susunan pertanyaan terkunci begitu jawaban pertama masuk (aturan §2.4
@@ -165,12 +176,37 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     status === 'DITUTUP'
       ? 'Survei ini sudah ditutup dan hasil IKM-nya sudah terbit, jadi isinya tidak dapat diubah. Aktifkan kembali lebih dulu bila memang perlu diubah.'
       : susunanTerkunci
-        ? `Susunan pertanyaan tidak dapat diubah karena survei ini sudah menerima ${jumlahJawaban} jawaban. Teks pertanyaan masih dapat diperbaiki.`
+        ? `Susunan pertanyaan tidak dapat diubah karena survei ini sudah menerima ${jumlahJawaban} jawaban. Teks pertanyaan dan label skala 1-4 masih dapat diperbaiki.`
         : null;
 
   const assertDraftOrThrow = () => {
     if (susunanTerkunci) {
       throw new Error(alasanTerkunci);
+    }
+  };
+
+  /**
+   * Memilih jenis pada survei baru. SKM dibuat SEKARANG: kesembilan unsurnya
+   * lahir bersama survei di backend, jadi kanvas baru berarti bila surveinya
+   * sudah ada. Survei umum tetap malas (dibuat pada aksi pertama) seperti
+   * sebelum jenis ada.
+   */
+  const handlePilihJenis = async (jenisDipilih) => {
+    setActionError(null);
+    if (jenisDipilih === 'umum') {
+      setJenis('umum');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const id = await ensureSurveyExists(jenisDipilih);
+      setQuestions(await getQuestions(id));
+      setJenis(jenisDipilih);
+    } catch (err) {
+      // Pemilih dibiarkan tampil dengan galatnya supaya bisa dicoba lagi.
+      setActionError(err.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -313,40 +349,13 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
-  /**
-   * HAPUS SELURUH 9 UNSUR BAKU SEKALIGUS (4 Oktober 2026, permintaan pengguna).
-   *
-   * SATU-SATU, BUKAN `Promise.all`. Bila satu panggilan gagal di tengah jalan,
-   * penghapusan serentak meninggalkan sebagian terhapus di server sementara
-   * layar menampilkan keadaan yang lain, dan tak ada yang dapat memberi tahu
-   * mana yang mana. Berurutan membuat kegagalan berhenti di tempat: yang sudah
-   * lewat memang sudah terhapus, yang belum tak pernah diminta, dan daftar di
-   * layar persis mencerminkan keduanya.
-   *
-   * Karena itu pula daftar dipangkas PER BARIS sesudah tiap panggilan berhasil,
-   * bukan sekaligus di awal dengan rollback bila gagal -- rollback atas
-   * penghapusan separuh jalan akan mengembalikan baris yang sudah tiada.
-   */
-  const handleDeleteBaku = async () => {
-    setActionError(null);
-    const baku = questions.filter((q) => q.isBaku);
-    setIsSaving(true);
-    try {
-      assertDraftOrThrow();
-      for (const q of baku) {
-        await deleteQuestion(q.id);
-        setQuestions((prev) => prev.filter((lain) => lain.id !== q.id));
-      }
-    } catch (err) {
-      setActionError(err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   /** Persist teks on-blur (bukan tiap keystroke) -- lihat QuestionBlock.jsx. */
   const handleTextCommit = async (id, text) => {
-    if (susunanTerkunci) return;
+    // Hanya survei DITUTUP yang menolak perbaikan kalimat. Memeriksa
+    // `susunanTerkunci` di sini diam-diam membuang perbaikan teks pada survei
+    // terbit yang sudah dijawab, padahal backend mengizinkannya (aturan `teks`)
+    // dan banner di atas kanvas menjanjikannya.
+    if (metaTerkunci) return;
     setIsSaving(true);
     try {
       await updateQuestionText(id, text);
@@ -466,10 +475,22 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
+  /**
+   * Label SKALA mengikuti aturan teks (terkunci hanya saat survei DITUTUP);
+   * opsi PILIHAN GANDA mengikuti aturan susunan. Lihat QuestionsService.update.
+   */
+  const assertBolehUbahOpsi = (question) => {
+    if (question.type === 'Skala Penilaian 1-4') {
+      if (metaTerkunci) throw new Error(alasanTerkunci);
+      return;
+    }
+    assertDraftOrThrow();
+  };
+
   const handleEditOptions = (question) => {
     setActionError(null);
     try {
-      assertDraftOrThrow();
+      assertBolehUbahOpsi(question);
     } catch (err) {
       setActionError(err.message);
       return;
@@ -493,7 +514,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     setIsSaving(true);
     const target = editingQuestion;
     try {
-      assertDraftOrThrow();
+      assertBolehUbahOpsi(target);
       const updated = await updateQuestionOptions(target.id, {
         // Unsur baku PermenPANRB: teksnya terkunci di UI, jadi jangan sampai
         // ikut terkirim -- hanya labelnya yang boleh berubah.
@@ -541,23 +562,6 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     }
   };
 
-  const handleAddBaku = async () => {
-    setActionError(null);
-    setIsSaving(true);
-    try {
-      assertDraftOrThrow();
-      const id = await ensureSurveyExists();
-      // Satu panggilan backend (template resmi PermenPANRB 14/2017) -- balas
-      // SELURUH pertanyaan survei ini, bukan cuma yg baru ditambah.
-      const allQuestions = await applyQuestionTemplate(id);
-      setQuestions(allQuestions);
-    } catch (err) {
-      setActionError(err.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   /**
    * Membuka konfirmasi, BUKAN langsung menerbitkan (11 September 2026).
    * Sesudah terbit dan jawaban pertama masuk, susunan pertanyaan terkunci --
@@ -596,6 +600,58 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
     );
   }
 
+  if (isNew && jenis === null && !surveyId) {
+    return (
+      /* `max-w-[48rem]`, BUKAN `max-w-3xl`: tema proyek mendefinisikan
+         `--spacing-3xl: 64px`, dan di repo ini Tailwind memakai token spasi itu
+         untuk `max-w-3xl` -- hasilnya kolom 64px dengan teks bertumpuk (terukur di
+         Chrome 8 Oktober 2026). Kelas `max-w-<xs..3xl>` tak dapat dipercaya di sini. */
+      <div className="w-full max-w-[48rem] mx-auto p-lg md:p-xl flex flex-col gap-lg">
+        <div>
+          <h1 className="font-headline-md text-headline-md text-text-primary">Jenis Survei</h1>
+          <p className="text-body-md text-text-secondary mt-xs">
+            Pilih jenis survei lebih dulu. Jenis tidak dapat diganti setelah survei dibuat.
+          </p>
+        </div>
+        {actionError && (
+          <div className="p-md rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
+            {actionError}
+          </div>
+        )}
+        <PemilihJenisSurvei
+          nilai={jenisTertunda ?? jenis}
+          onPilih={setJenisTertunda}
+          disabled={isSaving}
+        />
+        <ConfirmDialog
+          isOpen={jenisTertunda !== null}
+          tone="primary"
+          title={
+            jenisTertunda === 'skm_permenpanrb'
+              ? 'Pilih Survei SKM PermenPANRB?'
+              : 'Pilih Survei Umum?'
+          }
+          description={
+            jenisTertunda === 'skm_permenpanrb'
+              ? 'Survei langsung dibuat dengan sembilan unsur baku PermenPANRB 14/2017 (U1 sampai U9) dan menghasilkan Nilai IKM. Unsurnya tidak dapat dihapus, dan jenis survei tidak dapat diganti setelah dibuat.'
+              : 'Susunan pertanyaan bebas, tanpa unsur baku dan tanpa Nilai IKM. Jenis survei tidak dapat diganti setelah pertanyaan pertama ditambahkan.'
+          }
+          confirmLabel="Ya, Pilih Jenis Ini"
+          cancelLabel="Batal"
+          onCancel={() => setJenisTertunda(null)}
+          onConfirm={async () => {
+            const dipilih = jenisTertunda;
+            setJenisTertunda(null);
+            await handlePilihJenis(dipilih);
+          }}
+        />
+        <a href={listHref} className="self-start text-label-md text-primary hover:underline">
+          Kembali ke daftar survei
+        </a>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <BuilderLayout>
@@ -606,12 +662,10 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
 
   return (
     <BuilderLayout
-      onAddBaku={handleAddBaku}
       onAddCustom={handleAddCustom}
       onDragTypeStart={(type) => setDrag({ kind: 'new', type })}
       onDragEnd={() => setDrag(null)}
       canDrag={!susunanTerkunci}
-      alasanTerkunci={alasanTerkunci}
     >
       {/* Judul & periode TIDAK lagi dikirim ke bilah atas (2026-08-20) --
           keduanya disunting di kartu putih pada kanvas. State-nya tetap di sini,
@@ -641,6 +695,36 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           <span>{alasanTerkunci}</span>
         </div>
       )}
+      {/* Pilihan "Survei Umum" dapat dibatalkan selama BELUM ada survei yang dibuat
+          (pembuatannya malas, pada aksi pertama). Sesudahnya jenis tak dapat diganti. */}
+      {isNew && jenis === 'umum' && !surveyId && (
+        <div className="mx-lg mt-lg p-md rounded-xl border border-border bg-surface-container-low text-sm flex flex-wrap items-center justify-between gap-sm">
+          <span>
+            Jenis survei: <strong className="font-semibold">Survei Umum</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => setJenis(null)}
+            className="min-h-[44px] px-md rounded-lg border border-border text-label-md font-label-md text-primary hover:bg-primary-container/10"
+          >
+            Ganti jenis
+          </button>
+        </div>
+      )}
+      {/* KERANGKA UNSUR (8 Oktober 2026). Ditampilkan sekali di atas kanvas, bukan
+          pada tiap kartu: kesembilan kartu sudah memuat badge terkunci. */}
+      {questions.some((q) => q.isBaku) && (
+        <div
+          role="note"
+          className="mx-lg mt-lg p-md rounded-xl border border-primary/20 bg-primary-container/10 text-on-surface text-sm leading-relaxed flex items-start gap-sm"
+        >
+          <Lock size={16} className="shrink-0 mt-0.5 text-primary" aria-hidden="true" />
+          <span>
+            Kerangka 9 unsur PermenPANRB terkunci. Anda dapat mengubah kalimat pertanyaannya, tetapi
+            unsurnya tidak dapat dihapus atau diganti.
+          </span>
+        </div>
+      )}
       <BuilderCanvas
         questions={questions}
         onDelete={handleDelete}
@@ -665,7 +749,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         onDropAt={handleDropAt}
         onMove={moveQuestion}
         onEditOptions={handleEditOptions}
-        onDeleteBaku={() => setKonfirmasiHapusBaku(true)}
+        canEditText={!metaTerkunci}
       />
       <FloatingStatus questionCount={questions.length} />
 
@@ -697,6 +781,7 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
           mode="edit"
           variant={editingQuestion.type === 'Skala Penilaian 1-4' ? 'skala' : 'pilihan'}
           isTextLocked={editingQuestion.isBaku === true}
+          jumlahJawaban={jumlahJawaban}
           initialText={editingQuestion.text}
           initialOptions={
             editingQuestion.type === 'Skala Penilaian 1-4'
@@ -746,25 +831,6 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
         }}
       />
 
-      {/* Akibatnya disebutkan, bukan disembunyikan di balik "Anda yakin?":
-          menghapus kesembilannya membuat Nilai IKM tak dapat dihitung sama
-          sekali, sebab rumus PermenPANRB 14/2017 berdiri di atas unsur-unsur
-          itu. Jalan kembalinya ikut disebut supaya keputusan ini tak terasa
-          lebih besar daripada yang sebenarnya. */}
-      <ConfirmDialog
-        isOpen={konfirmasiHapusBaku}
-        tone="danger"
-        title="Hapus seluruh 9 unsur baku?"
-        description="Kesembilan pertanyaan unsur baku SKM akan dihapus sekaligus dari survei ini, dan Nilai IKM tidak lagi dapat dihitung karena perhitungannya berdiri di atas kesembilan unsur itu. Jawaban yang sudah masuk untuk unsur-unsur ini ikut terhapus. Anda dapat memasangnya kembali lewat tombol 'Tambah 9 Unsur Baku' di panel kiri."
-        confirmLabel="Ya, hapus 9 unsur"
-        cancelLabel="Batal"
-        isProcessing={isSaving}
-        onCancel={() => setKonfirmasiHapusBaku(false)}
-        onConfirm={async () => {
-          setKonfirmasiHapusBaku(false);
-          await handleDeleteBaku();
-        }}
-      />
     </BuilderLayout>
   );
 }

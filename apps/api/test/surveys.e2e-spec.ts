@@ -41,7 +41,7 @@ describe('Surveys (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Survei E2E', periode: '2026-Q1' });
+      .send({ judul: 'Survei E2E', periode: '2026-Q1', jenis: 'umum' });
 
     expect(res.status).toBe(201);
     expect(res.body.data.opdId).toBe(opdId);
@@ -55,7 +55,7 @@ describe('Surveys (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ judul: 'X', periode: '2026-Q1' });
+      .send({ judul: 'X', periode: '2026-Q1', jenis: 'umum' });
 
     expect(res.status).toBe(400);
   });
@@ -64,7 +64,7 @@ describe('Surveys (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(devHeaders({ role: Role.kabupaten }))
-      .send({ judul: 'Survei Kabupaten E2E', periode: '2026-Q1', opdId });
+      .send({ judul: 'Survei Kabupaten E2E', periode: '2026-Q1', jenis: 'umum', opdId });
 
     expect(res.status).toBe(201);
     expect(res.body.data.opdId).toBe(opdId);
@@ -91,7 +91,7 @@ describe('Surveys (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
-      .send({ judul: 'Lifecycle', periode: '2026-Q1' });
+      .send({ judul: 'Lifecycle', periode: '2026-Q1', jenis: 'umum' });
     const id = created.body.data.id;
 
     const upd = await request(app.getHttpServer())
