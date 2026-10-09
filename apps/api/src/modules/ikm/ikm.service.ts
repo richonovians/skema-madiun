@@ -10,7 +10,12 @@ import {
 } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
-import { AWALAN_RATA, AWALAN_SEBARAN, TTL_SINGGAHAN_DETIK } from './singgahan-ikm.util';
+import {
+  AWALAN_HASIL,
+  AWALAN_RATA,
+  AWALAN_SEBARAN,
+  TTL_SINGGAHAN_DETIK,
+} from './singgahan-ikm.util';
 import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -63,6 +68,23 @@ function mutuFromNilai(nilaiIkm: number): IkmMutu {
  * yang sama sekali lain -- ikut tercocok.
  */
 const TAHUN_SAJA = /^\d{4}$/;
+
+/**
+ * Muatan singgahan `computeResult`. SENGAJA tanpa `periode` dan tanpa
+ * `surveyId`: keduanya berasal dari objek `Survey` yang dikirimkan, jadi
+ * mengambilnya dari singgahan hanya menambah cara untuk salah.
+ *
+ * `dihitungPada` bertipe `string` sebab JSON.stringify mengubah `Date`
+ * menjadi ISO, dan dibaca kembali apa adanya -- dengan sengaja: ia harus
+ * melaporkan kapan angkanya SUNGGUH dihitung, bukan kapan dibaca.
+ */
+type HasilIkmTersinggah = {
+  jumlahResponden: number;
+  nrrPerUnsur: ConstructorParameters<typeof IkmUnsurEntity>[0][];
+  nilaiIkm: number;
+  mutu: IkmMutu;
+  dihitungPada: string;
+};
 
 function filterPeriode(periode: string): Prisma.StringFilter | string {
   return TAHUN_SAJA.test(periode) ? { startsWith: `${periode}-` } : periode;
@@ -487,6 +509,21 @@ export class IkmService {
    * duplikasi rumus IKM di luar sumber kebenaran tunggal ini.
    */
   async computeResult(survey: Survey): Promise<IkmResultEntity> {
+    const kunci = `${AWALAN_HASIL}${survey.id}`;
+    const tersimpan = await this.singgahan.ambil<HasilIkmTersinggah>(kunci);
+    if (tersimpan !== null) {
+      return new IkmResultEntity({
+        surveyId: survey.id,
+        // HIDUP, bukan dari singgahan. Lihat docblock `HasilIkmTersinggah`.
+        periode: survey.periode,
+        jumlahResponden: tersimpan.jumlahResponden,
+        nrrPerUnsur: tersimpan.nrrPerUnsur.map((u) => new IkmUnsurEntity(u)),
+        nilaiIkm: tersimpan.nilaiIkm,
+        mutu: tersimpan.mutu,
+        dihitungPada: new Date(tersimpan.dihitungPada),
+      });
+    }
+
     const unsurQuestions = await this.prisma.question.findMany({
       where: { surveyId: survey.id, isIkmUnsur: true },
       include: { answers: { select: { nilai: true } } },
@@ -529,6 +566,18 @@ export class IkmService {
       });
     });
     const nilaiIkm = round(nilaiIkmRaw * 25, 2);
+    const mutu = mutuFromNilai(nilaiIkm);
+    const dihitungPada = new Date();
+
+    // Cabang "belum dapat dinilai" di atas TIDAK disinggahkan dengan sengaja:
+    // ia justru hitungan termurah, dan menyimpannya membuat survei yang baru
+    // menerima jawaban pertamanya tetap melaporkan nol sampai TTL lewat --
+    // cacat yang sama seperti yang ditangkap e2e pada sebaran skor.
+    await this.singgahan.simpan(
+      kunci,
+      { jumlahResponden, nrrPerUnsur, nilaiIkm, mutu, dihitungPada },
+      TTL_SINGGAHAN_DETIK,
+    );
 
     return new IkmResultEntity({
       surveyId: survey.id,
@@ -536,8 +585,8 @@ export class IkmService {
       jumlahResponden,
       nrrPerUnsur,
       nilaiIkm,
-      mutu: mutuFromNilai(nilaiIkm),
-      dihitungPada: new Date(),
+      mutu,
+      dihitungPada,
     });
   }
 }

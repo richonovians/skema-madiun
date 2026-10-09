@@ -6,6 +6,7 @@ import { PenyimpanSinggahanNonaktif } from '../../common/cache/penyimpan-singgah
 import { PrismaService } from '../../prisma/prisma.service';
 import type { IkmExportService } from './ikm-export.service';
 import { IkmService } from './ikm.service';
+import { IkmUnsurEntity } from './entities/ikm-result.entity';
 
 const opdUser = (opdId: number | null): CurrentUser => ({
   userId: 1,
@@ -1140,6 +1141,110 @@ describe('IkmService', () => {
       await expect(s.hitungNilaiRataRata(7)).resolves.toBe(2.5);
 
       expect(prisma.answer.aggregate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  /**
+   * SINGGAHAN `computeResult` (9 Oktober 2026).
+   *
+   * DIUKUR SEBELUM DIBANGUN, bukan diduga: 35,7 ms untuk satu survei berisi
+   * 500 jawaban, dan `getDashboard` memanggilnya SEKALI PER SURVEI AKTIF.
+   * Komentar di `ikm.service.ts` sendiri sudah menyebut polanya N+1. Dengan 4
+   * survei aktif ini belum masalah; yang disiapkan adalah pertumbuhannya.
+   *
+   * `periode` SENGAJA TIDAK IKUT DISINGGAHKAN, dan ini bukan penghematan
+   * melainkan kebenaran: ia satu-satunya masukan `computeResult` yang berasal
+   * dari objek `Survey` yang dikirimkan, bukan dari basis data, dan ia DAPAT
+   * disunting. Menyinggahkannya berarti survei yang periodenya diperbaiki
+   * tetap melaporkan periode lama sampai TTL lewat. Yang disinggahkan hanya
+   * bagian yang murni berasal dari basis data.
+   *
+   * Masukan lainnya beku oleh aturan produk, dan itu terbukti di kode bukan di
+   * dokumen: `assertBolehHapusPertanyaan`, `assertBolehBuatPertanyaan`, dan
+   * `assertBolehUbahPenandaUnsur` di `kerangka-unsur.util.ts` semuanya menolak
+   * perubahan himpunan unsur maupun kodenya pada survei SKM.
+   *
+   * YANG TETAP DAPAT BASI sampai 60 detik: `urutan` pertanyaan yang diubah
+   * (hanya mengubah urutan `nrrPerUnsur`), dan `teks` pertanyaan pada survei
+   * lama ber-`kodeUnsur` tak dikenal yang memakai teksnya sebagai nama unsur.
+   * Keduanya disengaja, dibatasi TTL.
+   */
+  describe('singgahan computeResult', () => {
+    const tersimpan = {
+      jumlahResponden: 4,
+      nrrPerUnsur: [
+        { kodeUnsur: 'U1', teks: 'Kesesuaian persyaratan', nrr: 3.5, bobot: 1, nrrTertimbang: 3.5 },
+      ],
+      nilaiIkm: 87.5,
+      mutu: IkmMutu.B,
+      dihitungPada: new Date('2026-10-09T03:00:00.000Z').toISOString(),
+    };
+    const buat = (singgahan: { ambil: jest.Mock; simpan: jest.Mock }) =>
+      new IkmService(prisma, ikmExportService, singgahan as unknown as PenyimpanSinggahan);
+
+    it('kena singgahan -> tak menyentuh basis data', async () => {
+      const singgahan = { ambil: jest.fn().mockResolvedValue(tersimpan), simpan: jest.fn() };
+
+      const hasil = await buat(singgahan).computeResult(survey({ id: 7 }) as never);
+
+      expect(hasil.nilaiIkm).toBe(87.5);
+      expect(hasil.mutu).toBe(IkmMutu.B);
+      expect(prisma.question.findMany).not.toHaveBeenCalled();
+      expect(prisma.surveyResponse.count).not.toHaveBeenCalled();
+      expect(singgahan.simpan).not.toHaveBeenCalled();
+    });
+
+    /** Inti pemisahannya: periode hidup, sisanya dari singgahan. */
+    it('periode diambil dari survei yang dikirim, BUKAN dari singgahan', async () => {
+      const singgahan = {
+        ambil: jest.fn().mockResolvedValue({ ...tersimpan, periode: '2020-SALAH' }),
+        simpan: jest.fn(),
+      };
+
+      const hasil = await buat(singgahan).computeResult(
+        survey({ id: 7, periode: '2026-Q4' }) as never,
+      );
+
+      expect(hasil.periode).toBe('2026-Q4');
+    });
+
+    it('nrrPerUnsur dari singgahan dibungkus ulang menjadi entity, bukan JSON polos', async () => {
+      const singgahan = { ambil: jest.fn().mockResolvedValue(tersimpan), simpan: jest.fn() };
+
+      const hasil = await buat(singgahan).computeResult(survey({ id: 7 }) as never);
+
+      expect(hasil.nrrPerUnsur).toHaveLength(1);
+      expect(hasil.nrrPerUnsur[0]).toBeInstanceOf(IkmUnsurEntity);
+    });
+
+    it('meleset -> hitung, lalu simpan TANPA periode, kunci ber-surveyId, TTL 60', async () => {
+      const singgahan = { ambil: jest.fn().mockResolvedValue(null), simpan: jest.fn() };
+      (prisma.question.findMany as jest.Mock).mockResolvedValueOnce(unsurQuestions([[4, 4, 4, 4]]));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValueOnce(4);
+
+      const hasil = await buat(singgahan).computeResult(survey({ id: 7 }) as never);
+
+      expect(hasil.nilaiIkm).toBe(100);
+      const [kunci, nilai, ttl] = singgahan.simpan.mock.calls[0];
+      // Tanpa surveyId di kunci, survei kedua membaca hasil survei pertama.
+      expect(String(kunci)).toContain('7');
+      expect(ttl).toBe(60);
+      expect(nilai).not.toHaveProperty('periode');
+    });
+
+    it('survei tanpa responden TIDAK disinggahkan', async () => {
+      // Hitungannya paling murah justru di keadaan ini, dan menyinggahkan
+      // "belum dapat dinilai" berarti survei yang baru menerima jawaban
+      // pertamanya tetap melaporkan nol sampai TTL lewat -- cacat yang sama
+      // seperti yang ditangkap e2e pada sebaran skor.
+      const singgahan = { ambil: jest.fn().mockResolvedValue(null), simpan: jest.fn() };
+      (prisma.question.findMany as jest.Mock).mockResolvedValueOnce(unsurQuestions([[4]]));
+      (prisma.surveyResponse.count as jest.Mock).mockResolvedValueOnce(0);
+
+      const hasil = await buat(singgahan).computeResult(survey({ id: 7 }) as never);
+
+      expect(hasil.nilaiIkm).toBeNull();
+      expect(singgahan.simpan).not.toHaveBeenCalled();
     });
   });
 });
