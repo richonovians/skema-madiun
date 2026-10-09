@@ -46,7 +46,28 @@ export default () => ({
     url: process.env.DATABASE_URL,
   },
   swagger: {
-    enabled: (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
+    // GERBANG PRODUKSI, bukan sekadar bawaan (9 Oktober 2026).
+    //
+    // Sebelumnya bawaannya `'true'` dan `NODE_ENV` tak dilihat sama sekali,
+    // sehingga penggelaran yang lupa menyetel SATU variabel menyajikan Swagger
+    // UI di produksi. Itu gagal TERBUKA, satu-satunya di repo ini yang begitu;
+    // `periksaPenyimpanan` dan gerbang `TURNSTILE_SECRET_KEY` keduanya gagal
+    // tertutup.
+    //
+    // DI PRODUKSI VARIABELNYA DIABAIKAN, tanpa pintu darurat. `main.ts`
+    // menyatakan UI ini hanya untuk non-produksi, dan yang hidup di produksi
+    // adalah endpoint `/dokumentasi/openapi` yang dijaga `@Roles(kabupaten)`.
+    // Sebuah variabel yang DAPAT membuka UI publik di produksi adalah
+    // variabel yang kelak tersetel karena kelalaian, dan kelalaian itu tak
+    // bergejala -- aplikasinya jalan sempurna sambil menyiarkan seluruh peta
+    // endpoint-nya.
+    //
+    // HANYA `'true'` YANG LOLOS di non-produksi, pola yang sama dengan
+    // `periksaPenyimpanan`: nilai yang tak terbaca sebagai "ya" bukan
+    // pernyataan.
+    enabled:
+      (process.env.NODE_ENV ?? 'development') !== 'production' &&
+      (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
     path: 'api/docs',
   },
   cors: {

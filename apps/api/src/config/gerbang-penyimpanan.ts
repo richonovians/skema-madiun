@@ -14,9 +14,12 @@
  * ini mengubah kelalaian yang sunyi menjadi kegagalan boot yang berisik, pada
  * saat penggelaran, ketika orang yang tepat masih memperhatikan.
  *
- * POLA YANG SAMA sudah dipakai proyek ini pada `SWAGGER_ENABLED` dan
- * `TURNSTILE_SECRET_KEY`: keduanya menolak keadaan produksi yang berbahaya
- * alih-alih menyala diam-diam.
+ * POLA YANG SAMA dipakai proyek ini pada `TURNSTILE_SECRET_KEY`
+ * (`turnstile.service.ts`) dan, SEJAK 9 OKTOBER 2026, pada `SWAGGER_ENABLED`.
+ * Docblock ini sebelumnya menyebut Swagger sudah bergerbang padahal belum:
+ * bawaannya `'true'` dan `NODE_ENV` tak dilihat sama sekali. Sebuah naskah
+ * yang mengklaim sifat keamanan yang tak dimiliki kodenya lebih buruk
+ * daripada naskah yang diam, sebab ia menghentikan orang dari memeriksanya.
  *
  * HANYA `'true'` YANG LOLOS. Nilai lain -- kosong, `'mungkin'`, salah ketik --
  * ditolak. Sebuah pernyataan yang tak terbaca sebagai "ya" bukan pernyataan.
