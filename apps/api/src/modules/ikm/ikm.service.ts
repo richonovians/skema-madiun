@@ -64,39 +64,6 @@ function mutuFromNilai(nilaiIkm: number): IkmMutu {
  */
 const TAHUN_SAJA = /^\d{4}$/;
 
-/**
- * SINGGAHAN HITUNGAN IKM (8 Oktober 2026).
- *
- * DIPASANG PADA HITUNGANNYA, BUKAN PADA `getResults`. Kedua hitungan di bawah
- * adalah fungsi murni dari `surveyId` dan tak pernah menyentuh `CurrentUser`,
- * sehingga singgahannya tak dapat membocorkan hasil satu OPD ke OPD lain.
- * `getResults` memeriksa `assertOpdAccess` dan karena itu TIDAK boleh
- * disinggahkan secara utuh.
- *
- * YANG DITUTUPINYA: `getOpdDashboard` memanggil `getResults` untuk survei
- * terbaru pada setiap pemuatan, tanpa singgahan apa pun. `hitungStatistik`
- * sudah terlindung singgahan `statistik-publik` 60 detik, jadi bukan ia yang
- * menjadi alasan perubahan ini.
- *
- * DIBATALKAN DI JALUR TULIS, bukan dibiarkan kedaluwarsa sendiri (9 Oktober
- * 2026, pilihan pengguna: jalur A). Rancangan pertama memang menyandarkan
- * kesegaran pada TTL 60 detik saja, dengan alasan antarmuka `PenyimpanSinggahan`
- * belum punya cara membatalkan satu kunci. Itu TERBUKTI SALAH oleh e2e, bukan
- * oleh telaah: `ikm.e2e-spec.ts` memanggil `/results` saat survei belum
- * berresponden -- menyinggahkan sebaran kosong -- lalu dua jawaban masuk dan
- * `total` tetap 0. Nama ujinya `live-compute`, jadi harapan produknya seketika,
- * dan `/surveys/:id/results` adalah layar kerja Admin OPD, bukan ringkasan
- * publik yang boleh tertinggal.
- *
- * Sejak itu `ResponsesService` memanggil `kunciSinggahanIkm` dan menghapus
- * kedua kunci survei itu setiap satu jawaban masuk, pada kedua jalur tulis
- * (bersesi dan publik). TTL 60 detik tetap ada sebagai jaring pengaman untuk
- * pembatalan yang gagal, bukan lagi sebagai penjaga kesegaran.
- *
- * Kuncinya tinggal di `singgahan-ikm.util.ts` sebab dua modul memakainya; lihat
- * docblock berkas itu.
- */
-
 function filterPeriode(periode: string): Prisma.StringFilter | string {
   return TAHUN_SAJA.test(periode) ? { startsWith: `${periode}-` } : periode;
 }
@@ -106,6 +73,10 @@ export class IkmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ikmExportService: IkmExportService,
+    /**
+     * Singgahan hitungan IKM. Alasan penempatan, pembatalan di jalur tulis, dan
+     * nama kuncinya ada satu tempat: docblock `singgahan-ikm.util.ts`.
+     */
     @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {}
 
