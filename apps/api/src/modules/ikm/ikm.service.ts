@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ComplaintStatus,
   IkmMutu,
@@ -9,6 +9,9 @@ import {
   SurveyStatus,
 } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
+import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
+import { AWALAN_RATA, AWALAN_SEBARAN, TTL_SINGGAHAN_DETIK } from './singgahan-ikm.util';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardIkmQueryDto } from './dto/dashboard-ikm-query.dto';
@@ -61,6 +64,39 @@ function mutuFromNilai(nilaiIkm: number): IkmMutu {
  */
 const TAHUN_SAJA = /^\d{4}$/;
 
+/**
+ * SINGGAHAN HITUNGAN IKM (8 Oktober 2026).
+ *
+ * DIPASANG PADA HITUNGANNYA, BUKAN PADA `getResults`. Kedua hitungan di bawah
+ * adalah fungsi murni dari `surveyId` dan tak pernah menyentuh `CurrentUser`,
+ * sehingga singgahannya tak dapat membocorkan hasil satu OPD ke OPD lain.
+ * `getResults` memeriksa `assertOpdAccess` dan karena itu TIDAK boleh
+ * disinggahkan secara utuh.
+ *
+ * YANG DITUTUPINYA: `getOpdDashboard` memanggil `getResults` untuk survei
+ * terbaru pada setiap pemuatan, tanpa singgahan apa pun. `hitungStatistik`
+ * sudah terlindung singgahan `statistik-publik` 60 detik, jadi bukan ia yang
+ * menjadi alasan perubahan ini.
+ *
+ * DIBATALKAN DI JALUR TULIS, bukan dibiarkan kedaluwarsa sendiri (9 Oktober
+ * 2026, pilihan pengguna: jalur A). Rancangan pertama memang menyandarkan
+ * kesegaran pada TTL 60 detik saja, dengan alasan antarmuka `PenyimpanSinggahan`
+ * belum punya cara membatalkan satu kunci. Itu TERBUKTI SALAH oleh e2e, bukan
+ * oleh telaah: `ikm.e2e-spec.ts` memanggil `/results` saat survei belum
+ * berresponden -- menyinggahkan sebaran kosong -- lalu dua jawaban masuk dan
+ * `total` tetap 0. Nama ujinya `live-compute`, jadi harapan produknya seketika,
+ * dan `/surveys/:id/results` adalah layar kerja Admin OPD, bukan ringkasan
+ * publik yang boleh tertinggal.
+ *
+ * Sejak itu `ResponsesService` memanggil `kunciSinggahanIkm` dan menghapus
+ * kedua kunci survei itu setiap satu jawaban masuk, pada kedua jalur tulis
+ * (bersesi dan publik). TTL 60 detik tetap ada sebagai jaring pengaman untuk
+ * pembatalan yang gagal, bukan lagi sebagai penjaga kesegaran.
+ *
+ * Kuncinya tinggal di `singgahan-ikm.util.ts` sebab dua modul memakainya; lihat
+ * docblock berkas itu.
+ */
+
 function filterPeriode(periode: string): Prisma.StringFilter | string {
   return TAHUN_SAJA.test(periode) ? { startsWith: `${periode}-` } : periode;
 }
@@ -70,6 +106,7 @@ export class IkmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ikmExportService: IkmExportService,
+    @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {}
 
   /** Hasil IKM survei (live-compute) — Admin OPD (miliknya) & Admin Kabupaten. */
@@ -132,6 +169,20 @@ export class IkmService {
    * Tanpa pertanyaan skala kueri jawaban dilewati sama sekali.
    */
   async hitungSebaranSkor(surveyId: number): Promise<SebaranSkorEntity[]> {
+    const kunci = `${AWALAN_SEBARAN}${surveyId}`;
+    const tersimpan = await this.singgahan.ambil<SebaranSkorEntity[]>(kunci);
+    if (tersimpan !== null) {
+      // DIBUNGKUS ULANG ke entity, pola sama dengan `getStatistics`: yang
+      // keluar dari Redis adalah JSON polos, dan ClassSerializerInterceptor
+      // harus melihat bentuk yang sama dengan hitungan segar.
+      return tersimpan.map(
+        (s) =>
+          new SebaranSkorEntity({
+            ...s,
+            sebaran: s.sebaran.map((n) => new SebaranNilaiEntity(n)),
+          }),
+      );
+    }
     const pertanyaan = await this.prisma.question.findMany({
       where: { surveyId, tipe: QuestionType.skala },
       orderBy: { urutan: 'asc' },
@@ -151,7 +202,7 @@ export class IkmService {
       jumlahPer.set(`${b.questionId}:${b.nilai}`, b._count._all);
     }
 
-    return pertanyaan.map((p) => {
+    const hasil = pertanyaan.map((p) => {
       const sebaran = NILAI_SKALA.map(
         (nilai) =>
           new SebaranNilaiEntity({ nilai, jumlah: jumlahPer.get(`${p.id}:${nilai}`) ?? 0 }),
@@ -164,6 +215,8 @@ export class IkmService {
         sebaran,
       });
     });
+    await this.singgahan.simpan(kunci, hasil, TTL_SINGGAHAN_DETIK);
+    return hasil;
   }
 
   /**
@@ -196,6 +249,11 @@ export class IkmService {
    * survei dibatasi 100 baris per permintaan.
    */
   async hitungNilaiRataRata(surveyId: number): Promise<number | null> {
+    const kunci = `${AWALAN_RATA}${surveyId}`;
+    const tersimpan = await this.singgahan.ambil<number>(kunci);
+    if (tersimpan !== null) {
+      return tersimpan;
+    }
     const agregat = await this.prisma.answer.aggregate({
       where: {
         nilai: { not: null },
@@ -204,7 +262,15 @@ export class IkmService {
       },
       _avg: { nilai: true },
     });
-    return agregat._avg.nilai === null ? null : round(agregat._avg.nilai, 2);
+    const hasil = agregat._avg.nilai === null ? null : round(agregat._avg.nilai, 2);
+    // `null` TIDAK disimpan: `ambil` memakai `null` untuk "tak ada", jadi
+    // menyimpannya berarti survei tanpa jawaban melakukan kueri tiap kali
+    // tanpa pernah kena. Itu persis perilaku sebelum singgahan ada, dan
+    // survei kosong memang yang paling murah dihitung ulang.
+    if (hasil !== null) {
+      await this.singgahan.simpan(`${AWALAN_RATA}${surveyId}`, hasil, TTL_SINGGAHAN_DETIK);
+    }
+    return hasil;
   }
 
   /**

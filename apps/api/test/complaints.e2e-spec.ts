@@ -230,10 +230,18 @@ describe('Complaints (e2e)', () => {
       urlBertandaTangan = res.body.data.attachments[0].fileUrl;
     });
 
-    it('API mengembalikan fileUrl yang sudah ber-exp & sig', () => {
+    it('API mengembalikan fileUrl yang sudah ber-exp, sub & sig', () => {
       // Kalau baris ini merah, penandatanganannya tak terpasang dan seluruh uji
       // di bawah kehilangan makna -- termasuk yang menuntut 403.
-      expect(urlBertandaTangan).toMatch(/^\/uploads\/complaints\/.+\?exp=\d+&sig=[A-Za-z0-9_-]+$/);
+      //
+      // `sub` masuk ke pola ini 9 Oktober 2026, ketika tautan lampiran diikat
+      // pada akun supaya dapat dicabut. Polanya DIJANGKARKAN pada ketiga
+      // parameter beserta urutannya, bukan dilonggarkan jadi `.+`: tautan yang
+      // kehilangan `sub` kembali menjadi tautan yang tak tahu siapa
+      // membukanya, dan pola yang longgar tak akan mengatakannya.
+      expect(urlBertandaTangan).toMatch(
+        /^\/uploads\/complaints\/.+\?exp=\d+&sub=\d+&sig=[A-Za-z0-9_-]+$/,
+      );
     });
 
     it('jalur POLOS tanpa tanda tangan -> 403 (inilah celah yang ditutup)', async () => {

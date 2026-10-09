@@ -18,6 +18,8 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
 import { SessionEntity } from './entities/session.entity';
 import { PenerbitSesi } from './session/penerbit-sesi.service';
+import { PENYIMPAN_CABUT_LAMPIRAN } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
+import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
 import { PENYIMPAN_SESI } from './session/penyimpan-sesi.interface';
 import type { PenyimpanSesi, SesiTerdaftar } from './session/penyimpan-sesi.interface';
 import type { PerangkatSesi } from './session/penyimpan-sesi.interface';
@@ -33,6 +35,7 @@ export class AuthService {
     private readonly audit: AuditService,
     config: ConfigService,
     @Inject(PENYIMPAN_SESI) private readonly penyimpanSesi: PenyimpanSesi,
+    @Inject(PENYIMPAN_CABUT_LAMPIRAN) private readonly cabutLampiran: PenyimpanCabutLampiran,
   ) {
     this.kunci = kunciData(config);
   }
@@ -112,6 +115,10 @@ export class AuthService {
   /** Putuskan seluruh sesi akun ini, termasuk yang sedang memanggil. */
   async keluarkanSemuaPerangkat(userId: number): Promise<void> {
     await this.penyimpanSesi.cabutSemua(userId);
+    // TAUTAN LAMPIRAN IKUT DICABUT (9 Oktober 2026). Tanpa baris ini "keluarkan
+    // semua perangkat" berbohong: sesinya memang mati, tetapi URL lampiran yang
+    // terlanjur dipegang perangkat lain tetap dapat dibuka sampai `exp` lewat.
+    await this.cabutLampiran.cabut(userId, Math.floor(Date.now() / 1000));
   }
 
   /**

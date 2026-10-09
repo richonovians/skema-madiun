@@ -8,11 +8,19 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * `curl` tanpa kredensial menjawab 200. Yang ditutup di sini adalah akses
  * PERMANEN bagi siapa pun yang menemukan atau menebak jalurnya.
  *
- * BATAS PENDEKATAN INI, ditulis tersurat supaya tak ada yang mengira lebih:
- * URL-nya sendiri adalah kredensialnya. Ia tak tahu siapa yang membukanya, jadi
- * siapa pun yang memegangnya dalam masa berlaku dapat membaca lampiran itu.
- * Yang mengikatnya pada seseorang hanyalah pendekatan (a) — endpoint
- * terautentikasi lewat `assertAccess`.
+ * DIIKAT PADA ORANG sejak 9 Oktober 2026 (pilihan pengguna: jalur B, tegas).
+ * Semula tanda tangannya hanya mengikat jalur dan waktu, dan batas itu ditulis
+ * tersurat di sini: URL-nya tak tahu siapa yang membukanya. Akibatnya terukur
+ * dan bukan hipotetis — ketika peran `opd` seseorang dicabut lewat
+ * `sso_cabut_peran_opd`, atau ketika ia menekan `POST /auth/logout-semua`, URL
+ * lampiran yang terlanjur ia pegang TETAP SAH sampai `exp` lewat. Sesinya mati,
+ * tautannya tidak.
+ *
+ * Kini `sub` (id pengguna) ikut ditandatangani, sehingga tautan dapat dicabut
+ * per akun. YANG MASIH BERLAKU dari batas lama: dalam masa berlaku dan selama
+ * akunnya tak dicabut, siapa pun yang memegang URL itu tetap dapat membaca.
+ * Mengikatnya pada SESI menuntut endpoint terautentikasi lewat `assertAccess`,
+ * dan itu tetap pekerjaan lain.
  *
  * KUNCI DITURUNKAN, bukan `SESSION_JWT_SECRET` apa adanya. Kalau rahasia sesi
  * dipakai langsung sebagai kunci HMAC, tanda tangan lampiran dan tanda tangan
@@ -20,7 +28,18 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * salah satu formatnya berubah. Pemisahan domain memutus kemungkinan itu
  * sekarang, sebelum ada yang bergantung padanya.
  */
-const PEMISAH_DOMAIN = 'lampiran-url-v1';
+/**
+ * DINAIKKAN KE v2 saat `sub` masuk ke muatan (9 Oktober 2026), dan itulah yang
+ * menegakkan pilihan "tegas": kunci HMAC-nya berubah, sehingga SELURUH URL
+ * terbitan v1 batal seketika, bukan menunggu `exp`-nya lewat. Tanpa kenaikan
+ * ini sebuah tautan lama tetap sah selama masa berlakunya dan lubang yang
+ * hendak ditutup baru benar-benar tertutup berjam-jam kemudian.
+ *
+ * Harganya tersurat dan diterima pengguna: tab yang sedang terbuka harus
+ * dimuat ulang sekali untuk mendapat tautan baru. Antarmuka sudah menganjurkan
+ * itu, sebab `app.setup.ts` menjawab 403 dengan pesan "muat ulang halaman".
+ */
+const PEMISAH_DOMAIN = 'lampiran-url-v2';
 
 /**
  * Pemisah antara jalur dan exp di dalam masukan HMAC. `\n` dipilih karena TIDAK
@@ -37,21 +56,22 @@ function kunci(secret: string): Buffer {
   return createHmac('sha256', secret).update(PEMISAH_DOMAIN).digest();
 }
 
-function tandaTangan(pathname: string, exp: number, secret: string): string {
+function tandaTangan(pathname: string, exp: number, sub: string, secret: string): string {
   return createHmac('sha256', kunci(secret))
-    .update(`${pathname}${PEMISAH}${exp}`)
+    .update(`${pathname}${PEMISAH}${exp}${PEMISAH}${sub}`)
     .digest('base64url');
 }
 
-/** `/uploads/...` -> `/uploads/...?exp=<epoch>&sig=<base64url>`. */
+/** `/uploads/...` -> `/uploads/...?exp=<epoch>&sub=<userId>&sig=<base64url>`. */
 export function signAttachmentPath(
   pathname: string,
   secret: string,
   ttlSeconds: number,
+  sub: number,
   now: number = Date.now(),
 ): string {
   const exp = Math.floor(now / 1000) + ttlSeconds;
-  return `${pathname}?exp=${exp}&sig=${tandaTangan(pathname, exp, secret)}`;
+  return `${pathname}?exp=${exp}&sub=${sub}&sig=${tandaTangan(pathname, exp, String(sub), secret)}`;
 }
 
 /**
@@ -62,11 +82,14 @@ export function signAttachmentPath(
 export function verifyAttachmentPath(
   pathname: string,
   exp: string | null | undefined,
+  sub: string | null | undefined,
   sig: string | null | undefined,
   secret: string,
   now: number = Date.now(),
 ): HasilVerifikasi {
-  if (!exp || !sig) {
+  // `sub` WAJIB, sederajat dengan `exp` dan `sig`: tanpa pemiliknya tak ada
+  // yang dapat dicabut, dan URL tanpa `sub` adalah URL terbitan v1.
+  if (!exp || !sig || !sub) {
     return 'tanpa-tanda-tangan';
   }
 
@@ -78,7 +101,7 @@ export function verifyAttachmentPath(
   // Tanda tangan diperiksa SEBELUM waktu: kalau kedaluwarsa dijawab lebih dulu,
   // penyerang dapat membedakan "jalur ini ada tapi tautannya basi" dari "jalur
   // ini tak pernah ada", dan itu membocorkan keberadaan berkas.
-  const diharap = Buffer.from(tandaTangan(pathname, expNum, secret), 'utf8');
+  const diharap = Buffer.from(tandaTangan(pathname, expNum, sub, secret), 'utf8');
   const diberi = Buffer.from(sig, 'utf8');
   // Panjang dibandingkan lebih dahulu: `timingSafeEqual` MELEMPAR bila panjangnya
   // beda, dan yang benar di sini menolak, bukan meledak.

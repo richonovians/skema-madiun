@@ -9,6 +9,7 @@ import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
 import { AWALAN_KOLOM, dekripsiKolom } from '../../common/crypto/kolom';
 import { KUNCI_UJI } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
 import type { AuditService } from '../audit/audit.service';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
@@ -80,6 +81,7 @@ type Mocked = {
     opd: { findFirst: jest.Mock; findMany: jest.Mock };
   };
   source: { buildAuthorizeUrl: jest.Mock; exchangeCodeForProfile: jest.Mock };
+  cabutLampiran: { cabut: jest.Mock; dicabutPada: jest.Mock };
   state: { issue: jest.Mock; verify: jest.Mock; clearCookie: jest.Mock };
   session: { issue: jest.Mock; verify: jest.Mock };
   penerbit: { terbitkan: jest.Mock };
@@ -114,6 +116,9 @@ function buat(configOverrides: Record<string, string | boolean | undefined> = {}
   };
   const penerbit = { terbitkan: jest.fn().mockResolvedValue('token-sesi-skm') };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  // Penyimpan pencabutan tautan lampiran: diintip, bukan ditiru diam-diam,
+  // sebab satu uji di bawah menuntut pencabutan peran OPD ikut mencabutnya.
+  const cabutLampiran = { cabut: jest.fn().mockResolvedValue(undefined), dicabutPada: jest.fn() };
 
   const service = new SsoService(
     prisma as unknown as PrismaService,
@@ -122,10 +127,11 @@ function buat(configOverrides: Record<string, string | boolean | undefined> = {}
     penerbit as unknown as PenerbitSesi,
     state as unknown as SsoStateService,
     audit as unknown as AuditService,
+    cabutLampiran as unknown as PenyimpanCabutLampiran,
     source as unknown as SsoSource,
   );
 
-  return { service, prisma, source, state, session, penerbit, audit };
+  return { service, prisma, source, state, session, penerbit, audit, cabutLampiran };
 }
 
 describe('SsoService', () => {
@@ -1529,6 +1535,43 @@ describe('SsoService — jenis pengguna & pencabutan peran OPD saat login', () =
         'auth',
         expect.objectContaining({ alasan: 'opd-berganti' }),
       );
+    });
+
+    /**
+     * 9 Oktober 2026. Pencabutan peran yang menyisakan pintu terbuka bukan
+     * pencabutan: sampai sebelum ini, orang yang baru kehilangan peran `opd`
+     * masih dapat membuka URL lampiran pengaduan OPD lamanya sampai `exp`
+     * lewat, sebab tautannya tak pernah tahu perannya berubah.
+     */
+    it('pencabutan peran OPD ikut mencabut tautan lampirannya', async () => {
+      const m = buat();
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { id: 9, roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(m.cabutLampiran.cabut).toHaveBeenCalledWith(9, expect.any(Number));
+    });
+
+    /**
+     * PASANGAN yang membuat uji di atas berarti. Tanpa ini, "ikut dicabut"
+     * dapat lulus karena pencabutannya terjadi pada SETIAP login, dan itu akan
+     * melempar keluar tautan milik orang yang perannya tak berubah sama sekali.
+     */
+    it('login tanpa pencabutan peran TIDAK mencabut tautan lampiran', async () => {
+      const m = buat();
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      await login(
+        m,
+        { klaim: { opd: 'Dinas Kesehatan' } },
+        { id: 9, roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(m.cabutLampiran.cabut).not.toHaveBeenCalled();
     });
   });
 

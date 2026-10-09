@@ -7,7 +7,10 @@ import helmet from 'helmet';
 import { dekripsi, INFO_LAMPIRAN, terenkripsi } from './common/crypto/envelope';
 import { resolveLampiran, tipeKonten } from './common/crypto/jalur-lampiran';
 import { kunciData } from './common/crypto/kunci';
+import { PENYIMPAN_CABUT_LAMPIRAN } from './common/uploads/penyimpan-cabut-lampiran.interface';
+import type { PenyimpanCabutLampiran } from './common/uploads/penyimpan-cabut-lampiran.interface';
 import { verifyAttachmentPath } from './modules/complaints/attachment-url.util';
+import type { HasilVerifikasi } from './modules/complaints/attachment-url.util';
 import { DokumentasiService } from './modules/dokumentasi/dokumentasi.service';
 import { anotasiRute } from './modules/dokumentasi/anotasi-rute';
 import { bangunKonfigOpenApi } from './modules/dokumentasi/openapi.config';
@@ -112,6 +115,29 @@ export function configureApp(app: INestApplication): void {
   // terautentikasi lewat `assertAccess` -- pekerjaan terpisah yang lebih besar.
   const uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
   const urlSecret = config.get<string>('session.jwtSecret') ?? '';
+  // Harus SAMA dengan yang dipakai ComplaintsService saat menandatangani: dari
+  // `exp` dan TTL inilah saat penerbitan dihitung mundur, dan selisih nilai
+  // membuat tautan terbaca lebih tua atau lebih muda daripada sebenarnya.
+  const urlTtl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
+  const pencabutan = app.get<PenyimpanCabutLampiran>(PENYIMPAN_CABUT_LAMPIRAN);
+  const logLampiran = new Logger('Lampiran');
+
+  /**
+   * 403 untuk SEMUA kegagalan, termasuk kedaluwarsa dan dicabut: membedakan
+   * status per sebab akan memberi tahu penebak bahwa sebuah jalur memang ada.
+   * Sebabnya tetap disebut di badan respons supaya antarmuka dapat
+   * menganjurkan "muat ulang halaman" alih-alih menampilkan gambar rusak tanpa
+   * keterangan.
+   */
+  const tolak = (res: UploadResponseLike, sebab: HasilVerifikasi | 'dicabut'): void => {
+    const pesan =
+      sebab === 'kedaluwarsa'
+        ? 'Tautan lampiran sudah kedaluwarsa. Muat ulang halaman untuk mendapatkan tautan baru.'
+        : sebab === 'dicabut'
+          ? 'Tautan lampiran sudah dicabut. Masuk kembali untuk mendapatkan tautan baru.'
+          : 'Tautan lampiran tidak sah.';
+    res.status(403).json({ success: false, statusCode: 403, message: pesan });
+  };
   const satuNilai = (v: unknown): string | null => {
     // `?exp=1&exp=2` membuat Express mengisinya sebagai array. Mengambil salah
     // satu berarti membiarkan pengirim memilih; menolak seluruhnya lebih jujur.
@@ -127,29 +153,41 @@ export function configureApp(app: INestApplication): void {
       return;
     }
 
+    const sub = satuNilai(req.query?.sub);
     const hasil = verifyAttachmentPath(
       req.path,
       satuNilai(req.query?.exp),
+      sub,
       satuNilai(req.query?.sig),
       urlSecret,
     );
     if (hasil === 'sah') {
-      next();
+      // PENCABUTAN DIPERIKSA SESUDAH TANDA TANGAN, bukan sebelum: menanyakan
+      // Redis untuk `sub` yang belum terbukti sah berarti siapa pun yang
+      // mengarang `?sub=` dapat membebani penyimpan tanpa memegang tanda
+      // tangan apa pun.
+      void (async () => {
+        try {
+          const dicabut = await pencabutan.dicabutPada(Number(sub));
+          const diterbitkan = Number(satuNilai(req.query?.exp)) - urlTtl;
+          if (dicabut !== null && diterbitkan < dicabut) {
+            tolak(res, 'dicabut');
+            return;
+          }
+          next();
+        } catch (err) {
+          // GAGAL TERTUTUP. Penyimpan yang tak dapat menjawab berarti menolak,
+          // bukan meloloskan; lihat docblock `PenyimpanCabutLampiran`.
+          logLampiran.error(
+            `Penyimpan pencabutan lampiran tak menjawab, akses ditolak: ${String(err)}`,
+          );
+          tolak(res, 'dicabut');
+        }
+      })();
       return;
     }
 
-    // 403 untuk SEMUA kegagalan, termasuk kedaluwarsa: membedakan status per
-    // sebab akan memberi tahu penebak bahwa sebuah jalur memang ada. Sebabnya
-    // tetap disebut di badan respons supaya antarmuka dapat menganjurkan "muat
-    // ulang halaman" alih-alih menampilkan gambar rusak tanpa keterangan.
-    res.status(403).json({
-      success: false,
-      statusCode: 403,
-      message:
-        hasil === 'kedaluwarsa'
-          ? 'Tautan lampiran sudah kedaluwarsa. Muat ulang halaman untuk mendapatkan tautan baru.'
-          : 'Tautan lampiran tidak sah.',
-    });
+    tolak(res, hasil);
   });
 
   // PENYAJIAN LAMPIRAN TERENKRIPSI (23 September 2026).
@@ -173,7 +211,6 @@ export function configureApp(app: INestApplication): void {
   // Middleware verifikasi tanda tangan di atas berjalan LEBIH DULU dan tak
   // disentuh; permintaan yang sampai ke sini sudah bertanda tangan sah.
   const kunciLampiran = kunciData(config);
-  const logLampiran = new Logger('Lampiran');
 
   app.use((req: UploadRequestLike, res: UploadResponseLike, next: () => void) => {
     if (!req.path.startsWith('/uploads/')) {
