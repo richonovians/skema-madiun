@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,8 @@ import {
   QuestionType,
   SurveyStatus,
 } from '@prisma/client';
+import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
@@ -24,6 +27,7 @@ import { ConsentService } from '../auth/consent.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
+import { kunciSinggahanIkm } from '../ikm/singgahan-ikm.util';
 import { SubmitPublicResponseDto } from './dto/submit-public-response.dto';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { AnswerEntity } from './entities/answer.entity';
@@ -42,6 +46,7 @@ export class ResponsesService {
     private readonly consent: ConsentService,
     private readonly notifications: NotificationsService,
     config: ConfigService,
+    @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {
     this.kunci = kunciData(config);
   }
@@ -154,6 +159,7 @@ export class ResponsesService {
         },
         include: { answers: true },
       });
+      await this.batalkanSinggahanIkm(surveyId);
       // SESUDAH baris tersimpan: jumlah jawaban dihitung di dalam
       // NotificationsService, jadi memanggilnya lebih awal membuat tonggak
       // "jawaban pertama" tak pernah berbunyi.
@@ -253,6 +259,7 @@ export class ResponsesService {
       },
       include: { answers: true },
     });
+    await this.batalkanSinggahanIkm(surveyId);
     // `null`: pengisi tanpa sesi tak punya baris `users`, jadi tak ada siapa
     // pun yang perlu dikecualikan dari broadcast pengawasan.
     await this.notifications.notifySurveyResponse(
@@ -260,6 +267,23 @@ export class ResponsesService {
       null,
     );
     return this.toResponseEntity(created, created.answers);
+  }
+
+  /**
+   * Batalkan singgahan hitungan IKM survei ini (9 Oktober 2026, jalur A).
+   *
+   * DIPANGGIL SESUDAH baris jawabannya tersimpan, dan urutan itu menentukan
+   * benar-salahnya: membatalkan lebih dulu membuka jendela tempat pembaca lain
+   * dapat mengisi ulang singgahan dengan angka pra-jawaban, sehingga hasilnya
+   * basi persis seperti sebelum perbaikan ini.
+   *
+   * TIDAK dibungkus try/catch di sini: `PenyimpanSinggahan` sudah gagal-terbuka
+   * menurut kontraknya, dan menangkapnya untuk kedua kali hanya menyalin
+   * keputusan yang sama ke tempat kedua. Kalau pembatalannya gagal, TTL 60
+   * detik tetap menjadi batas atas umur angka basi.
+   */
+  private async batalkanSinggahanIkm(surveyId: number): Promise<void> {
+    await Promise.all(kunciSinggahanIkm(surveyId).map((kunci) => this.singgahan.hapus(kunci)));
   }
 
   /**

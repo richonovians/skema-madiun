@@ -10,6 +10,8 @@ import { ConfigService } from '@nestjs/config';
 import { JenisKelamin, JenisPengguna, Role, User } from '@prisma/client';
 import { enkripsiKolom } from '../../common/crypto/kolom';
 import { kunciData } from '../../common/crypto/kunci';
+import { PENYIMPAN_CABUT_LAMPIRAN } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
+import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
@@ -63,6 +65,7 @@ export class SsoService {
     private readonly penerbitSesi: PenerbitSesi,
     private readonly stateService: SsoStateService,
     private readonly audit: AuditService,
+    @Inject(PENYIMPAN_CABUT_LAMPIRAN) private readonly cabutLampiran: PenyimpanCabutLampiran,
     @Inject(SSO_SOURCE) private readonly ssoSource: SsoSource,
   ) {
     // Dibaca SEKALI saat konstruksi, sama seperti ComplaintsService. Kalau
@@ -711,6 +714,11 @@ export class SsoService {
         opdIdBaru: opdKlaim,
         peranSisa: sinkron.roles,
       });
+      // TAUTAN LAMPIRAN IKUT DICABUT (9 Oktober 2026). Orang ini baru saja
+      // kehilangan hak membaca pengaduan OPD lamanya, tetapi URL lampiran yang
+      // sempat dirender di perambannya tetap dapat dibuka sampai `exp` lewat.
+      // Pencabutan peran yang menyisakan pintu terbuka bukan pencabutan.
+      await this.cabutLampiran.cabut(user.id, Math.floor(Date.now() / 1000));
     }
 
     return diperbarui;

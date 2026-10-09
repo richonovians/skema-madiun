@@ -22,4 +22,8 @@ export class PenyimpanSinggahanNonaktif implements PenyimpanSinggahan {
   async simpan(): Promise<void> {
     // sengaja kosong
   }
+
+  async hapus(): Promise<void> {
+    // sengaja kosong
+  }
 }

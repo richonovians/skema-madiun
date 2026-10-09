@@ -30,6 +30,9 @@ export interface PenyimpanSinggahan {
 
   /** Simpan nilai dengan umur `ttlDetik`. Galat ditelan: singgahan bukan sumber kebenaran. */
   simpan<T>(kunci: string, nilai: T, ttlDetik: number): Promise<void>;
+
+  /** Batalkan satu kunci. Galat ditelan, sama seperti `simpan`. */
+  hapus(kunci: string): Promise<void>;
 }
 
 export const PENYIMPAN_SINGGAHAN = Symbol('PENYIMPAN_SINGGAHAN');

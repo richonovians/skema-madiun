@@ -1,6 +1,8 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
+import { PenyimpanSinggahanNonaktif } from '../../common/cache/penyimpan-singgahan.nonaktif';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { IkmExportService } from './ikm-export.service';
 import { IkmService } from './ikm.service';
@@ -79,7 +81,10 @@ describe('IkmService', () => {
     toExcel: jest.fn().mockResolvedValue(Buffer.from('excel-content')),
     toPdf: jest.fn().mockResolvedValue(Buffer.from('pdf-content')),
   } as unknown as IkmExportService;
-  const service = new IkmService(prisma, ikmExportService);
+  // Singgahan NONAKTIF untuk seluruh uji lama: ia selalu meleset, jadi
+  // perilakunya persis seperti sebelum singgahan ada dan tak satu pun uji
+  // lama berubah artinya.
+  const service = new IkmService(prisma, ikmExportService, new PenyimpanSinggahanNonaktif());
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -1035,6 +1040,106 @@ describe('IkmService', () => {
 
       const where = (prisma.ikmResult.findMany as jest.Mock).mock.calls[0][0].where;
       expect(where).not.toHaveProperty('periode');
+    });
+  });
+
+  /**
+   * SINGGAHAN HITUNGAN IKM (8 Oktober 2026).
+   *
+   * `hitungNilaiRataRata` dan `hitungSebaranSkor` adalah fungsi MURNI dari
+   * `surveyId`: tak satu pun menyentuh `CurrentUser`, dan karena itu menaruh
+   * singgahan di sini TIDAK DAPAT membocorkan hasil satu OPD ke OPD lain.
+   * Itulah sebabnya singgahannya dipasang pada kedua hitungan ini, bukan pada
+   * `getResults` yang memeriksa hak akses.
+   */
+  describe('singgahan hitungan IKM', () => {
+    it('hitungNilaiRataRata: kena singgahan -> tak menyentuh basis data', async () => {
+      const singgahan = {
+        ambil: jest.fn().mockResolvedValue(3.42),
+        simpan: jest.fn(),
+      };
+      const s = new IkmService(
+        prisma,
+        ikmExportService,
+        singgahan as unknown as PenyimpanSinggahan,
+      );
+
+      await expect(s.hitungNilaiRataRata(7)).resolves.toBe(3.42);
+
+      expect(prisma.answer.aggregate).not.toHaveBeenCalled();
+      expect(singgahan.simpan).not.toHaveBeenCalled();
+    });
+
+    it('hitungNilaiRataRata: meleset -> hitung lalu simpan dengan kunci ber-surveyId', async () => {
+      const singgahan = { ambil: jest.fn().mockResolvedValue(null), simpan: jest.fn() };
+      const s = new IkmService(
+        prisma,
+        ikmExportService,
+        singgahan as unknown as PenyimpanSinggahan,
+      );
+      (prisma.answer.aggregate as jest.Mock).mockResolvedValueOnce({ _avg: { nilai: 3.1 } });
+
+      await expect(s.hitungNilaiRataRata(7)).resolves.toBe(3.1);
+
+      expect(prisma.answer.aggregate).toHaveBeenCalledTimes(1);
+      const [kunci, nilai] = singgahan.simpan.mock.calls[0];
+      // Kuncinya WAJIB memuat surveyId: tanpa itu survei kedua membaca angka
+      // milik survei pertama.
+      expect(String(kunci)).toContain('7');
+      expect(nilai).toBe(3.1);
+    });
+
+    it('hitungSebaranSkor: kena singgahan -> tak menyentuh basis data', async () => {
+      // Bentuknya WAJIB `SebaranSkorEntity` apa adanya: yang keluar dari Redis
+      // adalah JSON polos hasil serialisasi entity itu, bukan bentuk karangan.
+      const tersimpan = [
+        {
+          pertanyaanId: 1,
+          kodeUnsur: 'U1',
+          teks: 'Kesesuaian persyaratan',
+          total: 3,
+          sebaran: [
+            { nilai: 1, jumlah: 0 },
+            { nilai: 2, jumlah: 0 },
+            { nilai: 3, jumlah: 1 },
+            { nilai: 4, jumlah: 2 },
+          ],
+        },
+      ];
+      const singgahan = { ambil: jest.fn().mockResolvedValue(tersimpan), simpan: jest.fn() };
+      const s = new IkmService(
+        prisma,
+        ikmExportService,
+        singgahan as unknown as PenyimpanSinggahan,
+      );
+
+      await expect(s.hitungSebaranSkor(7)).resolves.toEqual(tersimpan);
+
+      expect(prisma.question.findMany).not.toHaveBeenCalled();
+      expect(prisma.answer.groupBy).not.toHaveBeenCalled();
+    });
+
+    /**
+     * GAGAL-TERBUKA diuji di tingkat PENYIMPAN, bukan di sini. Kontrak
+     * `PenyimpanSinggahan.ambil` berbunyi "nilai tersimpan, atau `null` bila
+     * tak ada / tak terjangkau", jadi yang menelan galat Redis adalah
+     * implementasinya; `getStatistics` yang sudah ada pun tanpa `try/catch`.
+     * Menambahkannya di IkmService berarti menelan galat dua kali dan
+     * menyembunyikan implementasi yang melanggar kontraknya.
+     *
+     * Yang diuji di sini: penyimpan NONAKTIF (selalu meleset) menghasilkan
+     * perilaku yang persis sama dengan sebelum singgahan ada.
+     */
+    it('penyimpan nonaktif -> selalu hitung dari basis data, tak pernah kena', async () => {
+      const s = new IkmService(prisma, ikmExportService, new PenyimpanSinggahanNonaktif());
+      (prisma.answer.aggregate as jest.Mock)
+        .mockResolvedValueOnce({ _avg: { nilai: 2.5 } })
+        .mockResolvedValueOnce({ _avg: { nilai: 2.5 } });
+
+      await expect(s.hitungNilaiRataRata(7)).resolves.toBe(2.5);
+      await expect(s.hitungNilaiRataRata(7)).resolves.toBe(2.5);
+
+      expect(prisma.answer.aggregate).toHaveBeenCalledTimes(2);
     });
   });
 });

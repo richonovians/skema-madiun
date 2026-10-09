@@ -8,6 +8,7 @@ import type { AuditService } from '../audit/audit.service';
 import { enkripsiKolom } from '../../common/crypto/kolom';
 import { AuthService } from './auth.service';
 import type { PenerbitSesi } from './session/penerbit-sesi.service';
+import { PenyimpanCabutLampiranMemori } from '../../common/uploads/penyimpan-cabut-lampiran.memori';
 import { PenyimpanSesiMemori } from './session/penyimpan-sesi.memori';
 
 const cu = (actingRole: Role, userId = 1, over: Partial<CurrentUser> = {}): CurrentUser => ({
@@ -61,7 +62,14 @@ describe('AuthService', () => {
   const penerbitSesi = {
     terbitkan: jest.fn().mockResolvedValue('signed.jwt.token'),
   } as unknown as PenerbitSesi;
-  const service = new AuthService(prisma, penerbitSesi, audit, config, new PenyimpanSesiMemori());
+  const service = new AuthService(
+    prisma,
+    penerbitSesi,
+    audit,
+    config,
+    new PenyimpanSesiMemori(),
+    new PenyimpanCabutLampiranMemori(3600),
+  );
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -391,6 +399,7 @@ describe('AuthService.getMe -- identitas dari akun', () => {
       get: jest.fn((k: string) => (k === 'crypto.dataKey' ? KUNCI.toString('hex') : undefined)),
     } as unknown as ConfigService,
     new PenyimpanSesiMemori(),
+    new PenyimpanCabutLampiranMemori(3600),
   );
 
   const barisBeridentitas = (over: Record<string, unknown> = {}) =>
@@ -513,6 +522,7 @@ describe('AuthService — pencabutan sesi', () => {
         ),
       } as unknown as ConfigService,
       penyimpan,
+      new PenyimpanCabutLampiranMemori(3600),
     );
     return { service, penyimpan };
   };
@@ -549,6 +559,31 @@ describe('AuthService — pencabutan sesi', () => {
     await expect(penyimpan.hidup('sid-a')).resolves.toBe(false);
     await expect(penyimpan.hidup('sid-b')).resolves.toBe(false);
     await expect(penyimpan.hidup('sid-lain')).resolves.toBe(true);
+  });
+
+  /**
+   * 9 Oktober 2026. Sampai sebelum ini "keluarkan semua perangkat" berbohong:
+   * sesinya memang mati, tetapi URL lampiran yang terlanjur dipegang perangkat
+   * lain tetap dapat dibuka sampai `exp` lewat.
+   */
+  it('keluarkan semua perangkat ikut mencabut tautan lampiran akun itu', async () => {
+    const cabutLampiran = new PenyimpanCabutLampiranMemori(3600);
+    const service = new AuthService(
+      { user: { findFirst: jest.fn(), update: jest.fn() } } as unknown as PrismaService,
+      { terbitkan: jest.fn() } as unknown as PenerbitSesi,
+      { record: jest.fn() } as unknown as AuditService,
+      { get: jest.fn() } as unknown as ConfigService,
+      new PenyimpanSesiMemori(),
+      cabutLampiran,
+    );
+
+    await expect(cabutLampiran.dicabutPada(7)).resolves.toBeNull();
+    await service.keluarkanSemuaPerangkat(7);
+
+    await expect(cabutLampiran.dicabutPada(7)).resolves.toEqual(expect.any(Number));
+    // Akun lain tak tersentuh: pencabutan yang menyapu semua orang bukan
+    // "keluarkan perangkat SAYA".
+    await expect(cabutLampiran.dicabutPada(8)).resolves.toBeNull();
   });
 
   it('daftar sesi menandai mana yang sedang dipakai pemanggilnya', async () => {

@@ -49,14 +49,24 @@ export class PenyimpanSinggahanRedis implements PenyimpanSinggahan, OnModuleDest
     }
   }
 
-  private catatGalat(fase: 'baca' | 'tulis', err: unknown): void {
+  async hapus(kunci: string): Promise<void> {
+    try {
+      await this.redis.del(AWALAN + kunci);
+    } catch (err) {
+      this.catatGalat('batal', err);
+    }
+  }
+
+  private catatGalat(fase: 'baca' | 'tulis' | 'batal', err: unknown): void {
     const sekarang = Date.now();
     if (sekarang - this.galatTerakhir < JEDA_LOG_MS) {
       return;
     }
     this.galatTerakhir = sekarang;
     this.logger.warn(
-      `Redis singgahan tak terjangkau saat ${fase}; jawaban dihitung dari basis data: ${String(err)}`,
+      fase === 'batal'
+        ? `Redis singgahan tak terjangkau saat membatalkan kunci; angkanya basi sampai TTL lewat: ${String(err)}`
+        : `Redis singgahan tak terjangkau saat ${fase}; jawaban dihitung dari basis data: ${String(err)}`,
     );
   }
 }

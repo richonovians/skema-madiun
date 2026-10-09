@@ -11,6 +11,7 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PrismaService } from '../../prisma/prisma.service';
 import type { ConsentService } from '../auth/consent.service';
 import type { NotificationsService } from '../notifications/notifications.service';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import { ResponsesService } from './responses.service';
 
 const responden = (userId = 10): CurrentUser => ({
@@ -76,7 +77,16 @@ describe('ResponsesService', () => {
       kunci === 'crypto.dataKey' ? KUNCI_UJI_KOLOM.toString('hex') : undefined,
     ),
   } as unknown as ConfigService;
-  const service = new ResponsesService(prisma, consent, notifications, config);
+  /**
+   * Pembatal singgahan hitungan IKM. Lihat describe terakhir berkas ini untuk
+   * alasan keberadaannya.
+   */
+  const singgahan = {
+    ambil: jest.fn().mockResolvedValue(null),
+    simpan: jest.fn().mockResolvedValue(undefined),
+    hapus: jest.fn().mockResolvedValue(undefined),
+  } as unknown as PenyimpanSinggahan;
+  const service = new ResponsesService(prisma, consent, notifications, config, singgahan);
 
   const AKUN_BERPROFIL = {
     nama: 'Siti Aminah',
@@ -1099,6 +1109,93 @@ describe('ResponsesService', () => {
         BadRequestException,
       );
       expect(notifications.notifySurveyResponse).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * PEMBATALAN SINGGAHAN IKM (9 Oktober 2026, pilihan pengguna: jalur A).
+   *
+   * Cacat yang menyebabkannya nyata dan terukur, bukan hipotetis: `ikm.e2e-spec.ts`
+   * memanggil `GET /surveys/:id/results` ketika survei belum berresponden, yang
+   * menyinggahkan sebaran KOSONG selama 60 detik; dua jawaban lalu masuk dan
+   * `total` tetap 0. Uji itu bernama "live-compute", jadi harapan produknya
+   * memang seketika.
+   *
+   * Rata-ratanya tak ikut memerah hanya karena kebetulan: nilai `null` sengaja
+   * tak pernah disimpan, sehingga survei kosong tak menyinggahkan apa pun.
+   * Begitu satu jawaban ada, rata-ratanya basi juga -- jadi KEDUA kunci
+   * dibatalkan di sini, bukan hanya yang tertangkap uji.
+   *
+   * DIPASANG DI JALUR TULIS, bukan dengan memperpendek TTL: TTL sekecil apa pun
+   * masih jendela basi, dan satu `DEL` per jawaban jauh lebih murah daripada
+   * menghitung ulang IKM setiap permintaan baca.
+   */
+  describe('pembatalan singgahan IKM saat jawaban masuk', () => {
+    const responsTersimpan = { id: 1, surveyId: 1, submittedAt: new Date(), answers: [] };
+    const kunciTerhapus = () => (singgahan.hapus as jest.Mock).mock.calls.flat().sort() as string[];
+
+    beforeEach(() => (singgahan.hapus as jest.Mock).mockClear());
+
+    it('submit bersesi membatalkan KEDUA kunci survei itu', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      expect(kunciTerhapus()).toEqual(['ikm-rata:1', 'ikm-sebaran:1']);
+    });
+
+    /**
+     * Jalur publik ikut, dan ini bukan kelengkapan belaka: survei berkode QR di
+     * loket dijawab LEWAT JALUR INI, jadi melewatkannya berarti justru survei
+     * yang paling sering dijawab yang angkanya paling basi.
+     */
+    it('submitPublic membatalkan KEDUA kunci survei itu', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ izinkanAnonim: true, questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      expect(kunciTerhapus()).toEqual(['ikm-rata:1', 'ikm-sebaran:1']);
+    });
+
+    /**
+     * URUTANNYA MENENTUKAN BENAR-SALAHNYA. Membatalkan SEBELUM baris tersimpan
+     * membuka balapan: pembaca lain dapat mengisi ulang singgahan dengan angka
+     * pra-jawaban di antara dua langkah itu, dan hasilnya basi persis seperti
+     * sebelum perbaikan ini -- dengan `DEL` yang terlihat sudah dipanggil.
+     */
+    it('dibatalkan SESUDAH baris tersimpan, bukan sebelumnya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      const urutanSimpan = (prisma.surveyResponse.create as jest.Mock).mock.invocationCallOrder[0];
+      const urutanBatal = (singgahan.hapus as jest.Mock).mock.invocationCallOrder[0];
+      expect(urutanBatal).toBeGreaterThan(urutanSimpan);
+    });
+
+    it('survei lain tak tersentuh: kuncinya dibangun dari surveyId yang dijawab', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ id: 42, izinkanAnonim: true, questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+        ...responsTersimpan,
+        surveyId: 42,
+      });
+
+      await service.submitPublic(42, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      expect(kunciTerhapus()).toEqual(['ikm-rata:42', 'ikm-sebaran:42']);
     });
   });
 });

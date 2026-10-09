@@ -141,10 +141,10 @@ export class ComplaintsService {
    * (403 dari penjaga), bukan lampiran yang bocor -- gagal ke arah aman, dan
    * terlihat seketika.
    */
-  private tandaTanganiLampiran<T extends { fileUrl: string }>(rows: T[]): T[] {
+  private tandaTanganiLampiran<T extends { fileUrl: string }>(rows: T[], sub: number): T[] {
     return rows.map((a) => ({
       ...a,
-      fileUrl: signAttachmentPath(a.fileUrl, this.urlSecret, this.urlTtl),
+      fileUrl: signAttachmentPath(a.fileUrl, this.urlSecret, this.urlTtl, sub),
     }));
   }
 
@@ -185,7 +185,7 @@ export class ComplaintsService {
     // ter-commit ikut terhapus (cleanupFiles), padahal pengaduannya sendiri
     // berhasil dibuat -- caller salah dikira gagal total.
     await this.notificationsService.notifyComplaintCreated(complaint);
-    return this.toEntity(complaint);
+    return this.toEntity(complaint, user.userId);
   }
 
   /**
@@ -233,7 +233,7 @@ export class ComplaintsService {
     ]);
 
     return paginate(
-      rows.map((row) => this.toEntity(row)),
+      rows.map((row) => this.toEntity(row, user.userId)),
       total,
       page,
       limit,
@@ -263,7 +263,7 @@ export class ComplaintsService {
       throw new NotFoundException(`Pengaduan dengan nomor tiket ${ticketNo} tidak ditemukan`);
     }
     this.assertAccess(user, complaint);
-    return this.toEntity(complaint);
+    return this.toEntity(complaint, user.userId);
   }
 
   /** Ubah status pengaduan (Admin OPD pemilik). Ditolak WAJIB disertai catatan/alasan. */
@@ -317,7 +317,7 @@ export class ComplaintsService {
         : []),
     ]);
     await this.notificationsService.notifyComplaintStatusChanged(updated, user.userId);
-    return this.toEntity(updated as ComplaintWithAttachments);
+    return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }
 
   /** Riwayat tanggapan pada satu tiket. */
@@ -330,7 +330,7 @@ export class ComplaintsService {
       include: { attachments: true },
       orderBy: { createdAt: 'asc' },
     });
-    return rows.map((row) => this.toReplyEntity(row, complaint));
+    return rows.map((row) => this.toReplyEntity(row, complaint, user.userId));
   }
 
   /**
@@ -390,7 +390,7 @@ export class ComplaintsService {
       // `user` utuh, bukan `user.userId`: arah balasan ditentukan peran yang
       // sedang dipakai -- alasan yang sama persis dengan `dariPelapor` di atas.
       await this.notificationsService.notifyComplaintReply(complaint, user);
-      return this.toReplyEntity(created, complaint);
+      return this.toReplyEntity(created, complaint, user.userId);
     } catch (err) {
       // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort, pola sama create()).
       await this.cleanupFiles(saved);
@@ -497,7 +497,7 @@ export class ComplaintsService {
     // penerusannya terjadi.
     await this.notificationsService.notifyComplaintForwarded(updated, opd.nama);
 
-    return this.toEntity(updated as ComplaintWithAttachments);
+    return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }
 
   /**
@@ -701,7 +701,7 @@ export class ComplaintsService {
     return dekripsiKolom(nilai, this.kunci);
   }
 
-  private toEntity(row: ComplaintWithAttachments): ComplaintEntity {
+  private toEntity(row: ComplaintWithAttachments, sub: number): ComplaintEntity {
     const { user, opd, ...rest } = row;
     const entity = new ComplaintEntity({
       ...rest,
@@ -710,7 +710,7 @@ export class ComplaintsService {
       // yang masih polos dikembalikan apa adanya oleh `dekripsiKolom`, jadi
       // migrasi boleh bertahap dan sistem tak pernah harus berhenti.
       uraian: dekripsiKolom(rest.uraian, this.kunci),
-      attachments: this.tandaTanganiLampiran(rest.attachments),
+      attachments: this.tandaTanganiLampiran(rest.attachments, sub),
       reporterNama: user?.nama,
       // DIDEKRIPSI DI CHOKEPOINT YANG SAMA dengan `uraian` di atas. `undefined`
       // dipertahankan sebagai `undefined` (daftar tak menariknya) sementara
@@ -746,6 +746,7 @@ export class ComplaintsService {
   private toReplyEntity(
     row: ComplaintReply & { attachments: ComplaintAttachment[] },
     complaint: { userId: number; isAnonim: boolean },
+    sub: number,
   ): ComplaintReplyEntity {
     const entity = new ComplaintReplyEntity({
       ...row,
@@ -759,7 +760,7 @@ export class ComplaintsService {
       // (`/uploads/*`), jadi ia perlu tanda tangan yang sama. Tanpa ini gambar
       // di percakapan gagal dimuat 403 -- gejalanya berbeda dari kebocoran,
       // tapi tetap harus benar.
-      attachments: this.tandaTanganiLampiran(row.attachments),
+      attachments: this.tandaTanganiLampiran(row.attachments, sub),
     });
     if (complaint.isAnonim && row.authorId === complaint.userId) {
       delete entity.authorId;
