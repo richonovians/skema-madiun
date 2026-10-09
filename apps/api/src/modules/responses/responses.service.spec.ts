@@ -1132,11 +1132,19 @@ describe('ResponsesService', () => {
    */
   describe('pembatalan singgahan IKM saat jawaban masuk', () => {
     const responsTersimpan = { id: 1, surveyId: 1, submittedAt: new Date(), answers: [] };
+    /**
+     * SELURUH kunci, bukan sejumlah tertentu yang dihafal: daftarnya bertambah
+     * dari dua menjadi tiga pada 9 Oktober 2026 ketika `computeResult` ikut
+     * disinggahkan, dan ketiga uji di bawah MEMERAH saat itu. Itu memang
+     * gunanya -- menambah hitungan tersinggahkan tanpa menambah pembatalannya
+     * adalah cara paling mudah membuat angka basi, dan uji inilah yang
+     * menghentikannya.
+     */
     const kunciTerhapus = () => (singgahan.hapus as jest.Mock).mock.calls.flat().sort() as string[];
 
     beforeEach(() => (singgahan.hapus as jest.Mock).mockClear());
 
-    it('submit bersesi membatalkan KEDUA kunci survei itu', async () => {
+    it('submit bersesi membatalkan SELURUH kunci survei itu', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
         aktifSurvey({ questions: [skalaQ(101)] }),
       );
@@ -1145,7 +1153,7 @@ describe('ResponsesService', () => {
 
       await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
 
-      expect(kunciTerhapus()).toEqual(['ikm-rata:1', 'ikm-sebaran:1']);
+      expect(kunciTerhapus()).toEqual(['ikm-hasil:1', 'ikm-rata:1', 'ikm-sebaran:1']);
     });
 
     /**
@@ -1153,7 +1161,7 @@ describe('ResponsesService', () => {
      * loket dijawab LEWAT JALUR INI, jadi melewatkannya berarti justru survei
      * yang paling sering dijawab yang angkanya paling basi.
      */
-    it('submitPublic membatalkan KEDUA kunci survei itu', async () => {
+    it('submitPublic membatalkan SELURUH kunci survei itu', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
         aktifSurvey({ izinkanAnonim: true, questions: [skalaQ(101)] }),
       );
@@ -1161,7 +1169,7 @@ describe('ResponsesService', () => {
 
       await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
 
-      expect(kunciTerhapus()).toEqual(['ikm-rata:1', 'ikm-sebaran:1']);
+      expect(kunciTerhapus()).toEqual(['ikm-hasil:1', 'ikm-rata:1', 'ikm-sebaran:1']);
     });
 
     /**
@@ -1195,7 +1203,7 @@ describe('ResponsesService', () => {
 
       await service.submitPublic(42, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
 
-      expect(kunciTerhapus()).toEqual(['ikm-rata:42', 'ikm-sebaran:42']);
+      expect(kunciTerhapus()).toEqual(['ikm-hasil:42', 'ikm-rata:42', 'ikm-sebaran:42']);
     });
   });
 });

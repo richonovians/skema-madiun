@@ -50,6 +50,16 @@ export const AWALAN_RATA = 'ikm-rata:';
 export const AWALAN_SEBARAN = 'ikm-sebaran:';
 
 /**
+ * Hasil IKM satu survei (NRR per unsur, nilai, mutu). Lihat
+ * `IkmService.computeResult`.
+ *
+ * MUATANNYA TANPA `periode`: medan itu berasal dari objek `Survey` yang
+ * dikirimkan, bukan dari basis data, dan ia dapat disunting. Menyinggahkannya
+ * membuat survei yang periodenya diperbaiki tetap melaporkan periode lama.
+ */
+export const AWALAN_HASIL = 'ikm-hasil:';
+
+/**
  * TTL 60 detik, sama dengan statistik publik.
  *
  * Sejak pembatalan di jalur tulis ada, TTL bukan lagi penjaga kesegaran
@@ -66,5 +76,9 @@ export const TTL_SINGGAHAN_DETIK = 60;
  * tulis -- tempat yang justru paling mudah terlupakan.
  */
 export function kunciSinggahanIkm(surveyId: number): string[] {
-  return [`${AWALAN_RATA}${surveyId}`, `${AWALAN_SEBARAN}${surveyId}`];
+  return [
+    `${AWALAN_RATA}${surveyId}`,
+    `${AWALAN_SEBARAN}${surveyId}`,
+    `${AWALAN_HASIL}${surveyId}`,
+  ];
 }
