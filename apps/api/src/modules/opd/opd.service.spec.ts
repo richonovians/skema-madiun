@@ -1,4 +1,5 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotFoundException } from '@nestjs/common';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
@@ -17,6 +18,13 @@ const opdRow = {
   createdAt: new Date(),
   updatedAt: new Date(),
 };
+
+/** Pelanggaran unique dari Postgres, bentuk yang sama seperti yang Prisma lempar. */
+const p2002 = () =>
+  new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  });
 
 describe('OpdService', () => {
   const prisma = {
@@ -231,5 +239,106 @@ describe('OpdService', () => {
 
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Sinkronisasi OPD selesai'));
     logSpy.mockRestore();
+  });
+
+  /**
+   * BALAPAN BACA-LALU-TULIS PADA SINKRONISASI OPD (9 Oktober 2026, pilihan
+   * pengguna: jalur B).
+   *
+   * `findFirst` lalu `create` adalah baca-lalu-tulis. Dua sinkronisasi yang
+   * berjalan bersamaan dapat sama-sama tak menemukan baris lalu sama-sama
+   * menyisipkan `externalId` yang sama; Postgres menolak yang kedua dengan
+   * pelanggaran unique, dan sebelum perbaikan ini galat itu naik sebagai 500
+   * dengan sinkronisasi separuh jalan.
+   *
+   * KOREKSI atas penilaian saya sendiri yang lebih dini: saya sempat
+   * menyatakan balapan ini dapat menonaktifkan 53 OPD. Itu tidak benar.
+   * `external_id` dan `kode` keduanya `@unique`, jadi basis data menolak baris
+   * ganda; langkah penonaktifan idempoten sebab kedua jalanan menarik daftar
+   * yang sama; dan tombolnya sudah `disabled={isSyncing}` di antarmuka.
+   * Kerusakan yang sebenarnya hanyalah 500 yang membingungkan.
+   *
+   * MENGAPA BUKAN SATU `ON CONFLICT`: tabel `opd` punya DUA unique terpisah
+   * (`external_id` dan `kode`), sedangkan satu klausa `ON CONFLICT` hanya
+   * dapat menargetkan satu constraint. Aturannya pun menuntut keduanya --
+   * baris ber-`kode` sama SENGAJA diadopsi agar tak bentrok. Jadi pola yang
+   * dipakai: sisipkan secara optimis, dan bila constraint MANA PUN berbunyi,
+   * baca ulang lalu perbarui.
+   *
+   * YANG MEMBUAT BACA ULANGNYA DIJAMIN MENEMUKAN BARIS: Postgres menahan
+   * `INSERT` kedua pada indeks unique sampai transaksi pertama selesai, dan
+   * baru melempar galat duplikat SESUDAH yang pertama commit. Saat kita
+   * menangkap P2002, barisnya karena itu sudah terlihat.
+   */
+  describe('syncFromSource tahan balapan', () => {
+    /**
+     * `mockReset`, BUKAN mengandalkan `jest.clearAllMocks()` di beforeEach
+     * terluar: `clearAllMocks` hanya membuang catatan panggilan, sedangkan
+     * antrean `mockResolvedValueOnce` yang TAK TERPAKAI tetap tinggal dan
+     * bocor ke uji berikutnya. Terukur, bukan diduga: percobaan pertama uji
+     * ini membuat nilai `{ id: 7 }` yang tak terpakai di uji pertama diambil
+     * oleh uji kedua, sehingga uji kedua menempuh jalur UPDATE dan lulus
+     * karena alasan yang salah.
+     */
+    beforeEach(() => {
+      (prisma.opd.findFirst as jest.Mock).mockReset();
+      (prisma.opd.create as jest.Mock).mockReset();
+      (prisma.opd.update as jest.Mock).mockReset();
+    });
+
+    const satuItem = () => {
+      opdSource.fetchOpdList.mockResolvedValue([
+        { externalId: 'HD-001', kode: 'DINKES', nama: 'Dinas Kesehatan' },
+      ]);
+    };
+
+    it('create bentrok unique -> baca ulang & perbarui, bukan 500', async () => {
+      satuItem();
+      (prisma.opd.findFirst as jest.Mock)
+        .mockResolvedValueOnce(null) // jalanan ini belum melihat barisnya
+        .mockResolvedValueOnce({ id: 7 }); // jalanan lain sudah menyisipkannya
+      (prisma.opd.create as jest.Mock).mockRejectedValueOnce(p2002());
+
+      const report = await service.syncFromSource();
+
+      expect(prisma.opd.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 7 } }));
+      expect(report.updated).toBe(1);
+      expect(report.created).toBe(0);
+      expect(report.skipped).toBe(0);
+    });
+
+    /**
+     * Kalau baris itu TETAP tak ada, yang berbunyi bukan balapan yang kita
+     * duga -- mungkin `kode` bentrok dengan baris yang `OR`-nya tak mencakup,
+     * atau constraint lain. Menelannya akan menyembunyikan cacat sungguhan
+     * dan melaporkan sinkronisasi sukses yang tak menulis apa pun.
+     */
+    it('bentrok tetapi baca ulang tak menemukan apa pun -> galatnya dilempar', async () => {
+      satuItem();
+      (prisma.opd.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.opd.create as jest.Mock).mockRejectedValueOnce(p2002());
+
+      await expect(service.syncFromSource()).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+    });
+
+    /**
+     * BARISNYA SENGAJA DIBUAT ADA pada baca ulang. Versi pertama uji ini
+     * memakai `null`, dan itu membuatnya HAMPA -- terbukti lewat mutasi:
+     * membuang penjaga jenis galat tetap meluluskannya, sebab penjaga kedua
+     * ("baca ulang kosong") menangkapnya. Dengan barisnya ada, satu-satunya
+     * yang menahan galat ini adalah penjaga jenisnya sendiri.
+     */
+    it('galat yang BUKAN pelanggaran unique -> dilempar, tidak jadi pembaruan', async () => {
+      satuItem();
+      (prisma.opd.findFirst as jest.Mock)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 9 });
+      (prisma.opd.create as jest.Mock).mockRejectedValueOnce(new Error('koneksi putus'));
+
+      await expect(service.syncFromSource()).rejects.toThrow('koneksi putus');
+      // Hanya bentrok unique yang berarti "orang lain sudah menyisipkannya".
+      // Koneksi putus tak mengatakan apa pun tentang baris yang ada.
+      expect(prisma.opd.update).not.toHaveBeenCalled();
+    });
   });
 });
