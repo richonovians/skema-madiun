@@ -11,6 +11,7 @@ describe('Sampah survei (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let opdId: number;
+  let penggunaId: number;
   let opdLainId: number;
 
   beforeAll(async () => {
@@ -28,6 +29,37 @@ describe('Sampah survei (e2e)', () => {
       create: { kode: 'E2ETRASH', nama: 'OPD E2E Sampah', isActive: true },
     });
     opdId = opd.id;
+
+    // PENGGUNA MILIK BERKAS INI. `SurveysService.remove` menulis
+    // `surveys.deleted_by_id`, sebuah FK ke `users`. Tanpa baris ini ujinya
+    // bergantung pada baku `x-dev-user-id` = 1 di `stub-auth.provider.ts`, dan
+    // pengguna ber-id 1 hanya ada di basis data pengembangan karena kebetulan
+    // sejarah: ia baris pengguna pertama yang pernah dibuat di sana. Terukur
+    // 12 Oktober 2026, saat suite ini pertama kali dijalankan di basis data
+    // uji sendiri: DELETE /surveys/:id menjawab 500 dengan
+    // "Foreign key constraint violated on the constraint:
+    // `surveys_deleted_by_id_fkey`".
+    //
+    // `opdId` DIBIARKAN null walau perannya `opd`. Penautan OPD-nya datang dari
+    // header `x-dev-opd-id`, dan `StubAuthProvider` tak pernah membaca baris
+    // ini. Mengisinya justru membuat `opd.deleteMany` di `afterAll` gagal,
+    // karena `users.opd_id` menahan OPD-nya.
+    //
+    // TIDAK dihapus di `afterAll`: permintaan yang teraudit menulis
+    // `audit_logs.actor_id` yang menunjuk baris ini, dan baris audit tak boleh
+    // dihapus. `upsert` membuatnya cukup satu baris untuk seluruh jalan
+    // berikutnya.
+    const pengguna = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-sampah-admin-opd' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-sampah-admin-opd',
+        nama: 'E2E Sampah Admin OPD',
+        email: 'e2e-sampah-admin-opd@contoh.test',
+        roles: [Role.opd],
+      },
+    });
+    penggunaId = pengguna.id;
 
     // OPD kedua dibuat DI SINI, bukan di dalam uji kurungan, supaya
     // pembersihannya ikut `afterAll` dan tetap berjalan walau ujinya gagal di
@@ -61,7 +93,7 @@ describe('Sampah survei (e2e)', () => {
     await app.close();
   }, 30000);
 
-  const opdHeaders = () => devHeaders({ role: Role.opd, opdId });
+  const opdHeaders = () => devHeaders({ role: Role.opd, opdId, userId: penggunaId });
 
   /** Survei yang SUDAH di sampah, ditulis langsung ke basis data. */
   const buatSurveiTerbuang = () =>

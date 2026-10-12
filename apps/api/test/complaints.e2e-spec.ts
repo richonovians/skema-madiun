@@ -32,6 +32,8 @@ describe('Complaints (e2e)', () => {
   let opdId: number;
   let respondenId: number;
   let respondenId2: number;
+  let adminOpdId: number;
+  let adminKabId: number;
 
   beforeAll(async () => {
     // Batas harian pengaduan dinaikkan (14 September 2026): suite ini menguji
@@ -84,6 +86,47 @@ describe('Complaints (e2e)', () => {
       },
     });
     respondenId2 = r2.id;
+
+    // DUA PETUGAS, dengan id SUNGGUHAN. `complaint_replies.author_id` adalah FK
+    // ke `users`, dan `asOpd()`/`asKabupaten()` sebelum ini tak mengirim
+    // `x-dev-user-id` sama sekali -- sehingga `stub-auth.provider.ts:53`
+    // memakai baku `'1'`. Di basis data pengembangan pengguna ber-id 1 memang
+    // ada, karena ia baris pengguna pertama yang pernah dibuat di sana.
+    //
+    // Terukur 12 Oktober 2026, ketika suite ini mulai berjalan di basis data
+    // uji sendiri: pada jalan PERTAMA ia masih hijau, karena basis datanya
+    // benar-benar baru dan pengguna pertama yang dibuat suite ini mendapat id
+    // 1. Pada jalan kedua sekuensnya sudah terdorong, id 1 tak ada lagi, dan
+    // tiga uji balasan menjawab 500 dengan "Foreign key constraint violated on
+    // the constraint: `complaint_replies_author_id_fkey`". Lulus karena
+    // kebetulan sejarah seperti itu lebih buruk daripada memerah.
+    //
+    // `opdId` dibiarkan null pada baris petugas OPD: penautannya datang dari
+    // header `x-dev-opd-id`, dan `StubAuthProvider` tak pernah membaca baris
+    // ini. Keduanya TIDAK dihapus di `afterAll` -- aksinya teraudit, dan
+    // `audit_logs.actor_id` menunjuk baris ini.
+    const petugasOpd = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-cmp-admin-opd' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-cmp-admin-opd',
+        nama: 'Admin OPD CMP',
+        email: 'e2e-cmp-admin-opd@example.go.id',
+        roles: [Role.opd],
+      },
+    });
+    adminOpdId = petugasOpd.id;
+    const petugasKab = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-cmp-admin-kab' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-cmp-admin-kab',
+        nama: 'Admin Kabupaten CMP',
+        email: 'e2e-cmp-admin-kab@example.go.id',
+        roles: [Role.kabupaten],
+      },
+    });
+    adminKabId = petugasKab.id;
   }, 60000);
 
   afterAll(async () => {
@@ -126,8 +169,8 @@ describe('Complaints (e2e)', () => {
   }, 30000);
 
   const asResponden = (userId: number) => devHeaders({ role: Role.responden, userId });
-  const asOpd = () => devHeaders({ role: Role.opd, opdId });
-  const asKabupaten = () => devHeaders({ role: Role.kabupaten });
+  const asOpd = () => devHeaders({ role: Role.opd, opdId, userId: adminOpdId });
+  const asKabupaten = () => devHeaders({ role: Role.kabupaten, userId: adminKabId });
 
   it('POST /complaints (Responden) tanpa lampiran -> 201 dengan ticketNo', async () => {
     const res = await request(app.getHttpServer())
