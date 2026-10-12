@@ -60,7 +60,13 @@ pnpm --filter @skm-spm/api test
 pnpm --filter @skm-spm/api test -- src/modules/auth/sso-identitas.mapper.spec.ts
 pnpm --filter @skm-spm/api test -- -t "menolak nilai yang bukan string"
 
-# apps/api e2e (test/*.e2e-spec.ts, maxWorkers 1, timeout 30s, pakai DB sungguhan)
+# apps/api e2e (test/*.e2e-spec.ts, maxWorkers 1, timeout 30s)
+#
+# Memakai basis data SENDIRI, `skm_uji`, bukan `skm_db`. `scripts/uji-e2e.ts`
+# membuatnya bila belum ada, menerapkan migrasi, menjalankan seed, lalu
+# memanggil jest -- ketiganya idempoten. Tak ada langkah manual untuk siapa pun
+# dan tak ada entri `.env` baru: URL-nya diturunkan dari `DATABASE_URL` milik
+# masing-masing orang dengan menukar nama basis datanya saja.
 pnpm --filter @skm-spm/api test:e2e
 pnpm --filter @skm-spm/api test:e2e -- complaints.e2e-spec.ts
 
@@ -72,6 +78,16 @@ pnpm --filter @skm-spm/web test -- GerbangPengisianBersesi --forceExit
 pnpm --filter @skm-spm/web test:e2e
 pnpm --filter @skm-spm/web exec playwright test e2e/isi-survei-anonim.spec.ts
 ```
+
+**Uji e2e yang menulis FK ke `users` harus membawa penggunanya sendiri.**
+`stub-auth.provider.ts` memakai baku `x-dev-user-id` = 1 bila headernya tidak
+dikirim, dan pengguna ber-id 1 hanya ada di `skm_db` karena ia baris pengguna
+pertama yang pernah dibuat di sana. Tiga suite lulus karena kebetulan itu dan
+memerah begitu basis data ujinya dipisah (12 Oktober 2026): `surveys`,
+`surveys-trash`, dan `complaints`. Yang terakhir paling menyesatkan -- ia masih
+hijau pada jalan PERTAMA di basis data baru, karena pengguna pertama yang
+dibuatnya kebetulan mendapat id 1, lalu memerah pada jalan kedua ketika
+sekuensnya sudah terdorong. Kirim `userId` tersurat.
 
 **Playwright butuh akun ber-tiga-peran yang tertaut ke OPD:** `E2E_IDENTIFIER=seed-superuser`. `seed-admin-kabupaten` di-_soft-delete_ sejak 15 September 2026, sehingga `dev-login`-nya dijawab 404 "pengguna tidak ditemukan" -- itu bukan server yang rusak. `e2e/kerangka-unsur-tata-letak.spec.ts` hanya membaca; `e2e/kerangka-unsur-alur.spec.ts` MENULIS survei berpenanda `[UJI ` (bersihkan sesudahnya, lihat di bawah).
 
@@ -214,7 +230,9 @@ Catatan: `AGENTS.md` berisi blok `nextjs-agent-rules` yang **ditulis ulang `next
 
 **Jangan `pnpm build` atau `next build` selagi `pnpm dev` hidup.** Keduanya menulis ke `.next` yang sama, dan akibatnya server pengembangan membalas 404 untuk semua halaman.
 
-**Data uji hanya boleh masuk `skm_db` lokal.** Sebelum menulis apa pun, pastikan host, port, nama basis data, **dan server yang benar-benar menjawab**. Jangan pernah menulis data uji ke basis data produksi, dan jangan menyentuh akun milik pengguna.
+**Data uji hanya boleh masuk basis data lokal.** Sebelum menulis apa pun, pastikan host, port, nama basis data, **dan server yang benar-benar menjawab**. Jangan pernah menulis data uji ke basis data produksi, dan jangan menyentuh akun milik pengguna.
+
+Sejak 12 Oktober 2026 e2e `apps/api` menulis ke `skm_uji`, bukan `skm_db`, dan pelarinya menolak jalan terhadap host selain localhost. Playwright `apps/web` MASIH memukul server dev dan karena itu masih menulis ke `skm_db`; penjaganya tetap `bersihkan-data-uji.mjs`.
 
 **Jangan menghapus baris `audit_logs`.** Jejak itu wajib menurut rancangan.
 
