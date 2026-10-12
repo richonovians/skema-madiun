@@ -150,7 +150,7 @@ describe('ComplaintsService', () => {
       ).rejects.toThrow(ForbiddenException);
 
       // Urutan penting: menulis lampiran lalu menolak berarti meninggalkan
-      // berkas yatim di disk untuk pengaduan yang tak pernah ada.
+      // berkas tanpa induk di disk untuk pengaduan yang tak pernah ada.
       expect(prisma.opd.findUnique).not.toHaveBeenCalled();
     });
   });

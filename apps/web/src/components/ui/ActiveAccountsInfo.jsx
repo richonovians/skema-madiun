@@ -8,7 +8,7 @@ import { UserCheck } from 'lucide-react';
  *
  * Berupa strip, BUKAN kartu ke-N pada grid ringkasan: ketiga halaman itu punya
  * grid kartu yang jumlah kolomnya sudah pas (3 dan 4), dan menambah satu kartu
- * menyisakan satu kartu yatim di baris terakhir.
+ * menyisakan satu kartu sendirian di baris terakhir.
  *
  * Lingkupnya WAJIB tersurat. Dua angka ini berbeda arti — "seluruh sistem" vs
  * "tertaut OPD ini" — dan yang kedua menghitung AKUN (para Admin OPD, biasanya

@@ -138,8 +138,9 @@ describe('Complaints (e2e)', () => {
 
     // Berkas di DISK ikut dibersihkan, dan urutannya menentukan: begitu baris
     // lampirannya hilang, jejak menuju berkasnya juga hilang dan berkas itu jadi
-    // yatim selamanya. Sebelum ini suite ini hanya menghapus baris DB dan
-    // meninggalkan satu berkas setiap kali dijalankan (terhitung 39 yatim pada
+    // kehilangan induknya selamanya. Sebelum ini suite ini hanya menghapus
+    // baris DB dan meninggalkan satu berkas setiap kali dijalankan (terhitung 39
+    // berkas tanpa induk pada
     // 7 September 2026).
     const lampiran = await prisma.complaintAttachment.findMany({
       where: { complaint: { userId: pelapor } },

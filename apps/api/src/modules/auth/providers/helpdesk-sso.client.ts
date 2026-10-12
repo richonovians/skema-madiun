@@ -108,7 +108,7 @@ export class HelpdeskSsoClient implements SsoSource {
     const sub = typeof claims.sub === 'string' ? claims.sub : null;
     if (!sub) {
       // Tanpa `sub` tak ada identitas stabil untuk dicocokkan; melanjutkan berarti
-      // membuat akun yatim setiap kali login.
+      // membuat akun baru tanpa tautan identitas setiap kali login.
       throw new ServiceUnavailableException('Profil SSO Helpdesk tanpa klaim `sub`');
     }
 
