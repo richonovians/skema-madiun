@@ -89,7 +89,11 @@ hijau pada jalan PERTAMA di basis data baru, karena pengguna pertama yang
 dibuatnya kebetulan mendapat id 1, lalu memerah pada jalan kedua ketika
 sekuensnya sudah terdorong. Kirim `userId` tersurat.
 
-**Playwright butuh akun ber-tiga-peran yang tertaut ke OPD:** `E2E_IDENTIFIER=seed-superuser`. `seed-admin-kabupaten` di-_soft-delete_ sejak 15 September 2026, sehingga `dev-login`-nya dijawab 404 "pengguna tidak ditemukan" -- itu bukan server yang rusak. `e2e/kerangka-unsur-tata-letak.spec.ts` hanya membaca; `e2e/kerangka-unsur-alur.spec.ts` MENULIS survei berpenanda `[UJI ` (bersihkan sesudahnya, lihat di bawah).
+**Playwright butuh akun ber-tiga-peran yang tertaut ke OPD:** `E2E_IDENTIFIER=seed-admin-kabupaten`. `e2e/kerangka-unsur-tata-letak.spec.ts` hanya membaca; `e2e/kerangka-unsur-alur.spec.ts` MENULIS survei berpenanda `[UJI ` (bersihkan sesudahnya, lihat di bawah).
+
+Sampai 12 Oktober 2026 baris di atas menyebut `seed-superuser` dan menyatakan `seed-admin-kabupaten` di-_soft-delete_ sehingga `dev-login`-nya dijawab 404. **Keduanya salah**, dan itu terukur: `seed-superuser` tidak ada di basis data mana pun -- seed berhenti membuatnya 16 September 2026 -- sementara `seed-admin-kabupaten` hidup (`deleted_at` NULL, `is_active` true) dengan tiga peran dan `opd_id` terisi. `devLogin` mencocokkan `email` ATAU `sso_subject` dengan syarat `deletedAt: null`, jadi 404 "pengguna tidak ditemukan" itu memang terjadi -- hanya saja yang tak ada adalah `seed-superuser`, bukan sebaliknya.
+
+Pada basis data BARU akun itu belum cukup: seed membuat `seed-admin-kabupaten` dengan `[kabupaten]` saja dan tanpa `opd_id`. Peran `opd` + `responden` dan tautan OPD-nya diberikan sekali lewat Admin Kabupaten, kalau tidak Playwright melewatkan (bukan meluluskan) spec yang menuntut ketiga peran itu.
 
 **Satu berkas E2E dijalankan lewat `exec playwright test`, BUKAN `test:e2e --`.**
 Baris `pnpm --filter @skm-spm/web test:e2e -- e2e/<berkas>` pernah tertulis di

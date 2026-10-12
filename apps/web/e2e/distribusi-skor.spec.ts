@@ -11,7 +11,7 @@ import { expect, LEBAR_PONSEL_UMUM, test, ukurLuberan } from './fixtures/respons
  * Hanya MEMBACA. Dilewati (bukan dinyatakan lulus) bila survei terpilih belum
  * punya responden, sebab kartunya memang tak punya apa pun untuk digambar.
  *
- *   E2E_IDENTIFIER=seed-superuser pnpm --filter @skm-spm/web exec playwright test e2e/distribusi-skor.spec.ts
+ *   E2E_IDENTIFIER=seed-admin-kabupaten pnpm --filter @skm-spm/web exec playwright test e2e/distribusi-skor.spec.ts
  */
 test.describe('Distribusi Skor — Admin Kabupaten', () => {
   test('kartu sebaran tampil dengan bilah dan angka, teks "Belum Tersedia" tidak ada', async ({

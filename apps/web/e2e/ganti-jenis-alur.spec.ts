@@ -23,7 +23,7 @@ import { BERKAS_TOKEN } from './global-setup';
  *
  * Butuh akun ber-tiga-peran yang tertaut ke sebuah OPD (opd_id terisi):
  *
- *   E2E_IDENTIFIER=seed-superuser pnpm --filter @skm-spm/web exec playwright test e2e/ganti-jenis-alur.spec.ts
+ *   E2E_IDENTIFIER=seed-admin-kabupaten pnpm --filter @skm-spm/web exec playwright test e2e/ganti-jenis-alur.spec.ts
  *
  * Tanpa sesi, spec ini DILEWATI -- bukan dinyatakan lulus.
  */
