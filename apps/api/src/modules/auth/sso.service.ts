@@ -197,7 +197,7 @@ export class SsoService {
    * satu pun akan cocok dengan `sub` asli Helpdesk. Tanpa pencocokan lewat email,
    * SETIAP akun lama — termasuk Admin Kabupaten — akan dibuatkan akun baru
    * berperan `responden`, sementara akun lamanya beserta seluruh riwayat
-   * pengaduan & surveinya menjadi yatim.
+   * pengaduan & surveinya tertinggal tanpa induk.
    *
    *   1. `sso_subject == sub`  → pengguna yang sudah pernah masuk lewat SSO.
    *   2. `email == email`      → akun lama; `sso_subject` DINAIKKAN ke `sub` asli.

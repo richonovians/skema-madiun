@@ -155,7 +155,7 @@ export class ComplaintsService {
     user: CurrentUser,
   ): Promise<ComplaintEntity> {
     // PALING AWAL, sebelum validasi & sebelum lampiran ditulis ke disk (celah 2,
-    // 2026-08-27): menulis berkas lalu menolak akan meninggalkan lampiran yatim
+    // 2026-08-27): menulis berkas lalu menolak akan meninggalkan lampiran tanpa induk
     // untuk pengaduan yang tak pernah ada.
     await this.consent.assertConsented(user);
 
@@ -175,7 +175,7 @@ export class ComplaintsService {
     try {
       complaint = await this.insertWithUniqueTicket(dto, user.userId, saved);
     } catch (err) {
-      // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort).
+      // DB gagal setelah file tersimpan → bersihkan file tanpa induk (best-effort).
       await this.cleanupFiles(saved);
       throw err;
     }
@@ -392,7 +392,7 @@ export class ComplaintsService {
       await this.notificationsService.notifyComplaintReply(complaint, user);
       return this.toReplyEntity(created, complaint, user.userId);
     } catch (err) {
-      // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort, pola sama create()).
+      // DB gagal setelah file tersimpan → bersihkan file tanpa induk (best-effort, pola sama create()).
       await this.cleanupFiles(saved);
       throw err;
     }
@@ -672,7 +672,9 @@ export class ComplaintsService {
         try {
           await fs.unlink(file.absolutePath);
         } catch (err) {
-          this.logger.warn(`Gagal membersihkan file yatim ${file.absolutePath}: ${String(err)}`);
+          this.logger.warn(
+            `Gagal membersihkan file tanpa induk ${file.absolutePath}: ${String(err)}`,
+          );
         }
       }),
     );
