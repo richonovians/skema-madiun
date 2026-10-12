@@ -12,7 +12,7 @@ import { expect, LEBAR_PONSEL_UMUM, test, ukurLuberan } from './fixtures/respons
  * yang membuat sendiri survei SKM drafnya.) Menjalankannya (butuh akun
  * ber-tiga-peran):
  *
- *   E2E_IDENTIFIER=seed-superuser pnpm --filter @skm-spm/web exec playwright test e2e/ganti-jenis-tata-letak.spec.ts
+ *   E2E_IDENTIFIER=seed-admin-kabupaten pnpm --filter @skm-spm/web exec playwright test e2e/ganti-jenis-tata-letak.spec.ts
  */
 const KOLOM = [
   'JUDUL SURVEI',

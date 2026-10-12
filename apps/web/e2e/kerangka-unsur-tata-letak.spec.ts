@@ -21,7 +21,7 @@ import { expect, LEBAR_PONSEL_UMUM, test, ukurLuberan } from './fixtures/respons
  * Suite ini hanya MEMBACA: fixture `responsif` membatalkan setiap permintaan
  * non-GET di tingkat jaringan. Menjalankannya (butuh akun ber-tiga-peran):
  *
- *   E2E_IDENTIFIER=seed-superuser pnpm --filter @skm-spm/web exec playwright test e2e/kerangka-unsur-tata-letak.spec.ts
+ *   E2E_IDENTIFIER=seed-admin-kabupaten pnpm --filter @skm-spm/web exec playwright test e2e/kerangka-unsur-tata-letak.spec.ts
  */
 const ORIGIN = process.env.E2E_ORIGIN ?? 'http://skema.local';
 
