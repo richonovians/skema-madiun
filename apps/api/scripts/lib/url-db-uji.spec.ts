@@ -55,13 +55,33 @@ describe('sasaranDbUji', () => {
     );
   });
 
-  // Inilah palang keselamatannya. Bila penurunannya menghasilkan nama yang sama
-  // dengan basis data pengembangan, 40 berkas e2e akan menulis ke sana --
-  // persis kerusakan yang hendak dihentikan. Lebih baik berhenti.
-  it('menolak bila basis data pengembangan SUDAH bernama sama dengan basis data uji', () => {
-    expect(() => sasaranDbUji('postgresql://skm:p@localhost:5432/skm_uji')).toThrow(
-      /sama dengan basis data uji/,
-    );
+  // SASARAN YANG SUDAH TERPISAH BUKAN KESALAHAN KONFIGURASI.
+  //
+  // Versi pertama melempar galat di sini, dengan alasan bahwa penurunan yang
+  // menghasilkan nama yang sama berarti uji dan pengembangan tak terpisah. Itu
+  // keliru, dan harganya langsung terlihat: `.github/workflows/ci.yml` sudah
+  // memakai basis data tersendiri bernama `skm_uji` jauh sebelum pelari ini
+  // ada, sehingga job "E2E API" mati sebelum jest jalan pada dorongan pertama
+  // (`aae9b1e`). `DATABASE_URL` yang sudah menunjuk basis data uji berarti
+  // tujuannya SUDAH tercapai, jadi ia dipakai apa adanya.
+  describe('DATABASE_URL yang sudah menunjuk basis data uji', () => {
+    const sudah = 'postgresql://skm:skm@localhost:5432/skm_uji?schema=public';
+
+    it('diterima, tidak dilempar', () => {
+      expect(() => sasaranDbUji(sudah)).not.toThrow();
+    });
+
+    it('dipakai apa adanya, byte demi byte', () => {
+      expect(sasaranDbUji(sudah).url).toBe(sudah);
+    });
+
+    it('ditandai sudahTerpisah, supaya CREATE DATABASE dilewati', () => {
+      expect(sasaranDbUji(sudah).sudahTerpisah).toBe(true);
+    });
+
+    it('sasaran yang DITURUNKAN tidak ditandai sudahTerpisah', () => {
+      expect(sasaranDbUji(dev).sudahTerpisah).toBe(false);
+    });
   });
 
   it('menolak URL tanpa nama basis data', () => {
