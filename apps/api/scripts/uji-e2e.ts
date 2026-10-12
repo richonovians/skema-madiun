@@ -63,7 +63,13 @@ async function utama(): Promise<void> {
 
   console.log(`Basis data uji: ${sasaran.nama} (bukan basis data pengembangan).`);
 
-  await pastikanBasisDataAda(sasaran);
+  if (sasaran.sudahTerpisah) {
+    // CI sudah menyediakan basis datanya sendiri; tak ada yang perlu dibuat,
+    // dan tak perlu menyentuh basis data pemeliharaan `postgres` sama sekali.
+    console.log('DATABASE_URL sudah menunjuk basis data uji; dipakai apa adanya.');
+  } else {
+    await pastikanBasisDataAda(sasaran);
+  }
 
   const kodeMigrasi = jalankan('prisma', ['migrate', 'deploy'], sasaran.url);
   if (kodeMigrasi !== 0) {
@@ -71,7 +77,12 @@ async function utama(): Promise<void> {
     process.exit(kodeMigrasi);
   }
 
-  const kodeSeed = jalankan('prisma', ['db', 'seed'], sasaran.url);
+  // `tsx prisma/seed.ts` LANGSUNG, bukan `prisma db seed`. Yang terakhir
+  // menjalankan perintah seed lewat shell, sehingga `tsx` harus ada di PATH --
+  // benar ketika dipanggil melalui pnpm, dan gagal dengan "'tsx' is not
+  // recognized as an internal or external command" ketika skrip ini dijalankan
+  // dengan cara lain. Terukur, bukan diduga.
+  const kodeSeed = jalankan('tsx', ['prisma/seed.ts'], sasaran.url);
   if (kodeSeed !== 0) {
     console.error('Seed ke basis data uji gagal; jest tidak dijalankan.');
     process.exit(kodeSeed);

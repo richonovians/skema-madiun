@@ -44,6 +44,11 @@ export interface SasaranDbUji {
   nama: string;
   /** URL ke basis data `postgres`, tempat `CREATE DATABASE` dijalankan. */
   urlPemeliharaan: string;
+  /**
+   * `true` bila `DATABASE_URL` SUDAH menunjuk basis data uji, sehingga tak ada
+   * yang perlu diturunkan maupun dibuat. Itu keadaan normal di CI.
+   */
+  sudahTerpisah: boolean;
 }
 
 export function sasaranDbUji(urlPengembangan: string): SasaranDbUji {
@@ -70,17 +75,29 @@ export function sasaranDbUji(urlPengembangan: string): SasaranDbUji {
     throw new Error(`DATABASE_URL tanpa nama basis data: ${urlPengembangan}`);
   }
 
-  // Palang keselamatan. Bila basis data pengembangan sudah bernama sama dengan
-  // basis data uji, penurunan ini tak memisahkan apa pun dan 40 berkas e2e
-  // justru menulis ke basis data yang hendak dilindungi. Lebih baik berhenti.
+  // SUDAH TERPISAH, dan itu BUKAN kesalahan konfigurasi.
+  //
+  // `.github/workflows/ci.yml` menyalakan layanan Postgres ber-`POSTGRES_DB:
+  // skm_uji` dan mengarahkan `DATABASE_URL` ke sana, jauh sebelum pelari ini
+  // ada. Versi pertama melempar galat di titik ini dan mematikan job "E2E API"
+  // pada dorongan pertama (`aae9b1e`), sebelum satu uji pun jalan.
+  //
+  // Lemparan itu tak melindungi apa pun. Yang hendak dicegah adalah menulis ke
+  // basis data PENGEMBANGAN; bila `DATABASE_URL` sudah menunjuk basis data uji,
+  // justru itulah keadaan yang diinginkan. Jadi URL-nya dipakai apa adanya, dan
+  // `sudahTerpisah` memberi tahu pemanggil bahwa `CREATE DATABASE` tak perlu --
+  // basis datanya pasti ada, karena kita sedang menunjuk ke sana.
   if (nama === NAMA_DB_UJI) {
-    throw new Error(
-      `Basis data pengembangan bernama '${nama}', sama dengan basis data uji. ` +
-        'Ganti nama basis data di DATABASE_URL agar uji dan pengembangan terpisah.',
-    );
+    return {
+      sudahTerpisah: true,
+      url: urlPengembangan,
+      nama,
+      urlPemeliharaan: `${awalan}${NAMA_DB_PEMELIHARAAN}${query}`,
+    };
   }
 
   return {
+    sudahTerpisah: false,
     url: `${awalan}${NAMA_DB_UJI}${query}`,
     nama: NAMA_DB_UJI,
     urlPemeliharaan: `${awalan}${NAMA_DB_PEMELIHARAAN}${query}`,
