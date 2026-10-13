@@ -267,6 +267,40 @@ describe('DashboardService', () => {
       expect(singgahanKena.simpan).not.toHaveBeenCalled();
     });
 
+    /**
+     * PENAHAN CACHE STAMPEDE (13 Oktober 2026). Endpoint ini `@Public()` dan
+     * terekspos langsung ke poster/QR, jadi sepuluh pengunjung yang tiba pada
+     * detik singgahannya kosong semuanya masuk ke jalur hitung. Terukur pada
+     * 6,7 juta baris `answers`: kesepuluh koneksi itu menghasilkan 0 permintaan
+     * tuntas dan 10 galat, karena mereka berebut kolam koneksi Prisma berisi
+     * sembilan.
+     *
+     * Singgahan NONAKTIF dipakai dengan sengaja: ia selalu meleset, jadi yang
+     * diuji persis keadaan paling buruk -- singgahan kosong, sepuluh permintaan
+     * serentak.
+     */
+    it('(13 Oktober 2026) sepuluh permintaan SERENTAK ke singgahan kosong hanya menghitung sekali', async () => {
+      const svc = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
+
+      await Promise.all(Array.from({ length: 10 }, () => svc.getStatistics()));
+
+      expect(prisma.ikmResult.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Permintaan BERURUTAN tetap menghitung ulang. Penahannya hanya meredam
+     * yang serentak; yang menyimpan nilainya tetap `PenyimpanSinggahan`, dan
+     * di uji ini singgahannya nonaktif.
+     */
+    it('permintaan berurutan TIDAK ikut diredam: penahannya bukan singgahan', async () => {
+      const svc = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
+
+      await svc.getStatistics();
+      await svc.getStatistics();
+
+      expect(prisma.ikmResult.findMany).toHaveBeenCalledTimes(2);
+    });
+
     it('(2026-08-05) survei AKTIF yg sudah punya responden ikut masuk summary.ikm/ikmTrend', async () => {
       (prisma.survey.findMany as jest.Mock).mockResolvedValueOnce([
         { id: 30, opdId: 4, periode: '2026-Q3', judul: 'Survei Aktif', opd: { nama: 'Dinas X' } },

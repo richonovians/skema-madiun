@@ -144,3 +144,40 @@ export function basisDataBelumAda(err: unknown, nama: string): boolean {
     message.includes(`Database \`${nama}\` does not exist`)
   );
 }
+
+/**
+ * Menolak mengosongkan Redis bila sambungan yang BENAR-BENAR terbuka bukan
+ * basis data logis beban.
+ *
+ * MENGAPA ADA. Pengukuran dingin (`--dingin`) harus mengosongkan singgahannya
+ * sebelum setiap jalan, kalau tidak permintaan penyelidik maupun jalan
+ * sebelumnya sudah mengisinya dan yang terukur adalah jalur HANGAT. Yang
+ * dikosongkan Redis adalah SELURUH basis data logisnya, dan basis data 0 milik
+ * aplikasi pengembangan pengguna: sesi, singgahan, penghitung batas laju, dan
+ * daftar pencabutan lampiran semuanya di sana. Mengosongkannya akan
+ * mengeluarkan pengguna dari aplikasinya sendiri tanpa ada yang menyebut
+ * sebabnya.
+ *
+ * Diberi jawaban `CLIENT INFO`, bukan nomor yang diurai dari `REDIS_URL`.
+ * Alasannya sama dengan `pastikanSasaranBeban`: string yang disusun sendiri
+ * selalu terlihat benar, dan yang perlu dipastikan adalah sambungannya.
+ */
+export function pastikanRedisBeban(infoKlien: string): void {
+  // Batas kata di depan `db=`, supaya `name=sesuatu-db=0` tak terbaca sebagai
+  // nomor basis datanya.
+  const cocok = /(?:^|\s)db=(\d+)/.exec(infoKlien);
+  if (cocok === null) {
+    throw new Error(
+      `Jawaban CLIENT INFO tanpa medan 'db=' — nomor basis data logis Redis tak ` +
+        `dapat dipastikan, jadi pengosongan dibatalkan. Jawabannya: ${infoKlien.slice(0, 200)}`,
+    );
+  }
+  const db = Number(cocok[1]);
+  if (db !== DB_REDIS_BEBAN) {
+    throw new Error(
+      `Tersambung ke basis data logis ${db}, bukan ${DB_REDIS_BEBAN}. Pengosongan ` +
+        'dibatalkan: basis data 0 milik aplikasi pengembangan (sesi, singgahan, ' +
+        'batas laju) dan 2 milik pelari e2e.',
+    );
+  }
+}

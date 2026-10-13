@@ -1728,3 +1728,85 @@ describe('IkmService.getDashboard — pembatalan generasi', () => {
     expect(generasi.size).toBe(1);
   });
 });
+
+/**
+ * PENAHAN CACHE STAMPEDE pada `GET /dashboard/ikm` (13 Oktober 2026).
+ *
+ * Masalahnya satu dengan `GET /statistics` dan karena itu mekanismenya satu
+ * juga: pada detik singgahannya kosong, setiap permintaan yang tiba masuk ke
+ * jalur hitung. Terukur pada 744 survei dan 6,7 juta baris `answers`: sepuluh
+ * koneksi serentak menghasilkan 0 permintaan tuntas dan 10 galat.
+ *
+ * KUNCI SATU-JALANNYA TANPA GENERASI, dan itu bukan kelalaian. `generasiDashboard`
+ * sendiri membaca singgahan, jadi sepuluh permintaan ke singgahan kosong
+ * menerbitkan sepuluh generasi berbeda -- tepat pada keadaan yang hendak
+ * diredam. Memakai kunci singgahan yang sudah bergenerasi berarti kesepuluhnya
+ * berkunci berbeda dan penahannya tak menahan apa pun.
+ */
+describe('IkmService.getDashboard — penahan stampede', () => {
+  const simpanan = new Map<string, unknown>();
+  const singgahan = {
+    ambil: jest.fn((kunci: string) => Promise.resolve(simpanan.get(kunci) ?? null)),
+    simpan: jest.fn((kunci: string, nilai: unknown) => {
+      simpanan.set(kunci, nilai);
+      return Promise.resolve();
+    }),
+    hapus: jest.fn((kunci: string) => {
+      simpanan.delete(kunci);
+      return Promise.resolve();
+    }),
+  } as unknown as PenyimpanSinggahan;
+
+  const prismaP = {
+    survey: { findMany: jest.fn().mockResolvedValue([]) },
+    question: { findMany: jest.fn().mockResolvedValue([]) },
+    answer: { groupBy: jest.fn().mockResolvedValue([]) },
+    surveyResponse: { groupBy: jest.fn().mockResolvedValue([]) },
+    ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
+    complaint: { count: jest.fn().mockResolvedValue(0) },
+    opd: { count: jest.fn().mockResolvedValue(0) },
+  } as unknown as PrismaService;
+
+  const bacaDb = () => (prismaP.ikmResult.findMany as jest.Mock).mock.calls.length;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    simpanan.clear();
+  });
+
+  it('sepuluh permintaan SERENTAK ke singgahan kosong hanya menghitung sekali', async () => {
+    const svc = new IkmService(prismaP, {} as unknown as IkmExportService, singgahan);
+
+    await Promise.all(Array.from({ length: 10 }, () => svc.getDashboard({})));
+
+    expect(bacaDb()).toBe(1);
+  });
+
+  /**
+   * Penyaring berbeda WAJIB dihitung tersendiri walau tiba bersamaan. Satu
+   * kunci untuk semua akan menyajikan hasil tersaring periode kepada orang yang
+   * tak menyaring apa pun -- cacat kebenaran, bukan cacat kecepatan.
+   */
+  it('penyaring berbeda yang tiba bersamaan tetap dihitung tersendiri', async () => {
+    const svc = new IkmService(prismaP, {} as unknown as IkmExportService, singgahan);
+
+    await Promise.all([
+      svc.getDashboard({}),
+      svc.getDashboard({ periode: '2026-Q1' }),
+      svc.getDashboard({ jenisLayanan: 'Kesehatan' }),
+    ]);
+
+    expect(bacaDb()).toBe(3);
+  });
+
+  it('sepuluh permintaan serentak hanya menerbitkan SATU generasi', async () => {
+    const svc = new IkmService(prismaP, {} as unknown as IkmExportService, singgahan);
+
+    await Promise.all(Array.from({ length: 10 }, () => svc.getDashboard({})));
+
+    const kunci = (singgahan.simpan as jest.Mock).mock.calls
+      .map(([k]: [string]) => k)
+      .filter((k: string) => k.startsWith(AWALAN_DASHBOARD));
+    expect(new Set(kunci).size).toBe(1);
+  });
+});

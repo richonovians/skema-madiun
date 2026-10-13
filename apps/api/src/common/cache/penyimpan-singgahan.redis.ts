@@ -2,8 +2,15 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 import type { PenyimpanSinggahan } from './penyimpan-singgahan.interface';
 
-/** Awalan kunci singgahan. Memisahkannya dari `sesi:` dan `laju:` di keyspace yang sama. */
-const AWALAN = 'singgahan:';
+/**
+ * Awalan kunci singgahan. Memisahkannya dari `sesi:` dan `laju:` di keyspace
+ * yang sama.
+ *
+ * DIEKSPOR sejak 13 Oktober 2026 supaya pelari uji beban mode dingin menyapu
+ * awalan yang SAMA, bukan salinannya. Versi pertama mode itu memakai `FLUSHDB`,
+ * yang ikut menghapus `sesi:` dan membuat endpoint berperan menjawab 401.
+ */
+export const AWALAN_SINGGAHAN = 'singgahan:';
 
 /** Jarak minimum antar-baris galat, milidetik. Redis padam tak boleh membanjiri log. */
 const JEDA_LOG_MS = 10_000;
@@ -33,7 +40,7 @@ export class PenyimpanSinggahanRedis implements PenyimpanSinggahan, OnModuleDest
 
   async ambil<T>(kunci: string): Promise<T | null> {
     try {
-      const data = await this.redis.get(AWALAN + kunci);
+      const data = await this.redis.get(AWALAN_SINGGAHAN + kunci);
       return data ? (JSON.parse(data) as T) : null;
     } catch (err) {
       this.catatGalat('baca', err);
@@ -43,7 +50,12 @@ export class PenyimpanSinggahanRedis implements PenyimpanSinggahan, OnModuleDest
 
   async simpan<T>(kunci: string, nilai: T, ttlDetik: number): Promise<void> {
     try {
-      await this.redis.set(AWALAN + kunci, JSON.stringify(nilai), 'EX', Math.max(1, ttlDetik));
+      await this.redis.set(
+        AWALAN_SINGGAHAN + kunci,
+        JSON.stringify(nilai),
+        'EX',
+        Math.max(1, ttlDetik),
+      );
     } catch (err) {
       this.catatGalat('tulis', err);
     }
@@ -51,7 +63,7 @@ export class PenyimpanSinggahanRedis implements PenyimpanSinggahan, OnModuleDest
 
   async hapus(kunci: string): Promise<void> {
     try {
-      await this.redis.del(AWALAN + kunci);
+      await this.redis.del(AWALAN_SINGGAHAN + kunci);
     } catch (err) {
       this.catatGalat('batal', err);
     }

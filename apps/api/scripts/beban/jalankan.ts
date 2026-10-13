@@ -27,20 +27,29 @@
  *
  *   pnpm --filter @skm-spm/api beban -- --skenario=statistik
  *   pnpm --filter @skm-spm/api beban -- --semua --durasi=20 --koneksi=20
+ *
+ * `--dingin` mengosongkan singgahannya sebelum setiap jalan, supaya yang
+ * terukur jalur DINGIN. Lihat `buatPenyapu`.
+ *
+ *   pnpm --filter @skm-spm/api beban -- --skenario=statistik --dingin
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import autocannon from 'autocannon';
 import * as dotenv from 'dotenv';
+import Redis from 'ioredis';
+import { AWALAN_SINGGAHAN } from '../../src/common/cache/penyimpan-singgahan.redis';
 import { jalankanCli } from '../lib/jalankan-cli';
 import { IDENTITAS_ADMIN, PERAN_BEBAN, type PeranBeban } from './lib/akun-beban';
 import {
   NAMA_DB_BEBAN,
+  pastikanRedisBeban,
   pastikanSasaranBeban,
   redisBeban,
   sasaranDbBeban,
 } from './lib/sasaran-beban';
+import { sapuAwalan } from './lib/sapu-singgahan';
 import { SKENARIO, type Skenario } from './skenario';
 
 const AKAR_API = path.resolve(__dirname, '..', '..');
@@ -67,6 +76,7 @@ async function utama(): Promise<void> {
   const url = sasaranDbBeban(process.env.DATABASE_URL ?? '');
   const durasi = angkaArgumen('durasi', 10);
   const koneksi = angkaArgumen('koneksi', 10);
+  const dingin = process.argv.includes('--dingin');
 
   const diminta = process.argv.find((a) => a.startsWith('--skenario='))?.slice(11);
   const dipilih = process.argv.includes('--semua')
@@ -87,6 +97,13 @@ async function utama(): Promise<void> {
   );
   console.log(`Beban      : ${koneksi} koneksi, ${durasi}s per skenario\n`);
 
+  console.log(
+    dingin
+      ? 'Mode       : DINGIN, singgahan dikosongkan sebelum penyelidik DAN sebelum beban'
+      : 'Mode       : hangat, penyelidik mengisi singgahan sebelum beban',
+  );
+
+  const penyapu = dingin ? await buatPenyapu(process.env.REDIS_URL ?? '') : undefined;
   const server = await nyalakanServer(url);
   try {
     const bearer: Record<string, string> = {};
@@ -94,10 +111,11 @@ async function utama(): Promise<void> {
       bearer[peran] = await masuk(peran);
     }
     for (const skenario of dipilih) {
-      await ukur(skenario, idSurvei, { durasi, koneksi, bearer });
+      await ukur(skenario, idSurvei, { durasi, koneksi, bearer, sapu: penyapu?.sapu });
     }
   } finally {
     server.kill();
+    await penyapu?.tutup();
   }
 
   // DIHITUNG ULANG SESUDAH BEBAN, dan selisihnya dilaporkan. Skenario di atas
@@ -208,6 +226,42 @@ async function periksaDataset(
   }
 }
 
+/**
+ * PENGOSONG SINGGAHAN untuk pengukuran DINGIN.
+ *
+ * MENGAPA ADA. Tanpa ini pelari ini tak dapat mengukur jalur dingin sama
+ * sekali: permintaan penyelidik di `ukur` mengisi singgahannya, sehingga setiap
+ * angka autocannon adalah angka jalur HANGAT. Yang disembunyikannya justru hal
+ * yang paling mahal, dan hal itu terukur 13 Oktober 2026: sepuluh koneksi yang
+ * tiba bersamaan ke singgahan kosong menghasilkan 0 permintaan tuntas dan
+ * 10 galat.
+ *
+ * MENYAPU AWALAN `singgahan:`, BUKAN `FLUSHDB`. Versi pertama memakai `FLUSHDB`
+ * dan itu salah secara terukur: basis data logis 1 ikut memuat kunci `sesi:`
+ * milik Bearer token yang baru diterbitkan pelari ini sendiri, jadi
+ * `GET /api/v1/dashboard/ikm` menjawab 401 dan bebannya tak pernah jalan.
+ * Alasannya ada di `sapuAwalan`.
+ *
+ * Palang `pastikanRedisBeban` tetap berjalan lebih dulu, atas jawaban
+ * `CLIENT INFO` dari sambungan yang benar-benar terbuka. Sapuan berawalan sudah
+ * jauh lebih sempit daripada `FLUSHDB`, tetapi pada basis data 0 ia tetap akan
+ * menghapus singgahan aplikasi pengembangan pengguna.
+ */
+async function buatPenyapu(
+  urlPengembangan: string,
+): Promise<{ sapu: () => Promise<void>; tutup: () => Promise<void> }> {
+  const redis = new Redis(redisBeban(urlPengembangan), { maxRetriesPerRequest: 2 });
+  pastikanRedisBeban(String(await redis.call('CLIENT', 'INFO')));
+  return {
+    sapu: async () => {
+      await sapuAwalan(redis, AWALAN_SINGGAHAN);
+    },
+    tutup: async () => {
+      await redis.quit();
+    },
+  };
+}
+
 async function nyalakanServer(url: string): Promise<ChildProcess> {
   console.log(`Mengompilasi ke ${KELUARAN}/ ...`);
   const kode = jalankanCli('typescript', ['-p', 'tsconfig.build.json', '--outDir', KELUARAN], {
@@ -260,7 +314,12 @@ async function nyalakanServer(url: string): Promise<ChildProcess> {
 async function ukur(
   skenario: Skenario,
   idSurvei: number,
-  opsi: { durasi: number; koneksi: number; bearer: Record<string, string> },
+  opsi: {
+    durasi: number;
+    koneksi: number;
+    bearer: Record<string, string>;
+    sapu?: () => Promise<void>;
+  },
 ): Promise<void> {
   const jalur = skenario.jalur.replace(':survei', String(idSurvei));
   const headers: Record<string, string> = { ...skenario.headers };
@@ -273,6 +332,10 @@ async function ukur(
   // menghasilkan laporan "0 permintaan, N galat" yang tak menyebutkan sebab
   // apa pun -- terukur pada jalan pertama. Permintaan tunggal ini memberi
   // status HTTP-nya dan waktu DINGIN-nya, yang juga angka yang pantas dilihat.
+  // DIKOSONGKAN LEBIH DULU pada mode dingin, supaya waktu dingin yang dilaporkan
+  // di bawah memang waktu dingin -- bukan sisa jalan sebelumnya.
+  await opsi.sapu?.();
+
   const mulai = Date.now();
   const jawab = await fetch(`${ASAL}${jalur}`, {
     method: skenario.method,
@@ -287,6 +350,12 @@ async function ukur(
         `Beban tidak dijalankan. Jawabannya: ${cuplikan}`,
     );
   }
+
+  // DIKOSONGKAN LAGI, dan inilah inti mode dingin: penyelidik di atas baru saja
+  // mengisi singgahannya, jadi tanpa pengosongan kedua autocannon mengukur
+  // jalur hangat. Penyelidiknya TIDAK dilewatkan -- ia yang memberi status HTTP
+  // dan pesan galatnya, dan laporan autocannon tak dapat memberikan keduanya.
+  await opsi.sapu?.();
 
   const hasil = await autocannon({
     url: `${ASAL}${jalur}`,

@@ -10,10 +10,12 @@ import {
 } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
+import { SekaliJalan } from '../../common/cache/sekali-jalan';
 import {
   AWALAN_HASIL,
   KUNCI_GENERASI_DASHBOARD,
   TTL_GENERASI_DETIK,
+  kunciSekaliJalanDashboardIkm,
   kunciSinggahanDashboardIkm,
   AWALAN_RATA,
   AWALAN_SEBARAN,
@@ -104,6 +106,14 @@ export class IkmService {
      */
     @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {}
+
+  /**
+   * Penahan stampede, BUKAN lewat DI. Ia tak punya ketergantungan dan tak
+   * dibagi dengan layanan lain: dua layanan yang berbagi satu penahan akan
+   * berbagi ruang kunci dalam memori tanpa alasan apa pun. Modul Nest bersifat
+   * singleton, jadi satu instansi per layanan sudah berarti satu per proses.
+   */
+  private readonly sekaliJalan = new SekaliJalan();
 
   /** Hasil IKM survei (live-compute) — Admin OPD (miliknya) & Admin Kabupaten. */
   async getResults(surveyId: number, user: CurrentUser): Promise<IkmResultEntity> {
@@ -421,19 +431,31 @@ export class IkmService {
     return baru;
   }
 
+  /**
+   * SELURUH badannya dibungkus penahan stampede, termasuk pembacaan singgahan
+   * dan penerbitan generasinya -- bukan hanya `hitungDashboard`. Membungkus
+   * hitungannya saja tak menahan apa pun: generasinya diterbitkan sebelum
+   * kuncinya terbentuk, dan sepuluh permintaan ke singgahan kosong karena itu
+   * berkunci berbeda. Terukur, merah.
+   */
   async getDashboard(query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
-    const kunci = kunciSinggahanDashboardIkm(
-      await this.generasiDashboard(),
-      query.periode,
-      query.jenisLayanan,
+    return this.sekaliJalan.jalankan(
+      kunciSekaliJalanDashboardIkm(query.periode, query.jenisLayanan),
+      async () => {
+        const kunci = kunciSinggahanDashboardIkm(
+          await this.generasiDashboard(),
+          query.periode,
+          query.jenisLayanan,
+        );
+        const tersimpan = await this.singgahan.ambil<IkmDashboardEntity>(kunci);
+        if (tersimpan) {
+          return new IkmDashboardEntity(tersimpan);
+        }
+        const hasil = await this.hitungDashboard(query);
+        await this.singgahan.simpan(kunci, hasil, TTL_SINGGAHAN_DETIK);
+        return hasil;
+      },
     );
-    const tersimpan = await this.singgahan.ambil<IkmDashboardEntity>(kunci);
-    if (tersimpan) {
-      return new IkmDashboardEntity(tersimpan);
-    }
-    const hasil = await this.hitungDashboard(query);
-    await this.singgahan.simpan(kunci, hasil, TTL_SINGGAHAN_DETIK);
-    return hasil;
   }
 
   /**
