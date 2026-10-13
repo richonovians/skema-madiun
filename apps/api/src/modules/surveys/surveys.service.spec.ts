@@ -62,6 +62,9 @@ describe('SurveysService', () => {
   } as unknown as PrismaService;
   const ikmService = {
     snapshot: jest.fn(),
+    // `updateStatus` menghanguskan singgahan dashboard pada SETIAP peralihan
+    // status (13 Oktober 2026), jadi mocknya harus menyediakannya.
+    batalkanSinggahanDashboard: jest.fn(),
     getSummary: jest.fn().mockResolvedValue({ respondentsCount: 0, nilaiIkm: null }),
   } as unknown as IkmService;
   const service = new SurveysService(prisma, ikmService);

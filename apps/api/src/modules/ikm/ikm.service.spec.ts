@@ -7,6 +7,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { IkmExportService } from './ikm-export.service';
 import { IkmService } from './ikm.service';
 import { IkmUnsurEntity } from './entities/ikm-result.entity';
+import {
+  AWALAN_DASHBOARD,
+  KUNCI_GENERASI_DASHBOARD,
+  kunciSinggahanDashboardIkm,
+  kunciSinggahanIkm,
+} from './singgahan-ikm.util';
 
 const opdUser = (opdId: number | null): CurrentUser => ({
   userId: 1,
@@ -71,7 +77,7 @@ describe('IkmService', () => {
       // Bawaan "tak ada jawaban": tes yang tak peduli sebaran tak perlu tahu.
       groupBy: jest.fn().mockResolvedValue([]),
     },
-    surveyResponse: { count: jest.fn() },
+    surveyResponse: { count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
     ikmResult: { upsert: jest.fn(), findMany: jest.fn() },
     complaint: { count: jest.fn().mockResolvedValue(0) },
     opd: { count: jest.fn().mockResolvedValue(0) },
@@ -88,6 +94,40 @@ describe('IkmService', () => {
   const service = new IkmService(prisma, ikmExportService, new PenyimpanSinggahanNonaktif());
 
   beforeEach(() => jest.clearAllMocks());
+
+  /**
+   * Bentuk mock untuk JALUR BATCH yang kini dipakai `getDashboard` atas survei
+   * aktif. Sebelum 13 Oktober 2026 jalur itu memanggil `computeResult` sekali
+   * per survei, sehingga uji di bawah cukup memberi `unsurQuestions` (yang
+   * membawa `answers`) plus `surveyResponse.count`. Jalur batch tak menarik
+   * baris jawaban sama sekali -- itu justru inti perbaikannya -- jadi mocknya
+   * harus tiga agregat. Matriks `nilai` dan angka harapan tiap uji TIDAK
+   * berubah; hanya bentuk kueri yang dimock.
+   *
+   * Kedua `groupBy` dipasang dengan `...Once`: `clearAllMocks` tak menghapus
+   * implementasi, dan `answer.groupBy` punya bawaan `[]` yang dipakai uji
+   * sebaran skor.
+   */
+  const mockBatchAktif = (surveyId: number, nilai: number[][], jumlahResponden: number) => {
+    const idPertanyaan = (i: number) => surveyId * 100 + i + 1;
+    (prisma.question.findMany as jest.Mock).mockResolvedValue(
+      nilai.map((_, i) => ({
+        id: idPertanyaan(i),
+        surveyId,
+        kodeUnsur: `U${i + 1}`,
+        teks: `Unsur ${i + 1}`,
+      })),
+    );
+    (prisma.answer.groupBy as jest.Mock).mockResolvedValueOnce(
+      nilai.map((daftar, i) => ({
+        questionId: idPertanyaan(i),
+        _sum: { nilai: daftar.reduce((a, b) => a + b, 0) },
+      })),
+    );
+    (prisma.surveyResponse.groupBy as jest.Mock).mockResolvedValueOnce(
+      jumlahResponden === 0 ? [] : [{ surveyId, _count: { _all: jumlahResponden } }],
+    );
+  };
 
   describe('getResults', () => {
     it('survei tidak ada → NotFound', async () => {
@@ -803,10 +843,7 @@ describe('IkmService', () => {
           opd: { nama: 'Dinas Pendidikan' },
         },
       ]);
-      (prisma.question.findMany as jest.Mock).mockResolvedValue(
-        unsurQuestions(Array(9).fill([4, 4])),
-      );
-      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(2);
+      mockBatchAktif(20, Array(9).fill([4, 4]), 2);
 
       const result = await service.getDashboard({});
 
@@ -827,8 +864,7 @@ describe('IkmService', () => {
           opd: { nama: 'Dinas Pendidikan' },
         },
       ]);
-      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions(Array(9).fill([])));
-      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(0);
+      mockBatchAktif(21, Array(9).fill([]), 0);
 
       const result = await service.getDashboard({});
 
@@ -878,8 +914,7 @@ describe('IkmService', () => {
         },
       ]);
       // 9 unsur, satu responden menilai 3 di semuanya -> IKM 3*25 = 75.
-      (prisma.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions(Array(9).fill([3])));
-      (prisma.surveyResponse.count as jest.Mock).mockResolvedValue(1);
+      mockBatchAktif(22, Array(9).fill([3]), 1);
 
       const result = await service.getDashboard({});
 
@@ -1246,5 +1281,450 @@ describe('IkmService', () => {
       expect(hasil.nilaiIkm).toBeNull();
       expect(singgahan.simpan).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * JALUR BATCH, yang menggantikan 744 panggilan `computeResult` di
+ * `getDashboard` dan `DashboardService.getStatistics`.
+ *
+ * MENGAPA UJINYA MEMBANDINGKAN DUA JALUR, bukan hanya mengecek angkanya.
+ * Risiko sebenarnya di sini bukan lambat melainkan angka IKM RESMI yang
+ * berubah tanpa ada yang sadar: `computeResult` adalah sumber rumus tunggal
+ * menurut PermenPANRB 14/2017, dan jalur batch menghitung ulang hal yang sama
+ * dengan kueri berbeda. Jadi angkanya dipatok dua kali -- sekali terhadap
+ * bilangan yang dihitung tangan, sekali terhadap keluaran `computeResult`
+ * untuk data yang sama.
+ */
+describe('hitungHasilBanyak', () => {
+  const prismaB = {
+    question: { findMany: jest.fn() },
+    answer: { groupBy: jest.fn() },
+    surveyResponse: { groupBy: jest.fn(), count: jest.fn() },
+  } as unknown as PrismaService;
+  const serviceB = new IkmService(
+    prismaB,
+    {} as unknown as IkmExportService,
+    new PenyimpanSinggahanNonaktif(),
+  );
+
+  // Mock TERSENDIRI untuk jalur lama, bukan yang dipakai `describe` di atas:
+  // blok ini berada di luar penutupnya, jadi `prisma`/`service` di sana tak
+  // dalam jangkauan. Dibuktikan oleh `Tests: 0 total` pada jalan pertama.
+  const prismaLama = {
+    survey: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    question: { findMany: jest.fn() },
+    surveyResponse: { count: jest.fn() },
+    answer: {
+      aggregate: jest.fn().mockResolvedValue({ _avg: { nilai: null } }),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
+  } as unknown as PrismaService;
+  const serviceLama = new IkmService(
+    prismaLama,
+    {} as unknown as IkmExportService,
+    new PenyimpanSinggahanNonaktif(),
+  );
+
+  const surveiAktif = (id: number, opdId: number) =>
+    ({
+      id,
+      opdId,
+      periode: '2026-Q1',
+      judul: `Survei ${id}`,
+    }) as unknown as Parameters<typeof serviceB.hitungHasilBanyak>[0][number];
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('menghitung dua survei sekaligus dengan TIGA kueri, bukan satu per survei', async () => {
+    (prismaB.question.findMany as jest.Mock).mockResolvedValue([
+      { id: 11, surveyId: 1, kodeUnsur: 'U1', teks: 'U1', urutan: 1 },
+      { id: 12, surveyId: 1, kodeUnsur: 'U2', teks: 'U2', urutan: 2 },
+      { id: 13, surveyId: 1, kodeUnsur: 'U3', teks: 'U3', urutan: 3 },
+      { id: 21, surveyId: 2, kodeUnsur: 'U1', teks: 'U1', urutan: 1 },
+    ]);
+    (prismaB.answer.groupBy as jest.Mock).mockResolvedValue([
+      { questionId: 11, _sum: { nilai: 8 } },
+      { questionId: 12, _sum: { nilai: 6 } },
+      { questionId: 13, _sum: { nilai: 4 } },
+      { questionId: 21, _sum: { nilai: 12 } },
+    ]);
+    (prismaB.surveyResponse.groupBy as jest.Mock).mockResolvedValue([
+      { surveyId: 1, _count: { _all: 2 } },
+      { surveyId: 2, _count: { _all: 3 } },
+    ]);
+
+    const hasil = await serviceB.hitungHasilBanyak([surveiAktif(1, 5), surveiAktif(2, 6)]);
+
+    // Survei 1: nrr 8/2=4, 6/2=3, 4/2=2; bobot 1/3; (4+3+2)/3 = 3; x25 = 75.
+    const s1 = hasil.get(1);
+    expect(s1?.jumlahResponden).toBe(2);
+    expect(s1?.nilaiIkm).toBe(75);
+    expect(s1?.nrrPerUnsur.map((u) => u.nrr)).toEqual([4, 3, 2]);
+    // Survei 2: satu unsur, nrr 12/3=4, bobot 1; 4x25 = 100.
+    expect(hasil.get(2)?.nilaiIkm).toBe(100);
+    expect(hasil.get(2)?.jumlahResponden).toBe(3);
+
+    // Tiga kueri, apa pun jumlah surveinya. Ini inti perbaikannya; tanpa
+    // penegasan ini seseorang dapat "memperbaiki" ini kembali menjadi N+1
+    // tanpa satu uji pun memerah.
+    expect(prismaB.question.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaB.answer.groupBy).toHaveBeenCalledTimes(1);
+    expect(prismaB.surveyResponse.groupBy).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * PENYARING RELASI, bukan daftar `IN` berisi id pertanyaan.
+   *
+   * Versi pertama `hitungHasilBanyak` memuat pertanyaannya lebih dulu lalu
+   * mengirim id-nya KEMBALI ke Postgres sebagai `questionId: { in: [...] }`.
+   * Pada 744 survei itu 6.696 bilangan yang melintasi kabel dua arah dan satu
+   * daftar sepanjang itu yang harus direncanakan Postgres. Terukur 13 Oktober
+   * 2026: `/dashboard/ikm` 1.775 ms untuk satu permintaan pada 6,7 juta
+   * jawaban, padahal HTTP 500-nya sudah hilang.
+   */
+  it('menyaring jawaban lewat relasi, bukan daftar IN berisi id pertanyaan', async () => {
+    (prismaB.question.findMany as jest.Mock).mockResolvedValue([
+      { id: 11, surveyId: 1, kodeUnsur: 'U1', teks: 'U1' },
+      { id: 21, surveyId: 2, kodeUnsur: 'U1', teks: 'U1' },
+    ]);
+    (prismaB.answer.groupBy as jest.Mock).mockResolvedValue([]);
+    (prismaB.surveyResponse.groupBy as jest.Mock).mockResolvedValue([]);
+
+    await serviceB.hitungHasilBanyak([surveiAktif(1, 5), surveiAktif(2, 6)]);
+
+    const argumen = (prismaB.answer.groupBy as jest.Mock).mock.calls[0][0] as {
+      where: unknown;
+    };
+    expect(argumen.where).toEqual({
+      question: { surveyId: { in: [1, 2] }, isIkmUnsur: true },
+    });
+  });
+
+  it('TIDAK menarik baris jawaban ke memori', async () => {
+    (prismaB.question.findMany as jest.Mock).mockResolvedValue([]);
+    (prismaB.answer.groupBy as jest.Mock).mockResolvedValue([]);
+    (prismaB.surveyResponse.groupBy as jest.Mock).mockResolvedValue([]);
+
+    await serviceB.hitungHasilBanyak([surveiAktif(1, 5)]);
+
+    // `include: { answers: ... }` itulah yang menarik 6,7 juta baris melintasi
+    // kabel pada jalur lama. Ia tak boleh kembali diam-diam.
+    const argumen = (prismaB.question.findMany as jest.Mock).mock.calls[0][0] as {
+      include?: unknown;
+    };
+    expect(argumen.include).toBeUndefined();
+  });
+
+  it.each([
+    ['tanpa responden', [], [{ questionId: 11, _sum: { nilai: 8 } }]],
+    ['tanpa unsur', [{ surveyId: 1, _count: { _all: 4 } }], []],
+  ])('belum dapat dinilai: %s → nilaiIkm & mutu null', async (_nama, respons, jawaban) => {
+    (prismaB.question.findMany as jest.Mock).mockResolvedValue(
+      _nama === 'tanpa unsur'
+        ? []
+        : [{ id: 11, surveyId: 1, kodeUnsur: 'U1', teks: 'U1', urutan: 1 }],
+    );
+    (prismaB.answer.groupBy as jest.Mock).mockResolvedValue(jawaban);
+    (prismaB.surveyResponse.groupBy as jest.Mock).mockResolvedValue(respons);
+
+    const hasil = await serviceB.hitungHasilBanyak([surveiAktif(1, 5)]);
+
+    expect(hasil.get(1)?.nilaiIkm).toBeNull();
+    expect(hasil.get(1)?.mutu).toBeNull();
+  });
+
+  it('survei tanpa satu pun jawaban tetapi punya responden → nilaiIkm 0', async () => {
+    (prismaB.question.findMany as jest.Mock).mockResolvedValue([
+      { id: 11, surveyId: 1, kodeUnsur: 'U1', teks: 'U1', urutan: 1 },
+    ]);
+    (prismaB.answer.groupBy as jest.Mock).mockResolvedValue([]);
+    (prismaB.surveyResponse.groupBy as jest.Mock).mockResolvedValue([
+      { surveyId: 1, _count: { _all: 4 } },
+    ]);
+
+    expect((await serviceB.hitungHasilBanyak([surveiAktif(1, 5)])).get(1)?.nilaiIkm).toBe(0);
+  });
+
+  /**
+   * PENGUNCI RUMUS. Data yang sama diberikan kepada kedua jalur dalam dua
+   * bentuk kueri, lalu keluarannya harus sama persis. Inilah satu-satunya uji
+   * di berkas ini yang akan memerah bila jalur batch menghitung IKM dengan cara
+   * yang berbeda, sekecil apa pun bedanya.
+   */
+  it('menghasilkan angka IDENTIK dengan computeResult untuk data yang sama', async () => {
+    const nilai = [
+      [4, 3, 4, 2],
+      [3, 3, 2, 4],
+      [1, 2, 2, 1],
+    ];
+    const jumlahResponden = 4;
+
+    // Jalur lama: `include: { answers }` + `count`.
+    (prismaLama.question.findMany as jest.Mock).mockResolvedValue(unsurQuestions(nilai));
+    (prismaLama.surveyResponse.count as jest.Mock).mockResolvedValue(jumlahResponden);
+    const satuan = await serviceLama.computeResult(survey() as never);
+
+    // Jalur batch: tiga agregat.
+    (prismaB.question.findMany as jest.Mock).mockResolvedValue(
+      nilai.map((_, i) => ({
+        id: i + 1,
+        surveyId: 1,
+        kodeUnsur: `U${i + 1}`,
+        teks: `Unsur ${i + 1}`,
+        urutan: i + 1,
+      })),
+    );
+    (prismaB.answer.groupBy as jest.Mock).mockResolvedValue(
+      nilai.map((daftar, i) => ({
+        questionId: i + 1,
+        _sum: { nilai: daftar.reduce((a, b) => a + b, 0) },
+      })),
+    );
+    (prismaB.surveyResponse.groupBy as jest.Mock).mockResolvedValue([
+      { surveyId: 1, _count: { _all: jumlahResponden } },
+    ]);
+    const batch = (await serviceB.hitungHasilBanyak([surveiAktif(1, 5)])).get(1);
+
+    expect(batch?.nilaiIkm).toBe(satuan.nilaiIkm);
+    expect(batch?.mutu).toBe(satuan.mutu);
+    expect(batch?.jumlahResponden).toBe(satuan.jumlahResponden);
+    expect(batch?.nrrPerUnsur.map((u) => [u.kodeUnsur, u.nrr, u.nrrTertimbang])).toEqual(
+      satuan.nrrPerUnsur.map((u) => [u.kodeUnsur, u.nrr, u.nrrTertimbang]),
+    );
+  });
+});
+
+/**
+ * SINGGAHAN `/dashboard/ikm`, pola yang sama dengan `GET /statistics`.
+ *
+ * MENGAPA. Sesudah jalur agregat batch ada, kedua endpoint memakai hitungan
+ * yang sama -- tetapi `/statistics` dibungkus singgahan read-through sementara
+ * `/dashboard/ikm` tidak. Terukur 13 Oktober 2026 pada 6,7 juta jawaban: 13 ms
+ * lawan 6.102 ms, dan itulah seluruh jurangnya.
+ *
+ * YANG DITUKAR, dan pemilik produk menyetujuinya: angka di layar Admin
+ * Kabupaten dapat tertinggal sampai 60 detik. `/statistics` sudah menerima
+ * pertukaran yang sama dengan TTL yang sama.
+ */
+describe('IkmService.getDashboard — singgahan', () => {
+  const simpanan = new Map<string, unknown>();
+  const singgahan = {
+    ambil: jest.fn((kunci: string) => Promise.resolve(simpanan.get(kunci) ?? null)),
+    simpan: jest.fn((kunci: string, nilai: unknown) => {
+      simpanan.set(kunci, nilai);
+      return Promise.resolve();
+    }),
+    hapus: jest.fn(() => Promise.resolve()),
+  } as unknown as PenyimpanSinggahan;
+
+  const prismaS = {
+    survey: { findMany: jest.fn().mockResolvedValue([]) },
+    question: { findMany: jest.fn().mockResolvedValue([]) },
+    answer: { groupBy: jest.fn().mockResolvedValue([]) },
+    surveyResponse: { groupBy: jest.fn().mockResolvedValue([]) },
+    ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
+    complaint: { count: jest.fn().mockResolvedValue(0) },
+    opd: { count: jest.fn().mockResolvedValue(0) },
+  } as unknown as PrismaService;
+  const serviceS = new IkmService(prismaS, {} as unknown as IkmExportService, singgahan);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    simpanan.clear();
+  });
+
+  it('panggilan kedua dengan kueri sama TIDAK menyentuh basis data lagi', async () => {
+    await serviceS.getDashboard({});
+    const sesudahPertama = (prismaS.ikmResult.findMany as jest.Mock).mock.calls.length;
+    expect(sesudahPertama).toBeGreaterThan(0);
+
+    await serviceS.getDashboard({});
+
+    expect((prismaS.ikmResult.findMany as jest.Mock).mock.calls.length).toBe(sesudahPertama);
+  });
+
+  /**
+   * Kueri yang berbeda WAJIB berkunci berbeda. Satu kunci untuk semua akan
+   * menyajikan hasil tersaring periode kepada orang yang tak menyaring apa pun
+   * -- cacat kebenaran, bukan cacat kecepatan.
+   */
+  it('penyaring berbeda memakai kunci berbeda', async () => {
+    await serviceS.getDashboard({});
+    await serviceS.getDashboard({ periode: '2026-Q1' });
+    await serviceS.getDashboard({ jenisLayanan: 'Kesehatan' });
+
+    // Disaring ke kunci dashboard: `simpan` juga dipakai token generasinya.
+    const kunci = (singgahan.simpan as jest.Mock).mock.calls
+      .map(([k]: [string]) => k)
+      .filter((k: string) => k.startsWith(AWALAN_DASHBOARD));
+    expect(new Set(kunci).size).toBe(3);
+    for (const k of kunci) {
+      expect(k.startsWith(AWALAN_DASHBOARD)).toBe(true);
+    }
+  });
+
+  /**
+   * MELESET berarti hitung ulang, dan itu kontraknya. Uji ini sempat saya tulis
+   * dengan `ambil` yang MENOLAK, lalu saya ganti: `PenyimpanSinggahan`
+   * menyatakan tersurat bahwa pembacaan yang galat dilaporkan sebagai meleset
+   * (gagal-terbuka) dan galatnya ditelan implementasinya. Menguji penolakan
+   * berarti memaku perilaku di luar kontrak dan memaksa kode bertahan terhadap
+   * hal yang tak pernah terjadi.
+   */
+  it('meleset membuatnya menghitung dari basis data, bukan melempar', async () => {
+    (singgahan.ambil as jest.Mock).mockResolvedValueOnce(null);
+
+    await expect(serviceS.getDashboard({})).resolves.toBeDefined();
+
+    expect((prismaS.ikmResult.findMany as jest.Mock).mock.calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe('kunciSinggahanDashboardIkm', () => {
+  it('berawalan ikm-dashboard:', () => {
+    expect(kunciSinggahanDashboardIkm('g1').startsWith(AWALAN_DASHBOARD)).toBe(true);
+  });
+
+  it('kueri kosong, periode saja, dan jenis saja menghasilkan tiga kunci berbeda', () => {
+    const kunci = [
+      kunciSinggahanDashboardIkm('g1'),
+      kunciSinggahanDashboardIkm('g1', '2026-Q1'),
+      kunciSinggahanDashboardIkm('g1', undefined, 'Kesehatan'),
+    ];
+    expect(new Set(kunci).size).toBe(3);
+  });
+
+  /**
+   * GENERASI BERGANTI = SELURUH KUNCI LAMA JADI TANPA INDUK. Itulah seluruh
+   * mekanisme pembatalannya: jalur tulis tak perlu tahu kombinasi penyaring apa
+   * saja yang pernah disinggahkan, cukup menghapus satu kunci generasi.
+   */
+  it('generasi berbeda menghasilkan kunci berbeda untuk kueri yang sama', () => {
+    expect(kunciSinggahanDashboardIkm('g1', '2026-Q1')).not.toBe(
+      kunciSinggahanDashboardIkm('g2', '2026-Q1'),
+    );
+  });
+
+  it('generasi ikut dikodekan sehingga tak dapat bertabrakan dengan periode', () => {
+    expect(kunciSinggahanDashboardIkm('g:1')).not.toBe(kunciSinggahanDashboardIkm('g', '1'));
+  });
+
+  /**
+   * Dua medan yang bertukar tempat tak boleh bertemu di kunci yang sama. Tanpa
+   * pemisah yang tegas, `periode='a:b'` + tanpa jenis bertabrakan dengan
+   * `periode='a'` + `jenisLayanan='b'`, dan satu pemakai melihat hasil saringan
+   * pemakai lain.
+   */
+  it('tidak bertabrakan ketika nilainya memuat pemisah', () => {
+    expect(kunciSinggahanDashboardIkm('g1', 'a:b')).not.toBe(
+      kunciSinggahanDashboardIkm('g1', 'a', 'b'),
+    );
+  });
+
+  it('kueri yang sama selalu menghasilkan kunci yang sama', () => {
+    expect(kunciSinggahanDashboardIkm('g1', '2026-Q1', 'Kesehatan')).toBe(
+      kunciSinggahanDashboardIkm('g1', '2026-Q1', 'Kesehatan'),
+    );
+  });
+});
+
+/**
+ * KUNCI GENERASI IKUT DALAM DAFTAR PEMBATALAN PER SURVEI, dan itu memakai
+ * titik perluasan yang sudah dirancang: docblock `kunciSinggahanIkm` menyatakan
+ * ia mengembalikan DAFTAR justru supaya hitungan tersinggahkan berikutnya ikut
+ * dibatalkan tanpa menyentuh jalur tulis -- tempat yang paling mudah
+ * terlupakan. Jawaban baru mengubah survei AKTIF yang dihitung live di
+ * dashboard, jadi dashboard-nya memang harus ikut hangus.
+ */
+describe('kunciSinggahanIkm', () => {
+  it('memuat kunci generasi dashboard', () => {
+    expect(kunciSinggahanIkm(7)).toContain(KUNCI_GENERASI_DASHBOARD);
+  });
+
+  it('tetap memuat ketiga kunci per survei', () => {
+    const kunci = kunciSinggahanIkm(7);
+    expect(kunci).toContain('ikm-hasil:7');
+    expect(kunci).toContain('ikm-rata:7');
+    expect(kunci).toContain('ikm-sebaran:7');
+  });
+});
+
+/**
+ * PEMBATALAN SINGGAHAN DASHBOARD lewat token generasi.
+ *
+ * Ditemukan e2e 13 Oktober 2026: `role-journeys.e2e-spec.ts` menutup survei
+ * lalu menuntut survei itu muncul di `GET /dashboard/ikm`, dan dengan singgahan
+ * tanpa pembatalan ia tidak muncul sampai TTL 60 detik lewat. Uji itu memaku
+ * harapan produk yang nyata, jadi yang salah adalah singgahannya.
+ *
+ * Kunci dashboard bergantung pada parameter kueri, sehingga tak dapat
+ * diturunkan dari id survei yang berubah -- karena itu generasi, bukan daftar
+ * kunci. Jalur tulis menghapus satu kunci generasi dan seluruh kunci lama
+ * menjadi tanpa induk lalu mati sendiri lewat TTL-nya.
+ */
+describe('IkmService.getDashboard — pembatalan generasi', () => {
+  const simpanan = new Map<string, unknown>();
+  const singgahan = {
+    ambil: jest.fn((kunci: string) => Promise.resolve(simpanan.get(kunci) ?? null)),
+    simpan: jest.fn((kunci: string, nilai: unknown) => {
+      simpanan.set(kunci, nilai);
+      return Promise.resolve();
+    }),
+    hapus: jest.fn((kunci: string) => {
+      simpanan.delete(kunci);
+      return Promise.resolve();
+    }),
+  } as unknown as PenyimpanSinggahan;
+
+  const prismaG = {
+    survey: { findMany: jest.fn().mockResolvedValue([]) },
+    question: { findMany: jest.fn().mockResolvedValue([]) },
+    answer: { groupBy: jest.fn().mockResolvedValue([]) },
+    surveyResponse: { groupBy: jest.fn().mockResolvedValue([]) },
+    ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
+    complaint: { count: jest.fn().mockResolvedValue(0) },
+    opd: { count: jest.fn().mockResolvedValue(0) },
+  } as unknown as PrismaService;
+  const serviceG = new IkmService(prismaG, {} as unknown as IkmExportService, singgahan);
+
+  const jumlahBacaDb = () => (prismaG.ikmResult.findMany as jest.Mock).mock.calls.length;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    simpanan.clear();
+  });
+
+  it('sesudah batalkanSinggahanDashboard, panggilan berikutnya menghitung ulang', async () => {
+    await serviceG.getDashboard({});
+    const sebelum = jumlahBacaDb();
+    await serviceG.getDashboard({});
+    expect(jumlahBacaDb()).toBe(sebelum);
+
+    await serviceG.batalkanSinggahanDashboard();
+
+    await serviceG.getDashboard({});
+    expect(jumlahBacaDb()).toBeGreaterThan(sebelum);
+  });
+
+  it('pembatalan hanya menghapus kunci generasi, bukan menebak kunci kuerinya', async () => {
+    await serviceG.getDashboard({ periode: '2026-Q1' });
+    (singgahan.hapus as jest.Mock).mockClear();
+
+    await serviceG.batalkanSinggahanDashboard();
+
+    const dihapus = (singgahan.hapus as jest.Mock).mock.calls.map(([k]: [string]) => k);
+    expect(dihapus).toEqual([KUNCI_GENERASI_DASHBOARD]);
+  });
+
+  it('generasi dipakai ulang antarpermintaan, bukan dibuat baru tiap kali', async () => {
+    await serviceG.getDashboard({});
+    await serviceG.getDashboard({ periode: '2026-Q1' });
+
+    const kunci = (singgahan.simpan as jest.Mock).mock.calls
+      .map(([k]: [string]) => k)
+      .filter((k: string) => k.startsWith(AWALAN_DASHBOARD));
+    const generasi = new Set(kunci.map((k: string) => k.split(':')[1]));
+    expect(generasi.size).toBe(1);
   });
 });

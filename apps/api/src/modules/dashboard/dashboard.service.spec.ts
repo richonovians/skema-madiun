@@ -51,6 +51,22 @@ describe('DashboardService', () => {
   const ikmService = {
     getResults: jest.fn(),
     computeResult: jest.fn(),
+    /**
+     * MENERUSKAN ke `computeResult`, bukan mock tersendiri. `getStatistics`
+     * beralih ke jalur batch (13 Oktober 2026) supaya endpoint publik ini tak
+     * lagi memanggil `computeResult` sekali per survei aktif, tetapi yang diuji
+     * berkas INI adalah perangkaian di `DashboardService` -- bukan bentuk kueri
+     * `IkmService`. Dengan meneruskan, seluruh uji di bawah mempertahankan
+     * maksud dan angka harapannya yang semula. Jaminan "tiga kueri, apa pun
+     * jumlah surveinya" diuji di `ikm.service.spec.ts`.
+     */
+    hitungHasilBanyak: jest.fn(async (surveys: { id: number }[]) => {
+      const peta = new Map<number, unknown>();
+      for (const survey of surveys) {
+        peta.set(survey.id, await (ikmService.computeResult as jest.Mock)(survey));
+      }
+      return peta;
+    }),
   } as unknown as IkmService;
   // Singgahan NONAKTIF: selalu meleset, jadi getStatistics tetap menghitung dari
   // (mock) basis data dan seluruh assertion di bawah tetap menguji hitungannya.

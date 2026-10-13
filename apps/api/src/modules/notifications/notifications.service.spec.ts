@@ -41,6 +41,7 @@ describe('NotificationsService', () => {
   const prisma = {
     notification: {
       create: jest.fn(),
+      createMany: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       findFirst: jest.fn(),
@@ -52,6 +53,24 @@ describe('NotificationsService', () => {
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   const service = new NotificationsService(prisma);
+
+  /**
+   * SELURUH notifikasi yang tertulis, dari `create` maupun `createMany`.
+   *
+   * Uji di berkas ini dahulu menegaskan `prisma.notification.create`. Sejak
+   * siaran memakai satu `createMany` (13 Oktober 2026), menegaskan metodenya
+   * berarti menguji BENTUK KUERI, padahal yang penting adalah notifikasi mana
+   * yang tertulis untuk siapa. Helper ini membuat maksud tiap uji bertahan dan
+   * membuatnya tak lagi pecah bila mekanismenya diubah lagi.
+   */
+  const semuaNotifikasi = (): unknown[] => [
+    ...(prisma.notification.create as jest.Mock).mock.calls.map(
+      ([arg]: [{ data: unknown }]) => arg.data,
+    ),
+    ...(prisma.notification.createMany as jest.Mock).mock.calls.flatMap(
+      ([arg]: [{ data: unknown[] }]) => arg.data,
+    ),
+  ];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -70,19 +89,15 @@ describe('NotificationsService', () => {
 
       await service.notifyComplaintCreated(complaint());
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 200,
-          untukPeran: Role.opd,
-          type: NotificationType.complaint_created,
-          title: 'Pengaduan Baru Masuk',
-          message: 'Pengaduan baru PGD20260805ABCD masuk ke OPD Anda',
-          link: '/admin-opd/complaints/PGD20260805ABCD',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 200,
+        untukPeran: Role.opd,
+        type: NotificationType.complaint_created,
+        title: 'Pengaduan Baru Masuk',
+        message: 'Pengaduan baru PGD20260805ABCD masuk ke OPD Anda',
+        link: '/admin-opd/complaints/PGD20260805ABCD',
       });
-      expect(prisma.notification.create).not.toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ userId: 10 }) }),
-      );
+      expect(semuaNotifikasi()).not.toContainEqual(expect.objectContaining({ userId: 10 }));
     });
 
     it('juga membuat notifikasi utk kabupaten (oversight, link admin-kab)', async () => {
@@ -93,15 +108,13 @@ describe('NotificationsService', () => {
 
       await service.notifyComplaintCreated(complaint());
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 300,
-          untukPeran: Role.kabupaten,
-          type: NotificationType.complaint_created,
-          title: 'Pengaduan Baru Masuk',
-          message: 'Pengaduan baru PGD20260805ABCD masuk',
-          link: '/admin-kab/complaints/PGD20260805ABCD',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 300,
+        untukPeran: Role.kabupaten,
+        type: NotificationType.complaint_created,
+        title: 'Pengaduan Baru Masuk',
+        message: 'Pengaduan baru PGD20260805ABCD masuk',
+        link: '/admin-kab/complaints/PGD20260805ABCD',
       });
     });
 
@@ -118,15 +131,13 @@ describe('NotificationsService', () => {
         999,
       );
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 10,
-          untukPeran: Role.responden,
-          type: NotificationType.complaint_status_changed,
-          title: 'Status Pengaduan Diperbarui',
-          message: 'Pengaduan PGD20260805ABCD kini berstatus "Diproses"',
-          link: '/complaints/PGD20260805ABCD',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 10,
+        untukPeran: Role.responden,
+        type: NotificationType.complaint_status_changed,
+        title: 'Status Pengaduan Diperbarui',
+        message: 'Pengaduan PGD20260805ABCD kini berstatus "Diproses"',
+        link: '/complaints/PGD20260805ABCD',
       });
     });
 
@@ -145,18 +156,51 @@ describe('NotificationsService', () => {
         },
         select: { id: true },
       });
-      expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect(semuaNotifikasi()).toContainEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 300,
-            link: '/admin-kab/complaints/PGD20260805ABCD',
-          }),
+          userId: 300,
+          link: '/admin-kab/complaints/PGD20260805ABCD',
         }),
       );
     });
 
+    /**
+     * SIARAN MEMAKAI SATU `createMany`, bukan satu `create` per penerima.
+     * Jalur lama memanggil `safeCreate` di dalam `Promise.all` atas hasil
+     * `user.findMany` yang tanpa `take`, jadi jumlah pernyataan INSERT serentak
+     * mengikuti jumlah akun yang memegang peran itu. Ia tak pernah memerah
+     * karena di data pengembangan akunnya segelintir; yang tumbuh adalah jumlah
+     * admin, bukan datanya.
+     */
+    it('menyiarkan ke banyak kabupaten dengan SATU createMany, bukan satu create per penerima', async () => {
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([
+        { id: 300 },
+        { id: 301 },
+        { id: 302 },
+      ]);
+
+      await service.notifyComplaintStatusChanged(complaint(), 999);
+
+      expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
+      const argumen = (prisma.notification.createMany as jest.Mock).mock.calls[0][0] as {
+        data: unknown[];
+      };
+      expect(argumen.data).toHaveLength(3);
+      // Di uji INI metodenya memang yang diperiksa, jadi `create` disebut
+      // langsung: ia tinggal untuk pelapor tunggal, sekali. Empat notifikasi
+      // tertulis seluruhnya -- satu pelapor, tiga kabupaten.
+      expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+      expect(semuaNotifikasi()).toHaveLength(4);
+    });
+
     it('gagal membuat notifikasi TIDAK melempar error (efek samping, bukan aksi utama)', async () => {
       (prisma.notification.create as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
+      await expect(service.notifyComplaintStatusChanged(complaint(), 999)).resolves.toBeUndefined();
+    });
+
+    it('siaran gagal TIDAK melempar error', async () => {
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 300 }]);
+      (prisma.notification.createMany as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
       await expect(service.notifyComplaintStatusChanged(complaint(), 999)).resolves.toBeUndefined();
     });
   });
@@ -165,16 +209,14 @@ describe('NotificationsService', () => {
     it('memberi tahu PELAPOR bahwa pengaduannya diteruskan, dgn NAMA OPD & link responden', async () => {
       await service.notifyComplaintForwarded(complaint(), 'Dinas Kesehatan');
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 10,
-          untukPeran: Role.responden,
-          type: NotificationType.complaint_forwarded,
-          title: 'Pengaduan Diteruskan',
-          message:
-            'Pengaduan PGD20260805ABCD Anda telah diteruskan ke Dinas Kesehatan yang berwenang menanganinya',
-          link: '/complaints/PGD20260805ABCD',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 10,
+        untukPeran: Role.responden,
+        type: NotificationType.complaint_forwarded,
+        title: 'Pengaduan Diteruskan',
+        message:
+          'Pengaduan PGD20260805ABCD Anda telah diteruskan ke Dinas Kesehatan yang berwenang menanganinya',
+        link: '/complaints/PGD20260805ABCD',
       });
     });
 
@@ -234,12 +276,10 @@ describe('NotificationsService', () => {
         where: { roles: { has: Role.opd }, opdId: 5, isActive: true },
         select: { id: true },
       });
-      expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect(semuaNotifikasi()).toContainEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 100,
-            link: '/admin-opd/complaints/PGD20260805ABCD',
-          }),
+          userId: 100,
+          link: '/admin-opd/complaints/PGD20260805ABCD',
         }),
       );
     });
@@ -250,15 +290,13 @@ describe('NotificationsService', () => {
         penulis(999, Role.opd),
       );
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 10,
-          untukPeran: Role.responden,
-          type: NotificationType.complaint_reply,
-          title: 'Balasan Baru pada Pengaduan',
-          message: 'OPD membalas pengaduan PGD20260805ABCD Anda',
-          link: '/complaints/PGD20260805ABCD',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 10,
+        untukPeran: Role.responden,
+        type: NotificationType.complaint_reply,
+        title: 'Balasan Baru pada Pengaduan',
+        message: 'OPD membalas pengaduan PGD20260805ABCD Anda',
+        link: '/complaints/PGD20260805ABCD',
       });
     });
 
@@ -273,15 +311,13 @@ describe('NotificationsService', () => {
         penulis(10, Role.opd),
       );
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 10,
-          untukPeran: Role.responden,
-          type: NotificationType.complaint_reply,
-          title: 'Balasan Baru pada Pengaduan',
-          message: 'OPD membalas pengaduan PGD20260805ABCD Anda',
-          link: '/complaints/PGD20260805ABCD',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 10,
+        untukPeran: Role.responden,
+        type: NotificationType.complaint_reply,
+        title: 'Balasan Baru pada Pengaduan',
+        message: 'OPD membalas pengaduan PGD20260805ABCD Anda',
+        link: '/complaints/PGD20260805ABCD',
       });
     });
 
@@ -301,15 +337,11 @@ describe('NotificationsService', () => {
         penulis(10, Role.responden),
       );
 
-      expect(prisma.notification.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ userId: 10, untukPeran: Role.opd }),
-        }),
+      expect(semuaNotifikasi()).toContainEqual(
+        expect.objectContaining({ userId: 10, untukPeran: Role.opd }),
       );
-      expect(prisma.notification.create).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ untukPeran: Role.responden }),
-        }),
+      expect(semuaNotifikasi()).not.toContainEqual(
+        expect.objectContaining({ untukPeran: Role.responden }),
       );
     });
 
@@ -324,12 +356,10 @@ describe('NotificationsService', () => {
         penulis(999, Role.opd),
       );
 
-      expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect(semuaNotifikasi()).toContainEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 300,
-            link: '/admin-kab/complaints/PGD20260805ABCD',
-          }),
+          userId: 300,
+          link: '/admin-kab/complaints/PGD20260805ABCD',
         }),
       );
     });
@@ -398,15 +428,13 @@ describe('NotificationsService', () => {
         where: { roles: { has: Role.opd }, opdId: 5, isActive: true },
         select: { id: true },
       });
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: {
-          userId: 200,
-          untukPeran: Role.opd,
-          type: NotificationType.survey_response_created,
-          title: 'Survei Mulai Menerima Jawaban',
-          message: 'Survei "Survei Kepuasan Layanan" menerima jawaban pertama',
-          link: '/admin-opd/surveys/7/responses',
-        },
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 200,
+        untukPeran: Role.opd,
+        type: NotificationType.survey_response_created,
+        title: 'Survei Mulai Menerima Jawaban',
+        message: 'Survei "Survei Kepuasan Layanan" menerima jawaban pertama',
+        link: '/admin-opd/surveys/7/responses',
       });
     });
 
@@ -418,7 +446,7 @@ describe('NotificationsService', () => {
         await service.notifySurveyResponse(survei(), 10);
       }
 
-      expect(prisma.notification.create).not.toHaveBeenCalled();
+      expect(semuaNotifikasi()).toHaveLength(0);
     });
 
     it.each([10, 25, 50, 100])(
@@ -432,15 +460,13 @@ describe('NotificationsService', () => {
 
         await service.notifySurveyResponse(survei(), 10);
 
-        expect(prisma.notification.create).toHaveBeenCalledWith({
-          data: {
-            userId: 200,
-            untukPeran: Role.opd,
-            type: NotificationType.survey_response_created,
-            title: 'Jawaban Survei Bertambah',
-            message: `Survei "Survei Kepuasan Layanan" telah menerima ${n} jawaban`,
-            link: '/admin-opd/surveys/7/responses',
-          },
+        expect(semuaNotifikasi()).toContainEqual({
+          userId: 200,
+          untukPeran: Role.opd,
+          type: NotificationType.survey_response_created,
+          title: 'Jawaban Survei Bertambah',
+          message: `Survei "Survei Kepuasan Layanan" telah menerima ${n} jawaban`,
+          link: '/admin-opd/surveys/7/responses',
         });
       },
     );
@@ -450,11 +476,11 @@ describe('NotificationsService', () => {
 
       jumlahJawaban(150);
       await service.notifySurveyResponse(survei(), 10);
-      expect(prisma.notification.create).not.toHaveBeenCalled();
+      expect(semuaNotifikasi()).toHaveLength(0);
 
       jumlahJawaban(200);
       await service.notifySurveyResponse(survei(), 10);
-      expect(prisma.notification.create).toHaveBeenCalled();
+      expect(semuaNotifikasi().length).toBeGreaterThan(0);
     });
 
     it('juga memberi tahu kabupaten & superuser (link admin-kab)', async () => {
@@ -466,12 +492,10 @@ describe('NotificationsService', () => {
 
       await service.notifySurveyResponse(survei(), 10);
 
-      expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect(semuaNotifikasi()).toContainEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 300,
-            link: '/admin-kab/surveys/7/responses',
-          }),
+          userId: 300,
+          link: '/admin-kab/surveys/7/responses',
         }),
       );
     });
@@ -487,9 +511,11 @@ describe('NotificationsService', () => {
 
       await service.notifySurveyResponse(survei(), 4242);
 
-      expect(prisma.notification.create).toHaveBeenCalled();
-      for (const [arg] of (prisma.notification.create as jest.Mock).mock.calls) {
-        expect(`${arg.data.title} ${arg.data.message}`).not.toContain('4242');
+      expect(semuaNotifikasi().length).toBeGreaterThan(0);
+      // `semuaNotifikasi()` sudah mengembalikan muatan `data`-nya, bukan
+      // argumen pemanggilan, jadi medannya dibaca langsung.
+      for (const arg of semuaNotifikasi() as { title: string; message: string }[]) {
+        expect(`${arg.title} ${arg.message}`).not.toContain('4242');
       }
     });
 
@@ -525,15 +551,13 @@ describe('NotificationsService', () => {
         .filter((where) => isFullAccessQuery(where));
       expect(kueriKab).toHaveLength(1);
       expect(kueriKab[0]).not.toHaveProperty('id');
-      expect(prisma.notification.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ userId: 300 }) }),
-      );
+      expect(semuaNotifikasi()).toContainEqual(expect.objectContaining({ userId: 300 }));
     });
 
     it('gagal menghitung jawaban TIDAK melempar error (efek samping, bukan aksi utama)', async () => {
       (prisma.surveyResponse.count as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
       await expect(service.notifySurveyResponse(survei(), 10)).resolves.toBeUndefined();
-      expect(prisma.notification.create).not.toHaveBeenCalled();
+      expect(semuaNotifikasi()).toHaveLength(0);
     });
   });
 
@@ -603,6 +627,7 @@ describe('NotificationsService — pemisahan kotak masuk per peran', () => {
   const prisma = {
     notification: {
       create: jest.fn(),
+      createMany: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       findFirst: jest.fn(),
@@ -615,9 +640,27 @@ describe('NotificationsService — pemisahan kotak masuk per peran', () => {
   } as unknown as PrismaService;
   const service = new NotificationsService(prisma);
 
-  /** Kumpulkan `data` dari tiap pemanggilan notification.create. */
+  /**
+   * SELURUH notifikasi yang tertulis, dari `create` maupun `createMany`.
+   *
+   * Uji di berkas ini dahulu menegaskan `prisma.notification.create`. Sejak
+   * siaran memakai satu `createMany` (13 Oktober 2026), menegaskan metodenya
+   * berarti menguji BENTUK KUERI, padahal yang penting adalah notifikasi mana
+   * yang tertulis untuk siapa. Helper ini membuat maksud tiap uji bertahan dan
+   * membuatnya tak lagi pecah bila mekanismenya diubah lagi.
+   */
+  const semuaNotifikasi = (): unknown[] => [
+    ...(prisma.notification.create as jest.Mock).mock.calls.map(
+      ([arg]: [{ data: unknown }]) => arg.data,
+    ),
+    ...(prisma.notification.createMany as jest.Mock).mock.calls.flatMap(
+      ([arg]: [{ data: unknown[] }]) => arg.data,
+    ),
+  ];
+
+  /** Kumpulkan muatan `data` dari `create` maupun `createMany`. */
   const barisDibuat = (): Array<{ userId: number; untukPeran: Role; link: string }> =>
-    (prisma.notification.create as jest.Mock).mock.calls.map(([arg]) => arg.data);
+    semuaNotifikasi() as Array<{ userId: number; untukPeran: Role; link: string }>;
 
   beforeEach(() => {
     jest.clearAllMocks();

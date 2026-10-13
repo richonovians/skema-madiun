@@ -12,6 +12,7 @@
  * yang disusun sendiri selalu terlihat benar.
  */
 import { gantiNamaBasisData, pastikanHostLokal, pecahUrlPostgres } from '../../lib/url-postgres';
+import { DB_REDIS_BEBAN, redisDbLogis } from '../../lib/url-redis';
 
 /** Nama basis data uji beban. Sengaja tidak dapat diatur dari luar. */
 export const NAMA_DB_BEBAN = 'skm_beban';
@@ -53,9 +54,6 @@ export function pastikanSasaranBeban(namaTersambung: string): void {
   }
 }
 
-/** Nomor basis data logis Redis untuk uji beban. Dev memakai 0, yaitu bawaannya. */
-const DB_REDIS_BEBAN = 1;
-
 /**
  * Mengarahkan `REDIS_URL` ke basis data logis tersendiri, supaya jalan beban tak
  * bercampur dengan Redis yang dipakai aplikasi dev.
@@ -63,33 +61,13 @@ const DB_REDIS_BEBAN = 1;
  * TERUKUR, bukan dijaga-jaga. Jalan beban pertama (13 Oktober 2026) menulis
  * `singgahan:ikm-hasil:6` ke Redis yang sama dengan yang dibaca aplikasi dev.
  * Survei id 6 ada di `skm_db` maupun `skm_beban` dengan isi berbeda, jadi angka
- * IKM di layar sempat berasal dari dataset beban. Ia pulih sendiri dalam 60
- * detik karena TTL singgahan, tetapi akan terulang setiap jalan.
+ * IKM di layar sempat berasal dari dataset beban.
  *
- * Kunci singgahan tak membawa pembeda basis data, dan itu bukan yang diperbaiki
- * di sini. Satu angka di ujung URL memisahkan SELURUH ruang kuncinya --
- * singgahan, penghitung batas laju, sesi, dan daftar pencabutan lampiran -- dan
- * tak menuntut satu baris pun perubahan di kode aplikasi, karena keempat klien
- * memakai `new Redis(url)` dari ioredis yang menghormati jalur sebagai nomor
- * basis data.
+ * Mekanismenya ada di `redisDbLogis`, dipakai bersama pelari e2e yang kena
+ * cacat yang sama persis pada hari yang sama.
  */
 export function redisBeban(url: string): string {
-  if (url.trim() === '') {
-    throw new Error(
-      'REDIS_URL tidak diatur. Tanpa itu aplikasi memakai penyimpan singgahan ' +
-        'NONAKTIF dan batas laju dalam memori, sehingga yang terukur adalah sistem ' +
-        'yang berbeda dari yang digelar.',
-    );
-  }
-  // Dipotong pada garis miring pertama SESUDAH skema, bukan pada yang terakhir.
-  // Versi pertama memakai `/[^/]*$/` dan memakan otoritasnya sendiri ketika
-  // URL-nya tanpa jalur, karena garis miring terakhir di `redis://host:6379`
-  // justru milik `//` pada skemanya -- hasilnya `redis:/1`. Terukur, merah.
-  const cocok = /^([a-z][a-z0-9+.-]*:\/\/[^/]*)/i.exec(url.trim());
-  if (cocok === null) {
-    throw new Error(`REDIS_URL bukan URL yang dapat diurai: ${url}`);
-  }
-  return `${cocok[1]}/${DB_REDIS_BEBAN}`;
+  return redisDbLogis(url, DB_REDIS_BEBAN);
 }
 
 /**
