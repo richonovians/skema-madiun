@@ -1,5 +1,29 @@
 # Rencana Pengujian (Test Plan)
 
+> **PERAN `superuser` SUDAH TIDAK ADA — cara membaca sebutannya di dokumen ini.**
+>
+> Peran itu dilebur ke `kabupaten` pada **15 September 2026** dan nilai enumnya
+> dibuang. Enum `Role` kini `kabupaten | opd | responden`. Riwayatnya berlapis
+> empat, dan keempatnya ada sebagai migrasi di `apps/api/prisma/migrations/`:
+>
+> | Tanggal | Migrasi | Keadaan |
+> | --- | --- | --- |
+> | 27 Juli 2026 | `20260727000000_add_superuser_role` | ditambahkan |
+> | 5 Agustus 2026 | `20260805150000_remove_superuser_role_merge_kabupaten` | dilebur |
+> | 20 Agustus 2026 | `20260820000000_readd_superuser_role` | **dikembalikan** |
+> | 15 September 2026 | `20260915140000_lebur_superuser_ke_kabupaten` | dilebur, terakhir |
+>
+> Dokumen ini disisir pada 13 Oktober 2026 dengan aturan berikut, dan **bukan**
+> dengan ganti-kata menyeluruh: sebutan yang berupa catatan sejarah atau hasil
+> pengamatan bertanggal dipertahankan apa adanya, sebab menyuntingnya akan
+> memalsukan rekaman pengujian; sebutan yang mengaku keadaan SEKARANG diperbaiki
+> beserta tanggalnya.
+>
+> Satu hal lagi yang ikut terbantah saat menyisir, dan akibatnya lebih besar
+> daripada nama peran: dokumen ini menyatakan Admin Kabupaten **mem-bypass**
+> seluruh `@Roles`. Bypass itu **dibongkar** pada temuan audit T6, 7 September
+> 2026, dan `@Roles` kini ditegakkan apa adanya (fail-closed).
+
 ## Sistem Survei Kepuasan Masyarakat (SKM) & Sistem Pengaduan Masyarakat
 
 |                   |                                                                                        |
@@ -20,7 +44,7 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 
 1. Seluruh kebutuhan fungsional (FR) dalam PRD terimplementasi dan berfungsi sesuai spesifikasi.
 2. Aturan bisnis kritis — terutama **isolasi data OPD**, **batasan nilai IKM skala 1–4**, dan **pembuatan nomor tiket unik pengaduan** — berjalan benar.
-3. Hak akses berbasis peran (RBAC) untuk **empat peran** (Superuser, Admin Kabupaten, Admin OPD, Responden) ditegakkan secara konsisten. _Direvisi 2 Sep 2026: `superuser` sempat digabung ke `kabupaten` pada 5 Agustus, lalu dipisahkan kembali pada 26 Agustus (`e1eb8b1`)._
+3. Hak akses berbasis peran (RBAC) untuk **tiga peran** (Admin Kabupaten, Admin OPD, Responden) ditegakkan secara konsisten. _Direvisi 13 Oktober 2026: sempat berbunyi "empat peran". `superuser` digabung ke `kabupaten` 5 Agustus, dipisahkan kembali 20 Agustus (`e1eb8b1`), lalu dilebur untuk terakhir kali 15 September 2026._
 
 > **Direvisi 15 September 2026 — satu akun kini dapat memiliki beberapa peran.**
 > `User.role` (tunggal) **dihapus** dan diganti `roles Role[]`. Yang menentukan
@@ -130,9 +154,15 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 > **Direvisi 2 September 2026.** Dua perubahan besar sejak revisi 10 Agustus:
 >
 > 1. **Peran `superuser` dikembalikan** (`e1eb8b1`, 26 Agu 2026) setelah sempat digabung ke
->    `kabupaten` pada 5 Agustus. Enum `Role` kini berisi empat peran lagi, dan seed
->    menyediakan akunnya sendiri. Revisi 10 Agustus yang menghapus akun Superuser dari
->    daftar ini **dibatalkan**.
+>    `kabupaten` pada 5 Agustus. Enum `Role` berisi empat peran lagi **pada tanggal
+>    catatan ini**, dan seed menyediakan akunnya sendiri. Revisi 10 Agustus yang
+>    menghapus akun Superuser dari daftar ini **dibatalkan**.
+>
+>    > ⚠️ **Catatan silang 13 Oktober 2026.** Kata "kini" di baris ini dahulu
+>    > berbunyi seolah berlaku sekarang; ia hanya berlaku pada 2 September 2026.
+>    > Peran itu dilebur untuk terakhir kali 15 September 2026 dan seed berhenti
+>    > membuat akunnya 16 September. Pembatalan yang dinyatakan di butir ini
+>    > karena itu **berbalik lagi**: akun Superuser memang tidak ada di daftar.
 > 2. **SSO Helpdesk sudah terpasang** (`d8d8ada`, 27 Agu 2026), jadi ada dua jalur masuk.
 >
 > **Cara login — jalur pengembangan (yang dipakai untuk pengujian):**
@@ -147,10 +177,22 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 
 | Peran               | Email (`identifier`)            | `ssoSubject`           | Keterangan                                                                     |
 | ------------------- | ------------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
-| **Superuser**       | `superuser@example.go.id`       | `seed-superuser`       | **Baru sejak 26 Agu 2026.** Area terkurung tersendiri, manajemen user & log aktivitas khusus; dapat membuka dashboard OPD dengan memilih OPD-nya |
-| **Admin Kabupaten** | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | Mem-bypass seluruh `@Roles` lewat `RolesGuard`, berakses penuh lintas-OPD      |
+| **Admin Kabupaten** | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | Berakses penuh lintas-OPD lewat `hasFullAccess`. Memegang manajemen pengguna & log aktivitas sejak peleburan 15 September 2026. **TIDAK mem-bypass `@Roles`** — baris ini sempat menyatakan sebaliknya, dan bypass itu dibongkar T6 pada 7 September 2026 |
 | **Admin OPD**       | `admin.opd@example.go.id`       | `seed-admin-opd`       | Terikat ke OPD **Dinas Kesehatan** (`DINKES`)                                  |
 | **Responden**       | `warga@example.go.id`           | `seed-responden`       | Sudah punya profil demografis (perempuan · 26-35 · S1 · Wiraswasta)            |
+
+> **Baris Superuser dibuang dari tabel ini, 13 Oktober 2026.** Akun
+> `superuser@example.go.id` / `seed-superuser` **tidak lagi dibuat seed**: bloknya
+> dibuang pada 16 September 2026 karena `Role.superuser` bernilai `undefined`
+> sesudah enumnya dihapus, sehingga seed berhenti di akun kedua dan basis data
+> baru tak pernah selesai terisi. Diperiksa langsung di
+> `apps/api/prisma/seed.ts` pada `main`: seed membuat **tiga** akun saja, yang
+> tersisa di tabel di atas.
+>
+> Pada basis data BARU, `seed-admin-kabupaten` lahir dengan `[kabupaten]` saja
+> dan tanpa `opd_id`. Peran `opd` + `responden` beserta tautan OPD-nya diberikan
+> sekali lewat panel Admin Kabupaten; tanpa itu, spec Playwright yang menuntut
+> ketiga peran akan **dilewati**, bukan diluluskan.
 
 > ✅ **Seed dapat dijalankan lagi sejak 15 September 2026.** Ia sempat patah
 > sepuluh hari — `seed.ts` menulis `role:` tunggal sesudah kolomnya diganti
@@ -158,13 +200,30 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 > dibuat dari nol ([CAT-014](BUG_REPORTS.md#cat-014)). Tabel di atas kembali
 > menjadi titik awal yang dapat direproduksi.
 >
-> ⚠️ Jalankan seed pada basis data **bersih**, bukan di atas dev yang sudah
+> ⚠️ ~~Jalankan seed pada basis data **bersih**, bukan di atas dev yang sudah
 > menyimpang: `update: { roles: [Role.superuser] }` akan menimpa `roles` akun
-> `superuser@example.go.id`, yang di `skm_db` kini ber-peran empat.
+> `superuser@example.go.id`, yang di `skm_db` kini ber-peran empat.~~
+> **DICABUT 13 Oktober 2026** — upsert itu sudah tidak ada. Seed memakai
+> `update: {}` dan tidak menimpa peran apa pun; lihat §5.1 di bawah.
 >
 **Akun yang benar-benar ada di basis data dev — dibaca langsung 15 September 2026.**
 Lima dari tujuh ber-peran lebih dari satu, jadi jalur "wajib memilih peran"
 (§1.1) adalah jalur yang **biasa**, bukan kekecualian:
+
+> **Tabel di bawah adalah bacaan bertanggal, dan sengaja tidak diperbarui.**
+> Baris `superuser@example.go.id` ber-`roles` memuat `superuser` **tak dapat
+> direproduksi lagi**: nilai enumnya dibuang 15 September 2026, jadi tak ada
+> akun mana pun yang dapat memegangnya sekarang. Yang tercatat di sini adalah
+> apa yang ada pada hari itu.
+>
+> Belum diperiksa ulang: `skm_db` terukur berisi **4 pengguna** pada 13 Oktober
+> 2026, sementara seed membuat tiga. Siapa pengguna keempat itu tidak saya
+> pastikan — Docker sedang mati saat dokumen ini disisir — jadi jangan dibaca
+> seolah baris-baris di bawah masih berlaku. Untuk memastikan:
+>
+> ```bash
+> docker exec skm-db psql -U skm -d skm_db -c >   "SELECT email, roles, opd_id FROM users ORDER BY id"
+> ```
 
 | `identifier` (email)            | `roles`                                    | `opdId` |
 | ------------------------------- | ------------------------------------------ | ------: |
@@ -281,10 +340,10 @@ yang muncul sesudah "Masuk", atau panggil
 
 | Area                                | Jenis Uji                                                                       |
 | ----------------------------------- | ------------------------------------------------------------------------------- |
-| **RBAC — 4 peran**                  | Integration (setiap endpoint diuji untuk peran yang diizinkan DAN yang ditolak) |
+| **RBAC — 3 peran**                  | Integration (setiap endpoint diuji untuk peran yang diizinkan DAN yang ditolak) |
 | **Isolasi data OPD**                | Integration (Admin OPD A tidak bisa akses data OPD B)                           |
-| **Superuser bypass**                | Integration (superuser harus lolos semua guard tanpa kecuali)                   |
-| **Privilege escalation prevention** | Integration (kabupaten tidak bisa assign role superuser)                        |
+| **Tak ada peran yang mem-bypass**   | Integration. **Diputar balik 13 Oktober 2026.** Baris ini dahulu berbunyi "Superuser bypass — superuser harus lolos semua guard tanpa kecuali"; sejak T6 (7 September 2026) yang harus diuji justru KEBALIKANNYA, bahwa tak ada peran yang lolos di luar `@Roles`-nya |
+| **Privilege escalation prevention** | Integration. Dahulu "kabupaten tidak bisa assign role superuser" — peran itu sudah tak ada, dan `kabupaten` kini peran tertinggi. Yang masih pantas diuji: `opd` dan `responden` tak dapat menetapkan peran apa pun, dan `CreateUserDto` hanya menerima peran admin |
 | **Rate limiting**                   | Integration (throttle pada login & submit response)                             |
 | **Soft delete (UU PDP)**            | Integration (data terhapus tidak muncul di query)                               |
 | **Audit logging**                   | Integration (setiap aksi admin tercatat)                                        |
@@ -306,11 +365,19 @@ yang muncul sesudah "Masuk", atau panggil
   | `pnpm --filter ./apps/api db:seed` dari akar | ✅ |
   | `prisma db seed` | ❌ tak ada blok `prisma.seed` di package.json |
 
-  > ⚠️ **Jangan jalankan pada `skm_db` tanpa berpikir dua kali.** Upsert superuser
+  > ⚠️ ~~**Jangan jalankan pada `skm_db` tanpa berpikir dua kali.** Upsert superuser
   > memuat `update: { roles: [Role.superuser] }`, yang **menimpa** peran akun yang
-  > sudah ada. Akun superuser dev kini berperan empat
-  > (`superuser, kabupaten, opd, responden`); menjalankan seed akan memangkasnya
-  > menjadi satu, dan akun itulah yang dipakai menguji perpindahan peran (C-15).
+  > sudah ada.~~
+  >
+  > **DICABUT 13 Oktober 2026, dan larangan ini berakibat nyata:** ia melarang
+  > menjalankan seed atas alasan yang sudah tidak ada. Upsert `superuser` dibuang
+  > dari seed pada 16 September 2026, dan upsert yang tersisa memakai
+  > `update: {}` — seed **tidak memperbarui apa pun**, hanya membuat yang belum
+  > ada. Komentar di `apps/api/prisma/seed.ts` menyatakannya tersurat: "Baris
+  > yang sudah terlanjur ada di basis data TIDAK disentuh."
+  >
+  > Tetap masuk akal memakai basis data sekali pakai bila yang ingin diperiksa
+  > adalah seed-nya sendiri, dan caranya ada di bawah.
   > Untuk sekadar memastikan seed-nya waras, pakai basis data sekali pakai:
   >
   > ```

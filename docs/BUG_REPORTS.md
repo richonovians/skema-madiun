@@ -1,5 +1,33 @@
 # Daftar Temuan Pengujian — SKM & SPM Kabupaten Madiun
 
+> **PERAN `superuser` SUDAH TIDAK ADA — cara membaca sebutannya di dokumen ini.**
+>
+> Peran itu dilebur ke `kabupaten` pada **15 September 2026** dan nilai enumnya
+> dibuang. Enum `Role` kini `kabupaten | opd | responden`. Riwayatnya berlapis
+> empat, dan keempatnya ada sebagai migrasi di `apps/api/prisma/migrations/`:
+>
+> | Tanggal | Migrasi | Keadaan |
+> | --- | --- | --- |
+> | 27 Juli 2026 | `20260727000000_add_superuser_role` | ditambahkan |
+> | 5 Agustus 2026 | `20260805150000_remove_superuser_role_merge_kabupaten` | dilebur |
+> | 20 Agustus 2026 | `20260820000000_readd_superuser_role` | **dikembalikan** |
+> | 15 September 2026 | `20260915140000_lebur_superuser_ke_kabupaten` | dilebur, terakhir |
+>
+> Karena itu dokumen ini disisir pada 13 Oktober 2026 dengan aturan berikut, dan
+> **bukan** dengan ganti-kata menyeluruh: sebutan yang berupa catatan sejarah
+> atau hasil pengamatan bertanggal **dipertahankan apa adanya**, sebab
+> menyuntingnya akan memalsukan rekaman pengujian; sebutan yang mengaku keadaan
+> SEKARANG diperbaiki beserta tanggalnya; kasus uji yang harapannya kini salah
+> **ditandai tersurat**, tidak disunting diam-diam — menulis ulang kasus uji
+> secara senyap akan menghapus fakta bahwa cakupan ujinya berubah.
+>
+> **Dokumen ini TIDAK disunting di luar kotak ini.** Isinya laporan temuan
+> bertanggal dan catatan sesi eksploratori, termasuk cuplikan keluaran `psql`
+> mentah seperti `2 | superuser@example.go.id | {superuser}`. Seluruhnya rekaman
+> apa yang DIAMATI pada hari itu, dan rekaman tak boleh diubah agar cocok dengan
+> keadaan hari ini. Tiga puluh tiga sebutan `superuser` di bawah dibiarkan utuh
+> dengan sengaja.
+
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
 | **Versi**           | 4.4                                                                                                        |

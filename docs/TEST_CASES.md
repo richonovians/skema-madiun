@@ -1,5 +1,31 @@
 # Matriks Skenario Uji (Test Cases)
 
+> **PERAN `superuser` SUDAH TIDAK ADA — dan dokumen ini pernah dua kali salah
+> tentangnya, dalam arah yang berlawanan.**
+>
+> Peran itu dilebur ke `kabupaten` pada **15 September 2026** dan nilai enumnya
+> dibuang. Enum `Role` kini `kabupaten | opd | responden`. Riwayatnya berlapis
+> empat, dan keempatnya ada sebagai migrasi di `apps/api/prisma/migrations/`:
+>
+> | Tanggal | Migrasi | Keadaan |
+> | --- | --- | --- |
+> | 27 Juli 2026 | `20260727000000_add_superuser_role` | ditambahkan |
+> | 5 Agustus 2026 | `20260805150000_remove_superuser_role_merge_kabupaten` | dilebur |
+> | 20 Agustus 2026 | `20260820000000_readd_superuser_role` | **dikembalikan** |
+> | 15 September 2026 | `20260915140000_lebur_superuser_ke_kabupaten` | dilebur, terakhir |
+>
+> Dokumen ini memuat DUA kotak koreksi yang saling bertentangan, dan keduanya
+> ditulis dengan niat baik: satu di Modul A menyatakan peran itu dihapus
+> 5 Agustus, satu di Lampiran menyatakan peran itu dikembalikan 26 Agustus dan
+> karenanya kasus-kasus ujinya "kembali sahih tanpa perlu diubah sama sekali".
+> Keduanya benar pada hari ditulisnya, dan keduanya tidak benar sekarang. Masing
+> masing kini memuat catatan silang di tempatnya.
+>
+> Disisir 13 Oktober 2026. Kasus uji yang harapannya kini salah **ditandai
+> tersurat, tidak disunting diam-diam** — menulis ulang kasus uji secara senyap
+> akan menghapus fakta bahwa cakupan ujinya berubah, dan itu justru yang perlu
+> terlihat oleh siapa pun yang memakai dokumen ini sebagai daftar kerja.
+
 ## Sistem Survei Kepuasan Masyarakat (SKM) & Sistem Pengaduan Masyarakat
 
 |                        |                                                                                        |
@@ -50,8 +76,14 @@ Referensi: PRD §8.1, Routes §A.1, kode `apps/api/src/modules/auth/**`
 > `POST /auth/dev-login` · `POST /auth/logout` · `GET /auth/me` · `PATCH /auth/profile`
 >
 > **Peran `superuser` sudah dihapus** (digabung ke `kabupaten`, 5 Agustus 2026). Enum
-> `Role` kini hanya `kabupaten | opd | responden`; `kabupaten` merangkap superuser dan
-> mem-bypass `RolesGuard`.
+> `Role` kini hanya `kabupaten | opd | responden`; ~~`kabupaten` merangkap superuser dan
+> mem-bypass `RolesGuard`~~.
+>
+> **Catatan silang, 13 Oktober 2026.** Kesimpulan kotak ini akhirnya benar, tetapi
+> tanggal dan alasannya tidak: peran itu **dikembalikan** 20 Agustus 2026 dan baru
+> dilebur untuk terakhir kali 15 September. Dan `kabupaten` **tidak lagi
+> mem-bypass `RolesGuard`** — bypass itu dibongkar pada temuan audit T6,
+> 7 September 2026. Lihat kotak di kepala dokumen.
 
 ### A.1 Dev-Login (`POST /api/v1/auth/dev-login`)
 
@@ -199,14 +231,14 @@ Referensi: PRD §6, §8.1 (FR-AUTH-06, FR-AUTH-07), Routes §A.3
 | TC-USR-002 | Daftar akun admin filter per role              | GET `/users?role=opd`                       | `role=opd`                               | 200 OK; hanya user ber-role OPD                                                      |    P2     | Integ |   ⬜   |
 | TC-USR-003 | Buat akun Admin OPD (oleh Admin Kabupaten)     | POST `/users` sebagai kabupaten             | `{ nama, email, role: "opd", opdId: 1 }` | 201 Created; user tersimpan; terikat ke OPD                                          |    P1     | Integ |   ⬜   |
 | TC-USR-004 | Buat akun Admin OPD tanpa `opdId` → ditolak    | POST `/users`                               | `{ role: "opd" }` tanpa `opdId`          | 400 Bad Request; "opdId wajib diisi untuk role opd"                                  |    P1     | Integ |   ⬜   |
-| TC-USR-005 | Kabupaten TIDAK boleh assign role `superuser`  | POST `/users` sebagai kabupaten             | `{ role: "superuser" }`                  | 403 Forbidden; "Hanya superuser yang boleh menetapkan role kabupaten atau superuser" |    P0     | Integ |   ⬜   |
-| TC-USR-006 | Kabupaten TIDAK boleh assign role `kabupaten`  | POST `/users` sebagai kabupaten             | `{ role: "kabupaten" }`                  | 403 Forbidden                                                                        |    P0     | Integ |   ⬜   |
-| TC-USR-007 | Superuser BOLEH assign role `kabupaten`        | POST `/users` sebagai superuser             | `{ role: "kabupaten", nama, email }`     | 201 Created                                                                          |    P0     | Integ |   ⬜   |
-| TC-USR-008 | Superuser BOLEH assign role `superuser`        | POST `/users` sebagai superuser             | `{ role: "superuser", nama, email }`     | 201 Created                                                                          |    P0     | Integ |   ⬜   |
+| TC-USR-005 | ⛔ **TIDAK BERLAKU 13 Okt 2026** — Kabupaten TIDAK boleh assign role `superuser`  | POST `/users` sebagai kabupaten             | `{ role: "superuser" }`                  | Harapan lama 403. Peran itu tak ada lagi, jadi `@IsIn(ASSIGNABLE_ROLES)` menolaknya dengan **400**, bukan 403. Medannya pun `roles` (array), bukan `role` |    P0     | Integ |   ⛔   |
+| TC-USR-006 | ⚠️ **HARAPANNYA TERBALIK 13 Okt 2026** — Kabupaten boleh assign role `kabupaten`  | POST `/users` sebagai kabupaten             | `{ roles: ["kabupaten"], nama, email }`  | Harapan lama 403. `UsersService.assertKabupaten` kini meloloskan `kabupaten` — ia peran tertinggi sejak peleburan — jadi yang benar **201 Created**. Perlu dijalankan ulang |    P0     | Integ |   ⚠️   |
+| TC-USR-007 | 🔁 **PELAKUNYA BERGANTI 13 Okt 2026** — Kabupaten BOLEH assign role `kabupaten`  | POST `/users` sebagai kabupaten             | `{ roles: ["kabupaten"], nama, email }`  | 201 Created. Dahulu pelakunya Superuser; kuasanya pindah ke `kabupaten`. Kini kembar dengan TC-USR-006 sesudah harapan itu dibalik — salah satunya dapat dibuang saat dijalankan |    P0     | Integ |   ⚠️   |
+| TC-USR-008 | ⛔ **TIDAK BERLAKU 13 Okt 2026** — Superuser BOLEH assign role `superuser`        | POST `/users` sebagai superuser             | `{ role: "superuser", nama, email }`     | Tak dapat diuji: `ASSIGNABLE_ROLES` berisi `kabupaten`, `opd`, `responden` saja, dan tak ada akun yang dapat berperan `superuser` |    P0     | Integ |   ⛔   |
 | TC-USR-009 | Buat akun dengan email duplikat                | POST `/users`                               | Email yang sudah ada                     | 409 Conflict; "Email atau ssoSubject sudah digunakan"                                |    P1     | Integ |   ⬜   |
 | TC-USR-010 | Ubah akun admin (nama, OPD tautan)             | PATCH `/users/:id`                          | `{ nama: "Budi Updated", opdId: 2 }`     | 200 OK; data ter-update                                                              |    P1     | Integ |   ⬜   |
 | TC-USR-011 | Nonaktifkan akun Admin OPD                     | PATCH `/users/:id/status`                   | `{ isActive: false }`                    | 200 OK; `is_active = false`                                                          |    P1     | Integ |   ⬜   |
-| TC-USR-012 | Kabupaten tidak boleh mengelola akun superuser | PATCH `/users/:id/status` sebagai kabupaten | Target: user ber-role superuser          | 403 Forbidden; "Hanya superuser yang boleh mengelola akun kabupaten atau superuser"  |    P0     | Integ |   ⬜   |
+| TC-USR-012 | ⛔ **TIDAK BERLAKU 13 Okt 2026** — Kabupaten tidak boleh mengelola akun superuser | PATCH `/users/:id/status` sebagai kabupaten | Target: user ber-role superuser          | Tak ada akun ber-peran `superuser` yang dapat dijadikan target. `assertSuperuser` juga tak ada lagi; penggantinya `assertKabupaten`, dan pesannya "Manajemen pengguna hanya dapat diakses oleh Admin Kabupaten" |    P0     | Integ |   ⛔   |
 | TC-USR-013 | Responden tidak bisa akses modul users         | GET `/users` sebagai responden              | Token responden                          | 403 Forbidden                                                                        |    P0     | Integ |   ⬜   |
 | TC-USR-014 | Admin OPD tidak bisa akses modul users         | GET `/users` sebagai admin OPD              | Token admin OPD                          | 403 Forbidden                                                                        |    P0     | Integ |   ⬜   |
 
@@ -222,7 +254,7 @@ Referensi: PRD §8.3 (FR-SVY-01 ~ FR-SVY-07), Routes §A.4
 | ---------- | ---------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------- | :-------: | :---: | :----: |
 | TC-SVY-001 | Buat paket survei (Admin OPD)                              | POST `/surveys` sebagai OPD Dinkes              | `{ judul: "SKM Q3 2026", periode: "Q3-2026", allowMultipleSubmit: false }` | 201 Created; status default = `draft`; `opdId` = OPD Dinkes |    P1     | Integ |   ⬜   |
 | TC-SVY-002 | Buat survei — `opdId` otomatis dari user (Admin OPD)       | POST `/surveys` tanpa `opdId`                   | Token OPD                                                                  | 201 Created; `opdId` diambil dari `user.opdId`              |    P1     | Unit  |   ⬜   |
-| TC-SVY-003 | Buat survei — superuser wajib kirim `opdId`                | POST `/surveys` sebagai superuser tanpa `opdId` | Token superuser                                                            | 400 Bad Request; "opdId wajib diisi"                        |    P1     | Integ |   ⬜   |
+| TC-SVY-003 | 🔁 **PELAKUNYA BERGANTI 13 Okt 2026** — Buat survei: Kabupaten wajib kirim `opdId` | POST `/surveys` sebagai kabupaten tanpa `opdId` | Token kabupaten                                                            | 400 Bad Request; "opdId wajib diisi". Masih sahih: `resolveOpdId` memakai `user.opdId` hanya bila `actingRole === opd`, dan menuntut `dto.opdId` untuk peran lainnya |    P1     | Integ |   ⬜   |
 | TC-SVY-004 | Buat survei — Admin OPD yang tidak tertaut OPD             | POST `/surveys`                                 | Admin OPD tanpa `opdId`                                                    | 400 Bad Request; "Akun OPD tidak tertaut ke OPD mana pun"   |    P1     | Unit  |   ⬜   |
 | TC-SVY-005 | Daftar survei — Admin OPD hanya lihat milik OPD-nya        | GET `/surveys` sebagai OPD Dinkes               | —                                                                          | 200 OK; hanya survei `opdId = Dinkes`                       |    P0     | Integ |   ⬜   |
 | TC-SVY-006 | Daftar survei — Admin Kabupaten lihat semua OPD            | GET `/surveys` sebagai kabupaten                | —                                                                          | 200 OK; survei dari semua OPD                               |    P0     | Integ |   ⬜   |
@@ -451,6 +483,27 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 
 > Setiap baris menguji bahwa peran tertentu **mendapat response yang benar** pada endpoint tersebut.
 
+> **KOLOM "Superuser" MENJELASKAN PERAN YANG SUDAH TIDAK ADA — dan kolom itu
+> SENGAJA TIDAK DIBUANG, 13 Oktober 2026.**
+>
+> Kuasa peran itu pindah ke `kabupaten` pada 15 September 2026. Pada delapan dari
+> empat belas baris, kedua kolom sudah sama, jadi tak ada yang berubah. Pada
+> **enam** baris keduanya BERBEDA, dan di situlah pekerjaannya: kolom Kabupaten
+> yang harus dijalankan ulang, sebab yang dahulu hanya boleh dilakukan Superuser
+> kini boleh dilakukan Kabupaten.
+>
+> Keenam baris itu: TC-RBAC-005, 006, 008, 009, 011, 012.
+>
+> Membuang kolomnya akan menghapus justru informasi yang menunjukkan baris mana
+> yang perlu diperiksa.
+>
+> **Dan jangan membaca kolom Kabupaten sebagai sudah terverifikasi.** Satu di
+> antaranya terbukti salah saat disisir: TC-RBAC-006 (`POST /surveys`) menandai
+> Kabupaten `❌ 403`, padahal endpoint itu ber-`@Roles(Role.kabupaten, Role.opd)`
+> dan `resolveOpdId` memang menyediakan jalur bagi `kabupaten` — ia menuntut
+> `opdId` di badan permintaan, lalu menjawab **201**. Lima baris lainnya belum
+> diperiksa terhadap kode.
+
 | ID          | Endpoint                       | Superuser | Kabupaten |      Admin OPD       | Responden | Tipe  | Status |
 | ----------- | ------------------------------ | :-------: | :-------: | :------------------: | :-------: | :---: | :----: |
 | TC-RBAC-001 | `GET /opd`                     |  ✅ 200   |  ✅ 200   |        ❌ 403        |  ❌ 403   | Integ |   ⬜   |
@@ -480,7 +533,7 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-ISO-006 | **Admin OPD Dinkes TIDAK bisa ubah status pengaduan Disdukcapil**   | PATCH `/complaints/:id/status` sebagai OPD Dinkes                       | Pengaduan Disdukcapil → 403 Forbidden                       |                             P0                             | Integ |   ⬜   |
 | TC-ISO-007 | **Admin OPD Dinkes TIDAK bisa balas pengaduan Disdukcapil**         | POST `/complaints/:id/replies` sebagai OPD Dinkes                       | Pengaduan Disdukcapil → 403 Forbidden                       |                             P0                             | Integ |   ⬜   |
 | TC-ISO-008 | **Admin OPD tanpa `opdId` (orphan) → Forbidden**                    | Akses endpoint apa pun yang butuh OPD                                   | Admin OPD dengan `opdId = null`                             |  403 Forbidden; "Akun OPD tidak tertaut ke OPD mana pun"   |  P0   | Integ  | ⬜  |
-| TC-ISO-009 | **Superuser bisa akses semua data cross-OPD**                       | GET survei/pertanyaan/respons/hasil dari OPD mana pun sebagai superuser | —                                                           |               200 OK; tidak ada batasan OPD                |  P0   | Integ  | ⬜  |
+| TC-ISO-009 | 🔁 **PELAKUNYA BERGANTI 13 Okt 2026** — **Kabupaten bisa akses semua data cross-OPD** | GET survei/pertanyaan/respons/hasil dari OPD mana pun sebagai kabupaten | —                                                           |               200 OK; tidak ada batasan OPD. Masih sahih: `hasFullAccess` di `role.util.ts` adalah satu-satunya definisi "boleh menembus batas OPD", dan isinya kini hanya `kabupaten`                |  P0   | Integ  | ⬜  |
 | TC-ISO-010 | **Admin Kabupaten bisa lihat (read) semua data cross-OPD**          | GET survei/pertanyaan/respons/hasil dari OPD mana pun sebagai kabupaten | —                                                           | 200 OK; kabupaten bersifat read-only terhadap hasil survei |  P0   | Integ  | ⬜  |
 | TC-ISO-011 | **Admin Kabupaten TIDAK bisa membuat survei (read-only, PRD §6)**   | POST `/surveys` sebagai kabupaten                                       | —                                                           |    403 Forbidden; kabupaten tidak punya hak buat survei    |  P0   | Integ  | ⬜  |
 
@@ -549,8 +602,8 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-FE-040 | **Percakapan Pengaduan (balasan warga & admin)** | Buka detail pengaduan, kirim balasan sebagai warga lalu sebagai admin | Gelembung pesan berpihak benar (pelapor vs admin), urutan waktunya betul, dan balasan baru muncul tanpa memuat ulang halaman. Lihat juga [CAT-005](BUG_REPORTS.md#cat-005--warga-tak-dapat-membedakan-admin-mana-yang-membalas) **LULUS 2 September 2026** — `ComplaintChat.test.jsx`, 10 kasus. | P1 | Component |   ✅   |
 | TC-FE-041 | **Daftar & Filter Pengaduan (Admin)** | Buka daftar pengaduan Admin OPD dan Admin Kabupaten, saring menurut status dan kategori, lalu tekan Reset Filter | Hanya baris yang cocok tampil; Admin OPD hanya melihat pengaduan OPD-nya sendiri; Reset mengembalikan seluruh daftar **LULUS 2 September 2026** — `admin-opd/complaints/__tests__/page.test.jsx`, 6 kasus. | P2 | Component |   ✅   |
 | TC-FE-042 | **Melihat Respons Survei (daftar & detail)** | Buka `/admin-{kab,opd}/surveys/[id]/responses` lalu satu barisnya | Daftar respons tampil beserta waktu kirim; detail menampilkan jawaban per pertanyaan sesuai tipenya (skor skala, label opsi, teks uraian) dan **tanpa identitas pengisi** — SKM bersifat anonim **Dijalankan 3 Sep 2026** — 10 kasus, berporos pada anonimitas: kolom Responden/Email/No. Telepon/Nama tak boleh muncul di tabel maupun detail. | P2 | Component | ✅ |
-| TC-FE-043 | **Pemilih Peran Superuser & Callback SSO** | Masuk sebagai superuser (memicu `/pilih-peran`); buka `/sso/callback` tanpa parameter | Pemilih peran hanya terbuka bagi superuser dan menutupnya membatalkan login; halaman callback tak pernah menampilkan layar putih walau parameternya tak lengkap **Dijalankan 3 Sep 2026** — 13 kasus. **Batas yang dinyatakan:** jsdom 26 mengunci `window.location` (`configurable: false, writable: false`) dan ketiga cara pemalsuan yang lazim ditolak, jadi yang diuji adalah **keadaan yang ditulis sebelum navigasi** (`localStorage.area`, cookie) beserta konstanta `roleHome.js` — bukan tujuan navigasinya. | P2 | Component | ✅ |
-| TC-FE-044 | **Form Buat & Ubah Akun Admin** | Buka `/admin-kab/users/create`, kirim peran Admin OPD tanpa memilih OPD, lalu dengan surel yang sudah terpakai | Validasi sisi klien mencegah kirim kosong; galat backend (mis. email duplikat) ditampilkan di formulir, bukan ditelan. Lihat charter C-05 **LULUS 3 September 2026 (sesi C-05).** Peran Admin OPD tanpa OPD ditahan di formulir dengan pesan "Silakan pilih instansi / OPD."; surel duplikat ditolak dan pesan backend ditampilkan apa adanya, tidak ditelan. Sakelar "Aktif" yang dimatikan benar-benar tersimpan `isActive=false`. **Di luar cakupan baris ini ditemukan [BUG-009](BUG_REPORTS.md#bug-009)** (Medium): pembuatan akun nonaktif memakai DUA panggilan berurutan, dan bila yang kedua gagal, akunnya sudah terlanjur ada. | P2 | Manual | ✅ |
+| TC-FE-043 | 🔁 **GERBANGNYA BERGANTI 13 Okt 2026** — **Pemilih Peran & Callback SSO** | Masuk dengan akun ber-peran lebih dari satu (memicu `/pilih-peran`); buka `/sso/callback` tanpa parameter | ~~Pemilih peran hanya terbuka bagi superuser~~ → terbuka bagi **siapa pun ber-peran lebih dari satu**; gerbangnya JUMLAH peran, bukan peran tertentu (digeneralisasi 5 September 2026, dan `pilih-peran/page.jsx` menyatakannya tersurat). Menutupnya tetap membatalkan login; halaman callback tetap tak boleh menampilkan layar putih walau parameternya tak lengkap. **Dijalankan 3 Sep 2026** — 13 kasus; hasil itu TETAP sahih, sebab akun yang dipakainya memang ber-peran lebih dari satu. **Batas yang dinyatakan:** jsdom 26 mengunci `window.location` (`configurable: false, writable: false`) dan ketiga cara pemalsuan yang lazim ditolak, jadi yang diuji adalah **keadaan yang ditulis sebelum navigasi** beserta konstanta `roleHome.js` — bukan tujuan navigasinya. Catatan: `localStorage.area` yang disebut di sana sudah **tak ada lagi**, cookie `area` dibuang bersama perannya. | P2 | Component | ✅ |
+| TC-FE-044 | **Form Buat & Ubah Akun Admin** | Buka `/admin-kab/users` lalu formulirnya (**bukan** `/admin-kab/users/create` — rute itu tak ada; yang ada `users/[id]/edit`, diperiksa 13 Oktober 2026), kirim peran Admin OPD tanpa memilih OPD, lalu dengan surel yang sudah terpakai | Validasi sisi klien mencegah kirim kosong; galat backend (mis. email duplikat) ditampilkan di formulir, bukan ditelan. Lihat charter C-05 **LULUS 3 September 2026 (sesi C-05).** Peran Admin OPD tanpa OPD ditahan di formulir dengan pesan "Silakan pilih instansi / OPD."; surel duplikat ditolak dan pesan backend ditampilkan apa adanya, tidak ditelan. Sakelar "Aktif" yang dimatikan benar-benar tersimpan `isActive=false`. **Di luar cakupan baris ini ditemukan [BUG-009](BUG_REPORTS.md#bug-009)** (Medium): pembuatan akun nonaktif memakai DUA panggilan berurutan, dan bila yang kedua gagal, akunnya sudah terlanjur ada. | P2 | Manual | ✅ |
 | TC-FE-045 | **Dasbor Kabupaten & OPD** | Buka `/admin-kab/dashboard` dan `/admin-opd/dashboard` | Kartu ringkasan, donat status pengaduan, papan peringkat IKM, dan tabel aktivitas terisi dari API; keadaan kosong dan keadaan galat tampil dengan anggun. 15 komponen, baru grafiknya yang tercakup (TC-FE-012) **Dijalankan 3 Sep 2026** — 14 kasus, termasuk "Mutu: -" yang tak boleh diderivasi sendiri di frontend. | P2 | Component | ✅ |
 | TC-FE-046 | **Kit UI Bersama** | Render `Table`, `Pagination`, `Select`, `FileDropzone`, `ImageViewer`, `StarRating`, `Switch`, `Badge` dengan properti pokoknya | Tiap komponen merender isi & keadaan yang benar dan meneruskan interaksinya. **31 komponen di `components/ui/`, baru 3 yang beruji** (Button, ErrorState, NotificationDropdown) **Dijalankan 3 Sep 2026** — 23 kasus untuk 8 komponen. | P3 | Component | ✅ |
 | TC-FE-047 | **Halaman Tentang Kami (`/about`)** | Buka `/about` sebagai pengunjung | Seluruh bagian terender tanpa galat konsol dan tanpa gambar rusak. 12 komponen, tak pernah punya kasus uji **Dijalankan 3 Sep 2026** — 16 kasus untuk 12 komponen. | P3 | Component | ✅ |
@@ -1341,3 +1394,21 @@ aksesibelnya sudah teruji.
 >
 > Pelajarannya layak dicatat: menunda revisi dokumen atas dasar keputusan desain yang masih
 > bergerak ternyata lebih murah daripada mengerjakannya dua kali.
+
+> ❌ **PENCABUTAN DI ATAS SENDIRI SUDAH TIDAK BERLAKU, 13 Oktober 2026.** Peran
+> `superuser` dilebur untuk terakhir kali pada 15 September 2026 — sebelas hari
+> sesudah kotak di atas ditulis — dan nilai enumnya dibuang. Kasus-kasus uji yang
+> dinyatakan "kembali sahih tanpa perlu diubah" karena itu **kembali tidak
+> sahih**, dan kali ini tidak akan berbalik lagi: tak ada migrasi yang
+> mengembalikannya.
+>
+> Pelajaran yang lebih pahit daripada yang tercatat di atas, dan pantas berdiri
+> di sebelahnya: pelajaran itu berbunyi "menunda revisi lebih murah daripada
+> mengerjakannya dua kali", lalu penundaan yang sama membuat dokumen ini salah
+> selama **28 hari** — dari 15 September sampai 13 Oktober — pada bagian yang
+> dipakai orang sebagai daftar kerja. Yang membuatnya murah bukan penundaannya,
+> melainkan keberuntungan bahwa keputusannya berbalik sekali.
+>
+> Kasus uji yang terdampak kini ditandai satu per satu di tempatnya masing
+> masing, bukan lewat satu kotak terpusat seperti dua kali sebelumnya — justru
+> supaya tak ada lagi kotak yang perlu dicabut kotak berikutnya.

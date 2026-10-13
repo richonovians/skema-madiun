@@ -1,5 +1,31 @@
 # Panduan Pengujian Eksploratori (Exploratory Testing Charters)
 
+> **PERAN `superuser` SUDAH TIDAK ADA — cara membaca sebutannya di dokumen ini.**
+>
+> Peran itu dilebur ke `kabupaten` pada **15 September 2026** dan nilai enumnya
+> dibuang. Enum `Role` kini `kabupaten | opd | responden`. Riwayatnya berlapis
+> empat, dan keempatnya ada sebagai migrasi di `apps/api/prisma/migrations/`:
+>
+> | Tanggal | Migrasi | Keadaan |
+> | --- | --- | --- |
+> | 27 Juli 2026 | `20260727000000_add_superuser_role` | ditambahkan |
+> | 5 Agustus 2026 | `20260805150000_remove_superuser_role_merge_kabupaten` | dilebur |
+> | 20 Agustus 2026 | `20260820000000_readd_superuser_role` | **dikembalikan** |
+> | 15 September 2026 | `20260915140000_lebur_superuser_ke_kabupaten` | dilebur, terakhir |
+>
+> Karena itu dokumen ini disisir pada 13 Oktober 2026 dengan aturan berikut, dan
+> **bukan** dengan ganti-kata menyeluruh: sebutan yang berupa catatan sejarah
+> atau hasil pengamatan bertanggal **dipertahankan apa adanya**, sebab
+> menyuntingnya akan memalsukan rekaman pengujian; sebutan yang mengaku keadaan
+> SEKARANG diperbaiki beserta tanggalnya; kasus uji yang harapannya kini salah
+> **ditandai tersurat**, tidak disunting diam-diam — menulis ulang kasus uji
+> secara senyap akan menghapus fakta bahwa cakupan ujinya berubah.
+>
+> **Catatan sesi di bawah tidak disunting.** Charter C-10 "Area Superuser" dan
+> hasil sesi bertanggal lainnya dipertahankan utuh: keduanya rekaman pengamatan.
+> Yang diperbaiki hanya satu peringatan operasional yang kini menyesatkan
+> penguji, ditandai di tempatnya.
+
 ## Sistem Survei Kepuasan Masyarakat (SKM) & Sistem Pengaduan Masyarakat
 
 |                        |                                                         |
@@ -88,11 +114,22 @@ di beranda, isi **email saja** — tidak ada kata sandi.
 > diverifikasi pada basis data yang dibuat dari nol — lihat
 > [CAT-014](BUG_REPORTS.md#cat-014).
 >
-> Sekalian diketahui: seed kini **menimpa** `roles` akun `superuser` bila
+> ~~Sekalian diketahui: seed kini **menimpa** `roles` akun `superuser` bila
 > dijalankan atas basis data yang sudah ada (`update: { roles: [Role.superuser] }`).
 > Di `skm_db` akun itu ber-peran empat, jadi menjalankan seed di sana akan
-> menurunkannya menjadi satu peran. Jalankan seed pada basis data bersih, bukan
-> di atas dev yang sudah menyimpang.
+> menurunkannya menjadi satu peran.~~
+>
+> **DICABUT 13 Oktober 2026, dan ini peringatan yang berakibat nyata:** larangan
+> di atas melarang Anda menjalankan seed atas alasan yang sudah tidak ada.
+> `apps/api/prisma/seed.ts` di `main` kini memakai `update: {}` pada upsert
+> `seed-admin-kabupaten` — ia **tidak menimpa peran apa pun**. Blok yang membuat
+> akun `superuser` dibuang dari seed pada 16 September 2026, dan komentar di
+> berkas itu menyatakannya tersurat: "Baris yang sudah terlanjur ada di basis
+> data TIDAK disentuh: seed hanya berhenti membuat dan memperbaruinya."
+>
+> Nasihat yang tetap berlaku, dengan sebab yang berbeda: basis data dev memang
+> dapat menyimpang dari `seed.ts` (lihat kotak di bawah), dan seed tetap aman
+> diulang justru karena ia tak lagi memperbarui apa pun.
 
 > ⚠️ Basis data dev bisa menyimpang dari `seed.ts` (per 10 Agustus 2026 sudah berbeda:
 > akun `warga@gmail.com`, 54 OPD hasil sinkronisasi Helpdesk). Sebelum sesi, jalankan
@@ -238,6 +275,8 @@ manual.
   diperiksa kini bukan lagi apakah labelnya keliru, melainkan apakah label barunya
   **benar untuk keempat peran** — termasuk Superuser, yang belum ada saat
   perbaikan itu ditulis.
+  _(13 Oktober 2026: peran yang perlu diperiksa kini **tiga**, bukan empat.
+  Superuser dilebur ke `kabupaten` 15 September 2026.)_
 
 ---
 
