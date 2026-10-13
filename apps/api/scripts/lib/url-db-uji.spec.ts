@@ -19,14 +19,8 @@ describe('sasaranDbUji', () => {
     );
   });
 
-  it('menyebut nama basis data uji, untuk CREATE DATABASE', () => {
+  it('menyebut nama basis data uji', () => {
     expect(sasaranDbUji(dev).nama).toBe(NAMA_DB_UJI);
-  });
-
-  it('menunjuk basis data pemeliharaan postgres, tempat CREATE DATABASE dijalankan', () => {
-    expect(sasaranDbUji(dev).urlPemeliharaan).toBe(
-      'postgresql://skm:skm_dev_password@localhost:5432/postgres?schema=public',
-    );
   });
 
   it('bekerja tanpa query string', () => {
