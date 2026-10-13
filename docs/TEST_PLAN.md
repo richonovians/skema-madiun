@@ -206,24 +206,19 @@ Dokumen ini mendefinisikan strategi, cakupan, dan rencana pelaksanaan pengujian 
 > **DICABUT 13 Oktober 2026** — upsert itu sudah tidak ada. Seed memakai
 > `update: {}` dan tidak menimpa peran apa pun; lihat §5.1 di bawah.
 >
-**Akun yang benar-benar ada di basis data dev — dibaca langsung 15 September 2026.**
+**Akun di basis data dev — bacaan LAMA, 15 September 2026 (kedaluwarsa).**
 Lima dari tujuh ber-peran lebih dari satu, jadi jalur "wajib memilih peran"
 (§1.1) adalah jalur yang **biasa**, bukan kekecualian:
 
-> **Tabel di bawah adalah bacaan bertanggal, dan sengaja tidak diperbarui.**
-> Baris `superuser@example.go.id` ber-`roles` memuat `superuser` **tak dapat
-> direproduksi lagi**: nilai enumnya dibuang 15 September 2026, jadi tak ada
-> akun mana pun yang dapat memegangnya sekarang. Yang tercatat di sini adalah
-> apa yang ada pada hari itu.
+> **TABEL DI BAWAH SUDAH TIDAK BERLAKU SAMA SEKALI. Diperiksa langsung ke
+> `skm_db` pada 13 Oktober 2026.** Ia dipertahankan sebagai bacaan bertanggal
+> 15 September; tabel yang berlaku ada di bawahnya.
 >
-> Belum diperiksa ulang: `skm_db` terukur berisi **4 pengguna** pada 13 Oktober
-> 2026, sementara seed membuat tiga. Siapa pengguna keempat itu tidak saya
-> pastikan — Docker sedang mati saat dokumen ini disisir — jadi jangan dibaca
-> seolah baris-baris di bawah masih berlaku. Untuk memastikan:
->
-> ```bash
-> docker exec skm-db psql -U skm -d skm_db -c >   "SELECT email, roles, opd_id FROM users ORDER BY id"
-> ```
+> Tak satu pun dari tiga akun yang khas di tabel ini masih ada:
+> `superuser@example.go.id`, `opd@gmail.com`, maupun `warga@gmail.com`. Dari
+> tujuh baris, yang bertahan hanya tiga akun seed — dan ketiganya dengan
+> `roles` dan `opd_id` yang BERBEDA dari yang tercatat di sini. Jumlah OPD juga
+> 62, bukan 54 seperti bacaan 10 Agustus dan bukan 3 seperti hasil seed.
 
 | `identifier` (email)            | `roles`                                    | `opdId` |
 | ------------------------------- | ------------------------------------------ | ------: |
@@ -239,6 +234,50 @@ Hanya `admin.kabupaten@example.go.id` dan `warga@example.go.id` yang masuk
 langsung tanpa memilih peran. Untuk sisanya: tekan tombol peran pada pemilih
 yang muncul sesudah "Masuk", atau panggil
 `POST /auth/acting-role { role }` bila masuk lewat API.
+
+**Akun yang BENAR-BENAR ada — dibaca langsung 13 Oktober 2026.**
+
+| id  | `identifier` (email)            | `sso_subject`          | `roles`                       | `opd_id` |
+| --: | ------------------------------- | ---------------------- | ----------------------------- | -------: |
+|   1 | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | `kabupaten`, `responden`, `opd` |        5 |
+|   2 | `admin.opd@example.go.id`       | `seed-admin-opd`       | `opd`, `responden`, `kabupaten` |        1 |
+|   3 | `warga@example.go.id`           | `seed-responden`       | `responden`, `opd`             |        2 |
+|   4 | _akun SSO Helpdesk milik penguji_ | UUID asli dari Helpdesk | `responden`                   |        — |
+
+Empat pengguna, bukan tujuh. Seluruhnya `is_active = true`, tak ada yang
+`deleted_at`. Kesimpulan §1.1 tetap berlaku dan malah menguat: **tiga dari
+empat** akun ber-peran lebih dari satu, jadi jalur "wajib memilih peran" memang
+jalur yang biasa. Akun keempat **bukan** akun uji: ia akun SSO pribadi penguji,
+masuk lewat jalur Helpdesk sungguhan, dan surelnya sengaja tidak dicantumkan di
+sini. Jangan dipakai sebagai akun pengujian dan jangan disentuh.
+
+> ⚠️ **KETIGA AKUN SEED MEMEGANG PERAN DI LUAR YANG DIBUAT SEED, dan ini dapat
+> membuat kasus uji LULUS KARENA ALASAN YANG SALAH.** Seed memberi satu peran
+> per akun; ketiganya kini memegang dua sampai tiga, hasil pemberian manual
+> lewat panel Admin Kabupaten.
+>
+> Yang paling mudah menipu:
+>
+> - `admin.opd@example.go.id` memegang **`kabupaten`**. Setiap kasus uji yang
+>   menuntut Admin OPD DITOLAK dari modul kabupaten — TC-USR-014 salah satunya —
+>   akan memerah bila dijalankan dengan akun ini, dan bukan karena kodenya
+>   rusak. Yang benar adalah memilih peran `opd` secara tersurat, atau memakai
+>   akun yang memang hanya ber-peran `opd`.
+> - `warga@example.go.id`, akun warga, memegang **`opd`** dan tertaut OPD id 2.
+>   Kasus uji isolasi OPD yang memakainya sebagai "warga biasa" tidak menguji
+>   apa yang dikiranya.
+>
+> Bentuk kegagalan ini sama dengan yang tercatat di `CLAUDE.md` soal
+> `x-dev-user-id` baku bernilai 1: lulus karena kebetulan isi data, bukan karena
+> kontraknya. Perlu diketahui juga `seed-admin-kabupaten` memang ber-**id 1**,
+> yaitu id yang dipakai `stub-auth.provider.ts` bila headernya tak dikirim.
+
+**Sebelum memakai tabel ini, periksa ulang.** Ia bacaan satu hari, dan sejarah
+dokumen ini menunjukkan bacaan semacam ini berumur pendek:
+
+```bash
+docker exec skm-db psql -U skm -d skm_db -c "SELECT id, email, roles, opd_id FROM users ORDER BY id"
+```
 
 > **Alamat pengujian:** sejak reverse proxy satu origin dipasang (`83d4230`), aplikasi
 > diakses lewat **`http://skema.local`** (port 80), bukan `localhost:3000`. Frontend dan
