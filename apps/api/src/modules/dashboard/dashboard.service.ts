@@ -341,20 +341,26 @@ export class DashboardService {
     // temuan audit: SEBELUMNYA statistik publik buta total thd survei yang
     // masih berjalan sampai ditutup -- lihat catatan sama di
     // `IkmService.getDashboard`, sumber rumus tunggal tetap `computeResult`).
-    const activeComputed = await Promise.all(
-      activeSurveys.map(async (survey) => ({
-        survey,
-        result: await this.ikmService.computeResult(survey),
-      })),
-    );
-    const activeIkmRows = activeComputed
-      .filter(({ result }) => result.nilaiIkm !== null)
-      .map(({ survey, result }) => ({
-        nilaiIkm: result.nilaiIkm as number,
-        periode: survey.periode,
-        nrrPerUnsur: result.nrrPerUnsur,
-        survey: { opdId: survey.opdId, opd: { nama: survey.opd.nama } },
-      }));
+    // SATU panggilan batch, bukan satu per survei. Jalur lama memanggil
+    // `computeResult` di dalam `Promise.all` dan endpoint PUBLIK ini menjawab
+    // HTTP 500 pada permintaan tunggal begitu survei aktifnya 744 -- kolam
+    // koneksi Prisma berisi 9 dan menyerah setelah 10 detik. Alasan lengkapnya
+    // ada di docblock `IkmService.hitungHasilBanyak`.
+    const hasilAktif = await this.ikmService.hitungHasilBanyak(activeSurveys);
+    const activeIkmRows = activeSurveys.flatMap((survey) => {
+      const result = hasilAktif.get(survey.id);
+      if (result === undefined || result.nilaiIkm === null) {
+        return [];
+      }
+      return [
+        {
+          nilaiIkm: result.nilaiIkm,
+          periode: survey.periode,
+          nrrPerUnsur: result.nrrPerUnsur,
+          survey: { opdId: survey.opdId, opd: { nama: survey.opd.nama } },
+        },
+      ];
+    });
     // Snapshot milik survei yang SUDAH DIBUKA KEMBALI dibuang (31 Agustus 2026):
     // survei itu ikut `activeIkmRows` di atas, jadi tanpa saringan ini ia
     // terhitung dua kali dan nilai IKM kabupaten yang dipampang ke publik

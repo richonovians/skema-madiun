@@ -269,10 +269,10 @@ export class NotificationsService {
         where: { roles: { has: role }, opdId, isActive: true },
         select: { id: true },
       });
-      await Promise.all(
-        recipients.map((r) =>
-          this.safeCreate({ userId: r.id, untukPeran: role, type, title, message, link }),
-        ),
+      // SATU `createMany`, bukan satu `create` per penerima. Lihat catatan di
+      // `siarkan` tentang apa yang berubah dan apa yang ditukar.
+      await this.siarkan(
+        recipients.map((r) => ({ userId: r.id, untukPeran: role, type, title, message, link })),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi role=${role}: ${String(err)}`);
@@ -305,17 +305,15 @@ export class NotificationsService {
         },
         select: { id: true },
       });
-      await Promise.all(
-        kabupatenUsers.map((k) =>
-          this.safeCreate({
-            userId: k.id,
-            untukPeran: Role.kabupaten,
-            type,
-            title,
-            message,
-            link,
-          }),
-        ),
+      await this.siarkan(
+        kabupatenUsers.map((k) => ({
+          userId: k.id,
+          untukPeran: Role.kabupaten,
+          type,
+          title,
+          message,
+          link,
+        })),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi kabupaten: ${String(err)}`);
@@ -404,6 +402,44 @@ export class NotificationsService {
       data: { isRead: true },
     });
     return { updated: result.count };
+  }
+
+  /**
+   * Menulis banyak notifikasi dengan SATU pernyataan.
+   *
+   * MENGAPA BUKAN `safeCreate` DI DALAM `Promise.all`. Jalur lama memanggilnya
+   * sekali per penerima atas hasil `user.findMany` yang tanpa `take`, sehingga
+   * jumlah INSERT serentak mengikuti jumlah akun yang memegang peran itu.
+   * Ditemukan uji beban 13 Oktober 2026 sebagai kipas yang bentuknya sama
+   * dengan dua kipas di `IkmService`/`DashboardService` yang membuat dua
+   * endpoint menjawab 500. Yang ini jauh lebih kecil: ia tumbuh bersama jumlah
+   * ADMIN, bukan bersama data, dan di data pengembangan akunnya segelintir --
+   * itu pula sebabnya ia tak pernah memerah.
+   *
+   * YANG DITUKAR, dan ini nyata: dahulu satu baris gagal tak menjatuhkan yang
+   * lain, sebab tiap `safeCreate` punya `try/catch` sendiri. `createMany` gagal
+   * seluruhnya. Pertukarannya diterima karena tabel ini tak punya kendala unik
+   * yang dapat bentrok, sehingga kegagalan yang mungkin bersifat sistemik
+   * (basis data mati) -- dan pada keadaan itu menyimpan sebagian justru lebih
+   * menyesatkan daripada tidak menyimpan apa pun.
+   *
+   * Daftar kosong TIDAK dikirim ke basis data: tak ada penerima adalah keadaan
+   * yang lumrah, bukan galat.
+   */
+  private async siarkan(
+    baris: {
+      userId: number;
+      untukPeran: Role;
+      type: NotificationType;
+      title: string;
+      message: string;
+      link: string;
+    }[],
+  ): Promise<void> {
+    if (baris.length === 0) {
+      return;
+    }
+    await this.prisma.notification.createMany({ data: baris });
   }
 
   private async safeCreate(data: {

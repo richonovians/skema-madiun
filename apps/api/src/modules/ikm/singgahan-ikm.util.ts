@@ -80,5 +80,56 @@ export function kunciSinggahanIkm(surveyId: number): string[] {
     `${AWALAN_RATA}${surveyId}`,
     `${AWALAN_SEBARAN}${surveyId}`,
     `${AWALAN_HASIL}${surveyId}`,
+    // Dashboard ikut hangus: jawaban baru mengubah survei AKTIF yang dihitung
+    // live di sana. Ia tak berkunci per survei, jadi yang masuk daftar ini
+    // adalah token generasinya. Inilah titik perluasan yang dijanjikan docblock
+    // di atas, dipakai pertama kali 13 Oktober 2026.
+    KUNCI_GENERASI_DASHBOARD,
   ];
+}
+
+/** Rekapitulasi IKM lintas OPD. Lihat `IkmService.getDashboard`. */
+export const AWALAN_DASHBOARD = 'ikm-dashboard:';
+
+/**
+ * Kunci singgahan rekapitulasi IKM, SATU per kombinasi penyaring.
+ *
+ * `encodeURIComponent`, bukan penggabungan apa adanya. Tanpa itu
+ * `periode='a:b'` tanpa jenis layanan bertabrakan dengan `periode='a'` +
+ * `jenisLayanan='b'`, dan satu pemakai melihat hasil saringan pemakai lain --
+ * cacat kebenaran, bukan cacat kecepatan. Keduanya nilai bebas dari kueri
+ * (`DashboardIkmQueryDto` hanya menuntut string ber-panjang terbatas), jadi
+ * tabrakannya bukan hipotetis.
+ */
+/**
+ * Token generasi singgahan dashboard.
+ *
+ * MENGAPA GENERASI, bukan daftar kunci. Kunci dashboard bergantung pada
+ * parameter kueri (`periode`, `jenisLayanan`), jadi ia tak dapat diturunkan
+ * dari id survei yang berubah, dan antarmuka `PenyimpanSinggahan` sengaja tak
+ * punya penghapusan berpola. Dengan generasi di dalam kunci, jalur tulis cukup
+ * MENGHAPUS SATU kunci ini: seluruh kunci lama seketika menjadi tanpa induk --
+ * tak ada yang akan membacanya lagi -- lalu mati sendiri lewat TTL-nya.
+ *
+ * Ditemukan e2e 13 Oktober 2026: `role-journeys.e2e-spec.ts` menutup survei
+ * lalu menuntut survei itu muncul di `GET /dashboard/ikm`. Tanpa pembatalan ia
+ * tidak muncul sampai 60 detik lewat, dan uji itu memaku harapan produk yang
+ * nyata.
+ */
+export const KUNCI_GENERASI_DASHBOARD = 'ikm-dashboard-gen';
+
+/**
+ * Umur token generasi. Jauh lebih panjang daripada TTL muatannya: ia hanya
+ * sebuah nama, dan nama yang hangus tiap menit membuat seluruh singgahan
+ * dashboard hangus bersamanya tanpa ada yang berubah di basis data.
+ */
+export const TTL_GENERASI_DETIK = 24 * 60 * 60;
+
+export function kunciSinggahanDashboardIkm(
+  generasi: string,
+  periode?: string,
+  jenisLayanan?: string,
+): string {
+  const bagian = [generasi, periode ?? '', jenisLayanan ?? ''].map((n) => encodeURIComponent(n));
+  return `${AWALAN_DASHBOARD}${bagian.join(':')}`;
 }

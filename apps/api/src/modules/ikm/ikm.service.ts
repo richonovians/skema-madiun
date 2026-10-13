@@ -12,6 +12,9 @@ import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
 import {
   AWALAN_HASIL,
+  KUNCI_GENERASI_DASHBOARD,
+  TTL_GENERASI_DETIK,
+  kunciSinggahanDashboardIkm,
   AWALAN_RATA,
   AWALAN_SEBARAN,
   TTL_SINGGAHAN_DETIK,
@@ -388,7 +391,74 @@ export class IkmService {
    * pembaca tahu mana angka final vs yang masih bisa berubah, terfilter
    * periode/jenis layanan (berlaku utk KEDUA sumber).
    */
+  /**
+   * Hanguskan seluruh singgahan rekapitulasi dashboard, apa pun penyaringnya.
+   *
+   * SATU penghapusan, bukan penebakan kunci: yang dihapus adalah token
+   * generasinya. Dipanggil `SurveysService.updateStatus` untuk SETIAP peralihan
+   * status -- menutup maupun membuka kembali keduanya mengubah peringkat -- dan
+   * ikut terpanggil lewat `kunciSinggahanIkm` pada jalur jawaban baru.
+   */
+  async batalkanSinggahanDashboard(): Promise<void> {
+    await this.singgahan.hapus(KUNCI_GENERASI_DASHBOARD);
+  }
+
+  /**
+   * Generasi yang berlaku, dibuat bila belum ada.
+   *
+   * Nilainya tak bermakna apa pun selain "berbeda dari yang sebelumnya", jadi
+   * waktu ditambah bilangan acak sudah cukup. Dua permintaan yang berlomba
+   * membuatnya dapat menghasilkan dua generasi berbeda; akibatnya hanya satu
+   * hitungan tambahan, bukan jawaban yang salah.
+   */
+  private async generasiDashboard(): Promise<string> {
+    const tersimpan = await this.singgahan.ambil<string>(KUNCI_GENERASI_DASHBOARD);
+    if (typeof tersimpan === 'string' && tersimpan !== '') {
+      return tersimpan;
+    }
+    const baru = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    await this.singgahan.simpan(KUNCI_GENERASI_DASHBOARD, baru, TTL_GENERASI_DETIK);
+    return baru;
+  }
+
   async getDashboard(query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
+    const kunci = kunciSinggahanDashboardIkm(
+      await this.generasiDashboard(),
+      query.periode,
+      query.jenisLayanan,
+    );
+    const tersimpan = await this.singgahan.ambil<IkmDashboardEntity>(kunci);
+    if (tersimpan) {
+      return new IkmDashboardEntity(tersimpan);
+    }
+    const hasil = await this.hitungDashboard(query);
+    await this.singgahan.simpan(kunci, hasil, TTL_SINGGAHAN_DETIK);
+    return hasil;
+  }
+
+  /**
+   * Hitungan rekapitulasinya, dipisah dari pembungkus singgahan di atas.
+   *
+   * SINGGAHANNYA DITAMBAHKAN 13 Oktober 2026 dan bukan karena berjaga-jaga.
+   * Sesudah jalur agregat batch ada, endpoint ini dan `GET /statistics` memakai
+   * hitungan yang sama -- tetapi yang satu dibungkus singgahan dan yang lain
+   * tidak, dan itulah SELURUH jurangnya: pada 6,7 juta jawaban dengan 10
+   * koneksi, 13 ms lawan 6.102 ms.
+   *
+   * Yang ditukar, dan pemilik produk menyetujuinya tersurat: angka di layar
+   * Admin Kabupaten dapat tertinggal sampai 60 detik. `GET /statistics` sudah
+   * menerima pertukaran yang sama dengan TTL yang sama sejak 7 Oktober 2026.
+   *
+   * KUNCINYA MEMUAT PENYARIANNYA. Satu kunci untuk semua akan menyajikan hasil
+   * tersaring periode kepada orang yang tak menyaring apa pun -- cacat
+   * kebenaran, bukan cacat kecepatan. Lihat `kunciSinggahanDashboardIkm`.
+   *
+   * Pembatalan per survei di jalur tulis (`kunciSinggahanIkm`) TIDAK mengenai
+   * kunci ini: kunci dashboard bergantung pada parameter kueri, bukan pada id
+   * survei, sehingga tak dapat diturunkan dari survei yang berubah. TTL-nya
+   * satu-satunya penjaga kesegaran di sini.
+   */
+  private async hitungDashboard(query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
     const where: Prisma.IkmResultWhereInput = {};
     if (query.periode) {
       where.periode = filterPeriode(query.periode);
@@ -438,23 +508,27 @@ export class IkmService {
       where: activeSurveyWhere,
       include: { opd: true },
     });
-    const activeComputed = await Promise.all(
-      activeSurveys.map(async (survey) => ({ survey, result: await this.computeResult(survey) })),
-    );
-    const activeItems = activeComputed
-      .filter(({ result }) => result.nilaiIkm !== null && result.mutu !== null)
-      .map(({ survey, result }) => ({
-        opdId: survey.opdId,
-        opdNama: survey.opd.nama,
-        jenisLayanan: survey.opd.jenisLayanan,
-        surveyId: survey.id,
-        judul: survey.judul,
-        periode: survey.periode,
-        nilaiIkm: result.nilaiIkm as number,
-        mutu: result.mutu as IkmMutu,
-        jumlahResponden: result.jumlahResponden,
-        status: SurveyStatus.aktif,
-      }));
+    const hasilAktif = await this.hitungHasilBanyak(activeSurveys);
+    const activeItems = activeSurveys.flatMap((survey) => {
+      const result = hasilAktif.get(survey.id);
+      if (result === undefined || result.nilaiIkm === null || result.mutu === null) {
+        return [];
+      }
+      return [
+        {
+          opdId: survey.opdId,
+          opdNama: survey.opd.nama,
+          jenisLayanan: survey.opd.jenisLayanan,
+          surveyId: survey.id,
+          judul: survey.judul,
+          periode: survey.periode,
+          nilaiIkm: result.nilaiIkm,
+          mutu: result.mutu,
+          jumlahResponden: result.jumlahResponden,
+          status: SurveyStatus.aktif,
+        },
+      ];
+    });
 
     const items = [...closedItems, ...activeItems]
       .sort((a, b) => b.nilaiIkm - a.nilaiIkm)
@@ -500,6 +574,135 @@ export class IkmService {
       newComplaints,
       systemActivityPercent,
     });
+  }
+
+  /**
+   * Hasil IKM untuk BANYAK survei sekaligus, dengan tiga kueri agregat.
+   *
+   * MENGAPA ADA. `getDashboard` dan `DashboardService.getStatistics` dahulu
+   * memanggil `computeResult` sekali per survei aktif di dalam `Promise.all`.
+   * Pada 744 survei itu 744 panggilan serentak yang berebut kolam koneksi
+   * Prisma berisi 9, dan keduanya menjawab HTTP 500 pada permintaan TUNGGAL --
+   * terukur 13 Oktober 2026 dengan 6,7 juta baris `answers`:
+   * `Timed out fetching a new connection from the connection pool`.
+   *
+   * Biaya kedua, yang lebih besar dan lebih mudah terlewat: `computeResult`
+   * memakai `include: { answers: { select: { nilai } } }`, sehingga SETIAP baris
+   * jawaban ditarik ke memori Node lalu dijumlahkan di JavaScript. Di sini
+   * penjumlahannya dikerjakan Postgres dan tak ada satu pun baris jawaban yang
+   * melintasi kabel.
+   *
+   * SINGGAHAN PER SURVEI SENGAJA TIDAK DIPAKAI DI SINI, dan itu bukan kelalaian.
+   * Pengukurannya: p50 `/dashboard/ikm` datar 1.159 ms lalu 1.100 ms ketika
+   * jumlah jawaban naik SEPULUH kali, yang berarti biayanya didominasi 744
+   * pencarian Redis, bukan datanya. Tiga kueri agregat lebih murah daripada 744
+   * GET. `computeResult` tetap bersinggahan untuk endpoint satu survei, yang
+   * memang terbukti cepat (p50 32 ms).
+   *
+   * RUMUSNYA HARUS TETAP SATU. Aritmetika di bawah sengaja menyalin
+   * `computeResult` baris demi baris -- termasuk `nilaiIkmRaw` yang diakumulasi
+   * dari `nrrTertimbang` yang BELUM dibulatkan -- dan uji
+   * "menghasilkan angka IDENTIK dengan computeResult" ada untuk memerah bila
+   * salah satu dari keduanya bergeser.
+   */
+  async hitungHasilBanyak(surveys: Survey[]): Promise<Map<number, IkmResultEntity>> {
+    const hasil = new Map<number, IkmResultEntity>();
+    if (surveys.length === 0) {
+      return hasil;
+    }
+    const idSurvei = surveys.map((s) => s.id);
+    const dihitungPada = new Date();
+
+    // `select`, BUKAN `include: { answers }`. Itulah bedanya dengan jalur lama.
+    const pertanyaan = await this.prisma.question.findMany({
+      where: { surveyId: { in: idSurvei }, isIkmUnsur: true },
+      select: { id: true, surveyId: true, kodeUnsur: true, teks: true },
+      orderBy: [{ surveyId: 'asc' }, { urutan: 'asc' }],
+    });
+
+    const [jumlahJawaban, jumlahRespons] = await Promise.all([
+      // PENYARING RELASI, bukan `questionId: { in: [...] }`. Versi pertama
+      // mengirim id pertanyaannya kembali ke Postgres -- 6.696 bilangan pada 744
+      // survei, dua arah, plus satu daftar sepanjang itu untuk direncanakan.
+      // Prisma menerjemahkan bentuk ini menjadi join.
+      this.prisma.answer.groupBy({
+        by: ['questionId'],
+        where: { question: { surveyId: { in: idSurvei }, isIkmUnsur: true } },
+        _sum: { nilai: true },
+      }),
+      this.prisma.surveyResponse.groupBy({
+        by: ['surveyId'],
+        where: { surveyId: { in: idSurvei } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const jumlahPerPertanyaan = new Map(
+      jumlahJawaban.map((r) => [r.questionId, r._sum.nilai ?? 0]),
+    );
+    const respondenPerSurvei = new Map(jumlahRespons.map((r) => [r.surveyId, r._count._all]));
+    const unsurPerSurvei = new Map<number, typeof pertanyaan>();
+    for (const p of pertanyaan) {
+      const daftar = unsurPerSurvei.get(p.surveyId);
+      if (daftar === undefined) {
+        unsurPerSurvei.set(p.surveyId, [p]);
+      } else {
+        daftar.push(p);
+      }
+    }
+
+    for (const survey of surveys) {
+      const unsur = unsurPerSurvei.get(survey.id) ?? [];
+      const jumlahResponden = respondenPerSurvei.get(survey.id) ?? 0;
+
+      // Cabang "belum dapat dinilai", syarat sama persis dengan `computeResult`.
+      if (unsur.length === 0 || jumlahResponden === 0) {
+        hasil.set(
+          survey.id,
+          new IkmResultEntity({
+            surveyId: survey.id,
+            periode: survey.periode,
+            jumlahResponden,
+            nrrPerUnsur: [],
+            nilaiIkm: null,
+            mutu: null,
+            dihitungPada,
+          }),
+        );
+        continue;
+      }
+
+      const bobot = 1 / unsur.length;
+      let nilaiIkmRaw = 0;
+      const nrrPerUnsur = unsur.map((q) => {
+        const nrr = (jumlahPerPertanyaan.get(q.id) ?? 0) / jumlahResponden;
+        const nrrTertimbang = nrr * bobot;
+        nilaiIkmRaw += nrrTertimbang;
+        return new IkmUnsurEntity({
+          kodeUnsur: q.kodeUnsur ?? '',
+          teks: namaUnsur(q.kodeUnsur) ?? q.teks,
+          nrr: round(nrr, 2),
+          bobot: round(bobot, 4),
+          nrrTertimbang: round(nrrTertimbang, 4),
+        });
+      });
+      const nilaiIkm = round(nilaiIkmRaw * 25, 2);
+
+      hasil.set(
+        survey.id,
+        new IkmResultEntity({
+          surveyId: survey.id,
+          periode: survey.periode,
+          jumlahResponden,
+          nrrPerUnsur,
+          nilaiIkm,
+          mutu: mutuFromNilai(nilaiIkm),
+          dihitungPada,
+        }),
+      );
+    }
+
+    return hasil;
   }
 
   /**

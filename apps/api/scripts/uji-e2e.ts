@@ -45,6 +45,7 @@
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
 import { jalankanCli } from './lib/jalankan-cli';
+import { DB_REDIS_UJI, redisDbLogisBilaAda } from './lib/url-redis';
 import { pastikanHostLokal, sasaranDbUji } from './lib/url-db-uji';
 
 const AKAR_API = path.resolve(__dirname, '..');
@@ -104,10 +105,27 @@ async function utama(): Promise<void> {
     process.exit(kodeSeed);
   }
 
-  const kodeJest = jalankan(
+  // REDIS TERSENDIRI, basis data logis 2. Hanya untuk jest: migrasi dan seed
+  // tak menyentuh Redis sama sekali.
+  //
+  // TERUKUR 13 Oktober 2026, dan gejalanya menyesatkan. `role-journeys` menutup
+  // survei lalu menuntut survei itu muncul di `GET /dashboard/ikm`, dan ia
+  // memerah -- bukan karena pembatalan singgahannya salah, melainkan karena
+  // TIGA berkas spec memanggil endpoint itu dan berbagi satu kunci
+  // `singgahan:ikm-dashboard:...` ber-TTL 60 detik. Kunci singgahan tak membawa
+  // penanda basis data, jadi e2e terhadap `skm_uji` juga berbagi kunci dengan
+  // aplikasi dev terhadap `skm_db`: hasil e2e bergantung pada apa pun yang
+  // menyentuh Redis dalam enam puluh detik terakhir.
+  const redisUji = redisDbLogisBilaAda(process.env.REDIS_URL, DB_REDIS_UJI);
+  const kodeJest = jalankanCli(
     'jest',
     ['--config', 'test/jest-e2e.json', ...process.argv.slice(2)],
-    sasaran.url,
+    {
+      cwd: AKAR_API,
+      databaseUrl: sasaran.url,
+      // `BilaAda`: CI tak punya Redis dan tak menyetel `REDIS_URL` sama sekali.
+      env: redisUji === undefined ? {} : { REDIS_URL: redisUji },
+    },
   );
   process.exit(kodeJest);
 }

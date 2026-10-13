@@ -1153,7 +1153,16 @@ describe('ResponsesService', () => {
 
       await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
 
-      expect(kunciTerhapus()).toEqual(['ikm-hasil:1', 'ikm-rata:1', 'ikm-sebaran:1']);
+      // `ikm-dashboard-gen` ikut sejak 13 Oktober 2026: jawaban baru mengubah
+      // survei AKTIF yang dihitung live di rekapitulasi dashboard, dan kunci
+      // dashboard tak dapat diturunkan dari id survei sehingga yang hangus
+      // adalah token generasinya.
+      expect(kunciTerhapus()).toEqual([
+        'ikm-dashboard-gen',
+        'ikm-hasil:1',
+        'ikm-rata:1',
+        'ikm-sebaran:1',
+      ]);
     });
 
     /**
@@ -1169,7 +1178,16 @@ describe('ResponsesService', () => {
 
       await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
 
-      expect(kunciTerhapus()).toEqual(['ikm-hasil:1', 'ikm-rata:1', 'ikm-sebaran:1']);
+      // `ikm-dashboard-gen` ikut sejak 13 Oktober 2026: jawaban baru mengubah
+      // survei AKTIF yang dihitung live di rekapitulasi dashboard, dan kunci
+      // dashboard tak dapat diturunkan dari id survei sehingga yang hangus
+      // adalah token generasinya.
+      expect(kunciTerhapus()).toEqual([
+        'ikm-dashboard-gen',
+        'ikm-hasil:1',
+        'ikm-rata:1',
+        'ikm-sebaran:1',
+      ]);
     });
 
     /**
@@ -1203,7 +1221,17 @@ describe('ResponsesService', () => {
 
       await service.submitPublic(42, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
 
-      expect(kunciTerhapus()).toEqual(['ikm-hasil:42', 'ikm-rata:42', 'ikm-sebaran:42']);
+      // Maksud uji ini: kunci PER SURVEI dibangun dari survei yang dijawab,
+      // sehingga survei lain tak tersentuh. `ikm-dashboard-gen` memang tak
+      // berkunci per survei -- ia rekapitulasi lintas OPD -- jadi ia dipisahkan
+      // alih-alih melemahkan penegasannya menjadi `arrayContaining`.
+      const terhapus = kunciTerhapus();
+      expect(terhapus).toContain('ikm-dashboard-gen');
+      expect(terhapus.filter((k: string) => k !== 'ikm-dashboard-gen')).toEqual([
+        'ikm-hasil:42',
+        'ikm-rata:42',
+        'ikm-sebaran:42',
+      ]);
     });
   });
 });

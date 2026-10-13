@@ -393,6 +393,13 @@ export class SurveysService {
       await this.ikmService.snapshot(id);
     }
 
+    // Peringkat dashboard berubah pada SETIAP peralihan status, bukan hanya saat
+    // ditutup: membuka kembali memindahkan survei dari snapshot ke hitungan
+    // live. Karena itu di luar cabang di atas. Terukur lewat e2e 13 Oktober
+    // 2026 -- `role-journeys` menutup survei lalu menuntut survei itu muncul di
+    // `GET /dashboard/ikm`, dan singgahan tanpa pembatalan menahannya 60 detik.
+    await this.ikmService.batalkanSinggahanDashboard();
+
     return new SurveyEntity(updated);
   }
 
