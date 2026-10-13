@@ -42,14 +42,12 @@
  *   pnpm --filter @skm-spm/api test:e2e
  *   pnpm --filter @skm-spm/api test:e2e -- complaints.e2e-spec.ts
  */
-import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
+import { jalankanCli } from './lib/jalankan-cli';
 import { pastikanHostLokal, sasaranDbUji } from './lib/url-db-uji';
 
 const AKAR_API = path.resolve(__dirname, '..');
-const resolusi = createRequire(__filename);
 
 async function utama(): Promise<void> {
   // Tanpa `override`, sesuai bawaan dotenv: nilai yang sudah ada di
@@ -114,31 +112,8 @@ async function utama(): Promise<void> {
   process.exit(kodeJest);
 }
 
-/**
- * Menjalankan CLI sebuah paket dengan `DATABASE_URL` menunjuk basis data uji.
- *
- * Dipanggil lewat `process.execPath` dan berkas masuk JS-nya, BUKAN lewat shim
- * `.cmd` di `node_modules/.bin`. Shim itu menuntut `shell: true` di Windows,
- * dan shell lalu mengurai ulang argumennya -- jalur repo ini memuat spasi, jadi
- * itu rusak.
- */
 function jalankan(paket: string, argumen: string[], urlUji: string): number {
-  const hasil = spawnSync(process.execPath, [berkasMasukCli(paket), ...argumen], {
-    cwd: AKAR_API,
-    stdio: 'inherit',
-    env: { ...process.env, DATABASE_URL: urlUji },
-  });
-  if (hasil.error) {
-    throw hasil.error;
-  }
-  return hasil.status ?? 1;
-}
-
-function berkasMasukCli(paket: string): string {
-  const berkasPaket = resolusi.resolve(`${paket}/package.json`);
-  const isi = resolusi(berkasPaket) as { bin: string | Record<string, string> };
-  const entri = typeof isi.bin === 'string' ? isi.bin : isi.bin[paket];
-  return path.join(path.dirname(berkasPaket), entri);
+  return jalankanCli(paket, argumen, { cwd: AKAR_API, databaseUrl: urlUji });
 }
 
 void utama().catch((err: unknown) => {

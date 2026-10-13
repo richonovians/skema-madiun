@@ -3,6 +3,9 @@ node_modules/
 .env.*
 !.env.example
 dist/
+# Keluaran kompilasi pelari uji beban; dipisah dari `dist/` agar tak menimpa
+# milik `nest start --watch`.
+dist-beban/
 .next/
 # Keluaran build untuk uji E2E (apps/web/scripts/server-e2e.mjs). Terpisah dari
 # .next supaya build pengujian tak menimpa milik server pengembangan.
