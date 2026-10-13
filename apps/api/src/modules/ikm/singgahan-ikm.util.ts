@@ -133,3 +133,23 @@ export function kunciSinggahanDashboardIkm(
   const bagian = [generasi, periode ?? '', jenisLayanan ?? ''].map((n) => encodeURIComponent(n));
   return `${AWALAN_DASHBOARD}${bagian.join(':')}`;
 }
+
+/**
+ * Kunci penahan stampede untuk rekapitulasi dashboard, dalam proses.
+ *
+ * TANPA GENERASI, dan itu keputusan yang terukur. `generasiDashboard` sendiri
+ * membaca singgahan, sehingga sepuluh permintaan yang tiba ke singgahan KOSONG
+ * menerbitkan sepuluh generasi berbeda -- tepat pada keadaan yang hendak
+ * diredam. Memakai `kunciSinggahanDashboardIkm` yang sudah bergenerasi berarti
+ * kesepuluhnya berkunci berbeda dan penahannya tak menahan apa pun. Diukur
+ * sebelum penahannya ada: 10 generasi untuk 10 permintaan serentak.
+ *
+ * Ruang kuncinya BUKAN ruang kunci Redis -- ia hidup di satu `Map` dalam
+ * proses, jadi tak ada risiko bertabrakan dengan kunci singgahan mana pun.
+ * Pengkodean nilainya tetap dipakai dengan alasan yang sama seperti kunci
+ * singgahan: dua penyaring yang bertukar tempat tak boleh bertemu di kunci yang
+ * sama.
+ */
+export function kunciSekaliJalanDashboardIkm(periode?: string, jenisLayanan?: string): string {
+  return [periode ?? '', jenisLayanan ?? ''].map((n) => encodeURIComponent(n)).join(':');
+}

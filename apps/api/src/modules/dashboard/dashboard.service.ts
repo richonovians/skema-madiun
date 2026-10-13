@@ -4,6 +4,7 @@ import {
   PENYIMPAN_SINGGAHAN,
   type PenyimpanSinggahan,
 } from '../../common/cache/penyimpan-singgahan.interface';
+import { SekaliJalan } from '../../common/cache/sekali-jalan';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
@@ -66,6 +67,13 @@ export class DashboardService {
     private readonly ikmService: IkmService,
     @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {}
+
+  /**
+   * Penahan stampede untuk `getStatistics`. Kuncinya tetap -- endpoint ini tak
+   * berparameter -- sehingga seluruh permintaan serentak ikut satu hitungan.
+   * Alasan dan batasnya ada satu tempat: docblock `SekaliJalan`.
+   */
+  private readonly sekaliJalan = new SekaliJalan();
 
   /**
    * `GET /dashboard/opd` (INT-12) -- ringkasan satu OPD.
@@ -282,13 +290,15 @@ export class DashboardService {
    * meleset -- lambat, tak pernah salah.
    */
   async getStatistics(): Promise<StatisticsEntity> {
-    const tersimpan = await this.singgahan.ambil<StatisticsEntity>(KUNCI_SINGGAHAN_STATISTIK);
-    if (tersimpan) {
-      return new StatisticsEntity(tersimpan);
-    }
-    const hasil = await this.hitungStatistik();
-    await this.singgahan.simpan(KUNCI_SINGGAHAN_STATISTIK, hasil, TTL_SINGGAHAN_STATISTIK_DETIK);
-    return hasil;
+    return this.sekaliJalan.jalankan(KUNCI_SINGGAHAN_STATISTIK, async () => {
+      const tersimpan = await this.singgahan.ambil<StatisticsEntity>(KUNCI_SINGGAHAN_STATISTIK);
+      if (tersimpan) {
+        return new StatisticsEntity(tersimpan);
+      }
+      const hasil = await this.hitungStatistik();
+      await this.singgahan.simpan(KUNCI_SINGGAHAN_STATISTIK, hasil, TTL_SINGGAHAN_STATISTIK_DETIK);
+      return hasil;
+    });
   }
 
   private async hitungStatistik(): Promise<StatisticsEntity> {

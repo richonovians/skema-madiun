@@ -1,6 +1,7 @@
 import {
   NAMA_DB_BEBAN,
   basisDataBelumAda,
+  pastikanRedisBeban,
   pastikanSasaranBeban,
   redisBeban,
   sasaranDbBeban,
@@ -185,5 +186,49 @@ Database \`${nama}\` does not exist`,
     ['objek tanpa kode', {}],
   ])('menjawab false untuk %s', (_nama, err) => {
     expect(basisDataBelumAda(err, 'skm_beban')).toBe(false);
+  });
+});
+
+/**
+ * PALANG SEBELUM PENGOSONGAN REDIS, dan ia tak boleh digantikan pembacaan
+ * `REDIS_URL`. Pengukuran dingin mengosongkan basis data logis Redis, dan basis
+ * data 0 adalah milik aplikasi pengembangan pengguna: sesinya, singgahannya,
+ * penghitung batas lajunya. Mengosongkannya akan mengeluarkan pengguna dari
+ * aplikasinya sendiri tanpa ada yang menyebut sebabnya.
+ *
+ * Diberi jawaban `CLIENT INFO` dari sambungan yang BENAR-BENAR terbuka, bukan
+ * nomor yang diurai dari string yang kita susun sendiri -- alasannya sama
+ * dengan `pastikanSasaranBeban`: string buatan sendiri selalu terlihat benar.
+ */
+describe('pastikanRedisBeban', () => {
+  const info = (db: number) =>
+    `id=14 addr=127.0.0.1:52118 laddr=127.0.0.1:6379 fd=9 name= age=0 idle=0 db=${db} sub=0 psub=0`;
+
+  it('menerima basis data logis 1', () => {
+    expect(() => pastikanRedisBeban(info(1))).not.toThrow();
+  });
+
+  it('MENOLAK basis data logis 0, milik aplikasi pengembangan', () => {
+    expect(() => pastikanRedisBeban(info(0))).toThrow(/basis data logis 0/);
+  });
+
+  it('MENOLAK basis data logis 2, milik pelari e2e', () => {
+    expect(() => pastikanRedisBeban(info(2))).toThrow(/basis data logis 2/);
+  });
+
+  it('MENOLAK jawaban yang tak memuat db= sama sekali', () => {
+    expect(() => pastikanRedisBeban('id=14 addr=127.0.0.1:52118 name=')).toThrow(/CLIENT INFO/);
+  });
+
+  /**
+   * `db=1` yang muncul sebagai bagian nama klien tak boleh dibaca sebagai nomor
+   * basis datanya. Tanpa batas kata, `name=db=0` pada jawaban ber-`db=1` akan
+   * membuat palangnya menolak sambungan yang benar -- atau, pada urutan
+   * sebaliknya, menerima yang salah.
+   */
+  it('membaca medan db= miliknya sendiri, bukan yang tertanam di medan lain', () => {
+    expect(() =>
+      pastikanRedisBeban('id=14 name=sesuatu-db=0 addr=127.0.0.1:52118 db=1 sub=0'),
+    ).not.toThrow();
   });
 });
