@@ -91,3 +91,78 @@ export function redisBeban(url: string): string {
   }
   return `${cocok[1]}/${DB_REDIS_BEBAN}`;
 }
+
+/**
+ * Kode yang berarti "basis datanya belum ada", dan HANYA itu.
+ *
+ * `P1003` adalah kode Prisma; `3D000` SQLSTATE Postgres untuk
+ * `invalid_catalog_name`. Prisma meneruskan SQLSTATE mentahnya di `meta.code`
+ * pada beberapa jalur, jadi keduanya diperiksa.
+ */
+const KODE_BELUM_ADA = new Set(['P1003', '3D000']);
+
+/**
+ * Nama kelas galat Prisma untuk kegagalan SAMBUNGAN, bukan kegagalan kueri.
+ * Basis data yang belum ada, server tak terjangkau, dan kata sandi salah
+ * ketiganya memakai kelas ini, jadi ia menyempitkan tetapi tak memutuskan.
+ */
+const KELAS_GALAT_SAMBUNGAN = 'PrismaClientInitializationError';
+
+/**
+ * Apakah galat sambungan ini berarti basis datanya belum dibuat.
+ *
+ * MENGAPA PERLU. `prisma migrate deploy` membuat sendiri basis data yang belum
+ * ada -- terukur 13 Oktober 2026 -- sehingga penegasan sasaran tak dapat
+ * dijalankan tanpa syarat sebelum migrasi: pada jalan pertama di mesin baru,
+ * `SELECT current_database()` memang harus gagal. Pemanggilnya karena itu
+ * melewatkan penegasan ketika fungsi ini menjawab `true`, dan itu aman justru
+ * karena basis data yang belum ada tak menyimpan apa pun: memigrasikannya tak
+ * dapat merusak apa pun. Yang berbahaya adalah memigrasikan basis data yang
+ * SUDAH ADA dan bukan sasaran, dan pada kasus itu sambungannya berhasil
+ * sehingga penegasannya berjalan.
+ *
+ * SENGAJA SEMPIT. Jawaban `true` MEMBUKA palang, jadi melebarkannya ke "galat
+ * sambungan apa pun" akan menukar penjaga dengan lubang: server tak terjangkau
+ * dan kata sandi salah harus tetap melempar, dan keduanya memakai kelas galat
+ * yang SAMA.
+ *
+ * Karena itu `nama` ikut diminta. Prisma 6.19.3 tak mengisi kode apa pun untuk
+ * hal ini -- diukur, bukan diduga: galatnya `PrismaClientInitializationError`
+ * dengan `errorCode` bernilai `undefined` -- sehingga satu-satunya pembeda yang
+ * tersisa adalah pesannya, dan pesan itu harus menyebut basis data yang memang
+ * diminta. Versi pertama fungsi ini hanya memeriksa `P1003` dan `3D000`, lalu
+ * terbukti menjawab `false` pada galat yang sungguhan.
+ */
+export function basisDataBelumAda(err: unknown, nama: string): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const { code, errorCode, meta, name, message } = err as {
+    code?: unknown;
+    errorCode?: unknown;
+    meta?: { code?: unknown };
+    name?: unknown;
+    message?: unknown;
+  };
+
+  // Jalur pertama: kode, bila ada. Prisma 6.19.3 tidak mengisinya untuk hal ini
+  // -- terukur -- tetapi versi lain dan jalur lain mengisinya, dan kode adalah
+  // pembeda yang lebih kuat daripada pesan.
+  if (
+    [code, errorCode, meta?.code].some(
+      (nilai) => typeof nilai === 'string' && KODE_BELUM_ADA.has(nilai),
+    )
+  ) {
+    return true;
+  }
+
+  // Jalur kedua: pesannya, DAN pesan itu harus menyebut basis data yang memang
+  // kita minta. Mencocokkan 'does not exist' saja akan ikut menangkap tabel
+  // yang hilang dan basis data lain yang hilang; keduanya bukan izin untuk
+  // melewatkan penegasan sasaran.
+  return (
+    name === KELAS_GALAT_SAMBUNGAN &&
+    typeof message === 'string' &&
+    message.includes(`Database \`${nama}\` does not exist`)
+  );
+}

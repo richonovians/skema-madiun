@@ -1,4 +1,10 @@
-import { NAMA_DB_BEBAN, pastikanSasaranBeban, redisBeban, sasaranDbBeban } from './sasaran-beban';
+import {
+  NAMA_DB_BEBAN,
+  basisDataBelumAda,
+  pastikanSasaranBeban,
+  redisBeban,
+  sasaranDbBeban,
+} from './sasaran-beban';
 
 /**
  * Basis data uji beban DIPISAH dari basis data uji e2e, dan itu keputusan
@@ -93,5 +99,91 @@ describe('redisBeban', () => {
   // batas laju di Redis. Lebih baik berhenti daripada melaporkan angka itu.
   it('menolak REDIS_URL yang kosong', () => {
     expect(() => redisBeban('')).toThrow(/REDIS_URL/);
+  });
+});
+
+describe('basisDataBelumAda', () => {
+  /**
+   * BENTUK YANG DIUKUR, bukan yang diduga. Prisma 6.19.3 melempar
+   * `PrismaClientInitializationError` TANPA `code`, TANPA `errorCode`, dan
+   * tanpa `meta` ketika basis datanya belum ada -- diukur 13 Oktober 2026
+   * terhadap Postgres 18. Versi pertama fungsi ini hanya memeriksa `P1003` dan
+   * `3D000`, sehingga ia menjawab `false` pada galat yang sungguhan dan
+   * prapenegasan di `siapkan-data.ts` akan melempar pada jalan pertama di mesin
+   * baru -- memecahkan justru jalur yang hendak dijaga.
+   */
+  const galatNyata = (nama: string) => ({
+    name: 'PrismaClientInitializationError',
+    clientVersion: '6.19.3',
+    errorCode: undefined,
+    message: `
+Invalid \`prisma.$queryRaw()\` invocation:
+
+
+Database \`${nama}\` does not exist`,
+  });
+
+  it('mengenali galat Prisma yang sungguhan untuk basis data yang belum ada', () => {
+    expect(basisDataBelumAda(galatNyata('skm_beban'), 'skm_beban')).toBe(true);
+  });
+
+  it('menolak galat yang menyebut basis data LAIN', () => {
+    expect(basisDataBelumAda(galatNyata('skm_db'), 'skm_beban')).toBe(false);
+  });
+
+  it.each([
+    ['kode P1003 di `code`', { code: 'P1003' }],
+    ['kode P1003 di `errorCode`', { errorCode: 'P1003' }],
+    ['SQLSTATE 3D000 di `code`', { code: '3D000' }],
+    ['SQLSTATE 3D000 di `meta.code`', { code: 'P2010', meta: { code: '3D000' } }],
+  ])('mengenali %s sebagai basis data yang belum ada', (_nama, err) => {
+    expect(basisDataBelumAda(err, 'skm_beban')).toBe(true);
+  });
+
+  /**
+   * INI YANG PALING PENTING DI BERKAS INI. Pemanggilnya melewatkan penegasan
+   * sasaran ketika fungsi ini menjawab `true`, jadi jawaban `true` yang salah
+   * MEMBUKA palangnya. Server tak terjangkau dan kata sandi salah harus tetap
+   * melempar, bukan diam-diam dianggap "belum dibuat".
+   */
+  it.each([
+    ['server tak terjangkau (P1001)', { code: 'P1001' }],
+    ['autentikasi gagal (P1000)', { code: 'P1000' }],
+    ['galat kueri biasa (P2010)', { code: 'P2010' }],
+    ['SQLSTATE lain (42P01)', { code: '42P01' }],
+    [
+      'server tak terjangkau, bentuk nyata',
+      {
+        name: 'PrismaClientInitializationError',
+        message: "Can't reach database server at `localhost:5432`",
+      },
+    ],
+    [
+      'autentikasi gagal, bentuk nyata',
+      {
+        name: 'PrismaClientInitializationError',
+        message:
+          'Authentication failed against database server, the provided database ' +
+          'credentials for `skm` are not valid',
+      },
+    ],
+    [
+      'tabel tak ada, bukan basis data',
+      {
+        name: 'PrismaClientKnownRequestError',
+        message: 'The table `public.surveys` does not exist in the current database.',
+      },
+    ],
+  ])('TIDAK mengenali %s sebagai basis data yang belum ada', (_nama, err) => {
+    expect(basisDataBelumAda(err, 'skm_beban')).toBe(false);
+  });
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['string', 'P1003'],
+    ['objek tanpa kode', {}],
+  ])('menjawab false untuk %s', (_nama, err) => {
+    expect(basisDataBelumAda(err, 'skm_beban')).toBe(false);
   });
 });

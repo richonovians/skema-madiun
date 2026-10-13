@@ -45,7 +45,12 @@ import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import { jalankanCli } from '../lib/jalankan-cli';
 import { IDENTITAS_ADMIN, PERAN_BEBAN } from './lib/akun-beban';
-import { NAMA_DB_BEBAN, pastikanSasaranBeban, sasaranDbBeban } from './lib/sasaran-beban';
+import {
+  NAMA_DB_BEBAN,
+  basisDataBelumAda,
+  pastikanSasaranBeban,
+  sasaranDbBeban,
+} from './lib/sasaran-beban';
 
 const AKAR_API = path.resolve(__dirname, '..', '..');
 
@@ -91,6 +96,8 @@ async function utama(): Promise<void> {
 
   console.log(`Basis data beban: ${NAMA_DB_BEBAN}`);
 
+  await tegaskanSasaranSebelumMigrasi(url);
+
   const kodeMigrasi = jalankanCli('prisma', ['migrate', 'deploy'], {
     cwd: AKAR_API,
     databaseUrl: url,
@@ -128,6 +135,43 @@ async function utama(): Promise<void> {
     for (const [tabel, jumlah] of Object.entries(await hitungBaris(prisma))) {
       console.log(`  ${tabel.padEnd(18)} ${jumlah.toLocaleString('id-ID')}`);
     }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Menegaskan sasaran SEBELUM `prisma migrate deploy`, bukan hanya sesudahnya.
+ *
+ * Mengapa perlu ada dua kali. Penegasan yang sudah ada berjalan sesudah
+ * migrasi, sehingga migrasinya sendiri tak terjaga: bila teks URL menyebut
+ * `skm_beban` sementara server yang menjawab basis data lain, 33 migrasi
+ * mendarat di tempat yang salah sebelum palang yang lebih kuat menyala.
+ * Ditemukan telaah keamanan 13 Oktober 2026 sebagai cacat ketahanan, bukan
+ * kerentanan -- memicunya menuntut kendali atas `DATABASE_URL`.
+ *
+ * MENGAPA BUKAN SEKADAR MENUKAR URUTANNYA. `prisma migrate deploy` itulah yang
+ * MEMBUAT basis data yang belum ada, jadi pada jalan pertama di mesin baru
+ * sambungan di sini memang harus gagal. Kegagalan itu dilewatkan, dan hanya
+ * kegagalan itu: basis data yang belum ada tak menyimpan apa pun, sehingga
+ * memigrasikannya tak dapat merusak apa pun. Yang berbahaya adalah
+ * memigrasikan basis data yang SUDAH ADA dan bukan sasaran, dan pada kasus itu
+ * sambungannya berhasil sehingga penegasannya berjalan.
+ */
+async function tegaskanSasaranSebelumMigrasi(url: string): Promise<void> {
+  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  try {
+    const [tersambung] = await prisma.$queryRaw<{ db: string }[]>`
+      SELECT current_database() AS db
+    `;
+    pastikanSasaranBeban(tersambung.db);
+  } catch (err) {
+    // Galat sambungan lain -- server mati, kata sandi salah -- TIDAK ditelan.
+    // Menelannya akan menukar palang ini dengan lubang.
+    if (!basisDataBelumAda(err, NAMA_DB_BEBAN)) {
+      throw err;
+    }
+    console.log(`Basis data '${NAMA_DB_BEBAN}' belum ada; migrasi akan membuatnya.`);
   } finally {
     await prisma.$disconnect();
   }
