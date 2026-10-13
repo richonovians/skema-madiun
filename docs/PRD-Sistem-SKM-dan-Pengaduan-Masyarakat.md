@@ -10,6 +10,28 @@
 | **Dokumen terkait** | ERD-Sistem-SKM-dan-Pengaduan.mermaid · Routes-List-API-dan-Frontend.md |
 | **Stack** | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Docker (Kontainerisasi) |
 
+> **CARA MEMBACA DOKUMEN INI — peran `superuser` sudah tidak ada.**
+>
+> Isi dokumen ini menyebut peran `superuser` enam belas kali. Peran itu **dilebur ke
+> `kabupaten` pada 15 September 2026** atas permintaan pemilik produk, dan nilai
+> enumnya dibuang (`20260915140000_lebur_superuser_ke_kabupaten`). Sekarang hanya
+> ada tiga peran: `kabupaten`, `opd`, `responden`. Setiap `superuser` di bawah
+> harus dibaca sebagai `kabupaten`.
+>
+> **Isinya sengaja TIDAK ditulis ulang.** PRD adalah rekaman tentang apa yang
+> diminta pemilik produk pada 13 Juli 2026, dan menyuntingnya agar cocok dengan
+> kode hari ini akan memalsukan rekaman itu — justru dokumen inilah yang
+> menjelaskan mengapa peran itu pernah ada. Riwayatnya berlapis: ditambahkan
+> 27 Juli, dilebur 5 Agustus, **dikembalikan** 20 Agustus, lalu dilebur untuk
+> terakhir kali 15 September. Keempatnya ada sebagai migrasi di
+> `apps/api/prisma/migrations/`.
+>
+> Rujukan yang hidup untuk peran dan hak akses: `apps/api/src/common/auth/`
+> (`role.util.ts`, `opd-scope.util.ts`) dan halaman **Dokumentasi API** di panel
+> Admin Kabupaten, yang terbit otomatis dari kode.
+>
+> _Kotak ini ditambahkan 13 Oktober 2026._
+
 ---
 
 ## 1. Ringkasan Eksekutif

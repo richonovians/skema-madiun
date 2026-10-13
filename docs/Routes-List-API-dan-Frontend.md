@@ -10,11 +10,16 @@
 
 > **CATATAN 6 Oktober 2026 — dokumen ini TIDAK lagi rujukan paling hidup.**
 >
-> Isinya dirawat tangan dan berhenti di 28 Agustus 2026. Sejak itu tiga hal
-> berubah dan belum tercermin di bawah: bypass `@Roles` milik Kabupaten
-> dibongkar (temuan audit T6, 7 September 2026), peran `superuser` dilebur ke
-> `kabupaten` dan nilai enumnya dibuang (15 September 2026), dan batas laju
-> global membuat `429` dapat terjadi di setiap endpoint.
+> Isinya dirawat tangan dan berhenti di 28 Agustus 2026. **Disisir 13 Oktober
+> 2026** khusus untuk membuang peran `superuser`, yang dilebur ke `kabupaten`
+> pada 15 September 2026 (`20260915140000_lebur_superuser_ke_kabupaten`) beserta
+> nilai enumnya. Bypass `@Roles` milik Kabupaten juga sudah dibongkar (temuan
+> audit T6, 7 September 2026) dan itu kini tercermin di bawah; batas laju global
+> membuat `429` dapat terjadi di setiap endpoint.
+>
+> Penyisiran itu **tidak** memeriksa ulang seluruh endpoint terhadap kode. Yang
+> diperiksa hanya baris yang menyebut `superuser`, dan setiap klaim di baris itu
+> dicocokkan ke kode. Baris lain tetap berhenti di 28 Agustus 2026.
 >
 > Sumber yang terbit otomatis dari kode: halaman **Dokumentasi API** di panel
 > Admin Kabupaten (`/admin-kab/dokumentasi-api`) dan dokumen mentahnya di
@@ -36,7 +41,7 @@ Dokumen ini adalah **rujukan resmi** daftar routes. Versi 1.0 ditulis di awal pe
 
 # BAGIAN A — ROUTES API (Backend Nest.js)
 
-Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak (di luar `kabupaten`/superuser, yang selalu lolos).
+Kolom **Auth** menandai apakah endpoint memerlukan token. Kolom **Peran** menandai siapa yang berhak, dan sejak T6 (7 September 2026) ia **mengikat**: tak ada peran yang "selalu lolos" lagi. Baris ini sebelumnya menyatakan `kabupaten`/`superuser` selalu lolos, yang membantah catatan di atasnya sendiri.
 
 ## A.0 Health (publik)
 
@@ -89,11 +94,11 @@ Dua jebakan yang sudah ditemukan & ditangani saat menyiapkan ini (2026-08-27), k
 - **`allowedDevOrigins` di `apps/web/next.config.js`** wajib memuat `skema.local`. Next.js 16 menolak permintaan dev ber-`Origin` asing, dan yang gagal adalah WebSocket HMR — React lalu **tak pernah terhidrasi**, sehingga `/sso/callback` menggantung selamanya di "Menyelesaikan proses masuk..." tanpa satu pun galat di halaman.
 - **Jangan tambahkan `extra_hosts: host.docker.internal:host-gateway`** pada service `proxy`. Docker Desktop sudah menyediakan nama itu (IPv4); baris tersebut menumpuk entri IPv6 yang tak terjangkau, nginx bergilir ke sana, dan jabat-tangan WebSocket gagal dengan `upstream sent no valid HTTP/1.0 header`. Baris itu hanya perlu di Docker Engine Linux.
 
-**Pencocokan akun saat callback** (`SsoService.provision`, urutannya menentukan): (1) `sso_subject == sub` → pengguna yang sudah pernah masuk; (2) `email == email` → akun lama, `sso_subject` **dinaikkan** ke `sub` asli. Langkah 2 bukan kemewahan: seluruh `sso_subject` yang ada sekarang masih penampung pra-SSO (`seed-superuser`, `pending:...`) dan tanpanya setiap akun lama — termasuk Admin Kabupaten — akan dibuatkan akun baru berperan `responden` sementara riwayatnya tertinggal tanpa induk; (3) tak keduanya → akun baru, perannya diturunkan dari klaim (lihat di bawah).
+**Pencocokan akun saat callback** (`SsoService.provision`, urutannya menentukan): (1) `sso_subject == sub` → pengguna yang sudah pernah masuk; (2) `email == email` → akun lama, `sso_subject` **dinaikkan** ke `sub` asli. Langkah 2 bukan kemewahan: seluruh `sso_subject` yang ada sekarang masih penampung pra-SSO (`seed-admin-kabupaten`, `pending:...` — contoh `seed-superuser` dibuang dari baris ini 13 Oktober 2026 sebab akun itu berhenti dibuat seed pada 16 September dan tak ada di basis data mana pun) dan tanpanya setiap akun lama — termasuk Admin Kabupaten — akan dibuatkan akun baru berperan `responden` sementara riwayatnya tertinggal tanpa induk; (3) tak keduanya → akun baru, perannya diturunkan dari klaim (lihat di bawah).
 
 **Peran & OPD dari klaim** (`sso-role.mapper.ts`, sejak 2026-08-27). Diatur env `HELPDESK_SSO_ROLE_MAP` berformat `nilaiKlaim:peran` dipisah koma; kosong = semua akun baru jadi `responden` seperti sebelumnya. Empat aturan yang menentukan:
 - **Hanya saat akun DIBUAT.** SSO tak pernah bisa menurunkan peran akun yang sudah ada — kalau tidak, Helpdesk yang berhenti mengirim klaim akan diam-diam menurunkan setiap Admin Kabupaten menjadi warga, dan kegagalan itu senyap.
-- **`superuser` tak dapat dipetakan** dan diabaikan bila dicoba. Peran itu memegang log aktivitas & manajemen pengguna; penetapannya tak diserahkan ke sistem di luar kendali kita.
+- **`kabupaten` tak dapat dipetakan** dan diabaikan bila dicoba. Peran itu memegang log aktivitas & manajemen pengguna; penetapannya tak diserahkan ke sistem di luar kendali kita. Nilai `superuser` juga tetap diabaikan, kini karena ia sudah tak ada sama sekali — dan itu dipaku uji, `sso-role.mapper.spec.ts` menuntut `admin:superuser` tidak menghasilkan apa pun.
 - **Parser sengaja pemaaf** terhadap bentuk klaim (string tunggal, daftar berkoma/spasi, array string, array objek `{name}`/`{slug}`/`{id}`, objek tunggal) dan mengembalikan daftar kosong — bukan galat — untuk bentuk tak dikenal. Bentuknya belum dikonfirmasi Helpdesk, dan galat di sini berarti login gagal total hanya karena bentuk di luar dugaan.
 - **Peran `opd` menuntut OPD nyata**: nilai klaim dicocokkan ke `opd.external_id` atau `opd.kode` (case-insensitive, karena `kode` tersimpan huruf besar sementara klaim dinormalkan huruf kecil). Tak ada yang cocok → akun dibuat `responden`, sebab peran `opd` tanpa `opdId` membuat dashboard OPD-nya pasti gagal.
 
@@ -113,21 +118,30 @@ Dua jebakan yang sudah ditemukan & ditangani saat menyiapkan ini (2026-08-27), k
 
 ## A.3 Manajemen Akun Admin (`/users`)
 
-Seluruh route di bawah **khusus Superuser** (2026-08-20). Ditegakkan di dalam
-`UsersService.assertSuperuser`, BUKAN lewat `@Roles`: RolesGuard meloloskan
-`kabupaten` dan `superuser` sama saja (bypass peran berhak penuh), jadi dekorator
-tak bisa membedakan keduanya. Admin Kabupaten biasa mendapat **403** di seluruh
-route ini — termasuk `PATCH /users/:id`, sehingga pengangkatan/penurunan peran
-admin sepenuhnya di tangan Superuser.
+Seluruh route di bawah **khusus Kabupaten**, ditegakkan `@Roles(Role.kabupaten)`
+di aras controller.
+
+Sampai 15 September 2026 bagian ini khusus Superuser dan ditegakkan di dalam
+`UsersService.assertSuperuser`, justru KARENA `@Roles` tak dapat membedakan
+`kabupaten` dari `superuser` — RolesGuard meloloskan keduanya lewat bypass peran
+berhak penuh. Dua perubahan menghapus kebutuhan itu: T6 membongkar bypass-nya
+(7 September), lalu peleburan perannya menghapus pembedaan yang perlu dibuat
+(15 September). `assertSuperuser` **tidak ada lagi** di `apps/api/src`, dan
+dekoratornya kini jujur.
 
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
-| GET | `/api/v1/users` | ✓ | Superuser | Daftar akun admin (filter role/OPD) |
-| POST | `/api/v1/users` | ✓ | Superuser | Buat akun Admin OPD / Kabupaten / Superuser |
-| GET | `/api/v1/users/:id` | ✓ | Superuser | Detail akun |
-| PATCH | `/api/v1/users/:id` | ✓ | Superuser | Ubah akun (nama, OPD terkait, role) |
-| PATCH | `/api/v1/users/:id/status` | ✓ | Superuser | Aktif/nonaktifkan akun |
-| DELETE | `/api/v1/users/:id` | ✓ | Superuser | Hapus akun (soft delete) |
+| GET | `/api/v1/users` | ✓ | Kabupaten | Daftar akun admin (filter role/OPD) |
+| POST | `/api/v1/users` | ✓ | Kabupaten | Buat akun Admin OPD / Kabupaten |
+| GET | `/api/v1/users/:id` | ✓ | Kabupaten | Detail akun |
+| PATCH | `/api/v1/users/:id` | ✓ | Kabupaten | Ubah akun (nama, OPD terkait, role) |
+| PATCH | `/api/v1/users/:id/status` | ✓ | Kabupaten | Aktif/nonaktifkan akun |
+| DELETE | `/api/v1/users/:id` | ✓ | Kabupaten | Hapus akun (soft delete) |
+
+Satu route **tidak** tercatat di tabel ini sejak sebelum penyisiran:
+`GET /api/v1/users/stats`. Dibiarkan apa adanya — penyisiran 13 Oktober hanya
+menyentuh baris yang menyebut `superuser`, dan menambal yang lain akan
+menyamarkan betapa dokumen ini tertinggal.
 
 ## A.4 Survei & Pertanyaan (`/surveys`, `/questions`)
 
@@ -158,7 +172,7 @@ admin sepenuhnya di tangan Superuser.
 | GET | `/api/v1/me/survey-responses` | ✓ | Responden | Riwayat survei yang diisi **pemanggil sendiri** (judul, periode, nama OPD, waktu kirim). Cakupan selalu `userId` dari token — tak ada parameter pemilik, jadi tak bisa dipakai mengintip riwayat orang lain. Dipakai riwayat aktivitas dashboard warga (2026-08-24) |
 | GET | `/api/v1/surveys/:id/results` | ✓ | OPD, Kabupaten | Hasil live-compute: NRR per unsur + nilai IKM + mutu. Memuat juga `jenis` dan `nilaiSurvei` (`{judul, nilai, tampilan, kategori}` untuk survei `custom`, `null` untuk SKM atau custom tanpa jawaban skala) |
 | GET | `/api/v1/surveys/:id/results/export?format=` | ✓ | OPD, Kabupaten | Ekspor laporan (`csv`\|`excel`\|`pdf`) — file biner mentah, bukan envelope |
-| GET | `/api/v1/dashboard/opd?opdId=` | ✓ | OPD, **Superuser** | Ringkasan satu OPD (IKM survei terbaru, responden, tiket aktif, SLA, umpan balik). OPD: selalu OPD-nya sendiri, `opdId` diabaikan. Superuser: WAJIB mengirim `opdId`. **Admin Kabupaten 403** (keputusan user 2026-08-20) |
+| GET | `/api/v1/dashboard/opd` | ✓ | OPD | Ringkasan satu OPD (IKM survei terbaru, responden, tiket aktif, SLA, umpan balik). OPD-nya diambil dari `user.opdId`, BUKAN dari parameter kueri: `resolveDashboardOpdId` hanya meloloskan sesi ber-`actingRole` `opd` dan menolak yang tanpa OPD tertaut. **Kabupaten 403.** Parameter `?opdId=` dan jalur Superuser dibuang dari baris ini 13 Oktober 2026; keduanya sudah tak ada di kode |
 | GET | `/api/v1/dashboard/ikm` | ✓ | Kabupaten | Agregat & perbandingan IKM seluruh OPD (dari snapshot `ikm_results`, bukan live-compute) |
 
 ## A.6 Pengaduan (`/complaints`)
@@ -176,8 +190,9 @@ admin sepenuhnya di tangan Superuser.
 
 | Method | Path | Auth | Peran | Deskripsi |
 |---|---|:---:|---|---|
-| GET | `/api/v1/audit-logs` | ✓ | Superuser | Daftar log aktivitas admin (filter `entitas`/`actorId`) — Admin Kabupaten 403 (`AuditService.assertSuperuser`) |
-| GET | `/api/v1/audit-logs/:id` | ✓ | Superuser | Detail satu log aktivitas |
+| GET | `/api/v1/audit-logs` | ✓ | Kabupaten | Daftar log aktivitas admin (filter `entitas`/`actorId`). Dahulu khusus Superuser lewat `AuditService.assertSuperuser`, yang **tidak ada lagi**; kini `@Roles(Role.kabupaten)` per metode |
+| GET | `/api/v1/audit-logs/retensi` | ✓ | Kabupaten | Kebijakan retensi log. Tak pernah tercatat di dokumen ini; ditambahkan 13 Oktober 2026 karena ia satu controller dengan dua baris di atas. **Harus dideklarasikan sebelum `:id`** — Nest mencocokkan rute berurutan |
+| GET | `/api/v1/audit-logs/:id` | ✓ | Kabupaten | Detail satu log aktivitas |
 | GET | `/api/v1/ref/unsur` | ✓ | OPD, Kabupaten | Daftar 9 unsur baku SKM (template PermenPANRB 14/2017) |
 | GET | `/api/v1/ref/complaint-categories` | ✓ | Semua | Daftar 7 kategori baku pengaduan |
 
@@ -196,7 +211,7 @@ Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata 
 | Route | Auth | Halaman | Status wiring |
 |---|:---:|---|---|
 | `/` | ✗ | Landing + tombol masuk (SSO Helpdesk; tautan "akun dev" hanya di lingkungan pengembangan) | ✅ |
-| `/sso/callback` | ✗ | Pendaratan setelah callback SSO: baca fragment `#expires=`/`#error=`, panggil `GET /auth/me`, simpan `role` + waktu kedaluwarsa, antar ke beranda peran. Superuser mendapat pemilih area di sini. **Sengaja di luar matcher proxy.js** — cookie `role` belum ada saat halaman ini dibuka | ✅ (2026-08-27) |
+| `/sso/callback` | ✗ | Pendaratan setelah callback SSO: baca fragment `#expires=`/`#error=`, panggil `GET /auth/me`, simpan `role` + waktu kedaluwarsa, antar ke beranda peran. Akun ber-peran lebih dari satu mendapat pemilih peran di sini (dahulu khusus Superuser; digeneralisasi 5 September 2026 — gerbangnya JUMLAH peran, bukan peran tertentu). **Sengaja di luar matcher proxy.js** — cookie `role` belum ada saat halaman ini dibuka | ✅ (2026-08-27) |
 | `/persetujuan` | 🔒 Warga | Gerbang persetujuan UU PDP. Warga tak dapat memakai fitur sebelum menyetujui; yang sudah menyetujui & non-warga dipantulkan keluar. Sengaja **di luar** grup `(respondent)` — kerangka warga lengkap akan menawarkan jalan keluar dari gerbang yang tak boleh dilewati. Keperluannya diperiksa dari `GET /auth/me`, bukan dari cookie | ✅ (2026-08-27) |
 | `/about` | ✗ | Tentang sistem | ✅ (statis) |
 | `/statistics` | ✗ | Statistik publik | ❌ dummy (INT-25, blocked D2/D6/D14) |
@@ -213,7 +228,7 @@ Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata 
 
 | Route | Auth | Halaman | Status wiring |
 |---|:---:|---|---|
-| `/admin-opd/dashboard` | 🔒 OPD + SU | Ringkasan OPD (Superuser: OPD yang dipilihnya) | ✅ (INT-12/INT-23) |
+| `/admin-opd/dashboard` | 🔒 OPD | Ringkasan OPD. OPD-nya diambil dari akun yang masuk, bukan dipilih — lihat `/dashboard/opd` di bagian A.5 | ✅ (INT-12/INT-23) |
 | `/admin-opd/surveys` | 🔒 OPD | Daftar survei OPD | ✅ (INT-19) |
 | `/admin-opd/surveys/builder/[id]` | 🔒 OPD | Builder pertanyaan (template + kustom) | ✅ (INT-19) |
 | `/admin-opd/surveys/[id]/responses` | 🔒 OPD | Daftar respons masuk (anonim) | ✅ (INT-38) |
@@ -228,43 +243,45 @@ Struktur *route groups* App Router: `(respondent)` dan `(builder)` di URL nyata 
 |---|:---:|---|---|
 | `/admin-kab/dashboard` | 🔒 Kab | Dashboard agregat IKM semua OPD | ❌ dummy (INT-24, blocked D3 — sama spt INT-23) |
 | `/admin-kab/opd` | 🔒 Kab | Daftar OPD + sinkronkan dari Helpdesk | ✅ (INT-22) |
-| `/admin-kab/users` | 🔒 SU | Kelola akun Admin OPD/Kabupaten/Superuser | ✅ (INT-22) |
-| `/admin-kab/users/create` | 🔒 SU | Buat akun admin baru | ✅ (INT-22) |
+| `/admin-kab/users` | 🔒 Kab | Kelola akun Admin OPD/Kabupaten | ✅ (INT-22) |
+| `/admin-kab/users/[id]/edit` | 🔒 Kab | Sunting satu akun admin | ✅ (INT-22) |
 | `/admin-kab/complaints` | 🔒 Kab | Pantau seluruh pengaduan lintas OPD (read-only) | ✅ (INT-33) |
 | `/admin-kab/complaints/[id]` | 🔒 Kab | Detail pengaduan (read-only, param = ticketNo) | ✅ (INT-33) |
-| `/admin-kab/audit-logs` | 🔒 SU | Log aktivitas admin | ✅ (INT-34) |
-| `/admin-kab/audit-logs/[id]` | 🔒 SU | Detail satu log aktivitas | ✅ (INT-34) |
-| `/pilih-peran` (di luar prefiks) | 🔒 SU | Ganti area kerja Superuser tanpa logout | ✅ (2026-08-20) |
+| `/admin-kab/audit-logs` | 🔒 Kab | Log aktivitas admin | ✅ (INT-34) |
+| `/admin-kab/audit-logs/[id]` | 🔒 Kab | Detail satu log aktivitas | ✅ (INT-34) |
+| `/pilih-peran` (di luar prefiks) | 🔒 Siapa pun ber-peran >1 | Berpindah peran tanpa keluar-masuk lagi | ✅ (2026-08-20, digeneralisasi 2026-09-05) |
 
-**🔒 SU** = khusus Superuser. Admin Kabupaten biasa dipantulkan proxy ke
-`/admin-kab/dashboard`, dan API-nya pun 403 bila URL dipaksa.
+**Penanda 🔒 SU dibuang 13 Oktober 2026.** Tak ada lagi halaman khusus
+Superuser: `/admin-kab/users` dan `/admin-kab/audit-logs` kini 🔒 Kab seperti
+sisa area itu, sebab kuasanya pindah ke `kabupaten` bersama peleburan perannya.
+`/admin-kab/users/create` dibuang dari tabel karena halamannya tidak ada —
+yang ada `users/[id]/edit`.
 
-**Kurungan area Superuser (2026-08-20):** peran yang dipilih Superuser saat login
-disimpan sebagai cookie `area` dan proxy membatasi navigasinya pada area itu saja
-(`kabupaten` → `/admin-kab`, `opd` → `/admin-opd`, `responden` → halaman warga).
-Ini pembatas NAVIGASI, bukan hak akses — backend tetap memperlakukan Superuser
-setara Kabupaten (`hasFullAccess`).
+**TIGA PARAGRAF DIBUANG DI SINI, 13 Oktober 2026.** Mereka menjelaskan kurungan
+area Superuser lewat cookie `area`, pemilihan OPD lewat cookie `opd` +
+localStorage `acting_opd`, dan `/admin-opd/dashboard` yang "kini tersedia untuk
+Superuser yang sudah memilih OPD". Ketiga mekanisme itu **sudah tidak ada**:
+`apps/web/src/proxy.js` menyatakan tersurat bahwa cookie `area` dan `opd` sudah
+tak ada, sebab setiap sesi kini memegang TEPAT SATU peran yang dipakai (klaim
+`act`), sehingga tak ada lagi kasus satu akun bebas di ketiga area sekaligus.
 
-**Memilih OPD (2026-08-20):** memilih area OPD menuntut Superuser memilih SATU OPD
-(daftar dari `GET /opd`). Pilihannya disimpan di localStorage (`acting_opd`) plus
-cookie `opd` berisi id-nya saja — cookie itu ada karena proxy perlu tahu
-ADA-TIDAKNYA OPD terpilih. Dipakai sebagai `?opdId=` pada `GET /dashboard/opd`,
-`GET /surveys`, & `GET /complaints`, dan sebagai `opdId` saat membuat survei baru
-dari area itu (tanpanya `POST /surveys` menolak "opdId wajib diisi", karena akun
-Superuser tak tertaut OPD mana pun).
+Yang berlaku sekarang: peran yang dipakai sesi mengurung navigasinya, dan
+`/pilih-peran` adalah satu-satunya jalan berpindah tanpa keluar-masuk lagi.
+Gerbangnya jumlah peran yang dipegang akun, bukan nama perannya. OPD untuk
+`/admin-opd/dashboard` diambil dari `user.opdId` milik akun, bukan dipilih di
+antarmuka — `resolveDashboardOpdId` menolak sesi `opd` yang tak tertaut OPD.
 
-`/admin-opd/dashboard` KINI tersedia untuk Superuser yang sudah memilih OPD
-(2026-08-20, keputusan user: "hanya superuser yang bisa membuka dashboard opd").
-Tanpa OPD terpilih ia dipantulkan ke `/admin-opd/surveys` — backend menolak 400
-tanpa `opdId`, jadi halamannya pasti gagal memuat. Admin Kabupaten tetap
-dipantulkan dan tetap 403 di API.
+Catatan yang tak enak dan pantas disebut: docblock di `proxy.js` baris 66-75
+MASIH bercerita tentang prefiks khusus superuser dan cookie `area`, padahal
+baris 101 di berkas yang sama menyatakan cookie itu sudah dibuang. Itu cacat
+komentar di `main`, di luar jangkauan penyisiran dokumen ini.
 
 ## B.4 Pemetaan Route Frontend → Endpoint API (halaman terwiring)
 
 | Route Frontend | Endpoint API yang dipanggil |
 |---|---|
 | `/` | `GET /auth/sso/login` (navigasi, bukan XHR), `POST /auth/dev-login`, `GET /auth/me` |
-| `/sso/callback` | `GET /auth/me`; `POST /auth/logout` bila superuser membatalkan di pemilih peran |
+| `/sso/callback` | `GET /auth/me`; `POST /auth/logout` bila pengguna membatalkan di pemilih peran |
 | `/persetujuan` | `GET /auth/me` → `POST /auth/consent`; `POST /auth/logout` bila menolak |
 | `/profile` | `GET /auth/me`, `PATCH /auth/profile` |
 | `/dashboard` | `GET /complaints`, `GET /me/survey-responses` (riwayat aktivitas menggabung keduanya), `GET /surveys/active` |
