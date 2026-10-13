@@ -48,6 +48,34 @@ Dari luar kantor, push dan pull dapat menjawab 403 karena Cloudflare, bukan
 karena kredensial salah. Gejalanya `cf-mitigated: challenge` pada POST.
 Kenali itu sebagai masalah jaringan, bukan masalah akses.
 
+## Push belum selesai sampai CI hijau
+
+Dorongan yang diterima GitHub bukan bukti bahwa pekerjaannya utuh. Sesudah
+push, periksa kesimpulan check-run pada SHA yang baru didorong, dan laporkan
+hasilnya.
+
+`gh` TIDAK terpasang di mesin ini, jadi `gh run list` gagal dengan
+"command not found". Pakai API check-runs; anotasinya terbaca tanpa kredensial:
+
+```bash
+SHA=$(git rev-parse main)
+curl -s "https://api.github.com/repos/<pemilik>/<repo>/commits/$SHA/check-runs"
+```
+
+Log mentah langkah yang gagal menuntut akses tulis dan tak terbaca dari sini.
+Anotasinya sering hanya berbunyi "Process completed with exit code 1", yang tak
+menyebutkan sebab apa pun. Bila begitu, REPRODUKSI jalur kodenya di mesin ini
+dengan nilai lingkungan yang persis sama seperti di workflow -- jangan menebak
+dari ingatan tentang apa yang mungkin berbeda.
+
+Alasannya terukur. Pada 12 Oktober 2026 dorongan `aae9b1e` mematikan job
+"E2E API (PostgreSQL sungguhan)" dan itu tak diketahui sampai pengguna sendiri
+yang menanyakannya. Akar cacatnya pun satu berkas yang tak pernah dibaca
+sebelum merancang: `.github/workflows/ci.yml`. **Perubahan yang menyentuh
+perkakas uji atau build harus membaca berkas itu lebih dulu**, karena CI dapat
+sudah memiliki konvensi yang hendak dibangun -- dan dalam kejadian itu memang
+sudah, dengan nama basis data yang sama persis.
+
 ## Pesan commit
 
 **Selalu `git commit -F <berkas>`, tidak pernah `-m`.** Tulis berkas pesannya
