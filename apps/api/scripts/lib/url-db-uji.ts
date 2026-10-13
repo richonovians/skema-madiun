@@ -25,10 +25,15 @@
  * bentuk yang memang tak sah.
  */
 
+import { gantiNamaBasisData, pecahUrlPostgres } from './url-postgres';
+
+// Diteruskan, bukan didefinisikan di sini: palang host milik `url-postgres.ts`
+// sejak 13 Oktober 2026, dan pelari uji beban memakainya juga. Penerusan ini
+// menjaga `uji-e2e.ts` dan specnya tak perlu berubah.
+export { pastikanHostLokal } from './url-postgres';
+
 /** Nama basis data uji. Satu nama untuk seluruh tim, sengaja tidak dapat diatur. */
 export const NAMA_DB_UJI = 'skm_uji';
-
-const POLA_SKEMA = /^postgres(?:ql)?:\/\//;
 
 export interface SasaranDbUji {
   /** URL lengkap basis data uji, untuk `prisma migrate deploy` dan untuk jest. */
@@ -43,28 +48,7 @@ export interface SasaranDbUji {
 }
 
 export function sasaranDbUji(urlPengembangan: string): SasaranDbUji {
-  if (urlPengembangan.trim() === '') {
-    throw new Error('DATABASE_URL tidak diatur; tak ada yang dapat diturunkan darinya.');
-  }
-
-  const skema = POLA_SKEMA.exec(urlPengembangan);
-  if (skema === null) {
-    throw new Error(
-      `DATABASE_URL bukan URL Postgres (harus berawalan postgres:// atau postgresql://): ${urlPengembangan}`,
-    );
-  }
-
-  const batasQuery = urlPengembangan.indexOf('?');
-  const sebelumQuery = batasQuery === -1 ? urlPengembangan : urlPengembangan.slice(0, batasQuery);
-  const query = batasQuery === -1 ? '' : urlPengembangan.slice(batasQuery);
-
-  const batasNama = sebelumQuery.lastIndexOf('/');
-  // Garis miring terakhir milik skema itu sendiri berarti URL-nya tanpa jalur.
-  const awalan = sebelumQuery.slice(0, batasNama + 1);
-  const nama = batasNama < skema[0].length ? '' : sebelumQuery.slice(batasNama + 1);
-  if (nama === '') {
-    throw new Error(`DATABASE_URL tanpa nama basis data: ${urlPengembangan}`);
-  }
+  const { nama } = pecahUrlPostgres(urlPengembangan);
 
   // SUDAH TERPISAH, dan itu BUKAN kesalahan konfigurasi.
   //
@@ -76,66 +60,14 @@ export function sasaranDbUji(urlPengembangan: string): SasaranDbUji {
   // Lemparan itu tak melindungi apa pun. Yang hendak dicegah adalah menulis ke
   // basis data PENGEMBANGAN; bila `DATABASE_URL` sudah menunjuk basis data uji,
   // justru itulah keadaan yang diinginkan. Jadi URL-nya dipakai apa adanya, dan
-  // `sudahTerpisah` memberi tahu pemanggil bahwa `CREATE DATABASE` tak perlu --
-  // basis datanya pasti ada, karena kita sedang menunjuk ke sana.
+  // `sudahTerpisah` memberi tahu pemanggil bahwa basis datanya pasti ada.
   if (nama === NAMA_DB_UJI) {
-    return {
-      sudahTerpisah: true,
-      url: urlPengembangan,
-      nama,
-    };
+    return { sudahTerpisah: true, url: urlPengembangan, nama };
   }
 
   return {
     sudahTerpisah: false,
-    url: `${awalan}${NAMA_DB_UJI}${query}`,
+    url: gantiNamaBasisData(urlPengembangan, NAMA_DB_UJI),
     nama: NAMA_DB_UJI,
   };
-}
-
-/** Nama host yang berarti "mesin ini". Tak dapat diatur, sengaja. */
-const HOST_LOKAL = new Set(['localhost', '127.0.0.1', '::1']);
-
-/**
- * Menolak URL yang menunjuk ke server selain mesin pengembang.
- *
- * Pelari uji MEMBUAT basis data lalu menulis baris sungguhan ke dalamnya. Satu
- * salah ketik pada `DATABASE_URL` -- atau satu `.env` yang tertukar -- sudah
- * cukup untuk melakukan keduanya pada server produksi, dan itu tak dapat
- * dibatalkan. Aturan tetap proyek sudah melarangnya; palang ini yang menahannya
- * ketika aturan terlewat.
- *
- * Hostnya dibaca sesudah pemisah kredensial TERAKHIR. Sandi yang memuat `@`
- * dalam bentuk persentase membuat pengurai yang membaca `@` pertama mengira
- * potongan sandi adalah nama host, dan URL produksi lolos tanpa suara.
- */
-export function pastikanHostLokal(url: string): void {
-  const host = hostDari(url);
-  if (!HOST_LOKAL.has(host)) {
-    throw new Error(
-      `DATABASE_URL menunjuk host '${host}', bukan mesin ini. Pelari uji membuat ` +
-        'basis data dan menulis baris ke dalamnya, jadi ia menolak jalan terhadap ' +
-        'server mana pun selain localhost. Arahkan DATABASE_URL ke Postgres di ' +
-        'docker compose milik Anda.',
-    );
-  }
-}
-
-function hostDari(url: string): string {
-  const tanpaSkema = url.replace(POLA_SKEMA, '');
-  const batasJalur = tanpaSkema.search(/[/?]/);
-  const otoritas = batasJalur === -1 ? tanpaSkema : tanpaSkema.slice(0, batasJalur);
-  const batasKredensial = otoritas.lastIndexOf('@');
-  const hostPorta = batasKredensial === -1 ? otoritas : otoritas.slice(batasKredensial + 1);
-
-  if (hostPorta.startsWith('[')) {
-    const tutup = hostPorta.indexOf(']');
-    return tutup === -1 ? hostPorta : hostPorta.slice(1, tutup);
-  }
-
-  const batasPorta = hostPorta.lastIndexOf(':');
-  if (batasPorta !== -1 && /^\d+$/.test(hostPorta.slice(batasPorta + 1))) {
-    return hostPorta.slice(0, batasPorta);
-  }
-  return hostPorta;
 }

@@ -17,6 +17,11 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      // Keluaran kompilasi pelari uji beban. Direktorinya terpisah dari `dist`
+      // supaya tak menimpa keluaran `nest start --watch`, dan karena itu
+      // `**/dist/**` di atas TIDAK mengenainya: tanpa baris ini `pnpm lint`
+      // melaporkan 860 galat atas kode yang dibangkitkan tsc.
+      '**/dist-beban/**',
       '**/.next/**',
       '**/build/**',
       '**/coverage/**',
