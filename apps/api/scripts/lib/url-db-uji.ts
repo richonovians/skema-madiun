@@ -28,22 +28,13 @@
 /** Nama basis data uji. Satu nama untuk seluruh tim, sengaja tidak dapat diatur. */
 export const NAMA_DB_UJI = 'skm_uji';
 
-/**
- * Basis data pemeliharaan tempat `CREATE DATABASE` dijalankan. `CREATE DATABASE`
- * tak dapat dijalankan dari dalam basis data yang hendak dibuat, jadi perlu satu
- * sambungan ke basis data lain yang pasti ada.
- */
-const NAMA_DB_PEMELIHARAAN = 'postgres';
-
 const POLA_SKEMA = /^postgres(?:ql)?:\/\//;
 
 export interface SasaranDbUji {
   /** URL lengkap basis data uji, untuk `prisma migrate deploy` dan untuk jest. */
   url: string;
-  /** Nama basis data uji, untuk `CREATE DATABASE`. */
+  /** Nama basis data uji, untuk dicetak ke layar. */
   nama: string;
-  /** URL ke basis data `postgres`, tempat `CREATE DATABASE` dijalankan. */
-  urlPemeliharaan: string;
   /**
    * `true` bila `DATABASE_URL` SUDAH menunjuk basis data uji, sehingga tak ada
    * yang perlu diturunkan maupun dibuat. Itu keadaan normal di CI.
@@ -92,7 +83,6 @@ export function sasaranDbUji(urlPengembangan: string): SasaranDbUji {
       sudahTerpisah: true,
       url: urlPengembangan,
       nama,
-      urlPemeliharaan: `${awalan}${NAMA_DB_PEMELIHARAAN}${query}`,
     };
   }
 
@@ -100,7 +90,6 @@ export function sasaranDbUji(urlPengembangan: string): SasaranDbUji {
     sudahTerpisah: false,
     url: `${awalan}${NAMA_DB_UJI}${query}`,
     nama: NAMA_DB_UJI,
-    urlPemeliharaan: `${awalan}${NAMA_DB_PEMELIHARAAN}${query}`,
   };
 }
 

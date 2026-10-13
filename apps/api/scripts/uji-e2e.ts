@@ -45,9 +45,8 @@
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import * as path from 'node:path';
-import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
-import { pastikanHostLokal, sasaranDbUji, type SasaranDbUji } from './lib/url-db-uji';
+import { pastikanHostLokal, sasaranDbUji } from './lib/url-db-uji';
 
 const AKAR_API = path.resolve(__dirname, '..');
 const resolusi = createRequire(__filename);
@@ -61,15 +60,34 @@ async function utama(): Promise<void> {
   const sasaran = sasaranDbUji(process.env.DATABASE_URL ?? '');
   pastikanHostLokal(sasaran.url);
 
-  console.log(`Basis data uji: ${sasaran.nama} (bukan basis data pengembangan).`);
-
+  // DUA KALIMAT BERBEDA, dan bedanya penting. Versi sebelumnya selalu mencetak
+  // "(bukan basis data pengembangan)" -- benar pada jalur penurunan, tetapi
+  // KLAIM YANG TAK DAPAT DIBUKTIKAN pada jalur `sudahTerpisah`: bila
+  // `DATABASE_URL` seseorang memang bernama `skm_uji` dan `pnpm dev` juga
+  // memakainya, maka itu justru basis data pengembangannya. Skrip ini tak punya
+  // cara mengetahuinya, jadi ia berhenti mengaku tahu.
   if (sasaran.sudahTerpisah) {
-    // CI sudah menyediakan basis datanya sendiri; tak ada yang perlu dibuat,
-    // dan tak perlu menyentuh basis data pemeliharaan `postgres` sama sekali.
-    console.log('DATABASE_URL sudah menunjuk basis data uji; dipakai apa adanya.');
+    console.log(
+      `Basis data uji: ${sasaran.nama}, dari DATABASE_URL apa adanya. ` +
+        'Pastikan ini BUKAN basis data yang dipakai `pnpm dev`.',
+    );
   } else {
-    await pastikanBasisDataAda(sasaran);
+    console.log(
+      `Basis data uji: ${sasaran.nama}, diturunkan dari DATABASE_URL. ` +
+        'Basis data pengembangan tidak disentuh.',
+    );
   }
+
+  // TIDAK ADA LANGKAH `CREATE DATABASE` DI SINI, dan itu hasil pengukuran, bukan
+  // kelalaian. `prisma migrate deploy` membuat sendiri basis data yang belum
+  // ada: diukur 13 Oktober 2026 terhadap nama yang belum pernah dipakai, ia
+  // mencetak "PostgreSQL database ... created", menerapkan seluruh migrasi, dan
+  // keluar 0.
+  //
+  // Versi sebelumnya menyambung ke basis data pemeliharaan `postgres` lalu
+  // menjalankan `CREATE DATABASE` sendiri. Itu 35 baris yang tak melakukan apa
+  // pun yang belum dilakukan langkah berikutnya, dan harganya nyata: ia menuntut
+  // hak akses ke basis data `postgres` yang tak selalu dimiliki pemakainya.
 
   const kodeMigrasi = jalankan('prisma', ['migrate', 'deploy'], sasaran.url);
   if (kodeMigrasi !== 0) {
@@ -94,38 +112,6 @@ async function utama(): Promise<void> {
     sasaran.url,
   );
   process.exit(kodeJest);
-}
-
-/**
- * Membuat basis data uji bila belum ada. `CREATE DATABASE` tak dapat dijalankan
- * dari dalam basis data yang hendak dibuat, jadi sambungannya ke basis data
- * pemeliharaan `postgres`.
- */
-async function pastikanBasisDataAda(sasaran: SasaranDbUji): Promise<void> {
-  const prisma = new PrismaClient({ datasources: { db: { url: sasaran.urlPemeliharaan } } });
-  try {
-    const ada = await prisma.$queryRaw<unknown[]>`
-      SELECT 1 FROM pg_database WHERE datname = ${sasaran.nama}
-    `;
-    if (ada.length > 0) {
-      return;
-    }
-
-    // Nama basis datanya konstanta di `lib/url-db-uji.ts`, bukan masukan
-    // pengguna, jadi interpolasi di sini tidak membuka jalan injeksi.
-    // `CREATE DATABASE` memang tak menerima parameter terikat.
-    await prisma.$executeRawUnsafe(`CREATE DATABASE "${sasaran.nama}"`);
-    console.log(`Basis data uji '${sasaran.nama}' dibuat.`);
-  } catch (err) {
-    // 42P04 = duplicate_database. Dua pelari yang mulai bersamaan: yang kedua
-    // kalah lomba, dan itu bukan kegagalan -- basis datanya memang sudah ada.
-    if (String(err).includes('42P04')) {
-      return;
-    }
-    throw err;
-  } finally {
-    await prisma.$disconnect();
-  }
 }
 
 /**
