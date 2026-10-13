@@ -101,7 +101,7 @@ Frontend memakai bahasa Inggris + camelCase + enum HURUF BESAR; backend memakai 
 | `name` | `nama` | |
 | `organization: 'Dinas Kesehatan'` | `opdId: 1` | **Butuh backend** — nama OPD tidak dikirim |
 | `status: 'ACTIVE'/'INACTIVE'/'PENDING'` | `isActive: true/false` | Enum vs boolean; `PENDING` **tidak punya padanan** di backend |
-| `role: 'ADMIN_OPD'/'ADMIN_KABUPATEN'/'RESPONDENT'` | `role: 'opd'/'kabupaten'/'responden'` | Perlu peta 1:1 (`kabupaten` = superuser, digabung 2026-08-05) |
+| `role: 'ADMIN_OPD'/'ADMIN_KABUPATEN'/'RESPONDENT'` | `roles: ('opd'\|'kabupaten'\|'responden')[]` | Perlu peta 1:1. Backend memakai `roles` JAMAK, bukan `role` tunggal. Peran `superuser` sempat digabung ke `kabupaten` 5 Agustus 2026, DIKEMBALIKAN 20 Agustus, lalu dilebur untuk terakhir kali 15 September — baris ini berhenti di peleburan pertama dan diperbaiki 13 Oktober 2026 |
 | `initials: 'SR'` | ✗ | Turunan dari nama — di frontend |
 
 **OPD**
