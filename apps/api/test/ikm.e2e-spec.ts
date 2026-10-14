@@ -202,6 +202,22 @@ describe('IKM (e2e)', () => {
     expect(res.status).toBe(403);
   });
 
+  /**
+   * TC-RBAC-010, sel Kabupaten. Diletakkan SEBELUM uji live-compute di bawah,
+   * yang menambah dua respons: di sini surveinya belum berjawab, jadi uji ini
+   * tak bergantung pada angka IKM yang diubah uji berikutnya. Yang dibuktikan
+   * cuma satu hal -- peran berakses penuh membuka hasil survei milik OPD mana
+   * pun, tanpa tautan OPD di akunnya.
+   */
+  it('GET /surveys/:id/results (Admin Kabupaten) -> 200 walau bukan OPD-nya', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/surveys/${surveyId}/results`)
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.surveyId).toBe(surveyId);
+  });
+
   it('live-compute setelah 2 responden menilai 4 semua -> nilaiIkm=100, mutu A', async () => {
     for (const userId of respondenIds) {
       const res = await request(app.getHttpServer())
