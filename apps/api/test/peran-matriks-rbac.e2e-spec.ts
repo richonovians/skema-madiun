@@ -166,6 +166,47 @@ describe('Matriks TC-RBAC: rute khusus responden (e2e)', () => {
     });
   });
 
+  /**
+   * TC-RBAC-007 dan 010: dua sel Responden yang tak pernah diuji.
+   *
+   * KEDUANYA MEMERIKSA PESAN, dengan alasan yang BERBEDA.
+   *
+   * `GET /surveys`: tanpa `@Roles`, permintaannya TIDAK dilayani -- `opdWhereFilter`
+   * sendiri melempar `ForbiddenException` bagi peran selain `kabupaten` dan `opd`
+   * (`opd-scope.util.ts:27`), jadi statusnya tetap 403 dan yang berbeda hanya
+   * PESANnya: "Peran tidak memiliki akses ke sumber daya OPD". Terukur 14 Oktober
+   * 2026. Uji yang berhenti di status 403 karena itu akan tetap HIJAU di sini walau
+   * gerbang perannya hilang, dan pemeriksaan pesan inilah yang memerahkannya.
+   *
+   * `GET /surveys/:id/results`: tanpa `@Roles`, jawabannya 404, bukan 403 --
+   * `getResults` mencari surveinya lebih dulu dan id 999999 memang tak ada,
+   * sehingga `assertOpdAccess` (`ikm.service.ts:126`) tak pernah sempat jalan.
+   * Juga terukur. Pada id survei yang SUNGGUH ADA, lapis kedua itulah yang
+   * menjawab 403, dan uji berstatus-saja akan tetap hijau; id yang tak ada
+   * membuat kehilangan gerbangnya terbaca sebagai perubahan status.
+   */
+  describe('TC-RBAC-007 dan 010: rute admin survei ditolak bagi responden', () => {
+    const HANYA_ADMIN_SURVEI = /hanya untuk peran: kabupaten, opd/i;
+
+    it('GET /surveys ditolak di gerbang peran', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/surveys?limit=1')
+        .set(responden());
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(HANYA_ADMIN_SURVEI);
+    });
+
+    it('GET /surveys/:id/results ditolak di gerbang peran, bukan di service', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/surveys/999999/results')
+        .set(responden());
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(HANYA_ADMIN_SURVEI);
+    });
+  });
+
   describe('TC-RBAC-011: POST /complaints', () => {
     it('Admin Kabupaten ditolak di gerbang peran', async () => {
       const res = await request(app.getHttpServer())
