@@ -544,21 +544,38 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > | --- | --- | --- | --- | --- |
 > | TC-RBAC-005 | `POST /users` (role=kabupaten) | `❌ 403` | **201** | `users.e2e-spec.ts:97` |
 > | TC-RBAC-006 | `POST /surveys` | `❌ 403` | **lolos gerbang**; 400 tanpa `opdId` | `surveys.e2e-spec.ts:92` |
-> | TC-RBAC-008 | `GET /surveys/active` | `❌ 403` | benar, `@Roles(Role.responden)` | belum ada uji |
-> | TC-RBAC-009 | `POST /surveys/:id/responses` | `❌ 403` | benar, `@Roles(Role.responden)` | belum ada uji |
-> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | belum ada uji |
+> | TC-RBAC-008 | `GET /surveys/active` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:63` dan `:70` |
+> | TC-RBAC-009 | `POST /surveys/:id/responses` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:85` dan `:95` |
+> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:107` dan `:119` |
 > | TC-RBAC-012 | `PATCH /complaints/:id/status` | `❌ 403` | **bukan 403 peran** | `complaints.e2e-spec.ts:815` |
 >
 > TC-RBAC-012 paling halus salahnya. Rutenya
 > `@Roles(Role.kabupaten, Role.opd)`, jadi Kabupaten **lolos gerbang peran**; yang
 > menolaknya aturan bisnis, bukan peran. Uji yang ada memakai `asKabupaten()` dan
 > menuntut **400** "statusnya tidak dapat diubah sebelum diteruskan". Jalur
-> SUKSES-nya — Kabupaten mengubah status pengaduan yang sudah diteruskan — belum
-> diuji sama sekali.
+> SUKSES-nya — Kabupaten mengubah status pengaduan yang sudah diteruskan — tak
+> pernah diuji sampai 14 Oktober 2026, dan kini ada di
+> `complaints.e2e-spec.ts:880`.
 >
-> Tiga baris yang kolomnya benar **belum punya uji** yang membuktikan Kabupaten
-> ditolak di sana. Benar menurut kode bukan sama dengan terbukti: `@Roles` yang
-> kelak dicabut tak akan memerahkan apa pun.
+> **UJINYA DITULIS HARI YANG SAMA, 14 Oktober 2026**, di
+> `apps/api/test/peran-matriks-rbac.e2e-spec.ts` (enam uji) dan satu sisipan di
+> `complaints.e2e-spec.ts:880`. Masing-masing memeriksa PESAN penolakannya,
+> bukan cuma status 403, sebab penolakan di sini dapat datang dari dua lapis dan
+> uji yang berhenti di status tetap hijau walau `@Roles` dicabut. Terbukti lewat
+> mutasi, satu dekorator per jalan, semuanya dipulihkan: tanpa gerbangnya
+> `GET /surveys/active` menjawab 200, `POST /surveys/:id/responses` menjawab 400
+> dari lapis validasi, `POST /complaints` menjawab 201, dan
+> `PATCH /complaints/:id/status` yang dipersempit ke `@Roles(Role.opd)` menjawab
+> 403. Setiap kali hanya uji yang bersangkutan memerah.
+>
+> **Satu koreksi atas kotak ini sendiri.** Kolom Bukti di atas semula berbunyi
+> "belum ada uji" untuk ketiga barisnya, dan itu terlalu mutlak. Yang benar:
+> TC-RBAC-008 memang tak punya uji sama sekali untuk Kabupaten maupun Admin OPD,
+> tetapi sel Admin OPD pada TC-RBAC-009 sudah diuji di
+> `responses.e2e-spec.ts:277` dan pada TC-RBAC-011 di
+> `complaints.e2e-spec.ts:458` — keduanya hanya memeriksa status, tanpa pesan,
+> jadi keduanya tetap hijau bila gerbang perannya hilang. Yang betul-betul
+> kosong adalah sel KABUPATEN pada ketiga baris itu.
 
 | ID          | Endpoint                       | Superuser | Kabupaten |      Admin OPD       | Responden | Tipe  | Status |
 | ----------- | ------------------------------ | :-------: | :-------: | :------------------: | :-------: | :---: | :----: |
@@ -569,13 +586,30 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-RBAC-005 | `POST /users` (role=kabupaten) |  ✅ 201   |  ❌ 403   |        ❌ 403        |  ❌ 403   | Integ |   ⬜   |
 | TC-RBAC-006 | `POST /surveys`                |  ✅ 201   |  ❌ 403   |        ✅ 201        |  ❌ 403   | Integ |   ⬜   |
 | TC-RBAC-007 | `GET /surveys`                 |  ✅ 200   |  ✅ 200   | ✅ 200 (OPD sendiri) |  ❌ 403   | Integ |   ⬜   |
-| TC-RBAC-008 | `GET /surveys/active`          |  ✅ 200   |  ❌ 403   |        ❌ 403        |  ✅ 200   | Integ |   ⬜   |
-| TC-RBAC-009 | `POST /surveys/:id/responses`  |     —     |  ❌ 403   |        ❌ 403        |  ✅ 201   | Integ |   ⬜   |
+| TC-RBAC-008 | `GET /surveys/active`          |  ✅ 200   |  ❌ 403   |        ❌ 403        |  ✅ 200   | Integ |   ✅   |
+| TC-RBAC-009 | `POST /surveys/:id/responses`  |     —     |  ❌ 403   |        ❌ 403        |  ✅ 201   | Integ |   ✅   |
 | TC-RBAC-010 | `GET /surveys/:id/results`     |  ✅ 200   |  ✅ 200   | ✅ 200 (OPD sendiri) |  ❌ 403   | Integ |   ⬜   |
-| TC-RBAC-011 | `POST /complaints`             |     —     |  ❌ 403   |        ❌ 403        |  ✅ 201   | Integ |   ⬜   |
+| TC-RBAC-011 | `POST /complaints`             |     —     |  ❌ 403   |        ❌ 403        |  ✅ 201   | Integ |   ✅   |
 | TC-RBAC-012 | `PATCH /complaints/:id/status` |  ✅ 200   |  ❌ 403   | ✅ 200 (OPD sendiri) |  ❌ 403   | Integ |   ⬜   |
 | TC-RBAC-013 | `GET /audit-logs`              |  ✅ 200   |  ✅ 200   |        ❌ 403        |  ❌ 403   | Integ |   ⬜   |
 | TC-RBAC-014 | `GET /dashboard/ikm`           |  ✅ 200   |  ✅ 200   |        ❌ 403        |  ❌ 403   | Integ |   ⬜   |
+
+> **(14 Oktober 2026) Tiga baris berstatus ✅, dan hanya tiga.** TC-RBAC-008,
+> 009, dan 011 kini punya uji untuk setiap kolom yang masih hidup: Kabupaten dan
+> Admin OPD di `peran-matriks-rbac.e2e-spec.ts`, Responden di
+> `responses.e2e-spec.ts:159` dan `:222` serta `complaints.e2e-spec.ts:176`.
+> Kolom Superuser pada ketiga baris itu tidak dihitung karena peran itu sudah
+> dibatalkan di kotak kepala dokumen ini.
+>
+> **TC-RBAC-012 TETAP ⬜ walau jalur suksesnya sudah diuji**, dan itu disengaja:
+> sel Kabupaten-nya sendiri masih salah (`❌ 403`, padahal rutenya
+> `@Roles(Role.kabupaten, Role.opd)`). Menandainya lulus akan meluluskan
+> harapan yang keliru. Sel itu perlu diperbaiki lebih dulu, dan itu keputusan
+> isi dokumen, bukan pekerjaan menulis uji.
+>
+> Sebelas baris lain tetap ⬜. Banyak di antaranya tersentuh suite e2e, tetapi
+> belum dipetakan sel per sel seperti ketiga baris di atas, dan tersentuh bukan
+> sama dengan terbukti.
 
 ### X.2 Isolasi Data OPD — Skenario Negatif Krusial
 
