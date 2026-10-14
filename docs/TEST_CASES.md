@@ -590,7 +590,7 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | ID          | Endpoint                       | Superuser |          Kabupaten          |      Admin OPD      | Responden | Tipe  | Status |
 | ----------- | ------------------------------ | :-------: | :-------------------------: | :-----------------: | :-------: | :---: | :----: |
 | TC-RBAC-001 | `GET /opd`                     |   ✅ 200   |            ✅ 200            |        ✅ 200        |   ✅ 200   | Integ |   ✅    |
-| TC-RBAC-002 | `POST /opd`                    |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-002 | `POST /opd/sync`               |     —     |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-003 | `GET /users`                   |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-004 | `POST /users` (role=opd)       |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-005 | `POST /users` (role=kabupaten) |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
@@ -663,14 +663,44 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > OPD tujuan saat buat pengaduan"). Sel Kabupaten-nya terbukti di `opd.e2e:77`.
 > Ketiga sel kini benar dan teruji, jadi barisnya lulus.
 >
-> **TC-RBAC-002 DIBATALKAN: rutenya tidak ada.** Tak ada `POST /opd` di
-> aplikasi ini. Yang ada `POST /opd/sync`, dan ia menjawab **200**, bukan 201
-> (`opd.e2e:140`; Admin OPD ditolak di `opd.e2e:174`). Daftar OPD disinkronkan
-> dari Helpdesk dan bersifat baca saja -- tak ada pembuatan OPD lewat API. Baris
-> itu karena itu salah pada endpoint, metode, dan statusnya sekaligus, dan tidak
-> diperbaiki di sini: menuliskannya ulang berarti memutuskan apakah ia menjadi
-> baris untuk `POST /opd/sync` atau dibuang, dan itu keputusan isi dokumen. Sel
-> Responden-nya pun tak pernah diuji.
+> **TC-RBAC-002 DITULIS ULANG MENJADI `POST /opd/sync` (14 Oktober 2026).**
+> Tak ada `POST /opd` di aplikasi ini, dan tak akan ada: daftar OPD disinkronkan
+> dari Helpdesk dan bersifat baca saja. Baris lamanya salah pada endpoint,
+> metode, dan statusnya sekaligus.
+>
+> Barisnya tidak dibuang, dan itu keputusan: `POST /opd/sync` adalah satu-satunya
+> jalur TULIS atas sumber daya OPD, persis yang pantas dijaga matriks RBAC.
+> Membuangnya menghapus cakupan rute yang nyata.
+>
+> Statusnya **200, bukan 201**: pelarinya ber-`@HttpCode(HttpStatus.OK)` dan
+> mengembalikan laporan sinkronisasi, bukan sumber daya baru. Sel pembuktinya:
+> Kabupaten `opd.e2e:138`, Admin OPD `opd.e2e:172`, Responden
+> `peran-matriks-rbac:259` -- yang terakhir ditulis hari ini, karena sel itu tak
+> pernah diuji.
+>
+> **Kolom Superuser diisi `—`, bukan ditebak.** Peran itu sudah dibatalkan di
+> kotak kepala dokumen ini, dan tak ada uji yang dapat menyentuhnya karena nilai
+> enumnya dibuang 15 September 2026.
+>
+> **Mutasi pembuktinya sengaja dipersempit, dan itu perlu dicatat.**
+> `@Roles(Role.kabupaten)` di `opd.controller.ts:48` diganti menjadi
+> `@Roles(Role.opd)`: responden tetap ditolak 403, tetapi pesannya menjadi
+> "Sumber daya ini hanya untuk peran: opd", sehingga ujinya memerah pada PESANnya
+> sementara handler-nya tak pernah berjalan. Terukur: tepat satu uji merah,
+> sepuluh lainnya tetap hijau.
+>
+> Mencabut `@Roles` sama sekali -- mutasi yang dipakai lima uji lain di berkas
+> itu -- TIDAK dijalankan. Tanpa gerbang, permintaan responden akan benar-benar
+> menjalankan `syncFromSource()`: satu panggilan keluar ke API Helpdesk
+> produksi, lalu penulisan baris OPD sungguhan ke `skm_uji` berikut penonaktifan
+> OPD yang tak ada di sumbernya. `peran-matriks-rbac.e2e-spec.ts` tidak memasang
+> `StubOpdSource` seperti `opd.e2e-spec.ts`. Bukti yang lebih mahal daripada
+> nilainya bukan bukti yang lebih baik, dan batas itu lebih baik tertulis
+> daripada dilewati diam-diam.
+>
+> Sel Admin OPD-nya hanya memeriksa STATUS, tanpa pesan (`opd.e2e:172`).
+> Tercakup, tetapi tidak sekuat sel Responden -- bentuk berstatus-saja terbukti
+> dua kali hari ini dapat tetap hijau walau gerbangnya hilang.
 >
 > **TIGA SEL YANG KOSONG ITU DITULIS HARI YANG SAMA**, jadi TC-RBAC-007 dan 010
 > ikut lulus. Responden pada `GET /surveys` di `peran-matriks-rbac:191`,
@@ -691,9 +721,9 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > memang tak ada -- pada id yang SUNGGUH ADA, `assertOpdAccess` yang menjawab
 > 403, dan uji berstatus-saja kembali tak dapat membedakannya.
 >
-> Tiga belas dari empat belas baris lulus sekarang. Satu sisanya TC-RBAC-002,
-> yang rutenya tidak ada; hitungan ini dihitung ulang dari kolom Status, bukan
-> dikira.
+> EMPAT BELAS dari empat belas baris lulus sekarang, sesudah TC-RBAC-002
+> ditulis ulang menjadi `POST /opd/sync` dan sel Respondennya diuji. Hitungan
+> ini dihitung ulang dari kolom Status, bukan dikira.
 
 ### X.2 Isolasi Data OPD — Skenario Negatif Krusial
 
