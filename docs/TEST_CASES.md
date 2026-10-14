@@ -25,6 +25,46 @@
 > tersurat, tidak disunting diam-diam** — menulis ulang kasus uji secara senyap
 > akan menghapus fakta bahwa cakupan ujinya berubah, dan itu justru yang perlu
 > terlihat oleh siapa pun yang memakai dokumen ini sebagai daftar kerja.
+>
+> **Cakupannya dipetakan 14 Oktober 2026**, dan hasilnya mengubah sifat
+> pekerjaannya: kasus-kasus yang ditandai itu **sudah tercakup suite e2e**, dan
+> beberapa lebih keras daripada baris TC-nya sendiri. Jadi yang dikerjakan bukan
+> menjalankan probe baru, melainkan mencocokkan isi uji yang ADA dengan deskripsi
+> TC lalu menetapkan statusnya — aturan yang memang berlaku di proyek ini:
+> cocokkan isi test dengan deskripsi TC sebelum menandai lulus.
+>
+> | TC | Status | Uji yang menanggungnya |
+> | --- | --- | --- |
+> | TC-USR-005 | ⛔ tak berlaku | `peran-kabupaten-penuh.e2e-spec.ts:108` — enum tak memuat `superuser`, tak ada akun memegangnya |
+> | TC-USR-006 | ⚠️ harapan terbalik, **201** | `users.e2e-spec.ts:97` |
+> | TC-USR-007 | ✅ pelaku berganti ke `kabupaten` | `users.e2e-spec.ts:97` |
+> | TC-USR-008 | ⛔ tak berlaku | `ASSIGNABLE_ROLES` + uji enum di atas |
+> | TC-USR-012 | ⛔ tak berlaku | uji enum; `assertSuperuser` tak ada lagi |
+> | TC-USR-013 | ✅ | `peran-kabupaten-penuh.e2e-spec.ts:75` — responden → 403 |
+> | TC-USR-014 | ✅ | `users.e2e-spec.ts:228` dan `peran-kabupaten-penuh.e2e-spec.ts:66` |
+> | TC-SVY-003 | ✅ pelaku `kabupaten` | `surveys.e2e-spec.ts:92` |
+>
+> Buktinya suite itu sendiri, bukan probe sekali jalan: 40 berkas / 426 uji e2e
+> terhadap `skm_uji`, dijalankan 13 Oktober 2026 terhadap kode yang **masih**
+> HEAD `main` hari ini — commit sesudahnya hanya menyentuh berkas Markdown. **`skm_db` tidak disentuh**, dan karena itu tak ada data uji
+> yang perlu dibersihkan — probe lewat server dev akan menulis akun dan survei
+> yang `bersihkan-data-uji.mjs` tak dapat hapus, sebab ia hanya menghapus baris
+> berpenanda `[UJI `.
+>
+> **Dua uji di antaranya memeriksa PESAN penolakan, bukan hanya statusnya, dan
+> alasannya terukur.** Docblock `peran-kabupaten-penuh.e2e-spec.ts` mencatat uji
+> mutasi: melepas `@Roles` dari controller **tidak** memerahkan uji yang hanya
+> memeriksa 403, karena lapis kedua (`assertKabupaten` di service) menangkapnya —
+> lapis pertama hilang tanpa satu pun uji yang mengeluh. Pola itu yang pantas
+> ditiru untuk baris TC-RBAC yang belum punya uji.
+>
+> **Satu cacat penamaan di kode uji, bukan di dokumen.** `users.e2e-spec.ts:83`
+> ber-`describe` "Superuser mengelola akun" dan tiga `it`-nya berawalan
+> "Superuser", padahal `asKab` membangun pelaku `Role.kabupaten`; docblock
+> baris 53 juga masih menyebut "peran-yang-dipakai `superuser`". Lebih buruk di
+> baris 226: `asKab` di dalam blok "Admin OPD BUKAN Admin Kabupaten" justru
+> membangun pelaku `Role.opd`. Penyakit yang sama dengan dokumen ini, kali ini di
+> kode.
 
 ## Sistem Survei Kepuasan Masyarakat (SKM) & Sistem Pengaduan Masyarakat
 
@@ -497,12 +537,28 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > Membuang kolomnya akan menghapus justru informasi yang menunjukkan baris mana
 > yang perlu diperiksa.
 >
-> **Dan jangan membaca kolom Kabupaten sebagai sudah terverifikasi.** Satu di
-> antaranya terbukti salah saat disisir: TC-RBAC-006 (`POST /surveys`) menandai
-> Kabupaten `❌ 403`, padahal endpoint itu ber-`@Roles(Role.kabupaten, Role.opd)`
-> dan `resolveOpdId` memang menyediakan jalur bagi `kabupaten` — ia menuntut
-> `opdId` di badan permintaan, lalu menjawab **201**. Lima baris lainnya belum
-> diperiksa terhadap kode.
+> **KEENAM BARIS ITU SUDAH DIPERIKSA TERHADAP KODE, 14 Oktober 2026.** Tiga
+> kolom Kabupaten ternyata salah, tiga benar:
+>
+> | Baris | Endpoint | Kolom Kab | Kenyataan | Bukti |
+> | --- | --- | --- | --- | --- |
+> | TC-RBAC-005 | `POST /users` (role=kabupaten) | `❌ 403` | **201** | `users.e2e-spec.ts:97` |
+> | TC-RBAC-006 | `POST /surveys` | `❌ 403` | **lolos gerbang**; 400 tanpa `opdId` | `surveys.e2e-spec.ts:92` |
+> | TC-RBAC-008 | `GET /surveys/active` | `❌ 403` | benar, `@Roles(Role.responden)` | belum ada uji |
+> | TC-RBAC-009 | `POST /surveys/:id/responses` | `❌ 403` | benar, `@Roles(Role.responden)` | belum ada uji |
+> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | belum ada uji |
+> | TC-RBAC-012 | `PATCH /complaints/:id/status` | `❌ 403` | **bukan 403 peran** | `complaints.e2e-spec.ts:815` |
+>
+> TC-RBAC-012 paling halus salahnya. Rutenya
+> `@Roles(Role.kabupaten, Role.opd)`, jadi Kabupaten **lolos gerbang peran**; yang
+> menolaknya aturan bisnis, bukan peran. Uji yang ada memakai `asKabupaten()` dan
+> menuntut **400** "statusnya tidak dapat diubah sebelum diteruskan". Jalur
+> SUKSES-nya — Kabupaten mengubah status pengaduan yang sudah diteruskan — belum
+> diuji sama sekali.
+>
+> Tiga baris yang kolomnya benar **belum punya uji** yang membuktikan Kabupaten
+> ditolak di sana. Benar menurut kode bukan sama dengan terbukti: `@Roles` yang
+> kelak dicabut tak akan memerahkan apa pun.
 
 | ID          | Endpoint                       | Superuser | Kabupaten |      Admin OPD       | Responden | Tipe  | Status |
 | ----------- | ------------------------------ | :-------: | :-------: | :------------------: | :-------: | :---: | :----: |
