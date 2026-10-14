@@ -3,7 +3,13 @@ node_modules/
 .env.*
 !.env.example
 dist/
+# Keluaran kompilasi pelari uji beban; dipisah dari `dist/` agar tak menimpa
+# milik `nest start --watch`.
+dist-beban/
 .next/
+# Keluaran build untuk uji E2E (apps/web/scripts/server-e2e.mjs). Terpisah dari
+# .next supaya build pengujian tak menimpa milik server pengembangan.
+.next-e2e/
 coverage/
 *.log
 
@@ -14,3 +20,18 @@ package-lock.json
 # Dokumen kerja skill "superpowers" (spec & rencana implementasi). Berguna
 # selama pengerjaan, tapi bukan dokumentasi produk -- tak perlu masuk GitLab.
 docs/superpowers/
+
+# Setelan Claude Code per-mesin. `.claude/skills/` dan `.claude/settings.json`
+# SENGAJA tercatat: isinya aturan kerja proyek yang harus berlaku bagi siapa
+# pun yang mengklona repo ini. Yang dikecualikan hanya berkas `*.local.*`,
+# yang memuat keputusan izin milik satu pengembang, bukan aturan proyek.
+.claude/**/*.local.*
+
+# Cadangan basis data & lampiran (23 September 2026).
+#
+# Terenkripsi, dan itu TETAP bukan alasan untuk menaruhnya di repositori.
+# Riwayat git disalin ke setiap klona dan sering berakhir di forge yang
+# aksesnya lebih luas daripada server aslinya; sebuah cadangan di sana adalah
+# seluruh basis data yang menunggu satu kunci bocor. Cadangan disimpan DI LUAR
+# repositori, beserta kedua kuncinya.
+cadangan/
