@@ -10,6 +10,12 @@ dist-beban/
 # Keluaran build untuk uji E2E (apps/web/scripts/server-e2e.mjs). Terpisah dari
 # .next supaya build pengujian tak menimpa milik server pengembangan.
 .next-e2e/
+
+# Keadaan masuk Playwright (`apps/web/e2e/.auth/`). Isinya token sesi JWT hasil
+# dev-login, satu per peran, supaya suite E2E tak perlu masuk ulang tiap berkas.
+# Kedaluwarsa pun bentuknya tetap kredensial, dan sekali masuk riwayat git ia
+# tersalin ke setiap klona; membersihkannya menuntut penulisan ulang cabang.
+.auth/
 coverage/
 *.log
 
