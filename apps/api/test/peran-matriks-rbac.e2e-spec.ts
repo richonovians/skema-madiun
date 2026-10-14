@@ -232,4 +232,35 @@ describe('Matriks TC-RBAC: rute khusus responden (e2e)', () => {
       expect(String(res.body.message)).toMatch(HANYA_RESPONDEN);
     });
   });
+
+  /**
+   * TC-RBAC-002, 14 Oktober 2026. Baris matriksnya semula berbunyi `POST /opd`,
+   * rute yang TAK PERNAH ADA; ia ditulis ulang menjadi `POST /opd/sync`, satu-
+   * satunya jalur tulis atas sumber daya OPD. Dua selnya sudah teruji di
+   * `opd.e2e-spec.ts` (Kabupaten 200 di `:138`, Admin OPD 403 di `:172`); sel
+   * RESPONDEN inilah yang tak pernah diuji.
+   *
+   * MUTASI YANG MEMBUKTIKANNYA SENGAJA DIPERSEMPIT. `@Roles(Role.kabupaten)` di
+   * `opd.controller.ts:48` diganti menjadi `@Roles(Role.opd)`: responden tetap
+   * ditolak 403, tetapi pesannya berubah menjadi "hanya untuk peran: opd"
+   * sehingga uji ini memerah pada PESANnya -- dan handler-nya tak pernah
+   * berjalan.
+   *
+   * Mencabut `@Roles` sama sekali, mutasi yang biasa dipakai di berkas ini,
+   * TIDAK dijalankan di sini dan itu keputusan: tanpa gerbang, permintaan
+   * responden akan benar-benar menjalankan `syncFromSource()` -- satu panggilan
+   * keluar ke API Helpdesk produksi, lalu penulisan baris OPD sungguhan ke
+   * `skm_uji` berikut penonaktifan OPD yang tak ada di sumbernya. Berkas ini
+   * tidak memasang `StubOpdSource` seperti `opd.e2e-spec.ts`.
+   */
+  describe('TC-RBAC-002: POST /opd/sync', () => {
+    const HANYA_KABUPATEN = /hanya untuk peran: kabupaten/i;
+
+    it('Responden ditolak di gerbang peran', async () => {
+      const res = await request(app.getHttpServer()).post('/api/v1/opd/sync').set(responden());
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(HANYA_KABUPATEN);
+    });
+  });
 });
