@@ -36,8 +36,8 @@ export default function AdminDashboardPage() {
     // `opdId` tak lagi dikirim dari klien (5 September 2026): halaman ini hanya
     // terbuka bagi sesi yang sedang bertindak sebagai `opd` (proxy.js), dan
     // backend menurunkan instansinya dari `users.opd_id` --
-    // DashboardService.resolveDashboardOpdId. Superuser yang ingin membukanya
-    // harus punya role `opd` beserta tautan OPD-nya.
+    // DashboardService.resolveDashboardOpdId. Admin Kabupaten yang ingin
+    // membukanya harus punya role `opd` beserta tautan OPD-nya.
     const [dashboard, surveysResult, complaintsResult] = await Promise.all([
       getOpdDashboard(),
       getSurveys({ limit: LIST_LIMIT }),

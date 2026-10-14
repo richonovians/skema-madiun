@@ -133,7 +133,7 @@ export async function addComplaintReply(complaintId, pesan, files = []) {
  * Teruskan pengaduan yang belum bertujuan ke OPD berwenang
  * (`PATCH /complaints/:id/opd`, 6 September 2026).
  *
- * Haknya (Superuser & Admin Kabupaten) ditegakkan backend di dalam
+ * Haknya (Admin Kabupaten) ditegakkan backend di dalam
  * ComplaintsService.forward, bukan di sini.
  */
 export async function forwardComplaint(id, opdId) {

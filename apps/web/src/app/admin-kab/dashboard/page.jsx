@@ -71,10 +71,7 @@ export default function AdminKabDashboardPage() {
   } = useAsync(fetchFiltered);
 
   const fetchGlobal = useCallback(async () => {
-    // Log aktivitas kini HANYA untuk superuser (2026-08-20). Perannya harus
-    // diketahui DULU: kalau `/audit-logs` tetap dipanggil oleh Admin Kabupaten
-    // biasa, backend menjawab 403 dan -- karena satu Promise.all -- SELURUH
-    // dashboard gagal memuat, bukan cuma seksi aktivitasnya.
+    // Perannya harus diketahui DULU, sebelum `/audit-logs` dipanggil.
     const profile = await getMyProfile();
     // Log aktivitas kini milik Admin Kabupaten (peleburan 15 September 2026),
     // dan halaman ini memang hanya dibuka peran itu. Penjaganya tetap dipasang

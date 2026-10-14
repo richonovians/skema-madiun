@@ -8,8 +8,8 @@ import ForwardComplaintModal from '../ForwardComplaintModal';
 
 /**
  * TRIASE PENGADUAN (permintaan pengguna 6 September 2026): pengaduan yang
- * pengirimnya tak tahu tujuannya masuk tanpa OPD, lalu Superuser/Admin
- * Kabupaten meneruskannya ke OPD yang berwenang.
+ * pengirimnya tak tahu tujuannya masuk tanpa OPD, lalu Admin Kabupaten
+ * meneruskannya ke OPD yang berwenang.
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 const server = setupServer(...handlers);

@@ -253,16 +253,15 @@ export const handlers = [
     if (identifier.includes('tidak-ada'))
       return fail(404, `Pengguna dengan email/ssoSubject "${identifier}" tidak ditemukan`);
 
-    // `superuser` diperiksa PALING DULU: peran itu dikembalikan sebagai peran
-    // tersendiri pada 2026-08-26, dan alamat seed-nya tak memuat kata lain yang
-    // bisa keliru tertangkap cabang di bawahnya.
-    const role = identifier.includes('superuser')
-      ? 'superuser'
-      : identifier.includes('kabupaten')
-        ? 'kabupaten'
-        : identifier.includes('opd')
-          ? 'opd'
-          : 'responden';
+    // Cabang `superuser` DIBUANG 14 Oktober 2026: peran itu dilebur
+    // 15 September 2026 dan nilai enumnya tak ada lagi di backend, jadi mock
+    // yang membalasnya memberi uji komponen peran yang aplikasi sungguhan tak
+    // akan pernah mengirim. Tak ada uji yang mengirim identifier semacam itu.
+    const role = identifier.includes('kabupaten')
+      ? 'kabupaten'
+      : identifier.includes('opd')
+        ? 'opd'
+        : 'responden';
 
     return created(
       {

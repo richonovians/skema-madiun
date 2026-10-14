@@ -96,9 +96,10 @@ function AnalyticsPageContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Dipersempit ke OPD yang diperankan superuser bila ada (lihat
-  // app/admin-opd/surveys/page.jsx) supaya pemilih survei di halaman ini tak
-  // menawarkan survei OPD lain.
+  // Daftarnya sudah dipersempit backend ke OPD akun ini (opd-scope.util.ts),
+  // jadi pemilih survei di halaman ini tak menawarkan survei OPD lain. Sampai
+  // 5 September 2026 penyempitan itu dilakukan dari sisi klien, karena peran
+  // berakses penuh dapat "memerankan" OPD mana pun.
   //
   // TAUTAN `?surveyId=` DISESUAIKAN DI SINI, saat datanya tiba, bukan di sebuah
   // efek. Survei yang diklik pengguna bisa berada di luar penyaring (bakunya

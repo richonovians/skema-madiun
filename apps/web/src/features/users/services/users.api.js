@@ -32,9 +32,10 @@ export async function getUserById(userId) {
  * Mengubah ROLE akun (`PATCH /users/:id`).
  *
  * HANYA role, sejak 8 September 2026: `nama` & `opdId` berasal dari Helpdesk
- * dan backend menolak keduanya dengan 400 (UpdateUserDto). Sejak 2026-08-20
- * hanya superuser yang boleh memanggilnya, dan backend menolak 403 bila
- * userId == diri sendiri (cegah self-lockout).
+ * dan backend menolak keduanya dengan 400 (UpdateUserDto). Hanya Admin
+ * Kabupaten yang boleh memanggilnya -- pembatasan itu lahir 2026-08-20 atas
+ * nama `superuser` dan berpindah bersama peleburan 15 September 2026 -- dan
+ * backend menolak 403 bila userId == diri sendiri (cegah self-lockout).
  * @param {number|string} userId
  * @param {{roles?: string[]}} payload
  * @returns {Promise<Object>}

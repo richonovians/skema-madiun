@@ -16,7 +16,6 @@ export default function AdminSurveysPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState(null);
 
-  // Superuser yang masuk sebagai Admin OPD untuk SATU OPD (lihat
   // Penyaring `?opdId=` DIBUANG 5 September 2026. Dulu diperlukan karena
   // superuser bisa "memerankan" OPD mana pun sementara backend memberinya
   // cakupan penuh, jadi daftarnya harus dipersempit dari sisi klien. Sekarang

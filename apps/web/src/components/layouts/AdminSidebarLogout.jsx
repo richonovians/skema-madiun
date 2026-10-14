@@ -14,7 +14,7 @@ import { useLogout } from '@/hooks/useLogout';
  *   Dulu blok `mt-auto` ini tinggal di dalam `<aside>` ber-`h-screen
  *   flex flex-col` TANPA `overflow-y-auto`. `mt-auto` menempel ke dasar KOTAK
  *   sidebar, bukan dasar layar, jadi begitu daftar menu melebihi tinggi layar
- *   -- pasti terjadi pada superuser, yang menunya bertambah dua -- blok ini
+ *   -- pasti terjadi pada Admin Kabupaten, yang menunya bertambah dua -- blok ini
  *   terdorong keluar kotak `fixed`. Karena `fixed` tak ikut bergulir bersama
  *   halaman dan tak ada gulir di dalam sidebar, tombolnya jadi BENAR-BENAR
  *   tak terjangkau.

@@ -27,7 +27,7 @@ import { saveActingRoleCookie, saveConsentFlag } from './authStorage';
  * persetujuan sama sekali, dan tak ada kabar bukan alasan mencabut penanda
  * milik warga yang sudah menyetujui.
  *
- * @param {string} role peran BACKEND ('superuser'|'kabupaten'|'opd'|'responden')
+ * @param {string} role peran BACKEND ('kabupaten'|'opd'|'responden')
  */
 export async function setActingRole(role) {
   const response = await api.post('/auth/acting-role', { role });
