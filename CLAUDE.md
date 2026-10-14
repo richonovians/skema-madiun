@@ -103,6 +103,21 @@ karena uji yang dimaksud memang ikut jalan dan lulus; yang tak terlihat adalah
 92 uji lain yang ikut menulis baris ke basis data. Diperbaiki 7 Oktober 2026
 setelah dua kali tanpa sengaja menjalankan suite penuh.
 
+**`-t` TIDAK menyaring pada e2e `apps/api`; ia menjadi pola JALUR.**
+`scripts/uji-e2e.ts` meneruskan `process.argv.slice(2)` apa adanya ke jest, dan
+jest memperlakukan setiap argumen sebagai pola jalur yang digabung dengan `|`.
+Terukur 14 Oktober 2026: `test:e2e -- peran-matriks-rbac.e2e-spec.ts -t "TC-RBAC-008"`
+dijawab jest dengan
+`Ran all test suites matching /peran-matriks-rbac.e2e-spec.ts|-t|TC-RBAC-008|--listTests/i`,
+sehingga `-t` ikut mencocokkan `auth-throttle` dan `surveys-trash` -- dua suite
+dan dua puluh uji tak terkait ikut jalan, dan uji yang dimaksud tetap terlihat
+benar.
+
+**Jangan mengakalinya dengan memanggil jest langsung.** Pelarinya itulah yang
+menukar `DATABASE_URL` ke `skm_uji`; `pnpm exec jest --config test/jest-e2e.json`
+memakai lingkungan apa adanya, jadi ia menulis ke `skm_db`. Untuk satu uji saja,
+jalankan satu BERKAS penuh dan biarkan sisanya ikut.
+
 **`--forceExit` wajib untuk Jest `apps/web`.** Tanpa itu prosesnya menggantung sesudah uji selesai ("Jest did not exit one second after the test run has completed"), dan menyalurkannya ke `tail` menyembunyikan seluruh keluaran sampai proses berakhir. Uji biasanya tuntas di bawah 10 detik; jika terlihat menggantung lebih lama, itu gejalanya, bukan ujinya yang lambat.
 
 **Sesudah menjalankan suite E2E apa pun, bersihkan data uji:**
