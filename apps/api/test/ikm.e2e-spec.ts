@@ -152,8 +152,9 @@ describe('IKM (e2e)', () => {
     await prisma.surveyResponse.deleteMany({
       where: { survey: { opdId: { in: [opdId, opdId2] } } },
     });
-    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
-    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    // Notifikasi jawaban survei menyasar akun berperan penuh
+    // (`FULL_ACCESS_ROLES`, kini hanya `kabupaten`) yang SUNGGUHAN ada di basis
+    // data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await bersihkanNotifikasiSurvei(prisma, opdId2);
     await prisma.survey.deleteMany({ where: { opdId: { in: [opdId, opdId2] } } });

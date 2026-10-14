@@ -141,8 +141,9 @@ describe('Responses (e2e)', () => {
     // Hapus respons dulu (cascade ke answers); jika tidak, hapus survey → cascade ke
     // questions terganjal RESTRICT answers_question_id_fkey.
     await prisma.surveyResponse.deleteMany({ where: { survey: { opdId } } });
-    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
-    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    // Notifikasi jawaban survei menyasar akun berperan penuh
+    // (`FULL_ACCESS_ROLES`, kini hanya `kabupaten`) yang SUNGGUHAN ada di basis
+    // data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.survey.deleteMany({ where: { opdId } });
     // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat

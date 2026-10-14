@@ -19,8 +19,14 @@ import { PenerbitSesi } from '../src/modules/auth/session/penerbit-sesi.service'
  *
  * Endpoint yang dipakai sebagai batu uji adalah `GET /audit-logs`: satu-satunya
  * milik `kabupaten` sejak peleburan 15 September 2026 (bersama manajemen pengguna), dan
- * penjagaannya ada DI DALAM service (`AuditService.assertSuperuser`), bukan di
- * `@Roles` -- karena peran berhak penuh melewati dekorator itu.
+ * penjagaannya `@Roles(Role.kabupaten)` di controller (`audit.controller.ts:34`).
+ *
+ * Baris ini sempat menyatakan penjagaannya ada DI DALAM service lewat
+ * `AuditService.assertSuperuser`, "bukan di `@Roles` karena peran berhak penuh
+ * melewati dekorator itu". Dua-duanya sudah tak benar (14 Oktober 2026):
+ * metodenya tak ada lagi di `apps/api/src/`, dan jalan pintas atas `@Roles`
+ * dibongkar audit T6 (7 September 2026) sehingga dekoratornya ditegakkan apa
+ * adanya.
  *
  * TOKENNYA DITERBITKAN LEWAT `PenerbitSesi`, BUKAN `SessionService.issue()`
  * (7 Oktober 2026). Sejak daftar pencabutan sesi hidup, `issue()` menempelkan
