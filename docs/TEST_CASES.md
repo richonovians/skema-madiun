@@ -80,7 +80,7 @@
 - **ID:** `TC-[MODUL]-[NOMOR]`
 - **Prioritas:** P0 (Kritis), P1 (Tinggi), P2 (Sedang), P3 (Rendah)
 - **Tipe:** Unit, Integration (Integ), E2E, Manual
-- **Status:** ⬜ Belum dikerjakan, 🟡 Dalam pengerjaan, ✅ Lulus, ❌ Gagal, ⏭️ Dilewati
+- **Status:** ⬜ Belum dikerjakan, 🟡 Dalam pengerjaan, ✅ Lulus, ❌ Gagal, ⏭️ Dilewati, ⛔ Tak berlaku (rute atau fitur yang diandaikannya tidak ada)
 
 ---
 
@@ -244,20 +244,50 @@ Referensi: PRD §8.1, Routes §A.1, kode `apps/api/src/modules/auth/**`
 
 Referensi: PRD §8.2 (FR-OPD-01 ~ FR-OPD-03), Routes §A.2
 
-| ID         | Skenario                                            | Langkah                                                           | Data Input                                                                 | Expected Result                                                               | Prioritas | Tipe  | Status |
-| ---------- | --------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | :-------: | :---: | :----: |
-| TC-OPD-001 | Daftar OPD (Admin Kabupaten)                        | GET `/opd`                                                        | Query: `page=1, limit=10`                                                  | 200 OK; array OPD dengan pagination                                           |    P1     | Integ |   ⬜   |
-| TC-OPD-002 | Daftar OPD dengan filter pencarian nama             | GET `/opd?search=kesehatan`                                       | `search=kesehatan`                                                         | 200 OK; hanya OPD yang namanya mengandung "kesehatan"                         |    P2     | Integ |   ⬜   |
-| TC-OPD-003 | Daftar OPD filter status aktif                      | GET `/opd?isActive=true`                                          | `isActive=true`                                                            | 200 OK; hanya OPD yang `is_active = true`                                     |    P2     | Integ |   ⬜   |
-| TC-OPD-004 | Tambah OPD manual (Admin Kabupaten)                 | POST `/opd`                                                       | `{ nama: "Dinas Pendidikan", kode: "DISDIK", jenisLayanan: "Pendidikan" }` | 201 Created; OPD tersimpan; `is_active = true`                                |    P1     | Integ |   ⬜   |
-| TC-OPD-005 | Tambah OPD dengan kode duplikat                     | POST `/opd`                                                       | Kode yang sudah ada                                                        | 409 Conflict; "Kode OPD sudah digunakan"                                      |    P1     | Integ |   ⬜   |
-| TC-OPD-006 | Detail OPD (Admin Kabupaten melihat semua)          | GET `/opd/:id` sebagai kabupaten                                  | ID OPD valid                                                               | 200 OK; detail OPD                                                            |    P1     | Integ |   ⬜   |
-| TC-OPD-007 | Detail OPD — Admin OPD hanya melihat OPD sendiri    | GET `/opd/:id` sebagai OPD Dinkes                                 | ID OPD Disdukcapil (bukan miliknya)                                        | 403 Forbidden                                                                 |    P0     | Integ |   ⬜   |
-| TC-OPD-008 | Ubah data OPD (Admin Kabupaten)                     | PATCH `/opd/:id`                                                  | `{ nama: "Dinas Kesehatan Baru" }`                                         | 200 OK; data ter-update                                                       |    P1     | Integ |   ⬜   |
-| TC-OPD-009 | Nonaktifkan OPD                                     | PATCH `/opd/:id/status`                                           | `{ isActive: false }`                                                      | 200 OK; OPD `is_active = false`; survei/pengaduan tetap ada (soft deactivate) |    P1     | Integ |   ⬜   |
-| TC-OPD-010 | Sinkronisasi OPD dari Helpdesk                      | POST `/opd/sync`                                                  | — (fetch dari sumber eksternal)                                            | 200 OK; report: `created`, `updated`, `deactivated`, `skipped`                |    P2     | Integ |   ⬜   |
-| TC-OPD-011 | Sinkronisasi — OPD hilang dari source dinonaktifkan | POST `/opd/sync` dengan source yang tidak mengandung OPD tertentu | —                                                                          | OPD yang hilang: `is_active = false`; TIDAK dihapus (jaga FK)                 |    P1     | Integ |   ⬜   |
-| TC-OPD-012 | Responden tidak bisa akses daftar OPD               | GET `/opd` sebagai responden                                      | Token responden                                                            | 403 Forbidden                                                                 |    P0     | Integ |   ⬜   |
+| ID         | Skenario                                            | Langkah                                                           | Data Input                                                                 | Expected Result                                                                                                                          | Prioritas | Tipe  | Status |
+| ---------- | --------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | :-------: | :---: | :----: |
+| TC-OPD-001 | Daftar OPD (Admin Kabupaten)                        | GET `/opd`                                                        | Query: `page=1, limit=10`                                                  | 200 OK; array OPD dengan pagination                                                                                                      |    P1     | Integ |   ⬜    |
+| TC-OPD-002 | Daftar OPD dengan filter pencarian nama             | GET `/opd?search=kesehatan`                                       | `search=kesehatan`                                                         | 200 OK; hanya OPD yang namanya mengandung "kesehatan"                                                                                    |    P2     | Integ |   ⬜    |
+| TC-OPD-003 | Daftar OPD filter status aktif                      | GET `/opd?isActive=true`                                          | `isActive=true`                                                            | 200 OK; hanya OPD yang `is_active = true`                                                                                                |    P2     | Integ |   ⬜    |
+| TC-OPD-004 | Tambah OPD manual (Admin Kabupaten)                 | POST `/opd`                                                       | `{ nama: "Dinas Pendidikan", kode: "DISDIK", jenisLayanan: "Pendidikan" }` | **DIBATALKAN 14 Oktober 2026: rutenya tidak ada.** Lihat catatan di bawah tabel                                                          |    P1     | Integ |   ⛔    |
+| TC-OPD-005 | Tambah OPD dengan kode duplikat                     | POST `/opd`                                                       | Kode yang sudah ada                                                        | **DIBATALKAN 14 Oktober 2026: rutenya tidak ada.** Lihat catatan di bawah tabel                                                          |    P1     | Integ |   ⛔    |
+| TC-OPD-006 | Detail OPD (Admin Kabupaten melihat semua)          | GET `/opd/:id` sebagai kabupaten                                  | ID OPD valid                                                               | 200 OK; detail OPD                                                                                                                       |    P1     | Integ |   ⬜    |
+| TC-OPD-007 | Detail OPD — Admin OPD hanya melihat OPD sendiri    | GET `/opd/:id` sebagai OPD Dinkes                                 | ID OPD Disdukcapil (bukan miliknya)                                        | 403 Forbidden                                                                                                                            |    P0     | Integ |   ⬜    |
+| TC-OPD-008 | Ubah data OPD (Admin Kabupaten)                     | PATCH `/opd/:id`                                                  | `{ nama: "Dinas Kesehatan Baru" }`                                         | **DIBATALKAN 14 Oktober 2026: rutenya tidak ada.** Lihat catatan di bawah tabel                                                          |    P1     | Integ |   ⛔    |
+| TC-OPD-009 | Nonaktifkan OPD                                     | PATCH `/opd/:id/status`                                           | `{ isActive: false }`                                                      | **DIBATALKAN 14 Oktober 2026: rutenya tidak ada.** Penonaktifan terjadi lewat `POST /opd/sync` (TC-OPD-011), bukan lewat rute tersendiri |    P1     | Integ |   ⛔    |
+| TC-OPD-010 | Sinkronisasi OPD dari Helpdesk                      | POST `/opd/sync`                                                  | — (fetch dari sumber eksternal)                                            | 200 OK; report: `created`, `updated`, `deactivated`, `skipped`                                                                           |    P2     | Integ |   ⬜    |
+| TC-OPD-011 | Sinkronisasi — OPD hilang dari source dinonaktifkan | POST `/opd/sync` dengan source yang tidak mengandung OPD tertentu | —                                                                          | OPD yang hilang: `is_active = false`; TIDAK dihapus (jaga FK)                                                                            |    P1     | Integ |   ⬜    |
+| TC-OPD-012 | Responden JUGA dapat membuka daftar OPD             | GET `/opd` sebagai responden                                      | Token responden                                                            | 200 OK; daftar OPD sengaja terbuka bagi seluruh peran terautentikasi — `opd.e2e:97`                                                      |    P0     | Integ |   ✅    |
+
+> **(14 Oktober 2026) EMPAT BARIS DI ATAS DIBATALKAN, DAN SATU HARAPAN
+> DIKOREKSI.** Ditemukan sambil memutuskan nasib TC-RBAC-002, yang juga
+> mengandaikan `POST /opd`.
+>
+> `opd.controller.ts` hanya punya TIGA rute: `GET /opd` (tanpa `@Roles`),
+> `POST /opd/sync` (`@Roles(Role.kabupaten)`), dan `GET /opd/:id`
+> (`@Roles(Role.kabupaten, Role.opd)`). Tak ada POST, PATCH, PUT, atau DELETE
+> atas OPD selain sinkronisasi.
+>
+> Itu bukan kekurangan yang menunggu dikerjakan, melainkan rancangan: daftar OPD
+> disinkronkan dari Helpdesk dan bersifat BACA SAJA, sebagaimana tercatat di
+> CLAUDE.md. Menambah atau menyunting OPD lewat API SKEMA akan membuat dua
+> sumber kebenaran yang saling menimpa pada sinkronisasi berikutnya. Karena itu
+> keempat baris ditandai ⛔ tak berlaku, bukan ⬜ belum dikerjakan: ia tak akan
+> pernah dikerjakan, dan penguji berikutnya tak perlu menemukan jalan buntunya
+> sendiri.
+>
+> **TC-OPD-012 cacat jenis LAIN: harapannya yang salah, bukan rutenya yang
+> hilang.** Ia menuntut Responden ditolak 403 pada `GET /opd`; kenyataannya
+> **200**, dan itu disengaja. Rutenya memang tanpa `@Roles`, dan dua uji menamai
+> alasannya: `opd.e2e:89` ("INT-18: list terbuka semua peran terautentikasi")
+> serta `opd.e2e:97` ("dibutuhkan dropdown OPD tujuan saat buat pengaduan").
+> Selnya dikoreksi dan barisnya lulus. Cacat yang sama pernah ditemukan pada
+> TC-RBAC-001, dari sumber yang sama.
+>
+> Tujuh baris sisanya di tabel ini TIDAK dipetakan hari ini, dan statusnya tetap
+> ⬜ walau sebagian sudah punya uji di `opd.e2e-spec.ts`. Menandainya lulus
+> menuntut pembacaan badan uji satu per satu, seperti yang dilakukan pada matriks
+> TC-RBAC, dan itu pekerjaan tersendiri.
 
 ---
 
