@@ -128,8 +128,9 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       await prisma.question.deleteMany({ where: { surveyId } });
       await prisma.ikmResult.deleteMany({ where: { surveyId } });
     }
-    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
-    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    // Notifikasi jawaban survei menyasar akun berperan penuh
+    // (`FULL_ACCESS_ROLES`, kini hanya `kabupaten`) yang SUNGGUHAN ada di basis
+    // data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.survey.deleteMany({ where: { opdId } });
     if (complaintId) {
@@ -145,8 +146,8 @@ describe('Alur End-to-End per Peran (e2e)', () => {
     await app.close();
   }, 30000);
 
-  describe('1. Superuser: siapkan akun Admin OPD', () => {
-    it('POST /users (peran superuser) -> buat akun Admin OPD baru', async () => {
+  describe('1. Admin Kabupaten: siapkan akun Admin OPD', () => {
+    it('POST /users (peran kabupaten) -> buat akun Admin OPD baru', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/users')
         .set(kabupatenHeaders())
@@ -403,10 +404,12 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       expect(item?.nilaiIkm).toBe(75);
     });
 
-    it('GET /audit-logs (peran superuser) -> seluruh aksi Admin OPD di atas tercatat', async () => {
-      // Audit log superuser-saja; pemantauan lintas OPD di dua uji sebelumnya
-      // TETAP dengan peran kabupaten. Akun yang sama, hak yang berbeda --
-      // itulah yang membuat pasangan ini berarti.
+    it('GET /audit-logs (peran kabupaten) -> seluruh aksi Admin OPD di atas tercatat', async () => {
+      // Audit log kabupaten-saja, sama seperti pemantauan lintas OPD di dua uji
+      // sebelumnya. Judul dan komentar ini sempat berbunyi `superuser` padahal
+      // pemanggilnya `kabupatenHeaders()` -- pasangan hak yang dulu dikontraskan
+      // hilang bersama peleburan 15 September 2026 (lihat docblock di atas),
+      // dan yang masih dikontraskan berkas ini adalah kabupaten vs opd.
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-logs')
         .query({ actorId: opdAdminUserId, limit: 50 })

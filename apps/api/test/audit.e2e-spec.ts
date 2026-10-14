@@ -91,7 +91,7 @@ describe('Audit Log (e2e)', () => {
    */
   const kabupatenHeaders = () => devHeaders({ role: Role.kabupaten });
 
-  it('POST /surveys (aksi tercatat) -> GET /audit-logs (Superuser) menampilkannya', async () => {
+  it('POST /surveys (aksi tercatat) -> GET /audit-logs (Admin Kabupaten) menampilkannya', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')
       .set(opdHeaders())
@@ -219,7 +219,8 @@ describe('Audit Log (e2e)', () => {
   });
 
   it('GET /audit-logs (Responden) -> 403, pesannya menyebut peran yang dibutuhkan', async () => {
-    // PASANGAN yang membuat uji "Superuser -> 200" di atas berarti. Tanpa ini,
+    // PASANGAN yang membuat uji "GET /audit-logs (Admin Kabupaten)" di atas
+    // berarti. Tanpa ini,
     // 200 itu bisa saja karena endpointnya terbuka bagi peran mana pun.
     const res = await request(app.getHttpServer())
       .get('/api/v1/audit-logs')
@@ -268,7 +269,7 @@ describe('Audit Log (e2e)', () => {
     expect(hasGetEntry).toBe(false);
   });
 
-  it('GET /audit-logs/:id (Superuser) mengembalikan satu entri sesuai id', async () => {
+  it('GET /audit-logs/:id (Admin Kabupaten) mengembalikan satu entri sesuai id', async () => {
     await request(app.getHttpServer()).post('/api/v1/surveys').set(opdHeaders()).send({
       judul: 'Survei Detail Audit',
       periode: '2026-Q3',
