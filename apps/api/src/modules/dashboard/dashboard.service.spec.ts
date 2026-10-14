@@ -19,7 +19,12 @@ const kabupatenUser = (): CurrentUser => ({
   actingRole: Role.kabupaten,
   opdId: null,
 });
-const superUser = (): CurrentUser => ({
+/**
+ * Akun Admin Kabupaten KEDUA (id 3). Pembantu ini sempat bernama `superUser`
+ * sambil membangun `Role.kabupaten`; peran `superuser` dilebur 15 September
+ * 2026 dan nilai enumnya dibuang (dibereskan 14 Oktober 2026).
+ */
+const kabupatenUserLain = (): CurrentUser => ({
   userId: 3,
   roles: [Role.kabupaten],
   actingRole: Role.kabupaten,
@@ -102,13 +107,15 @@ describe('DashboardService', () => {
      * sudah tak ada di tanda tangan mana pun, jadi jaminan itu kini struktural.
      * Yang menjaganya di tingkat HTTP -- di mana query masih bisa dikirim
      * siapa pun -- ada di test/multi-role.e2e-spec.ts
-     * ("act=superuser + ?opdId= -> 403").
+     * ("act=kabupaten + ?opdId= -> 403").
      *
      * Jalan yang benar sekarang: berpindah ke peran `opd` lewat
      * `POST /auth/acting-role`, yang memakai `users.opd_id` akun itu sendiri.
      */
-    it('Superuser -> Forbidden (dashboard OPD bukan miliknya)', async () => {
-      await expect(service.getOpdDashboard(superUser())).rejects.toThrow(ForbiddenException);
+    it('Admin Kabupaten -> Forbidden (dashboard OPD bukan miliknya)', async () => {
+      await expect(service.getOpdDashboard(kabupatenUserLain())).rejects.toThrow(
+        ForbiddenException,
+      );
       // Bukan cuma status penolakannya: tak boleh ada satu pun query yang
       // sempat berjalan atas OPD yang bukan miliknya.
       expect(prisma.survey.findFirst).not.toHaveBeenCalled();
@@ -507,8 +514,9 @@ describe('DashboardService', () => {
    */
 
   /**
-   * JUMLAH AKUN AKTIF (permintaan pengguna 6 September 2026): halaman superuser
-   * menampilkan seluruh akun aktif, halaman Admin OPD hanya akun OPD itu.
+   * JUMLAH AKUN AKTIF (permintaan pengguna 6 September 2026): halaman Admin
+   * Kabupaten menampilkan seluruh akun aktif, halaman Admin OPD hanya akun OPD
+   * itu.
    */
   describe('jumlah akun aktif', () => {
     it('statistik: activeUsers menghitung akun aktif yang belum dihapus', async () => {

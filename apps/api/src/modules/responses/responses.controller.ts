@@ -43,7 +43,7 @@ export class ResponsesController {
    * catatannya menjawab "warga mengirim jawaban survei mana", BUKAN dijawab
    * apa. Kunci `answers` dipertahankan sedangkan nilainya disunting -- lihat
    * daftar tolak di `audit-redact.util.ts`, yang sengaja diperluas lebih dulu
-   * supaya jawaban warga tak tersalin ke tabel yang dibaca superuser.
+   * supaya jawaban warga tak tersalin ke tabel yang dibaca Admin Kabupaten.
    *
    * Jalur TANPA SESI (`PublicResponsesController`) SENGAJA tidak diaudit:
    * pengisinya tak punya baris `users`, sedangkan `audit_logs.actor_id`

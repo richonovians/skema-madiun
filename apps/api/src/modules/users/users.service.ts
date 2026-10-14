@@ -26,13 +26,17 @@ export class UsersService {
   ) {}
 
   /**
-   * Manajemen pengguna HANYA untuk `superuser` (2026-08-20, atas permintaan
-   * user) -- Admin Kabupaten biasa tak lagi boleh membuat/mengubah/menghapus akun
-   * maupun melihat daftarnya.
+   * Manajemen pengguna HANYA untuk `kabupaten` -- Admin OPD dan Responden tak
+   * boleh membuat/mengubah/menghapus akun maupun melihat daftarnya. Pemiliknya
+   * `superuser` sejak 2026-08-20 atas permintaan pengguna, lalu berpindah ke
+   * `kabupaten` bersama peleburan 15 September 2026.
    *
    * Dulu pemeriksaan ini SATU-SATUNYA gerbang: RolesGuard memberi `kabupaten`
-   * bypass penuh atas seluruh @Roles, sehingga mengganti `@Roles(Role.kabupaten)`
-   * menjadi `@Roles(Role.kabupaten)` di controller tak akan berpengaruh apa pun.
+   * bypass penuh atas seluruh @Roles, sehingga nilai apa pun pada `@Roles` di
+   * controller tak berpengaruh sama sekali. Docblock ini sempat menyatakannya
+   * sebagai "mengganti `@Roles(Role.kabupaten)` menjadi `@Roles(Role.kabupaten)`"
+   * -- kedua sisinya menjadi sama ketika nama perannya diganti tanpa membaca
+   * kalimatnya.
    * Bypass itu dibongkar T6 (7 September 2026), dekoratornya sudah dibetulkan,
    * dan controller kini menolak kabupaten lebih dahulu.
    *
@@ -41,7 +45,7 @@ export class UsersService {
    * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    *
    * Konsekuensi yang disengaja: ini juga menutup pintu terakhir untuk MENGUBAH
-   * peran akun lain (`PATCH /users/:id`), jadi hanya superuser yang dapat
+   * peran akun lain (`PATCH /users/:id`), jadi hanya Admin Kabupaten yang dapat
    * mengangkat/menurunkan admin. Itulah maksud pembatasannya.
    */
   /** Apakah proses ini berjalan di produksi; kunci yang sama dengan `NonProductionGuard`. */
@@ -236,7 +240,10 @@ export class UsersService {
     return this.entity(created);
   }
 
-  /** `roles` opsional; sejak 2026-08-20 hanya superuser yang boleh mengubahnya. */
+  /**
+   * `roles` opsional; hanya Admin Kabupaten yang boleh mengubahnya. Pembatasan
+   * itu lahir 2026-08-20, waktu itu atas nama `superuser`.
+   */
   async update(id: number, dto: UpdateUserDto, actor: CurrentUser): Promise<UserEntity> {
     this.assertKabupaten(actor);
     const target = await this.getActiveOrThrow(id);

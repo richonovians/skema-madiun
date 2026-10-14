@@ -18,7 +18,7 @@ export class CreateComplaintDto {
   /**
    * OPSIONAL sejak 6 September 2026 (permintaan pengguna): pengirim yang tak
    * tahu pengaduannya harus ditujukan kepada siapa memilih "Lainnya (belum
-   * tahu tujuannya)", lalu Superuser/Admin Kabupaten meneruskannya lewat
+   * tahu tujuannya)", lalu Admin Kabupaten meneruskannya lewat
    * `PATCH /complaints/:id/opd`.
    */
   @ApiPropertyOptional({

@@ -10,7 +10,11 @@ import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
 
 /**
- * Log aktivitas -- SUPERUSER saja (2026-08-20). Admin Kabupaten biasa ditolak.
+ * Log aktivitas -- ADMIN KABUPATEN saja. Admin OPD & Responden ditolak.
+ *
+ * Baris ini sempat berbunyi "SUPERUSER saja (2026-08-20). Admin Kabupaten biasa
+ * ditolak" -- persis kebalikan dari `@Roles(Role.kabupaten)` di bawahnya sejak
+ * peleburan 15 September 2026.
  *
  * `@Roles(Role.kabupaten)` di sini SUDAH menegakkan batasnya sejak T6
  * dibereskan (7 September 2026). Sebelum itu dekorator ini tak berarti apa-apa

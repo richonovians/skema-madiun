@@ -15,7 +15,7 @@ const TOKEN_KEY = 'token';
 // karena proxy.js Edge Runtime tak boleh bergantung pada isi klaim token.
 const ROLE_KEY = 'role';
 // Peran yang SEDANG DIPAKAI pada sesi ini (5 September 2026):
-// 'kabupaten' | 'opd' | 'responden' | 'superuser'. MENGGANTIKAN cookie `area`
+// 'kabupaten' | 'opd' | 'responden'. MENGGANTIKAN cookie `area`
 // milik superuser beserta cookie `opd` -- mekanismenya kini berlaku bagi siapa
 // pun ber-role banyak, bukan kekhususan satu peran.
 //
@@ -253,7 +253,7 @@ export function saveConsentFlag(sudahMenyetujui) {
  *
  * Cookie `session` sendiri TIDAK disentuh dari sini dan memang tak bisa.
  *
- * @param {string} role peran backend ('kabupaten'|'opd'|'responden'|'superuser')
+ * @param {string} role peran backend ('kabupaten'|'opd'|'responden')
  * @param {number} expiresAt detik epoch; 0/NaN diabaikan
  * @param {boolean} [consentRequired] dari `GET /auth/me`
  */

@@ -18,12 +18,16 @@ import { useAdminLayout } from './AdminLayoutProvider';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
- * "Ganti Peran" hanya tampil untuk SUPERUSER yang sedang memakai area OPD
- * (2026-08-20). Tanpa pintu ini, superuser yang memilih area OPD terkurung di
- * sana sampai logout -- proxy.js memantulkan setiap halaman di luar areanya.
+ * Sidebar area OPD.
  *
- * Perannya dibaca dari `GET /auth/me`, bukan cookie `role` (yang bisa disunting
- * bebas di peramban), mengikuti pola AdminKabSidebar.
+ * "Ganti Peran" TIDAK ada di sini: butir itu tinggal di `AdminAccountMenu` dan
+ * tampil bagi akun yang memegang lebih dari satu peran, siapa pun dia. Tanpa
+ * pintu itu, sesi yang memakai peran `opd` terkurung di areanya sampai logout
+ * -- proxy.js memantulkan setiap halaman di luar area peran yang dipakai.
+ *
+ * Docblock ini sempat menyatakan butir itu ada di sini dan khusus SUPERUSER
+ * (2026-08-20); perannya dilebur 15 September 2026 dan butirnya sudah pindah
+ * (dibereskan 14 Oktober 2026).
  */
 export default function AdminSidebar() {
   const pathname = usePathname();

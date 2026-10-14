@@ -68,8 +68,12 @@ describe('RolesGuard', () => {
   });
 
   /**
-   * INTI SELURUH FITUR MULTI-ROLE. Akun ini MEMILIKI `superuser`, tapi sedang
+   * INTI SELURUH FITUR MULTI-ROLE. Akun ini MEMILIKI `kabupaten`, tapi sedang
    * bertindak sebagai `opd`. Rute yang menuntut `kabupaten` harus MENOLAK.
+   *
+   * Baris ini sempat berbunyi "MEMILIKI `superuser`" padahal uji di bawahnya
+   * membangun `[Role.kabupaten, Role.opd]` -- peran itu dilebur 15 September
+   * 2026 dan nilai enumnya dibuang (dibereskan 14 Oktober 2026).
    *
    * Kalau uji ini lulus padahal seharusnya menolak, berarti hak dihitung dari
    * `roles` (gabungan) dan keputusan pengguna "hak ikut turun" tidak terwujud.

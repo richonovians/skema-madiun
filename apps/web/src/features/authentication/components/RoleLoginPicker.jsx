@@ -159,11 +159,12 @@ export default function RoleLoginPicker({
 
           {pilihan.map((choice) => {
             const Icon = choice.icon;
-            // Dibandingkan LEWAT PEMETAAN: peran yang sedang dipakai seorang
-            // superuser adalah `superuser`, sementara kunci tombolnya
-            // `kabupaten`. Tanpa ini penanda "sedang dipakai" tak pernah muncul
-            // bagi mereka.
-            const isCurrent = peranUntukTombol(choice.key, roles) === currentRole;
+            // Lewat `peranUntukTombol` walau sejak peleburan 15 September 2026
+            // ia memetakan setiap tombol ke peran senama: satu tempat yang
+            // memutuskan, supaya percabangan baru tak perlu dicari di sini.
+            // Komentar lama di sini menjelaskan pemetaan `superuser` ->
+            // `kabupaten` yang sudah tak ada (dibereskan 14 Oktober 2026).
+            const isCurrent = peranUntukTombol(choice.key) === currentRole;
             // Admin OPD tanpa tautan OPD tak dapat dipakai -- backend menolaknya
             // 400. Ditampilkan NONAKTIF beserta sebabnya, bukan disembunyikan:
             // pemiliknya berhak tahu mengapa peran yang ia miliki tak bisa dibuka.

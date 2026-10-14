@@ -22,21 +22,21 @@ import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
- * "Audit Logs" DAN "Manajemen User" hanya untuk SUPERUSER (2026-08-20, atas
- * permintaan user): Admin Kabupaten biasa tak boleh melihat log aktivitas maupun
- * mengelola akun. Konsekuensinya sengaja: pengangkatan/penurunan peran admin kini
- * sepenuhnya di tangan superuser.
+ * "Audit Logs" DAN "Manajemen User" milik ADMIN KABUPATEN. Keduanya sempat
+ * khusus `superuser` (2026-08-20, atas permintaan pengguna) dan berpindah ke
+ * sini bersama peleburan 15 September 2026; karena keduanya berada di bawah
+ * `/admin-kab` yang memang milik peran ini, sidebar ini tak lagi menyaring
+ * apa pun berdasarkan peran.
  *
- * Perannya dibaca dari `GET /auth/me`, BUKAN dari cookie `role` -- cookie itu
- * bisa disunting bebas di peramban, jadi tak layak jadi dasar keputusan tampilan
- * yang seolah-olah hak akses. Batas sesungguhnya tetap di backend
- * (AuditService.assertSuperuser & UsersService.assertSuperuser, 403 walau URL
- * dipaksa); menyembunyikan menu di sini supaya pengguna tak diarahkan ke halaman
- * yang pasti gagal.
+ * Batas sesungguhnya tetap di backend: `@Roles(Role.kabupaten)` pada
+ * `audit.controller.ts` & `users.controller.ts`, dengan
+ * `AuditService.assertKabupaten` dan `UsersService.assertKabupaten` sebagai
+ * lapis kedua -- 403 walau URL dipaksa.
  *
- * "Ganti Peran" juga khusus superuser: pilihan perannya saat login mengurung
- * navigasinya ke satu area (lihat proxy.js), dan ini jalan berpindahnya tanpa
- * harus keluar-masuk lagi.
+ * Docblock ini sempat menyebut kedua menu itu khusus superuser, menyebut dua
+ * metode service yang sudah tak ada (`assertSuperuser`), dan menyatakan "Ganti
+ * Peran" khusus superuser padahal butir itu tinggal di `AdminAccountMenu` dan
+ * bergantung pada JUMLAH peran yang dimiliki akun (dibereskan 14 Oktober 2026).
  */
 export default function AdminKabSidebar() {
   const pathname = usePathname();

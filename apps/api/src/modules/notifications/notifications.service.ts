@@ -44,7 +44,7 @@ const STATUS_LABEL: Record<string, string> = {
 /**
  * Jumlah jawaban yang memicu notifikasi survei. Sesudah 100, hanya kelipatan
  * 100 -- survei bertarget ratusan responden tak boleh membanjiri lonceng
- * kabupaten & superuser, yang juga menerima notifikasi pengaduan.
+ * peran berakses penuh, yang juga menerima notifikasi pengaduan.
  */
 const TONGGAK_AWAL: readonly number[] = [1, 10, 25, 50];
 
@@ -162,8 +162,8 @@ export class NotificationsService {
     if (penulis.actingRole === Role.responden) {
       // `opdId != null`: pengaduan yang belum bertujuan (6 September 2026)
       // tak punya OPD untuk dikabari. Pelapornya TIDAK kehilangan perhatian --
-      // notifyKabupaten di akhir metode ini tetap berjalan, dan Superuser
-      // beserta Admin Kabupaten justru pihak yang bertugas menriasenya.
+      // notifyKabupaten di akhir metode ini tetap berjalan, dan Admin
+      // Kabupaten justru pihak yang bertugas menriasenya.
       if (complaint.opdId != null) {
         await this.notifyRole(
           Role.opd,
@@ -295,8 +295,10 @@ export class NotificationsService {
     link: string,
   ): Promise<void> {
     try {
-      // Superuser ikut menerima (2026-08-20): ia mewarisi seluruh hak kabupaten,
-      // jadi tak masuk akal kalau justru tak diberi tahu perkara yang sama.
+      // Penerimanya SELURUH peran berakses penuh (`FULL_ACCESS_ROLES`), bukan
+      // satu nilai peran. Bentuk itu lahir 2026-08-20, ketika superuser ikut
+      // menerima karena mewarisi seluruh hak kabupaten; ia bertahan supaya
+      // peran berhak penuh berikutnya tak perlu diburu lagi di sini.
       const kabupatenUsers = await this.prisma.user.findMany({
         where: {
           roles: { hasSome: [...FULL_ACCESS_ROLES] },

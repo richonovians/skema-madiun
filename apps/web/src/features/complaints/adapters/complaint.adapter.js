@@ -174,13 +174,13 @@ export function toCreateComplaintPayload({ opdId, kategori, title, description, 
  * KOREKSI (2026-08-19, laporan bug user "kirim pesan dari role admin kabupaten
  * masih menampilkan admin OPD"): catatan lama di sini menyatakan hanya 2 pihak
  * yang boleh membalas (pelapor & Admin OPD pemilik) -- itu KELIRU.
- * `ComplaintsService.assertAccess` meloloskan `Role.kabupaten` lebih dulu
- * (superuser), jadi ada TIGA kemungkinan pengirim. Akibatnya label lama
+ * `ComplaintsService.assertAccess` meloloskan `Role.kabupaten` lebih dulu,
+ * jadi ada TIGA kemungkinan pengirim: pelapor, Admin OPD, Admin Kabupaten. Akibatnya label lama
  * "Admin OPD" bukan sekadar generik, tapi salah: pada data pengembangan, 4 dari
  * 10 balasan ditulis akun kabupaten dan semuanya dilabeli Admin OPD.
  *
  * `senderName` kini "Admin" untuk SEMUA pengirim non-pelapor -- benar untuk
- * ketiga peran admin sekaligus. Membedakan "Admin Kabupaten" vs "Admin OPD"
+ * kedua peran admin sekaligus. Membedakan "Admin Kabupaten" vs "Admin OPD"
  * MUSTAHIL di frontend tanpa backend mengekspos peran penulis; menebaknya dari
  * OPD pengaduan akan salah setiap kali kabupaten yang membalas.
  *

@@ -158,11 +158,6 @@ export default function SurveyBuilderScreen({ surveyId: surveyIdParam, listHref 
   const ensureSurveyExists = useCallback(
     async (jenisDipilih = jenis) => {
       if (surveyId) return surveyId;
-      // `opdId` HANYA terisi bila superuser sedang memerankan satu OPD (2026-08-20).
-      // Tanpa itu backend menolak "opdId wajib diisi" untuk peran berhak penuh --
-      // akun superuser tak tertaut OPD mana pun (resolveOpdId di SurveysService).
-      // Admin OPD sungguhan tak terpengaruh: backend selalu memakai OPD akunnya
-      // sendiri dan mengabaikan field ini.
       // `opdId` tak dikirim lagi: SurveysService.resolveOpdId memakai OPD akun
       // bagi peran `opd`, dan area ini hanya terbuka bagi sesi berperan `opd`.
       const created = await createSurvey({
