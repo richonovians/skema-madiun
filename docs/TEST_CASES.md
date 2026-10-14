@@ -546,7 +546,7 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > | TC-RBAC-006 | `POST /surveys` | `❌ 403` | **lolos gerbang**; 400 tanpa `opdId` | `surveys.e2e-spec.ts:92` |
 > | TC-RBAC-008 | `GET /surveys/active` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:64` dan `:71` |
 > | TC-RBAC-009 | `POST /surveys/:id/responses` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:86` dan `:96` |
-> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:170` dan `:182` |
+> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:211` dan `:223` |
 > | TC-RBAC-012 | `PATCH /complaints/:id/status` | `❌ 403` | **bukan 403 peran** | `complaints.e2e-spec.ts:815` |
 >
 > TC-RBAC-012 paling halus salahnya. Rutenya
@@ -595,10 +595,10 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-RBAC-004 | `POST /users` (role=opd)       |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-005 | `POST /users` (role=kabupaten) |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-006 | `POST /surveys`                |   ✅ 201   | ✅ 201 (wajib kirim `opdId`) |        ✅ 201        |   ❌ 403   | Integ |   ✅    |
-| TC-RBAC-007 | `GET /surveys`                 |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-007 | `GET /surveys`                 |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-008 | `GET /surveys/active`          |   ✅ 200   |            ❌ 403            |        ❌ 403        |   ✅ 200   | Integ |   ✅    |
 | TC-RBAC-009 | `POST /surveys/:id/responses`  |     —     |            ❌ 403            |        ❌ 403        |   ✅ 201   | Integ |   ✅    |
-| TC-RBAC-010 | `GET /surveys/:id/results`     |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-010 | `GET /surveys/:id/results`     |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-011 | `POST /complaints`             |     —     |            ❌ 403            |        ❌ 403        |   ✅ 201   | Integ |   ✅    |
 | TC-RBAC-012 | `PATCH /complaints/:id/status` |   ✅ 200   | ✅ 200 (sesudah diteruskan)  | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-013 | `GET /audit-logs`              |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
@@ -672,14 +672,28 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > baris untuk `POST /opd/sync` atau dibuang, dan itu keputusan isi dokumen. Sel
 > Responden-nya pun tak pernah diuji.
 >
-> **TIGA SEL KOSONG, dan karenanya dua baris tetap belum lulus:** Responden pada
-> `GET /surveys` (TC-RBAC-007), serta Kabupaten dan Responden pada
-> `GET /surveys/:id/results` (TC-RBAC-010). Sel lain kedua baris itu terbukti --
-> Kabupaten di `public-surveys:579`, Admin OPD di `surveys.e2e:125` dan
-> `ikm.e2e:176` -- jadi yang menahan keduanya hanya tiga uji yang belum ditulis.
+> **TIGA SEL YANG KOSONG ITU DITULIS HARI YANG SAMA**, jadi TC-RBAC-007 dan 010
+> ikut lulus. Responden pada `GET /surveys` di `peran-matriks-rbac:191`,
+> Responden pada `GET /surveys/:id/results` di `:200`, dan Kabupaten pada rute
+> hasil di `ikm.e2e:212` -- yang terakhir ditaruh di `ikm.e2e-spec.ts`, bukan di
+> berkas matriks, sebab ia butuh survei sungguhan dan fixture-nya sudah ada di
+> sana. Sel lain kedua baris itu terbukti di `public-surveys:579`,
+> `surveys.e2e:125`, dan `ikm.e2e:176`.
 >
-> Sebelas dari empat belas baris lulus sekarang. Tiga sisanya TC-RBAC-002, 007,
-> dan 010; hitungan ini dihitung ulang dari kolom Status, bukan dikira.
+> **Dua hal yang diukur saat membuktikan uji itu dapat memerah, dan keduanya
+> membantah dugaan yang ditulis sebelumnya.** Mencabut `@Roles` dari
+> `GET /surveys` TIDAK membuat warga dilayani: `opdWhereFilter` sendiri melempar
+> `ForbiddenException` bagi peran selain `kabupaten` dan `opd`
+> (`opd-scope.util.ts:27`), jadi statusnya tetap 403 dan hanya PESANnya berubah
+> menjadi "Peran tidak memiliki akses ke sumber daya OPD". Uji berstatus-saja
+> akan tetap hijau di sana. Dan pada rute hasil, mencabut `@Roles` menghasilkan
+> 404, bukan 403, sebab surveinya dicari lebih dulu dan id yang dipakai uji itu
+> memang tak ada -- pada id yang SUNGGUH ADA, `assertOpdAccess` yang menjawab
+> 403, dan uji berstatus-saja kembali tak dapat membedakannya.
+>
+> Tiga belas dari empat belas baris lulus sekarang. Satu sisanya TC-RBAC-002,
+> yang rutenya tidak ada; hitungan ini dihitung ulang dari kolom Status, bukan
+> dikira.
 
 ### X.2 Isolasi Data OPD — Skenario Negatif Krusial
 
