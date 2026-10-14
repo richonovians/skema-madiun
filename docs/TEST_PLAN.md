@@ -235,45 +235,76 @@ langsung tanpa memilih peran. Untuk sisanya: tekan tombol peran pada pemilih
 yang muncul sesudah "Masuk", atau panggil
 `POST /auth/acting-role { role }` bila masuk lewat API.
 
-**Akun yang BENAR-BENAR ada — dibaca langsung 13 Oktober 2026.**
+**Akun yang BENAR-BENAR ada — dibaca langsung 14 Oktober 2026**, sesudah peran
+berlebihnya dicabut pada hari yang sama.
 
-| id  | `identifier` (email)            | `sso_subject`          | `roles`                       | `opd_id` |
-| --: | ------------------------------- | ---------------------- | ----------------------------- | -------: |
-|   1 | `admin.kabupaten@example.go.id` | `seed-admin-kabupaten` | `kabupaten`, `responden`, `opd` |        5 |
-|   2 | `admin.opd@example.go.id`       | `seed-admin-opd`       | `opd`, `responden`, `kabupaten` |        1 |
-|   3 | `warga@example.go.id`           | `seed-responden`       | `responden`, `opd`             |        2 |
-|   4 | _akun SSO Helpdesk milik penguji_ | UUID asli dari Helpdesk | `responden`                   |        — |
+| id  | `identifier` (email)              | `sso_subject`           | `roles`                         | `opd_id` |
+| --: | --------------------------------- | ----------------------- | ------------------------------- | -------: |
+|   1 | `admin.kabupaten@example.go.id`   | `seed-admin-kabupaten`  | `kabupaten`, `responden`, `opd` |        5 |
+|   2 | `admin.opd@example.go.id`         | `seed-admin-opd`        | `opd`, `responden`              |        1 |
+|   3 | `warga@example.go.id`             | `seed-responden`        | `responden`                     |        — |
+|   4 | _akun SSO Helpdesk milik penguji_ | UUID asli dari Helpdesk | `responden`                     |        — |
 
 Empat pengguna, bukan tujuh. Seluruhnya `is_active = true`, tak ada yang
-`deleted_at`. Kesimpulan §1.1 tetap berlaku dan malah menguat: **tiga dari
-empat** akun ber-peran lebih dari satu, jadi jalur "wajib memilih peran" memang
-jalur yang biasa. Akun keempat **bukan** akun uji: ia akun SSO pribadi penguji,
+`deleted_at`. Akun keempat **bukan** akun uji: ia akun SSO pribadi penguji,
 masuk lewat jalur Helpdesk sungguhan, dan surelnya sengaja tidak dicantumkan di
 sini. Jangan dipakai sebagai akun pengujian dan jangan disentuh.
 
-> ⚠️ **KETIGA AKUN SEED MEMEGANG PERAN DI LUAR YANG DIBUAT SEED, dan ini dapat
-> membuat kasus uji LULUS KARENA ALASAN YANG SALAH.** Seed memberi satu peran
-> per akun; ketiganya kini memegang dua sampai tiga, hasil pemberian manual
-> lewat panel Admin Kabupaten.
+Kesimpulan §1.1 **tidak lagi sekuat sebelumnya, dan itu akibat pencabutan ini.**
+Sekarang hanya **satu dari empat** akun ber-peran lebih dari satu, yaitu akun
+id 1. Jalur "wajib memilih peran" karena itu bukan lagi jalur yang biasa di
+basis data dev; ia tetap jalur yang nyata di produksi, tetapi untuk mengujinya
+di dev harus memakai akun id 1 dengan sengaja.
+
+> ✅ **PERAN BERLEBIH SUDAH DICABUT, 14 Oktober 2026.** Bacaan 13 Oktober
+> menemukan ketiga akun seed memegang peran di luar yang dibuat seed —
+> `admin.opd` juga `kabupaten`, `warga` juga `opd` dan tertaut OPD id 2 — hasil
+> pemberian manual lewat panel Admin Kabupaten. Selama itu dibiarkan, kasus uji
+> pemisahan peran dapat memerah tanpa ada yang rusak: TC-USR-014 ("Admin OPD
+> tidak bisa akses modul users") salah satunya.
 >
-> Yang paling mudah menipu:
+> Caranya lewat API, bukan SQL, supaya ia melewati jalur produksi dan tercatat:
+> `PATCH /api/v1/users/2` menjadi `["opd","responden"]` dan
+> `PATCH /api/v1/users/3` menjadi `["responden"]`. Keduanya ada di `audit_logs`
+> id 992 dan 993, pelaku `actor_id` 1. Jumlah `audit_logs` 520 → 523; tak ada
+> baris yang dihapus.
 >
-> - `admin.opd@example.go.id` memegang **`kabupaten`**. Setiap kasus uji yang
->   menuntut Admin OPD DITOLAK dari modul kabupaten — TC-USR-014 salah satunya —
->   akan memerah bila dijalankan dengan akun ini, dan bukan karena kodenya
->   rusak. Yang benar adalah memilih peran `opd` secara tersurat, atau memakai
->   akun yang memang hanya ber-peran `opd`.
-> - `warga@example.go.id`, akun warga, memegang **`opd`** dan tertaut OPD id 2.
->   Kasus uji isolasi OPD yang memakainya sebagai "warga biasa" tidak menguji
->   apa yang dikiranya.
+> `opd_id` pada akun id 3 dikosongkan lewat SQL langsung, dan itu **tidak**
+> tercatat di `audit_logs` karena melewati `@Audit`. Jalur itu dipakai karena
+> `UpdateUserDto` menolak `opdId` dengan 400 secara sengaja — nilainya berasal
+> dari Helpdesk, dan docblock-nya mengutip permintaan pengguna bahwa timnya
+> tidak boleh mengubahnya. Pengosongan itu diizinkan tersurat.
+>
+> **Terbukti sesudahnya**, lewat API sungguhan:
+>
+> | Percobaan | Hasil |
+> | --- | --- |
+> | `seed-admin-opd` masuk sebagai `opd` | token terbit |
+> | `seed-admin-opd` masuk sebagai `kabupaten` | **403** "Akun tersebut tidak memiliki peran yang diminta" |
+> | `GET /users` dengan token `opd` | **403** |
+> | `seed-responden` masuk sebagai `opd` | **403** |
+>
+> Dua percobaan itu dahulu BERHASIL, dan itulah yang memalsukan hasil uji.
+> TC-USR-014 kini dapat dijalankan dan menguji apa yang dimaksudnya.
+
+> ⚠️ **AKUN id 1 SENGAJA TIDAK DICABUT, dan batasnya tetap ada.** Ia memegang
+> ketiga peran beserta tautan OPD karena Playwright menuntutnya: tujuh spec di
+> `apps/web/e2e/` memakai `E2E_IDENTIFIER=seed-admin-kabupaten`, dan akun
+> ber-peran kurang dari tiga membuat ketujuhnya **DILEWATI**, bukan memerah —
+> bentuk kegagalan yang paling sunyi.
+>
+> Akibatnya akun id 1 tetap tak dapat dipakai menguji pemisahan peran. Aturannya:
+> **bila memakai akun id 1, pilih `actingRole` secara tersurat** — lewat tombol
+> peran pada pemilih, atau `POST /auth/acting-role { role }` bila lewat API.
 >
 > Bentuk kegagalan ini sama dengan yang tercatat di `CLAUDE.md` soal
 > `x-dev-user-id` baku bernilai 1: lulus karena kebetulan isi data, bukan karena
-> kontraknya. Perlu diketahui juga `seed-admin-kabupaten` memang ber-**id 1**,
-> yaitu id yang dipakai `stub-auth.provider.ts` bila headernya tak dikirim.
+> kontraknya. Dan `seed-admin-kabupaten` memang ber-**id 1**, yaitu id yang
+> dipakai `stub-auth.provider.ts` bila headernya tak dikirim.
 
 **Sebelum memakai tabel ini, periksa ulang.** Ia bacaan satu hari, dan sejarah
-dokumen ini menunjukkan bacaan semacam ini berumur pendek:
+dokumen ini membuktikannya berumur pendek: tabel 15 September mati dalam 28
+hari, dan tabel 13 Oktober mati dalam SATU hari — karena pencabutan di atas.
 
 ```bash
 docker exec skm-db psql -U skm -d skm_db -c "SELECT id, email, roles, opd_id FROM users ORDER BY id"
