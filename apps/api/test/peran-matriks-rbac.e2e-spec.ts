@@ -55,6 +55,7 @@ describe('Matriks TC-RBAC: rute khusus responden (e2e)', () => {
   }, 30000);
 
   const kabupaten = () => devHeaders({ role: Role.kabupaten });
+  const responden = () => devHeaders({ role: Role.responden });
   const opd = () => devHeaders({ role: Role.opd, opdId: 1 });
 
   const HANYA_RESPONDEN = /hanya untuk peran: responden/i;
@@ -100,6 +101,68 @@ describe('Matriks TC-RBAC: rute khusus responden (e2e)', () => {
 
       expect(res.status).toBe(403);
       expect(String(res.body.message)).toMatch(HANYA_RESPONDEN);
+    });
+  });
+
+  /**
+   * ARAH SEBALIKNYA: dua rute admin, pelakunya warga.
+   *
+   * TC-RBAC-005 dan 006 tetap tak dapat ditandai lulus walau sel matriksnya
+   * sudah benar, sebab sel RESPONDEN keduanya tak punya uji sama sekali
+   * (disisir 14 Oktober 2026 atas seluruh `apps/api/test/`).
+   *
+   * BADAN PERMINTAANNYA SENGAJA SAH, bukan sengaja cacat. Badan cacat akan
+   * dijawab 400 oleh `ValidationPipe` bahkan tanpa gerbang peran, sehingga
+   * ujinya lulus karena sebab yang salah dan TIDAK memerah saat `@Roles`
+   * dicabut.
+   *
+   * DUA HASIL MUTASI YANG BERBEDA, keduanya diukur 14 Oktober 2026, dan yang
+   * pertama justru alasan terkuat mengapa berkas ini memeriksa PESAN.
+   *
+   * `POST /surveys` tanpa `@Roles`: 403 menjadi **201**. Survei sungguhan
+   * terbuat di `skm_uji` (id 772, dihapus sesudahnya; `audit_logs` tetap 731
+   * baris). Statusnya sendiri sudah cukup memerahkan ujinya.
+   *
+   * `POST /users` tanpa `@Roles(Role.kabupaten)` di tingkat kelas: statusnya
+   * TETAP 403 dan tak ada baris yang terbuat, sebab `UsersService` menolaknya
+   * di lapis kedua dengan pesan "Manajemen pengguna hanya dapat diakses oleh
+   * Admin Kabupaten". Uji yang berhenti di status 403 akan tetap HIJAU di sana.
+   * Yang memerahkannya hanya pemeriksaan pesan, yang menuntut penolakan datang
+   * dari gerbang peran.
+   *
+   * Akibatnya satu temuan tentang suite yang sudah ada: `users.e2e-spec.ts`
+   * LULUS SEPENUHNYA (30 uji) dengan dekorator itu dicabut. Seluruh suite
+   * manajemen pengguna buta terhadap hilangnya gerbang peran di controllernya,
+   * dan uji inilah satu-satunya yang menangkapnya.
+   */
+  describe('TC-RBAC-005 dan 006: rute admin ditolak bagi responden', () => {
+    it('POST /users ditolak di gerbang peran', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/users')
+        .set(responden())
+        .send({
+          nama: 'Tak Boleh Terbuat',
+          email: 'uji-rbac-005@example.go.id',
+          roles: [Role.responden],
+          ssoSubject: 'uji-rbac-005',
+        });
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten/i);
+    });
+
+    it('POST /surveys ditolak di gerbang peran', async () => {
+      const res = await request(app.getHttpServer()).post('/api/v1/surveys').set(responden()).send({
+        judul: 'Survei Tak Boleh Terbuat',
+        periode: '2026-Q4',
+        jenis: 'custom',
+        tujuan: 'kepuasan',
+        metodeNilai: 'rata_rata',
+        opdId: 1,
+      });
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, opd/i);
     });
   });
 
