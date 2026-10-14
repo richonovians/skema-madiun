@@ -6,7 +6,7 @@ import { PENANDA_DISUNTING, redactAuditBody } from './audit-redact.util';
  * `AuditInterceptor` menyalin SELURUH `request.body` ke kolom `audit_logs.detail`.
  * Untuk `POST /users` dan `PATCH /users/:id`, itu berarti nama & email yang
  * diketik admin ikut tersalin ke tabel kedua — tanpa daftar redaksi, tanpa batas
- * ukuran, dan tabel itu dapat dibaca superuser lewat `GET /audit-logs`. Di sistem
+ * ukuran, dan tabel itu dapat dibaca Admin Kabupaten lewat `GET /audit-logs`. Di
  * yang membangun gerbang persetujuan UU PDP, penggandaan data pribadi tanpa
  * alasan adalah kebalikan dari minimalisasi data.
  *
@@ -27,7 +27,7 @@ describe('redactAuditBody', () => {
   it('MEMBIARKAN field yang justru menjadi alasan audit log ada', () => {
     // Inilah yang harus terbaca saat memeriksa penyalahgunaan wewenang: peran
     // apa yang diberikan, ke OPD mana, status apa yang diubah.
-    const body = { roles: ['superuser'], opdId: 7, isActive: false, status: 'diproses' };
+    const body = { roles: ['kabupaten'], opdId: 7, isActive: false, status: 'diproses' };
 
     expect(redactAuditBody(body)).toEqual(body);
   });
@@ -90,7 +90,7 @@ describe('redactAuditBody', () => {
    * 13 September 2026, sebelum `POST /surveys/:id/responses` diaudit. Payload
    * survei memakai kunci `answers`/`teks` (dan `nomorHp` pada jalur publik) --
    * tak satu pun ada di daftar tolak, sehingga mengaudit endpoint itu akan
-   * menyalin jawaban warga utuh ke tabel yang dibaca superuser. Persis temuan
+   * menyalin jawaban warga utuh ke tabel yang dibaca Admin Kabupaten. Persis temuan
    * T8, hanya pada endpoint yang berbeda.
    *
    * Kunci `answers` SENGAJA dipertahankan: auditnya harus tetap berbunyi

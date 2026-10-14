@@ -27,7 +27,7 @@ export const CONSENT_REQUIRED = 'CONSENT_REQUIRED';
  * karena mengisinya otomatis berarti mencatat persetujuan yang belum pernah
  * diberikan siapa pun — justru kebalikan dari gunanya kolom itu.
  *
- * SIAPA YANG DIMINTAI: hanya `responden`. Admin (kabupaten/opd/superuser)
+ * SIAPA YANG DIMINTAI: hanya `responden`. Admin (kabupaten/opd)
  * bertindak dalam kapasitas jabatan atas data warga, bukan sebagai subjek data
  * atas dirinya sendiri; memblokir mereka berarti menghentikan pekerjaan untuk
  * persetujuan yang tak relevan bagi mereka.

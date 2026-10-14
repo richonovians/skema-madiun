@@ -222,8 +222,8 @@ export class SsoService {
         // TEMUAN AUDIT T5 (7 September 2026). Ini SATU-SATUNYA tempat sebuah
         // klaim SSO membuat pemegangnya MEWARISI peran akun yang sudah ada.
         // Sebelum penjaga ini, klaim `email` dipercaya tanpa syarat: siapa pun
-        // yang dapat membuat akun Helpdesk ber-email `superuser@...` akan
-        // ditautkan ke akun superuser SKEMA beserta seluruh haknya.
+        // yang dapat membuat akun Helpdesk ber-email `admin-kab@...` akan
+        // ditautkan ke akun Admin Kabupaten SKEMA beserta seluruh haknya.
         //
         // Gagal TERTUTUP, termasuk saat klaimnya hilang: "tak ada bukti
         // terverifikasi" bukan berarti "terverifikasi" (pola yang sama dipakai

@@ -100,7 +100,7 @@ describe('UsersService', () => {
     await expect(service.findOne(99, KABUPATEN)).rejects.toThrow(NotFoundException);
   });
 
-  it('Superuser membuat Admin OPD → sukses', async () => {
+  it('Admin Kabupaten membuat Admin OPD → sukses', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 1 });
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.create as jest.Mock).mockResolvedValue(userRow);
@@ -112,7 +112,7 @@ describe('UsersService', () => {
     expect(prisma.user.create).toHaveBeenCalled();
   });
 
-  it('Superuser membuat akun kabupaten lain → sukses', async () => {
+  it('Admin Kabupaten membuat akun kabupaten lain → sukses', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.create as jest.Mock).mockResolvedValue({
       ...userRow,
@@ -183,7 +183,7 @@ describe('UsersService', () => {
     });
   });
 
-  it('update: superuser TIDAK BOLEH mengubah role akun sendiri (cegah self-lockout) → Forbidden', async () => {
+  it('update: Admin Kabupaten TIDAK BOLEH mengubah role akun sendiri (cegah self-lockout) → Forbidden', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue({
       ...userRow,
       id: 1,

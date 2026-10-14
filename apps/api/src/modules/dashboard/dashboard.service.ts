@@ -79,7 +79,7 @@ export class DashboardService {
    * `GET /dashboard/opd` (INT-12) -- ringkasan satu OPD.
    *
    * HANYA peran `opd`, dan hanya OPD yang tertaut di akunnya sendiri. Peran
-   * `superuser` & `kabupaten` DITOLAK -- lihat resolveDashboardOpdId().
+   * `kabupaten` DITOLAK -- lihat resolveDashboardOpdId().
    */
   async getOpdDashboard(user: CurrentUser): Promise<OpdDashboardEntity> {
     const opdId = this.resolveDashboardOpdId(user);
@@ -214,7 +214,7 @@ export class DashboardService {
    * - `opd` → OPD akunnya sendiri. `requestedOpdId` DIABAIKAN, bukan divalidasi:
    *   dengan begitu tak ada jalan bagi akun OPD mengintip OPD lain lewat
    *   parameter, dan tak perlu pesan error yang membocorkan OPD mana yang ada.
-   * - SEMUA peran lain → DITOLAK, `superuser` termasuk.
+   * - SEMUA peran lain → DITOLAK, `kabupaten` termasuk.
    *
    * Cabang `superuser → OPD yang diminta` DIBUANG 6 September 2026 atas
    * permintaan pengguna: "ketika login sebagai admin OPD akan langsung redirect
@@ -238,7 +238,7 @@ export class DashboardService {
    * Ia TETAP sebagai lapis kedua, dan pesannyalah yang menuntun pengguna
    * berpindah peran (pola sama seperti AuditService & UsersService).
    *
-   * Yang TIDAK ikut ditutup: `superuser` & `kabupaten` tetap dapat MEMBACA data
+   * Yang TIDAK ikut ditutup: peran berakses penuh tetap dapat MEMBACA data
    * lintas OPD lewat monitoring survei, pengaduan, dan hasil IKM
    * (opdWhereFilter). Itu pengawasan, bukan "masuk sebagai Admin OPD";
    * menutupnya akan mengosongkan dashboard Admin Kabupaten.

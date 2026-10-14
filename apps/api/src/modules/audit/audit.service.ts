@@ -60,8 +60,10 @@ export class AuditService {
   }
 
   /**
-   * Log aktivitas HANYA untuk `superuser` (2026-08-20, atas permintaan user):
-   * Admin Kabupaten biasa tidak boleh melihatnya.
+   * Log aktivitas HANYA untuk `kabupaten`: Admin OPD dan Responden tidak boleh
+   * melihatnya. Pemiliknya `superuser` sejak 2026-08-20 atas permintaan
+   * pengguna, lalu berpindah ke `kabupaten` bersama peleburan 15 September
+   * 2026 -- dua baris ini sempat tertinggal menyebut pemilik yang lama.
    *
    * Dulu pemeriksaan ini SATU-SATUNYA gerbang, karena RolesGuard memberi
    * `kabupaten` bypass penuh atas seluruh @Roles sehingga

@@ -33,7 +33,14 @@ const kabupatenUser = (): CurrentUser => ({
   actingRole: Role.kabupaten,
   opdId: null,
 });
-const superUser = (): CurrentUser => ({
+/**
+ * Akun Admin Kabupaten KEDUA (id 3), dipakai untuk membuktikan bahwa bukan
+ * akunnya yang menentukan melainkan perannya. Pembantu ini sempat bernama
+ * `superUser` sambil membangun `Role.kabupaten` -- peran `superuser` dilebur
+ * 15 September 2026 dan nilai enumnya dibuang, jadi namanya menyebut peran yang
+ * tak mungkin dibangun (dibereskan 14 Oktober 2026).
+ */
+const kabupatenUserLain = (): CurrentUser => ({
   userId: 3,
   roles: [Role.kabupaten],
   actingRole: Role.kabupaten,
@@ -637,7 +644,7 @@ describe('ComplaintsService', () => {
         // pelapor, tetapi ia sedang bertugas, bukan sedang mengadu.
         (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ userId: 3 }));
 
-        await service.addReply(1, { pesan: 'Halo' }, undefined, superUser());
+        await service.addReply(1, { pesan: 'Halo' }, undefined, kabupatenUserLain());
 
         expect(balasanTersimpan().dariPelapor).toBe(false);
       });
@@ -896,12 +903,12 @@ describe('ComplaintsService', () => {
       );
     });
 
-    it('Superuser juga berhasil', async () => {
+    it('Admin Kabupaten dengan akun lain juga berhasil', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9 });
       (prisma.complaint.update as jest.Mock).mockResolvedValue(complaintRow({ opdId: 9 }));
 
-      await expect(service.forward(1, { opdId: 9 }, superUser())).resolves.toBeDefined();
+      await expect(service.forward(1, { opdId: 9 }, kabupatenUserLain())).resolves.toBeDefined();
     });
 
     /**

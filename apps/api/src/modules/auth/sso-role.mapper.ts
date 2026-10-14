@@ -4,18 +4,20 @@ import { ambilJalurKlaim } from './sso-claim-path';
 /**
  * Peran yang BOLEH ditetapkan dari klaim SSO.
  *
- * `superuser` ADA di daftar ini sejak 6 September 2026, dan itu PEMBALIKAN
- * keputusan keamanan 27 Agustus 2026 yang sengaja mengeluarkannya — pengguna
- * meminta tipe "admin" dari Helpdesk menjadi superuser di SKEMA.
+ * `superuser` sempat ada di daftar ini sejak 6 September 2026 — pembalikan
+ * keputusan keamanan 27 Agustus 2026 yang sengaja mengeluarkannya, karena
+ * pengguna meminta tipe "admin" dari Helpdesk menjadi superuser di SKEMA. Ia
+ * hilang bersama perannya 15 September 2026, dan pemetaan yang masih berbunyi
+ * `admin:superuser` kini DIABAIKAN — dijaga `sso-role.mapper.spec.ts`.
  *
- * Pembalikan itu tidak dibiarkan tanpa pengaman, tapi pengamannya BUKAN di
- * berkas ini:
+ * Pengaman pembalikan itu tetap berlaku bagi peran admin yang masih ada, dan
+ * pengamannya BUKAN di berkas ini:
  *   1. Baku tetap `responden` bila `HELPDESK_SSO_ROLE_MAP` kosong (dan hari ini
  *      ia memang kosong), jadi tak ada yang berubah sampai seseorang mengisinya.
  *   2. Peran ditetapkan HANYA saat akun dibuat — SsoService.resolveRolesAndOpd
  *      tak pernah berjalan pada akun yang sudah ada, sehingga tak ada jalan bagi
  *      klaim untuk menurunkan siapa pun.
- *   3. Akun yang lahir memegang `superuser` dari klaim menulis satu baris
+ *   3. Akun yang lahir memegang peran admin dari klaim menulis satu baris
  *      `audit_logs` — lihat SsoService.provision.
  */
 const MAPPABLE_ROLES: readonly string[] = [Role.kabupaten, Role.opd, Role.responden];
@@ -148,7 +150,7 @@ function fromScalarOrObject(item: unknown): string[] {
  * `nilaiKlaim:paket` dipisah koma, dengan paket berisi satu peran atau beberapa
  * peran yang dipisah `+`:
  *
- *   `pegawai-dinas:opd+responden,admin:superuser+opd+responden`
+ *   `pegawai-dinas:opd+responden,admin:kabupaten+opd+responden`
  *
  * Bentuk LAMA (`admin-kab:kabupaten`) tetap sah dan menghasilkan paket berisi
  * satu peran — env yang sudah terpasang di lingkungan mana pun tak rusak oleh

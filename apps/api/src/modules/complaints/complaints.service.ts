@@ -415,7 +415,7 @@ export class ComplaintsService {
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
   }
 
-  /** Akses per-record: kabupaten & superuser semua; OPD hanya OPD-nya; Responden hanya miliknya. */
+  /** Akses per-record: peran berakses penuh semua; OPD hanya OPD-nya; Responden hanya miliknya. */
   private assertAccess(
     user: CurrentUser,
     complaint: { userId: number; opdId: number | null },

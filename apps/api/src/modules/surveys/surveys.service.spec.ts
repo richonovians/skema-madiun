@@ -20,7 +20,12 @@ const opdUser = (opdId: number | null): CurrentUser => ({
   actingRole: Role.opd,
   opdId,
 });
-const superUser = (): CurrentUser => ({
+/**
+ * Pembantu ini sempat bernama `superUser` sambil membangun `Role.kabupaten`.
+ * Peran `superuser` dilebur 15 September 2026 dan nilai enumnya dibuang, jadi
+ * namanya menyebut peran yang tak mungkin dibangun (dibereskan 14 Oktober 2026).
+ */
+const kabupatenUser = (): CurrentUser => ({
   userId: 9,
   roles: [Role.kabupaten],
   actingRole: Role.kabupaten,
@@ -210,7 +215,7 @@ describe('SurveysService', () => {
     );
   });
 
-  it('create (kabupaten/superuser) tanpa opdId → BadRequest', async () => {
+  it('create (kabupaten) tanpa opdId → BadRequest', async () => {
     const dto: CreateSurveyDto = {
       judul: 'A',
       periode: '2026-Q1',
@@ -218,7 +223,7 @@ describe('SurveysService', () => {
       tujuan: TujuanSurvei.kepuasan,
       metodeNilai: MetodeNilai.rata_rata,
     };
-    await expect(service.create(dto, superUser())).rejects.toThrow(BadRequestException);
+    await expect(service.create(dto, kabupatenUser())).rejects.toThrow(BadRequestException);
   });
 
   it('findOne menyertakan respondentsCount, bukan hanya kolom mentah surveinya', async () => {
@@ -971,7 +976,7 @@ describe('SurveysService', () => {
     it('membuang ke sampah, bukan menghapus barisnya', async () => {
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyRow());
 
-      await service.remove(1, superUser());
+      await service.remove(1, kabupatenUser());
 
       expect(prisma.survey.delete).not.toHaveBeenCalled();
       expect(prisma.survey.update).toHaveBeenCalledWith({
@@ -989,7 +994,7 @@ describe('SurveysService', () => {
         surveyRow({ status: SurveyStatus.aktif }),
       );
 
-      await service.remove(1, superUser());
+      await service.remove(1, kabupatenUser());
 
       expect(prisma.survey.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -1003,7 +1008,7 @@ describe('SurveysService', () => {
       // riwayat status yang tak pernah terjadi, dan snapshot-nya akan kosong.
       (prisma.survey.findFirst as jest.Mock).mockResolvedValue(surveyRow());
 
-      await service.remove(1, superUser());
+      await service.remove(1, kabupatenUser());
 
       expect(prisma.survey.update).toHaveBeenCalledWith({
         where: { id: 1 },

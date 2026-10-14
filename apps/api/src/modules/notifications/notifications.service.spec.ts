@@ -14,8 +14,10 @@ const respondenUser = (userId = 10): CurrentUser => ({
 });
 
 /**
- * Sejak superuser dipisah kembali (2026-08-20), broadcast pengawasan menyasar
- * `role: { in: [kabupaten, superuser] }` -- bukan lagi satu nilai peran. Mock
+ * Broadcast pengawasan menyasar `roles: { hasSome: [...FULL_ACCESS_ROLES] }`,
+ * bukan satu nilai peran. Bentuk itu lahir 2026-08-20 ketika superuser dipisah
+ * kembali, dan baris ini sempat tertinggal menulisnya sebagai
+ * `role: { in: [kabupaten, superuser] }` -- kueri yang sudah tak ada. Mock
  * di bawah membedakan kueri itu lewat bentuknya, bukan mencocokkan nilai persis,
  * supaya penambahan peran berhak penuh tak perlu menyunting tiap mock lagi.
  */
@@ -483,7 +485,7 @@ describe('NotificationsService', () => {
       expect(semuaNotifikasi().length).toBeGreaterThan(0);
     });
 
-    it('juga memberi tahu kabupaten & superuser (link admin-kab)', async () => {
+    it('juga memberi tahu peran berakses penuh (link admin-kab)', async () => {
       jumlahJawaban(1);
       (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
         if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
