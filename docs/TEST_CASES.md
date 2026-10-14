@@ -589,10 +589,10 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 
 | ID          | Endpoint                       | Superuser |          Kabupaten          |      Admin OPD      | Responden | Tipe  | Status |
 | ----------- | ------------------------------ | :-------: | :-------------------------: | :-----------------: | :-------: | :---: | :----: |
-| TC-RBAC-001 | `GET /opd`                     |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-001 | `GET /opd`                     |   ✅ 200   |            ✅ 200            |        ✅ 200        |   ✅ 200   | Integ |   ✅    |
 | TC-RBAC-002 | `POST /opd`                    |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
-| TC-RBAC-003 | `GET /users`                   |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
-| TC-RBAC-004 | `POST /users` (role=opd)       |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-003 | `GET /users`                   |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
+| TC-RBAC-004 | `POST /users` (role=opd)       |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-005 | `POST /users` (role=kabupaten) |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-006 | `POST /surveys`                |   ✅ 201   | ✅ 201 (wajib kirim `opdId`) |        ✅ 201        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-007 | `GET /surveys`                 |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ⬜    |
@@ -601,8 +601,8 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-RBAC-010 | `GET /surveys/:id/results`     |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ⬜    |
 | TC-RBAC-011 | `POST /complaints`             |     —     |            ❌ 403            |        ❌ 403        |   ✅ 201   | Integ |   ✅    |
 | TC-RBAC-012 | `PATCH /complaints/:id/status` |   ✅ 200   | ✅ 200 (sesudah diteruskan)  | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ✅    |
-| TC-RBAC-013 | `GET /audit-logs`              |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
-| TC-RBAC-014 | `GET /dashboard/ikm`           |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-013 | `GET /audit-logs`              |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
+| TC-RBAC-014 | `GET /dashboard/ikm`           |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
 
 > **(14 Oktober 2026) Tiga baris berstatus ✅, dan hanya tiga.** TC-RBAC-008,
 > 009, dan 011 kini punya uji untuk setiap kolom yang masih hidup: Kabupaten dan
@@ -630,9 +630,56 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > dengan pesan yang berbeda dan statusnya tetap 403. Uji baru itulah yang
 > menangkapnya, dan hanya karena ia memeriksa pesannya.
 >
-> Delapan baris lain tetap ⬜. Banyak di antaranya tersentuh suite e2e, tetapi
-> belum dipetakan sel per sel seperti baris-baris di atas, dan tersentuh bukan
-> sama dengan terbukti.
+> **(14 Oktober 2026) DELAPAN BARIS SISANYA IKUT DIPETAKAN, dua puluh empat sel,
+> badan ujinya dibaca satu per satu.** Hasilnya: empat baris lulus, dua baris
+> ternyata SALAH, dan tiga sel tak pernah diuji.
+>
+> Lulus, dengan sel pembuktinya:
+>
+> | Baris | Kabupaten | Admin OPD | Responden |
+> | --- | --- | --- | --- |
+> | TC-RBAC-003 `GET /users` | `users.e2e:126`, `peran-kabupaten-penuh:46` | `users.e2e:229`, `peran-kabupaten-penuh:66` + pesan | `peran-kabupaten-penuh:75` |
+> | TC-RBAC-004 `POST /users` (role=opd) | `users.e2e:84` | `users.e2e:242` | `peran-matriks-rbac:139` |
+> | TC-RBAC-013 `GET /audit-logs` | `peran-kabupaten-penuh:84` | `audit.e2e:216`, `peran-kabupaten-penuh:91` + pesan | `audit.e2e:221` + pesan |
+> | TC-RBAC-014 `GET /dashboard/ikm` | `ikm.e2e:318` | `ikm.e2e:306` | `ikm.e2e:312` |
+>
+> **Sel Responden pada TC-RBAC-004 bersandar pada PENALARAN, bukan uji khusus.**
+> Uji yang disitir mengirim `roles: ['responden']`, bukan `['opd']` seperti bunyi
+> barisnya. Sandaran itu sah karena gerbang peran menolak sebelum muatan
+> permintaan dibaca sama sekali, jadi isi `roles` tak dapat mengubah hasilnya --
+> tetapi itu tetap kesimpulan, dan ditulis begitu alih-alih berpura-pura ada uji
+> tersendiri untuk baris 004.
+>
+> **Penolakan pada TC-RBAC-014 hanya memeriksa status, tanpa pesan.** Bentuk itu
+> terbukti dua kali hari ini dapat tetap hijau walau `@Roles`-nya dicabut.
+> Tercakup, tetapi tidak sekuat baris 003 dan 013.
+>
+> **DUA SEL PADA TC-RBAC-001 SALAH, DAN SUDAH DIPERBAIKI DI TABEL.** Barisnya
+> menuntut Admin OPD dan Responden ditolak 403 pada `GET /opd`; kenyataannya
+> **200 untuk keduanya**, dan itu disengaja. `opd.controller.ts:37` memang tanpa
+> `@Roles`, dengan docblock yang menyebutnya terbuka bagi seluruh peran
+> terautentikasi, dan dua uji menamai alasannya: `opd.e2e:89` ("INT-18: list
+> terbuka semua peran terautentikasi") serta `opd.e2e:97` ("dibutuhkan dropdown
+> OPD tujuan saat buat pengaduan"). Sel Kabupaten-nya terbukti di `opd.e2e:77`.
+> Ketiga sel kini benar dan teruji, jadi barisnya lulus.
+>
+> **TC-RBAC-002 DIBATALKAN: rutenya tidak ada.** Tak ada `POST /opd` di
+> aplikasi ini. Yang ada `POST /opd/sync`, dan ia menjawab **200**, bukan 201
+> (`opd.e2e:140`; Admin OPD ditolak di `opd.e2e:174`). Daftar OPD disinkronkan
+> dari Helpdesk dan bersifat baca saja -- tak ada pembuatan OPD lewat API. Baris
+> itu karena itu salah pada endpoint, metode, dan statusnya sekaligus, dan tidak
+> diperbaiki di sini: menuliskannya ulang berarti memutuskan apakah ia menjadi
+> baris untuk `POST /opd/sync` atau dibuang, dan itu keputusan isi dokumen. Sel
+> Responden-nya pun tak pernah diuji.
+>
+> **TIGA SEL KOSONG, dan karenanya dua baris tetap belum lulus:** Responden pada
+> `GET /surveys` (TC-RBAC-007), serta Kabupaten dan Responden pada
+> `GET /surveys/:id/results` (TC-RBAC-010). Sel lain kedua baris itu terbukti --
+> Kabupaten di `public-surveys:579`, Admin OPD di `surveys.e2e:125` dan
+> `ikm.e2e:176` -- jadi yang menahan keduanya hanya tiga uji yang belum ditulis.
+>
+> Sebelas dari empat belas baris lulus sekarang. Tiga sisanya TC-RBAC-002, 007,
+> dan 010; hitungan ini dihitung ulang dari kolom Status, bukan dikira.
 
 ### X.2 Isolasi Data OPD — Skenario Negatif Krusial
 
