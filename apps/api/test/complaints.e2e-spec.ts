@@ -869,6 +869,24 @@ describe('Complaints (e2e)', () => {
       expect(nomor).toContain(tiketNo);
     });
 
+    /**
+     * TC-RBAC-012, jalur suksesnya. Matriksnya menyatakan Admin Kabupaten
+     * ditolak 403 di rute ini; yang sebenarnya terjadi: rutenya
+     * `@Roles(Role.kabupaten, Role.opd)`, jadi ia LOLOS gerbang peran, dan
+     * satu-satunya yang pernah menolaknya adalah aturan bisnis "belum
+     * diteruskan" yang diuji di atas. Sesudah diteruskan, tak ada lagi yang
+     * menolak -- dan itu belum pernah diuji sama sekali.
+     */
+    it('sesudah diteruskan, Admin Kabupaten dapat mengubah statusnya -> 200', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/status`)
+        .set(asKabupaten())
+        .send({ status: 'diproses' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('diproses');
+    });
+
     it('meneruskan ulang -> 400 (bukan dialihkan diam-diam)', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/complaints/${tiketId}/opd`)
