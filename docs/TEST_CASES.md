@@ -544,9 +544,9 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > | --- | --- | --- | --- | --- |
 > | TC-RBAC-005 | `POST /users` (role=kabupaten) | `❌ 403` | **201** | `users.e2e-spec.ts:97` |
 > | TC-RBAC-006 | `POST /surveys` | `❌ 403` | **lolos gerbang**; 400 tanpa `opdId` | `surveys.e2e-spec.ts:92` |
-> | TC-RBAC-008 | `GET /surveys/active` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:63` dan `:70` |
-> | TC-RBAC-009 | `POST /surveys/:id/responses` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:85` dan `:95` |
-> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:107` dan `:119` |
+> | TC-RBAC-008 | `GET /surveys/active` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:64` dan `:71` |
+> | TC-RBAC-009 | `POST /surveys/:id/responses` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:86` dan `:96` |
+> | TC-RBAC-011 | `POST /complaints` | `❌ 403` | benar, `@Roles(Role.responden)` | kini `peran-matriks-rbac.e2e-spec.ts:170` dan `:182` |
 > | TC-RBAC-012 | `PATCH /complaints/:id/status` | `❌ 403` | **bukan 403 peran** | `complaints.e2e-spec.ts:815` |
 >
 > TC-RBAC-012 paling halus salahnya. Rutenya
@@ -593,8 +593,8 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-RBAC-002 | `POST /opd`                    |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
 | TC-RBAC-003 | `GET /users`                   |   ✅ 200   |            ✅ 200            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
 | TC-RBAC-004 | `POST /users` (role=opd)       |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
-| TC-RBAC-005 | `POST /users` (role=kabupaten) |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ⬜    |
-| TC-RBAC-006 | `POST /surveys`                |   ✅ 201   | ✅ 201 (wajib kirim `opdId`) |        ✅ 201        |   ❌ 403   | Integ |   ⬜    |
+| TC-RBAC-005 | `POST /users` (role=kabupaten) |   ✅ 201   |            ✅ 201            |        ❌ 403        |   ❌ 403   | Integ |   ✅    |
+| TC-RBAC-006 | `POST /surveys`                |   ✅ 201   | ✅ 201 (wajib kirim `opdId`) |        ✅ 201        |   ❌ 403   | Integ |   ✅    |
 | TC-RBAC-007 | `GET /surveys`                 |   ✅ 200   |            ✅ 200            | ✅ 200 (OPD sendiri) |   ❌ 403   | Integ |   ⬜    |
 | TC-RBAC-008 | `GET /surveys/active`          |   ✅ 200   |            ❌ 403            |        ❌ 403        |   ✅ 200   | Integ |   ✅    |
 | TC-RBAC-009 | `POST /surveys/:id/responses`  |     —     |            ❌ 403            |        ❌ 403        |   ✅ 201   | Integ |   ✅    |
@@ -615,14 +615,22 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > bernama: Kabupaten di `complaints.e2e-spec.ts:880` dan `:817` untuk cabang
 > 400-nya, Admin OPD di `:534`, Responden di `:568`.
 >
-> **TC-RBAC-005 dan 006 TETAP ⬜ walau selnya kini benar**, dan sebabnya satu:
-> sel RESPONDEN keduanya tak punya uji sama sekali. Diukur 14 Oktober 2026 dengan
-> menyisir seluruh `apps/api/test/` -- tak satu pun berkas memukul `POST /users`
-> atau `POST /surveys` sebagai responden. Yang sudah terbukti pada kedua baris
-> itu: Kabupaten di `users.e2e-spec.ts:97` dan `surveys.e2e-spec.ts:107`, Admin
-> OPD di `users.e2e-spec.ts:242` dan `surveys.e2e-spec.ts:75`.
+> **TC-RBAC-005 dan 006 kini ✅ juga.** Sel RESPONDEN keduanya sempat kosong --
+> disisir 14 Oktober 2026 atas seluruh `apps/api/test/`, tak satu pun berkas
+> memukul `POST /users` atau `POST /surveys` sebagai responden -- dan ujinya
+> ditulis hari itu di `peran-matriks-rbac.e2e-spec.ts:139` dan `:154`. Sel
+> lainnya: Kabupaten di `users.e2e-spec.ts:97` dan `surveys.e2e-spec.ts:107`,
+> Admin OPD di `users.e2e-spec.ts:242` dan `surveys.e2e-spec.ts:75`.
 >
-> Sembilan baris lain tetap ⬜. Banyak di antaranya tersentuh suite e2e, tetapi
+> **Satu temuan yang lahir dari mutasi uji TC-RBAC-005, dan ia tentang suite yang
+> sudah ada.** Mencabut `@Roles(Role.kabupaten)` dari tingkat kelas
+> `UsersController` TIDAK memerahkan satu pun dari 30 uji di
+> `users.e2e-spec.ts`: seluruh suite manajemen pengguna buta terhadap hilangnya
+> gerbang peran di controllernya, sebab `UsersService` menolak di lapis kedua
+> dengan pesan yang berbeda dan statusnya tetap 403. Uji baru itulah yang
+> menangkapnya, dan hanya karena ia memeriksa pesannya.
+>
+> Delapan baris lain tetap ⬜. Banyak di antaranya tersentuh suite e2e, tetapi
 > belum dipetakan sel per sel seperti baris-baris di atas, dan tersentuh bukan
 > sama dengan terbukti.
 
