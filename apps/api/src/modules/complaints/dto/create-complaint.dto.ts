@@ -58,6 +58,18 @@ export class CreateComplaintDto {
   // sama list-opd-query.dto.ts. `@Type(() => Boolean)` TIDAK dipakai karena
   // Boolean('false') === true, yang akan membuat setiap pengaduan biasa
   // terkirim sebagai anonim.
+  /**
+   * `@Type(() => String)` WAJIB di sini, dan bukan hiasan (15 Oktober 2026,
+   * BUG-020).
+   *
+   * `app.setup.ts` menyalakan `transformOptions.enableImplicitConversion`, dan
+   * class-transformer memakai tipe hasil refleksi SEBELUM memanggil
+   * `@Transform` di bawah. Tipe refleksi medan ini `Boolean`, sehingga nilainya
+   * melewati `Boolean('false')` -- yang bernilai `true` -- dan `@Transform` tak
+   * pernah melihat string aslinya. Menyatakan `String` membuat konversi
+   * implisit tak mengubah apa pun, lalu `@Transform` menerjemahkannya sendiri.
+   */
+  @Type(() => String)
   @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
   @IsBoolean()
   isAnonim?: boolean;
