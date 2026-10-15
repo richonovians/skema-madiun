@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 4.7 |
+| **Versi** | 4.8 |
 | **Tanggal** | 15 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -3143,10 +3143,61 @@ memang merender `null`. `ComplaintTable` 2 dari 5 gagal; tiga uji halaman admin
 Tiap kendali ada supaya uji pasangannya tak tetap hijau bila catatannya dipasang
 tanpa syarat. Sesudahnya suite web 200 berkas / 1.640 uji lulus, eslint kode=0.
 
-**DUA PEMASANGAN TIDAK TERCAKUP UJI**, dan itu perlu dibaca bersama status
-"Ditutup" di atas. `admin-kab/complaints` dan `admin-opd/complaints` tak punya
-uji halaman sama sekali, jadi catatan di kedua halaman itu — tiga baris, identik
-dengan tiga halaman yang teruji — tak dibuktikan oleh uji apa pun.
+**DUA PEMASANGAN TIDAK TERCAKUP UJI, DAN KINI TERCAKUP** — keduanya pada
+15 Oktober 2026 juga, beberapa jam sesudah entri ini ditulis. Ketika status
+"Ditutup" di atas diberikan, `admin-kab/complaints` dan `admin-opd/complaints`
+tak punya uji halaman di `main` sama sekali, jadi catatan di kedua halaman itu —
+tiga baris, identik dengan tiga halaman yang teruji — tak dibuktikan oleh uji
+apa pun, dan batas itu disebut tersurat supaya "Ditutup" tidak dibaca lebih luas
+dari kenyataannya. Lubang itu ditutup commit `06a7da7` di `main`: enam kasus
+untuk halaman Kabupaten, tujuh untuk halaman OPD.
+
+**Dibuktikan lewat MUTASI, sebab merah alami tak mungkin ada di sini.** Kode
+halamannya sudah ada, jadi uji yang baru ditulis lulus pada jalan pertama — dan
+uji yang belum pernah terlihat merah tidak membuktikan ia mampu menangkap apa
+pun. Sebelas mutasi karena itu dipasang satu per satu ke kedua halaman,
+masing-masing dijalankan sendiri, lalu dipulihkan (`git diff` atas kedua halaman
+kosong sesudahnya). Setiap satu dari tiga belas uji terbunuh oleh setidaknya satu
+mutasi, dan yang mati selalu uji yang memang menjaga perkara itu:
+
+| Mutasi                                              | Uji yang memerah                                       |
+| --------------------------------------------------- | ------------------------------------------------------ |
+| `ditampilkan={barisTerambil}` → `{totalSeluruhnya}` | 2 per halaman: catatannya tak pernah muncul            |
+| `adaPenyaring` → `adaPenyaring={false}`              | 1: kalimat yang menyebut pencarian hilang              |
+| `total={totalSeluruhnya}` → `total={99999}`          | 3, termasuk KEDUA uji kendali "TIDAK memasang catatan"  |
+| `ITEMS_PER_PAGE` 5 → 10                              | 2                                                      |
+| `matchSearch` dibuang dari penyaring                 | 1                                                      |
+| `getComplaints` menerima `opdId` lagi                | 1, hanya halaman OPD                                   |
+
+Mutasi ketiga yang paling berguna: ia membuat catatannya SELALU muncul, dan dua
+uji kendali itulah yang menangkapnya. Tanpa keduanya, "halaman mengatakan
+daftarnya terpotong" dapat dipenuhi oleh halaman yang memperingatkan
+terus-terusan, termasuk ketika tak ada yang terpotong.
+
+Uji terakhir di halaman OPD menjaga perkara yang berbeda dan bukan tentang
+pemotongan: `?opdId=` TIDAK boleh dikirim dari klien. Penyaring itu dibuang
+5 September 2026 ketika hak akses mulai mengikuti peran yang DIPAKAI dan backend
+menurunkan instansinya sendiri dari `users.opd_id`; sampai hari ini keputusan itu
+hanya hidup sebagai komentar.
+
+**SATU BENTURAN MERGE DITINGGALKAN, dan perlu diputuskan sadar sebelum `main`
+ditarik ke `tester` lagi.** Jalur
+`apps/web/src/app/admin-opd/complaints/__tests__/page.test.jsx` kini berisi DUA
+berkas yang lahir sendiri-sendiri: di `tester` versi September (enam kasus,
+`e3c5a0b`, suite TC-FE-041, tak pernah ikut ke `main`), dan di `main` versi
+15 Oktober (tujuh kasus, commit `06a7da7`). Keduanya tercatat sebagai
+penambahan, bukan suntingan, jadi tarikan berikutnya akan berbenturan di jalur
+itu — dan memilih salah satunya akan MEMBUANG cakupan. Versi `tester` menguji
+dropdown status, keadaan kosong, Reset Filter, serta pencarian menurut nomor
+tiket dan nama pelapor; versi `main` menguji catatan pemotongan, angka paginasi,
+dan `opdId` yang tak dikirim. Tak ada satu pun uji yang muncul di keduanya.
+Penyelesaiannya gabungan, bukan pilihan.
+
+Temuan sampingan dari benturan itu, dicatat karena ia memperbaiki kesalahan
+penguji sendiri: catatan pertama hari ini menyatakan berkas tersebut "tak ada
+lagi". Itu bacaan `main`, dan di `tester` berkas itu hidup. Koreksinya ada pada
+catatan §Y.1 `TEST_CASES.md`, beserta sebab yang sama yang membuat angka
+"200 berkas / 1.640 uji" tak dapat dibandingkan dengan tabel pemetaan di sana.
 
 **Dua kesalahan penguji, dicatat karena keduanya hampir lolos.** Pertama,
 kalimat catatannya mula-mula selalu berbunyi "termasuk oleh pencarian dan
@@ -3230,3 +3281,4 @@ paling dekat melewati batas adalah pengaduan.
 | 4.5 | 15 Oktober 2026 | **BUG-020** — parameter boolean bernilai `false` dibaca sebagai `true` di empat endpoint, satu sebab: `enableImplicitConversion` membuat `Boolean('false')` berjalan sebelum `@Transform` DTO. `isActive` pada `GET /opd` diperbaiki dan beruji; `isAnonim`, `tanpaOpd`, `unreadOnly` belum, dan ketiganya tak terjangkau dari antarmuka hari ini. Tiga kasus uji baru di Modul J `TEST_CASES.md`. Versi 4.4 tak pernah punya barisnya sendiri di tabel ini; nomor itu dilewati alih-alih dikarang. |
 | 4.6 | 15 Oktober 2026 | **BUG-020 ditutup.** Tiga medan sisanya -- `isAnonim`, `tanpaOpd`, `unreadOnly` -- diperbaiki dengan `@Type(() => String)` dan masing-masing dapat uji e2e yang dibuktikan merah lebih dulu oleh cacatnya sendiri, bukan oleh mutasi. TC-BOOL-001 s.d. 003 di Modul J kini ✅. Satu kesalahan penguji ikut dicatat: uji `tanpaOpd` mula-mula memerah dengan 400 karena `limit=200` melampaui batas 100, merah karena alasan yang salah, lalu dibetulkan. e2e api 441 -> 444 uji. |
 | 4.7 | 15 Oktober 2026 | **BUG-021** — `ComplaintTable` memanggil `Pagination` dengan `1/1/3` dipatok mati, sehingga daftar pengaduan warga berbunyi "Menampilkan 1-3 dari 12" di bawah dua belas baris; ditambah pemotongan diam di lima halaman admin (`FETCH_LIMIT = 100`), daftar warga (50), dan Riwayat Aktivitas (10). Ditutup lewat satu komponen bersama `CatatanPemotongan` dan angka paginasi yang diturunkan dari baris yang ada, 21 uji dibuktikan merah lebih dulu. Pemotongannya sendiri TIDAK diperbaiki dan dicatat sebagai **CAT-022**, sebab paginasi sisi server menuntut backend menerima `search`. Dua pemasangan tanpa uji disebut tersurat. TC-FE-050 & 051 lahir dari sini. Label "Beranda" juga berganti menjadi "Layanan" di seluruh antarmuka pada hari yang sama; sebelas sebutan bertanggal di dokumen ini dibiarkan utuh. |
+| 4.8 | 15 Oktober 2026 | **Dua pemasangan tanpa uji pada BUG-021 ditutup** (`06a7da7` di `main`): `admin-kab/complaints` dan `admin-opd/complaints` mendapat uji halaman pertamanya, 6 + 7 kasus. Kode halamannya sudah ada sehingga uji baru lulus pada jalan pertama, jadi ketiga belas uji dibuktikan lewat SEBELAS MUTASI yang dipasang satu per satu lalu dipulihkan; setiap uji terbunuh oleh setidaknya satu. TC-FE-051 dikoreksi: "tiga uji halaman admin" menjadi lima. Dua kesalahan penguji pada catatan 4.7 ikut dikoreksi, bukan dihapus: berkas yang disebut "tak ada lagi" sebenarnya hidup di `tester` dan hanya tak ada di `main`, dan angka "200 berkas / 1.640 uji" adalah bacaan `main` yang tak dapat dibandingkan dengan tabel pemetaan §Y.1 yang dibaca di `tester`. Satu benturan merge ditinggalkan dengan sengaja pada jalur uji halaman OPD, berisi dua berkas yang lahir sendiri-sendiri; penyelesaiannya gabungan, bukan pilihan. |

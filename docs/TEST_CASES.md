@@ -979,7 +979,7 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-FE-048 | **Ketahanan Halaman Admin saat API Gagal** | Cegat seluruh `\**/api/v1/**` (kecuali `/auth/me`) dengan 503, buka enam halaman admin; lalu pulihkan dan tekan "Coba Lagi". Uji juga pengiriman survei yang gagal dan tombol kirim yang ditekan berkali-kali pada jaringan lambat | Setiap halaman menjelaskan kegagalannya dan menawarkan jalan pulih; jawaban survei yang sudah diisi tidak hilang; satu pengisian menghasilkan tepat satu respons. **LULUS 3 September 2026 (sesi C-08) — tanpa satu pun cacat.** Keenam halaman (Dashboard, OPD, Survei, Pengaduan, Log Aktivitas, Manajemen Pengguna) menampilkan pesan galat beserta tombol "Coba Lagi", dan tombol itu benar-benar memulihkan halaman setelah backend normal kembali. Pengiriman survei yang ditolak 503 menampilkan pesan dari backend, **mempertahankan seluruh jawaban**, dan membiarkan tombol kirim ditekan lagi. Empat klik beruntun pada jaringan yang ditahan 5 detik menghasilkan **tepat 1** `POST /responses` (jumlah respons 34 → 35). Backend sungguhan TIDAK dimatikan — kegagalannya dihasilkan lewat pencegatan rute di peramban. | P1 | Manual | ✅ |
 | TC-FE-049 | **Daftar OPD pada Volume Nyata & Sinkronisasi** | Telusuri seluruh halaman daftar 62 OPD, cari dengan huruf besar/kecil dan dengan spasi berlebih, saring jenis layanan, lalu jalankan sinkronisasi yang berhasil dan yang gagal (jawaban dipalsukan) | Seluruh baris terjangkau; pencarian mengabaikan kapitalisasi dan spasi berlebih; laporan sinkron lengkap; kegagalan sinkron tak membuang data lama. **SEBAGIAN, 3 September 2026 (sesi C-06).** Yang benar: 62 dari 62 OPD terjangkau dalam 7 halaman, indikator paginasi cocok dengan backend, pencarian nama & kode tak peka huruf besar-kecil, menyaring mengembalikan paginasi ke halaman 1, kegagalan sinkron 503 diberitahukan tanpa mengosongkan tabel dan tombolnya tetap bisa ditekan lagi. Yang gagal: [BUG-011](BUG_REPORTS.md#bug-011) (pencarian tak memangkas spasi — "&nbsp;&nbsp;DINAS" memberi 0 dari 18 hasil), [BUG-012](BUG_REPORTS.md#bug-012) (angka `skipped` laporan sinkron tak pernah ditampilkan), dan [BUG-010](BUG_REPORTS.md#bug-010) (tombol paginasi tanpa nama aksesibel). | P2 | Manual | 🟡 |
 | TC-FE-050 | **Kendali paginasi daftar pengaduan warga** | Buka `/complaints` sebagai warga dengan lebih dari tiga pengaduan, baca baris di bawah tabel | Baris itu menyebut jumlah yang BENAR-BENAR ditampilkan. Sebelum 15 Oktober 2026 ia berbunyi "Menampilkan 1-3 dari 12 pengaduan" di bawah tabel berisi dua belas baris dengan kedua panah mati — `Pagination` dipatok mati `1/1/3`, lihat [BUG-021](BUG_REPORTS.md#bug-021) — `ComplaintTable.test.jsx` | P1 | Component | ✅ |
-| TC-FE-051 | **Catatan pemotongan pada daftar yang terpotong** | Buat total baris melebihi batas ambil (100 di lima halaman admin, 50 di daftar warga, 10 di Riwayat Aktivitas), lalu baca halamannya | Halaman MENGATAKAN daftarnya terpotong: jumlah yang dimuat, totalnya dari `meta.pagination.total`, dan pada layar yang menyaring di klien juga bahwa pencarian hanya bekerja atas irisan itu. Tak ada peringatan ketika total belum diketahui — `CatatanPemotongan.test.jsx`, `ActivityHistoryTable.test.jsx`, dan tiga uji halaman admin | P2 | Component | ✅ |
+| TC-FE-051 | **Catatan pemotongan pada daftar yang terpotong** | Buat total baris melebihi batas ambil (100 di lima halaman admin, 50 di daftar warga, 10 di Riwayat Aktivitas), lalu baca halamannya | Halaman MENGATAKAN daftarnya terpotong: jumlah yang dimuat, totalnya dari `meta.pagination.total`, dan pada layar yang menyaring di klien juga bahwa pencarian hanya bekerja atas irisan itu. Tak ada peringatan ketika total belum diketahui — `CatatanPemotongan.test.jsx`, `ActivityHistoryTable.test.jsx`, dan lima uji halaman admin | P2 | Component | ✅ |
 
 > **(15 Oktober 2026) DUA BARIS DI ATAS LAHIR DARI SATU PENYISIRAN**, bukan dari
 > dua laporan terpisah. Empat tempat memotong daftarnya tanpa mengatakannya dan
@@ -993,11 +993,25 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > [CAT-022](BUG_REPORTS.md#cat-022) karena ia pertukaran yang disengaja, bukan
 > cacat: backend belum menerima `search` pada DTO daftarnya.
 >
-> **Dua pemasangan TIDAK tercakup uji.** `admin-kab/complaints` dan
-> `admin-opd/complaints` tak punya uji halaman sama sekali, jadi catatan
-> pemotongan di kedua halaman itu — tiga baris, identik dengan tiga halaman yang
-> teruji — tak terbukti oleh uji apa pun. Disebut di sini supaya status ✅ di atas
-> tidak dibaca lebih luas daripada yang dibuktikannya.
+> **DUA PEMASANGAN YANG TADINYA TAK TERCAKUP, KINI TERCAKUP** — ditulis dan
+> ditutup pada hari yang sama, 15 Oktober 2026. Ketika TC-FE-051 di atas ditandai
+> ✅, `admin-kab/complaints` dan `admin-opd/complaints` belum punya uji halaman di
+> `main` sama sekali, jadi catatan pemotongan di kedua halaman itu — tiga baris,
+> identik dengan tiga halaman yang teruji — tak dibuktikan oleh uji apa pun, dan
+> batas itu dinyatakan tersurat di sini supaya ✅-nya tidak dibaca lebih luas
+> daripada yang dibuktikannya. Sore hari itu keduanya mendapat uji halaman: enam
+> kasus untuk halaman Kabupaten dan tujuh untuk halaman OPD, commit `06a7da7` di
+> `main`. Sebutan "tiga uji halaman admin" pada TC-FE-051 karena itu sudah
+> dikoreksi menjadi lima.
+>
+> **Uji yang ditulis untuk kode yang sudah ada lulus pada jalan pertama, dan itu
+> tidak membuktikan apa pun.** Ketiga belas uji karena itu dibuktikan lewat
+> MUTASI, bukan lewat merah alami: sebelas mutasi dipasang satu per satu ke kedua
+> halaman, masing-masing dijalankan sendiri lalu dipulihkan, dan setiap satu dari
+> tiga belas uji terbunuh oleh setidaknya satu di antaranya. Yang paling berguna
+> membuat catatannya SELALU muncul — dua uji kendali "TIDAK memasang catatan"
+> itulah yang menangkapnya. Rinciannya, termasuk satu benturan merge yang
+> ditinggalkannya, ada di [BUG-021](BUG_REPORTS.md#bug-021).
 >
 > **(15 Oktober 2026) Label "Beranda" kini "Layanan"** di seluruh antarmuka, atas
 > permintaan pengguna. Tak satu pun baris TC di dokumen ini menyebut kata itu,
@@ -1007,14 +1021,40 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 
 ### Y.1 Peta Otomatisasi (angka diperbarui 15 September 2026)
 
-> **(15 Oktober 2026) ANGKA DI TABEL INI BACAAN 15 SEPTEMBER 2026, DAN SUDAH
-> JAUH TERTINGGAL.** Terukur hari ini: `pnpm --filter @skm-spm/web test` melapor
-> **200 berkas / 1.640 uji**, bukan 92 berkas / 673 uji. Tabelnya TIDAK ditulis
-> ulang, sebab ia memang rekaman satu pembacaan dan menambal tiga baris akan
-> membuatnya tampak mutakhir padahal bukan. Satu baris di dalamnya juga sudah
-> menunjuk berkas yang tak ada lagi, `app/admin-opd/complaints/__tests__/page.test.jsx`.
-> Memperbarui seluruhnya menuntut satu pembacaan `jest --json` baru dan pantas
-> diputuskan terpisah.
+> **(15 Oktober 2026) ANGKA DI TABEL INI BACAAN 15 SEPTEMBER 2026 DAN SUDAH JAUH
+> TERTINGGAL — tetapi dua pernyataan pada catatan pertama hari ini SALAH, dan
+> dikoreksi di sini alih-alih dihapus.**
+>
+> Yang tetap berlaku: tabel ini rekaman satu pembacaan, dan ia TIDAK ditulis
+> ulang, sebab menambal beberapa baris ke dalamnya akan membuatnya tampak
+> mutakhir padahal bukan. Memperbaruinya seluruhnya menuntut satu pembacaan
+> `jest --json` baru dan pantas diputuskan terpisah.
+>
+> **Salah pertama: angka pembandingnya diambil dari cabang yang lain.** Catatan
+> pertama menyebut "200 berkas / 1.640 uji" sebagai bacaan hari ini. Angka itu
+> dibaca di `main`, sedangkan tabel ini bacaan di `tester` — cabang tempat
+> dokumen ini hidup, dan tempat tiga belas berkas uji dari September berada yang
+> TIDAK pernah ikut ke `main` (`e3c5a0b` bukan leluhur `main`). Keduanya karena
+> itu tak dapat dibandingkan sama sekali. Bacaan `tester` hari ini belum pernah
+> diambil, jadi angkanya tidak disebut di sini; bacaan `main` hari ini
+> **202 berkas / 1.653 uji**.
+>
+> **Salah kedua: berkas yang disebut "tak ada lagi" itu ADA.**
+> `app/admin-opd/complaints/__tests__/page.test.jsx` hidup di `tester` — enam
+> kasus, ditambahkan `e3c5a0b`, suite TC-FE-041 — dan hanya tak ada di `main`,
+> yang kebetulan pohon kerja yang sedang terpasang ketika catatan pertama
+> ditulis. Barisnya di tabel bawah karena itu tidak menunjuk ke ruang kosong.
+>
+> **Akibatnya satu benturan merge yang nyata, dan perlu diputuskan sadar.** Sore
+> 15 Oktober 2026 sebuah berkas BARU ditulis di `main` pada jalur yang sama
+> persis, dengan isi yang sama sekali berbeda (tujuh kasus: catatan pemotongan,
+> angka paginasi, dan `?opdId=` yang tak boleh dikirim dari klien). Kedua berkas
+> lahir sendiri-sendiri, jadi tarikan `main` ke `tester` berikutnya akan
+> berbenturan di jalur itu — dan memilih salah satunya akan MEMBUANG cakupan:
+> versi `tester` menguji dropdown status, keadaan kosong, Reset Filter, serta
+> pencarian menurut nomor tiket dan nama pelapor; versi `main` menguji ketiga hal
+> di atas. Penyelesaiannya gabungan, bukan pilihan. Lihat
+> [BUG-021](BUG_REPORTS.md#bug-021).
 >
 > **Kolom "Jumlah test" dibaca dari keluaran `jest --json`, bukan dihitung
 > tangan.** Delapan baris berubah pada pembacaan 15 September: enam karena tim
