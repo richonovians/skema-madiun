@@ -16,17 +16,26 @@ datasource db {
 // ENUM
 // =====================================================================
 
-// `kabupaten` = Admin Kabupaten SEKALIGUS superuser (2026-08-05: role
-// `superuser` terpisah DIHAPUS/digabung ke sini atas permintaan user --
-// sebelumnya ditambah 20260727000000_add_superuser_role, kini dilebur
-// balik). `kabupaten` mewarisi bypass penuh RolesGuard (lihat guard).
-// `superuser` DIKEMBALIKAN (2026-08-20, atas permintaan user) setelah sebelumnya
-// digabung ke `kabupaten` (lihat migrasi 20260805150000_remove_superuser_role_merge_kabupaten,
-// yang juga atas permintaan user). Bedanya sekarang JELAS dan bukan sekadar nama:
-// - superuser: seluruh hak kabupaten, DITAMBAH akses log aktivitas (audit log)
-// - kabupaten: sama seperti sebelumnya, TAPI tanpa akses log aktivitas
-// Perbedaan itu ditegakkan di AuditService (bukan di @Roles) karena RolesGuard
-// memberi kabupaten bypass penuh atas @Roles -- lihat catatan di sana.
+// TIGA PERAN, dan `superuser` bukan salah satunya. Riwayatnya berputar empat
+// kali, jadi urutannya perlu tertulis utuh:
+//
+//   27 Juli 2026      `superuser` ditambahkan (20260727000000_add_superuser_role)
+//   5 Agustus 2026    dilebur ke `kabupaten` (20260805150000_remove_superuser_role_merge_kabupaten)
+//   20 Agustus 2026   dikembalikan (20260820000000_readd_superuser_role), bedanya
+//                     akses log aktivitas, ditegakkan di dalam AuditService karena
+//                     RolesGuard waktu itu memberi kedua peran bypass penuh atas @Roles
+//   15 September 2026 dilebur untuk TERAKHIR kali (20260915140000_lebur_superuser_ke_kabupaten),
+//                     nilai enumnya dibuang
+//
+// Dua klaim di paragraf ini sempat bertahan sebagai keadaan sekarang padahal
+// sudah mati, dan keduanya dibereskan 14 Oktober 2026: `superuser` "DIKEMBALIKAN"
+// (ia dilebur lagi tiga minggu kemudian, dan enum di bawah ini sendiri sudah
+// menyatakannya), serta bypass penuh `kabupaten` atas @Roles (dibongkar temuan
+// audit T6, 7 September 2026 -- @Roles kini ditegakkan apa adanya, fail-closed).
+//
+// Yang berlaku sekarang: log aktivitas dan manajemen pengguna milik `kabupaten`,
+// dijaga `@Roles(Role.kabupaten)` di controllernya dengan pemeriksaan service
+// sebagai lapis kedua.
 enum Role {
   kabupaten
   opd
@@ -480,8 +489,7 @@ model Complaint {
   ticketNo    String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
   userId      Int             @map("user_id")
   // Opsional sejak 6 September 2026: pengirim yang tak tahu tujuannya memilih
-  // "Lainnya (belum tahu tujuannya)", lalu Superuser/Admin Kabupaten
-  // meneruskannya lewat
+  // "Lainnya (belum tahu tujuannya)", lalu Admin Kabupaten meneruskannya lewat
   // PATCH /complaints/:id/opd. NULL berarti "belum bertujuan" -- bukan status
   // tersendiri, karena statusnya tetap `diterima` sampai OPD-nya menangani.
   opdId       Int?            @map("opd_id")
