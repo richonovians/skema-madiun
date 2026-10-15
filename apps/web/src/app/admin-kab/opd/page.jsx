@@ -5,6 +5,7 @@ import OPDHeader from '@/features/opd/components/OPDHeader';
 import OPDFilterBar from '@/features/opd/components/OPDFilterBar';
 import OPDTable from '@/features/opd/components/OPDTable';
 import Pagination from '@/components/ui/Pagination';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -32,6 +33,12 @@ export default function ManajemenOPDPage() {
 
   const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  // Baris yang diambil berhenti di FETCH_LIMIT, dan penyaring serta pencarian di
+  // atas bekerja atas irisan itu saja -- jadi baris yang cocok tetapi tak
+  // terambil tak akan pernah muncul. Total sebenarnya hanya diketahui dari meta
+  // backend; tanpa menyebutnya, halaman ini tampak lengkap padahal bukan.
+  const totalSeluruhnya = response?.meta?.pagination?.total ?? 0;
+  const barisTerambil = response?.data?.length ?? 0;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
@@ -89,14 +96,24 @@ export default function ManajemenOPDPage() {
           data={paginatedData}
           pagination={
             totalItems > 0 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={totalItems}
-                itemsPerPage={ITEMS_PER_PAGE}
-                onPageChange={setCurrentPage}
-                itemName="OPD"
-              />
+              <>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                  itemName="OPD"
+                />
+                <div className="px-6 pb-3">
+                  <CatatanPemotongan
+                    ditampilkan={barisTerambil}
+                    total={totalSeluruhnya}
+                    namaItem="OPD"
+                    adaPenyaring
+                  />
+                </div>
+              </>
             )
           }
         />

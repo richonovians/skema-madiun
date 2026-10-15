@@ -8,6 +8,7 @@ import SurveyMonitoringTable from '@/features/surveys/components/admin-kab/Surve
 import SurveyFormModal from '@/features/surveys/components/admin-kab/SurveyFormModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { downloadTablePdf } from '@/utils/pdf';
@@ -149,7 +150,12 @@ export default function AdminKabSurveysPage() {
       getSurveys({ limit: FETCH_LIMIT }),
       getOpdList({ limit: FETCH_LIMIT }),
     ]);
-    return { surveys: surveysResult.data, opdList: opdResult.data };
+    return {
+      surveys: surveysResult.data,
+      opdList: opdResult.data,
+      // Hanya survei yang berpaginasi di layar ini, jadi cukup totalnya.
+      totalSurveys: surveysResult.meta?.pagination?.total ?? 0,
+    };
   }, []);
 
   const { data, isLoading, error, refetch } = useAsync(fetchData);
@@ -356,6 +362,12 @@ export default function AdminKabSurveysPage() {
 
   const totalItems = filteredSurveys.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  // Baris yang diambil berhenti di FETCH_LIMIT, dan penyaring serta pencarian di
+  // atas bekerja atas irisan itu saja -- jadi baris yang cocok tetapi tak
+  // terambil tak akan pernah muncul. Total sebenarnya hanya diketahui dari meta
+  // backend; tanpa menyebutnya, halaman ini tampak lengkap padahal bukan.
+  const totalSeluruhnya = data?.totalSurveys ?? 0;
+  const barisTerambil = data?.surveys?.length ?? 0;
 
   const paginatedSurveys = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -461,6 +473,12 @@ export default function AdminKabSurveysPage() {
             itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={setCurrentPage}
             itemName="survei"
+          />
+          <CatatanPemotongan
+            ditampilkan={barisTerambil}
+            total={totalSeluruhnya}
+            namaItem="survei"
+            adaPenyaring
           />
         </div>
       </div>
