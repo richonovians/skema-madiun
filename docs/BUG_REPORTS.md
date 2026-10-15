@@ -21,6 +21,13 @@
 > **ditandai tersurat**, tidak disunting diam-diam — menulis ulang kasus uji
 > secara senyap akan menghapus fakta bahwa cakupan ujinya berubah.
 >
+> **(15 Oktober 2026) LABEL "BERANDA" KINI "LAYANAN"** di seluruh antarmuka,
+> atas permintaan pengguna. Sebelas sebutan "beranda" di bawah DIBIARKAN UTUH
+> dengan alasan yang sama seperti `superuser`: seluruhnya pengamatan bertanggal
+> tentang rute `/`, dan rutenya tidak berubah sama sekali — hanya labelnya.
+> Membacanya hari ini: yang disebut "beranda publik" adalah halaman `/` yang
+> kini berlabel "Layanan".
+>
 > **Dokumen ini TIDAK disunting di luar kotak ini.** Isinya laporan temuan
 > bertanggal dan catatan sesi eksploratori, termasuk cuplikan keluaran `psql`
 > mentah seperti `2 | superuser@example.go.id | {superuser}`. Seluruhnya rekaman
@@ -30,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 4.6 |
+| **Versi** | 4.7 |
 | **Tanggal** | 15 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -105,8 +112,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
 | [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 19 temuan: 5 ditutup, **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
+**Rekap** — 20 temuan: 6 ditutup, **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -3068,6 +3076,127 @@ docblock yang menyebut apa yang mereka lewatkan.
 
 ---
 
+<a id="bug-021"></a>
+
+### BUG-021 — Kendali paginasi menampilkan angka yang salah, dan tiga tempat memotong daftarnya tanpa suara
+
+|                       |                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| **Charter**           | — (ditemukan saat menyisir paginasi dashboard atas permintaan pengguna)               |
+| **Tanggal**           | 15 Oktober 2026                                                                       |
+| **Peran**             | Responden (angka salah), Admin Kabupaten & Admin OPD (pemotongan diam)                |
+| **Halaman**           | `/complaints`; `/admin-kab/{complaints,opd,surveys,users}`; `/admin-opd/complaints`; Riwayat Aktivitas di dasbor warga |
+| **Severity**          | Medium                                                                                |
+| **Kasus uji terkait** | TC-FE-050, TC-FE-051; bersinggungan dengan TC-FE-013 dan TC-FE-049                    |
+
+**Empat gejala, satu pola.** Daftar di aplikasi ini dipotong di sisi klien dan
+tak ada yang mengatakannya kepada pemakainya.
+
+**Langkah reproduksi gejala yang paling terang**
+
+1. Masuk sebagai warga yang punya lebih dari tiga pengaduan.
+2. Buka `/complaints`.
+3. Hitung baris pada tabelnya, lalu baca baris keterangan di bawahnya.
+
+**Hasil sebenarnya.** Tabelnya menampilkan dua belas baris; keterangannya
+berbunyi **"Menampilkan 1-3 dari 12 pengaduan"**, dan kedua tombol panah mati.
+Angkanya bukan sekadar salah — ia membuat warga menyangka ada sembilan
+pengaduan lain yang tak dapat ia buka.
+
+**Sebabnya tersurat di kodenya.** `ComplaintTable.jsx` memanggil `Pagination`
+dengan `totalPages={1} currentPage={1} itemsPerPage={3}` dipatok mati, sementara
+`totalItems` diisi panjang array yang sebenarnya. Tiga nilai pertama tak pernah
+berubah, jadi `endItem` selalu `min(1 × 3, totalItems)` = 3.
+
+**Tiga gejala lain, semuanya diam.**
+
+| Tempat                                  | Pemotongan                                    | Yang hilang                                                             |
+| --------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| Lima halaman admin                      | `FETCH_LIMIT = 100` lalu paginasi di klien    | jumlah halaman dihitung dari baris yang TERAMBIL, bukan `meta.pagination.total` |
+| Daftar pengaduan warga                  | ambil 50                                      | sisanya tak pernah disebut                                              |
+| Riwayat Aktivitas (dasbor warga)         | `MAX_ROWS = 10`                               | tanpa catatan dan tanpa tautan "lihat semua"                            |
+
+Pada lima halaman admin, akibat yang paling mudah terlewat bukan jumlah
+barisnya melainkan **penyaringnya**: pencarian di halaman-halaman itu bekerja
+atas seratus baris yang terambil, jadi pengaduan yang cocok tetapi tak terambil
+tak akan pernah muncul — dan admin yang mencarinya akan menyimpulkan ia tidak
+ada.
+
+**Satu tempat SUDAH berterus terang sebelum hari ini**, dan itulah pola yang
+dipakai ulang: `ComplaintStatusBreakdown` menyebut "Dihitung dari 100 pengaduan
+terbaru saja (total N)". Berkas itu sengaja TIDAK diubah; kalimatnya menerangkan
+angka hasil hitungan atas irisan, bukan daftar yang terpotong.
+
+**Perbaikannya.** Satu komponen bersama, `components/ui/CatatanPemotongan.jsx`,
+dipasang di empat tempat, ditambah angka `Pagination` yang diturunkan dari baris
+yang benar-benar ada. `total` dibaca dari `meta.pagination.total`, dan `0`
+diperlakukan sebagai "belum diketahui" alih-alih "tidak terpotong" — ketiadaan
+data bukan bukti, dan peringatan palsu di setiap halaman lebih buruk daripada
+tak ada peringatan.
+
+**Bagaimana ini diverifikasi.** 21 kasus uji baru, seluruhnya dibuktikan merah
+lebih dulu. Komponennya dibuat sebagai stub KOMPILABEL dahulu supaya ujinya
+benar-benar jalan dan memerah karena perilaku, bukan karena galat impor: 3 dari
+5 gagal, dan 2 yang menuntut "tidak menampilkan apa pun" lulus karena stub
+memang merender `null`. `ComplaintTable` 2 dari 5 gagal; tiga uji halaman admin
+3 gagal dengan 3 kendali lulus; Riwayat Aktivitas 1 gagal dengan 2 kendali lulus.
+Tiap kendali ada supaya uji pasangannya tak tetap hijau bila catatannya dipasang
+tanpa syarat. Sesudahnya suite web 200 berkas / 1.640 uji lulus, eslint kode=0.
+
+**DUA PEMASANGAN TIDAK TERCAKUP UJI**, dan itu perlu dibaca bersama status
+"Ditutup" di atas. `admin-kab/complaints` dan `admin-opd/complaints` tak punya
+uji halaman sama sekali, jadi catatan di kedua halaman itu — tiga baris, identik
+dengan tiga halaman yang teruji — tak dibuktikan oleh uji apa pun.
+
+**Dua kesalahan penguji, dicatat karena keduanya hampir lolos.** Pertama,
+kalimat catatannya mula-mula selalu berbunyi "termasuk oleh pencarian dan
+penyaring di atas", padahal dua dari empat pemakainya tak punya penyaring sama
+sekali; klausanya dibuat bersyarat dan dua uji menjaga kedua bunyinya. Kedua,
+uji Riwayat Aktivitas mula-mula memerah karena
+`findByText(/Mengajukan Pengaduan/)` cocok ke BANYAK elemen, bukan karena
+catatannya belum ada — merah dengan alasan yang salah, yang tidak membuktikan
+apa pun; diganti `findAllByText` lalu dijalankan ulang.
+
+**Yang TIDAK diperbaiki** ada di [CAT-022](#cat-022): pemotongannya sendiri
+tetap, dan pencarian di lima halaman admin tetap hanya mencari di dalam irisan
+seratus baris.
+
+---
+
+<a id="cat-022"></a>
+
+### CAT-022 — Paginasi klien atas satu ambil 100 baris: pencariannya hanya mencari di dalam irisan
+
+Bukan cacat, melainkan pertukaran yang disengaja dan tertulis di kodenya sendiri
+(`admin-kab/complaints/page.jsx`): *"ambil satu halaman besar lalu
+filter+paginasi di klien, backend belum py search/kategori bebas teks"*. Dicatat
+di sini supaya keputusannya diambil sadar, bukan terlewat.
+
+Terukur: `ListComplaintQueryDto` hanya menerima `status`, `opdId`, `tanpaOpd`,
+`page`, dan `limit`. Tak ada `search`, tak ada `kategori`. Hal yang sama
+berlaku pada daftar pengguna, survei, dan OPD. Karena itu memindahkan paginasi
+ke sisi server **tanpa lebih dulu menambah `search` di backend justru akan
+MEMATIKAN pencarian** di kelima halaman itu — penyaringnya hanya akan menyaring
+halaman yang sedang terbuka.
+
+Akibatnya hari ini, di atas seratus baris: baris yang cocok dengan pencarian
+tetapi tidak terambil tak akan pernah muncul, dan admin yang mencarinya akan
+menyimpulkan ia tidak ada. Sejak 15 Oktober 2026 halaman itu setidaknya
+MENGATAKAN bahwa daftarnya terpotong dan bahwa pencariannya ikut terbatas
+(lihat [BUG-021](#bug-021)), tetapi batasannya tetap.
+
+Jalan keluarnya satu pekerjaan lintas-endpoint: `search` dan `kategori` pada DTO
+daftar pengaduan, pengguna, survei, dan OPD, lalu frontend berhenti mengambil
+seratus baris dan memaginasi dari `meta.pagination.total`. Itu menyentuh DTO,
+service, dan setiap halaman admin beserta ujinya, jadi ia pantas punya desain
+sendiri lebih dahulu.
+
+Satu angka yang menenangkan untuk sekarang: daftar OPD berisi 62 baris, di bawah
+batas seratus, jadi TC-FE-049 ("seluruh baris terjangkau") masih benar. Yang
+paling dekat melewati batas adalah pengaduan.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -3100,3 +3229,4 @@ docblock yang menyebut apa yang mereka lewatkan.
 | 4.3   | 15 September 2026  | Kata **"yatim"** diganti **"tanpa induk"** di seluruh dokumen pengujian dan perkakas uji atas permintaan pengguna — 40 kemunculan di enam berkas; bendera pembersih `--yatim` menjadi `--tanpa-induk`. Satu kemunculan di `docs/Routes-List-API-dan-Frontend.md` sengaja **tidak** diubah: itu tulisan tim dev yang hidup di `main`. Selain itu, kegoyahan E2E akhirnya **terukur** ([TEST_CASES §Y.3.1](TEST_CASES.md)) dan sebabnya bukan produk: empat peramban berebut satu mesin. |
 | 4.5 | 15 Oktober 2026 | **BUG-020** — parameter boolean bernilai `false` dibaca sebagai `true` di empat endpoint, satu sebab: `enableImplicitConversion` membuat `Boolean('false')` berjalan sebelum `@Transform` DTO. `isActive` pada `GET /opd` diperbaiki dan beruji; `isAnonim`, `tanpaOpd`, `unreadOnly` belum, dan ketiganya tak terjangkau dari antarmuka hari ini. Tiga kasus uji baru di Modul J `TEST_CASES.md`. Versi 4.4 tak pernah punya barisnya sendiri di tabel ini; nomor itu dilewati alih-alih dikarang. |
 | 4.6 | 15 Oktober 2026 | **BUG-020 ditutup.** Tiga medan sisanya -- `isAnonim`, `tanpaOpd`, `unreadOnly` -- diperbaiki dengan `@Type(() => String)` dan masing-masing dapat uji e2e yang dibuktikan merah lebih dulu oleh cacatnya sendiri, bukan oleh mutasi. TC-BOOL-001 s.d. 003 di Modul J kini ✅. Satu kesalahan penguji ikut dicatat: uji `tanpaOpd` mula-mula memerah dengan 400 karena `limit=200` melampaui batas 100, merah karena alasan yang salah, lalu dibetulkan. e2e api 441 -> 444 uji. |
+| 4.7 | 15 Oktober 2026 | **BUG-021** — `ComplaintTable` memanggil `Pagination` dengan `1/1/3` dipatok mati, sehingga daftar pengaduan warga berbunyi "Menampilkan 1-3 dari 12" di bawah dua belas baris; ditambah pemotongan diam di lima halaman admin (`FETCH_LIMIT = 100`), daftar warga (50), dan Riwayat Aktivitas (10). Ditutup lewat satu komponen bersama `CatatanPemotongan` dan angka paginasi yang diturunkan dari baris yang ada, 21 uji dibuktikan merah lebih dulu. Pemotongannya sendiri TIDAK diperbaiki dan dicatat sebagai **CAT-022**, sebab paginasi sisi server menuntut backend menerima `search`. Dua pemasangan tanpa uji disebut tersurat. TC-FE-050 & 051 lahir dari sini. Label "Beranda" juga berganti menjadi "Layanan" di seluruh antarmuka pada hari yang sama; sebelas sebutan bertanggal di dokumen ini dibiarkan utuh. |

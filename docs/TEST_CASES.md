@@ -978,9 +978,44 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 | TC-FE-047 | **Halaman Tentang Kami (`/about`)** | Buka `/about` sebagai pengunjung | Seluruh bagian terender tanpa galat konsol dan tanpa gambar rusak. 12 komponen, tak pernah punya kasus uji **Dijalankan 3 Sep 2026** — 16 kasus untuk 12 komponen. | P3 | Component | ✅ |
 | TC-FE-048 | **Ketahanan Halaman Admin saat API Gagal** | Cegat seluruh `\**/api/v1/**` (kecuali `/auth/me`) dengan 503, buka enam halaman admin; lalu pulihkan dan tekan "Coba Lagi". Uji juga pengiriman survei yang gagal dan tombol kirim yang ditekan berkali-kali pada jaringan lambat | Setiap halaman menjelaskan kegagalannya dan menawarkan jalan pulih; jawaban survei yang sudah diisi tidak hilang; satu pengisian menghasilkan tepat satu respons. **LULUS 3 September 2026 (sesi C-08) — tanpa satu pun cacat.** Keenam halaman (Dashboard, OPD, Survei, Pengaduan, Log Aktivitas, Manajemen Pengguna) menampilkan pesan galat beserta tombol "Coba Lagi", dan tombol itu benar-benar memulihkan halaman setelah backend normal kembali. Pengiriman survei yang ditolak 503 menampilkan pesan dari backend, **mempertahankan seluruh jawaban**, dan membiarkan tombol kirim ditekan lagi. Empat klik beruntun pada jaringan yang ditahan 5 detik menghasilkan **tepat 1** `POST /responses` (jumlah respons 34 → 35). Backend sungguhan TIDAK dimatikan — kegagalannya dihasilkan lewat pencegatan rute di peramban. | P1 | Manual | ✅ |
 | TC-FE-049 | **Daftar OPD pada Volume Nyata & Sinkronisasi** | Telusuri seluruh halaman daftar 62 OPD, cari dengan huruf besar/kecil dan dengan spasi berlebih, saring jenis layanan, lalu jalankan sinkronisasi yang berhasil dan yang gagal (jawaban dipalsukan) | Seluruh baris terjangkau; pencarian mengabaikan kapitalisasi dan spasi berlebih; laporan sinkron lengkap; kegagalan sinkron tak membuang data lama. **SEBAGIAN, 3 September 2026 (sesi C-06).** Yang benar: 62 dari 62 OPD terjangkau dalam 7 halaman, indikator paginasi cocok dengan backend, pencarian nama & kode tak peka huruf besar-kecil, menyaring mengembalikan paginasi ke halaman 1, kegagalan sinkron 503 diberitahukan tanpa mengosongkan tabel dan tombolnya tetap bisa ditekan lagi. Yang gagal: [BUG-011](BUG_REPORTS.md#bug-011) (pencarian tak memangkas spasi — "&nbsp;&nbsp;DINAS" memberi 0 dari 18 hasil), [BUG-012](BUG_REPORTS.md#bug-012) (angka `skipped` laporan sinkron tak pernah ditampilkan), dan [BUG-010](BUG_REPORTS.md#bug-010) (tombol paginasi tanpa nama aksesibel). | P2 | Manual | 🟡 |
+| TC-FE-050 | **Kendali paginasi daftar pengaduan warga** | Buka `/complaints` sebagai warga dengan lebih dari tiga pengaduan, baca baris di bawah tabel | Baris itu menyebut jumlah yang BENAR-BENAR ditampilkan. Sebelum 15 Oktober 2026 ia berbunyi "Menampilkan 1-3 dari 12 pengaduan" di bawah tabel berisi dua belas baris dengan kedua panah mati — `Pagination` dipatok mati `1/1/3`, lihat [BUG-021](BUG_REPORTS.md#bug-021) — `ComplaintTable.test.jsx` | P1 | Component | ✅ |
+| TC-FE-051 | **Catatan pemotongan pada daftar yang terpotong** | Buat total baris melebihi batas ambil (100 di lima halaman admin, 50 di daftar warga, 10 di Riwayat Aktivitas), lalu baca halamannya | Halaman MENGATAKAN daftarnya terpotong: jumlah yang dimuat, totalnya dari `meta.pagination.total`, dan pada layar yang menyaring di klien juga bahwa pencarian hanya bekerja atas irisan itu. Tak ada peringatan ketika total belum diketahui — `CatatanPemotongan.test.jsx`, `ActivityHistoryTable.test.jsx`, dan tiga uji halaman admin | P2 | Component | ✅ |
+
+> **(15 Oktober 2026) DUA BARIS DI ATAS LAHIR DARI SATU PENYISIRAN**, bukan dari
+> dua laporan terpisah. Empat tempat memotong daftarnya tanpa mengatakannya dan
+> satu di antaranya menampilkan angka yang jelas salah kepada warga; rinciannya
+> di [BUG-021](BUG_REPORTS.md#bug-021).
+>
+> **Yang diperbaiki kejujurannya, BUKAN pemotongannya.** Lima halaman admin
+> tetap berhenti di 100 baris, dan pencarian di sana tetap hanya mencari di dalam
+> seratus baris itu — jadi baris yang cocok tetapi tak terambil tetap tak akan
+> muncul. Batasan itu dicatat tersendiri sebagai
+> [CAT-022](BUG_REPORTS.md#cat-022) karena ia pertukaran yang disengaja, bukan
+> cacat: backend belum menerima `search` pada DTO daftarnya.
+>
+> **Dua pemasangan TIDAK tercakup uji.** `admin-kab/complaints` dan
+> `admin-opd/complaints` tak punya uji halaman sama sekali, jadi catatan
+> pemotongan di kedua halaman itu — tiga baris, identik dengan tiga halaman yang
+> teruji — tak terbukti oleh uji apa pun. Disebut di sini supaya status ✅ di atas
+> tidak dibaca lebih luas daripada yang dibuktikannya.
+>
+> **(15 Oktober 2026) Label "Beranda" kini "Layanan"** di seluruh antarmuka, atas
+> permintaan pengguna. Tak satu pun baris TC di dokumen ini menyebut kata itu,
+> jadi tak ada sel yang perlu dikoreksi; disebut di sini karena sesi
+> eksploratori di `BUG_REPORTS.md` masih menyebutnya, dan sebutan di sana
+> rekaman bertanggal yang sengaja dibiarkan utuh.
 
 ### Y.1 Peta Otomatisasi (angka diperbarui 15 September 2026)
 
+> **(15 Oktober 2026) ANGKA DI TABEL INI BACAAN 15 SEPTEMBER 2026, DAN SUDAH
+> JAUH TERTINGGAL.** Terukur hari ini: `pnpm --filter @skm-spm/web test` melapor
+> **200 berkas / 1.640 uji**, bukan 92 berkas / 673 uji. Tabelnya TIDAK ditulis
+> ulang, sebab ia memang rekaman satu pembacaan dan menambal tiga baris akan
+> membuatnya tampak mutakhir padahal bukan. Satu baris di dalamnya juga sudah
+> menunjuk berkas yang tak ada lagi, `app/admin-opd/complaints/__tests__/page.test.jsx`.
+> Memperbarui seluruhnya menuntut satu pembacaan `jest --json` baru dan pantas
+> diputuskan terpisah.
+>
 > **Kolom "Jumlah test" dibaca dari keluaran `jest --json`, bukan dihitung
 > tangan.** Delapan baris berubah pada pembacaan 15 September: enam karena tim
 > dev memperluas berkasnya sendiri, satu karena blok adapter dibuang, satu
@@ -1689,23 +1724,24 @@ aksesibelnya sudah teruji.
 | I — Audit Log            |     7     |   0    |   0     |   7    |   0   |
 | J — Parameter Boolean    |     3     |   0    |   0     |   1    |   2   |
 | X — RBAC & Isolasi       |    31     |   13   |   3     |   1    |   0   |
-| Y — Frontend & E2E       |  **48**   |   8    |   22    |   15   |   3   |
-| **TOTAL**                |  **265**  | **88** | **112** | **44** | **7** |
+| Y — Frontend & E2E       |  **50**   |   8    |   23    |   16   |   3   |
+| **TOTAL**                |  **267**  | **88** | **113** | **45** | **7** |
 
 > **14 baris Modul X (TC-RBAC-001 s/d 014) tidak berkolom prioritas** — tabelnya
 > berbentuk matriks peran (Superuser · Kabupaten · Admin OPD · Responden), bukan
 > tabel skenario biasa. Jumlahnya tetap dihitung pada kolom "Jumlah TC", sehingga
-> 88+112+44+7 = 251, ditambah 14 = 265.
+> 88+113+45+7 = 253, ditambah 14 = 267.
 >
-> **Dihitung ulang 15 Oktober 2026** sesudah Modul J lahir, dengan cara yang sama
-> seperti 2 September: menghitung tiap baris ber-ID `TC-*` dari tabelnya sendiri.
-> Kesebelas modul lama kembali pada angka yang sudah tertulis di sini, jadi yang
-> berubah hanya baris J dan totalnya.
+> **Dihitung ulang DUA KALI pada 15 Oktober 2026**, dengan cara yang sama seperti
+> 2 September: menghitung tiap baris ber-ID `TC-*` dari tabelnya sendiri. Pertama
+> sesudah Modul J lahir, lalu sesudah TC-FE-050 dan 051 ditambahkan. Pada kedua
+> pembacaan, modul-modul lain kembali pada angka yang sudah tertulis di sini,
+> jadi yang berubah hanya baris yang memang disunting beserta totalnya.
 
-> **Sebaran menurut tipe:** `Integ` 174 · `Component` 41 · `Unit` 33 · `Manual` 11 · `E2E` 6.
+> **Sebaran menurut tipe:** `Integ` 174 · `Component` 43 · `Unit` 33 · `Manual` 11 · `E2E` 6.
 >
 > Yang berada di **lingkup pengujian frontend** hanyalah tipe `Component`, `E2E`,
-> dan `Manual` — kini **58 kasus**, naik dari 34. (`Manual` berarti dijalankan di
+> dan `Manual` — kini **60 kasus**, naik dari 34. (`Manual` berarti dijalankan di
 > peramban oleh penguji tanpa berkas uji otomatis; ia tetap lingkup frontend.) Seluruh 33 kasus bertipe `Unit` justru **ranah
 > backend** — pengujian service NestJS, terbanyak pada rumus IKM (14) dan validasi
 > pengisian (8).
