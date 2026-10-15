@@ -1,16 +1,9 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { setupServer } from 'msw/node';
+import { http } from 'msw';
+import { handlers, complaintFixture, paginated, ok } from '@/mocks/handlers';
 import AdminKabComplaintsPage from '../page';
-import { getComplaints } from '@/features/complaints/services/complaints.api';
-import { getComplaintCategories } from '@/features/complaints/services/reference.api';
-
-jest.mock('@/features/complaints/services/complaints.api', () => ({
-  getComplaints: jest.fn(),
-}));
-
-jest.mock('@/features/complaints/services/reference.api', () => ({
-  getComplaintCategories: jest.fn(),
-}));
 
 jest.mock('@/utils/pdf', () => ({
   downloadTablePdf: jest.fn().mockResolvedValue(undefined),
@@ -24,51 +17,67 @@ jest.mock('next/link', () => ({
 /**
  * HALAMAN INI SEBELUMNYA TANPA UJI SAMA SEKALI (15 Oktober 2026).
  *
- * Catatan pemotongan dipasang di sini pada hari yang sama dengan lima halaman
- * admin lainnya, tetapi tiga di antaranya punya uji halaman dan dua tidak --
- * `admin-kab/complaints` dan `admin-opd/complaints`. Keduanya karena itu
- * ditandai tersurat sebagai tak terbukti di BUG-021 dan TC-FE-051. Berkas ini
- * menutup separuh lubang itu.
+ * Catatan pemotongan dipasang di lima halaman admin pada hari itu, tetapi dua
+ * halaman tak punya uji halaman mana pun sehingga pemasangannya tak dibuktikan —
+ * `admin-kab/complaints` dan `admin-opd/complaints`. Keduanya disebut tersurat
+ * di BUG-021 dan TC-FE-051; berkas ini menutup separuhnya.
+ *
+ * GAYANYA MSW, BUKAN `jest.mock` ATAS SERVICE. Keduanya tak dapat hidup bersama:
+ * memalsukan `complaints.api` membuat MSW tak pernah terpanggil. Dengan MSW
+ * ujinya menembus `getComplaints` dan `adaptComplaint` sungguhan, sehingga ia
+ * ikut membuktikan pemetaan adapternya — `ticketNo` menjadi `id`, `reporterNama`
+ * menjadi `reporter.name`, `diterima` menjadi `Diterima`. Kembarannya di
+ * `admin-opd/complaints` memakai gaya yang sama, dan keterangan lengkap mengapa
+ * ada di sana.
  *
  * Yang dijaga: halaman MENGATAKAN daftarnya terpotong, menyebut bahwa
  * penyaringnya pun hanya bekerja atas irisan yang terambil, dan tidak
  * memperingatkan apa pun ketika totalnya belum diketahui. Pemotongannya sendiri
  * tidak diperbaiki; itu CAT-022, dan menuntut backend menerima `search`.
  */
-const baris = (n) =>
-  Array.from({ length: n }, (_, i) => ({
-    id: `PGD-${i + 1}`,
-    numericId: i + 1,
-    title: i === 0 ? 'Jalan rusak di Mejayan' : `Pengaduan ke-${i + 1}`,
-    reporter: { name: i === 0 ? 'Siti Aminah' : `Pelapor ${i + 1}`, initials: 'SA' },
-    status: 'Diterima',
-    dateStr: '1 Oktober 2026',
-    ageDays: 3,
-    target: 'Dinas Kesehatan',
-    opdId: 7,
-    kategori: 'infrastruktur',
-  }));
 
-const jawab = (jumlahBaris, total) => {
-  getComplaints.mockResolvedValue({
-    data: baris(jumlahBaris),
-    ...(total === undefined ? {} : { meta: { pagination: { total } } }),
-  });
-};
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+const server = setupServer(...handlers);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+/**
+ * Baris sebanyak apa pun, judul dan pelapornya dapat ditebak. Baris pertama
+ * diberi judul khas supaya pencarian punya satu sasaran yang pasti tunggal.
+ */
+const banyakBaris = (n) =>
+  Array.from({ length: n }, (_, i) =>
+    complaintFixture({
+      id: i + 1,
+      ticketNo: `PGD20261001${String(i + 1).padStart(4, '0')}`,
+      judul: i === 0 ? 'Jalan rusak di Mejayan' : `Pengaduan ke-${i + 1}`,
+      status: 'diterima',
+      opdNama: 'Dinas Kesehatan',
+      reporterNama: i === 0 ? 'Siti Aminah' : `Pelapor ${i + 1}`,
+    }),
+  );
+
+/** Jawab `GET /complaints` dengan `meta.pagination.total` yang ditentukan. */
+const sajikan = (items, total = items.length) =>
+  server.use(
+    http.get(`${API_BASE}/complaints`, () => paginated(items, '/complaints', { total })),
+  );
+
+/**
+ * Jawab TANPA `meta.pagination` sama sekali — bentuk respons yang membuat
+ * `totalSeluruhnya` jatuh ke 0, yaitu "belum diketahui".
+ */
+const sajikanTanpaTotal = (items) =>
+  server.use(http.get(`${API_BASE}/complaints`, () => ok(items, '/complaints')));
+
+const kolomCari = () => screen.getByPlaceholderText(/Cari nomor tiket, judul, pelapor/i);
 
 describe('AdminKabComplaintsPage — catatan pemotongan', () => {
-  beforeEach(() => {
-    getComplaintCategories.mockResolvedValue([
-      { kode: 'infrastruktur', nama: 'Infrastruktur' },
-    ]);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
   it('mengatakan daftarnya terpotong ketika total backend melebihi yang terambil', async () => {
-    jawab(100, 412);
+    sajikan(banyakBaris(100), 412);
 
     render(<AdminKabComplaintsPage />);
     await screen.findByText('Jalan rusak di Mejayan');
@@ -79,20 +88,20 @@ describe('AdminKabComplaintsPage — catatan pemotongan', () => {
   });
 
   it('menyebut bahwa pencarian dan penyaring pun hanya bekerja atas irisan itu', async () => {
-    jawab(100, 412);
+    sajikan(banyakBaris(100), 412);
 
     render(<AdminKabComplaintsPage />);
     await screen.findByText('Jalan rusak di Mejayan');
 
     // Halaman ini MENYARING di klien, jadi kalimatnya harus memuat akibat yang
-    // paling mudah terlewat -- bukan cuma jumlah barisnya.
+    // paling mudah terlewat — bukan cuma jumlah barisnya.
     expect(await screen.findByRole('status')).toHaveTextContent(
       /termasuk oleh pencarian dan penyaring di atas/i,
     );
   });
 
   it('TIDAK memasang catatan ketika seluruh baris memang terambil (kendali)', async () => {
-    jawab(12, 12);
+    sajikan(banyakBaris(12), 12);
 
     render(<AdminKabComplaintsPage />);
     await screen.findByText('Jalan rusak di Mejayan');
@@ -101,9 +110,7 @@ describe('AdminKabComplaintsPage — catatan pemotongan', () => {
   });
 
   it('TIDAK memasang catatan ketika total belum diketahui', async () => {
-    // Tanpa `meta` sama sekali: ketiadaan data tak boleh menjadi peringatan
-    // palsu.
-    jawab(12, undefined);
+    sajikanTanpaTotal(banyakBaris(12));
 
     render(<AdminKabComplaintsPage />);
     await screen.findByText('Jalan rusak di Mejayan');
@@ -113,19 +120,9 @@ describe('AdminKabComplaintsPage — catatan pemotongan', () => {
 });
 
 describe('AdminKabComplaintsPage — paginasi dan penyaring di klien', () => {
-  beforeEach(() => {
-    getComplaintCategories.mockResolvedValue([
-      { kode: 'infrastruktur', nama: 'Infrastruktur' },
-    ]);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  beforeEach(() => sajikan(banyakBaris(12), 12));
 
   it('memotong satu halaman menjadi lima baris dan menyebut angka yang benar', async () => {
-    jawab(12, 12);
-
     render(<AdminKabComplaintsPage />);
     await screen.findByText('Jalan rusak di Mejayan');
 
@@ -139,21 +136,15 @@ describe('AdminKabComplaintsPage — paginasi dan penyaring di klien', () => {
   });
 
   it('pencarian menyaring daftarnya dan mengembalikan ke halaman pertama', async () => {
-    jawab(12, 12);
-
     render(<AdminKabComplaintsPage />);
     await screen.findByText('Jalan rusak di Mejayan');
 
     fireEvent.click(screen.getByLabelText('Halaman berikutnya'));
     await screen.findByText('Pengaduan ke-6');
 
-    fireEvent.change(screen.getByPlaceholderText(/Cari nomor tiket, judul, pelapor/i), {
-      target: { value: 'mejayan' },
-    });
+    fireEvent.change(kolomCari(), { target: { value: 'mejayan' } });
 
-    await waitFor(() => {
-      expect(screen.getByText('Jalan rusak di Mejayan')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Jalan rusak di Mejayan')).toBeInTheDocument();
     expect(screen.queryByText('Pengaduan ke-6')).not.toBeInTheDocument();
     expect(screen.getByText(/Menampilkan 1-1 dari 1 pengaduan/i)).toBeInTheDocument();
   });
