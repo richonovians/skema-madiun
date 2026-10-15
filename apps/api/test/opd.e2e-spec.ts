@@ -102,6 +102,81 @@ describe('OPD (e2e)', () => {
     expect(res.status).toBe(200);
   });
 
+  /**
+   * PENYARING `?search=` harus MENYINGKIRKAN, bukan sekadar menyertakan
+   * (15 Oktober 2026).
+   *
+   * Uji daftar di atas mengirim `?search=E2ETEST` dan hanya memastikan OPD uji
+   * HADIR. Itu separuh arti sebuah penyaring: ia tetap hijau walau `where.OR`
+   * dibuang seluruhnya, sebab daftar tanpa penyaring pun memuat OPD uji.
+   *
+   * Frasa yang dicari di sini sengaja "E2E Test" -- ada di NAMA (`OPD E2E Test`)
+   * dan TIDAK di kodenya (`E2ETEST`, tanpa spasi). Dengan begitu ia benar-benar
+   * menguji pencarian nama, bukan kode, sementara `opd.service.ts` mencocokkan
+   * keduanya.
+   *
+   * Terbukti merah: membuang blok `where.OR` membuat seluruh OPD basis data uji
+   * ikut kembali dan tuntutan kedua gagal.
+   */
+  it('GET /opd?search= menyingkirkan yang tak cocok, dan mencocokkan NAMA', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/opd?search=E2E Test&limit=100')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+
+    const rows = res.body.data as { nama: string; kode: string }[];
+    expect(rows.some((o) => o.kode === 'E2ETEST')).toBe(true);
+    const cocok = (o: { nama: string; kode: string }) =>
+      `${o.nama} ${o.kode}`.toLowerCase().includes('e2e test');
+    expect(rows.every(cocok)).toBe(true);
+  });
+
+  /**
+   * PENYARING `?isActive=` tak pernah diuji sama sekali sampai hari ini
+   * (15 Oktober 2026), padahal cabangnya ada di `opd.service.ts`. Penyaring
+   * yang kelak terhapus karena itu tak akan memerahkan apa pun.
+   *
+   * Fixture nonaktifnya dibuat DI SINI, bukan menumpang OPD yang dinonaktifkan
+   * uji sinkronisasi di bawah: menumpang berarti ujinya bergantung pada urutan
+   * jalan, dan urutan itu tak pernah dinyatakan di mana pun.
+   *
+   * Terbukti merah: membuang cabang `if (isActive !== undefined)` membuat baris
+   * nonaktif ikut kembali pada `isActive=true`.
+   */
+  it('GET /opd?isActive= memisahkan OPD aktif dari yang nonaktif', async () => {
+    await prisma.opd.upsert({
+      where: { kode: 'E2EOFF' },
+      update: { nama: 'OPD E2E Nonaktif', isActive: false },
+      create: { kode: 'E2EOFF', nama: 'OPD E2E Nonaktif', isActive: false },
+    });
+
+    try {
+      // KONTROL: tanpa penyaring barisnya memang ditemukan. Tanpa ini, hasil
+      // kosong di bawah tak dapat dibedakan dari fixture yang gagal dibuat.
+      const kontrol = await request(app.getHttpServer())
+        .get('/api/v1/opd?search=E2EOFF')
+        .set(devHeaders({ role: Role.kabupaten }));
+      expect((kontrol.body.data as { kode: string }[]).map((o) => o.kode)).toEqual(['E2EOFF']);
+
+      const aktif = await request(app.getHttpServer())
+        .get('/api/v1/opd?search=E2EOFF&isActive=true')
+        .set(devHeaders({ role: Role.kabupaten }));
+
+      expect(aktif.status).toBe(200);
+      expect(aktif.body.data).toHaveLength(0);
+
+      const nonaktif = await request(app.getHttpServer())
+        .get('/api/v1/opd?search=E2EOFF&isActive=false')
+        .set(devHeaders({ role: Role.kabupaten }));
+
+      expect(nonaktif.status).toBe(200);
+      expect((nonaktif.body.data as { kode: string }[]).map((o) => o.kode)).toEqual(['E2EOFF']);
+    } finally {
+      await prisma.opd.deleteMany({ where: { kode: 'E2EOFF' } });
+    }
+  });
+
   it('GET /opd/:id (kabupaten) -> 200', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/opd/${opdId}`)
