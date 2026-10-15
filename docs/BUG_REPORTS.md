@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 4.8 |
+| **Versi** | 4.9 |
 | **Tanggal** | 15 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -114,7 +114,17 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 20 temuan: 6 ditutup, **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
+**Rekap** — 21 temuan: 6 ditutup, **15 terbuka (1 Critical, 1 High, 7 Medium, 6 Low)**
+
+> **(15 Oktober 2026) Baris di atas sebelumnya berbunyi "20 temuan ... 14
+> terbuka ... 5 Low", dan itu salah hitung.** Sebabnya kesalahan penguji yang
+> sama seperti dua lainnya hari ini: angkanya DITAMBAH satu dari angka lama
+> alih-alih DIHITUNG ULANG dari baris tabel di atas. Hitungan dari tabelnya
+> sendiri: 21 baris, enam di antaranya `Ditutup` (BUG-001, 002, 004, 006, 020,
+> 021), sisanya 15 terbuka — Critical BUG-005; High BUG-013; Medium BUG-008,
+> 009, 014, 015, 016, 017, 019; Low BUG-003, 007, 010, 011, 012, 018. BUG-001
+> dan BUG-006 juga High tetapi sudah ditutup, dan itulah yang membuat hitungan
+> tangan mudah tergelincir.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -2058,6 +2068,8 @@ Sudah diperbaiki agar mencerminkan API sungguhan.
 
 ---
 
+<a id="cat-009"></a>
+
 ### CAT-009 — Penyiapan Jest melumpuhkan `File`, membuat seluruh permukaan lampiran mustahil diuji
 
 `jest.setup.js` mengambil `File` dari `undici`:
@@ -2079,6 +2091,29 @@ itu menjelaskan sebagian kenapa area ini tak pernah punya cakupan.
 
 Sudah diperbaiki: `File` diambil dari `node:buffer`, dan hanya ditugaskan bila
 benar-benar ada. Ditemukan saat menulis TC-FE-040.
+
+> **(15 Oktober 2026) "Sudah diperbaiki" HANYA BENAR DI CABANG `tester`, dan itu
+> baru terukur hari ini.** `apps/web/jest.setup.js` di `tester` memuat perbaikan
+> itu beserta keterangannya; di `main` baris yang rusak masih utuh apa adanya:
+> `const { fetch, ..., File } = require('undici')` diikuti `global.File = File`.
+> Perbaikannya karena itu TERKANDAS di `tester` dan belum pernah sampai ke
+> `main`.
+>
+> Terukur, bukan dibaca: menjalankan tiga belas berkas uji milik `tester`
+> terhadap kode `main` hari ini menghasilkan `TypeError: File is not a
+> constructor` pada empat uji — tiga `FileDropzone` di `KitUiBersama.test.jsx`
+> dan satu `ChatReplyForm` di `ComplaintChat.test.jsx`. Keempatnya bukan uji
+> basi; keempatnya kegagalan setelan `main`. Sebuah probe di lingkungan jest
+> memastikan sebabnya: `require('undici').File` bernilai `undefined` pada undici
+> 8.10.0, sementara jsdom murni menyediakan `File` sebagai fungsi — jadi
+> penugasan itu memang MENIMPA yang berfungsi.
+>
+> Tak ada satu pun uji di `main` yang memakai `new File(...)` hari ini, jadi
+> tidak ada yang memerah di sana dan cacat ini sepenuhnya diam. Itu membuatnya
+> lebih buruk, bukan lebih baik: uji lampiran berikutnya yang ditulis di `main`
+> akan gagal dengan pesan yang menuding uji-nya. Lihat juga
+> [CAT-023](#cat-023), sebab ini satu gejala dari pemisahan cabang yang lebih
+> besar.
 
 ---
 
@@ -3193,6 +3228,26 @@ tiket dan nama pelapor; versi `main` menguji catatan pemotongan, angka paginasi,
 dan `opdId` yang tak dikirim. Tak ada satu pun uji yang muncul di keduanya.
 Penyelesaiannya gabungan, bukan pilihan.
 
+**GABUNGAN ITU KINI SUDAH ADA** (15 Oktober 2026, commit `9a9ce6d` di `main`).
+Kedua berkas dilebur menjadi satu bertiga belas kasus, dan enam kasus September
+di dalamnya dipertahankan apa adanya. Yang perlu dibaca tepat: benturan git-nya
+TIDAK hilang — kedua sisi tetap tercatat MENAMBAHKAN berkas pada jalur yang
+sama, jadi tarikan berikutnya tetap akan berhenti di sana dan meminta
+diselesaikan. Yang berubah akibatnya: penyelesaiannya sekarang cukup mengambil
+versi `main`, dan tak ada cakupan yang hilang.
+
+Gaya ujinya ikut berpindah ke MSW pada commit yang sama, dan itu bukan selera:
+`jest.mock` atas `complaints.api` membuat MSW tak pernah terpanggil, sedangkan
+enam kasus September itulah yang menembus `getComplaints` serta `adaptComplaint`
+sungguhan dan karena itu ikut membuktikan pemetaan adapternya. Menulis ulang
+berkasnya membatalkan sebelas mutasi sebelumnya, jadi tujuh belas mutasi
+dipasang satu per satu untuk membuktikan ulang kesembilan belas ujinya; semuanya
+memerah, dan 19 dari 19 uji terbunuh oleh setidaknya satu. Dua yang paling
+berguna: `setStatusFilter('Semua Status')` menjadi `('')` — persis cacat yang
+diperingatkan docblock `handleResetFilters` — membunuh tepat satu uji, dan
+`total={99999}` yang membuat catatan pemotongan selalu muncul ditangkap oleh dua
+uji kendali.
+
 Temuan sampingan dari benturan itu, dicatat karena ia memperbaiki kesalahan
 penguji sendiri: catatan pertama hari ini menyatakan berkas tersebut "tak ada
 lagi". Itu bacaan `main`, dan di `tester` berkas itu hidup. Koreksinya ada pada
@@ -3248,6 +3303,80 @@ paling dekat melewati batas adalah pengaduan.
 
 ---
 
+<a id="cat-023"></a>
+
+### CAT-023 — Cabang `tester` tertinggal sebulan dari `main`, dan dua puluh sembilan berkas hidup hanya di sana
+
+Bukan cacat produk, melainkan keadaan repositori yang perlu diputuskan sadar.
+Disisir 15 Oktober 2026 sesudah satu benturan merge pada [BUG-021](#bug-021)
+memaksa pertanyaan ini terbuka.
+
+**Ukurannya.** Commit terakhir `main` yang pernah sampai ke `tester` adalah
+`de41245`, **15 September 2026** — tepat sebulan. Di luar `docs/`, 720 berkas
+berbeda antara kedua cabang: **342 hanya ada di `main`** (fitur sebulan terakhir
+yang `tester` tak pernah terima), **349 berbeda isinya**, dan **29 hanya ada di
+`tester`**. Angka itu penting karena ia membalik anggapan yang mudah terbentuk:
+"menarik `main` ke `tester`" bukan pekerjaan kecil, dan `tester` bukan cabang
+yang berada di depan.
+
+**Dua puluh sembilan berkas milik `tester` saja** terbagi tiga, dan hanya dua
+bagian pertama yang bernilai:
+
+| Isi                                         | Jumlah | Catatan                                                                                |
+| ------------------------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| Berkas uji Jest                             | 13     | diukur hari ini, lihat tabel di bawah                                                  |
+| Spec Playwright beserta penopangnya (`.js`) | 11     | BELUM dinilai; `main` punya spec `.ts` sendiri yang mungkin sudah menggantikannya      |
+| Berkas sumber yang `main` sudah hapus        | 5      | `update-insight.dto.ts`, `InsightCard.jsx`, `users/create/page.jsx`, dan dua komponen — sisa fitur yang dibuang di `main`, jadi kode mati di `tester` |
+
+**Ketiga belas berkas uji dijalankan terhadap kode `main` hari ini**, bukan
+dibaca. Masing-masing diambil lewat `git show tester:<jalur>`, ditulis ke pohon
+kerja `main`, dijalankan sendiri-sendiri, lalu dihapus kembali di blok `finally`
+— tak ada yang di-stage dan tak ada yang tertinggal. Hasilnya **113 uji: enam
+berkas hijau seluruhnya, tujuh berkas dengan 14 uji merah**, dan sebab
+kemerahannya bukan satu macam:
+
+| Berkas                                     | Merah | Sebab                                                                                   | Kelas                     |
+| ------------------------------------------ | ----- | --------------------------------------------------------------------------------------- | ------------------------- |
+| `NavigasiPeran.test.jsx`                   | 4     | berporos pada peran `superuser`, yang dilebur ke `kabupaten` 15 September 2026           | basi, produk sengaja ubah |
+| `AdminNavbarIdentitas.test.jsx`            | 1     | idem                                                                                     | basi, produk sengaja ubah |
+| `UmpanBalikAksi.test.jsx`                  | 3     | mencari `role="button"` bernama "Publikasikan"; aksi itu kini butir di `RowActionsMenu`   | basi, produk sengaja ubah |
+| `KitUiBersama.test.jsx`                    | 3     | `File is not a constructor`                                                              | **cacat setelan `main`**  |
+| `ComplaintChat.test.jsx`                   | 1     | idem                                                                                     | **cacat setelan `main`**  |
+| `RingkasanDashboard.test.jsx`              | 1     | dua kartu kini sama-sama menampilkan `-`, sehingga `getByText('-')` ambigu                | uji terlalu longgar       |
+| `SurveyResponses.test.jsx`                 | 1     | fiksturnya tanpa `response.nomor`, jadi selnya berbunyi "Respons" bukan "Respons #1"      | fikstur basi              |
+
+Enam berkas yang hijau seluruhnya: `pagar-bug-015-dialog-konfirmasi`,
+`pagar-bug-016-captcha-gagal`, `pagar-bug-017-dropdown`, `HalamanTentang`,
+`AuthCallbackLoader`, dan `GrafikDashboard` — 44 uji yang dapat dipindahkan ke
+`main` apa adanya.
+
+**Empat dari 14 kemerahan bukan uji basi, melainkan `main` yang kurang satu
+perbaikan.** Keduanya `File is not a constructor`, dan perbaikannya sudah ada di
+`jest.setup.js` milik `tester` sejak lama — lihat [CAT-009](#cat-009). Memindahkan
+satu berkas itu melenyapkan empat kemerahan sekaligus.
+
+**Satu kekhawatiran diperiksa dan TIDAK terbukti, dan itu perlu disebut tersurat
+karena ia yang paling menakutkan di daftar ini.** Kegagalan
+`SurveyResponses.test.jsx` berbunyi "menomori respons berurutan tanpa menyebut
+identitas pengisi", dan tabel yang dirender hari ini memang punya kolom
+**Pengisi** — pada pandangan pertama itu tampak seperti anonimitas SKM yang
+bocor. Bukan. Kolom itu ditambahkan dengan sengaja untuk responden BUKAN-anonim
+dan dinyatakan di docblock komponennya; kegagalan ujinya murni karena fiksturnya
+tak membawa `response.nomor`, medan yang lahir kemudian. Uji "tidak menampilkan
+satu pun identitas pengisi" pada tampilan detail jawaban **tetap hijau**, jadi
+permukaan yang memang wajib anonim tetap anonim. Harapan TC-FE-042 yang
+melarangnya di TABEL-lah yang sudah tak berlaku, bukan produknya yang melanggar.
+
+**Yang pantas diputuskan.** Pemisahan ini tak dapat diselesaikan dengan satu
+merge tanpa pilihan sadar, dan dokumen ini tidak memilihkannya. Tiga jalan yang
+terukur: pindahkan 44 uji hijau beserta perbaikan `jest.setup.js` ke `main` lalu
+biarkan `tester` menjadi cabang dokumen saja; atau segarkan `tester` dari `main`
+lebih dulu dan perbarui kesembilan uji basi di sana; atau biarkan apa adanya dan
+terima bahwa 44 uji yang sudah ditulis tak dijalankan oleh siapa pun. Yang
+ketiga adalah keadaan hari ini, dan ia berlangsung tanpa pernah diputuskan.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -3282,3 +3411,4 @@ paling dekat melewati batas adalah pengaduan.
 | 4.6 | 15 Oktober 2026 | **BUG-020 ditutup.** Tiga medan sisanya -- `isAnonim`, `tanpaOpd`, `unreadOnly` -- diperbaiki dengan `@Type(() => String)` dan masing-masing dapat uji e2e yang dibuktikan merah lebih dulu oleh cacatnya sendiri, bukan oleh mutasi. TC-BOOL-001 s.d. 003 di Modul J kini ✅. Satu kesalahan penguji ikut dicatat: uji `tanpaOpd` mula-mula memerah dengan 400 karena `limit=200` melampaui batas 100, merah karena alasan yang salah, lalu dibetulkan. e2e api 441 -> 444 uji. |
 | 4.7 | 15 Oktober 2026 | **BUG-021** — `ComplaintTable` memanggil `Pagination` dengan `1/1/3` dipatok mati, sehingga daftar pengaduan warga berbunyi "Menampilkan 1-3 dari 12" di bawah dua belas baris; ditambah pemotongan diam di lima halaman admin (`FETCH_LIMIT = 100`), daftar warga (50), dan Riwayat Aktivitas (10). Ditutup lewat satu komponen bersama `CatatanPemotongan` dan angka paginasi yang diturunkan dari baris yang ada, 21 uji dibuktikan merah lebih dulu. Pemotongannya sendiri TIDAK diperbaiki dan dicatat sebagai **CAT-022**, sebab paginasi sisi server menuntut backend menerima `search`. Dua pemasangan tanpa uji disebut tersurat. TC-FE-050 & 051 lahir dari sini. Label "Beranda" juga berganti menjadi "Layanan" di seluruh antarmuka pada hari yang sama; sebelas sebutan bertanggal di dokumen ini dibiarkan utuh. |
 | 4.8 | 15 Oktober 2026 | **Dua pemasangan tanpa uji pada BUG-021 ditutup** (`06a7da7` di `main`): `admin-kab/complaints` dan `admin-opd/complaints` mendapat uji halaman pertamanya, 6 + 7 kasus. Kode halamannya sudah ada sehingga uji baru lulus pada jalan pertama, jadi ketiga belas uji dibuktikan lewat SEBELAS MUTASI yang dipasang satu per satu lalu dipulihkan; setiap uji terbunuh oleh setidaknya satu. TC-FE-051 dikoreksi: "tiga uji halaman admin" menjadi lima. Dua kesalahan penguji pada catatan 4.7 ikut dikoreksi, bukan dihapus: berkas yang disebut "tak ada lagi" sebenarnya hidup di `tester` dan hanya tak ada di `main`, dan angka "200 berkas / 1.640 uji" adalah bacaan `main` yang tak dapat dibandingkan dengan tabel pemetaan §Y.1 yang dibaca di `tester`. Satu benturan merge ditinggalkan dengan sengaja pada jalur uji halaman OPD, berisi dua berkas yang lahir sendiri-sendiri; penyelesaiannya gabungan, bukan pilihan. |
+| 4.9 | 15 Oktober 2026 | **Benturan merge BUG-021 dilumpuhkan** (`9a9ce6d` di `main`): kedua berkas dilebur menjadi satu bertiga belas kasus, gaya berpindah ke MSW supaya enam kasus September tetap menembus service dan adapter sungguhan, dan 19 ujinya dibuktikan ulang lewat tujuh belas mutasi. Benturan git-nya tetap ada; yang berubah, penyelesaiannya kini cukup mengambil versi `main` tanpa kehilangan cakupan. **CAT-023 baru** menyisir pemisahan cabang yang melahirkannya: `tester` tertinggal sebulan dari `main` (commit bersama terakhir `de41245`, 15 September), 720 berkas berbeda di luar `docs/`, dan 29 berkas hidup hanya di `tester`. Ketiga belas berkas uji milik `tester` DIJALANKAN terhadap kode `main`: 113 uji, enam berkas hijau seluruhnya (44 uji), tujuh berkas dengan 14 uji merah — sembilan karena produknya sengaja berubah, empat karena `main` kekurangan perbaikan `jest.setup.js` yang sudah ada di `tester` (**CAT-009 dikoreksi**: "sudah diperbaiki" hanya benar di `tester`), satu karena uji yang terlalu longgar. Kekhawatiran anonimitas pada kolom "Pengisi" diperiksa dan TIDAK terbukti. **Rekap temuan dikoreksi** dari 20/14/5 Low menjadi 21/15/6 Low: angka lamanya ditambah satu alih-alih dihitung ulang dari tabelnya. |

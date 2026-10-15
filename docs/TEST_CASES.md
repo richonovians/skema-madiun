@@ -1019,6 +1019,27 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > eksploratori di `BUG_REPORTS.md` masih menyebutnya, dan sebutan di sana
 > rekaman bertanggal yang sengaja dibiarkan utuh.
 
+> **(15 Oktober 2026) LIMA BARIS TC DI MODUL INI TIDAK LAGI MENGGAMBARKAN KODE
+> HARI INI, dan ✅-nya perlu dibaca sebagai hasil bertanggal.** Ketiga belas
+> berkas uji yang hidup hanya di cabang `tester` DIJALANKAN terhadap kode `main`
+> hari ini — 113 uji, enam berkas hijau seluruhnya, tujuh berkas dengan 14 uji
+> merah. Rinciannya beserta sebab tiap kemerahan ada di
+> [CAT-023](BUG_REPORTS.md#cat-023); yang ditandai di sini hanya baris TC yang
+> ikut terkena, sesuai aturan kotak kepala `BUG_REPORTS.md` bahwa kasus uji yang
+> harapannya kini salah ditandai tersurat alih-alih disunting diam-diam.
+>
+> | Baris | Yang sudah tak berlaku |
+> | --- | --- |
+> | **TC-FE-005** | Seluruh premisnya "kabupaten biasa vs superuser", dan peran `superuser` dilebur ke `kabupaten` 15 September 2026. Empat dari enam kasusnya merah. |
+> | **TC-FE-006** | Mencari tombol "Publikasikan" sebagai `role="button"`; aksi itu kini butir di dalam `RowActionsMenu` dan harus dibuka lebih dulu. Ketiga kasusnya merah. |
+> | **TC-FE-028** | Satu kasusnya membedakan superuser dari admin kabupaten biasa. Sebab yang sama dengan TC-FE-005. |
+> | **TC-FE-042** | Harapan "tanpa identitas pengisi" kini terlalu luas: tabel respons MEMANG punya kolom **Pengisi**, ditambahkan dengan sengaja untuk responden bukan-anonim. Permukaan yang wajib anonim — detail jawaban — tetap anonim, dan ujinya tetap hijau. |
+> | **TC-FE-046** | Tiga kasus `FileDropzone`-nya tak dapat dijalankan di `main` sama sekali: `jest.setup.js` di sana melumpuhkan `File`. Itu cacat setelan, bukan uji basi, dan perbaikannya sudah ada di `tester` ([CAT-009](BUG_REPORTS.md#cat-009)). |
+>
+> **Yang TIDAK berubah:** keenam berkas yang hijau seluruhnya, 44 uji, berjalan
+> apa adanya terhadap kode `main`. Angka ✅ pada baris-baris lain di modul ini
+> tidak disentuh, sebab tak ada pengukuran hari ini yang menyentuhnya.
+
 ### Y.1 Peta Otomatisasi (angka diperbarui 15 September 2026)
 
 > **(15 Oktober 2026) ANGKA DI TABEL INI BACAAN 15 SEPTEMBER 2026 DAN SUDAH JAUH
@@ -1053,8 +1074,12 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > berbenturan di jalur itu — dan memilih salah satunya akan MEMBUANG cakupan:
 > versi `tester` menguji dropdown status, keadaan kosong, Reset Filter, serta
 > pencarian menurut nomor tiket dan nama pelapor; versi `main` menguji ketiga hal
-> di atas. Penyelesaiannya gabungan, bukan pilihan. Lihat
-> [BUG-021](BUG_REPORTS.md#bug-021).
+> di atas. Penyelesaiannya gabungan, bukan pilihan — dan **gabungan itu kini
+> sudah ada**, commit `9a9ce6d` di `main`, satu berkas bertiga belas kasus
+> dengan enam kasus September dipertahankan apa adanya. Benturan git-nya TIDAK
+> hilang, sebab kedua sisi tetap tercatat menambahkan berkas pada jalur yang
+> sama; yang berubah akibatnya, dan penyelesaiannya sekarang cukup mengambil
+> versi `main`. Lihat [BUG-021](BUG_REPORTS.md#bug-021).
 >
 > **Kolom "Jumlah test" dibaca dari keluaran `jest --json`, bukan dihitung
 > tangan.** Delapan baris berubah pada pembacaan 15 September: enam karena tim
