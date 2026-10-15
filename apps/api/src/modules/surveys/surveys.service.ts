@@ -408,7 +408,10 @@ export class SurveysService {
     await this.getAccessibleOrThrow(id, user);
     const original = await this.prisma.survey.findFirst({
       where: { id, ...TIDAK_DIBUANG },
-      include: { questions: true },
+      // `options` WAJIB ikut dimuat (BUG-005, 16 Oktober 2026). Sebelum ini
+      // barisnya berbunyi `include: { questions: true }`, sehingga opsi jawaban
+      // tak pernah ada di memori dan mustahil tersalin di bawah.
+      include: { questions: { include: { options: { orderBy: { urutan: 'asc' } } } } },
     });
     if (!original) {
       throw new NotFoundException(`Survei dengan id ${id} tidak ditemukan`);
@@ -433,7 +436,35 @@ export class SurveysService {
               isIkmUnsur: q.isIkmUnsur,
               kodeUnsur: q.kodeUnsur,
               urutan: q.urutan,
+              // BUG-005 (Critical, 2 September 2026 -> 16 Oktober 2026).
+              //
+              // Tanpa baris ini salinan kehilangan SELURUH opsi jawabannya, dan
+              // akibatnya bukan satu pertanyaan yang rusak melainkan survei yang
+              // BUNTU: pertanyaan `pilihan` bersifat wajib sementara tak ada satu
+              // pun opsi untuk dipilih, sehingga responden tersangkut tanpa jalan
+              // maju maupun mengirim. Terukur: asli 7 opsi, salinan 0.
+              //
+              // Penjaga `'Pertanyaan pilihan ganda memerlukan minimal 2 opsi'` di
+              // `QuestionsService` TIDAK menolong di sini dan tak pernah akan:
+              // salinan dibuat lewat nested create Prisma, yang melewati
+              // `CreateQuestionDto` sepenuhnya. Jadi satu-satunya yang menjaga
+              // jalur ini adalah baris ini beserta ujinya di
+              // `test/surveys.e2e-spec.ts`.
+              //
+              // `nilai` ikut disalin, bukan dihitung ulang: pada tipe skala ia
+              // skor yang menjadi dasar rumus IKM, dan menyalin label tanpa skor
+              // akan menggeser bobot tanpa ada yang memerah.
+              options: {
+                create: q.options.map((o) => ({
+                  label: o.label,
+                  nilai: o.nilai,
+                  urutan: o.urutan,
+                })),
+              },
             })),
+            // Unsur pelengkap sengaja TANPA opsi: pada tipe skala, tiadanya opsi
+            // berarti "pakai label baku PermenPANRB", bukan "labelnya hilang".
+            // Lihat `buatUnsurAwal()`.
             ...this.unsurPelengkap(original),
           ],
         },

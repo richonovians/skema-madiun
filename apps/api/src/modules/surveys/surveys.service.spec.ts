@@ -557,6 +557,9 @@ describe('SurveysService', () => {
               isIkmUnsur: true,
               kodeUnsur: 'U1',
               urutan: 1,
+              // `options` WAJIB ada di tiruan sejak BUG-005 diperbaiki
+              // (16 Oktober 2026). Alasannya ada di catatan `unsurRow` di bawah.
+              options: [],
             },
           ],
         }),
@@ -575,12 +578,29 @@ describe('SurveysService', () => {
     });
 
     describe('duplicate melengkapi kerangka', () => {
+      /**
+       * `options: []` BUKAN pelengkap tiruan yang boleh dihapus (16 Oktober 2026).
+       *
+       * Sejak BUG-005 diperbaiki, `duplicate()` memuat relasi `options` dan
+       * membacanya tanpa penjaga. Tiga uji di blok ini sempat memerah dengan
+       * `Cannot read properties of undefined (reading 'map')` justru karena
+       * tiruannya memodelkan bentuk hasil kueri yang KINI TAK MUNGKIN terjadi.
+       *
+       * Yang diperbaiki tiruannya, bukan kode produksinya, dan itu disengaja.
+       * Menulis `q.options ?? []` di `duplicate()` memang akan menghijaukan
+       * ketiganya, tetapi sekaligus menghidupkan kembali persis mode kegagalan
+       * yang melahirkan BUG-005: bila suatu saat `include: { options: ... }`
+       * terhapus lagi, duplikasi akan diam-diam membuang seluruh opsi dan tak
+       * ada satu pun alat yang memerah. Dibiarkan tegas seperti sekarang,
+       * penghapusan itu melempar seketika.
+       */
       const unsurRow = (kodeUnsur: string, urutan: number) => ({
         teks: `Kalimat ${kodeUnsur}`,
         tipe: QuestionType.skala,
         isIkmUnsur: true,
         kodeUnsur,
         urutan,
+        options: [],
       });
 
       const salin = async (jenis: JenisSurvei, questions: unknown[]) => {
