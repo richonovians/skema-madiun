@@ -271,10 +271,13 @@ Gerbangnya jumlah peran yang dipegang akun, bukan nama perannya. OPD untuk
 `/admin-opd/dashboard` diambil dari `user.opdId` milik akun, bukan dipilih di
 antarmuka — `resolveDashboardOpdId` menolak sesi `opd` yang tak tertaut OPD.
 
-Catatan yang tak enak dan pantas disebut: docblock di `proxy.js` baris 66-75
-MASIH bercerita tentang prefiks khusus superuser dan cookie `area`, padahal
-baris 101 di berkas yang sama menyatakan cookie itu sudah dibuang. Itu cacat
-komentar di `main`, di luar jangkauan penyisiran dokumen ini.
+Catatan yang tak enak dan pantas disebut, dan penyelesaiannya: penyisiran
+13 Oktober 2026 menemukan docblock `proxy.js` MASIH bercerita tentang prefiks
+khusus superuser dan cookie `area`, padahal komentar di berkas yang sama
+menyatakan cookie itu sudah dibuang. Cacat itu DIBERESKAN 14 Oktober 2026
+bersama 45 naskah serupa di `apps/api/src` dan `apps/web/src`. Temuannya
+dibiarkan tertulis di sini, bukan dihapus: dokumen yang pernah menunjuk cacat
+nyata lebih berguna daripada dokumen yang tampak selalu benar.
 
 ## B.4 Pemetaan Route Frontend → Endpoint API (halaman terwiring)
 

@@ -164,7 +164,7 @@ Modul ada di `src/modules/`: `audit`, `auth`, `complaints`, `dashboard`, `ikm`, 
 
 Tiga titik penegakan, semuanya di `src/common/auth/`:
 
-- `hasFullAccess(role)` di `role.util.ts` adalah **satu-satunya** definisi "boleh menembus batas OPD". Tambah peran berhak penuh di `FULL_ACCESS_ROLES`, jangan sebar `=== Role.kabupaten` ke berkas lain. (Docblock berkas ini masih bercerita tentang `superuser`; isinya sudah hanya `kabupaten`.)
+- `hasFullAccess(role)` di `role.util.ts` adalah **satu-satunya** definisi "boleh menembus batas OPD". Tambah peran berhak penuh di `FULL_ACCESS_ROLES`, jangan sebar `=== Role.kabupaten` ke berkas lain. (Docblock berkas itu sempat bercerita tentang `superuser` seolah peran itu masih ada; ditulis ulang 14 Oktober 2026 dan kini menyatakan daftarnya berisi satu peran.)
 - `opdWhereFilter(user)` menghasilkan fragmen `where` Prisma untuk query berdaftar.
 - `assertOpdAccess(...)` untuk akses by-id. `targetOpdId === null` berarti sumber daya **tanpa tujuan**, misalnya pengaduan yang pelapornya tak tahu harus ditujukan ke mana; hanya peran berhak penuh boleh menyentuhnya.
 
