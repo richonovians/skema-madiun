@@ -167,14 +167,14 @@ describe('GerbangPengisianPublik', () => {
     );
   });
 
-  it('ada jalan keluar ke beranda', () => {
+  it('ada jalan keluar ke Layanan', () => {
     // Persetujuan yang tak punya alternatif selain terjebak bukan persetujuan
     // yang bebas. Alasan yang sama sudah tertulis di ConsentGate.jsx, yang
     // menawarkan "Tidak setuju & keluar" karena ia menghadang sesi; di sini tak
-    // ada sesi untuk ditinggalkan, jadi pasangannya beranda.
+    // ada sesi untuk ditinggalkan, jadi pasangannya halaman Layanan di `/`.
     render1();
 
-    expect(screen.getByRole('link', { name: /kembali ke beranda/i })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /kembali ke layanan/i })).toHaveAttribute('href', '/');
   });
 
   /**

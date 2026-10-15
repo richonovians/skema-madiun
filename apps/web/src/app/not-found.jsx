@@ -33,7 +33,7 @@ export default function NotFound() {
             href="/"
             className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-xl bg-primary text-white font-medium transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
-            Kembali ke beranda
+            Kembali ke layanan
           </Link>
         }
       />

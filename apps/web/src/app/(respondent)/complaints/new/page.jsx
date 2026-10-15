@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function NewComplaintPage() {
   const breadcrumbItems = [
-    { label: 'Beranda', href: '/dashboard' },
+    { label: 'Layanan', href: '/dashboard' },
     { label: 'Pengaduan', href: '/complaints' },
     { label: 'Baru' },
   ];

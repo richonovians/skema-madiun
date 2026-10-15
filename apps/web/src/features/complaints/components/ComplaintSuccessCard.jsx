@@ -160,7 +160,7 @@ export default function ComplaintSuccessCard() {
           onClick={() => router.push('/')}
           className="w-full py-2.5 px-6 min-h-[44px] rounded-xl bg-transparent text-slate-500 font-medium text-sm hover:text-slate-700 transition-all"
         >
-          Kembali ke Beranda
+          Kembali ke Layanan
         </button>
       </div>
 

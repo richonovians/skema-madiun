@@ -70,9 +70,9 @@ describe('ErrorState Component (TC-FE-011)', () => {
     // dalam berkas uji melanggar aturan @next/next/no-html-link-for-pages.
     // Tautan sungguhannya diuji di tempat ia benar-benar dipakai, yaitu
     // app/survei/__tests__/page.test.jsx.
-    render(<ErrorState action={<button type="button">Kembali ke Beranda</button>} />);
+    render(<ErrorState action={<button type="button">Kembali ke Layanan</button>} />);
 
-    expect(screen.getByRole('button', { name: /kembali ke beranda/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /kembali ke layanan/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /coba lagi/i })).not.toBeInTheDocument();
   });
 });

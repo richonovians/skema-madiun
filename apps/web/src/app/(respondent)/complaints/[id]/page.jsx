@@ -49,7 +49,7 @@ export default function ComplaintDetailPage() {
   const { data, isLoading, error, refetch } = useAsync(fetchDetail);
 
   const breadcrumbItems = [
-    { label: 'Beranda', href: '/dashboard' },
+    { label: 'Layanan', href: '/dashboard' },
     { label: 'Daftar Pengaduan', href: '/complaints' },
     { label: 'Detail', active: true },
   ];

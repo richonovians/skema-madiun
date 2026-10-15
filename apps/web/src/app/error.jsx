@@ -49,7 +49,7 @@ export default function Error({ error, reset }) {
               href="/"
               className="text-body-md font-medium text-primary underline underline-offset-4 min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-primary/40 rounded"
             >
-              Kembali ke beranda
+              Kembali ke layanan
             </Link>
           </div>
         }

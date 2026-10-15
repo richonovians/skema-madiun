@@ -203,7 +203,7 @@ describe('Navbar — titik peralihan menu', () => {
   /**
    * PASANGAN yang membuat uji di atas berarti. Tautan yang dipindah ke `lg`
    * tanpa tombol menunya ikut dipindah meninggalkan pita 768-1023px tanpa jalan
-   * apa pun menuju Beranda, Tentang Platform, dan Statistik -- dan tanpa tombol
+   * apa pun menuju Layanan, Tentang Platform, dan Statistik -- dan tanpa tombol
    * registrasi, yang di drawer itulah satu-satunya tempatnya bagi lebar ini.
    */
   it('tombol menu bertahan sampai tepat sebelum lg', () => {
@@ -221,7 +221,7 @@ describe('Navbar — titik peralihan menu', () => {
     const daftar = container.querySelector('[data-tautan-desktop]');
     const nama = [...daftar.querySelectorAll('a')].map((a) => a.textContent.trim());
 
-    expect(nama).toEqual(['Beranda', 'Tentang Platform', 'Statistik']);
+    expect(nama).toEqual(['Layanan', 'Tentang Platform', 'Statistik']);
   });
 });
 

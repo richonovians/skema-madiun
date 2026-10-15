@@ -116,7 +116,7 @@ export default function Footer() {
         {/* Links */}
         <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3 lg:pl-6">
           <h4 className="font-bold text-lg text-white mb-1">Tautan Cepat</h4>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/">Beranda</Link>
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/">Layanan</Link>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/statistics">Statistik Pelayanan</Link>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/about#faq">Bantuan</Link>
           {/* Kebijakan privasi WAJIB punya tautan permanen (25 September 2026).

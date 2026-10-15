@@ -84,7 +84,7 @@ describe('halaman kebijakan privasi', () => {
     render(<KebijakanPrivasi />);
 
     const nav = screen.getByRole('navigation');
-    expect(within(nav).getByRole('link', { name: /beranda/i })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /layanan/i })).toBeInTheDocument();
   });
 
   it('memasang footer, tempat kebijakan ini ditaut dari halaman lain', () => {
