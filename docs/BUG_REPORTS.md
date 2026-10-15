@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 4.9 |
+| **Versi** | 5.0 |
 | **Tanggal** | 15 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -92,7 +92,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 
 | ID                  | Judul                                                          | Severity | Verifikasi    | Status     | Charter |
 | ------------------- | -------------------------------------------------------------- | -------- | ------------- | ---------- | ------- |
-| [BUG-005](#bug-005) | Duplikasi survei membuang opsi jawaban — survei jadi buntu total | **Critical** | Terkonfirmasi | Baru       | —       |
+| [BUG-005](#bug-005) | Duplikasi survei membuang opsi jawaban — survei jadi buntu total | **Critical** | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | Baru       | —       |
 | [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | **Ditutup** | —       |
@@ -114,7 +114,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 21 temuan: 6 ditutup, **15 terbuka (1 Critical, 1 High, 7 Medium, 6 Low)**
+**Rekap** — 21 temuan: 7 ditutup, **14 terbuka (0 Critical, 1 High, 7 Medium, 6 Low)**
 
 > **(15 Oktober 2026) Baris di atas sebelumnya berbunyi "20 temuan ... 14
 > terbuka ... 5 Low", dan itu salah hitung.** Sebabnya kesalahan penguji yang
@@ -125,11 +125,24 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > 009, 014, 015, 016, 017, 019; Low BUG-003, 007, 010, 011, 012, 018. BUG-001
 > dan BUG-006 juga High tetapi sudah ditutup, dan itulah yang membuat hitungan
 > tangan mudah tergelincir.
+>
+> **(16 Oktober 2026) Dihitung ulang lagi sesudah BUG-005 ditutup**, dengan cara
+> yang sama dan bukan dengan mengurangi satu: 21 baris, tujuh `Ditutup`
+> (BUG-001, 002, **005**, 004, 006, 020, 021), sisanya 14 terbuka — **tak ada
+> lagi yang Critical**; High BUG-013; Medium BUG-008, 009, 014, 015, 016, 017,
+> 019; Low BUG-003, 007, 010, 011, 012, 018.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
 > tidak dapat diselesaikan sama sekali. Reproduksi hidupnya bisa dibuka di
 > `/surveys/333` pada lingkungan dev.
+>
+> **(16 Oktober 2026) BUG-005 SUDAH DITUTUP, dan dengan itu tak ada lagi temuan
+> Critical yang terbuka — pertama kalinya sejak dokumen ini dibuat.** Peringatan
+> di atas dibiarkan utuh sebagai rekaman bertanggal; yang menempati urutan
+> teratas sekarang [BUG-013](#bug-013), satu-satunya High yang tersisa (survei
+> di Sampah tetap terhitung pada statistik publik). Tautan `/surveys/333` di
+> atas sudah mati sejak 4 September 2026 ketika reproduksinya dihapus.
 
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
@@ -653,6 +666,82 @@ harus diuji dari sisi backend.
 
 ---
 
+**DITUTUP 16 Oktober 2026** — commit `6d2f298` di `main`.
+
+**Akar masalahnya dua lapis, dan lapis kedualah yang membuatnya diam.** Pertama,
+datanya tak pernah dibaca: `duplicate()` memuat `include: { questions: true }`
+tanpa relasi `options`, lalu menyalin lima medan skalar saja, sehingga opsinya
+mustahil tersalin — ia tak pernah ada di memori. Kedua, penjaganya tak berada di
+jalur ini dan tak pernah akan: `QuestionsService` memang melempar
+"Pertanyaan pilihan ganda memerlukan minimal 2 opsi", tetapi salinan dibuat
+lewat `prisma.survey.create` dengan nested create dan melewati
+`CreateQuestionDto` sepenuhnya. Aturan itu menjaga pintu yang tidak dilewati
+duplikasi, dan itulah sebabnya cacat ini melahirkan survei buntu tanpa satu pun
+galat.
+
+**Perbaikannya** memuat relasi `options` (diurut `urutan` naik) lalu menyalin
+`label`, `nilai`, dan `urutan` per opsi. `nilai` ikut disalin, bukan dihitung
+ulang: pada tipe skala ia skor yang menjadi dasar rumus IKM, dan menyalin label
+tanpa skornya akan menggeser bobot tanpa ada yang memerah.
+
+**Uji yang menjaganya merah lebih dulu oleh cacatnya sendiri, bukan oleh
+mutasi.** Satu uji e2e baru di `apps/api/test/surveys.e2e-spec.ts` membuat
+survei `custom` berisi satu `pilihan` tiga opsi dan satu `skala` berlabel
+tersuai empat opsi, menduplikasinya, lalu membaca salinannya. Jalan pertama
+melaporkan `Expected: 7, Received: 0` — angka yang sama persis dengan bukti
+2 September di atas (`asli=7 salinan=0`). Uji itu juga memeriksa bahwa opsi
+salinan adalah BARIS BARU, bukan baris yang sama dipakai bersama, supaya
+menyunting salinan tak pernah mengubah survei aslinya.
+
+**SATU KOREKSI ATAS LAPORAN DI ATAS, dan ia mengubah cara membaca tabel dua
+gejala itu.** Laporan ini menyamakan "pilihan ganda kehilangan opsi" dengan
+"label skala kembali ke baku". Keduanya tidak sepadan. `QuestionOption` pada
+tipe `skala` memang OPSIONAL menurut rancangan: `buatUnsurAwal()` sengaja tidak
+membuatnya, dan tak ada konstanta label skala di backend sama sekali, sehingga
+frontend jatuh ke `DEFAULT_SCALE_LABELS`. Terukur di `skm_db` pada 16 Oktober
+2026: **46 dari 46** pertanyaan `skala` tidak punya satu pun opsi, dan itu
+keadaan normal, bukan kerusakan. Jadi label skala yang "kembali ke baku" adalah
+kehilangan PENYESUAIAN, bukan kebuntuan. Yang membuat responden buntu hanya
+tipe `pilihan`. Keduanya tetap sembuh oleh perbaikan yang sama, tetapi
+beratnya perlu dibedakan agar severity-nya dapat dinilai jujur.
+
+**Tiga uji unit memerah oleh perbaikan ini, dan yang dibetulkan TIRUANNYA.**
+Ketiganya di `surveys.service.spec.ts` memodelkan hasil kueri yang kini tak
+mungkin terjadi — pertanyaan tanpa `options` — sehingga gagal dengan
+`Cannot read properties of undefined (reading 'map')`. Menulis `q.options ?? []`
+di `duplicate()` akan menghijaukan ketiganya seketika dan sekaligus
+menghidupkan kembali persis mode kegagalan yang melahirkan temuan ini: bila
+suatu saat `include` itu terhapus lagi, duplikasi akan diam-diam membuang
+seluruh opsi tanpa ada yang memerah. Dibiarkan tegas, penghapusan itu melempar
+seketika.
+
+**YANG TIDAK DISEMBUHKAN PERBAIKAN INI.** Salinan yang SUDAH rusak tetap rusak.
+Survei yang pernah diduplikasi sebelum commit itu tetap kehilangan opsinya, dan
+bila ada yang sudah terbit, ia tetap buntu sampai opsinya diisi ulang lewat
+builder.
+
+Basis data pengembangan diperiksa pada 16 Oktober 2026 — baca-saja, dijalankan
+di dalam kontainer lewat `docker compose exec db` — dan **nol** pertanyaan
+`pilihan` ditemukan tanpa opsi. **Hasil itu membuktikan lebih sedikit daripada
+kelihatannya**, dan perlu dibaca apa adanya: `skm_db` juga memuat **nol** survei
+berjudul `(Salinan)`, jadi jalur duplikasinya memang tak pernah dipakai di sana.
+Ketiadaan kerusakan bukan bukti keamanannya. Basis data produksi TIDAK diperiksa
+dan tidak boleh diprobe dari sini, sehingga pertanyaan "apakah ada salinan rusak
+yang sudah terbit" tetap TERBUKA di luar lingkungan pengembangan.
+
+**Celah uji yang diketahui dan dibiarkan:** tak ada uji yang menjaga bahwa entri
+`unsurPelengkap()` TETAP tanpa `options`. Bila seseorang menambahkan label baku
+di sana, arti "tanpa opsi" berubah dari "pakai label baku PermenPANRB" menjadi
+sesuatu yang lain, tanpa ada yang memerah. Hanya komentar yang menjaganya hari
+ini.
+
+**Verifikasi:** e2e `apps/api` penuh 41 suite / 445 uji lulus (444 sebelumnya,
++1 dari uji baru); unit `apps/api` 84 suite / 1.359 uji lulus;
+`tsc --noEmit -p tsconfig.spec.json` kode=0; eslint seluruh repo kode=0;
+`prettier --check` kode=0.
+
+---
+
 <a id="bug-006"></a>
 
 ### BUG-006 — Sesi hantu: tampak sudah login, tombol mati, tetapi data tetap terisi
@@ -842,6 +931,8 @@ pada ketiga input, dan tolak berkas >5 MB di `handleFileChange` sebelum dikirim.
 > **TC-FE-033** — Validasi lampiran di sisi klien
 > Pilih berkas 6 MB dan berkas `.gif`; pastikan keduanya ditolak **tanpa**
 > permintaan jaringan terkirim, dan pesannya menyebutkan batas yang dilanggar.
+
+<a id="bug-008"></a>
 
 ### BUG-008 — Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung
 
@@ -1103,6 +1194,8 @@ suksesnya dengan yang tak melewatkan satu pun.
 (mis. peringatan kuning, bukan hijau) bila nilainya lebih dari nol.
 
 ---
+
+<a id="bug-013"></a>
 
 ### BUG-013 — Survei di Sampah tetap terhitung pada statistik publik
 
@@ -3411,4 +3504,5 @@ ketiga adalah keadaan hari ini, dan ia berlangsung tanpa pernah diputuskan.
 | 4.6 | 15 Oktober 2026 | **BUG-020 ditutup.** Tiga medan sisanya -- `isAnonim`, `tanpaOpd`, `unreadOnly` -- diperbaiki dengan `@Type(() => String)` dan masing-masing dapat uji e2e yang dibuktikan merah lebih dulu oleh cacatnya sendiri, bukan oleh mutasi. TC-BOOL-001 s.d. 003 di Modul J kini ✅. Satu kesalahan penguji ikut dicatat: uji `tanpaOpd` mula-mula memerah dengan 400 karena `limit=200` melampaui batas 100, merah karena alasan yang salah, lalu dibetulkan. e2e api 441 -> 444 uji. |
 | 4.7 | 15 Oktober 2026 | **BUG-021** — `ComplaintTable` memanggil `Pagination` dengan `1/1/3` dipatok mati, sehingga daftar pengaduan warga berbunyi "Menampilkan 1-3 dari 12" di bawah dua belas baris; ditambah pemotongan diam di lima halaman admin (`FETCH_LIMIT = 100`), daftar warga (50), dan Riwayat Aktivitas (10). Ditutup lewat satu komponen bersama `CatatanPemotongan` dan angka paginasi yang diturunkan dari baris yang ada, 21 uji dibuktikan merah lebih dulu. Pemotongannya sendiri TIDAK diperbaiki dan dicatat sebagai **CAT-022**, sebab paginasi sisi server menuntut backend menerima `search`. Dua pemasangan tanpa uji disebut tersurat. TC-FE-050 & 051 lahir dari sini. Label "Beranda" juga berganti menjadi "Layanan" di seluruh antarmuka pada hari yang sama; sebelas sebutan bertanggal di dokumen ini dibiarkan utuh. |
 | 4.8 | 15 Oktober 2026 | **Dua pemasangan tanpa uji pada BUG-021 ditutup** (`06a7da7` di `main`): `admin-kab/complaints` dan `admin-opd/complaints` mendapat uji halaman pertamanya, 6 + 7 kasus. Kode halamannya sudah ada sehingga uji baru lulus pada jalan pertama, jadi ketiga belas uji dibuktikan lewat SEBELAS MUTASI yang dipasang satu per satu lalu dipulihkan; setiap uji terbunuh oleh setidaknya satu. TC-FE-051 dikoreksi: "tiga uji halaman admin" menjadi lima. Dua kesalahan penguji pada catatan 4.7 ikut dikoreksi, bukan dihapus: berkas yang disebut "tak ada lagi" sebenarnya hidup di `tester` dan hanya tak ada di `main`, dan angka "200 berkas / 1.640 uji" adalah bacaan `main` yang tak dapat dibandingkan dengan tabel pemetaan §Y.1 yang dibaca di `tester`. Satu benturan merge ditinggalkan dengan sengaja pada jalur uji halaman OPD, berisi dua berkas yang lahir sendiri-sendiri; penyelesaiannya gabungan, bukan pilihan. |
+| 5.0 | 16 Oktober 2026 | **BUG-005 DITUTUP** (`6d2f298` di `main`), dan dengan itu tak ada lagi temuan Critical yang terbuka — pertama kalinya sejak dokumen ini dibuat. Itulah sebabnya nomor minornya naik ke 5.0, bukan 4.10. Akar masalahnya dua lapis: `duplicate()` tak pernah memuat relasi `options`, dan penjaga "minimal 2 opsi" di `QuestionsService` tak berada di jalur nested create sehingga tak pernah dapat menangkapnya. Ujinya merah lebih dulu oleh cacatnya sendiri (`Expected: 7, Received: 0`, sama persis dengan bukti 2 September). Satu koreksi atas laporan aslinya ikut dicatat: opsi pada tipe `skala` memang opsional menurut rancangan — terukur 46 dari 46 pertanyaan skala di `skm_db` tanpa opsi — jadi label yang kembali ke baku adalah kehilangan penyesuaian, bukan kebuntuan. Basis data pengembangan diperiksa dan nol salinan rusak ditemukan, tetapi hasil itu lemah sebab `skm_db` juga memuat nol survei salinan; produksi tidak diperiksa dan pertanyaannya tetap terbuka di sana. TC-FE-031 ❌ menjadi ✅. Rekap dihitung ulang dari tabelnya, bukan dikurangi: 7 ditutup, 14 terbuka, 0 Critical. |
 | 4.9 | 15 Oktober 2026 | **Benturan merge BUG-021 dilumpuhkan** (`9a9ce6d` di `main`): kedua berkas dilebur menjadi satu bertiga belas kasus, gaya berpindah ke MSW supaya enam kasus September tetap menembus service dan adapter sungguhan, dan 19 ujinya dibuktikan ulang lewat tujuh belas mutasi. Benturan git-nya tetap ada; yang berubah, penyelesaiannya kini cukup mengambil versi `main` tanpa kehilangan cakupan. **CAT-023 baru** menyisir pemisahan cabang yang melahirkannya: `tester` tertinggal sebulan dari `main` (commit bersama terakhir `de41245`, 15 September), 720 berkas berbeda di luar `docs/`, dan 29 berkas hidup hanya di `tester`. Ketiga belas berkas uji milik `tester` DIJALANKAN terhadap kode `main`: 113 uji, enam berkas hijau seluruhnya (44 uji), tujuh berkas dengan 14 uji merah — sembilan karena produknya sengaja berubah, empat karena `main` kekurangan perbaikan `jest.setup.js` yang sudah ada di `tester` (**CAT-009 dikoreksi**: "sudah diperbaiki" hanya benar di `tester`), satu karena uji yang terlalu longgar. Kekhawatiran anonimitas pada kolom "Pengisi" diperiksa dan TIDAK terbukti. **Rekap temuan dikoreksi** dari 20/14/5 Low menjadi 21/15/6 Low: angka lamanya ditambah satu alih-alih dihitung ulang dari tabelnya. |
