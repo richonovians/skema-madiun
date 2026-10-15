@@ -30,8 +30,8 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi**           | 4.4                                                                                                        |
-| **Tanggal**         | 15 September 2026                                                                                          |
+| **Versi** | 4.5 |
+| **Tanggal** | 15 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
 | **Dokumen terkait** | [TEST_PLAN.md](TEST_PLAN.md) · [TEST_CASES.md](TEST_CASES.md) · [TEST_EXPLORATORY.md](TEST_EXPLORATORY.md) |
@@ -104,8 +104,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
 | [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
+| [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Sebagian ditutup** | — |
 
-**Rekap** — 18 temuan: 4 ditutup, **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
+**Rekap** — 19 temuan: 4 ditutup, 1 sebagian ditutup (BUG-020), **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -2945,6 +2946,102 @@ basis data hanya lapisan E2E, dan ketakstabilannya berasal dari sisi peramban
 
 ---
 
+<a id="bug-020"></a>
+
+### BUG-020 — Parameter boolean bernilai `false` dibaca sebagai `true` di empat endpoint
+
+|                       |                                                                              |
+| --------------------- | ---------------------------------------------------------------------------- |
+| **Charter**           | — (ditemukan saat menulis uji e2e penyaring OPD, 15 Oktober 2026)            |
+| **Tanggal**           | 15 Oktober 2026                                                              |
+| **Peran**             | siapa pun yang memanggil API; tak ada peran tertentu yang terdampak          |
+| **Halaman**           | — cacatnya di lapis kontrak API, bukan di satu halaman                       |
+| **Severity**          | Low                                                                          |
+| **Kasus uji terkait** | TC-OPD-003 (sudah ✅), TC-BOOL-001, TC-BOOL-002, TC-BOOL-003                 |
+
+**Catatan lingkup, disebut lebih dulu supaya tidak menyesatkan.** Kepala dokumen
+ini menyatakan lingkupnya `apps/web` saja, dan temuan ini di luar itu: cacatnya
+ada di DTO `apps/api`. Ia dicatat di sini atas permintaan pengguna, karena
+tempat lain tak ada, dan karena akibatnya terasa oleh pemakai API mana pun —
+termasuk `apps/web` bila suatu saat mengirim medannya.
+
+**Langkah reproduksi**
+
+1. Panggil `GET /api/v1/opd?search=<kode OPD nonaktif>&isActive=false` sebagai
+   Admin Kabupaten.
+2. Panggil permintaan kendali yang sama tanpa `&isActive=false`.
+3. Bandingkan jumlah barisnya.
+
+**Hasil sebenarnya.** Kendali mengembalikan barisnya dengan `"isActive": false`,
+jadi datanya memang ada. Permintaan ber-`isActive=false` mengembalikan **nol**
+baris, dan `isActive=true` juga **nol**. Dua-duanya kosong hanya mungkin bila
+penyaringnya bernilai `true` pada kedua permintaan.
+
+**Sebabnya pasti, dan satu untuk keempat medan.** `apps/api/src/app.setup.ts:289`
+menyalakan `transformOptions.enableImplicitConversion`. class-transformer lalu
+mengubah nilai masuk memakai tipe hasil refleksi, dan untuk `boolean` ia
+menjalankan `Boolean(value)`; `Boolean('false')` bernilai `true`. Konversi itu
+berjalan SEBELUM `@Transform` milik DTO, sehingga `@Transform` tak pernah
+melihat string aslinya. Nilai `'true'` lolos benar secara kebetulan, `'false'`
+tidak, dan `@IsBoolean()` tak dapat menangkapnya karena yang sampai kepadanya
+memang sudah boolean yang sah.
+
+Terukur langsung atas class-transformer, bukan disimpulkan dari membaca kode:
+
+| Bentuk dekorator                     | `'false'` | `'true'` |
+| ------------------------------------ | --------- | -------- |
+| `@Transform` saja                    | `true`    | `true`   |
+| `@Type(() => Boolean)`               | `true`    | `true`   |
+| `@Type(() => String)` + `@Transform` | `false`   | `true`   |
+
+**Empat medan terkena, satu sudah diperbaiki:**
+
+| Medan        | Berkas                              | Bentuk                 | Keadaan                        |
+| ------------ | ----------------------------------- | ---------------------- | ------------------------------ |
+| `isActive`   | `list-opd-query.dto.ts`             | `@Transform` saja      | **diperbaiki** 15 Oktober 2026 |
+| `isAnonim`   | `create-complaint.dto.ts:61`        | `@Transform` saja      | belum                          |
+| `tanpaOpd`   | `list-complaint-query.dto.ts:36`    | `@Transform` saja      | belum                          |
+| `unreadOnly` | `list-notification-query.dto.ts:9`  | `@Type(() => Boolean)` | belum                          |
+
+Perbaikannya satu dekorator per medan, `@Type(() => String)` di atas
+`@Transform`, sehingga konversi implisit tak mengubah apa pun dan `@Transform`
+menerima stringnya. Mematikan `enableImplicitConversion` secara global akan
+mengubah perilaku setiap DTO di aplikasi, jadi tidak dipilih.
+
+**Severity Low, dan alasannya perlu dibaca utuh.** Ketiga medan yang tersisa
+tak terjangkau dari antarmuka hari ini, dan itu diperiksa satu per satu:
+`complaints.api.js:35-37` hanya menyertakan `isAnonim` bila bernilai benar;
+`tanpaOpd` tak punya satu pun pemanggil di `apps/web/src`; dan
+`NotificationHistoryScreen.jsx:112` menghilangkan `unreadOnly` alih-alih
+mengirim `false`. Karena itu tak ada pengguna yang dapat memicunya lewat
+aplikasi, dan tak ada uji yang akan memerah dengan sendirinya.
+
+Yang terjangkau adalah kontrak API-nya. Ketiga medan terdaftar
+`@ApiPropertyOptional` dan tampil di `/api/docs`, jadi siapa pun yang memakainya
+dari Swagger, dari skrip, atau dari kode frontend baru akan mendapat kebalikan
+dari yang diminta tanpa satu pun galat. Itu pula yang terjadi pada `isActive`:
+cacatnya tersembunyi sampai sebuah uji benar-benar mengirim `false`.
+
+**Satu di antaranya pantas diperbaiki lebih dulu meski Low.** `isAnonim`
+bukan penyaring daftar. Bila jalur itu suatu saat terjangkau, pengaduan yang
+dimaksudkan bernama akan tercatat anonim, dan `complaints.service.ts:731`
+menyamarkan identitas pelapornya pada seluruh jalur baca sesudah itu.
+
+**Bagaimana ini diverifikasi.** Medan `isActive` dibuktikan lewat uji e2e
+sungguhan (`apps/api/test/opd.e2e-spec.ts:147`, merah sebelum perbaikan, hijau
+sesudahnya). Tiga medan sisanya **belum** punya uji; yang ada adalah pengukuran
+langsung atas class-transformer pada tabel di atas, ditambah pembacaan pemanggil
+di `apps/web/src`. Tak ada pagar regresi untuk ketiganya, dan karena itu tak ada
+yang akan memberi tahu bila bentuknya tersalin ke DTO berikutnya.
+
+**Komentar yang menyesatkan ikut ditemukan.** `create-complaint.dto.ts:57-60`
+dan `list-complaint-query.dto.ts:33-35` keduanya menolak `@Type(() => Boolean)`
+dengan alasan yang tepat — `Boolean('false') === true` — tetapi melewatkan bahwa
+konversi implisit melakukan hal yang sama tanpa dekorator itu. Keduanya karena
+itu berbunyi seolah masalahnya sudah dihindari, padahal belum.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -2975,3 +3072,4 @@ basis data hanya lapisan E2E, dan ketakstabilannya berasal dari sisi peramban
 | 4.1   | 15 September 2026  | **C-09 ternyata tidak lagi terkunci.** Kredensial SSO Helpdesk sudah terisi di `apps/api/.env` — tombol masuk tak lagi menjawab 503 — dan seluruh laporan sebelumnya masih mencatatnya terkunci. Charter dijalankan sebagian: pengalihan ke `api.madiunkab.go.id` benar, issuer terjangkau, kredensial klien **diterima Helpdesk** (`code` karangan ditolak dengan `invalid authorization code`, bukan `invalid_client`), dan penjagaan CSRF-nya bukan sekadar ada — `state` yang sah TANPA cookie-nya pun ditolak. **BUG-019 (Medium)**: `error_description` dari luar ditampilkan apa adanya di layar "Gagal masuk lewat SSO Helpdesk", hingga 1024 karakter bebas; bukan XSS (React merendernya sebagai teks) melainkan penyuntikan KALIMAT di domain pemerintah yang sah. Sisi keduanya terjadi tanpa penyerang: kegagalan biasa menampilkan "Helpdesk tidak mengembalikan access_token: invalid authorization code" kepada warga. Terkunci `e2e/sso-galat.spec.js`. Sisa charter menunggu **akun pengguna** Helpdesk, bukan kredensial aplikasi. |
 | 4.2   | 15 September 2026  | **CAT-021** — basis data hasil `db:seed` menghasilkan empat akun yang seluruhnya **berperan tunggal**, padahal peran jamak adalah inti model akses sejak 5 September. Akibatnya lingkungan yang disiapkan persis sesuai dokumen tak dapat mengamati `actingRole: null`, 401 "Peran yang ingin dipakai belum dipilih", `POST /auth/acting-role`, pemilih peran, maupun **seluruh charter C-15**. Yang lebih rapuh: kelima akun berperan jamak di `skm_db` disetel dengan tangan dan penyetelannya tak tercatat di repositori mana pun — hilang basis data itu, hilang satu-satunya lingkungan tempat peran jamak dapat diuji. Atas dasar ini diputuskan **tidak** menjalankan ulang suite dari seed bersih: ia menghasilkan dunia yang berbeda, bukan dunia yang sama dengan lebih rapi, sementara angka Jest (673/673) sudah reproducible tanpa basis data sama sekali. |
 | 4.3   | 15 September 2026  | Kata **"yatim"** diganti **"tanpa induk"** di seluruh dokumen pengujian dan perkakas uji atas permintaan pengguna — 40 kemunculan di enam berkas; bendera pembersih `--yatim` menjadi `--tanpa-induk`. Satu kemunculan di `docs/Routes-List-API-dan-Frontend.md` sengaja **tidak** diubah: itu tulisan tim dev yang hidup di `main`. Selain itu, kegoyahan E2E akhirnya **terukur** ([TEST_CASES §Y.3.1](TEST_CASES.md)) dan sebabnya bukan produk: empat peramban berebut satu mesin. |
+| 4.5 | 15 Oktober 2026 | **BUG-020** — parameter boolean bernilai `false` dibaca sebagai `true` di empat endpoint, satu sebab: `enableImplicitConversion` membuat `Boolean('false')` berjalan sebelum `@Transform` DTO. `isActive` pada `GET /opd` diperbaiki dan beruji; `isAnonim`, `tanpaOpd`, `unreadOnly` belum, dan ketiganya tak terjangkau dari antarmuka hari ini. Tiga kasus uji baru di Modul J `TEST_CASES.md`. Versi 4.4 tak pernah punya barisnya sendiri di tabel ini; nomor itu dilewati alih-alih dikarang. |

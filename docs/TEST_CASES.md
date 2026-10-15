@@ -95,7 +95,8 @@
 7. [Modul G — Perhitungan IKM & Hasil](#modul-g--perhitungan-ikm--hasil)
 8. [Modul H — Pengaduan Masyarakat](#modul-h--pengaduan-masyarakat)
 9. [Modul I — Audit Log](#modul-i--audit-log)
-10. [Modul X — RBAC & Isolasi Data OPD (Cross-Cutting)](#modul-x--rbac--isolasi-data-opd-cross-cutting)
+10. [Modul J — Kontrak Parameter Boolean (Cross-Cutting)](#modul-j--kontrak-parameter-boolean-cross-cutting)
+11. [Modul X — RBAC & Isolasi Data OPD (Cross-Cutting)](#modul-x--rbac--isolasi-data-opd-cross-cutting)
 
 ---
 
@@ -334,10 +335,14 @@ Referensi: PRD §8.2 (FR-OPD-01 ~ FR-OPD-03), Routes §A.2
 >
 > **Cacat yang sama terukur di tiga medan lain dan BELUM diperbaiki**:
 > `tanpaOpd` (`list-complaint-query.dto.ts`), `unreadOnly`
-> (`list-notification-query.dto.ts`), dan `anonim` (`create-complaint.dto.ts`,
-> datang sebagai string dari multipart). Ketiganya di luar cakupan yang
-> disetujui hari ini. Tak satu pun punya uji yang mengirim nilai `false`, jadi
-> suite yang ada tidak akan memerah karenanya.
+> (`list-notification-query.dto.ts`), dan `isAnonim` (`create-complaint.dto.ts`,
+> datang sebagai string dari multipart). Ketiganya kini punya kasus uji sendiri
+> di [Modul J](#modul-j--kontrak-parameter-boolean-cross-cutting) dan tercatat
+> sebagai [BUG-020](BUG_REPORTS.md#bug-020). Tak satu pun punya uji yang
+> mengirim nilai `false`, jadi suite yang ada tidak akan memerah karenanya.
+>
+> Medan ketiga bernama `isAnonim`, bukan `anonim`; penyebutan pertamanya di sini
+> salah dan dibetulkan pada hari yang sama.
 >
 > **TC-OPD-007 tercakup tetapi hanya pada STATUS**, tanpa memeriksa pesan
 > penolakannya (`opd.e2e:122`). Bentuk itu terbukti beberapa kali minggu ini
@@ -597,6 +602,68 @@ Referensi: PRD NFR (Auditabilitas), Routes §A.7
 | TC-AUD-005 | Daftar audit log (Admin Kabupaten)   | GET `/audit-logs` sebagai kabupaten   | —          | 200 OK; daftar log dengan pagination                                                |    P2     | Integ |   ⬜   |
 | TC-AUD-006 | Admin OPD TIDAK bisa akses audit log | GET `/audit-logs` sebagai admin OPD   | —          | 403 Forbidden                                                                       |    P2     | Integ |   ⬜   |
 | TC-AUD-007 | Responden TIDAK bisa akses audit log | GET `/audit-logs` sebagai responden   | —          | 403 Forbidden                                                                       |    P2     | Integ |   ⬜   |
+
+---
+
+## Modul J — Kontrak Parameter Boolean (Cross-Cutting)
+
+Referensi: temuan [BUG-020](BUG_REPORTS.md#bug-020), `apps/api/src/app.setup.ts:289`
+
+**(15 Oktober 2026)** Modul ini lahir dari satu cacat, bukan dari satu fitur, dan
+itu sebabnya ia cross-cutting: tiga endpoint di tiga modul berbeda menolak nilai
+`false` pada parameter boolean-nya, dan ketiganya karena sebab yang sama.
+
+`app.setup.ts:289` menyalakan `transformOptions.enableImplicitConversion`.
+class-transformer lalu mengubah nilai masuk memakai tipe hasil refleksi, dan
+untuk `boolean` ia menjalankan `Boolean(value)`; `Boolean('false')` bernilai
+**`true`**. Konversi itu berjalan SEBELUM `@Transform` milik DTO, sehingga
+`@Transform` tak pernah melihat string aslinya. Nilai `'true'` lolos benar
+secara kebetulan, `'false'` tidak.
+
+Terukur langsung atas class-transformer dengan konversi implisit menyala, bukan
+disimpulkan dari membaca kode:
+
+| Bentuk dekorator                     | `'false'` | `'true'` |
+| ------------------------------------ | --------- | -------- |
+| `@Transform` saja                    | `true`    | `true`   |
+| `@Type(() => Boolean)`               | `true`    | `true`   |
+| `@Type(() => String)` + `@Transform` | `false`   | `true`   |
+
+Medan keempat, `isActive` pada `GET /opd`, cacat dengan cara yang sama dan
+**sudah diperbaiki** 15 Oktober 2026 memakai bentuk baris ketiga; kasus ujinya
+ada sebagai TC-OPD-003 di Modul B dan kini ✅. Tiga baris di bawah adalah
+sisanya, dan ketiganya belum diperbaiki.
+
+| ID          | Skenario                                             | Langkah                                                 | Data Input                   | Expected Result                                                                                                                              | Prioritas | Tipe  | Status |
+| ----------- | ---------------------------------------------------- | ------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----- | ------ |
+| TC-BOOL-001 | `isAnonim=false` pada pengaduan tidak menjadi anonim | POST `/complaints` multipart sebagai responden          | medan `isAnonim` = `"false"` | 201 Created; `isAnonim` tersimpan **false** dan identitas pelapor tetap terekam. Kenyataannya tersimpan `true` (`create-complaint.dto.ts:61`) | P2        | Integ | ⬜     |
+| TC-BOOL-002 | `tanpaOpd=false` tidak menyaring daftar pengaduan    | GET `/complaints?tanpaOpd=false` sebagai kabupaten      | `tanpaOpd=false`             | 200 OK; daftar TIDAK tersaring, sama dengan tanpa parameter. Kenyataannya hanya pengaduan tanpa OPD (`list-complaint-query.dto.ts:36`)        | P3        | Integ | ⬜     |
+| TC-BOOL-003 | `unreadOnly=false` tidak menyaring daftar notifikasi | GET `/notifications?unreadOnly=false` sebagai responden | `unreadOnly=false`           | 200 OK; daftar memuat yang sudah DAN belum dibaca. Kenyataannya hanya yang belum dibaca (`list-notification-query.dto.ts:9`)                  | P3        | Integ | ⬜     |
+
+> **Ketiganya TAK TERJANGKAU dari antarmuka hari ini, dan itu sebabnya suite
+> yang ada tidak memerah karenanya.** Diperiksa satu per satu, bukan diandaikan:
+>
+> - `complaints.api.js:35-37` hanya menyertakan medannya bila anonim —
+>   `if (dto.isAnonim) { formData.append('isAnonim', 'true'); }`. Nilai `'false'`
+>   tak pernah terkirim.
+> - `tanpaOpd` tak punya satu pun pemanggil di `apps/web/src`.
+> - `NotificationHistoryScreen.jsx:112` memakai
+>   `...(unreadOnly ? { unreadOnly: true } : {})`, jadi medannya dihilangkan
+>   alih-alih dikirim `false`.
+>
+> Yang terjangkau adalah **kontrak API-nya**: ketiga medan terdaftar
+> `@ApiPropertyOptional` dan karena itu tampil di `/api/docs`, sehingga siapa pun
+> yang memakainya dari Swagger, dari skrip, atau dari kode frontend baru akan
+> mendapat kebalikan dari yang diminta tanpa satu pun galat. Itu pula yang
+> terjadi pada `isActive`: cacatnya tersembunyi sampai sebuah uji benar-benar
+> mengirim `false`.
+>
+> **TC-BOOL-001 pantas dinilai lebih berat daripada prioritasnya menyiratkan.**
+> Bila jalur itu suatu saat terjangkau, akibatnya bukan daftar yang salah
+> tersaring melainkan pengaduan yang dimaksudkan bernama tercatat anonim, dan
+> `complaints.service.ts:731` lalu menyamarkan identitas pelapornya pada seluruh
+> jalur baca. P2 dan bukan P1 hanya karena hari ini tak ada yang dapat
+> memicunya.
 
 ---
 
@@ -1607,16 +1674,22 @@ aksesibelnya sudah teruji.
 | G — IKM & Hasil          |    23     |   15   |   7     |   1    |   0   |
 | H — Pengaduan            |    29     |   13   |   15    |   1    |   0   |
 | I — Audit Log            |     7     |   0    |   0     |   7    |   0   |
+| J — Parameter Boolean    |     3     |   0    |   0     |   1    |   2   |
 | X — RBAC & Isolasi       |    31     |   13   |   3     |   1    |   0   |
 | Y — Frontend & E2E       |  **48**   |   8    |   22    |   15   |   3   |
-| **TOTAL**                |  **262**  | **88** | **112** | **43** | **5** |
+| **TOTAL**                |  **265**  | **88** | **112** | **44** | **7** |
 
 > **14 baris Modul X (TC-RBAC-001 s/d 014) tidak berkolom prioritas** — tabelnya
 > berbentuk matriks peran (Superuser · Kabupaten · Admin OPD · Responden), bukan
 > tabel skenario biasa. Jumlahnya tetap dihitung pada kolom "Jumlah TC", sehingga
-> 88+112+43+5 = 248, ditambah 14 = 262.
+> 88+112+44+7 = 251, ditambah 14 = 265.
+>
+> **Dihitung ulang 15 Oktober 2026** sesudah Modul J lahir, dengan cara yang sama
+> seperti 2 September: menghitung tiap baris ber-ID `TC-*` dari tabelnya sendiri.
+> Kesebelas modul lama kembali pada angka yang sudah tertulis di sini, jadi yang
+> berubah hanya baris J dan totalnya.
 
-> **Sebaran menurut tipe:** `Integ` 171 · `Component` 41 · `Unit` 33 · `Manual` 11 · `E2E` 6.
+> **Sebaran menurut tipe:** `Integ` 174 · `Component` 41 · `Unit` 33 · `Manual` 11 · `E2E` 6.
 >
 > Yang berada di **lingkup pengujian frontend** hanyalah tipe `Component`, `E2E`,
 > dan `Manual` — kini **58 kasus**, naik dari 34. (`Manual` berarti dijalankan di
