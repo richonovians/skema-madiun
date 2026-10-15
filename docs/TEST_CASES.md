@@ -333,13 +333,13 @@ Referensi: PRD §8.2 (FR-OPD-01 ~ FR-OPD-03), Routes §A.2
 > mengembalikan yang aktif. Diperbaiki di `main` dengan `@Type(() => String)`
 > pada medan itu.
 >
-> **Cacat yang sama terukur di tiga medan lain dan BELUM diperbaiki**:
-> `tanpaOpd` (`list-complaint-query.dto.ts`), `unreadOnly`
+> **Cacat yang sama terukur di tiga medan lain**: `tanpaOpd`
+> (`list-complaint-query.dto.ts`), `unreadOnly`
 > (`list-notification-query.dto.ts`), dan `isAnonim` (`create-complaint.dto.ts`,
-> datang sebagai string dari multipart). Ketiganya kini punya kasus uji sendiri
-> di [Modul J](#modul-j--kontrak-parameter-boolean-cross-cutting) dan tercatat
-> sebagai [BUG-020](BUG_REPORTS.md#bug-020). Tak satu pun punya uji yang
-> mengirim nilai `false`, jadi suite yang ada tidak akan memerah karenanya.
+> datang sebagai string dari multipart). Ketiganya **ikut diperbaiki dan beruji
+> pada 15 Oktober 2026**, dan kasus ujinya ada di
+> [Modul J](#modul-j--kontrak-parameter-boolean-cross-cutting) sebagai
+> TC-BOOL-001 s.d. 003; temuannya [BUG-020](BUG_REPORTS.md#bug-020).
 >
 > Medan ketiga bernama `isAnonim`, bukan `anonim`; penyebutan pertamanya di sini
 > salah dan dibetulkan pada hari yang sama.
@@ -629,17 +629,30 @@ disimpulkan dari membaca kode:
 | `@Type(() => Boolean)`               | `true`    | `true`   |
 | `@Type(() => String)` + `@Transform` | `false`   | `true`   |
 
-Medan keempat, `isActive` pada `GET /opd`, cacat dengan cara yang sama dan
-**sudah diperbaiki** 15 Oktober 2026 memakai bentuk baris ketiga; kasus ujinya
-ada sebagai TC-OPD-003 di Modul B dan kini ✅. Tiga baris di bawah adalah
-sisanya, dan ketiganya belum diperbaiki.
+Medan keempat, `isActive` pada `GET /opd`, cacat dengan cara yang sama; kasus
+ujinya ada sebagai TC-OPD-003 di Modul B. **Keempat medan sudah diperbaiki
+15 Oktober 2026** memakai bentuk baris ketiga tabel di atas, dan ketiganya di
+bawah kini punya uji sendiri yang dibuktikan merah lebih dulu.
 
 | ID          | Skenario                                             | Langkah                                                 | Data Input                   | Expected Result                                                                                                                              | Prioritas | Tipe  | Status |
 | ----------- | ---------------------------------------------------- | ------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----- | ------ |
-| TC-BOOL-001 | `isAnonim=false` pada pengaduan tidak menjadi anonim | POST `/complaints` multipart sebagai responden          | medan `isAnonim` = `"false"` | 201 Created; `isAnonim` tersimpan **false** dan identitas pelapor tetap terekam. Kenyataannya tersimpan `true` (`create-complaint.dto.ts:61`) | P2        | Integ | ⬜     |
-| TC-BOOL-002 | `tanpaOpd=false` tidak menyaring daftar pengaduan    | GET `/complaints?tanpaOpd=false` sebagai kabupaten      | `tanpaOpd=false`             | 200 OK; daftar TIDAK tersaring, sama dengan tanpa parameter. Kenyataannya hanya pengaduan tanpa OPD (`list-complaint-query.dto.ts:36`)        | P3        | Integ | ⬜     |
-| TC-BOOL-003 | `unreadOnly=false` tidak menyaring daftar notifikasi | GET `/notifications?unreadOnly=false` sebagai responden | `unreadOnly=false`           | 200 OK; daftar memuat yang sudah DAN belum dibaca. Kenyataannya hanya yang belum dibaca (`list-notification-query.dto.ts:9`)                  | P3        | Integ | ⬜     |
+| TC-BOOL-001 | `isAnonim=false` pada pengaduan tidak menjadi anonim | POST `/complaints` multipart sebagai responden          | medan `isAnonim` = `"false"` | 201 Created; `isAnonim` tersimpan **false** dan identitas pelapor tetap terekam pada jalur baca admin — `complaints.e2e:473`                  | P2        | Integ | ✅     |
+| TC-BOOL-002 | `tanpaOpd=false` tidak menyaring daftar pengaduan    | GET `/complaints?tanpaOpd=false` sebagai kabupaten      | `tanpaOpd=false`             | 200 OK; daftar memuat pengaduan ber-OPD, dan `tanpaOpd=true` tetap menyaring — `complaints.e2e:509`                                           | P3        | Integ | ✅     |
+| TC-BOOL-003 | `unreadOnly=false` tidak menyaring daftar notifikasi | GET `/notifications?unreadOnly=false` sebagai responden | `unreadOnly=false`           | 200 OK; daftar memuat yang sudah DAN belum dibaca, dan `unreadOnly=true` tetap menyaring — `notifications.e2e:291`                            | P3        | Integ | ✅     |
 
+> **(15 Oktober 2026) KETIGANYA DIPERBAIKI pada hari yang sama**, satu dekorator
+> per medan, dan ketiga ujinya dibuktikan merah lebih dulu oleh cacatnya sendiri
+> -- bukan oleh mutasi, sebab perilaku yang diuji memang belum pernah benar.
+> `isAnonim=false` menerima `true`; `tanpaOpd=false` hanya mengembalikan
+> pengaduan tanpa tujuan; `unreadOnly=false` menghilangkan notifikasi yang sudah
+> dibaca. Dua yang terakhir dituntut dari DUA ARAH, sehingga membuang
+> penyaringnya pun tetap memerahkan ujinya. Rinciannya di
+> [BUG-020](BUG_REPORTS.md#bug-020).
+>
+> Catatan di bawah ditulis SEBELUM perbaikannya dan disimpan apa adanya, karena
+> ia menjelaskan mengapa cacat ini dapat bertahan tanpa ada yang memerah --
+> keterangan yang hilang bila catatannya dihapus begitu cacatnya tertutup.
+>
 > **Ketiganya TAK TERJANGKAU dari antarmuka hari ini, dan itu sebabnya suite
 > yang ada tidak memerah karenanya.** Diperiksa satu per satu, bukan diandaikan:
 >

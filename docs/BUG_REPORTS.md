@@ -30,7 +30,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 4.5 |
+| **Versi** | 4.6 |
 | **Tanggal** | 15 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -104,9 +104,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
 | [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
-| [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Sebagian ditutup** | — |
+| [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 19 temuan: 4 ditutup, 1 sebagian ditutup (BUG-020), **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
+**Rekap** — 19 temuan: 5 ditutup, **14 terbuka (1 Critical, 1 High, 7 Medium, 5 Low)**
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -2996,20 +2996,30 @@ Terukur langsung atas class-transformer, bukan disimpulkan dari membaca kode:
 
 **Empat medan terkena, satu sudah diperbaiki:**
 
-| Medan        | Berkas                              | Bentuk                 | Keadaan                        |
-| ------------ | ----------------------------------- | ---------------------- | ------------------------------ |
-| `isActive`   | `list-opd-query.dto.ts`             | `@Transform` saja      | **diperbaiki** 15 Oktober 2026 |
-| `isAnonim`   | `create-complaint.dto.ts:61`        | `@Transform` saja      | belum                          |
-| `tanpaOpd`   | `list-complaint-query.dto.ts:36`    | `@Transform` saja      | belum                          |
-| `unreadOnly` | `list-notification-query.dto.ts:9`  | `@Type(() => Boolean)` | belum                          |
+| Medan        | Berkas                             | Bentuk semula          | Uji yang menanggungnya    |
+| ------------ | ---------------------------------- | ---------------------- | ------------------------- |
+| `isActive`   | `list-opd-query.dto.ts`            | `@Transform` saja      | `opd.e2e:147`             |
+| `isAnonim`   | `create-complaint.dto.ts`          | `@Transform` saja      | `complaints.e2e:473`      |
+| `tanpaOpd`   | `list-complaint-query.dto.ts`      | `@Transform` saja      | `complaints.e2e:509`      |
+| `unreadOnly` | `list-notification-query.dto.ts`   | `@Type(() => Boolean)` | `notifications.e2e:291`   |
+
+**Keempatnya diperbaiki 15 Oktober 2026**, masing-masing satu dekorator
+`@Type(() => String)`. Bentuk perbaikan berbeda pada berkas notifikasi: ia
+memakai `@Type(() => Boolean)` tanpa `@Transform` sama sekali, jadi ia mendapat
+keduanya.
 
 Perbaikannya satu dekorator per medan, `@Type(() => String)` di atas
 `@Transform`, sehingga konversi implisit tak mengubah apa pun dan `@Transform`
 menerima stringnya. Mematikan `enableImplicitConversion` secara global akan
 mengubah perilaku setiap DTO di aplikasi, jadi tidak dipilih.
 
-**Severity Low, dan alasannya perlu dibaca utuh.** Ketiga medan yang tersisa
-tak terjangkau dari antarmuka hari ini, dan itu diperiksa satu per satu:
+**Severity Low, dan alasannya perlu dibaca utuh.** Alinea ini ditulis sebelum
+ketiga medan sisanya diperbaiki, dan disimpan apa adanya: ia menjelaskan mengapa
+cacat ini dapat bertahan tanpa ada yang memerah, keterangan yang hilang bila
+dihapus begitu temuannya ditutup.
+
+Ketiga medan yang tersisa waktu itu tak terjangkau dari antarmuka, dan itu
+diperiksa satu per satu:
 `complaints.api.js:35-37` hanya menyertakan `isAnonim` bila bernilai benar;
 `tanpaOpd` tak punya satu pun pemanggil di `apps/web/src`; dan
 `NotificationHistoryScreen.jsx:112` menghilangkan `unreadOnly` alih-alih
@@ -3027,18 +3037,34 @@ bukan penyaring daftar. Bila jalur itu suatu saat terjangkau, pengaduan yang
 dimaksudkan bernama akan tercatat anonim, dan `complaints.service.ts:731`
 menyamarkan identitas pelapornya pada seluruh jalur baca sesudah itu.
 
-**Bagaimana ini diverifikasi.** Medan `isActive` dibuktikan lewat uji e2e
-sungguhan (`apps/api/test/opd.e2e-spec.ts:147`, merah sebelum perbaikan, hijau
-sesudahnya). Tiga medan sisanya **belum** punya uji; yang ada adalah pengukuran
-langsung atas class-transformer pada tabel di atas, ditambah pembacaan pemanggil
-di `apps/web/src`. Tak ada pagar regresi untuk ketiganya, dan karena itu tak ada
-yang akan memberi tahu bila bentuknya tersalin ke DTO berikutnya.
+**Bagaimana ini diverifikasi.** Keempat medan dibuktikan lewat uji e2e
+sungguhan, masing-masing merah sebelum perbaikan dan hijau sesudahnya; berkas
+dan barisnya ada di tabel di atas. Ketiga uji yang ditulis 15 Oktober memerah
+karena cacatnya sendiri, bukan karena mutasi, sebab perilaku yang diuji memang
+belum pernah benar. Dua di antaranya dituntut dari DUA ARAH -- `tanpaOpd=true`
+dan `unreadOnly=true` wajib TETAP menyaring -- sehingga membuang penyaringnya
+pun tetap memerahkan ujinya.
 
-**Komentar yang menyesatkan ikut ditemukan.** `create-complaint.dto.ts:57-60`
-dan `list-complaint-query.dto.ts:33-35` keduanya menolak `@Type(() => Boolean)`
-dengan alasan yang tepat — `Boolean('false') === true` — tetapi melewatkan bahwa
+Satu kesalahan penguji pantas dicatat karena hampir lolos: uji `tanpaOpd`
+mula-mula memerah dengan **400**, bukan dengan gejala penyaringnya, karena
+`limit=200` melampaui batas 100 di `PaginationQueryDto`. Merah karena alasan
+yang salah tidak membuktikan apa pun, dan bila dibiarkan ia akan tetap "merah
+lalu hijau" sesudah perbaikan tanpa pernah menguji penyaringnya. Diperbaiki ke
+`limit=100` lalu dijalankan ulang.
+
+Yang masih TIDAK terjaga: tak ada apa pun yang mencegah bentuk cacat ini
+tersalin ke DTO boolean berikutnya. Keempat medan yang ada kini berpagar; medan
+baru tidak.
+
+**Komentar yang menyesatkan ikut ditemukan.** `create-complaint.dto.ts` dan
+`list-complaint-query.dto.ts` keduanya menolak `@Type(() => Boolean)` dengan
+alasan yang tepat — `Boolean('false') === true` — tetapi melewatkan bahwa
 konversi implisit melakukan hal yang sama tanpa dekorator itu. Keduanya karena
 itu berbunyi seolah masalahnya sudah dihindari, padahal belum.
+
+Komentar itu **dipertahankan, tidak diganti**, karena keputusan yang
+direkamnya sungguhan dan masih berlaku. Yang ditambahkan di atasnya adalah
+docblock yang menyebut apa yang mereka lewatkan.
 
 ---
 
@@ -3073,3 +3099,4 @@ itu berbunyi seolah masalahnya sudah dihindari, padahal belum.
 | 4.2   | 15 September 2026  | **CAT-021** — basis data hasil `db:seed` menghasilkan empat akun yang seluruhnya **berperan tunggal**, padahal peran jamak adalah inti model akses sejak 5 September. Akibatnya lingkungan yang disiapkan persis sesuai dokumen tak dapat mengamati `actingRole: null`, 401 "Peran yang ingin dipakai belum dipilih", `POST /auth/acting-role`, pemilih peran, maupun **seluruh charter C-15**. Yang lebih rapuh: kelima akun berperan jamak di `skm_db` disetel dengan tangan dan penyetelannya tak tercatat di repositori mana pun — hilang basis data itu, hilang satu-satunya lingkungan tempat peran jamak dapat diuji. Atas dasar ini diputuskan **tidak** menjalankan ulang suite dari seed bersih: ia menghasilkan dunia yang berbeda, bukan dunia yang sama dengan lebih rapi, sementara angka Jest (673/673) sudah reproducible tanpa basis data sama sekali. |
 | 4.3   | 15 September 2026  | Kata **"yatim"** diganti **"tanpa induk"** di seluruh dokumen pengujian dan perkakas uji atas permintaan pengguna — 40 kemunculan di enam berkas; bendera pembersih `--yatim` menjadi `--tanpa-induk`. Satu kemunculan di `docs/Routes-List-API-dan-Frontend.md` sengaja **tidak** diubah: itu tulisan tim dev yang hidup di `main`. Selain itu, kegoyahan E2E akhirnya **terukur** ([TEST_CASES §Y.3.1](TEST_CASES.md)) dan sebabnya bukan produk: empat peramban berebut satu mesin. |
 | 4.5 | 15 Oktober 2026 | **BUG-020** — parameter boolean bernilai `false` dibaca sebagai `true` di empat endpoint, satu sebab: `enableImplicitConversion` membuat `Boolean('false')` berjalan sebelum `@Transform` DTO. `isActive` pada `GET /opd` diperbaiki dan beruji; `isAnonim`, `tanpaOpd`, `unreadOnly` belum, dan ketiganya tak terjangkau dari antarmuka hari ini. Tiga kasus uji baru di Modul J `TEST_CASES.md`. Versi 4.4 tak pernah punya barisnya sendiri di tabel ini; nomor itu dilewati alih-alih dikarang. |
+| 4.6 | 15 Oktober 2026 | **BUG-020 ditutup.** Tiga medan sisanya -- `isAnonim`, `tanpaOpd`, `unreadOnly` -- diperbaiki dengan `@Type(() => String)` dan masing-masing dapat uji e2e yang dibuktikan merah lebih dulu oleh cacatnya sendiri, bukan oleh mutasi. TC-BOOL-001 s.d. 003 di Modul J kini ✅. Satu kesalahan penguji ikut dicatat: uji `tanpaOpd` mula-mula memerah dengan 400 karena `limit=200` melampaui batas 100, merah karena alasan yang salah, lalu dibetulkan. e2e api 441 -> 444 uji. |
