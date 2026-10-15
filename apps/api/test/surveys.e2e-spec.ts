@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Role } from '@prisma/client';
+import { JenisSurvei, QuestionType, Role } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
@@ -198,6 +198,123 @@ describe('Surveys (e2e)', () => {
     expect(res.status).toBe(201);
     expect(res.body.data.status).toBe('draft');
     expect(res.body.data.judul).toContain('Salinan');
+  });
+
+  /**
+   * BUG-005 (Critical, dilaporkan 2 September 2026, diperbaiki 16 Oktober 2026).
+   *
+   * `duplicate()` memuat `include: { questions: true }` -- tanpa relasi
+   * `options` -- lalu menyalin lima medan skalar saja. Opsinya karena itu tak
+   * mungkin ikut: ia tak pernah ada di memori. Penjaga yang seharusnya
+   * menangkapnya, `'Pertanyaan pilihan ganda memerlukan minimal 2 opsi'` di
+   * `QuestionsService`, tak pernah berjalan di jalur ini sebab salinannya
+   * dibuat lewat `prisma.survey.create` dengan nested create dan melewati
+   * `CreateQuestionDto` sepenuhnya.
+   *
+   * Akibatnya bukan satu pertanyaan yang rusak, melainkan survei yang BUNTU:
+   * pertanyaan pilihan ganda bersifat wajib sementara tak ada satu pun opsi
+   * untuk dipilih, jadi tombol "Pertanyaan Selanjutnya" nonaktif selamanya dan
+   * responden tersangkut tanpa jalan maju maupun mengirim.
+   *
+   * Dua tipe diuji sekaligus karena kerugiannya berbeda berat, dan laporan
+   * aslinya menyamakan keduanya:
+   *  - `pilihan` kehilangan opsi -> responden buntu. Inilah yang Critical.
+   *  - `skala` kehilangan label TERSUAI -> frontend jatuh ke label baku
+   *    PermenPANRB. Itu kehilangan penyesuaian, bukan kebuntuan: opsi pada
+   *    tipe skala memang opsional menurut rancangan (`buatUnsurAwal()` sengaja
+   *    tak membuatnya), jadi yang hilang di sini tulisan OPD, bukan
+   *    kemampuannya menjawab.
+   *
+   * Surveinya `custom` dengan sengaja. Pada `skm_permenpanrb`, `duplicate()`
+   * menambahkan unsur yang hilang lewat `unsurPelengkap()`, dan sembilan
+   * pertanyaan tambahan itu hanya mengaburkan apa yang sedang diukur di sini.
+   */
+  it('POST /surveys/:id/duplicate menyalin opsi jawaban, bukan membuangnya (BUG-005)', async () => {
+    const asli = await prisma.survey.create({
+      data: {
+        opdId,
+        judul: 'Survei Berpilihan Ganda',
+        periode: '2026-Q4',
+        jenis: JenisSurvei.custom,
+        questions: {
+          create: [
+            {
+              teks: 'Layanan mana yang Anda gunakan?',
+              tipe: QuestionType.pilihan,
+              urutan: 1,
+              options: {
+                create: [
+                  { label: 'Rawat Jalan', nilai: null, urutan: 1 },
+                  { label: 'Rawat Inap', nilai: null, urutan: 2 },
+                  { label: 'IGD', nilai: null, urutan: 3 },
+                ],
+              },
+            },
+            {
+              teks: 'Bagaimana kepuasan Anda?',
+              tipe: QuestionType.skala,
+              urutan: 2,
+              options: {
+                create: [
+                  { label: 'Sangat Tidak Puas (uji)', nilai: 1, urutan: 1 },
+                  { label: 'Tidak Puas (uji)', nilai: 2, urutan: 2 },
+                  { label: 'Puas (uji)', nilai: 3, urutan: 3 },
+                  { label: 'Sangat Puas (uji)', nilai: 4, urutan: 4 },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${asli.id}/duplicate`)
+      .set(opdHeaders());
+    expect(res.status).toBe(201);
+
+    const salinan = await prisma.survey.findUniqueOrThrow({
+      where: { id: res.body.data.id },
+      include: {
+        questions: {
+          orderBy: { urutan: 'asc' },
+          include: { options: { orderBy: { urutan: 'asc' } } },
+        },
+      },
+    });
+
+    // Angka inilah yang 2 September 2026 terbaca `asli=7 salinan=0`.
+    const totalOpsi = salinan.questions.reduce((n, q) => n + q.options.length, 0);
+    expect(totalOpsi).toBe(7);
+
+    expect(salinan.questions).toHaveLength(2);
+
+    const [pilihan, skala] = salinan.questions;
+
+    expect(pilihan.tipe).toBe(QuestionType.pilihan);
+    expect(pilihan.options.map((o) => o.label)).toEqual(['Rawat Jalan', 'Rawat Inap', 'IGD']);
+    expect(pilihan.options.map((o) => o.urutan)).toEqual([1, 2, 3]);
+
+    expect(skala.tipe).toBe(QuestionType.skala);
+    expect(skala.options.map((o) => o.label)).toEqual([
+      'Sangat Tidak Puas (uji)',
+      'Tidak Puas (uji)',
+      'Puas (uji)',
+      'Sangat Puas (uji)',
+    ]);
+    // Skor skala adalah dasar rumus IKM; menyalin labelnya tanpa skornya akan
+    // menggeser bobot tanpa ada yang memerah.
+    expect(skala.options.map((o) => o.nilai)).toEqual([1, 2, 3, 4]);
+
+    // Opsi salinan HARUS baris baru, bukan baris yang sama dipakai bersama:
+    // menyunting salinan tak boleh mengubah survei aslinya.
+    const idAsli = await prisma.questionOption.findMany({
+      where: { question: { surveyId: asli.id } },
+      select: { id: true },
+    });
+    const idSalinan = salinan.questions.flatMap((q) => q.options.map((o) => o.id));
+    expect(idSalinan).toHaveLength(7);
+    expect(idSalinan.some((id) => idAsli.some((a) => a.id === id))).toBe(false);
   });
 
   it('DELETE /surveys/:id draft -> 200', async () => {
