@@ -455,6 +455,86 @@ describe('Complaints (e2e)', () => {
     expect(typeof dilihatAdmin.body.data.reporterNama).toBe('string');
   });
 
+  /**
+   * `isAnonim=false` HARUS tetap bernama (TC-BOOL-001, 15 Oktober 2026).
+   *
+   * Uji di atas hanya mengirim `isAnonim=true` atau menghilangkan medannya sama
+   * sekali. Keduanya lolos walau nilai `'false'` dibaca sebagai `true`, sebab
+   * jalur itu tak pernah dilalui -- dan `complaints.api.js` memang tak pernah
+   * mengirimkannya. Yang tak terjaga adalah kontrak API-nya: medan ini
+   * `@ApiPropertyOptional`, jadi pemakai Swagger atau skrip mana pun dapat
+   * mengirim `'false'` apa adanya.
+   *
+   * Terbukti merah oleh cacatnya sendiri, bukan oleh mutasi: sebelum
+   * `@Type(() => String)` dipasang, `enableImplicitConversion` menjalankan
+   * `Boolean('false')` -- bernilai `true` -- sebelum `@Transform` dipanggil,
+   * sehingga pengaduan ini tersimpan anonim dan identitas pelapornya disamarkan.
+   */
+  it('POST /complaints dengan isAnonim=false TETAP bernama, bukan anonim', async () => {
+    const dibuat = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'aduan')
+      .field('judul', 'Pengaduan bernama dengan isAnonim=false (uji e2e)')
+      .field('uraian', 'Nilai false harus dihormati, bukan dibaca sebagai true')
+      .field('isAnonim', 'false');
+
+    expect(dibuat.status).toBe(201);
+    expect(dibuat.body.data.isAnonim).toBe(false);
+
+    // Penyamaran terjadi di jalur BACA (complaints.service.ts), jadi di situlah
+    // akibatnya terlihat: anonim yang keliru akan menghapus identitas pelapor.
+    const dilihatAdmin = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${dibuat.body.data.ticketNo}`)
+      .set(asKabupaten());
+
+    expect(dilihatAdmin.status).toBe(200);
+    expect(dilihatAdmin.body.data.userId).toBe(respondenId);
+    expect(typeof dilihatAdmin.body.data.reporterNama).toBe('string');
+  });
+
+  /**
+   * `tanpaOpd=false` TIDAK menyaring apa pun (TC-BOOL-002, 15 Oktober 2026).
+   *
+   * Cacatnya sama seperti TC-BOOL-001 dan lebih mudah terlihat: `tanpaOpd`
+   * bernilai `true` membuat `complaints.service.ts:212` mempersempit daftar ke
+   * pengaduan tanpa OPD tujuan, jadi `false` yang dibaca `true` menyembunyikan
+   * SELURUH pengaduan yang sudah punya tujuan.
+   *
+   * Dibuktikan dua arah: `tanpaOpd=false` wajib memuat pengaduan ber-OPD, dan
+   * `tanpaOpd=true` wajib tidak memuat satu pun -- tanpa kendali kedua, uji
+   * pertama akan tetap hijau bila penyaringnya dibuang seluruhnya.
+   */
+  it('GET /complaints?tanpaOpd=false tidak menyaring, dan tanpaOpd=true tetap menyaring', async () => {
+    // Fixture: satu pengaduan TANPA tujuan, supaya kendali kedua punya isi.
+    const tanpaTujuan = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('kategori', 'aduan')
+      .field('judul', 'Pengaduan tanpa tujuan (uji e2e)')
+      .field('uraian', 'Pelapor tak tahu harus ditujukan ke OPD mana');
+    expect(tanpaTujuan.status).toBe(201);
+    expect(tanpaTujuan.body.data.opdId).toBeNull();
+
+    const bebas = await request(app.getHttpServer())
+      .get('/api/v1/complaints?tanpaOpd=false&limit=100')
+      .set(asKabupaten());
+
+    expect(bebas.status).toBe(200);
+    const barisBebas = bebas.body.data as { opdId: number | null }[];
+    expect(barisBebas.some((c) => c.opdId !== null)).toBe(true);
+
+    const tersaring = await request(app.getHttpServer())
+      .get('/api/v1/complaints?tanpaOpd=true&limit=100')
+      .set(asKabupaten());
+
+    expect(tersaring.status).toBe(200);
+    const barisTersaring = tersaring.body.data as { opdId: number | null }[];
+    expect(barisTersaring.length).toBeGreaterThan(0);
+    expect(barisTersaring.every((c) => c.opdId === null)).toBe(true);
+  });
+
   it('POST /complaints oleh Admin OPD -> 403 (hanya Responden)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/complaints')
