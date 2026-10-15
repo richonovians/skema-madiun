@@ -215,3 +215,38 @@ describe('ManajemenUsersPage — tombol Buat Akun Admin Baru dibuang', () => {
     expect(screen.queryByRole('link', { name: /buat akun/i })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * CATATAN PEMOTONGAN (15 Oktober 2026).
+ *
+ * Halaman ini mengambil FETCH_LIMIT = 100 baris sekali lalu menyaring dan
+ * memaginasinya di klien. Di atas seratus, sisanya tak pernah terlihat dan
+ * kendali paginasinya justru menghitung halaman dari baris yang TERAMBIL --
+ * jadi ia tampak lengkap padahal bukan, dan pencarian di atas hanya mencari di
+ * dalam irisan itu.
+ *
+ * Yang dijaga di sini: halaman MENGATAKANNYA. Bukan memperbaiki pemotongannya,
+ * sebab paginasi sisi server menuntut backend menerima `search`, dan itu
+ * pekerjaan tersendiri.
+ */
+describe('ManajemenUsersPage — catatan pemotongan', () => {
+  it('mengatakan daftarnya terpotong ketika total backend melebihi yang terambil', async () => {
+    getUsers.mockResolvedValue({ data: [AKUN], meta: { pagination: { total: 312 } } });
+
+    render(<ManajemenUsersPage />);
+    await screen.findByText('Budi Santoso');
+
+    const catatan = await screen.findByRole('status');
+    expect(catatan).toHaveTextContent('1');
+    expect(catatan).toHaveTextContent('312');
+  });
+
+  it('TIDAK memasang catatan ketika seluruh baris memang terambil (kendali)', async () => {
+    getUsers.mockResolvedValue({ data: [AKUN], meta: { pagination: { total: 1 } } });
+
+    render(<ManajemenUsersPage />);
+    await screen.findByText('Budi Santoso');
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+});

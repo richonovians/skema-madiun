@@ -49,7 +49,10 @@ export default function RespondentComplaints() {
       ) : error ? (
         <ErrorState title="Gagal memuat pengaduan" description={error.message} onRetry={refetch} />
       ) : (
-        <ComplaintTable complaints={rows} />
+        <ComplaintTable
+          complaints={rows}
+          totalAll={response?.meta?.pagination?.total ?? 0}
+        />
       )}
 
     </main>

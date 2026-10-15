@@ -187,3 +187,38 @@ describe('AdminKabSurveysPage — pintu masuk Sampah', () => {
     );
   });
 });
+
+/**
+ * CATATAN PEMOTONGAN (15 Oktober 2026).
+ *
+ * Halaman ini mengambil FETCH_LIMIT = 100 baris sekali lalu menyaring dan
+ * memaginasinya di klien. Di atas seratus, sisanya tak pernah terlihat dan
+ * kendali paginasinya justru menghitung halaman dari baris yang TERAMBIL --
+ * jadi ia tampak lengkap padahal bukan, dan pencarian di atas hanya mencari di
+ * dalam irisan itu.
+ *
+ * Yang dijaga di sini: halaman MENGATAKANNYA. Bukan memperbaiki pemotongannya,
+ * sebab paginasi sisi server menuntut backend menerima `search`, dan itu
+ * pekerjaan tersendiri.
+ */
+describe('AdminKabSurveysPage — catatan pemotongan', () => {
+  it('mengatakan daftarnya terpotong ketika total backend melebihi yang terambil', async () => {
+    getSurveys.mockResolvedValue({ data: [SURVEI], meta: { pagination: { total: 140 } } });
+
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    const catatan = await screen.findByRole('status');
+    expect(catatan).toHaveTextContent('1');
+    expect(catatan).toHaveTextContent('140');
+  });
+
+  it('TIDAK memasang catatan ketika seluruh baris memang terambil (kendali)', async () => {
+    getSurveys.mockResolvedValue({ data: [SURVEI], meta: { pagination: { total: 1 } } });
+
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+});
