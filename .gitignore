@@ -27,6 +27,21 @@ package-lock.json
 # selama pengerjaan, tapi bukan dokumentasi produk -- tak perlu masuk GitLab.
 docs/superpowers/
 
+# Dokumen rancangan keamanan: berhenti dilacak 15 Oktober 2026 atas permintaan
+# pemilik repo. Repo ini PUBLIK (api.github.com menjawab 200 tanpa kredensial),
+# dan dokumen-dokumen ini memetakan model ancaman, cakupan enkripsi, kebijakan
+# retensi, serta pertanyaan integrasi Helpdesk yang masih terbuka.
+#
+# CATATAN YANG TAK BOLEH HILANG: aturan ini hanya menghentikan commit
+# BERIKUTNYA. Kelima berkasnya sudah pernah di-push, jadi isinya tetap terbaca
+# di riwayat publik; riwayat sengaja TIDAK ditulis ulang.
+#
+# docs/keamanan/enkripsi-at-rest.md adalah runbook pemulihan dan rotasi
+# DATA_ENCRYPTION_KEY, dan kehilangan kunci itu berarti lampiran serta isi
+# pengaduan hilang PERMANEN. Sejak aturan ini berlaku, remote bukan lagi
+# salinannya -- simpan salinan tahan lama di luar repo.
+docs/keamanan/
+
 # Setelan Claude Code per-mesin. `.claude/skills/` dan `.claude/settings.json`
 # SENGAJA tercatat: isinya aturan kerja proyek yang harus berlaku bagi siapa
 # pun yang mengklona repo ini. Yang dikecualikan hanya berkas `*.local.*`,
