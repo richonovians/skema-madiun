@@ -55,8 +55,8 @@ test.describe('/isi/:id tanpa sesi', () => {
 
     await expect(page.getByText('Terima Kasih!')).toBeVisible();
     // Pengisi anonim tak boleh diberi tautan ke rute khusus warga -- proxy akan
-    // memantulkannya ke beranda dan itu terasa seperti aplikasi rusak.
-    await expect(page.getByRole('button', { name: /Kembali ke Beranda/ })).toBeVisible();
+    // memantulkannya ke `/` dan itu terasa seperti aplikasi rusak.
+    await expect(page.getByRole('button', { name: /Kembali ke Layanan/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Daftar Survei/ })).toHaveCount(0);
 
     // Tahap kedua: penanda peramban menolak pengisian ulang.

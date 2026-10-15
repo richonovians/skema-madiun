@@ -123,7 +123,7 @@ export default function AuthCallbackLoader() {
         <div className="flex flex-wrap items-center justify-center gap-3 -mt-12 pb-12">
           <Button onClick={() => window.location.assign(getSsoLoginUrl())}>Coba masuk lagi</Button>
           <Button variant="secondary" onClick={() => window.location.assign('/')}>
-            Kembali ke beranda
+            Kembali ke layanan
           </Button>
         </div>
       </div>

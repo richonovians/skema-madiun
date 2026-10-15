@@ -66,7 +66,7 @@ export default function PilihPeranPage() {
             mengalihkan '/' ke beranda peran masing-masing, jadi hasilnya sama
             tanpa perlu tabel pemetaan kedua yang bisa tak sinkron. */}
         <Button variant="secondary" onClick={() => router.push('/')}>
-          Kembali ke beranda
+          Kembali ke layanan
         </Button>
       </main>
     );

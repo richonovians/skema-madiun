@@ -20,15 +20,21 @@ jest.mock('../../store/useSurveyStore', () => ({
  * sempat salah:
  *
  *   pengisi BERSESI  -> /dashboard, dulu berlabel "Beranda"
- *   pengisi ANONIM   -> /          , berlabel "Kembali ke Beranda"
+ *   pengisi ANONIM   -> /          , berlabel "Kembali ke Layanan"
  *
- * Yang kedua benar apa adanya: `/` memang beranda publik. Yang pertama tidak,
- * sebab `/dashboard` adalah dasbor warga, bukan beranda. Label yang menjanjikan
- * satu halaman lalu membuka halaman lain adalah cacat kecil yang terus-menerus
+ * Yang kedua benar apa adanya: `/` memang halaman depan publik. Yang pertama
+ * tidak, sebab `/dashboard` adalah dasbor warga. Label yang menjanjikan satu
+ * halaman lalu membuka halaman lain adalah cacat kecil yang terus-menerus
  * membingungkan, dan ia hanya terlihat oleh orang yang menekannya.
  *
  * Uji ini menolak label itu kembali, DAN menolak perbaikan yang kebablasan
  * dengan ikut mengganti label tombol anonim.
+ *
+ * KATANYA BERGANTI, PEMBEDAANNYA TIDAK (15 Oktober 2026). Seluruh teks
+ * "Beranda" yang dilihat pengguna menjadi "Layanan" atas permintaan pengguna,
+ * jadi kedua pagar di bawah kini menyebut "Layanan". Yang dijaga tetap sama:
+ * `/dashboard` tidak boleh memakai label halaman depan, dan `/` harus
+ * memakainya.
  */
 describe('SurveyCompletion — label tombol', () => {
   describe('pengisi bersesi', () => {
@@ -41,9 +47,11 @@ describe('SurveyCompletion — label tombol', () => {
       expect(tautan).toHaveAttribute('href', '/dashboard');
     });
 
-    it('TIDAK lagi menyebut tujuan /dashboard sebagai "Beranda"', () => {
+    it('TIDAK menyebut tujuan /dashboard dengan label halaman depan', () => {
       render1();
 
+      // Dulu `/^beranda$/i`; katanya berganti, larangannya tidak.
+      expect(screen.queryByRole('link', { name: /^layanan$/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: /^beranda$/i })).not.toBeInTheDocument();
     });
 
@@ -62,14 +70,14 @@ describe('SurveyCompletion — label tombol', () => {
 
     /**
      * PAGAR TERHADAP PERBAIKAN YANG KEBABLASAN. Tombol ini menuju `/`, yang
-     * benar-benar beranda, dan labelnya harus tetap menyebut beranda. Mengganti
-     * seluruh kata "Beranda" di berkas ini akan membuat tombol ini berbohong ke
+     * benar-benar halaman depan publik, dan labelnya harus tetap menyebutnya.
+     * Menghapus label itu dari berkas ini akan membuat tombol ini berbohong ke
      * arah yang berlawanan.
      */
-    it('tetap berlabel beranda karena tujuannya memang /', () => {
+    it('tetap berlabel Layanan karena tujuannya memang /', () => {
       render1();
 
-      const tautan = screen.getByRole('link', { name: /beranda/i });
+      const tautan = screen.getByRole('link', { name: /layanan/i });
       expect(tautan).toHaveAttribute('href', '/');
     });
 

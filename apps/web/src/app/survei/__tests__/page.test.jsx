@@ -126,13 +126,13 @@ describe('/survei/:id', () => {
     expect(screen.queryByRole('button', { name: /coba lagi/i })).not.toBeInTheDocument();
   });
 
-  it('menyediakan jalan keluar ke beranda', async () => {
+  it('menyediakan jalan keluar ke Layanan', async () => {
     isAuthenticated.mockReturnValue(false);
     getPublicSurveyFill.mockRejectedValue(new Error('Survei anonim dengan id 5 tidak ditemukan'));
 
     render(<IsiSurveiPage />);
 
-    expect(await screen.findByRole('link', { name: /kembali ke beranda/i })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /kembali ke layanan/i })).toHaveAttribute(
       'href',
       '/',
     );

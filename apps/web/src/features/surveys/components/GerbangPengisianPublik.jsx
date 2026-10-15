@@ -288,7 +288,7 @@ export default function GerbangPengisianPublik({ onSetuju }) {
             href="/"
             className="text-sm font-semibold text-text-secondary hover:text-text-primary underline underline-offset-4 py-2.5 px-1 text-left sm:text-center"
           >
-            Kembali ke Beranda
+            Kembali ke Layanan
           </Link>
           <Button type="submit" disabled={!setuju} className="w-full sm:w-auto">
             Setuju &amp; Mulai Isi

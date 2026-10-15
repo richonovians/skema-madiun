@@ -155,7 +155,7 @@ export default function Navbar() {
               147px yang dibutuhkan. Pita yang terkena 768-899px. */}
           <div data-tautan-desktop className="hidden lg:flex items-center gap-1">
             {[
-              { href: '/', label: 'Beranda' },
+              { href: '/', label: 'Layanan' },
               { href: '/about', label: 'Tentang Platform' },
               { href: '/statistics', label: 'Statistik' },
             ].map(({ href, label }) => {
@@ -230,7 +230,7 @@ export default function Navbar() {
           >
             <div className="flex flex-col p-3 gap-1">
               {[
-                { href: '/', label: 'Beranda' },
+                { href: '/', label: 'Layanan' },
                 { href: '/about', label: 'Tentang Platform' },
                 { href: '/statistics', label: 'Statistik' },
               ].map(({ href, label }) => {

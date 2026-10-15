@@ -34,7 +34,7 @@ describe('not-found', () => {
     // jalan buntu: tak ada satu pun cara kembali selain tombol back peramban.
     render(<NotFound />);
 
-    expect(screen.getByRole('link', { name: /beranda/i })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /layanan/i })).toHaveAttribute('href', '/');
   });
 
   it('TIDAK menawarkan "coba lagi"', () => {
@@ -97,7 +97,7 @@ describe('error', () => {
     // pengguna terkurung di halaman yang sama.
     render(<Error error={galat()} reset={jest.fn()} />);
 
-    expect(screen.getByRole('link', { name: /beranda/i })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /layanan/i })).toHaveAttribute('href', '/');
   });
 
   it('menyebutkan alamat pelaporan yang nyata', () => {

@@ -135,7 +135,7 @@ export default function IsiSurveiPage() {
           action={
             <Link href="/">
               <button className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors">
-                Kembali ke Beranda
+                Kembali ke Layanan
               </button>
             </Link>
           }
@@ -184,7 +184,7 @@ export default function IsiSurveiPage() {
               href="/"
               className="inline-block px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors"
             >
-              Kembali ke Beranda
+              Kembali ke Layanan
             </Link>
           }
         />
