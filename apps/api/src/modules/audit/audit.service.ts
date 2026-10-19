@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nest
 import { Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
+import { redactAuditBody } from '../../common/interceptors/audit-redact.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
@@ -25,11 +26,31 @@ export class AuditService {
   /**
    * Catat satu aksi admin. SENGAJA menelan error-nya sendiri (best-effort) —
    * kegagalan mencatat audit TIDAK BOLEH menggagalkan aksi utama yang sudah sukses.
+   *
+   * REDAKSI DILAKUKAN DI SINI, bukan hanya di `AuditInterceptor`
+   * (22 September 2026). Sampai tanggal itu redaksi T8 hidup di interceptor
+   * saja, sehingga setiap pemanggil `record()` secara langsung melewatinya
+   * sepenuhnya — dan ada satu: `SsoService` menulis `sub` Helpdesk apa adanya
+   * ketika sebuah akun lahir memegang peran kabupaten.
+   *
+   * Yang keliru bukan pemanggil yang lupa, melainkan tempat redaksinya
+   * dipasang: selama ia di interceptor, setiap pemanggil BARU harus mengingat
+   * sendiri, dan lupanya tak menimbulkan gejala apa pun. Di sini ia menjadi
+   * satu-satunya jalan menuju `audit_logs.detail`.
+   *
+   * Interceptor tetap menyunting lebih dulu, jadi jalur teraudit melewati
+   * redaksi dua kali. Itu aman — `[disunting]` yang disunting ulang tetap
+   * `[disunting]` — dan dijaga uji tersendiri, bukan diandaikan.
    */
   async record(actorId: number, aksi: string, entitas: string, detail: unknown): Promise<void> {
     try {
       await this.prisma.auditLog.create({
-        data: { actorId, aksi, entitas, detail: detail as Prisma.InputJsonValue },
+        data: {
+          actorId,
+          aksi,
+          entitas,
+          detail: redactAuditBody(detail) as Prisma.InputJsonValue,
+        },
       });
     } catch (err) {
       this.logger.warn(
@@ -39,12 +60,14 @@ export class AuditService {
   }
 
   /**
-   * Log aktivitas HANYA untuk `superuser` (2026-08-20, atas permintaan user):
-   * Admin Kabupaten biasa tidak boleh melihatnya.
+   * Log aktivitas HANYA untuk `kabupaten`: Admin OPD dan Responden tidak boleh
+   * melihatnya. Pemiliknya `superuser` sejak 2026-08-20 atas permintaan
+   * pengguna, lalu berpindah ke `kabupaten` bersama peleburan 15 September
+   * 2026 -- dua baris ini sempat tertinggal menyebut pemilik yang lama.
    *
    * Dulu pemeriksaan ini SATU-SATUNYA gerbang, karena RolesGuard memberi
    * `kabupaten` bypass penuh atas seluruh @Roles sehingga
-   * `@Roles(Role.superuser)` di controller tak berlaku sama sekali. Bypass itu
+   * `@Roles(Role.kabupaten)` di controller tak berlaku sama sekali. Bypass itu
    * dibongkar T6 (7 September 2026) dan dekoratornya kini ditegakkan apa adanya,
    * jadi controller sudah menolak kabupaten lebih dahulu.
    *
@@ -54,25 +77,47 @@ export class AuditService {
    * satu penolakan dapat datang dari dua tempat -- karena itu PESANnya berbeda,
    * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    */
-  private assertSuperuser(user: CurrentUser): void {
-    if (user.actingRole !== Role.superuser) {
-      throw new ForbiddenException('Log aktivitas hanya dapat diakses oleh Superuser');
+  private assertKabupaten(user: CurrentUser): void {
+    if (user.actingRole !== Role.kabupaten) {
+      throw new ForbiddenException('Log aktivitas hanya dapat diakses oleh Admin Kabupaten');
     }
   }
 
-  /** Daftar log aktivitas admin (Superuser), terbaru lebih dulu. */
+  /** Daftar log aktivitas admin (Admin Kabupaten), terbaru lebih dulu. */
   async findAll(
     query: ListAuditLogQueryDto,
     user: CurrentUser,
   ): Promise<PaginatedResult<AuditLogEntity>> {
-    this.assertSuperuser(user);
-    const { page, limit, entitas, actorId } = query;
+    this.assertKabupaten(user);
+    const { page, limit, entitas, actorId, aksi, search, startDate, endDate } = query;
     const where: Prisma.AuditLogWhereInput = {};
     if (entitas) {
       where.entitas = entitas;
     }
     if (actorId) {
       where.actorId = actorId;
+    }
+    if (aksi) {
+      where.aksi = { equals: aksi, mode: 'insensitive' };
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { actor: { nama: { contains: q, mode: 'insensitive' } } },
+        { aksi: { contains: q, mode: 'insensitive' } },
+        { entitas: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    if (startDate || endDate) {
+      where.timestamp = {};
+      if (startDate) {
+        where.timestamp.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.timestamp.lte = end;
+      }
     }
 
     const [rows, total] = await this.prisma.$transaction([
@@ -94,9 +139,9 @@ export class AuditService {
     );
   }
 
-  /** Detail satu log aktivitas (Superuser) -- dipakai halaman detail (INT-34). */
+  /** Detail satu log aktivitas (Admin Kabupaten) -- dipakai halaman detail (INT-34). */
   async findOne(id: number, user: CurrentUser): Promise<AuditLogEntity> {
-    this.assertSuperuser(user);
+    this.assertKabupaten(user);
     const row = await this.prisma.auditLog.findUnique({
       where: { id },
       include: { actor: { select: { nama: true } } },

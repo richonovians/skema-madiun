@@ -31,7 +31,10 @@ export default function AboutHeroShowcase() {
   const skeletonClass = 'inline-block h-8 w-20 rounded-lg bg-slate-200 animate-pulse';
 
   return (
-    <div className="relative w-full aspect-square lg:aspect-[4/3] rounded-[2rem] overflow-hidden flex items-center justify-center bg-slate-50/50 border border-slate-100">
+    <div
+      data-showcase
+      className="relative w-full rounded-[2rem] overflow-hidden border border-slate-100 bg-slate-50/50 flex flex-col gap-3 p-4 sm:aspect-square sm:flex-row sm:items-center sm:justify-center sm:gap-0 sm:p-0 lg:aspect-[4/3]"
+    >
       {/* Abstract Gradient Background */}
       <div className="absolute top-[-10%] right-[-10%] w-72 h-72 bg-blue-400/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-72 h-72 bg-purple-400/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
@@ -47,7 +50,10 @@ export default function AboutHeroShowcase() {
       ></div>
 
       {/* Kartu utama -- Total Pengaduan & tingkat penyelesaian */}
-      <div className="relative z-10 w-[260px] md:w-[280px] bg-white/90 backdrop-blur-xl border border-white p-6 rounded-3xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] transition-transform duration-700 hover:-translate-y-2">
+      <div
+        data-kartu-utama
+        className="relative z-10 w-full sm:w-[260px] md:w-[280px] bg-white/90 backdrop-blur-xl border border-white p-6 rounded-3xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] transition-transform duration-700 hover:-translate-y-2"
+      >
         <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mb-5 shadow-lg shadow-blue-500/30">
           <MessageSquare size={24} />
         </div>
@@ -78,7 +84,10 @@ export default function AboutHeroShowcase() {
       </div>
 
       {/* Kartu mengapung 1 -- Indeks IKM */}
-      <div className="hidden sm:block absolute top-[10%] right-[2%] md:right-[5%] z-20 w-40 md:w-48 bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1">
+      <div
+        data-kartu-ikm
+        className="sm:absolute sm:top-[10%] sm:right-[2%] md:right-[5%] z-20 w-full sm:w-40 md:w-48 bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1"
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 shrink-0">
             <BarChart3 size={18} />
@@ -90,8 +99,10 @@ export default function AboutHeroShowcase() {
             <p className="font-black text-slate-800 text-base md:text-lg">
               {isLoading ? (
                 <span className="inline-block h-4 w-12 rounded bg-slate-200 animate-pulse" />
+              ) : summary?.ikm != null ? (
+                summary.ikm.toFixed(2)
               ) : (
-                (summary?.ikm != null ? summary.ikm.toFixed(2) : '-')
+                '-'
               )}
             </p>
           </div>
@@ -99,7 +110,10 @@ export default function AboutHeroShowcase() {
       </div>
 
       {/* Kartu mengapung 2 -- Responden (dulu lima bintang tanpa sumber data) */}
-      <div className="hidden sm:block absolute bottom-[10%] left-[2%] md:left-[5%] z-20 w-44 md:w-[220px] bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1">
+      <div
+        data-kartu-responden
+        className="sm:absolute sm:bottom-[10%] sm:left-[2%] md:left-[5%] z-20 w-full sm:w-44 md:w-[220px] bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1"
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
             <Users size={18} />
@@ -111,10 +125,10 @@ export default function AboutHeroShowcase() {
             <p className="font-black text-slate-800 text-base md:text-lg">
               {isLoading ? (
                 <span className="inline-block h-4 w-12 rounded bg-slate-200 animate-pulse" />
+              ) : summary?.totalRespondents != null ? (
+                summary.totalRespondents.toLocaleString('id-ID')
               ) : (
-                (summary?.totalRespondents != null
-                  ? summary.totalRespondents.toLocaleString('id-ID')
-                  : '-')
+                '-'
               )}
             </p>
           </div>

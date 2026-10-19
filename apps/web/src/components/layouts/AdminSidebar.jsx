@@ -2,29 +2,90 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   ClipboardList,
   Inbox,
   TrendingUp,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminLayout } from './AdminLayoutProvider';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
- * "Ganti Peran" hanya tampil untuk SUPERUSER yang sedang memakai area OPD
- * (2026-08-20). Tanpa pintu ini, superuser yang memilih area OPD terkurung di
- * sana sampai logout -- proxy.js memantulkan setiap halaman di luar areanya.
+ * Sidebar area OPD.
  *
- * Perannya dibaca dari `GET /auth/me`, bukan cookie `role` (yang bisa disunting
- * bebas di peramban), mengikuti pola AdminKabSidebar.
+ * "Ganti Peran" TIDAK ada di sini: butir itu tinggal di `AdminAccountMenu` dan
+ * tampil bagi akun yang memegang lebih dari satu peran, siapa pun dia. Tanpa
+ * pintu itu, sesi yang memakai peran `opd` terkurung di areanya sampai logout
+ * -- proxy.js memantulkan setiap halaman di luar area peran yang dipakai.
+ *
+ * Docblock ini sempat menyatakan butir itu ada di sini dan khusus SUPERUSER
+ * (2026-08-20); perannya dilebur 15 September 2026 dan butirnya sudah pindah
+ * (dibereskan 14 Oktober 2026).
  */
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminLayout();
+  const {
+    isMobileSidebarOpen,
+    setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
+    setIsDesktopSidebarCollapsed,
+  } = useAdminLayout();
+
+  /**
+   * MELAPORKAN LEBARNYA ke properti khusus CSS `--lebar-sidebar`
+   * (30 September 2026, laporan pengguna: builder survei rusak saat sidebar
+   * diciutkan).
+   *
+   * BuilderLayout menutup layar dengan `md:fixed md:inset-0` dan perlu tahu
+   * di mana tepi kiri isinya. Ia TAK BISA menanyakannya lewat context: builder
+   * dipakai dua area dengan dua provider berbeda, dan `useAdminLayout()`
+   * melempar di luar provider-nya, sehingga memanggil salah satunya akan
+   * mematikan area yang lain. Variabel CSS tak peduli provider mana yang
+   * sedang hidup.
+   *
+   * Polanya sama persis dengan `--tinggi-navbar-kab` di AdminKabNavbar:
+   * komponen yang MENGETAHUI ukurannya melaporkannya, pemakainya membaca.
+   * Nilai awalnya ada di globals.css (`:root`), dipakai sebelum JS jalan.
+   *
+   * Angkanya sepadan dengan kelas lebarnya sendiri di bawah: `md:w-64` =
+   * 16rem dan `md:w-20` = 5rem, dengan `--spacing: .25rem` di globals.css.
+   * Keduanya harus berubah bersama.
+   */
+  React.useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--lebar-sidebar',
+      isDesktopSidebarCollapsed ? '5rem' : '16rem',
+    );
+    return () => {
+      // Dibersihkan saat keluar dari area admin: nilainya milik sidebar ini,
+      // dan halaman warga yang dibuka sesudahnya tak punya sidebar sama sekali.
+      document.documentElement.style.removeProperty('--lebar-sidebar');
+    };
+  }, [isDesktopSidebarCollapsed]);
+
+  // CIUT HANYA BERLAKU DARI `md` KE ATAS (23 September 2026, laporan pengguna).
+  //
+  // Sebelumnya efek ciut tak dipagari lebar layar sama sekali, padahal semua
+  // yang MEMAKAI state ini sudah dipagari: margin konten `md:ml-20`, offset
+  // navbar `md:left-20`, dan tombol pengalihnya sendiri `hidden md:flex`.
+  // Akibatnya bila ciut menyala lalu layar menyempit di bawah 768px, laci
+  // ponsel terbuka sebagai strip 80px berisi ikon tanpa nama -- bahkan tombol
+  // X penutupnya ikut hilang, sebab ia pun berada di balik syarat yang sama.
+  // Tombol untuk mengembalikannya `hidden` di bawah `md` dan merupakan
+  // SATU-SATUNYA pemanggil setternya, jadi keadaan itu tak dapat dipulihkan
+  // tanpa memuat ulang halaman.
+  //
+  // Diselesaikan lewat CSS, bukan pendengar resize atau media query di JS:
+  // yang terakhir memunculkan beda hasil antara render server dan peramban,
+  // yang tak dipunyai pendekatan ini.
+  const kelasLabelCiut = isDesktopSidebarCollapsed ? 'md:hidden' : '';
 
   // Laci mobile: latarnya menutupi layar, tapi tanpa kunci halaman di belakangnya
   // tetap ikut bergulir saat jari diusap di atas latar itu. `isMobileSidebarOpen`
@@ -32,73 +93,150 @@ export default function AdminSidebar() {
   useBodyScrollLock(isMobileSidebarOpen);
 
   const getLinkClass = (path) => {
-    // Exact match or active section
     const isActive = pathname === path || pathname.startsWith(`${path}/`);
-    
-    return isActive
-      ? "flex items-center gap-md px-md py-sm bg-blue-600 text-white rounded-lg font-bold transition-all duration-150"
-      : "flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg";
+
+    // `min-h-[44px]` (21 September 2026): terukur 239x40 di laci ponsel --
+    // empat piksel di bawah sasaran sentuh 44px yang sudah dipakai belasan
+    // tombol lain di proyek ini. Tinggi tampak tak berubah pada layar lebar,
+    // sebab di sana isinya memang sudah melewati 44px.
+    let base =
+      'flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ';
+    base += isDesktopSidebarCollapsed ? 'px-md md:justify-center md:px-0 ' : 'px-md ';
+
+    if (isActive) {
+      base += 'bg-blue-600 text-white font-bold shadow-md ';
+    } else {
+      base += 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 ';
+    }
+    return base;
   };
 
   return (
     <>
       {/* Overlay untuk mobile */}
       {isMobileSidebarOpen && (
-        <div 
+        <div
           className="md:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
-      <aside className={`bg-slate-900 text-slate-300 font-body-md text-body-md h-screen w-64 fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50 overflow-y-auto overscroll-contain transition-transform duration-300 ease-in-out ${
-        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
-        <div className="mb-xl px-md flex items-center justify-between">
-          <div className="min-w-0">
-            <h1 className="font-headline-md text-headline-md font-bold text-blue-400">Admin OPD</h1>
-            {/* Nama OPD yang "diperankan" DIBUANG 5 September 2026 bersama
-                mekanismenya. Sejak hak mengikuti peran yang dipakai, siapa pun
-                di area ini bertindak sebagai `opd` untuk instansi yang
-                tercantum di akunnya sendiri -- tak ada lagi kemungkinan
-                melihat data OPD lain, jadi tak ada lagi yang perlu
-                ditegaskan. Admin OPD sungguhan memang tak pernah melihat
-                label ini (nilainya selalu null baginya). */}
-            <p className="text-sm opacity-60">Portal Analitik</p>
+      {/* Tombol Toggle Desktop diletakkan di LUAR aside agar tidak terpotong overflow */}
+      <button
+        className={`hidden md:flex fixed top-8 h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-slate-50 shadow-sm z-[60] transition-all duration-300 hover:scale-110 ${
+          isDesktopSidebarCollapsed ? 'left-[66px]' : 'left-[242px]'
+        }`}
+        onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+        title={isDesktopSidebarCollapsed ? 'Perbesar Sidebar' : 'Perkecil Sidebar'}
+      >
+        {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+
+      <aside
+        className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen w-64 ${isDesktopSidebarCollapsed ? 'md:w-20' : 'md:w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* Header sejajar dengan AdminNavbar (h-64/80, border-b) */}
+        <div
+          className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full justify-between px-4 ${isDesktopSidebarCollapsed ? 'md:justify-center md:px-0' : ''}`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
+              {/* 48x32 (3:2, seperti berkasnya yang 1536x1024), BUKAN 37x37
+                  (23 September 2026). Deklarasi persegi membuat Next memesan
+                  ruang berbentuk keliru dan memperingatkannya di konsol.
+                  `w-[37px] h-auto` WAJIB menyertainya: tanpa itu kotaknya
+                  melebar ke 48px dan `scale-[1.7]` akan memperbesar logonya.
+                  Dengan lebar dikunci 37px, gambar yang tergambar tetap
+                  62,9x41,9 persis seperti sebelumnya. */}
+              <Image
+                src="/images/navbar/skema-logo-2.png"
+                alt="Logo SKEMA"
+                width={48}
+                height={32}
+                className="object-contain brightness-0 invert scale-[1.7] w-[37px] h-auto"
+              />
+            </div>
+            <span
+              className={`font-bold text-[18px] text-slate-900 tracking-tight uppercase truncate ${kelasLabelCiut}`}
+            >
+              Admin OPD
+            </span>
           </div>
-          <button 
-            className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+
+          <button
+            type="button"
+            aria-label="Tutup menu navigasi"
+            title="Tutup menu navigasi"
+            className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
             onClick={() => setIsMobileSidebarOpen(false)}
           >
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
-      
-      <nav className="flex-1 space-y-sm">
-        <Link href="/admin-opd/dashboard" className={getLinkClass('/admin-opd/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <LayoutDashboard size={20} />
-          <span>Dashboard</span>
-        </Link>
-        <Link href="/admin-opd/surveys" className={getLinkClass('/admin-opd/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <ClipboardList size={20} />
-          <span>Survei</span>
-        </Link>
-        <Link href="/admin-opd/complaints" className={getLinkClass('/admin-opd/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <Inbox size={20} />
-          <span>Laporan</span>
-        </Link>
-        <Link href="/admin-opd/analytics" className={getLinkClass('/admin-opd/analytics')} onClick={() => setIsMobileSidebarOpen(false)}>
-          <TrendingUp size={20} />
-          <span>Statistik & Laporan</span>
-        </Link>
-      </nav>
-      
-      {/* "Keluar" kembali ke sini atas permintaan pengguna (1 September 2026),
-          kini aman karena `<aside>` di atas sudah `overflow-y-auto` -- lihat
-          AdminSidebarLogout untuk sebab lengkapnya. "Ganti Peran" TETAP hanya
-          di ikon profil: yang diminta kembali cuma tombol keluar, dan
-          menggandakan pintu ganti peran ke dua tempat tak menambah apa pun. */}
-      <AdminSidebarLogout />
-    </aside>
+
+        <div className={`px-5 mb-2 mt-4 ${kelasLabelCiut}`}>
+          <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+            Portal & Ikhtisar
+          </span>
+        </div>
+
+        <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'md:mt-4' : ''}`}>
+          <Link
+            href="/admin-opd/dashboard"
+            title="Dashboard"
+            className={getLinkClass('/admin-opd/dashboard')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <LayoutDashboard
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Dashboard</span>
+          </Link>
+          <Link
+            href="/admin-opd/surveys"
+            title="Survei"
+            className={getLinkClass('/admin-opd/surveys')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <ClipboardList
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Survei</span>
+          </Link>
+          <Link
+            href="/admin-opd/complaints"
+            title="Aduan"
+            className={getLinkClass('/admin-opd/complaints')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Inbox
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Aduan</span>
+          </Link>
+          <Link
+            href="/admin-opd/analytics"
+            title="Statistik & Laporan"
+            className={getLinkClass('/admin-opd/analytics')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <TrendingUp
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Statistik & Laporan</span>
+          </Link>
+        </nav>
+
+        <div className="px-2 mt-auto">
+          <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
+        </div>
+      </aside>
     </>
   );
 }

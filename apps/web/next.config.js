@@ -1,5 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Direktori keluaran build dapat dipindah lewat lingkungan (23 September 2026).
+  //
+  // ADA KARENA UJI E2E. Suite Playwright selama ini diuji terhadap `next dev`,
+  // yang mengompilasi tiap rute saat PERTAMA diminta. Itu melahirkan perlombaan
+  // antara uji dan kompilator: tiga lari penuh berturut-turut menghasilkan
+  // 1/0/3 kegagalan, semuanya berbunyi "halaman belum siap" -- lembar gaya
+  // belum berlaku, klik kehabisan waktu, panel tak pernah terbuka. Build
+  // produksi tak punya kompilasi saat diminta sama sekali, jadi kelas cacat itu
+  // lenyap alih-alih diperkecil.
+  //
+  // MENGAPA LEWAT LINGKUNGAN, BUKAN DIPAKU. `next build` menimpa `.next` milik
+  // `next dev` yang sedang berjalan, dan akibatnya seluruh rute menjadi 404 --
+  // jebakan yang sudah pernah memakan waktu di proyek ini. Dengan
+  // `NEXT_DIST_DIR=.next-e2e`, build untuk pengujian mendarat di direktorinya
+  // sendiri dan milik server pengembangan tak pernah tersentuh.
+  //
+  // Bakunya tetap `.next`, jadi tak ada alur kerja yang berubah bagi siapa pun
+  // yang tidak menyetel variabel ini.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
   // Origin selain localhost yang boleh memakai dev server (2026-08-27).
   //
   // WAJIB sejak aplikasi diakses lewat reverse proxy di `http://skema.local`

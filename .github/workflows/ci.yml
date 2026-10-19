@@ -1,0 +1,185 @@
+# Gerbang mutu otomatis.
+#
+# SEBELUM berkas ini ada, proyek punya 1.949 uji yang hanya berjalan kalau ada
+# yang ingat mengetiknya. Tak ada yang menghalangi siapa pun mendorong `main`
+# yang rusak. Seluruh kerja menulis uji itu baru berupa KEMUNGKINAN jaminan;
+# berkas ini yang mengubahnya jadi jaminan.
+#
+# Dua job, dipisah dengan sengaja. `mutu` tak menyentuh basis data sama sekali
+# sehingga cepat dan hampir mustahil goyah; `e2e-api` memerlukan PostgreSQL
+# sungguhan. Kalau keduanya digabung, satu masalah layanan basis data akan
+# menutupi hasil lint dan uji unit yang sebenarnya baik-baik saja.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Dorongan baru membatalkan run lama pada ref yang sama. Tanpa ini, mendorong
+# tiga kali berturut-turut menyisakan dua run yang hasilnya sudah tak relevan
+# tapi tetap memakan antrean.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mutu:
+    name: Lint, format, uji unit, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # DATABASE_URL diperlukan walau job ini tak punya basis data sama sekali.
+    # Sebabnya apps/api/prisma.config.ts memanggil env('DATABASE_URL') saat
+    # berkas konfigurasinya DIMUAT, sehingga SETIAP perintah prisma menuntutnya
+    # -- termasuk `generate`, yang tak pernah menyambung ke mana pun. Di mesin
+    # pengembang tuntutan itu tak pernah terasa karena config memuat
+    # apps/api/.env lebih dulu; di runner tak ada .env, dan lima run pertama CI
+    # gagal persis di sini dengan:
+    #   PrismaConfigEnvError: Missing required environment variable: DATABASE_URL
+    #
+    # Nilainya SENGAJA tak bisa dihubungi (porta 1 selalu menolak). Kalau kelak
+    # ada langkah di job ini yang benar-benar mencoba menyambung, ia harus gagal
+    # berisik -- bukan diam-diam mengenai basis data sungguhan.
+    env:
+      DATABASE_URL: postgresql://tanpa:basisdata@127.0.0.1:1/tidak_ada
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm dipasang SEBELUM setup-node: `cache: pnpm` di bawah mencari
+      # binernya saat itu juga, dan gagal bila urutannya dibalik. Versinya tak
+      # ditulis di sini supaya satu-satunya sumber kebenaran tetap kolom
+      # `packageManager` di package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+
+      # Eksplisit walau postinstall @prisma/client biasanya sudah melakukannya:
+      # tanpa klien yang tergenerasi, `nest build` gagal dengan galat tipe yang
+      # menyesatkan, bukan dengan pesan "prisma belum digenerasi".
+      - name: Generasi klien Prisma
+        run: pnpm --filter @skm-spm/api exec prisma generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Periksa format
+        run: pnpm format:check
+
+      # --reporters=github-actions mengubah TIAP uji yang gagal menjadi anotasi
+      # pada commit, lengkap dengan berkas, baris, dan pesan bedanya. Tanpa itu,
+      # satu-satunya jejak kegagalan ada di dalam log run -- dan log run hanya
+      # terbaca oleh yang punya akses tulis ke repositori, sementara anotasinya
+      # terbaca siapa pun yang dapat membuka repositorinya. Lima run pertama CI
+      # merah tanpa seorang pun bisa melihat uji mana yang jatuh; ini yang
+      # menutup lubang itu.
+      #
+      # BENTUKNYA `run <skrip> <argumen>`, TANPA `--`. Ini bukan selera: pnpm
+      # memperlakukan kedua nama skrip secara berbeda. Untuk `test` (nama daur
+      # hidup npm) argumen tanpa `--` ditelan pnpm sendiri ("Unknown options");
+      # untuk `test:e2e` (nama bebas) `--` justru diteruskan APA ADANYA ke
+      # jest, yang membacanya sebagai pola nama uji sehingga cocok dengan 0
+      # berkas. Run ke-6 gagal persis begitu. Menaruh `run` di depan membuat
+      # keduanya seragam dan benar.
+      - name: Uji unit API
+        run: pnpm --filter @skm-spm/api run test --reporters=default --reporters=github-actions
+
+      - name: Uji unit web
+        run: pnpm --filter @skm-spm/web run test --reporters=default --reporters=github-actions
+
+      # Build ikut digerbangi karena ia menangkap yang tak ditangkap uji:
+      # galat tipe di berkas yang tak punya uji, dan kegagalan prerender Next
+      # pada halaman statis.
+      - name: Build
+        run: pnpm build
+
+  e2e-api:
+    name: E2E API (PostgreSQL sungguhan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        # Versi disamakan dengan docker-compose.yml. Menguji di mayor yang
+        # berbeda dari yang dipakai pengembang & produksi berarti menguji
+        # sesuatu yang lain.
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: skm
+          POSTGRES_PASSWORD: skm
+          POSTGRES_DB: skm_uji
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://skm:skm@localhost:5432/skm_uji?schema=public
+      # NILAI PALSU, HANYA UNTUK RUNNER INI, dan sengaja dibuat agar terlihat
+      # palsu. Basis datanya dibuang begitu job selesai dan tak pernah memuat
+      # data siapa pun. JANGAN dipakai di mana pun selain di sini.
+      SESSION_JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      # DATA_ENCRYPTION_KEY juga PALSU, dan juga hanya untuk runner ini.
+      #
+      # Diperlukan karena test/sso.e2e-spec.ts sengaja menyetel NODE_ENV ke
+      # 'development' -- tanpa itu AuthModule mengikat penyedia SSO ke stub dan
+      # jalur yang hendak diuji tak pernah dijalankan. Begitu NODE_ENV bukan
+      # 'test', kunci uji cadangan di common/crypto/kunci.ts tak lagi berlaku,
+      # dan ComplaintsService menolak dibangun tanpa kunci yang sah.
+      #
+      # Di mesin pengembang gerbang itu TIDAK PERNAH terasa, dan sebabnya halus:
+      # @prisma/client memuat apps/api/.env ke process.env begitu ia diimpor,
+      # jadi kuncinya selalu ada apa pun direktori kerjanya. Runner tak punya
+      # .env sama sekali, sehingga run 1 sampai 7 jatuh di sini -- 10 uji SSO,
+      # seluruhnya dengan pesan yang sama.
+      DATA_ENCRYPTION_KEY: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+
+      - name: Generasi klien Prisma
+        run: pnpm --filter @skm-spm/api exec prisma generate
+
+      # `migrate deploy`, BUKAN `migrate dev`. Yang terakhir dilarang di proyek
+      # ini: ia menulis migrasi baru sendiri dan dapat mereset basis data.
+      - name: Terapkan migrasi
+        run: pnpm --filter @skm-spm/api prisma:deploy
+
+      # Basis data runner lahir kosong. Sebagian skenario e2e bertumpu pada data
+      # rujukan (OPD, unsur SKM) yang disiapkan seed.
+      - name: Isi data awal
+        run: pnpm --filter @skm-spm/api db:seed
+
+      - name: Uji e2e API
+        run: pnpm --filter @skm-spm/api run test:e2e --reporters=default --reporters=github-actions
+# E2E PLAYWRIGHT (apps/web) SENGAJA BELUM DIGERBANGI DI SINI.
+#
+# Suite itu diukur masih goyah 1 sampai 3 dari sekitar 85 berkas, dan
+# penyebabnya sudah ditelusuri bukan kompilasi (lihat catatan di repo). Gerbang
+# yang merah tanpa ada yang rusak adalah cara tercepat membuat orang berhenti
+# memercayai CI, lalu terbiasa menggabungkan sambil mengabaikan lampu merah.
+#
+# Dimasukkan begitu kegoyahannya diselesaikan, bukan sebelum itu.

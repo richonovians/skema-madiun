@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { X, Plus, Trash2, Loader2, ListChecks, Info, Gauge, Lock } from 'lucide-react';
 import { DEFAULT_SCALE_LABELS, SCALE_OPTION_COUNT } from '@/features/surveys/constants/scaleLabels';
@@ -42,9 +43,13 @@ export default function QuestionOptionsModal({
   variant = 'pilihan',
   initialText = '',
   initialOptions = null,
-  // Unsur baku PermenPANRB terkunci TEKSnya (lihat QuestionBlock) -- labelnya
-  // tetap boleh disesuaikan, jadi modal ini dibuka dengan teks read-only.
+  // Pada unsur baku PermenPANRB kalimat pertanyaan disunting langsung di kartunya
+  // (lihat QuestionBlock), bukan di sini -- modal ini hanya mengurus label
+  // skala, jadi teksnya read-only dan tidak ikut divalidasi.
   isTextLocked = false,
+  // Jumlah jawaban yang sudah masuk. Label skala boleh diganti sesudah ada
+  // jawaban (8 Oktober 2026), tetapi admin berhak tahu akibatnya lebih dulu.
+  jumlahJawaban = 0,
   isSubmitting = false,
   submitError = null,
   onSubmit,
@@ -94,7 +99,9 @@ export default function QuestionOptionsModal({
 
   const handleSubmit = () => {
     const trimmedText = text.trim();
-    if (!trimmedText) {
+    // Teks terkunci tidak ikut dikirim (SurveyBuilderScreen membuangnya), jadi
+    // salinan lokalnya yang kosong tak boleh menghalangi penyimpanan label.
+    if (!isTextLocked && !trimmedText) {
       setValidationError('Teks pertanyaan wajib diisi.');
       return;
     }
@@ -108,7 +115,7 @@ export default function QuestionOptionsModal({
         return;
       }
       if (new Set(labels.map((label) => label.toLowerCase())).size !== labels.length) {
-        setValidationError('Ada label yang sama -- setiap skor harus berbeda.');
+        setValidationError('Ada label yang sama. Setiap skor harus berbeda.');
         return;
       }
       setValidationError(null);
@@ -122,7 +129,7 @@ export default function QuestionOptionsModal({
       return;
     }
     if (new Set(filledOptions.map((opt) => opt.toLowerCase())).size !== filledOptions.length) {
-      setValidationError('Ada opsi jawaban yang sama -- setiap opsi harus berbeda.');
+      setValidationError('Ada opsi jawaban yang sama. Setiap opsi harus berbeda.');
       return;
     }
 
@@ -136,7 +143,26 @@ export default function QuestionOptionsModal({
   const heading = isScale ? 'Ubah Label Skala 1-4' : isEdit ? 'Ubah Opsi Jawaban' : 'Pilihan Ganda';
   const HeadingIcon = isScale ? Gauge : ListChecks;
 
-  return (
+  // DIGAMBAR DI `document.body`, BUKAN DI TEMPAT KOMPONEN INI DIPANGGIL
+  // (4 Oktober 2026, laporan pengguna: "tombol perkecil sidebar muncul
+  // sendiri" saat modal builder terbuka).
+  //
+  // `z-[9999]` di bawah ini TIDAK berarti apa-apa terhadap dunia luar selama
+  // modalnya digambar di dalam leluhur yang punya konteks penumpukan sendiri.
+  // BuilderLayout berkelas `relative z-50`, jadi seluruh builder beserta
+  // modalnya adalah SATU lapisan setinggi 50 -- dan tombol ciutkan sidebar
+  // (`fixed z-[60]`, saudara di luar builder) digambar di atas latar gelapnya.
+  // Yang terlihat pengguna: segalanya meredup kecuali satu tombol yang
+  // tertinggal tajam, seolah ia baru saja muncul.
+  //
+  // Portal memutus ketergantungan itu untuk SETIAP tempat pemanggilan,
+  // sekarang dan nanti -- sama seperti RoleLoginPicker, meski sebabnya di sana
+  // leluhur ber-transform, bukan z-index.
+  //
+  // `document` diperiksa karena berkas ini ikut terangkut ke bundel server.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && !isSubmitting && onCancel?.()}
@@ -183,7 +209,7 @@ export default function QuestionOptionsModal({
             {isTextLocked && (
               <p className="flex items-start gap-1.5 text-xs text-slate-500 font-medium">
                 <Lock size={12} className="mt-0.5 shrink-0" />
-                Teks unsur baku PermenPANRB tidak dapat diubah — hanya labelnya.
+                Ubah kalimat pertanyaannya langsung di kartu unsur; di sini hanya labelnya.
               </p>
             )}
           </div>
@@ -252,12 +278,22 @@ export default function QuestionOptionsModal({
             <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700 font-medium leading-relaxed">
               {isScale
-                ? 'Skor 1 sampai 4 tetap seperti aslinya — Nilai IKM dihitung dari skor, bukan dari kalimatnya. Masih bisa diubah selama survei berstatus draf.'
+                ? 'Skor 1 sampai 4 tetap seperti aslinya — Nilai IKM dihitung dari skor, bukan dari kalimatnya. Label masih bisa diubah sampai survei ditutup.'
                 : isEdit
                   ? 'Opsi lama diganti seluruhnya dengan daftar di atas. Aman dilakukan karena survei masih draf dan belum bisa diisi responden.'
                   : 'Responden memilih satu opsi. Opsi jawaban masih bisa diubah selama survei berstatus draf.'}
             </p>
           </div>
+
+          {isScale && isEdit && jumlahJawaban > 0 && (
+            <div
+              role="note"
+              className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-medium leading-relaxed"
+            >
+              Survei ini sudah menerima {jumlahJawaban} jawaban. Skor jawaban lama tidak berubah,
+              tetapi label baru akan tampil untuk semua jawaban, termasuk yang sudah masuk.
+            </div>
+          )}
 
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
@@ -290,6 +326,7 @@ export default function QuestionOptionsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

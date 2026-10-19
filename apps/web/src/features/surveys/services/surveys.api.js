@@ -9,6 +9,7 @@ import {
   adaptSurveyList,
   adaptTrashedSurveyList,
   toBackendStatus,
+  toChangeJenisPayload,
   toCreateQuestionPayload,
   toCreateSurveyPayload,
   toSubmitAnswers,
@@ -35,7 +36,7 @@ export async function getSurveyById(surveyId) {
   return adaptSurvey(response.data);
 }
 
-/** @param {{title: string, period: string, allowMultipleSubmit?: boolean, opdId?: number}} payload */
+/** @param {{title: string, period: string, jenis: string, allowMultipleSubmit?: boolean, opdId?: number}} payload */
 export async function createSurvey(payload) {
   const response = await api.post('/surveys', toCreateSurveyPayload(payload));
   return adaptSurvey(response.data);
@@ -44,6 +45,16 @@ export async function createSurvey(payload) {
 /** @param {{title?: string, period?: string, allowMultipleSubmit?: boolean}} payload */
 export async function updateSurvey(surveyId, payload) {
   const response = await api.patch(`/surveys/${surveyId}`, toUpdateSurveyPayload(payload));
+  return adaptSurvey(response.data);
+}
+
+/**
+ * Ganti jenis survei SKM menjadi Custom (8 Oktober 2026). Backend hanya menerimanya
+ * selagi survei DRAF dan belum dijawab; sembilan unsur dihapus.
+ * @param {{jenis: string, tujuan: string, metodeNilai: string}} payload
+ */
+export async function changeSurveyJenis(surveyId, payload) {
+  const response = await api.patch(`/surveys/${surveyId}/jenis`, toChangeJenisPayload(payload));
   return adaptSurvey(response.data);
 }
 
@@ -67,9 +78,26 @@ export async function restoreSurvey(surveyId) {
   return adaptSurvey(response.data);
 }
 
-/** Hapus permanen. Hanya Admin Kabupaten; backend menolak peran lain 403. */
+/**
+ * Hapus permanen. Admin Kabupaten maupun Admin OPD (30 September 2026); yang
+ * terakhir hanya untuk survei OPD-nya sendiri, dan backend yang menegakkannya.
+ */
 export async function purgeSurvey(surveyId) {
   await api.delete(`/surveys/${surveyId}/purge`);
+}
+
+/**
+ * Umur Sampah yang berlaku dalam hari; `hari: null` berarti pemusnahan
+ * otomatis dimatikan.
+ *
+ * Dibaca dari server, BUKAN ditulis mati di frontend: keterangan di halaman
+ * Sampah harus selalu sama dengan SURVEY_PURGE_DAYS yang benar-benar berlaku.
+ *
+ * @returns {Promise<{ hari: number | null }>}
+ */
+export async function getTrashRetention() {
+  const response = await api.get('/surveys/trash/retensi');
+  return response.data;
 }
 
 /** @param {string} status Nilai frontend ('AKTIF'/'DRAF'/'DITUTUP'). */
@@ -118,12 +146,6 @@ export async function createCustomQuestion(surveyId, payload) {
     isRequired: q.tipe !== 'teks',
     options: (q.options ?? []).map((o) => ({ id: o.id, label: o.label })),
   };
-}
-
-/** Terapkan template 9 unsur baku -- SATU panggilan backend, bukan disimulasikan lokal (lihat INT-30 -> INT-19). */
-export async function applyQuestionTemplate(surveyId) {
-  const response = await api.post(`/surveys/${surveyId}/questions/template`);
-  return adaptBuilderQuestions(response.data);
 }
 
 /** @param {number[]} orderedIds Seluruh id pertanyaan survei dalam urutan baru. */
@@ -178,9 +200,15 @@ export async function getSurveyFill(surveyId) {
  * (getSurveyFill().questions + store.answers) -- toSubmitAnswers menerjemahkan
  * ke AnswerInputDto[] backend berdasar tipe tiap pertanyaan.
  *
- * @param {boolean} tanpaDataDiri Pilihan anonim dari GerbangPengisianBersesi.
- *   Data dirinya TIDAK dikirim dari sini: backend menyalinnya dari akun
- *   pengirim, jadi isinya tak dapat dikarang oleh pemanggil.
+ * @param {boolean} tanpaDataDiri Pilihan anonim. TIDAK LAGI DISETEL GERBANG
+ *   BERSESI sejak 1 Oktober 2026 (petang): gerbangnya tak menampilkan kontrol
+ *   apa pun atas permintaan pengguna. Parameternya dipertahankan karena backend
+ *   masih menerimanya dan ia hanya MENGURANGI data yang direkam -- membuangnya
+ *   berarti melepas kemampuan itu dari klien, yang tak pernah diminta.
+ *
+ *   SELURUH data diri jalur ini disalin backend dari akun pengirim, termasuk
+ *   nomor HP sejak sore ini. Tak satu pun dikirim dari sini, jadi tak satu pun
+ *   dapat dikarang oleh pemanggil.
  */
 export async function submitSurveyResponse(surveyId, questions, answers, tanpaDataDiri = false) {
   const response = await api.post(`/surveys/${surveyId}/responses`, {

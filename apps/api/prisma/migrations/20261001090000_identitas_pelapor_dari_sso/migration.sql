@@ -1,0 +1,40 @@
+-- Identitas pelapor dari Helpdesk (1 Oktober 2026, laporan pengguna: "profil
+-- pelapor pengaduan belum mengambil data profil/akun dari helpdesk").
+--
+-- APA YANG DIPERBAIKINYA. Kartu "Profil Pelapor" pada detail pengaduan sudah
+-- menggambar empat baris sejak lama, tetapi tiga di antaranya -- NIK, No.
+-- Telepon, Alamat -- selalu bertanda hubung. Sebabnya bukan data yang rusak
+-- melainkan tak adanya sumber: `complaint.adapter.js` memaku ketiganya ke
+-- null, dan tak ada kolom di basis data yang dapat mengisinya.
+--
+-- Dua payload sungguhan dari Helpdesk akhirnya diterima dan ketiganya ada di
+-- sana. Ketiga kolom ini tempat menyimpannya.
+--
+-- MENGAPA DI `users`, BUKAN DI `complaints`. Keduanya mungkin, dan pilihannya
+-- diambil atas dasar jumlah salinan. Di `users` ada tepat satu baris per
+-- orang: satu tempat yang perlu dijaga, dan jalur soft delete UU PDP di tabel
+-- ini sudah berdiri. Potret per baris `complaints` akan menggandakan NIK dan
+-- alamat sebanyak pengaduan yang pernah dikirim orang itu, sehingga satu
+-- permintaan penghapusan data harus menyapu N tempat alih-alih satu. Harga
+-- yang dibayar disebut terang-terangan: alamat terbaca sebagaimana SEKARANG,
+-- bukan sebagaimana saat pengaduan dikirim.
+--
+-- `text`, BUKAN varchar. Isinya bukan teks polos melainkan amplop terenkripsi
+-- (lihat common/crypto/kolom.ts): base64url sekitar 1,37x panjang asli
+-- ditambah 49 bita header. Batas panjang di sini berarti login gagal ketika
+-- seseorang kebetulan beralamat panjang, dan kegagalan itu akan muncul jauh
+-- dari sebabnya. Pembatasan dilakukan di lapisan aplikasi SEBELUM enkripsi,
+-- tempat panjangnya masih punya arti.
+--
+-- NULLABLE, DAN TIDAK AKAN PERNAH TIDAK. SSO Helpdesk melayani ASN maupun
+-- warga umum, dan tak satu pun dari ketiga medan ini dijamin ada: payload
+-- `/api/me` sungguhan mengirim `nip: null` berdampingan dengan `instansi: ''`.
+-- Kolom kosong di sini adalah keadaan NORMAL, bukan kegagalan, dan karena itu
+-- tampilannya menyembunyikan barisnya alih-alih menggambar tanda hubung.
+--
+-- Migrasi ini tidak menyentuh satu baris data pun: ketiga kolom lahir NULL
+-- pada seluruh akun yang sudah ada, lalu terisi sendiri saat pemiliknya login
+-- berikutnya. Dapat dibatalkan dengan tiga DROP COLUMN.
+ALTER TABLE "users" ADD COLUMN "nik" text;
+ALTER TABLE "users" ADD COLUMN "nomor_hp" text;
+ALTER TABLE "users" ADD COLUMN "alamat" text;

@@ -6,8 +6,10 @@ import SurveyListExportMenu from './SurveyListExportMenu';
 /** `surveys` adalah daftar yang SEDANG tampil, sehingga ekspornya mengikuti tab aktif. */
 export default function SurveyPageHeader({ surveys = [] }) {
   return (
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md mb-xl">
-      <div>
+    // `flex-wrap` + `min-w-0` pada blok judul: terukur di Chrome pada 768px,
+    // judul yang menolak menyusut mendorong baris tombol 87px ke luar layar.
+    <div className="flex flex-col md:flex-row md:flex-wrap justify-between items-start md:items-center gap-md mb-xl">
+      <div data-blok-judul className="min-w-0">
         <h1 className="font-h1 text-h1 text-text-primary tracking-tight">
           Paket Survei Kepuasan Masyarakat
         </h1>

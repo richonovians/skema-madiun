@@ -4,9 +4,10 @@ import type { PrismaService } from '../../src/prisma/prisma.service';
  * Hapus notifikasi jawaban survei milik OPD ini (13 September 2026).
  *
  * Perlu helper tersendiri karena penerimanya BUKAN hanya akun buatan uji:
- * `notifySurveyResponse` juga menyiarkan ke seluruh akun kabupaten & superuser
- * yang ADA DI BASIS DATA LOKAL. Membersihkan akun buatan uji saja meninggalkan
- * baris yatim atas nama akun sungguhan -- persis yang terjadi pada run pertama
+ * `notifySurveyResponse` juga menyiarkan ke seluruh akun berperan penuh
+ * (`FULL_ACCESS_ROLES` di `role.util.ts`, kini hanya `kabupaten`) yang ADA DI
+ * BASIS DATA LOKAL. Membersihkan akun buatan uji saja meninggalkan
+ * baris tanpa induk atas nama akun sungguhan -- persis yang terjadi pada run pertama
  * (108 baris menunjuk 27 survei e2e yang sudah lenyap).
  *
  * Disaring lewat `link`, yang memuat id survei, sebab `notifications` memang

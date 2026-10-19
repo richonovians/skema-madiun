@@ -1,5 +1,11 @@
 import { Role } from '@prisma/client';
-import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
+import {
+  extractRoleClaimValues,
+  parseClaimValues,
+  parseRoleClaimFields,
+  parseRolePackages,
+  resolveRolesFromClaims,
+} from './sso-role.mapper';
 
 describe('parseClaimValues', () => {
   /**
@@ -56,10 +62,10 @@ describe('parseRolePackages', () => {
   });
 
   it('membaca paket berisi beberapa peran, dipisah tanda tambah', () => {
-    const map = parseRolePackages('pegawai-dinas:opd+responden,admin:superuser+opd+responden');
+    const map = parseRolePackages('pegawai-dinas:opd+responden,admin:kabupaten+opd+responden');
 
     expect(map.get('pegawai-dinas')).toEqual([Role.opd, Role.responden]);
-    expect(map.get('admin')).toEqual([Role.superuser, Role.opd, Role.responden]);
+    expect(map.get('admin')).toEqual([Role.kabupaten, Role.opd, Role.responden]);
   });
 
   it('memaafkan spasi berlebih & huruf besar', () => {
@@ -73,19 +79,34 @@ describe('parseRolePackages', () => {
   });
 
   /**
-   * PEMBALIKAN YANG DISENGAJA (keputusan pengguna 6 September 2026): sebelum ini
-   * `superuser` sengaja TIDAK dapat dipetakan dari klaim, karena peran itu
-   * memegang log aktivitas & manajemen pengguna. Pengguna meminta tipe "admin"
-   * dari Helpdesk menjadi superuser di SKEMA, jadi larangan itu dicabut.
+   * `superuser` DILEBUR ke `kabupaten` (15 September 2026), jadi namanya bukan
+   * lagi peran yang sah dan pemetaan yang menyebutnya diabaikan diam-diam --
+   * perlakuan yang sama dengan nama peran salah ketik mana pun.
+   *
+   * Konsekuensinya disengaja dan perlu diketahui operator: `HELPDESK_SSO_ROLE_MAP`
+   * yang masih berbunyi `admin:superuser` TIDAK otomatis berpindah ke
+   * `kabupaten`. Memetakannya diam-diam berarti menghidupkan kembali nama yang
+   * baru saja dihapus, lewat pintu yang tak terlihat siapa pun.
    *
    * Pengamannya BUKAN di sini melainkan tiga hal di luar fungsi ini: baku tetap
    * `responden` bila env kosong, penetapan hanya saat akun dibuat, dan
    * pembuatannya tercatat di audit_logs. Lihat spec Bagian A.3.
    */
-  it('MENERIMA pemetaan ke superuser -- larangan lama sudah dicabut', () => {
+  it('MENGABAIKAN pemetaan ke superuser -- peran itu sudah tak ada', () => {
     const map = parseRolePackages('admin:superuser');
 
-    expect(map.get('admin')).toEqual([Role.superuser]);
+    expect(map.has('admin')).toBe(false);
+  });
+
+  /**
+   * PASANGAN kontrol. Nama yang sudah tak sah dibuang, tetapi paketnya TIDAK
+   * ikut hangus: akun yang seharusnya menjadi Admin OPD tak boleh jatuh ke
+   * `responden` hanya karena satu nama usang ikut tertulis di sebelahnya.
+   */
+  it('KONTROL: nama usang dibuang, peran sah di paket yang sama tetap hidup', () => {
+    const map = parseRolePackages('admin:superuser+opd+responden');
+
+    expect(map.get('admin')).toEqual([Role.opd, Role.responden]);
   });
 
   it.each([
@@ -115,7 +136,7 @@ describe('parseRolePackages', () => {
 
 describe('resolveRolesFromClaims', () => {
   const map = parseRolePackages(
-    'pegawai-dinas:opd+responden,admin:superuser+opd+responden,warga:responden',
+    'pegawai-dinas:opd+responden,admin:kabupaten+opd+responden,warga:responden',
   );
 
   it('satu nilai cocok -> seluruh paketnya', () => {
@@ -154,7 +175,102 @@ describe('resolveRolesFromClaims', () => {
   it('paket bertumpang tindih tidak menghasilkan role ganda', () => {
     const hasil = resolveRolesFromClaims(['admin', 'pegawai-dinas'], map);
 
-    expect([...hasil].sort()).toEqual([Role.opd, Role.responden, Role.superuser].sort());
+    expect([...hasil].sort()).toEqual([Role.kabupaten, Role.opd, Role.responden].sort());
     expect(hasil.length).toBe(3);
+  });
+});
+
+/**
+ * Sumber nilai peran yang dapat dikonfigurasi (28 September 2026).
+ *
+ * Contoh payload `userinfo` Helpdesk akhirnya diterima, dan penentu ASN vs
+ * masyarakat ternyata ada di `identity.user_type`, BERSARANG. `groups` dan
+ * `role` di tingkat atas hanya membawa nilai tata kelola (`admin`), yang tak
+ * dapat membedakan seorang ASN dari seorang warga.
+ */
+describe('parseRoleClaimFields', () => {
+  it('baku `groups,role` supaya perilaku yang sudah terpasang tak berubah', () => {
+    expect(parseRoleClaimFields(undefined)).toEqual(['groups', 'role']);
+    expect(parseRoleClaimFields('')).toEqual(['groups', 'role']);
+    expect(parseRoleClaimFields('   ')).toEqual(['groups', 'role']);
+  });
+
+  it('membaca daftar dipisah koma, memangkas spasi, membuang duplikat', () => {
+    expect(parseRoleClaimFields(' role , identity.user_type , role ')).toEqual([
+      'role',
+      'identity.user_type',
+    ]);
+  });
+});
+
+describe('extractRoleClaimValues', () => {
+  /** Payload contoh dari Helpdesk, hanya field yang dipakai. */
+  const payloadAdmin = {
+    role: 'admin',
+    groups: ['admin'],
+    identity: { user_type: 'asn', name: 'Nama Lengkap Pengguna' },
+    governance: { role: 'admin', tenant_id: 'uuid-diskominfo' },
+  };
+
+  it('mengambil nilai dari jalur bersarang maupun tingkat atas', () => {
+    expect(extractRoleClaimValues(payloadAdmin, ['role', 'identity.user_type'])).toEqual([
+      'admin',
+      'asn',
+    ]);
+  });
+
+  it('menormalkan ke huruf kecil dan membuang duplikat antar field', () => {
+    const klaim = { role: 'ADMIN', groups: ['Admin'] };
+
+    expect(extractRoleClaimValues(klaim, ['role', 'groups'])).toEqual(['admin']);
+  });
+
+  it('field yang tak ada menghasilkan array kosong, bukan galat', () => {
+    expect(extractRoleClaimValues(payloadAdmin, ['identity.jabatan', 'tidak.ada'])).toEqual([]);
+    expect(extractRoleClaimValues(undefined, ['role'])).toEqual([]);
+  });
+
+  it('tidak memecah elemen array per spasi', () => {
+    // Beda dengan string tingkat atas: satu elemen array adalah satu nilai utuh.
+    const klaim = { groups: ['admin kabupaten'] };
+
+    expect(extractRoleClaimValues(klaim, ['groups'])).toEqual(['admin kabupaten']);
+  });
+});
+
+describe('pemetaan peran yang disetujui pengguna (28 September 2026)', () => {
+  // admin -> Admin Kabupaten; ASN -> Admin OPD; masyarakat -> responden.
+  const ROLE_MAP = 'admin:kabupaten,asn:opd+responden,masyarakat:responden';
+  const fields = parseRoleClaimFields('role,identity.user_type');
+  const map = parseRolePackages(ROLE_MAP);
+
+  const perankan = (klaim: Record<string, unknown>): Role[] =>
+    resolveRolesFromClaims(extractRoleClaimValues(klaim, fields), map);
+
+  it('admin Helpdesk yang juga ASN memperoleh gabungan ketiga peran', () => {
+    // Payload contoh memuat `role: admin` DAN `user_type: asn` sekaligus, jadi
+    // kedua aturan kena. Mesinnya menggabungkan, bukan memeringkat.
+    const hasil = perankan({ role: 'admin', identity: { user_type: 'asn' } });
+
+    expect([...hasil].sort()).toEqual([Role.kabupaten, Role.opd, Role.responden].sort());
+  });
+
+  it('ASN biasa menjadi Admin OPD merangkap responden', () => {
+    expect(perankan({ role: 'user', identity: { user_type: 'asn' } })).toEqual([
+      Role.opd,
+      Role.responden,
+    ]);
+  });
+
+  it('masyarakat menjadi responden saja', () => {
+    expect(perankan({ role: 'user', identity: { user_type: 'masyarakat' } })).toEqual([
+      Role.responden,
+    ]);
+  });
+
+  it('tipe pengguna yang tak dikenal tidak memetakan apa pun', () => {
+    // Pemanggil yang menjatuhkannya ke `responden`, bukan berkas ini -- dan
+    // itu yang membuat nilai baru dari Helpdesk gagal ke arah aman.
+    expect(perankan({ role: 'user', identity: { user_type: 'vendor' } })).toEqual([]);
   });
 });

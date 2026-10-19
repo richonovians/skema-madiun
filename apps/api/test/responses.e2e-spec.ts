@@ -141,8 +141,9 @@ describe('Responses (e2e)', () => {
     // Hapus respons dulu (cascade ke answers); jika tidak, hapus survey → cascade ke
     // questions terganjal RESTRICT answers_question_id_fkey.
     await prisma.surveyResponse.deleteMany({ where: { survey: { opdId } } });
-    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
-    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    // Notifikasi jawaban survei menyasar akun berperan penuh
+    // (`FULL_ACCESS_ROLES`, kini hanya `kabupaten`) yang SUNGGUHAN ada di basis
+    // data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await prisma.survey.deleteMany({ where: { opdId } });
     // `audit_logs.actor_id` RESTRICT: akun yang pernah beraksi tak dapat
@@ -289,6 +290,44 @@ describe('Responses (e2e)', () => {
     expect(res.status).toBe(200);
     expect(res.body.meta.pagination.total).toBeGreaterThanOrEqual(1);
     expect(res.body.data[0].userId).toBeUndefined();
+  });
+
+  /**
+   * URUTAN & NOMOR TERHADAP DB SUNGGUHAN (5 Oktober 2026). Uji komponen di
+   * apps/web memverifikasi penggambaran nomor atas data tiruan; INILAH satu-
+   * satunya tempat `orderBy: [submittedAt asc, id asc]` + `nomor = offset +
+   * posisi` di responses.service.ts benar-benar dijalankan lawan Postgres.
+   *
+   * Dua respons `surveyId` dibuat berurutan di atas: `respondenId` lebih dulu,
+   * lalu `respondenId2`. Jadi yang PALING LAMA harus di baris pertama dengan
+   * nomor 1 — permintaan tersurat pengguna "respon #1 di posisi paling atas".
+   * Pemecah seri `id` menaik membuatnya pasti walau kedua `submittedAt` jatuh
+   * pada milidetik yang sama.
+   *
+   * Dibuktikan bisa memerah: membalik `orderBy` menjadi `desc` di service
+   * menukar baris pertama menjadi respons terbaru, dan kedua assertion di bawah
+   * gagal.
+   */
+  it('mengurutkan respons terlama dahulu dan menomori dari 1', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/surveys/${surveyId}/responses`)
+      .set(devHeaders({ role: Role.opd, opdId }));
+    expect(res.status).toBe(200);
+
+    const data = res.body.data;
+    expect(data.length).toBeGreaterThanOrEqual(2);
+
+    // Nomor menaik mulai dari 1, sejajar posisi baris.
+    expect(data.map((r: { nomor: number }) => r.nomor)).toEqual(
+      data.map((_: unknown, i: number) => i + 1),
+    );
+
+    // Terlama dahulu: waktu baris sebelumnya tak pernah melampaui berikutnya.
+    for (let i = 1; i < data.length; i++) {
+      expect(new Date(data[i - 1].submittedAt).getTime()).toBeLessThanOrEqual(
+        new Date(data[i].submittedAt).getTime(),
+      );
+    }
   });
 
   it('GET /surveys/:id/responses (Admin OPD lain) -> 403', async () => {

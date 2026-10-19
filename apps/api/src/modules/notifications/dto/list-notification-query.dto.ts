@@ -1,12 +1,24 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsDateString, IsIn, IsOptional } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListNotificationQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Filter hanya yang belum dibaca' })
   @IsOptional()
-  @Type(() => Boolean)
+  /**
+   * `@Type(() => String)` WAJIB di sini, dan bukan hiasan (15 Oktober 2026,
+   * BUG-020).
+   *
+   * `app.setup.ts` menyalakan `transformOptions.enableImplicitConversion`, dan
+   * class-transformer memakai tipe hasil refleksi SEBELUM memanggil
+   * `@Transform` di bawah. Tipe refleksi medan ini `Boolean`, sehingga nilainya
+   * melewati `Boolean('false')` -- yang bernilai `true` -- dan `@Transform` tak
+   * pernah melihat string aslinya. Menyatakan `String` membuat konversi
+   * implisit tak mengubah apa pun, lalu `@Transform` menerjemahkannya sendiri.
+   */
+  @Type(() => String)
+  @Transform(({ value }) => (value === undefined ? undefined : value === 'true' || value === true))
   @IsBoolean()
   unreadOnly?: boolean;
 

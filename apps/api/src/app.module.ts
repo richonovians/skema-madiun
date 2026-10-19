@@ -2,7 +2,10 @@ import { ClassSerializerInterceptor, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
+import Redis from 'ioredis';
+import { CabutLampiranModule } from './common/uploads/cabut-lampiran.module';
 import { ThrottlePenggunaGuard } from './common/guards/throttle-pengguna.guard';
+import { PenyimpanLajuRedis } from './common/guards/penyimpan-laju.redis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -13,8 +16,10 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SessionRefreshInterceptor } from './modules/auth/session/session-refresh.interceptor';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DokumentasiModule } from './modules/dokumentasi/dokumentasi.module';
 import { IkmModule } from './modules/ikm/ikm.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpdModule } from './modules/opd/opd.module';
@@ -26,6 +31,7 @@ import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
+    CabutLampiranModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -35,14 +41,26 @@ import { UsersModule } from './modules/users/users.module';
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            ttl: config.get<number>('throttle.ttlMs') ?? 60_000,
-            limit: config.get<number>('throttle.limit') ?? 100,
-          },
-        ],
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('redis.url');
+        return {
+          throttlers: [
+            {
+              ttl: config.get<number>('throttle.ttlMs') ?? 60_000,
+              limit: config.get<number>('throttle.limit') ?? 100,
+            },
+          ],
+          // Penghitung batas laju di Redis bila `REDIS_URL` terisi; selain itu
+          // storage `Map` bawaan @nestjs/throttler. Percabangannya mengikuti
+          // kunci yang SAMA dengan daftar pencabutan sesi (SessionModule), jadi
+          // sekali `REDIS_URL` diisi keduanya ikut pindah ke Redis sekaligus.
+          // Yang menolak in-memory di PRODUKSI bukan baris ini melainkan gerbang
+          // boot `periksaPenyimpanSesi`, yang kini menjaga keduanya.
+          ...(url
+            ? { storage: new PenyimpanLajuRedis(new Redis(url, { maxRetriesPerRequest: 2 })) }
+            : {}),
+        };
+      },
     }),
     PrismaModule,
     // Modul fondasi autentikasi (menyediakan RolesGuard global via APP_GUARD).
@@ -59,6 +77,7 @@ import { UsersModule } from './modules/users/users.module';
     ReferenceModule,
     DashboardModule,
     NotificationsModule,
+    DokumentasiModule,
   ],
   controllers: [AppController],
   providers: [
@@ -78,6 +97,10 @@ import { UsersModule } from './modules/users/users.module';
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     // Efek samping saja (tak mengubah payload) — urutan relatif terhadap dua di atas tak masalah.
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    // Memperpanjang jendela menganggur sesi selama dipakai (17 September 2026).
+    // Efek samping pada header saja; SessionService & SessionCookieService
+    // tersedia karena AuthModule mengekspor SessionModule.
+    { provide: APP_INTERCEPTOR, useClass: SessionRefreshInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })

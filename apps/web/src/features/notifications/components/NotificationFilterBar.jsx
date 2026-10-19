@@ -15,8 +15,8 @@ import { RENTANG_BAWAAN, RENTANG_WAKTU } from '../adapters/notificationRentang';
  * menghancurkan pengelompokan itu sama sekali.
  */
 export const URUTAN_WAKTU = [
-  { value: 'desc', label: 'Terbaru dulu' },
-  { value: 'asc', label: 'Terlama dulu' },
+  { value: 'desc', label: 'Terbaru' },
+  { value: 'asc', label: 'Terlama' },
 ];
 
 export const URUTAN_BAWAAN = 'desc';
@@ -29,7 +29,7 @@ export const URUTAN_BAWAAN = 'desc';
  *
  * Kedua dropdown diberi label tampak. Tanpa label, satu-satunya penanda
  * dropdown adalah nilai aktifnya sendiri, dan dua dropdown bersebelahan yang
- * sama-sama berisi kata waktu ("Semua waktu" dan "Terbaru dulu") tak mungkin
+ * sama-sama berisi kata waktu ("Semua waktu" dan "Terbaru") tak mungkin
  * dibedakan oleh pembaca layar.
  */
 export default function NotificationFilterBar({

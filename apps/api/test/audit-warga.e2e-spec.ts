@@ -121,16 +121,28 @@ describe('Audit log aktivitas warga (e2e)', () => {
       .set(asWarga())
       .field('opdId', opdId)
       .field('kategori', 'aduan')
-      .field('judul', 'Jalan rusak')
+      .field('judul', 'Pungli oleh Pak Budi di loket 3')
       .field('uraian', 'Jalan berlubang parah di depan balai desa');
     expect(res.status).toBe(201);
 
     const baris = await auditWarga('complaint');
     expect(baris).toHaveLength(1);
     expect(baris[0].aksi).toBe('create');
+
+    const detail = (
+      baris[0].detail as { body: { judul: string; uraian: string; kategori: string } }
+    ).body;
     // Isi keluhan adalah bagian paling pribadi dari sebuah pengaduan; yang
     // tercatat cukup "field mana yang disentuh".
-    expect((baris[0].detail as { body: { uraian: string } }).body.uraian).toBe(PENANDA_DISUNTING);
+    expect(detail.uraian).toBe(PENANDA_DISUNTING);
+    // JUDULNYA JUGA (22 September 2026). Sampai tanggal itu hanya `uraian` yang
+    // disunting, sehingga judul seperti yang dikirim di atas -- tulisan bebas
+    // warga yang menyebut nama orang -- tersalin utuh ke tabel yang dibaca
+    // Admin Kabupaten.
+    expect(detail.judul).toBe(PENANDA_DISUNTING);
+    // KONTROL: tanpa ini, redaksi yang menyunting SEGALANYA akan membuat kedua
+    // asersi di atas hijau sambil menghancurkan guna audit log.
+    expect(detail.kategori).toBe('aduan');
   });
 
   it('POST /complaints/:id/replies -> tercatat sebagai create complaint_reply', async () => {

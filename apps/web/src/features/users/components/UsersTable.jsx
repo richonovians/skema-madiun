@@ -1,11 +1,11 @@
 import React from 'react';
-import Link from 'next/link';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/components/ui/Table';
 import Avatar from '@/components/ui/Avatar';
 import UserStatusBadge from './UserStatusBadge';
 import { USER_ROLES } from '../constants/userConstants';
 import EmptyState from '@/components/ui/EmptyState';
-import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
+import RowActionsMenu from '@/components/ui/RowActionsMenu';
+import { Users as UsersIcon, Pencil, Trash2, Building2, UserCheck, UserX } from 'lucide-react';
 
 /**
  * Kolom AKSI versi dummy lama ("Ubah Role" dropdown + "Reset Token JWT")
@@ -22,14 +22,13 @@ import { Users as UsersIcon, Pencil, Trash2 } from 'lucide-react';
  * Nonaktifkan mengubah status tanpa konfirmasi sama sekali dan Hapus memakai
  * `window.confirm()` bawaan peramban, dan dialog yang dipasang di dalam tabel
  * akan membuat tiap baris punya salinan dialognya sendiri.
+ *
+ * SEJAK 30 SEPTEMBER 2026 ketiga aksi itu tinggal di dalam menu titik-tiga
+ * (RowActionsMenu), bersama satu aksi baru. Lihat catatan di kolom AKSI.
  */
 export default function UsersTable({ data, onRequestAction, pagination }) {
   const getRoleBadgeConfig = (role) => {
     switch (role) {
-      // Warna dibedakan dari Admin Kabupaten: keduanya kini peran berbeda, dan
-      // yang membedakan bukan cuma nama (superuser + akses log aktivitas).
-      case USER_ROLES.SUPERUSER:
-        return { label: 'Superuser', className: 'bg-violet-100 text-violet-800' };
       case USER_ROLES.ADMIN_KABUPATEN:
         return { label: 'Admin Kabupaten', className: 'bg-indigo-100 text-indigo-800' };
       case USER_ROLES.ADMIN_OPD:
@@ -43,7 +42,6 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
 
   const getAvatarVariant = (role) => {
     switch (role) {
-      case USER_ROLES.SUPERUSER:
       case USER_ROLES.ADMIN_KABUPATEN:
         return 'secondary';
       case USER_ROLES.ADMIN_OPD:
@@ -74,6 +72,10 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AFILIASI INSTANSI</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">TANGGAL DIBUAT</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS AKSES</Th>
+            {/* "STATUS ADMIN", dipendekkan dari "STATUS ADMINISTRATOR" pada
+                1 Oktober 2026 atas permintaan pengguna. Isi kolomnya tidak
+                berubah sedikit pun; yang berubah hanya judulnya. */}
+            <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">STATUS ADMIN</Th>
             <Th className="text-slate-700 font-extrabold text-[12px] tracking-[0.1em] py-5">AKSI</Th>
           </Tr>
         </Thead>
@@ -84,6 +86,13 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
             // warnanya sekadar pembeda visual, bukan pernyataan hak.
             const roleConfigs = (user.roles ?? []).map(getRoleBadgeConfig);
             const isActive = user.status === 'ACTIVE';
+            const isAdminOpd = (user.roles ?? []).includes(USER_ROLES.ADMIN_OPD);
+            // Administrator = memegang salah satu peran yang memerintah, yaitu
+            // Admin Kabupaten atau Admin OPD. `responden` bukan administrator
+            // betapapun aktifnya ia.
+            const isAdministrator = (user.roles ?? []).some(
+              (role) => role === USER_ROLES.ADMIN_KABUPATEN || role === USER_ROLES.ADMIN_OPD,
+            );
 
             return (
               <Tr key={user.id} className="hover:bg-slate-50 transition-colors group">
@@ -128,40 +137,100 @@ export default function UsersTable({ data, onRequestAction, pagination }) {
                   <UserStatusBadge status={user.status} />
                 </Td>
                 <Td>
-                  <div className="flex items-center gap-2">
-                    {/* TANPA SYARAT, termasuk untuk warga (permintaan pengguna
-                        6 September 2026). Backend menerimanya sejak
-                        5 September 2026: `ASSIGNABLE_ROLES` pada CreateUserDto
-                        memuat `responden`.
+                  {/* Dua nilai saja, dan itu disengaja. Kolom "HAK AKSES
+                      (ROLE)" sudah menyebutkan administrator JENIS APA; yang
+                      belum dijawab kolom mana pun adalah "administrator atau
+                      bukan", dan pertanyaan itulah yang dapat dipindai cepat
+                      pada daftar panjang.
 
-                        Syarat `user.role !== USER_ROLES.RESPONDENT` yang dulu
-                        ada di sini SUDAH MATI sejak adapter beralih ke `roles`:
-                        `user.role` tak ada lagi, jadi `undefined !==
-                        'responden'` selalu benar dan tombolnya sebenarnya sudah
-                        tampil untuk semua orang -- di bawah komentar yang
-                        menyatakan kebalikannya. Dihapus supaya yang tersurat
-                        sama dengan yang terjadi. */}
-                    <Link
-                      href={`/admin-kab/users/${user.id}/edit`}
-                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center gap-1"
-                    >
-                      <Pencil size={12} />
-                      Ubah Role
-                    </Link>
-                    <button
-                      onClick={() => onRequestAction?.(user, isActive ? 'deactivate' : 'activate')}
-                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-text-primary hover:bg-slate-100 transition-colors h-[32px] flex items-center justify-center"
-                    >
-                      {isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                    </button>
-                    <button
-                      onClick={() => onRequestAction?.(user, 'delete')}
-                      className="whitespace-nowrap px-3 py-1 border border-outline-variant rounded-lg text-xs font-label-md text-error hover:bg-error-container transition-colors h-[32px] flex items-center justify-center gap-1"
-                    >
-                      <Trash2 size={12} />
-                      Hapus
-                    </button>
-                  </div>
+                      "Tidak" bernada redup, BUKAN merah: ia bertetangga dengan
+                      Status Akses yang hijau, dan merah di sebelahnya terbaca
+                      sebagai ada yang salah -- padahal bukan administrator
+                      adalah keadaan normal bagi hampir seluruh warga. */}
+                  <span
+                    className={
+                      isAdministrator
+                        ? 'font-label-md text-text-primary'
+                        : 'font-body-md text-text-secondary'
+                    }
+                  >
+                    {isAdministrator ? 'Ya' : 'Tidak'}
+                  </span>
+                </Td>
+                <Td>
+                  {/* SATU tombol, bukan tiga tombol lepas (30 September 2026,
+                      permintaan pengguna). Sebabnya lebar: kolom ini sudah
+                      memuat tiga tombol dan tabelnya sudah dapat bergeser
+                      horizontal di layar sempit, sementara butir keempat
+                      ("Jadikan Admin OPD") memperburuknya.
+
+                      Menunya digambar lewat portal -- lihat RowActionsMenu.
+                      Menu absolut akan dipotong wadah `overflow-x-auto` di
+                      atas, dan separuh butirnya tak dapat ditekan. */}
+                  <RowActionsMenu
+                    label={`Aksi untuk ${user.name}`}
+                    items={[
+                      {
+                        key: 'edit',
+                        label: 'Ubah Role',
+                        icon: <Pencil size={14} />,
+                        // TANPA SYARAT, termasuk untuk warga (permintaan
+                        // pengguna 6 September 2026). Backend menerimanya sejak
+                        // 5 September 2026: `ASSIGNABLE_ROLES` pada
+                        // CreateUserDto memuat `responden`.
+                        href: `/admin-kab/users/${user.id}/edit`,
+                      },
+                      // Disembunyikan bagi yang SUDAH Admin OPD: tak ada yang
+                      // perlu dijelaskan pada keadaan itu, dan butir mati tanpa
+                      // sebab hanya menjadi teka-teki.
+                      !isAdminOpd && {
+                        key: 'promote',
+                        label: 'Jadikan Admin OPD',
+                        icon: <Building2 size={14} />,
+                        // DUA SEBAB, keduanya ditampilkan MATI beserta
+                        // alasannya alih-alih disembunyikan: justru inilah
+                        // keadaan yang akan ditanyakan Admin Kabupaten.
+                        //
+                        //  1. Tanpa tautan instansi backend menolak 400 --
+                        //     `opdId` milik Helpdesk dan UpdateUserDto tak
+                        //     menerimanya.
+                        //  2. Gerbang ASN (6 Oktober 2026). Pintasan ini jalur
+                        //     KEDUA menuju peran `opd`; halaman Ubah Role sudah
+                        //     digerbang, dan gerbang yang hanya menutup satu
+                        //     dari dua pintu bukan gerbang.
+                        //
+                        // `bolehJadiAdminOpd` datang dari backend, yang
+                        // menghitungnya dengan aturan yang sama dengan gerbang
+                        // penolaknya. `null` berarti belum diberitahu, dan TIDAK
+                        // mematikan apa pun -- lihat user.adapter.js.
+                        disabled: !user.opdId || user.bolehJadiAdminOpd === false,
+                        // Tautan instansi disebut LEBIH DULU bila keduanya
+                        // berlaku: tanpa instansi, menjadikan seseorang Admin
+                        // OPD tak punya arti sama sekali -- bahkan bagi ASN.
+                        keterangan: !user.opdId
+                          ? 'Instansi belum ditautkan Helpdesk'
+                          : user.bolehJadiAdminOpd === false
+                            ? 'Hanya untuk akun ASN menurut Helpdesk'
+                            : undefined,
+                        onSelect: () => onRequestAction?.(user, 'promote-opd'),
+                      },
+                      {
+                        key: 'status',
+                        label: isActive ? 'Nonaktifkan' : 'Aktifkan',
+                        icon: isActive ? <UserX size={14} /> : <UserCheck size={14} />,
+                        onSelect: () =>
+                          onRequestAction?.(user, isActive ? 'deactivate' : 'activate'),
+                      },
+                      {
+                        key: 'delete',
+                        label: 'Hapus',
+                        icon: <Trash2 size={14} />,
+                        tone: 'danger',
+                        pemisahSebelum: true,
+                        onSelect: () => onRequestAction?.(user, 'delete'),
+                      },
+                    ]}
+                  />
                 </Td>
               </Tr>
             );

@@ -41,7 +41,7 @@ export function resolveActingRole(input: {
   //   tunggal tak pernah perlu memilih apa pun.
   // - Ada tapi tak dimiliki (role baru dicabut) -> WAJIB memilih ulang, walau
   //   sisa rolenya cuma satu. Jatuh otomatis ke sisa itu bisa menjadi KENAIKAN
-  //   hak: akun `[superuser]` yang tokennya menyebut `act=opd` akan diam-diam
+  //   hak: akun `[kabupaten]` yang tokennya menyebut `act=opd` akan diam-diam
   //   memperoleh log aktivitas sementara pemiliknya menyangka dirinya Admin OPD.
   const terpilih = act ? (roles.includes(act) ? act : null) : roles.length === 1 ? roles[0] : null;
 

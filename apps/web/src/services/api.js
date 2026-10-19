@@ -7,7 +7,7 @@ import axios from 'axios';
 // TIDAK ADA impor berputar: sejak 8 September 2026 authStorage mengimpor satu
 // modul, `services/apiBase.js`, dan modul itu tak mengimpor apa pun. Arah
 // impornya tetap satu arah -- api.js -> authStorage -> apiBase.
-import { clearSession } from '@/features/authentication/services/authStorage';
+import {clearSession, perbaruiMasaBerlakuSesi} from '@/features/authentication/services/authStorage';
 import { API_BASE_URL } from './apiBase';
 
 // Konfigurasi instance Axios
@@ -49,8 +49,22 @@ api.interceptors.request.use(
 // agar pemanggil cukup pakai response.data sebagai payload asli, bukan response.data.data.
 // meta (termasuk meta.pagination untuk endpoint terpaginasi) dipindah ke response.meta
 // supaya tidak hilang. Endpoint non-JSON (mis. unduhan file) tidak match 'success' -> dibiarkan apa adanya.
+/**
+ * Nama header pembawa waktu berakhirnya sesi sesudah diperpanjang server
+ * (17 September 2026). Dikonsumsi di kedua interceptor di bawah: perpanjangan
+ * ikut menumpang pada respons apa pun, bukan pada endpoint khusus.
+ */
+const HEADER_SESI_BERAKHIR = 'x-sesi-berakhir';
+
+function serapPerpanjanganSesi(response) {
+  const nilai = response?.headers?.[HEADER_SESI_BERAKHIR];
+  if (nilai === undefined || nilai === null) return;
+  perbaruiMasaBerlakuSesi(Number(nilai));
+}
+
 api.interceptors.response.use(
   (response) => {
+    serapPerpanjanganSesi(response);
     const envelope = response.data;
     if (envelope && typeof envelope === 'object' && 'success' in envelope) {
       response.meta = envelope.meta;

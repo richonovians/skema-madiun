@@ -25,7 +25,7 @@ import { QuestionsService } from './questions.service';
 @ApiBearerAuth()
 // Peran berakses penuh DITULIS di daftar, tak lagi mengandalkan bypass
 // menyeluruh yang dibongkar T6 (7 September 2026).
-@Roles(Role.kabupaten, Role.superuser, Role.opd)
+@Roles(Role.kabupaten, Role.opd)
 @Controller()
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
@@ -50,18 +50,6 @@ export class QuestionsController {
     @CurrentUser() user: CurrentUser,
   ): Promise<QuestionEntity> {
     return this.questionsService.create(surveyId, dto, user);
-  }
-
-  /** Terapkan template 9 unsur SKM. */
-  @Post('surveys/:surveyId/questions/template')
-  @Audit('question', 'apply_template')
-  @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ type: QuestionEntity, isArray: true })
-  applyTemplate(
-    @Param('surveyId', ParseIntPipe) surveyId: number,
-    @CurrentUser() user: CurrentUser,
-  ): Promise<QuestionEntity[]> {
-    return this.questionsService.applyTemplate(surveyId, user);
   }
 
   /** Ubah urutan pertanyaan. */

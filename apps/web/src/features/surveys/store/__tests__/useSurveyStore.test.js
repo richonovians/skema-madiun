@@ -81,3 +81,71 @@ describe('useSurveyStore — mode anonim', () => {
     expect(useSurveyStore.getState().isAnonimMode).toBe(false);
   });
 });
+
+/**
+ * PILIHAN GERBANG BERSESI DITERUSKAN SAMPAI PENGIRIMAN (1 Oktober 2026).
+ *
+ * DIPERSEMPIT pada sore hari yang sama. Berkas ini semula menjaga DUA medan --
+ * `tanpaDataDiri` dan `nomorHp` -- karena nomor HP sempat dikirim dari klien.
+ * Nomor itu kini DISALIN BACKEND DARI AKUN, sehingga tak ada lagi rantai klien
+ * yang perlu dijaga untuknya; yang tersisa justru menjadi pagar: memastikan
+ * nomor tak pernah lagi berangkat dari sini.
+ *
+ * Yang mudah putus bukan medannya satu per satu melainkan JALANNYA: gerbang ->
+ * halaman -> store -> pemanggilan API. Komponen gerbangnya punya ujinya
+ * sendiri, backend punya miliknya; bagian tengah inilah yang selama ini tak
+ * dijaga siapa pun.
+ */
+describe('useSurveyStore — pilihan gerbang bersesi diteruskan', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useSurveyStore.getState().resetSurvey();
+  });
+
+  const kirim = async (opsi) => {
+    useSurveyStore.getState().initSurvey(survei, opsi);
+    useSurveyStore.getState().setAnswer(1, '4');
+    await useSurveyStore.getState().submitSurvey();
+    return submitSurveyResponse.mock.calls[0];
+  };
+
+  it('pilihan anonim sampai ke pemanggilan API', async () => {
+    const panggilan = await kirim({ tanpaDataDiri: true });
+
+    expect(panggilan[3]).toBe(true);
+  });
+
+  it('tanpa pilihan anonim: false yang diteruskan, bukan undefined', async () => {
+    const panggilan = await kirim({});
+
+    expect(panggilan[3]).toBe(false);
+  });
+
+  /**
+   * PAGAR, bukan sekadar kerapian. Selama klien masih mengirim nomor HP, siapa
+   * pun dapat menaruh nomor orang lain pada responsnya sendiri. Sejak nomor
+   * disalin backend dari akun, argumen itu tak boleh ada lagi -- dan uji ini
+   * yang menahannya kembali.
+   */
+  it('TIDAK mengirim nomor HP dari klien sama sekali', async () => {
+    const panggilan = await kirim({});
+
+    expect(panggilan).toHaveLength(4);
+    expect(panggilan[4]).toBeUndefined();
+  });
+
+  it('store tak lagi menyimpan nomor HP', () => {
+    useSurveyStore.getState().initSurvey(survei, { tanpaDataDiri: false });
+
+    expect(useSurveyStore.getState()).not.toHaveProperty('nomorHp');
+  });
+
+  it('resetSurvey mengembalikan pilihan anonim ke false', async () => {
+    // Pilihan dari survei sebelumnya yang tertinggal akan diam-diam berlaku
+    // pada survei berikutnya, tanpa pengisi pernah memilihnya lagi.
+    useSurveyStore.getState().initSurvey(survei, { tanpaDataDiri: true });
+    useSurveyStore.getState().resetSurvey();
+
+    expect(useSurveyStore.getState().tanpaDataDiri).toBe(false);
+  });
+});

@@ -10,6 +10,28 @@
 | **Dokumen terkait** | ERD-Sistem-SKM-dan-Pengaduan.mermaid · Routes-List-API-dan-Frontend.md |
 | **Stack** | Next.js (Frontend) · Nest.js (Backend) · PostgreSQL (Database) · Docker (Kontainerisasi) |
 
+> **CARA MEMBACA DOKUMEN INI — peran `superuser` sudah tidak ada.**
+>
+> Isi dokumen ini menyebut peran `superuser` enam belas kali. Peran itu **dilebur ke
+> `kabupaten` pada 15 September 2026** atas permintaan pemilik produk, dan nilai
+> enumnya dibuang (`20260915140000_lebur_superuser_ke_kabupaten`). Sekarang hanya
+> ada tiga peran: `kabupaten`, `opd`, `responden`. Setiap `superuser` di bawah
+> harus dibaca sebagai `kabupaten`.
+>
+> **Isinya sengaja TIDAK ditulis ulang.** PRD adalah rekaman tentang apa yang
+> diminta pemilik produk pada 13 Juli 2026, dan menyuntingnya agar cocok dengan
+> kode hari ini akan memalsukan rekaman itu — justru dokumen inilah yang
+> menjelaskan mengapa peran itu pernah ada. Riwayatnya berlapis: ditambahkan
+> 27 Juli, dilebur 5 Agustus, **dikembalikan** 20 Agustus, lalu dilebur untuk
+> terakhir kali 15 September. Keempatnya ada sebagai migrasi di
+> `apps/api/prisma/migrations/`.
+>
+> Rujukan yang hidup untuk peran dan hak akses: `apps/api/src/common/auth/`
+> (`role.util.ts`, `opd-scope.util.ts`) dan halaman **Dokumentasi API** di panel
+> Admin Kabupaten, yang terbit otomatis dari kode.
+>
+> _Kotak ini ditambahkan 13 Oktober 2026._
+
 ---
 
 ## 1. Ringkasan Eksekutif
@@ -142,12 +164,14 @@ Format kode: **FR-[Modul]-[Nomor]**.
 
 ### 8.3 Modul Survei (Admin OPD)
 - **FR-SVY-01** Membuat "paket survei" dengan judul, periode, dan status (draft/aktif/ditutup).
-- **FR-SVY-02** Menambah pertanyaan dari **template 9 unsur baku** dengan satu klik.
+- **FR-SVY-02** Survei berjenis **SKM** langsung memuat **9 unsur baku** (U1–U9) sejak dibuat; unsurnya tidak dapat dihapus, tetapi OPD mengubah kalimat pertanyaan tiap unsur.
 - **FR-SVY-03** Menambah pertanyaan **kustom** dengan tipe: skala 1–4, pilihan ganda, atau isian teks/saran.
 - **FR-SVY-04** Menandai pertanyaan mana yang dihitung ke IKM (pertanyaan berskala unsur) vs pertanyaan pelengkap.
 - **FR-SVY-05** Mengatur apakah satu responden boleh mengisi lebih dari sekali dalam satu periode.
 - **FR-SVY-06** Pratinjau (preview) kuesioner sebelum dipublikasikan.
 - **FR-SVY-07** Menyalin (duplicate) paket survei periode sebelumnya.
+- **FR-SVY-08** Jenis survei dipilih saat membuat: **SKM** (hasil: Nilai IKM menurut PermenPANRB) atau **Custom** (hasil: **Nilai Survei**). Survei Custom wajib memilih **tujuan** (Kepuasan / Evaluasi / Penilaian) dan **metode nilai** (rata-rata skala 1–4, mis. "3,40 / 4", atau indeks persen, mis. "85%"); keduanya menentukan nama angka dan kategori verbalnya (mis. Puas, Sangat Baik) serta boleh diganti sampai survei ditutup karena hanya mengatur tampilan.
+- **FR-SVY-09** Survei SKM yang terlanjur dipilih dapat diganti menjadi Custom (satu arah) selama masih draf dan belum dijawab; sembilan unsur dihapus, pertanyaan tambahan dipertahankan. Statistik & Laporan dapat disaring menurut jenis survei (Semua / SKM / Custom).
 
 ### 8.4 Modul Pengisian Survei (Responden)
 - **FR-FILL-01** Melihat daftar survei aktif dari berbagai OPD.
@@ -302,7 +326,6 @@ Daftar endpoint berikut bersifat **final dan mengikat** sebagai kontrak antara b
 | POST | `/api/v1/surveys/:id/duplicate` | OPD | Duplikasi survei |
 | GET | `/api/v1/surveys/:id/questions` | OPD | Daftar pertanyaan |
 | POST | `/api/v1/surveys/:id/questions` | OPD | Tambah pertanyaan |
-| POST | `/api/v1/surveys/:id/questions/template` | OPD | Terapkan template 9 unsur |
 | PATCH | `/api/v1/questions/:id` | OPD | Ubah pertanyaan |
 | DELETE | `/api/v1/questions/:id` | OPD | Hapus pertanyaan |
 

@@ -3,12 +3,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import SampahSurveiKabPage from '../page';
 import {
   getTrashedSurveys,
+  getTrashRetention,
   restoreSurvey,
   purgeSurvey,
 } from '@/features/surveys/services/surveys.api';
 
 jest.mock('@/features/surveys/services/surveys.api', () => ({
   getTrashedSurveys: jest.fn(),
+  getTrashRetention: jest.fn(),
   restoreSurvey: jest.fn(),
   purgeSurvey: jest.fn(),
 }));
@@ -42,6 +44,7 @@ const tabel = () => within(document.querySelector('[data-susunan="tabel"]'));
 beforeEach(() => {
   jest.clearAllMocks();
   getTrashedSurveys.mockResolvedValue({ data: [BARIS], meta: { total: 1 } });
+  getTrashRetention.mockResolvedValue({ hari: 365 });
   restoreSurvey.mockResolvedValue({});
   purgeSurvey.mockResolvedValue(undefined);
 });
@@ -107,5 +110,31 @@ describe('SampahSurveiKabPage', () => {
     render(<SampahSurveiKabPage />);
 
     expect(await screen.findByText(/gagal memuat/i)).toBeInTheDocument();
+  });
+});
+
+describe('SampahSurveiKabPage — keterangan umur Sampah', () => {
+  it('memajang umur Sampah dari server, bukan angka tertulis mati', async () => {
+    getTrashRetention.mockResolvedValue({ hari: 90 });
+    render(<SampahSurveiKabPage />);
+    await screen.findAllByText('Survei IKM 2026');
+
+    expect(await screen.findByTestId('sampah-retensi-notice')).toHaveTextContent('90 hari');
+  });
+
+  it('pemusnahan otomatis dimatikan -> tak ada janji umur yang dipajang', async () => {
+    getTrashRetention.mockResolvedValue({ hari: null });
+    render(<SampahSurveiKabPage />);
+    await screen.findAllByText('Survei IKM 2026');
+
+    expect(screen.queryByTestId('sampah-retensi-notice')).not.toBeInTheDocument();
+  });
+
+  it('endpoint umur Sampah gagal TIDAK menggagalkan halaman', async () => {
+    getTrashRetention.mockRejectedValue(new Error('500'));
+    render(<SampahSurveiKabPage />);
+
+    await screen.findAllByText('Survei IKM 2026');
+    expect(screen.queryByTestId('sampah-retensi-notice')).not.toBeInTheDocument();
   });
 });

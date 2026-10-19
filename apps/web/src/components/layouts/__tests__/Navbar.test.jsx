@@ -52,7 +52,7 @@ describe('Navbar', () => {
       render(<Navbar />);
       const sebelum = screen.getAllByRole('link', { name: /registrasi helpdesk/i }).length;
 
-      fireEvent.click(screen.getByLabelText(/toggle navigation menu/i));
+      fireEvent.click(screen.getByLabelText(/buka menu navigasi/i));
 
       expect(screen.getAllByRole('link', { name: /registrasi helpdesk/i }).length).toBeGreaterThan(
         sebelum,
@@ -72,5 +72,182 @@ describe('Navbar', () => {
 
     expect(screen.getByTestId('avatar')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /registrasi helpdesk/i })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * PENAMAAN MENU (15 September 2026, permintaan pengguna): "Tentang Kami"
+ * menjadi "Tentang Platform".
+ *
+ * Navbar ini dipakai DUA kali -- versi desktop dan versi drawer ponsel -- dari
+ * dua daftar tautan yang ditulis terpisah di berkas yang sama. Nama yang
+ * diganti pada satu daftar saja menghasilkan aplikasi yang menyebut halaman
+ * yang sama dengan dua nama, tergantung lebar layar pembacanya.
+ */
+describe('Navbar — penamaan menu', () => {
+  beforeEach(() => isAuthenticated.mockReturnValue(false));
+
+  it('menu /about bernama "Tentang Platform" pada daftar desktop', () => {
+    render(<Navbar />);
+
+    expect(screen.getByRole('link', { name: 'Tentang Platform' })).toHaveAttribute(
+      'href',
+      '/about',
+    );
+  });
+
+  /**
+   * Daftar ponsel hidup di dalam drawer dan baru digambar setelah tombolnya
+   * ditekan, jadi ia HARUS dibuka. Tanpa langkah ini, nama lama yang tertinggal
+   * di sana tak akan pernah tersentuh uji mana pun.
+   */
+  it('nama yang sama dipakai daftar ponsel', () => {
+    render(<Navbar />);
+
+    fireEvent.click(screen.getByLabelText(/buka menu navigasi/i));
+
+    expect(screen.getAllByRole('link', { name: 'Tentang Platform' })).toHaveLength(2);
+  });
+
+  it('KONTROL: nama lamanya tak tertinggal di salah satu daftar', () => {
+    render(<Navbar />);
+
+    fireEvent.click(screen.getByLabelText(/buka menu navigasi/i));
+
+    expect(screen.queryByRole('link', { name: /tentang kami/i })).toBeNull();
+  });
+});
+
+/**
+ * NAMA APLIKASI DI PONSEL (15 September 2026, permintaan pengguna).
+ *
+ * "SKEMA Madiun" dulu `hidden sm:block`, jadi lenyap di bawah 640px -- lebar
+ * hampir semua ponsel. Terukur di Chrome pada 360px: navbar hanya berisi
+ * lambang ~30px dan tombol menu ~40px, menyisakan sekitar 250px kosong di
+ * antaranya. Yang disembunyikan bukan sesuatu yang tak muat.
+ */
+describe('Navbar — nama aplikasi di layar kecil', () => {
+  beforeEach(() => isAuthenticated.mockReturnValue(false));
+
+  it('"SKEMA Madiun" tidak lagi disembunyikan di layar sempit', () => {
+    render(<Navbar />);
+
+    const nama = screen.getByText('SKEMA Madiun');
+
+    expect(nama.className).not.toMatch(/\bhidden\b/);
+  });
+
+  /**
+   * PASANGAN kontrol: nama yang tampil tapi boleh mendorong tombol menu keluar
+   * layar menukar satu cacat dengan cacat yang lebih buruk.
+   */
+  it('boleh terpotong, tidak boleh mendorong tombol menu', () => {
+    render(<Navbar />);
+
+    const nama = screen.getByText('SKEMA Madiun');
+
+    expect(nama.className).toMatch(/\btruncate\b/);
+  });
+
+  /**
+   * `truncate` pada namanya saja TIDAK cukup, dan ini terbukti di peramban:
+   * tautan merek yang membungkusnya `shrink-0`, jadi seluruh blok merek menolak
+   * menyusut dan justru mendorong kelompok kanan navbar -- avatar dan tombol
+   * menu -- sampai 28px ke luar layar pada 320px. Yang harus boleh menyusut
+   * adalah tautannya, bukan cuma teks di dalamnya.
+   */
+  it('tautan mereknya boleh menyusut, bukan menolak', () => {
+    render(<Navbar />);
+
+    const tautan = screen.getByText('SKEMA Madiun').closest('a');
+
+    expect(tautan.className).not.toMatch(/(^|\s)shrink-0\b/);
+    expect(tautan.className).toMatch(/\bmin-w-0\b/);
+  });
+});
+
+/**
+ * PITA TABLET 768-899px (16 September 2026, laporan pengguna: navbar "belum
+ * bisa menyesuaikan dengan layar perangkat", disertai tangkapan layar bertulisan
+ * "SKEMA M...").
+ *
+ * Terukur di Chrome, dan batasnya tajam:
+ *
+ *   640-740px : tautan desktop tersembunyi, tombol menu tampil -> merek utuh 132px
+ *   768px     : tautan desktop MENYALA, tombol menu padam      -> merek 112 dari 147px
+ *   800px     : 125 dari 147px
+ *   850px     : 144 dari 147px
+ *   900px+    : utuh 147px
+ *
+ * Pada 768px pil navbar selebar 720px harus memuat merek 183px + tiga tautan
+ * 289px + tombol registrasi 206px, ditambah jaraknya. Merek satu-satunya yang
+ * boleh menyusut, jadi ia menanggung seluruh kekurangannya sendirian.
+ *
+ * Yang salah letak adalah TITIK PERALIHANNYA, bukan `truncate`: `md` menyala
+ * sekitar 130px terlalu dini untuk isi sebanyak ini. Uji di bawah menjaga
+ * peralihan itu tetap di `lg`.
+ */
+describe('Navbar — titik peralihan menu', () => {
+  beforeEach(() => isAuthenticated.mockReturnValue(false));
+
+  it('daftar tautan desktop baru menyala mulai lg', () => {
+    const { container } = render(<Navbar />);
+
+    const daftar = container.querySelector('[data-tautan-desktop]');
+
+    expect(daftar).not.toBeNull();
+    expect(daftar.className).toMatch(/\blg:flex\b/);
+    expect(daftar.className).not.toMatch(/\bmd:flex\b/);
+  });
+
+  /**
+   * PASANGAN yang membuat uji di atas berarti. Tautan yang dipindah ke `lg`
+   * tanpa tombol menunya ikut dipindah meninggalkan pita 768-1023px tanpa jalan
+   * apa pun menuju Layanan, Tentang Platform, dan Statistik -- dan tanpa tombol
+   * registrasi, yang di drawer itulah satu-satunya tempatnya bagi lebar ini.
+   */
+  it('tombol menu bertahan sampai tepat sebelum lg', () => {
+    render(<Navbar />);
+
+    const tombol = screen.getByLabelText(/buka menu navigasi/i);
+
+    expect(tombol.className).toMatch(/\blg:hidden\b/);
+    expect(tombol.className).not.toMatch(/\bmd:hidden\b/);
+  });
+
+  it('KONTROL: ketiga tautan tetap ada di daftar desktop', () => {
+    const { container } = render(<Navbar />);
+
+    const daftar = container.querySelector('[data-tautan-desktop]');
+    const nama = [...daftar.querySelectorAll('a')].map((a) => a.textContent.trim());
+
+    expect(nama).toEqual(['Layanan', 'Tentang Platform', 'Statistik']);
+  });
+});
+
+/**
+ * NAMA TOMBOL MENU (21 September 2026).
+ *
+ * Namanya dulu "Toggle Navigation Menu" -- satu-satunya nama berbahasa Inggris
+ * di antarmuka yang seluruhnya berbahasa Indonesia, dan pembaca layar
+ * membacakannya apa adanya. Ia juga tak pernah berubah meski tombolnya
+ * mengganti fungsi: pemakai yang drawer-nya sudah terbuka tetap mendengar
+ * ajakan membuka.
+ */
+describe('Navbar — nama tombol menu', () => {
+  it('menyebut membuka saat tertutup dan menutup saat terbuka', () => {
+    render(<Navbar />);
+
+    const tombol = screen.getByLabelText(/^buka menu navigasi$/i);
+
+    fireEvent.click(tombol);
+
+    expect(screen.getByLabelText(/^tutup menu navigasi$/i)).toBe(tombol);
+  });
+
+  it('KONTROL: namanya berbahasa Indonesia, bukan sisa bahasa Inggris', () => {
+    render(<Navbar />);
+
+    expect(screen.queryByLabelText(/toggle navigation menu/i)).toBeNull();
   });
 });

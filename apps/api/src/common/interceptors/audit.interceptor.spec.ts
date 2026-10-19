@@ -94,7 +94,7 @@ describe('AuditInterceptor', () => {
    * TEMUAN AUDIT T8 (7 September 2026). Interceptor ini dulu menyalin
    * `request.body` apa adanya, sehingga nama & email yang diketik admin pada
    * `POST /users` ikut tersalin ke `audit_logs` — tabel kedua, tanpa daftar
-   * redaksi, yang dapat dibaca superuser lewat `GET /audit-logs`.
+   * redaksi, yang dapat dibaca Admin Kabupaten lewat `GET /audit-logs`.
    */
   it('menyunting nilai pribadi pada body & params sebelum dicatat', async () => {
     const { interceptor } = buildInterceptor({ entitas: 'user' });

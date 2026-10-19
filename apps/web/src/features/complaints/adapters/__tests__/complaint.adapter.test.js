@@ -25,6 +25,26 @@ const entity = (over = {}) => ({
   ...over,
 });
 
+describe('adaptComplaint — updatedAt', () => {
+  /**
+   * Statistik & Laporan Admin OPD menyaring pengaduan per periode di klien dan
+   * menghitung rata-rata waktu penyelesaian dari `updatedAt - createdAt`
+   * pengaduan SELESAI -- rumus yang sama dengan `DashboardService`. Tanpa
+   * `updatedAt` yang diteruskan adapter, rata-rata itu tak dapat dihitung.
+   */
+  it('meneruskan updatedAt dari backend', () => {
+    const hasil = adaptComplaint(entity({ updatedAt: '2026-09-05T08:30:00.000Z' }));
+
+    expect(hasil.updatedAt).toBe('2026-09-05T08:30:00.000Z');
+  });
+
+  it('respons yang tak membawanya menjadi null, bukan undefined', () => {
+    // Fixture `entity()` memang tak punya `updatedAt`. `undefined` yang lolos
+    // akan menyeberang ke perhitungan selisih waktu sebagai NaN.
+    expect(adaptComplaint(entity()).updatedAt).toBeNull();
+  });
+});
+
 describe('adaptComplaint — pengaduan anonim', () => {
   it('menampilkan "Anonim" saat backend tak mengirim nama pelapor', () => {
     const hasil = adaptComplaint(entity({ isAnonim: true }));
@@ -194,5 +214,53 @@ describe('adaptComplaintReplyToChatMessage — waktu untuk arsip', () => {
     // (utils/pdf.js -> downloadComplaintPdf). Tanpa medan ini arsipnya tak
     // dapat dirunut.
     expect(pesan.createdAt).toBe('2026-09-03T03:15:00.000Z');
+  });
+});
+
+/**
+ * Identitas pelapor dari Helpdesk (1 Oktober 2026). Sebelum ini adapter memaku
+ * `nik`, `phone`, dan `address` ke null karena memang tak ada sumbernya, dan
+ * kartu "Profil Pelapor" menggambar tiga tanda hubung selamanya. Sumbernya kini
+ * ada: ketiga kolom `users` diisi dari klaim SSO saat login.
+ */
+describe('adaptComplaint -- identitas pelapor', () => {
+  it('memetakan ketiganya dari entity detail', () => {
+    const hasil = adaptComplaint(
+      entity({
+        userId: 7,
+        reporterNama: 'Siti Aminah',
+        reporterNik: '3520 04•• •••• 0002',
+        reporterNomorHp: '+62895396662038',
+        reporterAlamat: 'Dusun Timang Desa Waduk',
+      }),
+    );
+
+    expect(hasil.reporter.nik).toBe('3520 04•• •••• 0002');
+    expect(hasil.reporter.phone).toBe('+62895396662038');
+    expect(hasil.reporter.address).toBe('Dusun Timang Desa Waduk');
+  });
+
+  /**
+   * Daftar pengaduan tak menariknya sama sekali, jadi kuncinya TIDAK ADA di
+   * sana. Itu bukan kesalahan dan tak boleh menjadi `undefined` yang bocor ke
+   * komponen: null yang tersurat membuat barisnya disembunyikan dengan sengaja.
+   */
+  it('entity tanpa ketiga kunci itu menghasilkan null, bukan undefined', () => {
+    const hasil = adaptComplaint(entity({ userId: 7, reporterNama: 'Siti Aminah' }));
+
+    expect(hasil.reporter.nik).toBeNull();
+    expect(hasil.reporter.phone).toBeNull();
+    expect(hasil.reporter.address).toBeNull();
+  });
+
+  it('pengaduan anonim tak membawa satu pun dari ketiganya', () => {
+    const hasil = adaptComplaint(
+      entity({ isAnonim: true, reporterNik: '3520 04•• •••• 0002', reporterAlamat: 'Jl. Mawar' }),
+    );
+
+    expect(hasil.reporter.name).toBe('Anonim');
+    expect(hasil.reporter.nik).toBeNull();
+    expect(hasil.reporter.phone).toBeNull();
+    expect(hasil.reporter.address).toBeNull();
   });
 });

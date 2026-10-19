@@ -5,8 +5,10 @@ import { Paperclip, Send, CheckCircle, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import Textarea from '@/components/ui/Textarea';
+import TemplatePesanPicker from './TemplatePesanPicker';
+import { TEMPLATE_WARGA, gabungPesan } from '@/features/complaints/adapters/templatePesan';
 
-export default function ChatReplyForm({ onSubmit }) {
+export default function ChatReplyForm({ onSubmit, nomorTiket }) {
   const [reply, setReply] = useState('');
   const [file, setFile] = useState(null);
   const [isSending, setIsSending] = useState(false);
@@ -70,8 +72,19 @@ export default function ChatReplyForm({ onSubmit }) {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-surface border-t border-border">
+    /* Bantalan mengikuti TINGGI jendela -- lihat catatan yang sama di
+         ChatHeader. */
+    <div className="p-3 [@media(min-height:800px)]:p-6 bg-surface border-t border-border">
       <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        {/* Di ATAS kotak: barisnya sudah penuh oleh kotak teks, klip, dan
+            tombol kirim, dan menambah satu tombol lagi di sana akan menyempitkan
+            kotak teks justru di layar yang paling sempit. */}
+        <TemplatePesanPicker
+          templates={TEMPLATE_WARGA}
+          nomorTiket={nomorTiket}
+          onPilih={(teks) => setReply((sekarang) => gabungPesan(sekarang, teks))}
+          className="self-start"
+        />
         {file && (
           <div className="p-2.5 mb-1 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center gap-2 overflow-hidden">
@@ -104,27 +117,40 @@ export default function ChatReplyForm({ onSubmit }) {
               style={{ minHeight: '52px' }}
             />
           </div>
-          <IconButton 
-            className="text-text-secondary hover:text-primary transition-colors p-2 shrink-0 relative" 
+          {/* Tombol ini TAK PERNAH punya nama, di lebar berapa pun: isinya hanya
+              ikon klip. Nama di tombolnyalah yang dibutuhkan, bukan pada
+              inputnya: input tetap `hidden`, dan pemakai keyboard menekan Enter
+              di tombol ini yang lalu membuka pemilih berkas lewat `onClick`.
+
+              Inputnya dipindah keluar menjadi saudara (21 September 2026):
+              elemen interaktif bersarang di dalam `<button>` bukan HTML yang
+              sah, dan penamaan tombol justru bekerja di atas isinya. */}
+          <input
+            type="file"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+          />
+          <IconButton
+            className="text-text-secondary hover:text-primary transition-colors p-2 shrink-0 relative"
             type="button"
+            aria-label="Lampirkan Dokumen/Foto"
+            title="Lampirkan Dokumen/Foto"
             onClick={() => fileInputRef.current?.click()}
           >
-            <input 
-              type="file" 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileChange} 
-            />
-            <Paperclip size={24} />
+            <Paperclip size={24} aria-hidden="true" />
           </IconButton>
-          <Button 
-            type="submit" 
+          {/* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. */}
+          <Button
+            type="submit"
             variant="primary"
+            aria-label={isSending ? 'Mengirim...' : 'Kirim Pesan'}
+            title={isSending ? 'Mengirim...' : 'Kirim Pesan'}
             className="w-[52px] h-[52px] !p-0 sm:w-auto sm:!px-6 rounded-full sm:!rounded-xl font-bold flex items-center justify-center sm:gap-2 whitespace-nowrap shrink-0 transition-all"
             disabled={(!reply.trim() && !file) || isSending}
           >
             <span className="hidden sm:inline">{isSending ? 'Mengirim...' : 'Kirim Pesan'}</span>
-            <Send size={20} />
+            <Send size={20} aria-hidden="true" />
           </Button>
         </div>
       </form>

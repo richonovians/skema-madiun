@@ -1,4 +1,4 @@
-import { Bell, ClipboardCheck, Inbox, MessageSquare, RefreshCw } from 'lucide-react';
+import { Bell, ClipboardCheck, Inbox, MessageSquare, RefreshCw, Send } from 'lucide-react';
 
 /**
  * Rupa tiap jenis notifikasi: ikon, warna lingkaran, dan label bagi pembaca
@@ -35,6 +35,14 @@ export const JENIS_NOTIFIKASI = {
     Ikon: RefreshCw,
     kelasIkon: 'bg-amber-50 text-amber-700',
     label: 'Perubahan status pengaduan',
+  },
+  // Rona primary berbagi dengan `complaint_created`, tapi itu kotak ADMIN yang
+  // tak pernah muncul di inbox pelapor -- di kotak warga, pasangan Send+primary
+  // ini unik. Ikon pesawat kertas menandai "diteruskan".
+  complaint_forwarded: {
+    Ikon: Send,
+    kelasIkon: 'bg-primary/10 text-primary',
+    label: 'Pengaduan diteruskan',
   },
   survey_response_created: {
     Ikon: ClipboardCheck,

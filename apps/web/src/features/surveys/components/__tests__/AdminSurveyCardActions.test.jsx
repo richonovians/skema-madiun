@@ -67,3 +67,43 @@ describe('AdminSurveyCardActions — survei terbit', () => {
     expect(screen.queryByText(/tidak dapat dipulihkan/i)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * TOMBOL BAGIKAN HANYA PADA SURVEI AKTIF (permintaan pengguna 22 September
+ * 2026).
+ *
+ * Ini MEMBALIK keputusan 11 September yang tercatat di komponennya: dulu draf
+ * pun boleh dibagikan supaya poster/QR dapat disiapkan lebih dulu, sebab id
+ * survei -- dan karenanya tautannya -- sudah final sejak survei dibuat.
+ * Pengguna memilih sebaliknya: tombol hanya muncul bila tautannya benar-benar
+ * dapat diisi, termasuk menyembunyikannya pada survei yang periodenya sudah
+ * ditutup.
+ */
+describe('AdminSurveyCardActions — tombol Bagikan mengikuti status', () => {
+  it('menampilkan Bagikan pada survei AKTIF', () => {
+    render1({ isDraft: false, survey: { id: 5, title: 'Survei Aktif', status: 'AKTIF' } });
+
+    expect(screen.getByRole('button', { name: /bagikan/i })).toBeInTheDocument();
+  });
+
+  it('menyembunyikan Bagikan pada survei DRAF', () => {
+    render1({ isDraft: true, survey: { id: 6, title: 'Survei Draf', status: 'DRAF' } });
+
+    expect(screen.queryByRole('button', { name: /bagikan/i })).not.toBeInTheDocument();
+  });
+
+  it('menyembunyikan Bagikan pada survei DITUTUP', () => {
+    render1({ isDraft: false, survey: { id: 7, title: 'Survei Ditutup', status: 'DITUTUP' } });
+
+    expect(screen.queryByRole('button', { name: /bagikan/i })).not.toBeInTheDocument();
+  });
+
+  /**
+   * KONTROL. Tanpa ini, menghapus tombolnya sama sekali dari komponen akan
+   * membuat kedua uji "menyembunyikan" di atas hijau selamanya.
+   */
+  it('KONTROL: aksi lain tetap ada pada survei DRAF maupun DITUTUP', () => {
+    render1({ isDraft: true, survey: { id: 6, title: 'Survei Draf', status: 'DRAF' } });
+    expect(screen.getByRole('button', { name: /^hapus$/i })).toBeInTheDocument();
+  });
+});

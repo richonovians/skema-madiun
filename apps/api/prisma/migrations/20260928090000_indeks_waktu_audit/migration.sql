@@ -1,0 +1,29 @@
+-- Indeks waktu pada `audit_logs` (28 September 2026, pertanyaan pengguna soal
+-- log audit yang menumpuk).
+--
+-- YANG MENUMPUK BUKAN UKURANNYA. Pada 6.951 baris tabel ini hanya 1,5 MB, dan
+-- sejuta baris pun sekitar 225 MB. Yang menumpuk adalah ONGKOS MEMBACANYA.
+--
+-- Sebelum migrasi ini, `audit_logs` hanya punya indeks pada `actor_id` dan
+-- `entitas`. Padahal setiap pembukaan halaman log mengurutkan dengan
+-- `orderBy: { timestamp: 'desc' }` (audit.service.ts) dan penyaring rentang
+-- tanggal memakai kolom yang sama. Tanpa indeks pada kolom itu, PostgreSQL
+-- membaca SELURUH tabel dan mengurutkannya hanya untuk menampilkan 20 baris
+-- pertama. Terukur dengan EXPLAIN pada 6.951 baris:
+--
+--   sebelum : Limit (cost=378.98..379.03) -> Sort -> Seq Scan (6951 baris)
+--   sesudah : Limit (cost=0.28..1.33)     -> Index Scan Backward
+--
+-- Ongkos itu tumbuh lurus dengan jumlah baris, sementara tabelnya HANYA
+-- bertambah: menghapus baris audit dipalang sebagai perusakan jejak, dan
+-- pemalangan itu benar. Jadi tanpa indeks ini halaman log melambat diam-diam
+-- sampai tiba-tiba terasa sekali.
+--
+-- Arah indeksnya sengaja dibiarkan menaik. B-tree PostgreSQL dapat dipindai
+-- mundur, jadi satu indeks biasa melayani `ORDER BY timestamp DESC` maupun
+-- penyaringan rentang tanggal sekaligus; menulis `DESC` di sini hanya menambah
+-- kerumitan tanpa menambah apa pun.
+--
+-- Ini TIDAK menyentuh satu baris data pun, tidak mengubah perilaku yang dilihat
+-- pengguna, dan dapat dibatalkan dengan satu DROP INDEX.
+CREATE INDEX "audit_logs_timestamp_idx" ON "audit_logs" ("timestamp");

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Complaint, NotificationType, Role } from '@prisma/client';
-import { FULL_ACCESS_ROLES } from '../../common/auth/role.util';
+import { FULL_ACCESS_ROLES, hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -44,7 +44,7 @@ const STATUS_LABEL: Record<string, string> = {
 /**
  * Jumlah jawaban yang memicu notifikasi survei. Sesudah 100, hanya kelipatan
  * 100 -- survei bertarget ratusan responden tak boleh membanjiri lonceng
- * kabupaten & superuser, yang juga menerima notifikasi pengaduan.
+ * peran berakses penuh, yang juga menerima notifikasi pengaduan.
  */
 const TONGGAK_AWAL: readonly number[] = [1, 10, 25, 50];
 
@@ -82,11 +82,39 @@ export class NotificationsService {
     );
   }
 
+  /**
+   * Pengaduan "lainnya" (tanpa tujuan) DITERUSKAN ke OPD berwenang -> beri tahu
+   * PELAPOR (7 Oktober 2026, permintaan pengguna).
+   *
+   * Kebalikan arah `notifyComplaintCreated`: di sana yang dikabari Admin OPD
+   * tujuan + Kabupaten, di sini justru pelapornya. `forward()` memanggil
+   * KEDUANYA -- instansi penerima perlu tahu ada tiket, dan warga yang memilih
+   * "Lainnya" perlu tahu pengaduannya sudah mendarat di instansi yang benar.
+   *
+   * Kabupaten TIDAK dikabari lagi di sini: ia pelaku penerusannya (satu-satunya
+   * peran yang boleh, `@Roles(kabupaten)` di controller), jadi sudah tahu.
+   *
+   * `namaOpd` disalurkan dari pemanggil, bukan dibaca ulang: `forward()` sudah
+   * memuat OPD-nya untuk memvalidasi keberadaannya, jadi query kedua di sini
+   * hanya mengulang kerja yang baru saja dilakukan.
+   */
+  async notifyComplaintForwarded(complaint: Complaint, namaOpd: string): Promise<void> {
+    await this.safeCreate({
+      userId: complaint.userId,
+      untukPeran: Role.responden,
+      type: NotificationType.complaint_forwarded,
+      title: 'Pengaduan Diteruskan',
+      message: `Pengaduan ${complaint.ticketNo} Anda telah diteruskan ke ${namaOpd} yang berwenang menanganinya`,
+      link: `/complaints/${complaint.ticketNo}`,
+    });
+  }
+
   /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik) + kabupaten (oversight). */
   async notifyComplaintStatusChanged(complaint: Complaint, actorUserId: number): Promise<void> {
     const label = STATUS_LABEL[complaint.status] ?? complaint.status;
     await this.safeCreate({
       userId: complaint.userId,
+      untukPeran: Role.responden,
       type: NotificationType.complaint_status_changed,
       title: 'Status Pengaduan Diperbarui',
       message: `Pengaduan ${complaint.ticketNo} kini berstatus "${label}"`,
@@ -106,13 +134,36 @@ export class NotificationsService {
    * (oversight). Responden membalas -> semua Admin OPD pemilik (bisa >1
    * akun per OPD) diberi tahu. Admin OPD/Kabupaten membalas -> pelapor
    * diberi tahu.
+   *
+   * ARAHNYA DITENTUKAN PERAN YANG SEDANG DIPAKAI, BUKAN ID PENULIS (22
+   * September 2026, laporan pengguna: "notifikasi balasan tidak muncul" pada
+   * akun ber-3 peran). Sebelumnya di sini berdiri
+   * `replyAuthorUserId === complaint.userId`. Pada akun yang memegang beberapa
+   * peran, pelapor dan petugas yang menanganinya adalah orang yang sama,
+   * sehingga syarat itu selalu benar: balasan petugas digolongkan sebagai
+   * balasan pelapor, dan kotak masuk `responden` tak pernah menerima apa pun.
+   * Terukur pada basis data pengembangan -- balasan sebagai admin dan sebagai
+   * warga pada tiket yang sama melahirkan notifikasi yang identik.
+   *
+   * Komentar pada `ComplaintReply.dariPelapor` di schema.prisma sudah menyatakan
+   * arah ini "tidak dapat diturunkan dari author_id", dan `createReply` memang
+   * sudah menyimpannya dengan benar. Yang kurang hanya meneruskannya ke sini.
+   *
+   * KOTAK MASUK MILIK PERAN, BUKAN MILIK ORANG. Penerima yang kebetulan
+   * penulisnya sendiri TETAP dikabari selama itu kotak peran yang lain: ia
+   * menulis sebagai petugas, dan kotak wargannya tak akan dilihatnya sampai ia
+   * berpindah peran. Yang dikecualikan hanya kotak peran yang barusan dipakai
+   * -- di sana ia memang sudah tahu.
    */
-  async notifyComplaintReply(complaint: Complaint, replyAuthorUserId: number): Promise<void> {
-    if (replyAuthorUserId === complaint.userId) {
+  async notifyComplaintReply(
+    complaint: Complaint,
+    penulis: Pick<CurrentUser, 'userId' | 'actingRole'>,
+  ): Promise<void> {
+    if (penulis.actingRole === Role.responden) {
       // `opdId != null`: pengaduan yang belum bertujuan (6 September 2026)
       // tak punya OPD untuk dikabari. Pelapornya TIDAK kehilangan perhatian --
-      // notifyKabupaten di akhir metode ini tetap berjalan, dan Superuser
-      // beserta Admin Kabupaten justru pihak yang bertugas menriasenya.
+      // notifyKabupaten di akhir metode ini tetap berjalan, dan Admin
+      // Kabupaten justru pihak yang bertugas menriasenya.
       if (complaint.opdId != null) {
         await this.notifyRole(
           Role.opd,
@@ -126,6 +177,7 @@ export class NotificationsService {
     } else {
       await this.safeCreate({
         userId: complaint.userId,
+        untukPeran: Role.responden,
         type: NotificationType.complaint_reply,
         title: 'Balasan Baru pada Pengaduan',
         message: `OPD membalas pengaduan ${complaint.ticketNo} Anda`,
@@ -133,8 +185,11 @@ export class NotificationsService {
       });
     }
 
+    // Pengecualiannya mengikuti PERAN yang dipakai, bukan orangnya. Penulis
+    // yang barusan bertindak sebagai petugas OPD tetap perlu melihatnya di
+    // kotak kabupatennya: itu meja lain dengan tugas lain, yaitu mengawasi.
     await this.notifyKabupaten(
-      replyAuthorUserId,
+      hasFullAccess(penulis.actingRole) ? penulis.userId : null,
       NotificationType.complaint_reply,
       'Balasan Baru pada Pengaduan',
       `Ada balasan baru pada pengaduan ${complaint.ticketNo}`,
@@ -214,8 +269,10 @@ export class NotificationsService {
         where: { roles: { has: role }, opdId, isActive: true },
         select: { id: true },
       });
-      await Promise.all(
-        recipients.map((r) => this.safeCreate({ userId: r.id, type, title, message, link })),
+      // SATU `createMany`, bukan satu `create` per penerima. Lihat catatan di
+      // `siarkan` tentang apa yang berubah dan apa yang ditukar.
+      await this.siarkan(
+        recipients.map((r) => ({ userId: r.id, untukPeran: role, type, title, message, link })),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi role=${role}: ${String(err)}`);
@@ -238,8 +295,10 @@ export class NotificationsService {
     link: string,
   ): Promise<void> {
     try {
-      // Superuser ikut menerima (2026-08-20): ia mewarisi seluruh hak kabupaten,
-      // jadi tak masuk akal kalau justru tak diberi tahu perkara yang sama.
+      // Penerimanya SELURUH peran berakses penuh (`FULL_ACCESS_ROLES`), bukan
+      // satu nilai peran. Bentuk itu lahir 2026-08-20, ketika superuser ikut
+      // menerima karena mewarisi seluruh hak kabupaten; ia bertahan supaya
+      // peran berhak penuh berikutnya tak perlu diburu lagi di sini.
       const kabupatenUsers = await this.prisma.user.findMany({
         where: {
           roles: { hasSome: [...FULL_ACCESS_ROLES] },
@@ -248,8 +307,15 @@ export class NotificationsService {
         },
         select: { id: true },
       });
-      await Promise.all(
-        kabupatenUsers.map((k) => this.safeCreate({ userId: k.id, type, title, message, link })),
+      await this.siarkan(
+        kabupatenUsers.map((k) => ({
+          userId: k.id,
+          untukPeran: Role.kabupaten,
+          type,
+          title,
+          message,
+          link,
+        })),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi kabupaten: ${String(err)}`);
@@ -281,6 +347,9 @@ export class NotificationsService {
     };
     const where = {
       userId: user.userId,
+      // Peran yang SEDANG DIPAKAI, bukan seluruh milik akun. Lihat catatan
+      // kelas di atas: tanpa ini kotak masuk akun berperan jamak bercampur.
+      untukPeran: user.actingRole,
       ...(unreadOnly ? { isRead: false } : {}),
       ...(Object.keys(rentang).length > 0 ? { createdAt: rentang } : {}),
     };
@@ -304,7 +373,9 @@ export class NotificationsService {
   }
 
   async countUnread(user: CurrentUser): Promise<number> {
-    return this.prisma.notification.count({ where: { userId: user.userId, isRead: false } });
+    return this.prisma.notification.count({
+      where: { userId: user.userId, isRead: false, untukPeran: user.actingRole },
+    });
   }
 
   /** Tandai satu notifikasi dibaca. `findFirst` gabungan id+userId -- 404 baik saat tak ada maupun bukan milik (privasi, bukan enumerable). */
@@ -323,15 +394,64 @@ export class NotificationsService {
   }
 
   async markAllAsRead(user: CurrentUser): Promise<{ updated: number }> {
+    /**
+     * Hanya peran yang sedang dipakai. Menandai lintas-peran akan membungkam
+     * notifikasi yang JUSTRU disembunyikan dari sesi ini, sehingga pemiliknya
+     * tak pernah punya kesempatan membacanya.
+     */
     const result = await this.prisma.notification.updateMany({
-      where: { userId: user.userId, isRead: false },
+      where: { userId: user.userId, isRead: false, untukPeran: user.actingRole },
       data: { isRead: true },
     });
     return { updated: result.count };
   }
 
+  /**
+   * Menulis banyak notifikasi dengan SATU pernyataan.
+   *
+   * MENGAPA BUKAN `safeCreate` DI DALAM `Promise.all`. Jalur lama memanggilnya
+   * sekali per penerima atas hasil `user.findMany` yang tanpa `take`, sehingga
+   * jumlah INSERT serentak mengikuti jumlah akun yang memegang peran itu.
+   * Ditemukan uji beban 13 Oktober 2026 sebagai kipas yang bentuknya sama
+   * dengan dua kipas di `IkmService`/`DashboardService` yang membuat dua
+   * endpoint menjawab 500. Yang ini jauh lebih kecil: ia tumbuh bersama jumlah
+   * ADMIN, bukan bersama data, dan di data pengembangan akunnya segelintir --
+   * itu pula sebabnya ia tak pernah memerah.
+   *
+   * YANG DITUKAR, dan ini nyata: dahulu satu baris gagal tak menjatuhkan yang
+   * lain, sebab tiap `safeCreate` punya `try/catch` sendiri. `createMany` gagal
+   * seluruhnya. Pertukarannya diterima karena tabel ini tak punya kendala unik
+   * yang dapat bentrok, sehingga kegagalan yang mungkin bersifat sistemik
+   * (basis data mati) -- dan pada keadaan itu menyimpan sebagian justru lebih
+   * menyesatkan daripada tidak menyimpan apa pun.
+   *
+   * Daftar kosong TIDAK dikirim ke basis data: tak ada penerima adalah keadaan
+   * yang lumrah, bukan galat.
+   */
+  private async siarkan(
+    baris: {
+      userId: number;
+      untukPeran: Role;
+      type: NotificationType;
+      title: string;
+      message: string;
+      link: string;
+    }[],
+  ): Promise<void> {
+    if (baris.length === 0) {
+      return;
+    }
+    await this.prisma.notification.createMany({ data: baris });
+  }
+
   private async safeCreate(data: {
     userId: number;
+    /**
+     * Peran TUJUAN, wajib. Dibuat wajib dengan sengaja: pemanggil baru yang
+     * lupa mengisinya akan ditolak kompilator, bukan diam-diam menulis baris
+     * yang tak pernah terlihat siapa pun karena tak cocok dengan peran mana pun.
+     */
+    untukPeran: Role;
     type: NotificationType;
     title: string;
     message: string;

@@ -5,11 +5,15 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
+import { AWALAN_KOLOM, dekripsiKolom } from '../../common/crypto/kolom';
+import { KUNCI_UJI } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
 import type { AuditService } from '../audit/audit.service';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
 import { SessionService } from './session/session.service';
+import type { PenerbitSesi } from './session/penerbit-sesi.service';
 import { SsoService } from './sso.service';
 import { SsoStateService } from './sso-state.service';
 
@@ -77,8 +81,10 @@ type Mocked = {
     opd: { findFirst: jest.Mock; findMany: jest.Mock };
   };
   source: { buildAuthorizeUrl: jest.Mock; exchangeCodeForProfile: jest.Mock };
+  cabutLampiran: { cabut: jest.Mock; dicabutPada: jest.Mock };
   state: { issue: jest.Mock; verify: jest.Mock; clearCookie: jest.Mock };
-  session: { issue: jest.Mock };
+  session: { issue: jest.Mock; verify: jest.Mock };
+  penerbit: { terbitkan: jest.Mock };
   audit: { record: jest.Mock };
 };
 
@@ -102,19 +108,30 @@ function buat(configOverrides: Record<string, string | boolean | undefined> = {}
     verify: jest.fn().mockReturnValue(true),
     clearCookie: jest.fn().mockReturnValue('sso_state=; Max-Age=0'),
   };
-  const session = { issue: jest.fn().mockReturnValue('token-sesi-skm') };
+  const session = {
+    issue: jest.fn().mockReturnValue('token-sesi-skm'),
+    // Baku: TAK ADA sesi sah pada permintaan callback. Itu keadaan yang lazim,
+    // dan membuatnya baku menjaga seluruh uji lain tetap menguji jalur normal.
+    verify: jest.fn().mockReturnValue(null),
+  };
+  const penerbit = { terbitkan: jest.fn().mockResolvedValue('token-sesi-skm') };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  // Penyimpan pencabutan tautan lampiran: diintip, bukan ditiru diam-diam,
+  // sebab satu uji di bawah menuntut pencabutan peran OPD ikut mencabutnya.
+  const cabutLampiran = { cabut: jest.fn().mockResolvedValue(undefined), dicabutPada: jest.fn() };
 
   const service = new SsoService(
     prisma as unknown as PrismaService,
     mockConfig(configOverrides),
     session as unknown as SessionService,
+    penerbit as unknown as PenerbitSesi,
     state as unknown as SsoStateService,
     audit as unknown as AuditService,
+    cabutLampiran as unknown as PenyimpanCabutLampiran,
     source as unknown as SsoSource,
   );
 
-  return { service, prisma, source, state, session, audit };
+  return { service, prisma, source, state, session, penerbit, audit, cabutLampiran };
 }
 
 describe('SsoService', () => {
@@ -173,14 +190,14 @@ describe('SsoService', () => {
 
   describe('provisioning: pencocokan lewat sub', () => {
     it('sub sudah dikenal -> pakai akun itu, tanpa membuat yang baru', async () => {
-      const { service, prisma, session } = buat();
+      const { penerbit, service, prisma } = buat();
       prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
       prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
 
       const hasil = await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
 
       expect(prisma.user.create).not.toHaveBeenCalled();
-      expect(session.issue).toHaveBeenCalledWith(42);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(42, undefined, undefined);
       expect(hasil.token).toBe('token-sesi-skm');
     });
 
@@ -201,7 +218,7 @@ describe('SsoService', () => {
    * Jalur penautan lewat email adalah SATU-SATUNYA tempat sebuah klaim SSO dapat
    * membuat pemegangnya mewarisi peran akun yang sudah ada. Sebelum ini klaim
    * `email` dipercaya tanpa syarat: siapa pun yang dapat membuat akun Helpdesk
-   * ber-email `superuser@example.go.id` akan ditautkan ke akun superuser SKEMA
+   * ber-email `admin.kabupaten@example.go.id` akan ditautkan ke akun kabupaten SKEMA
    * beserta seluruh haknya.
    *
    * Karena itu penautan sekarang menuntut `email_verified === true`. GAGAL
@@ -216,7 +233,7 @@ describe('SsoService', () => {
    */
   describe('provisioning: penautan email menuntut email terverifikasi (T5)', () => {
     const akunLama = () =>
-      userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.superuser] });
+      userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.kabupaten] });
 
     const siapkan = (prisma: Mocked['prisma']) => {
       prisma.user.findFirst
@@ -225,7 +242,7 @@ describe('SsoService', () => {
     };
 
     it('email_verified false -> DITOLAK, akun lama tak disentuh', async () => {
-      const { service, prisma, source, session } = buat();
+      const { penerbit, service, prisma, source } = buat();
       source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
       siapkan(prisma);
 
@@ -235,7 +252,7 @@ describe('SsoService', () => {
       expect(prisma.user.update).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
       // Bukan cuma tak ditulis: tak ada sesi yang terbit sama sekali.
-      expect(session.issue).not.toHaveBeenCalled();
+      expect(penerbit.terbitkan).not.toHaveBeenCalled();
     });
 
     it('klaim email_verified HILANG -> juga ditolak (gagal tertutup)', async () => {
@@ -250,10 +267,10 @@ describe('SsoService', () => {
     });
 
     it('email_verified true -> penautan berjalan seperti biasa', async () => {
-      const { service, prisma, session } = buat();
+      const { penerbit, service, prisma } = buat();
       siapkan(prisma);
       prisma.user.update.mockResolvedValue(
-        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
       );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -262,7 +279,7 @@ describe('SsoService', () => {
         where: { id: 1 },
         data: { ssoSubject: 'hd-sub-abc123' },
       });
-      expect(session.issue).toHaveBeenCalledWith(1);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
     });
 
     it('penautan tercatat di audit walau emailnya terverifikasi', async () => {
@@ -271,7 +288,7 @@ describe('SsoService', () => {
       const { service, prisma, audit } = buat();
       siapkan(prisma);
       prisma.user.update.mockResolvedValue(
-        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+        userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
       );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -312,14 +329,14 @@ describe('SsoService', () => {
     it('KONTROL: pencocokan lewat sub tak terpengaruh email_verified', async () => {
       // Kalau uji ini ikut merah, artinya penjaga barunya dipasang terlalu jauh
       // ke atas dan memutus login setiap pengguna yang sudah dikenal.
-      const { service, prisma, source, session } = buat();
+      const { penerbit, service, prisma, source } = buat();
       source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
       prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 9 })); // ketemu by sub
       prisma.user.update.mockResolvedValue(userRow({ id: 9 }));
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
 
-      expect(session.issue).toHaveBeenCalledWith(9);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(9, undefined, undefined);
     });
   });
 
@@ -330,18 +347,18 @@ describe('SsoService', () => {
    */
   describe('provisioning: penyelarasan akun lama lewat email (2026-08-27)', () => {
     it('sub belum dikenal tapi email cocok -> sso_subject DINAIKKAN, akun lama dipakai', async () => {
-      const { service, prisma, session } = buat();
+      const { penerbit, service, prisma } = buat();
       prisma.user.findFirst
         .mockResolvedValueOnce(null) // pencarian by sub
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.superuser] }),
+          userRow({ id: 1, ssoSubject: 'seed-superuser', roles: [Role.kabupaten] }),
         ); // pencarian by email
       prisma.user.update
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
         )
         .mockResolvedValueOnce(
-          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.superuser] }),
+          userRow({ id: 1, ssoSubject: 'hd-sub-abc123', roles: [Role.kabupaten] }),
         );
 
       await service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
@@ -351,10 +368,10 @@ describe('SsoService', () => {
         where: { id: 1 },
         data: { ssoSubject: 'hd-sub-abc123' },
       });
-      // ...dan tak ada akun baru yang dibuat, sehingga peran superuser & seluruh
+      // ...dan tak ada akun baru yang dibuat, sehingga peran kabupaten & seluruh
       // riwayatnya tidak hilang.
       expect(prisma.user.create).not.toHaveBeenCalled();
-      expect(session.issue).toHaveBeenCalledWith(1);
+      expect(penerbit.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
     });
 
     it('email dicocokkan dalam huruf kecil, bukan apa adanya dari klaim', async () => {
@@ -524,17 +541,34 @@ describe('SsoService', () => {
     });
 
     /**
-     * PEMBALIKAN keputusan 27 Agustus 2026, diminta pengguna 6 September 2026:
-     * tipe "admin" dari Helpdesk menjadi superuser di SKEMA. Sebelumnya
-     * pemetaan ini diabaikan dan akunnya jatuh menjadi `responden`.
+     * `superuser` DILEBUR ke `kabupaten` (15 September 2026), jadi tipe "admin"
+     * dari Helpdesk dipetakan ke `kabupaten` -- peran yang kini memegang
+     * manajemen pengguna & log aktivitas.
      */
-    it('pemetaan ke superuser DITERIMA -- larangan lama sudah dicabut', async () => {
+    it('pemetaan ke kabupaten DITERIMA', async () => {
+      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:kabupaten' });
+      m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
+
+      await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.kabupaten]);
+    });
+
+    /**
+     * PASANGAN kontrol. `HELPDESK_SSO_ROLE_MAP` yang masih berbunyi
+     * `bos:superuser` TIDAK diam-diam berpindah ke `kabupaten`: memetakannya
+     * berarti menghidupkan kembali nama yang baru saja dihapus lewat pintu yang
+     * tak terlihat siapa pun. Akunnya jatuh ke baku `responden`, dan operator
+     * yang menyadari perannya salah akan memperbaiki petanya -- itu kegagalan
+     * yang terlihat, bukan hak yang diberikan diam-diam.
+     */
+    it('KONTROL: pemetaan ke superuser diabaikan, akunnya jatuh ke baku', async () => {
       const m = baru({ 'helpdesk.ssoRoleMap': 'bos:superuser' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
-      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.superuser]);
+      expect(m.prisma.user.create.mock.calls[0][0].data.roles).toEqual([Role.responden]);
     });
 
     it('paket beberapa peran -> seluruhnya tersimpan, beserta opdId', async () => {
@@ -558,14 +592,14 @@ describe('SsoService', () => {
      * terdaftar. Sekarang yang dibuang hanya `opd`-nya.
      */
     it('paket ber-opd tapi OPD tak ditemukan -> sisa paket UTUH, bukan responden', async () => {
-      const m = baru({ 'helpdesk.ssoRoleMap': 'admin:superuser+opd+responden' });
+      const m = baru({ 'helpdesk.ssoRoleMap': 'admin:kabupaten+opd+responden' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['admin'] }));
       m.prisma.opd.findFirst.mockResolvedValue(null);
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
       const data = m.prisma.user.create.mock.calls[0][0].data;
-      expect(data.roles).toEqual([Role.superuser, Role.responden]);
+      expect(data.roles).toEqual([Role.kabupaten, Role.responden]);
       expect(data.opdId ?? null).toBeNull();
     });
 
@@ -574,21 +608,44 @@ describe('SsoService', () => {
      * bila env kosong, dan penetapan hanya saat akun dibuat). Tanpa jejak ini,
      * Helpdesk yang salah kirim akan memberi hak tertinggi tanpa ada yang tahu.
      */
-    it('akun ber-superuser dari klaim MENULIS jejak audit', async () => {
-      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:superuser' });
+    it('akun ber-kabupaten dari klaim MENULIS jejak audit', async () => {
+      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:kabupaten' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
 
       await m.service.completeLogin('kode-1', 'nonce-1', 'c');
 
       expect(m.audit.record).toHaveBeenCalledWith(
         expect.any(Number),
-        'sso_grant_superuser',
+        'sso_grant_kabupaten',
         'auth',
-        expect.objectContaining({ sub: 'hd-sub-abc123' }),
+        // PERAN yang diberikan: inilah seluruh alasan jejak ini ada.
+        expect.objectContaining({ roles: [Role.kabupaten] }),
       );
     });
 
-    it('KONTROL: akun TANPA superuser tidak menulis jejak itu', async () => {
+    /**
+     * 22 September 2026. Jejak ini dulu ikut membawa `sub` Helpdesk. Barisnya
+     * sudah menunjuk akunnya lewat `actorId`, dan `users.sso_subject` menyimpan
+     * nilainya — menyalinnya ke `audit_logs` tak menambah satu pun kemampuan
+     * penelusuran, hanya menggandakan pengenal identitas ke tabel yang dibaca
+     * Admin Kabupaten. Persis penggandaan yang dilarang temuan T8.
+     *
+     * Aksi `login` SENGAJA tidak ikut berubah: di sana `sub` punya alasan
+     * tertulis sendiri (memadankan satu kejadian dengan log sisi Helpdesk),
+     * dan membatalkannya adalah keputusan tersendiri.
+     */
+    it('jejak itu TIDAK membawa sub Helpdesk', async () => {
+      const m = baru({ 'helpdesk.ssoRoleMap': 'bos:kabupaten' });
+      m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['bos'] }));
+
+      await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+
+      const jejak = m.audit.record.mock.calls.find((c) => c[1] === 'sso_grant_kabupaten');
+      expect(jejak).toBeDefined();
+      expect(Object.keys(jejak![3] as object)).toEqual(['roles']);
+    });
+
+    it('KONTROL: akun TANPA kabupaten tidak menulis jejak itu', async () => {
       const m = baru({ 'helpdesk.ssoRoleMap': 'pegawai-dinas:opd+responden' });
       m.source.exchangeCodeForProfile.mockResolvedValue(profil({ groups: ['pegawai-dinas'] }));
       m.prisma.opd.findFirst.mockResolvedValue({ id: 7 });
@@ -969,5 +1026,594 @@ describe('SsoService — bentuk klaim dicatat', () => {
     await expect(
       service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc'),
     ).resolves.toMatchObject({ token: 'token-sesi-skm' });
+  });
+});
+
+/**
+ * Pemetaan yang disetujui pengguna 28 September 2026, sesudah contoh payload
+ * `userinfo` Helpdesk akhirnya diterima.
+ *
+ *   role `admin`              -> Admin Kabupaten
+ *   identity.user_type `asn`  -> Admin OPD, OPD-nya dari governance.tenant_id
+ *   identity.user_type `masyarakat` -> responden
+ *
+ * KENAPA DIUJI DI TINGKAT SERVICE, padahal pemetanya sudah diuji sendiri:
+ * yang dijaga di sini BUKAN aturan pemetaannya, melainkan bahwa jalur nyata
+ * benar-benar MEMBACA env `HELPDESK_SSO_ROLE_CLAIM` dan
+ * `HELPDESK_SSO_OPD_CLAIM`. Pemeta yang sempurna tak berguna bila service-nya
+ * masih memanggil pembaca lama yang hanya melihat kunci tingkat atas.
+ */
+describe('pemetaan peran & OPD dari payload Helpdesk sungguhan', () => {
+  const TENANT_DISKOMINFO = '8b026b5a-0000-4000-8000-000000000000';
+  const OPD_DISKOMINFO = { id: 16 };
+
+  const ENV = {
+    'helpdesk.ssoRoleClaim': 'role,identity.user_type',
+    // 29 September 2026: ASN TIDAK lagi lahir sebagai Admin OPD. Di SKEMA
+    // peran `opd` ITULAH Admin OPD, tak ada arti lain, sehingga memetakan
+    // seluruh ASN ke sana membuat setiap pegawai sekabupaten menjadi admin
+    // pada login pertamanya -- dan fitur "atur sebagai admin opd" di
+    // Manajemen User tak ada gunanya lagi.
+    'helpdesk.ssoRoleMap': 'admin:kabupaten+opd+responden,asn:responden,masyarakat:responden',
+    'helpdesk.ssoOpdClaim': 'governance.tenant_id',
+  };
+
+  /**
+   * Payload `userinfo`, hanya field yang dibaca jalur ini.
+   *
+   * `tenant` dapat dimatikan: seorang warga memang tak punya tenant, dan
+   * memaksakan satu ke dalam payloadnya membuat uji menguji keadaan yang tak
+   * pernah terjadi.
+   */
+  const klaimHelpdesk = (userType: string, role: string, tenant = true) => ({
+    sub: 'hd-sub-abc123',
+    role,
+    groups: [role],
+    email: 'budi@example.go.id',
+    email_verified: true,
+    identity: { user_type: userType, name: 'Budi Santoso' },
+    governance: tenant
+      ? { role, tenant_id: TENANT_DISKOMINFO, tenant_name: 'Dinas Kominfo' }
+      : { role },
+  });
+
+  function baru(overrides: Record<string, string | undefined> = {}) {
+    const m = buat({ ...ENV, ...overrides });
+    m.prisma.user.findFirst.mockResolvedValue(null);
+    m.prisma.user.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve(userRow(data)),
+    );
+    m.prisma.opd.findFirst.mockResolvedValue(OPD_DISKOMINFO);
+    return m;
+  }
+
+  const masuk = async (m: Mocked, userType: string, role = 'user', tenant = true) => {
+    m.source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: klaimHelpdesk(userType, role, tenant), role, groups: [role] }),
+    );
+    await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+    return m.prisma.user.create.mock.calls[0][0].data;
+  };
+
+  it('admin Helpdesk yang juga ASN -> kabupaten + opd + responden, tertaut OPD-nya', async () => {
+    const m = baru();
+
+    const data = await masuk(m, 'asn', 'admin');
+
+    expect([...(data.roles as Role[])].sort()).toEqual(
+      [Role.kabupaten, Role.opd, Role.responden].sort(),
+    );
+    expect(data.opdId).toBe(OPD_DISKOMINFO.id);
+  });
+
+  /**
+   * INTI PERUBAHAN 29 September 2026, dan sekaligus bagian yang paling mudah
+   * salah dikerjakan.
+   *
+   * ASN lahir sebagai `responden` SAJA, sebab yang menentukan siapa Admin OPD
+   * adalah Admin Kabupaten lewat Manajemen User, bukan Helpdesk.
+   *
+   * Tetapi `opd_id` TETAP terisi sejak akun lahir. Tanpa itu, seorang ASN yang
+   * baru sekali masuk tampil TANPA instansi di daftar Manajemen User -- padahal
+   * keterangan itulah yang dibutuhkan untuk memutuskan apakah ia pantas
+   * dijadikan Admin OPD, dan Admin OPD dari OPD mana. Lebih buruk lagi, bila
+   * dinaikkan sebelum ia masuk untuk kedua kalinya, ia memegang peran `opd`
+   * dengan `opdId` kosong, dan dashboard OPD-nya menjawab 403
+   * (DashboardService.resolveDashboardOpdId).
+   */
+  it('ASN biasa -> responden saja, TETAPI OPD-nya sudah tertaut', async () => {
+    const m = baru();
+
+    const data = await masuk(m, 'asn');
+
+    expect(data.roles).toEqual([Role.responden]);
+    expect(data.opdId).toBe(OPD_DISKOMINFO.id);
+  });
+
+  /**
+   * BATAS UJI INI, dinyatakan supaya tak dikira membuktikan lebih dari yang
+   * dibuktikannya: menghapus entri `masyarakat:responden` dari peta TIDAK
+   * membuatnya merah, sebab `responden` juga peran baku ketika tak ada yang
+   * cocok. Yang dijaganya adalah HASILnya, bukan lewat jalur mana ia diperoleh.
+   *
+   * Yang dijaganya dengan tajam: warga tak berinstansi tidak boleh tertaut ke
+   * OPD mana pun, sekarang setelah pencarian OPD berjalan untuk SETIAP akun
+   * baru dan bukan lagi hanya bagi pemegang peran `opd`.
+   */
+  it('masyarakat -> responden, tanpa OPD sama sekali', async () => {
+    const m = baru();
+    m.prisma.opd.findFirst.mockResolvedValue(null);
+
+    const data = await masuk(m, 'masyarakat', 'user', false);
+
+    expect(data.roles).toEqual([Role.responden]);
+    expect(data.opdId ?? null).toBeNull();
+  });
+
+  it('OPD dicari memakai UUID tenant, bukan nama instansi', async () => {
+    const m = baru();
+
+    await masuk(m, 'asn');
+
+    const where = m.prisma.opd.findFirst.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain(TENANT_DISKOMINFO);
+  });
+
+  /**
+   * Uji lama "tanpa HELPDESK_SSO_ROLE_CLAIM, user_type bersarang tak terbaca"
+   * DIBUANG, bukan diperbaiki. Ia tak lagi dapat memerah: sejak `asn` dan
+   * `masyarakat` sama-sama dipetakan ke `responden`, yaitu peran BAKU, mematikan
+   * env itu tak mengubah satu pun keluaran. Uji yang mustahil merah bukan
+   * penjaga melainkan hiasan.
+   *
+   * Yang menggantikannya menjaga kenyataan barunya: yang membedakan ASN dari
+   * warga kini BUKAN perannya melainkan tautan OPD-nya.
+   */
+  it('ASN dan masyarakat sama-sama responden; yang membedakan tautan OPD', async () => {
+    const asn = baru();
+    const dataAsn = await masuk(asn, 'asn');
+
+    const warga = baru();
+    warga.prisma.opd.findFirst.mockResolvedValue(null);
+    const dataWarga = await masuk(warga, 'masyarakat', 'user', false);
+
+    expect(dataAsn.roles).toEqual(dataWarga.roles);
+    expect(dataAsn.opdId).toBe(OPD_DISKOMINFO.id);
+    expect(dataWarga.opdId ?? null).toBeNull();
+  });
+});
+
+/**
+ * Callback duplikat yang datang terlambat (28 September 2026).
+ *
+ * TERUKUR DI LAPANGAN, bukan dibayangkan. Log akses proxy pada 14:34:
+ *
+ *   14:34:25  GET /auth/sso/callback  302 (79)   BERHASIL, audit `login` tercatat
+ *   14:34:26  GET /sso/callback       499        halaman sukses dibatalkan klien
+ *   14:34:26  GET /auth/sso/callback  302 (157)  callback KEDUA, state ditolak
+ *   14:34:27  POST /auth/logout       200        sesi yang berhasil itu dibuang
+ *
+ * Kedua callback membawa `code` BERBEDA dengan `state` SAMA: alamat `authorize`
+ * Helpdesk dihubungi dua kali untuk satu percobaan masuk. Yang pertama berhasil
+ * dan membuang cookie `state` sebagaimana mestinya; yang kedua karena itu gagal
+ * verifikasi, dan `AuthCallbackLoader` pada cabang galat memanggil
+ * `clearSession()` yang menembakkan `POST /auth/logout`. Pengguna benar-benar
+ * sudah masuk, lalu dikeluarkan lagi oleh penanganan galatnya sendiri.
+ *
+ * PENJAGA CSRF TIDAK DILEMAHKAN. Syaratnya BUKAN "state boleh dipakai ulang",
+ * melainkan "permintaan ini membawa cookie sesi yang masih sah". Pemiliknya tak
+ * memperoleh apa pun yang belum dipegangnya, dan `code` tetap tak pernah
+ * ditukar.
+ */
+describe('completeLogin: callback duplikat yang terlambat', () => {
+  const COOKIE = 'sso_state=abc; session=token-lama';
+
+  function basi() {
+    const m = buat();
+    m.state.verify.mockReturnValue(false);
+    return m;
+  }
+
+  it('state basi + sesi masih sah -> sukses memakai sesi yang ada', async () => {
+    const m = basi();
+    m.session.verify.mockReturnValue({ sub: 7 });
+
+    const hasil = await m.service.completeLogin('kode-2', 'nonce-1', COOKIE);
+
+    // Token yang dikembalikan token LAMA, bukan terbitan baru.
+    expect(hasil.token).toBe('token-lama');
+    expect(m.session.issue).not.toHaveBeenCalled();
+  });
+
+  it('tidak menukar `code` dan tidak menyentuh basis data', async () => {
+    const m = basi();
+    m.session.verify.mockReturnValue({ sub: 7 });
+
+    await m.service.completeLogin('kode-2', 'nonce-1', COOKIE);
+
+    // Inti pertahanan CSRF tetap utuh: Helpdesk tak dihubungi atas permintaan
+    // yang state-nya tak terbukti.
+    expect(m.source.exchangeCodeForProfile).not.toHaveBeenCalled();
+    expect(m.prisma.user.create).not.toHaveBeenCalled();
+    expect(m.prisma.user.update).not.toHaveBeenCalled();
+    // Login-nya sudah dicatat oleh callback PERTAMA. Mencatatnya lagi berarti
+    // dua baris audit untuk satu kali masuk.
+    expect(m.audit.record).not.toHaveBeenCalled();
+  });
+
+  it('cookie state tetap dibuang, karena ia memang sekali pakai', async () => {
+    const m = basi();
+    m.session.verify.mockReturnValue({ sub: 7 });
+
+    const hasil = await m.service.completeLogin('kode-2', 'nonce-1', COOKIE);
+
+    expect(hasil.clearCookie).toBe('sso_state=; Max-Age=0');
+  });
+
+  it('state basi TANPA cookie sesi -> tetap ditolak', async () => {
+    const m = basi();
+
+    await expect(m.service.completeLogin('kode-2', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(m.source.exchangeCodeForProfile).not.toHaveBeenCalled();
+  });
+
+  it('state basi dengan cookie sesi yang TIDAK sah -> tetap ditolak', async () => {
+    const m = basi();
+    // Cookie-nya ada, tapi tandatangannya tak sah atau sudah kedaluwarsa.
+    // Tanpa pemeriksaan ini, sepotong teks apa pun bernama `session` akan
+    // meloloskan callback ber-state basi.
+    m.session.verify.mockReturnValue(null);
+
+    await expect(m.service.completeLogin('kode-2', 'nonce-1', COOKIE)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+});
+
+/**
+ * Identitas pelapor (NIK, nomor HP, alamat) dari klaim Helpdesk, 1 Oktober 2026.
+ *
+ * Pembacaan jalurnya sendiri diuji tuntas di `sso-identitas.mapper.spec.ts`.
+ * Yang diuji DI SINI hanya yang menjadi urusan service: apakah hasilnya benar
+ * tersimpan, apakah terenkripsi, dan apakah login yang klaimnya tak membawa
+ * ketiganya menimpa apa yang sudah tersimpan.
+ */
+describe('SsoService — identitas pelapor dari klaim', () => {
+  /** Kunci yang sama dengan yang dipakai `kunciData` saat NODE_ENV=test. */
+  const KUNCI = Buffer.from(KUNCI_UJI, 'hex');
+
+  /** Bentuk bersarang, sebagaimana `GET /api/oauth/userinfo` mengirimkannya. */
+  const klaimLengkap = {
+    identity: { phone_number: '081234567890' },
+    demographics: { nik: '3507123456789012' },
+    location: { alamat: 'Jl. Pahlawan No. 1' },
+  };
+
+  it('akun baru: ketiganya tersimpan dan dapat didekripsi kembali', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimLengkap }));
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValueOnce(userRow());
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.create.mock.calls[0][0].data;
+    expect(dekripsiKolom(data.nik, KUNCI)).toBe('3507123456789012');
+    expect(dekripsiKolom(data.nomorHp, KUNCI)).toBe('081234567890');
+    expect(dekripsiKolom(data.alamat, KUNCI)).toBe('Jl. Pahlawan No. 1');
+  });
+
+  /**
+   * Uji ini yang membedakan "disimpan" dari "disimpan dengan aman". Tanpa dia,
+   * menghapus `enkripsiKolom` tetap membuat uji di atas lulus, sebab
+   * `dekripsiKolom` mengembalikan teks polos apa adanya demi migrasi bertahap.
+   */
+  it('akun baru: nilainya tersimpan sebagai blob, bukan teks polos', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimLengkap }));
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValueOnce(userRow());
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.create.mock.calls[0][0].data;
+    for (const kolom of [data.nik, data.nomorHp, data.alamat]) {
+      expect(kolom.startsWith(AWALAN_KOLOM)).toBe(true);
+    }
+    expect(data.nik).not.toContain('3507123456789012');
+    expect(data.alamat).not.toContain('Pahlawan');
+  });
+
+  it('akun lama: ketiganya disegarkan setiap login', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: klaimLengkap }));
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(dekripsiKolom(data.nik, KUNCI)).toBe('3507123456789012');
+    expect(dekripsiKolom(data.nomorHp, KUNCI)).toBe('081234567890');
+    expect(dekripsiKolom(data.alamat, KUNCI)).toBe('Jl. Pahlawan No. 1');
+  });
+
+  /**
+   * TIDAK MENIMPA DENGAN KEKOSONGAN, dan ini bukan kehalusan. SSO Helpdesk
+   * melayani ASN maupun warga umum, dan payload yang satu kali tak membawa
+   * `location` -- karena penyedia mengubah bentuk, karena satu seksi sedang
+   * kosong -- akan menghapus alamat yang sudah tersimpan bila kuncinya ikut
+   * ditulis sebagai null. Pola `...(nilai ? { nilai } : {})` yang sama sudah
+   * dipakai `nama` di `acceptLogin` dengan alasan yang sama persis.
+   */
+  it('klaim tanpa ketiganya: kuncinya tak ikut ditulis sama sekali', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: {} }));
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('nik');
+    expect(data).not.toHaveProperty('nomorHp');
+    expect(data).not.toHaveProperty('alamat');
+  });
+
+  it('klaim sebagian: hanya yang terbaca yang ditulis', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: { demographics: { nik: '3507123456789012' } } }),
+    );
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.update.mock.calls[0][0].data;
+    expect(dekripsiKolom(data.nik, KUNCI)).toBe('3507123456789012');
+    expect(data).not.toHaveProperty('nomorHp');
+    expect(data).not.toHaveProperty('alamat');
+  });
+
+  /**
+   * Jenis kelamin (1 Oktober 2026). Pemetaan nilainya diuji tuntas di
+   * `sso-jenis-kelamin.mapper.spec.ts`; di sini hanya yang menjadi urusan
+   * service: hasilnya tersimpan, TIDAK terenkripsi (berbeda dari ketiga kolom
+   * di sebelahnya), dan klaim yang tak terbaca tidak menimpa yang tersimpan.
+   */
+  it('akun baru: jenis kelamin tersimpan sebagai enum, bukan blob', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: { demographics: { jenis_kelamin: 'Laki-laki' } } }),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValueOnce(userRow());
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    const data = prisma.user.create.mock.calls[0][0].data;
+    expect(data.jenisKelamin).toBe(JenisKelamin.laki_laki);
+    expect(String(data.jenisKelamin).startsWith(AWALAN_KOLOM)).toBe(false);
+  });
+
+  it('akun lama: jenis kelamin disegarkan tiap login', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(profil({ klaim: { jenis_kelamin: 'P' } }));
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    expect(prisma.user.update.mock.calls[0][0].data.jenisKelamin).toBe(JenisKelamin.perempuan);
+  });
+
+  it('klaim jenis kelamin tak dikenali: kuncinya tak ikut ditulis', async () => {
+    const { service, prisma, source } = buat();
+    source.exchangeCodeForProfile.mockResolvedValue(
+      profil({ klaim: { demographics: { jenis_kelamin: 'Lainnya' } } }),
+    );
+    prisma.user.findFirst.mockResolvedValueOnce(userRow({ id: 42 }));
+    prisma.user.update.mockResolvedValueOnce(userRow({ id: 42 }));
+
+    await service.completeLogin('kode-1', 'nonce-1', 'c');
+
+    expect(prisma.user.update.mock.calls[0][0].data).not.toHaveProperty('jenisKelamin');
+  });
+});
+
+describe('SsoService — jenis pengguna & pencabutan peran OPD saat login', () => {
+  const DINKES = { id: 42, nama: 'Dinas Kesehatan' };
+  const DISKOMINFO = { id: 43, nama: 'Dinas Komunikasi dan Informatika' };
+
+  /**
+   * Satu login akun LAMA. Mengembalikan `data` yang dikirim ke
+   * `prisma.user.update`, karena di situlah seluruh keputusan berkas ini
+   * terlihat: apa yang ditulis, dan yang lebih penting, apa yang TIDAK ditulis.
+   */
+  const login = async (
+    m: Mocked,
+    profileOverrides: Partial<SsoProfile>,
+    rowOverrides: Record<string, unknown> = {},
+  ) => {
+    m.prisma.user.findFirst.mockResolvedValue(userRow(rowOverrides));
+    m.prisma.user.update.mockResolvedValue(userRow(rowOverrides));
+    m.source.exchangeCodeForProfile.mockResolvedValue(profil(profileOverrides));
+    await m.service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc');
+    return m.prisma.user.update.mock.calls[0][0].data as Record<string, unknown>;
+  };
+
+  describe('menyimpan jenis pengguna', () => {
+    it('membaca `identity.user_type` yang BERSARANG (bentuk /api/oauth/userinfo)', async () => {
+      const m = buat();
+      const data = await login(m, { klaim: { identity: { user_type: 'asn' } } });
+      expect(data.jenisPengguna).toBe(JenisPengguna.asn);
+    });
+
+    it('membaca `user_type` yang RATA (bentuk /api/me)', async () => {
+      // Penyedia yang SAMA mengirim dua bentuk; lihat sso-identitas.mapper.ts.
+      const m = buat();
+      const data = await login(m, { klaim: { user_type: 'masyarakat' } });
+      expect(data.jenisPengguna).toBe(JenisPengguna.masyarakat);
+    });
+
+    it('klaim TIDAK ADA -> kuncinya tak muncul, nilai tersimpan tak terhapus', async () => {
+      // Menulis `null` adalah pernyataan "orang ini bukan ASN". Klaim yang
+      // hilang tidak pernah menyatakan itu.
+      const m = buat();
+      const data = await login(m, { klaim: {} });
+      expect(data).not.toHaveProperty('jenisPengguna');
+    });
+
+    it('nilai tak dikenali -> kuncinya tak muncul, bukan diterka', async () => {
+      const m = buat();
+      const data = await login(m, { klaim: { identity: { user_type: 'pegawai' } } });
+      expect(data).not.toHaveProperty('jenisPengguna');
+    });
+  });
+
+  describe('mencabut peran opd', () => {
+    it('OPD dari klaim BERBEDA dari yang tersimpan -> peran opd dicabut', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data.roles).toEqual([Role.responden]);
+    });
+
+    it('opdId BARU tetap ditulis bersama pencabutannya', async () => {
+      // Inilah yang membuat "sampai admin kab mengatur menjadi admin opd lagi"
+      // dapat dikerjakan segera: tautan instansi barunya sudah ada, jadi Admin
+      // Kabupaten tak perlu menunggu login kedua untuk menaikkannya.
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data.opdId).toBe(DISKOMINFO.id);
+    });
+
+    it('`user_type: masyarakat` -> peran opd dicabut walau instansinya tak berubah', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Kesehatan', identity: { user_type: 'masyarakat' } } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data.roles).toEqual([Role.responden]);
+    });
+
+    it('mencatat pencabutan ke audit_logs, bukan hanya ke log aplikasi', async () => {
+      // Perubahan hak akses yang terjadi tanpa ada manusia menekan apa pun
+      // WAJIB meninggalkan jejak yang dapat ditelusuri.
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { id: 9, roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(m.audit.record).toHaveBeenCalledWith(
+        9,
+        'sso_cabut_peran_opd',
+        'auth',
+        expect.objectContaining({ alasan: 'opd-berganti' }),
+      );
+    });
+
+    /**
+     * 9 Oktober 2026. Pencabutan peran yang menyisakan pintu terbuka bukan
+     * pencabutan: sampai sebelum ini, orang yang baru kehilangan peran `opd`
+     * masih dapat membuka URL lampiran pengaduan OPD lamanya sampai `exp`
+     * lewat, sebab tautannya tak pernah tahu perannya berubah.
+     */
+    it('pencabutan peran OPD ikut mencabut tautan lampirannya', async () => {
+      const m = buat();
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { id: 9, roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(m.cabutLampiran.cabut).toHaveBeenCalledWith(9, expect.any(Number));
+    });
+
+    /**
+     * PASANGAN yang membuat uji di atas berarti. Tanpa ini, "ikut dicabut"
+     * dapat lulus karena pencabutannya terjadi pada SETIAP login, dan itu akan
+     * melempar keluar tautan milik orang yang perannya tak berubah sama sekali.
+     */
+    it('login tanpa pencabutan peran TIDAK mencabut tautan lampiran', async () => {
+      const m = buat();
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      await login(
+        m,
+        { klaim: { opd: 'Dinas Kesehatan' } },
+        { id: 9, roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(m.cabutLampiran.cabut).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('TIDAK mencabut', () => {
+    it('klaim OPD TIDAK ADA -> `roles` tak ikut ditulis sama sekali', async () => {
+      // Penjaga terpenting di blok ini. Bila Helpdesk berhenti mengirim klaim,
+      // tak satu pun Admin OPD boleh kehilangan apa pun.
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+
+      const data = await login(
+        m,
+        { klaim: {} },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data).not.toHaveProperty('roles');
+    });
+
+    it('OPD dari klaim SAMA -> `roles` tak ikut ditulis', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Kesehatan' } },
+        { roles: [Role.opd, Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data).not.toHaveProperty('roles');
+    });
+
+    it('akun yang tak berperan opd -> `roles` tak ikut ditulis', async () => {
+      const m = buat({ 'helpdesk.ssoOpdClaim': 'opd' });
+      m.prisma.opd.findMany.mockResolvedValue([DINKES, DISKOMINFO]);
+
+      const data = await login(
+        m,
+        { klaim: { opd: 'Dinas Komunikasi dan Informatika' } },
+        { roles: [Role.responden], opdId: DINKES.id },
+      );
+
+      expect(data).not.toHaveProperty('roles');
+    });
   });
 });

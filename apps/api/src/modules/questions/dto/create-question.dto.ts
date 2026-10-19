@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { QuestionType } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -32,6 +32,8 @@ export class QuestionOptionInputDto {
 
 export class CreateQuestionDto {
   @ApiProperty()
+  // Dipangkas SEBELUM divalidasi (lihat UpdateQuestionDto.teks).
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   teks: string;
@@ -42,13 +44,18 @@ export class CreateQuestionDto {
 
   @ApiPropertyOptional({
     default: false,
-    description: 'Dihitung ke IKM (hanya tipe skala — lihat Lampiran A PermenPANRB 14/2017)',
+    description:
+      'Hanya `false` atau tidak diisi: unsur IKM lahir bersama survei SKM PermenPANRB, sehingga nilai `true` ditolak 400 pada survei jenis apa pun.',
   })
   @IsOptional()
   @IsBoolean()
   isIkmUnsur?: boolean;
 
-  @ApiPropertyOptional({ maxLength: 5, description: 'Kode unsur U1..U9 (null jika kustom)' })
+  @ApiPropertyOptional({
+    maxLength: 5,
+    description:
+      'Jangan diisi: kode unsur U1..U9 hanya dimiliki pertanyaan yang lahir bersama survei SKM, dan nilai apa pun ditolak 400.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(5)

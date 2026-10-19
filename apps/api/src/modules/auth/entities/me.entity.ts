@@ -1,5 +1,5 @@
 import { ApiHideProperty } from '@nestjs/swagger';
-import { JenisKelamin, Role } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
@@ -36,6 +36,53 @@ export class MeEntity extends BaseEntity<MeEntity> {
   createdAt: Date;
   updatedAt: Date;
   respondentProfile: RespondentProfileView | null;
+
+  /**
+   * NIK, nomor HP, & alamat dari akun Helpdesk (1 Oktober 2026).
+   *
+   * DIDEKLARASIKAN, dan itu bukan sekadar kerapian. `AuthService.getMe`
+   * membaca baris `users` TANPA `select`, lalu `toMeEntity` menyebarnya ke
+   * sini dengan `Object.assign`, sementara serialisasi entity ini EXPOSE-ALL.
+   * Artinya SETIAP kolom baru pada tabel `users` ikut keluar ke klien begitu
+   * kolomnya dibuat, tanpa ada yang pernah memutuskan mengirimkannya --
+   * terukur tepat begitu ketiga kolom ini lahir: responsnya memuat sandi
+   * mentah `enc:v1:...`. Mendeklarasikannya di sini membuat isinya
+   * ditentukan `getMe` (terdekripsi), bukan diwarisi diam-diam.
+   *
+   * `null` berarti Helpdesk memang tak mengirimkan medan itu untuk akun ini --
+   * keadaan NORMAL, sebab SSO melayani ASN maupun warga umum.
+   */
+  nik: string | null;
+  nomorHp: string | null;
+  alamat: string | null;
+
+  /**
+   * TIDAK PERNAH KELUAR, dan hanya dideklarasikan agar dapat ditahan.
+   *
+   * Kolom `users.jenis_pengguna` (6 Oktober 2026) ikut tersebar `Object.assign`
+   * persis seperti `jenis_kelamin` di bawahnya -- TERUKUR: uji
+   * "TIDAK mengirim jenis pengguna" memerah begitu kolomnya lahir, sebelum
+   * penahan ini ada. Status kepegawaian seseorang tak digambar satu pun layar
+   * dari endpoint ini. Yang membutuhkan aturan ASN adalah halaman manajemen
+   * pengguna, dan ia menerima `bolehJadiAdminOpd` dari `GET /users` -- sebuah
+   * boolean, bukan statusnya.
+   */
+  @Exclude()
+  @ApiHideProperty()
+  jenisPengguna: JenisPengguna | null;
+
+  /**
+   * TIDAK PERNAH KELUAR, dan hanya dideklarasikan agar dapat ditahan.
+   *
+   * Kolom `users.jenis_kelamin` lahir pada hari yang sama dan akan ikut
+   * tersebar oleh `Object.assign` persis seperti ketiga medan di atas. Tak ada
+   * satu pun layar yang menggambarnya dari endpoint ini -- halaman profil tak
+   * memuat baris jenis kelamin -- sehingga mengirimkannya berarti data pribadi
+   * yang beredar tanpa sebab.
+   */
+  @Exclude()
+  @ApiHideProperty()
+  jenisKelamin?: JenisKelamin | null;
 
   /**
    * Apakah pengguna ini masih harus memberikan persetujuan PDP (celah 2,

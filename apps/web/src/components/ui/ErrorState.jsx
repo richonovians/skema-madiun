@@ -21,15 +21,22 @@ export default function ErrorState({
   description = 'Terjadi kesalahan saat mengambil data. Silakan coba lagi.',
   onRetry,
   action,
+  as: Judul = 'h3',
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
       <div className="text-error mb-4 opacity-80">
         <AlertTriangle size={48} />
       </div>
-      <h3 className={`text-headline-md font-headline-md text-text-primary ${description ? 'mb-2' : 'mb-6'}`}>
+      {/* `as` ditambahkan 25 September 2026 untuk halaman galat seluruh layar
+          (not-found.jsx & error.jsx). Di sana komponen ini BUKAN satu bagian di
+          dalam halaman melainkan satu-satunya isi halaman, jadi judulnya harus
+          `h1`: halaman yang dimulai dari `h3` membuat pembaca layar mengumumkan
+          tingkat yang tak punya induk. Bawaannya tetap `h3` sehingga kedelapan
+          pemakai lama tak berubah sedikit pun. */}
+      <Judul className={`text-headline-md font-headline-md text-text-primary ${description ? 'mb-2' : 'mb-6'}`}>
         {title}
-      </h3>
+      </Judul>
       {description && (
         <p className="text-body-md font-body-md text-text-secondary mb-6 max-w-[400px] w-full">
           {description}

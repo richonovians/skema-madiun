@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { IkmResultEntity } from './entities/ikm-result.entity';
+import { NilaiSurveiEntity } from './entities/nilai-survei.entity';
 
 export interface ExportedFile {
   buffer: Buffer;
@@ -9,10 +10,52 @@ export interface ExportedFile {
   contentType: string;
 }
 
-interface ExportContext {
+export interface ExportContext {
   surveyJudul: string;
   opdNama: string;
   result: IkmResultEntity;
+  /**
+   * Nilai Survei untuk laporan survei CUSTOM (8 Oktober 2026). Tiga keadaan:
+   * `undefined` = survei SKM (laporan IKM seperti semula), `null` = custom yang
+   * belum dapat dinilai, objek = custom bernilai. Laporan custom tidak memuat
+   * Nilai IKM, Mutu, maupun tabel unsur.
+   */
+  nilaiSurvei?: NilaiSurveiEntity | null;
+}
+
+type FormatBerkas = 'csv' | 'excel' | 'pdf';
+
+/**
+ * Baris nilai pada blok keterangan laporan, satu tempat untuk ketiga format.
+ * SKM: "Nilai IKM" + "Mutu". Custom: judul angkanya ("Nilai Survei" / "Indeks
+ * Kepuasan" ...) + "Kategori". Angka SKM mengikuti kebiasaan tiap format (CSV
+ * dan Excel menyimpan angka utuh, PDF memformat koma dua desimal); angka custom
+ * sudah berupa teks siap pakai dari backend.
+ */
+export function barisNilai(ctx: ExportContext, format: FormatBerkas): [string, string | number][] {
+  if (ctx.nilaiSurvei !== undefined) {
+    const nilai = ctx.nilaiSurvei;
+    return nilai === null
+      ? [
+          ['Nilai Survei', 'Belum dapat dinilai'],
+          ['Kategori', '-'],
+        ]
+      : [
+          [nilai.judul, nilai.tampilan],
+          ['Kategori', nilai.kategori],
+        ];
+  }
+  const { result } = ctx;
+  const ikm: string | number =
+    result.nilaiIkm === null
+      ? 'Belum dapat dinilai'
+      : format === 'pdf'
+        ? angkaPdf(result.nilaiIkm)
+        : result.nilaiIkm;
+  return [
+    ['Nilai IKM', ikm],
+    ['Mutu', result.mutu ?? '-'],
+  ];
 }
 
 export const EXPORT_CONTENT_TYPES = {
@@ -208,24 +251,40 @@ function csvEscape(value: string | number): string {
  */
 @Injectable()
 export class IkmExportService {
-  buildFilename(surveyId: number, periode: string, format: keyof typeof EXTENSIONS): string {
+  buildFilename(
+    surveyId: number,
+    periode: string,
+    format: keyof typeof EXTENSIONS,
+    awalan = 'hasil-ikm',
+  ): string {
     const safePeriode = periode.replace(/[^a-zA-Z0-9-]/g, '_');
-    return `hasil-ikm-${surveyId}-${safePeriode}.${EXTENSIONS[format]}`;
+    return `${awalan}-${surveyId}-${safePeriode}.${EXTENSIONS[format]}`;
   }
 
   toCsv(ctx: ExportContext): Buffer {
     const { surveyJudul, opdNama, result } = ctx;
+    const custom = ctx.nilaiSurvei !== undefined;
     const rows: (string | number)[][] = [
-      ['Laporan Hasil IKM'],
+      [custom ? 'Laporan Hasil Survei' : 'Laporan Hasil IKM'],
       ['Survei', surveyJudul],
       ['OPD', opdNama],
       ['Periode', result.periode],
       ['Jumlah Responden', result.jumlahResponden],
-      ['Nilai IKM', result.nilaiIkm ?? 'Belum dapat dinilai'],
-      ['Mutu', result.mutu ?? '-'],
-      [],
-      ['Kode Unsur', 'Deskripsi Unsur', 'NRR', 'Bobot', 'NRR Tertimbang'],
-      ...result.nrrPerUnsur.map((u) => [u.kodeUnsur, u.teks, u.nrr, u.bobot, u.nrrTertimbang]),
+      ...barisNilai(ctx, 'csv'),
+      // Survei custom tak punya unsur baku, jadi tabel unsurnya tidak ada.
+      ...(custom
+        ? []
+        : [
+            [],
+            ['Kode Unsur', 'Deskripsi Unsur', 'NRR', 'Bobot', 'NRR Tertimbang'],
+            ...result.nrrPerUnsur.map((u) => [
+              u.kodeUnsur,
+              u.teks,
+              u.nrr,
+              u.bobot,
+              u.nrrTertimbang,
+            ]),
+          ]),
     ];
     const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
     // BOM UTF-8 (\uFEFF) agar Excel mengenali encoding dengan benar saat CSV dibuka langsung.
@@ -234,15 +293,16 @@ export class IkmExportService {
 
   async toExcel(ctx: ExportContext): Promise<Buffer> {
     const { surveyJudul, opdNama, result } = ctx;
+    const custom = ctx.nilaiSurvei !== undefined;
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Hasil IKM');
+    const sheet = workbook.addWorksheet(custom ? 'Hasil Survei' : 'Hasil IKM');
 
     // Lebar kolom ditetapkan SEBELUM baris diisi. Teks unsur adalah kalimat
     // resmi PermenPANRB, bukan satu dua kata; dengan lebar seragam ia terpotong
     // sementara kolom angka menganggur lebar.
     sheet.columns = [{ width: 18 }, { width: 58 }, { width: 12 }, { width: 12 }, { width: 16 }];
 
-    const judul = sheet.addRow(['Laporan Hasil IKM']);
+    const judul = sheet.addRow([custom ? 'Laporan Hasil Survei' : 'Laporan Hasil IKM']);
     judul.font = { bold: true, size: 14 };
 
     const keterangan: [string, string | number][] = [
@@ -250,8 +310,7 @@ export class IkmExportService {
       ['OPD', opdNama],
       ['Periode', result.periode],
       ['Jumlah Responden', result.jumlahResponden],
-      ['Nilai IKM', result.nilaiIkm ?? 'Belum dapat dinilai'],
-      ['Mutu', result.mutu ?? '-'],
+      ...barisNilai(ctx, 'excel'),
     ];
     for (const [label, nilai] of keterangan) {
       const baris = sheet.addRow([label, nilai]);
@@ -263,6 +322,12 @@ export class IkmExportService {
       }
     }
     sheet.addRow([]);
+
+    // Survei custom tak punya unsur baku: lembarnya berhenti di blok keterangan.
+    if (custom) {
+      const arrayBufferCustom = await workbook.xlsx.writeBuffer();
+      return Buffer.from(arrayBufferCustom);
+    }
 
     const headerRow = sheet.addRow([
       'Kode Unsur',
@@ -307,7 +372,11 @@ export class IkmExportService {
       const KIRI = doc.page.margins.left;
       const BATAS_BAWAH = doc.page.height - doc.page.margins.bottom - 30;
 
-      doc.font('Helvetica-Bold').fontSize(16).text('Laporan Hasil IKM', { align: 'center' });
+      const custom = ctx.nilaiSurvei !== undefined;
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(16)
+        .text(custom ? 'Laporan Hasil Survei' : 'Laporan Hasil IKM', { align: 'center' });
       doc.moveDown(1);
 
       // Keterangan sebagai pasangan label-nilai pada dua kolom tetap. Sebelumnya
@@ -318,12 +387,11 @@ export class IkmExportService {
         ['OPD', opdNama],
         ['Periode', result.periode],
         ['Jumlah Responden', String(result.jumlahResponden)],
-        ['Nilai IKM', result.nilaiIkm === null ? 'Belum dapat dinilai' : angkaPdf(result.nilaiIkm)],
-        ['Mutu', result.mutu ?? '-'],
+        ...barisNilai(ctx, 'pdf').map(([label, nilai]): [string, string] => [label, String(nilai)]),
       ];
       gambarKeterangan(doc as unknown as DokumenPdf, keterangan, KIRI);
 
-      if (result.nrrPerUnsur.length > 0) {
+      if (!custom && result.nrrPerUnsur.length > 0) {
         doc.moveDown(1);
         doc.font('Helvetica-Bold').fontSize(12).text('Rincian per Unsur', KIRI, doc.y);
         doc.moveDown(0.6);

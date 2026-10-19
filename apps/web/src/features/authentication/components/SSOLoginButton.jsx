@@ -37,10 +37,14 @@ export default function SSOLoginButton() {
   // dokumen penemuan OIDC di sisi backend). Tanpa penanda ini tombolnya tampak
   // tak merespons dan mudah diklik berkali-kali.
   const [isRedirecting, setIsRedirecting] = useState(false);
-  // Terisi HANYA bila yang login berperan `superuser` -- memicu pemilih peran.
-  // Peran lain (termasuk Admin Kabupaten) tak pernah melewati jalur ini. Objek
-  // (bukan string) supaya nama yang kosong tak salah dibaca sebagai "tak ada
-  // pemilih".
+  // Terisi bila akun yang login memegang LEBIH DARI SATU peran -- memicu
+  // pemilih peran (lihat `roles.length > 1` di bawah). Akun ber-peran tunggal
+  // tak pernah melewati jalur ini. Objek (bukan string) supaya nama yang kosong
+  // tak salah dibaca sebagai "tak ada pemilih".
+  //
+  // Baris ini sempat berbunyi "HANYA bila yang login berperan `superuser`",
+  // yang dibantah komentar di jalur dev-login pada berkas yang sama
+  // (dibereskan 14 Oktober 2026).
   const [rolePicker, setRolePicker] = useState(null);
 
   // Sesi lokal sisa (mis. dev-login yang belum di-logout) dibuang SEBELUM

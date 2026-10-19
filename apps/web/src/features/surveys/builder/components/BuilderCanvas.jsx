@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import QuestionBlock from './QuestionBlock';
 import PeriodeSelect from './PeriodeSelect';
+import PengaturanNilaiSurvei from './PengaturanNilaiSurvei';
 import { Plus } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 
@@ -43,6 +44,15 @@ export default function BuilderCanvas({
   onPeriodeCommit,
   izinkanAnonim = false,
   onIzinkanAnonimCommit,
+  // Survei CUSTOM (8 Oktober 2026): tujuan + metode nilai. Panelnya hanya tampil
+  // bila `jenisSurvei === 'custom'`; survei SKM menghasilkan Nilai IKM dan tak
+  // memakainya. `onNilaiSurveiChange({tujuan?, metodeNilai?})` menyimpan seketika.
+  jenisSurvei = null,
+  tujuan = null,
+  metodeNilai = null,
+  onNilaiSurveiChange,
+  isUtama = false,
+  onIsUtamaCommit,
   // Judul & izin pengisian ikut aturan 'meta' (boleh sampai survei ditutup),
   // terpisah dari `canReorder` yang mengunci periode & susunan begitu ada
   // jawaban. Lihat SurveyBuilderScreen.
@@ -56,6 +66,8 @@ export default function BuilderCanvas({
   onDropAt,
   onMove,
   onEditOptions,
+  /** Kalimat pertanyaan boleh disunting (mati hanya saat survei ditutup). */
+  canEditText = true,
 }) {
   const [overSlot, setOverSlot] = useState(null);
 
@@ -102,7 +114,7 @@ export default function BuilderCanvas({
 
   return (
     <main
-      className="flex-1 bg-slate-50 relative overflow-y-auto"
+      className="flex-1 bg-slate-50 relative md:overflow-y-auto"
       style={{
         backgroundSize: '24px 24px',
         backgroundImage: 'radial-gradient(circle, #E2E8F0 1px, transparent 1px)',
@@ -140,7 +152,13 @@ export default function BuilderCanvas({
               placeholder="Kuesioner Kepuasan Layanan"
               aria-label="Judul survei"
               title="Klik untuk mengubah judul survei"
-              className="w-full font-headline-lg text-headline-lg text-center bg-transparent rounded-lg border border-transparent hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-sm py-xs"
+              /* GARISNYA TETAP TERLIHAT SAAT DIAM (4 Oktober 2026, permintaan
+                 pengguna). Dulu `border-transparent`: medannya memang dapat
+                 disunting, tetapi tak mengatakannya -- garisnya baru lahir
+                 ketika penunjuk kebetulan lewat di atasnya, dan bagi yang
+                 pertama kali menyusun survei tak ada yang menunjukkan di mana
+                 ia boleh mengetik. Keadaan sorot & fokus tak diubah. */
+              className="w-full font-headline-lg text-headline-lg text-center bg-transparent rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-sm py-xs"
             />
           ) : (
             <h2 className="font-headline-lg text-headline-lg">
@@ -155,7 +173,7 @@ export default function BuilderCanvas({
                 periode={periode}
                 onCommit={onPeriodeCommit}
                 className="flex items-center gap-xs"
-                selectClassName="font-body-md text-body-md text-text-secondary bg-transparent rounded-lg border border-transparent hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-xs py-0.5"
+                selectClassName="font-body-md text-body-md text-text-secondary bg-transparent rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-xs py-0.5"
               />
             </div>
           ) : (
@@ -197,6 +215,57 @@ export default function BuilderCanvas({
               </span>
             </span>
           </label>
+
+          {/* SURVEI UTAMA OPD (15 September 2026, permintaan pengguna).
+              Sengaja TIDAK terikat `isEditableMeta`: penunjukan survei utama
+              bukan penyuntingan isi survei, dan OPD tetap berhak memindahkannya
+              ke survei lain kapan pun -- termasuk saat survei ini sudah punya
+              jawaban. */}
+          <label
+            htmlFor="builder-survei-utama"
+            className="mt-sm flex items-start gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60 text-left transition-colors cursor-pointer hover:bg-surface-container-low has-[:checked]:border-primary has-[:checked]:bg-primary-container/20"
+          >
+            <input
+              id="builder-survei-utama"
+              type="checkbox"
+              checked={isUtama}
+              onChange={(e) => onIsUtamaCommit?.(e.target.checked)}
+              aria-describedby="builder-survei-utama-bantuan"
+              className="w-5 h-5 mt-0.5 shrink-0 accent-primary"
+            />
+            <span className="text-sm text-text-primary leading-relaxed">
+              Jadikan <strong className="font-semibold">survei utama</strong> OPD ini
+              <span
+                id="builder-survei-utama-bantuan"
+                className="block mt-1 text-xs text-text-secondary font-normal"
+              >
+                Warga yang selesai mengirim pengaduan ke OPD ini langsung dibawa ke survei ini. Tiap
+                OPD hanya punya satu; menyalakannya di sini melepasnya dari survei yang sebelumnya.
+                Pengarahannya baru berjalan setelah survei ini terbit.
+              </span>
+            </span>
+          </label>
+
+          {/* NILAI SURVEI (8 Oktober 2026): hanya survei custom. Mengikuti aturan
+              'meta' seperti judul dan izin pengisian: boleh diubah sampai survei
+              ditutup, juga sesudah jawaban masuk, karena keduanya hanya mengatur
+              TAMPILAN nilai -- jawaban yang sudah masuk tidak berubah. */}
+          {jenisSurvei === 'custom' && typeof onNilaiSurveiChange === 'function' && (
+            <div className="mt-sm p-3 rounded-xl border border-border bg-surface-container-low/60 text-left space-y-xs">
+              <p className="text-sm font-bold text-text-primary">Nilai Survei</p>
+              <PengaturanNilaiSurvei
+                tujuan={tujuan}
+                metode={metodeNilai}
+                onTujuan={(nilai) => onNilaiSurveiChange({ tujuan: nilai })}
+                onMetode={(nilai) => onNilaiSurveiChange({ metodeNilai: nilai })}
+                disabled={!isEditableMeta}
+                ringkas
+              />
+              <p className="text-xs text-text-secondary">
+                Hanya mengubah cara hasil ditampilkan; jawaban yang sudah masuk tidak berubah.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Questions List */}
@@ -218,6 +287,7 @@ export default function BuilderCanvas({
                 onUpdate={onUpdate}
                 onTextCommit={onTextCommit}
                 onEditOptions={onEditOptions}
+                canEditText={canEditText}
               />
             </div>
           ))}

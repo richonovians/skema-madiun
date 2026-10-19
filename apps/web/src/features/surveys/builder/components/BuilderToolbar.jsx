@@ -37,7 +37,18 @@ export default function BuilderToolbar({
   const badge = STATUS_BADGE[status] ?? STATUS_BADGE.DRAF;
 
   return (
-    <header className="absolute top-0 left-0 w-full h-16 md:h-[72px] bg-white border-b border-border flex items-center px-4 md:px-lg z-50 justify-between shadow-sm">
+    /* TINGGINYA 80px DI `md` KE ATAS, MENGIKUTI KEPALA SIDEBAR (4 Oktober 2026,
+       laporan pengguna: "luruskan garis navbar builder survei dengan garis di
+       bawah logo pada sidebar"). Dulu 72px -- angka yang sah ketika bilah ini
+       dianggap berdiri sendiri, tetapi kepala sidebar (`md:h-[80px]` di
+       AdminSidebar maupun AdminKabSidebar) juga memasang `border-b`, dan
+       selisih 8px itu menjadi dua garis yang tidak bertemu tepat di sebelahan.
+
+       Angkanya TURUNAN dari sidebar, bukan pilihan bebas, dan ia berpasangan
+       dengan `md:pt-[80px]` pada baris kanvas di BuilderLayout -- menggeser
+       salah satunya saja membuat bilah menimpa awal kanvas atau meninggalkan
+       pita kosong di bawahnya. */
+    <header className="fixed md:absolute top-0 left-0 w-full min-h-[var(--tinggi-navbar-opd)] md:min-h-0 md:h-[80px] bg-white border-b border-border flex items-center px-4 md:px-lg z-50 justify-between shadow-sm">
       <div className="flex items-center gap-2 md:gap-lg flex-1 min-w-0">
         <Link
           href={backHref}
@@ -71,10 +82,13 @@ export default function BuilderToolbar({
             <CheckCircle2 size={14} /> <span>Tersimpan</span>
           </div>
         )}
+        {/* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. */}
         {status === 'DRAF' && (
           <button
             onClick={onPublish}
             disabled={isPublishing}
+            aria-label={isPublishing ? 'Memublikasikan...' : 'Publikasikan'}
+            title={isPublishing ? 'Memublikasikan...' : 'Publikasikan'}
             className="px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all flex items-center gap-1.5 md:gap-2 active:scale-95 disabled:opacity-60"
           >
             {isPublishing ? (

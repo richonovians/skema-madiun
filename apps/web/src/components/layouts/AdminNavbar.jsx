@@ -12,9 +12,10 @@ import { useAsync } from '@/hooks/useAsync';
 import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
 import { getOpdById } from '@/features/opd/services/opd.api';
-import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
+import { buildTahunOptions } from '@/features/surveys/adapters/survey.adapter';
+import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 
-const PERIODE_OPTIONS = buildRecentPeriodeOptions();
+const TAHUN_OPTIONS = buildTahunOptions();
 
 /**
  * Navbar Admin OPD.
@@ -34,13 +35,17 @@ const PERIODE_OPTIONS = buildRecentPeriodeOptions();
  * menghapus satu permintaan gambar ke host eksternal dari tiap halaman admin.
  */
 export default function AdminNavbar() {
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen, periode, setPeriode } = useAdminLayout();
+  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, periode, setPeriode } = useAdminLayout();
   const pathname = usePathname();
 
-  // Penyaring triwulan HANYA ditampilkan di dashboard -- itu satu-satunya
-  // halaman yang membacanya (lihat AdminLayoutProvider). Menampilkannya di
-  // halaman lain justru mengulang masalah lama: kontrol yang tak berefek apa pun.
-  const showPeriodeFilter = pathname?.startsWith('/admin-opd/dashboard');
+  // Penyaring triwulan HANYA ditampilkan di halaman yang membacanya (lihat
+  // AdminLayoutProvider): dashboard, dan -- sejak 7 Oktober 2026 -- Statistik &
+  // Laporan, yang menyaring pemilih survei, tren IKM, dan seluruh angka
+  // pengaduannya. Menampilkannya di halaman lain justru mengulang masalah lama:
+  // kontrol yang tak berefek apa pun. Menambah halaman ke daftar ini berarti
+  // halaman itu WAJIB membaca `periode` dari useAdminLayout().
+  const showPeriodeFilter =
+    pathname?.startsWith('/admin-opd/dashboard') || pathname?.startsWith('/admin-opd/analytics');
 
   const fetchIdentity = useCallback(async () => {
     const user = await getMyProfile();
@@ -131,10 +136,10 @@ export default function AdminNavbar() {
   return (
     <header
       ref={headerRef}
-      className="fixed top-0 right-0 left-0 md:left-64 min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-40 transition-all gap-x-2 gap-y-2 xl:gap-lg"
+      className={`fixed top-0 right-0 left-0 ${isDesktopSidebarCollapsed ? 'md:left-20' : 'md:left-64'} min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-40 transition-all duration-300 gap-x-2 gap-y-2 xl:gap-lg`}
     >
       <button
-        className="md:hidden -ml-1 p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+        className="md:hidden -ml-1 flex items-center justify-center min-w-[44px] min-h-[44px] text-on-surface hover:bg-surface-container rounded-lg shrink-0"
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         aria-label="Buka menu navigasi"
       >
@@ -174,13 +179,12 @@ export default function AdminNavbar() {
           <div className="hidden xl:block h-8 w-[1px] bg-outline-variant shrink-0 xl:order-3"></div>
           <div className="order-last flex w-full items-center gap-2 xl:order-3 xl:w-auto xl:shrink-0">
             <CalendarRange size={18} className="hidden md:block text-secondary shrink-0" />
-            <Dropdown
-              id="filter-periode"
-              options={PERIODE_OPTIONS}
+            <PenyaringPeriode
               value={periode}
               onChange={setPeriode}
-              variant="primary"
-              className="w-full xl:w-auto"
+              tahunOptions={TAHUN_OPTIONS}
+              className="flex w-full items-center gap-2 xl:w-auto"
+              dropdownClassName="xl:w-auto"
             />
           </div>
         </>

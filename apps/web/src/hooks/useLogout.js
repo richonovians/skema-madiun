@@ -10,6 +10,10 @@ import { clearSession } from '@/features/authentication/services/authStorage';
  * tombol "Keluar" di AdminKabSidebar.jsx & AdminSidebar.jsx tak punya handler
  * sama sekali (laporan bug user). Diekstrak ke hook supaya 3 tempat ini tak
  * diam-diam tak sinkron.
+ *
+ * Catatan: ProfileActions.jsx sudah TIDAK ADA lagi (dihapus 4 Oktober 2026,
+ * tombol Logout di halaman profil dibuang karena menduakan menu akun di
+ * navbar). Ia disebut di sini hanya sebagai riwayat; jangan dicari.
  */
 export function useLogout() {
   const router = useRouter();

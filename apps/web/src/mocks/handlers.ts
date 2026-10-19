@@ -104,12 +104,18 @@ export const surveyFixture = (over = {}) => ({
   judul: 'Survei IKM 2026',
   periode: '2026-Q1',
   status: 'draft',
+  jenis: 'skm_permenpanrb',
   allowMultipleSubmit: false,
   izinkanAnonim: false,
   createdAt: '2026-08-06T08:10:04.832Z',
   updatedAt: '2026-08-06T08:12:26.861Z',
   respondentsCount: 0,
   nilaiIkm: null,
+  // Survei custom (8 Oktober 2026): tujuan/metode dan nilai jadi dari backend.
+  // null pada survei SKM.
+  tujuan: null,
+  metodeNilai: null,
+  nilaiSurvei: null,
   ...over,
 });
 
@@ -120,6 +126,7 @@ export const questionFixture = (over = {}) => ({
   tipe: 'skala',
   isIkmUnsur: true,
   kodeUnsur: 'U1',
+  namaUnsur: 'Persyaratan',
   urutan: 1,
   createdAt: '2026-08-03T04:17:14.864Z',
   updatedAt: '2026-08-03T04:17:14.864Z',
@@ -233,7 +240,7 @@ const SURVEY_LIST = [
 ];
 
 const QUESTION_LIST = UNSUR.map((u, i) =>
-  questionFixture({ id: i + 1, teks: u.teks, kodeUnsur: u.kode, urutan: i + 1 }),
+  questionFixture({ id: i + 1, teks: u.teks, kodeUnsur: u.kode, namaUnsur: u.teks, urutan: i + 1 }),
 );
 
 export const handlers = [
@@ -246,16 +253,15 @@ export const handlers = [
     if (identifier.includes('tidak-ada'))
       return fail(404, `Pengguna dengan email/ssoSubject "${identifier}" tidak ditemukan`);
 
-    // `superuser` diperiksa PALING DULU: peran itu dikembalikan sebagai peran
-    // tersendiri pada 2026-08-26, dan alamat seed-nya tak memuat kata lain yang
-    // bisa keliru tertangkap cabang di bawahnya.
-    const role = identifier.includes('superuser')
-      ? 'superuser'
-      : identifier.includes('kabupaten')
-        ? 'kabupaten'
-        : identifier.includes('opd')
-          ? 'opd'
-          : 'responden';
+    // Cabang `superuser` DIBUANG 14 Oktober 2026: peran itu dilebur
+    // 15 September 2026 dan nilai enumnya tak ada lagi di backend, jadi mock
+    // yang membalasnya memberi uji komponen peran yang aplikasi sungguhan tak
+    // akan pernah mengirim. Tak ada uji yang mengirim identifier semacam itu.
+    const role = identifier.includes('kabupaten')
+      ? 'kabupaten'
+      : identifier.includes('opd')
+        ? 'opd'
+        : 'responden';
 
     return created(
       {
@@ -468,6 +474,11 @@ export const handlers = [
     ),
   ),
 
+  // SEBELUM pola `:id`, sama seperti deklarasinya di controller: MSW juga
+  // mencocokkan menurut urutan pendaftaran, jadi pola ber-parameter yang
+  // lebih dulu akan menelan rute literal ini.
+  http.get(`${API_BASE}/surveys/trash/retensi`, () => ok({ hari: 365 }, '/surveys/trash/retensi')),
+
   http.post(`${API_BASE}/surveys/:id/restore`, ({ params }) =>
     ok(surveyFixture({ id: Number(params.id) }), `/surveys/${params.id}/restore`),
   ),
@@ -486,6 +497,11 @@ export const handlers = [
   http.patch(`${API_BASE}/surveys/:id/status`, async ({ request, params }) => {
     const { status } = (await request.json()) as JsonBody;
     return ok(surveyFixture({ id: Number(params.id), status }), `/surveys/${params.id}/status`);
+  }),
+
+  http.patch(`${API_BASE}/surveys/:id/jenis`, async ({ request, params }) => {
+    const body = (await request.json()) as JsonBody;
+    return ok(surveyFixture({ id: Number(params.id), ...body }), `/surveys/${params.id}/jenis`);
   }),
 
   http.patch(`${API_BASE}/surveys/:id`, async ({ request, params }) => {
@@ -524,28 +540,13 @@ export const handlers = [
         tipe: body.tipe,
         isIkmUnsur: body.isIkmUnsur ?? false,
         kodeUnsur: body.kodeUnsur ?? null,
+        namaUnsur: null,
         urutan: QUESTION_LIST.length + 1,
         options: body.options ?? [],
       }),
       `/surveys/${params.id}/questions`,
     );
   }),
-
-  // [TURUN] menerapkan template 9 unsur baku; kode yang sudah ada dilewati.
-  http.post(`${API_BASE}/surveys/:id/questions/template`, ({ params }) =>
-    created(
-      UNSUR.map((u, i) =>
-        questionFixture({
-          id: 100 + i,
-          surveyId: Number(params.id),
-          teks: u.teks,
-          kodeUnsur: u.kode,
-          urutan: i + 1,
-        }),
-      ),
-      `/surveys/${params.id}/questions/template`,
-    ),
-  ),
 
   http.patch(`${API_BASE}/surveys/:id/questions/reorder`, async ({ request, params }) => {
     // Satu-satunya body yang dipakai sebagai ARRAY, bukan sekadar disebar ke
@@ -741,9 +742,10 @@ export const handlers = [
   ),
 
   // [REKAM]
-  // SEMBILAN kunci — `insight`, `serviceElements`, `valueDistribution`, dan
-  // `topOpd` WAJIB ada: `adaptStatistics` membacanya tanpa penjagaan, sehingga
-  // respons yang kekurangan salah satunya membuat halaman statistik gagal render.
+  // DELAPAN kunci — `serviceElements`, `valueDistribution`, dan `topOpd` WAJIB
+  // ada: `adaptStatistics` membacanya tanpa penjagaan, sehingga respons yang
+  // kekurangan salah satunya membuat halaman statistik gagal render.
+  // `insight` dibuang 6 Oktober 2026 bersama fiturnya.
   http.get(`${API_BASE}/statistics`, () =>
     ok(
       {
@@ -799,10 +801,6 @@ export const handlers = [
             nilaiIkm: 82.7,
           },
         ],
-        insight: {
-          text: 'Kepuasan masyarakat naik tiga triwulan berturut-turut.',
-          updatedAt: '2026-08-09T04:00:00.000Z',
-        },
       },
       '/statistics',
     ),
@@ -816,13 +814,23 @@ export const handlers = [
   http.get(`${API_BASE}/audit-logs`, ({ request }) => {
     const url = new URL(request.url);
     const entitas = url.searchParams.get('entitas');
-    const list = entitas ? AUDIT_LIST.filter((l) => l.entitas === entitas) : AUDIT_LIST;
+    const aksi = url.searchParams.get('aksi');
+    const search = url.searchParams.get('search')?.toLowerCase();
+    let list = AUDIT_LIST;
+    if (entitas) list = list.filter((l) => l.entitas === entitas);
+    if (aksi) list = list.filter((l) => l.aksi?.toLowerCase() === aksi.toLowerCase());
+    if (search) list = list.filter((l) => l.actorNama?.toLowerCase().includes(search) || l.entitas?.toLowerCase().includes(search) || l.aksi?.toLowerCase().includes(search));
     return paginated(list, '/audit-logs', {
       page: Number(url.searchParams.get('page') ?? 1),
       limit: Number(url.searchParams.get('limit') ?? 20),
       total: list.length,
     });
   }),
+
+  // SEBELUM `:id` — MSW mencocokkan handler menurut urutan daftar, jadi
+  // `:id` yang lebih dulu akan menelan alamat ini. Urutan yang sama juga
+  // berlaku di controller Nest; lihat catatannya di audit.controller.ts.
+  http.get(`${API_BASE}/audit-logs/retensi`, () => ok({ hari: 14 }, '/audit-logs/retensi')),
 
   http.get(`${API_BASE}/audit-logs/:id`, ({ params }) =>
     ok(auditLogFixture({ id: Number(params.id) }), `/audit-logs/${params.id}`),

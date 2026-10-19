@@ -11,6 +11,7 @@ describe('Sampah survei (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let opdId: number;
+  let penggunaId: number;
   let opdLainId: number;
 
   beforeAll(async () => {
@@ -28,6 +29,37 @@ describe('Sampah survei (e2e)', () => {
       create: { kode: 'E2ETRASH', nama: 'OPD E2E Sampah', isActive: true },
     });
     opdId = opd.id;
+
+    // PENGGUNA MILIK BERKAS INI. `SurveysService.remove` menulis
+    // `surveys.deleted_by_id`, sebuah FK ke `users`. Tanpa baris ini ujinya
+    // bergantung pada baku `x-dev-user-id` = 1 di `stub-auth.provider.ts`, dan
+    // pengguna ber-id 1 hanya ada di basis data pengembangan karena kebetulan
+    // sejarah: ia baris pengguna pertama yang pernah dibuat di sana. Terukur
+    // 12 Oktober 2026, saat suite ini pertama kali dijalankan di basis data
+    // uji sendiri: DELETE /surveys/:id menjawab 500 dengan
+    // "Foreign key constraint violated on the constraint:
+    // `surveys_deleted_by_id_fkey`".
+    //
+    // `opdId` DIBIARKAN null walau perannya `opd`. Penautan OPD-nya datang dari
+    // header `x-dev-opd-id`, dan `StubAuthProvider` tak pernah membaca baris
+    // ini. Mengisinya justru membuat `opd.deleteMany` di `afterAll` gagal,
+    // karena `users.opd_id` menahan OPD-nya.
+    //
+    // TIDAK dihapus di `afterAll`: permintaan yang teraudit menulis
+    // `audit_logs.actor_id` yang menunjuk baris ini, dan baris audit tak boleh
+    // dihapus. `upsert` membuatnya cukup satu baris untuk seluruh jalan
+    // berikutnya.
+    const pengguna = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-sampah-admin-opd' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-sampah-admin-opd',
+        nama: 'E2E Sampah Admin OPD',
+        email: 'e2e-sampah-admin-opd@contoh.test',
+        roles: [Role.opd],
+      },
+    });
+    penggunaId = pengguna.id;
 
     // OPD kedua dibuat DI SINI, bukan di dalam uji kurungan, supaya
     // pembersihannya ikut `afterAll` dan tetap berjalan walau ujinya gagal di
@@ -61,7 +93,7 @@ describe('Sampah survei (e2e)', () => {
     await app.close();
   }, 30000);
 
-  const opdHeaders = () => devHeaders({ role: Role.opd, opdId });
+  const opdHeaders = () => devHeaders({ role: Role.opd, opdId, userId: penggunaId });
 
   /** Survei yang SUDAH di sampah, ditulis langsung ke basis data. */
   const buatSurveiTerbuang = () =>
@@ -231,12 +263,13 @@ describe('Sampah survei (e2e)', () => {
     expect(await prisma.answer.count({ where: { responseId: respons.id } })).toBe(0);
   });
 
-  it('Admin OPD tidak boleh memusnahkan -> 403', async () => {
-    // Pemusnahan tak dapat dibatalkan, jadi ia dipegang satu peran saja.
+  it('Admin OPD memusnahkan survei OPD-NYA SENDIRI', async () => {
+    // 30 September 2026: pemusnahan dibuka untuk Admin OPD atas permintaan
+    // pengguna. Sebelumnya uji ini menuntut 403 bagi peran yang sama.
     const survei = await prisma.survey.create({
       data: {
         opdId,
-        judul: 'Bukan hak OPD',
+        judul: 'Dimusnahkan oleh OPD sendiri',
         periode: '2026-Q3',
         status: 'draft',
         deletedAt: new Date(),
@@ -247,8 +280,32 @@ describe('Sampah survei (e2e)', () => {
       .delete(`/api/v1/surveys/${survei.id}/purge`)
       .set(opdHeaders());
 
+    expect(res.status).toBe(200);
+    expect(await prisma.survey.findUnique({ where: { id: survei.id } })).toBeNull();
+  });
+
+  it('Admin OPD TETAP ditolak memusnahkan survei OPD LAIN -> 403', async () => {
+    // Uji terpenting dari pelebaran peran ini. Menambahkan Role.opd pada
+    // `@Roles` melonggarkan SIAPA yang boleh; kurungan per-OPD di
+    // `assertOpdAccess` yang menentukan APA yang boleh disentuhnya. Bila
+    // kurungan itu ikut longgar tanpa ada yang memerah, satu OPD dapat
+    // memusnahkan hasil pengukuran OPD lain.
+    const punyaOrangLain = await prisma.survey.create({
+      data: {
+        opdId: opdLainId,
+        judul: 'Milik OPD lain',
+        periode: '2026-Q3',
+        status: 'draft',
+        deletedAt: new Date(),
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/v1/surveys/${punyaOrangLain.id}/purge`)
+      .set(opdHeaders());
+
     expect(res.status).toBe(403);
-    expect(await prisma.survey.findUnique({ where: { id: survei.id } })).not.toBeNull();
+    expect(await prisma.survey.findUnique({ where: { id: punyaOrangLain.id } })).not.toBeNull();
   });
 
   it('memusnahkan survei yang belum di sampah -> 400', async () => {
@@ -261,5 +318,43 @@ describe('Sampah survei (e2e)', () => {
       .set(devHeaders({ role: Role.kabupaten }));
 
     expect(res.status).toBe(400);
+  });
+
+  /**
+   * Kebijakan umur Sampah, dipajang di halaman Sampah kedua peran.
+   *
+   * Angkanya WAJIB dari server. Keterangan di layar yang berbeda dari kebijakan
+   * yang sebenarnya berlaku justru merusak kepercayaan yang hendak
+   * dibangunnya -- dan menulis "365" mati di antarmuka membuat perbedaan itu
+   * tinggal menunggu seseorang mengubah env.
+   */
+  it('GET /surveys/trash/retensi memberi umur Sampah yang berlaku', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/surveys/trash/retensi')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ hari: 365 });
+  });
+
+  it('Admin OPD juga boleh membacanya -- halaman Sampah-nya memajangnya', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/surveys/trash/retensi')
+      .set(opdHeaders());
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ hari: 365 });
+  });
+
+  it('TIDAK ditelan rute :id — jawabannya 200, bukan 400 dari ParseIntPipe', async () => {
+    // Pola yang sudah menggigit repo ini sebelumnya: rute literal yang
+    // dideklarasikan sesudah rute berparameter dicocokkan sebagai `:id`, lalu
+    // ParseIntPipe menolaknya. Uji controller tak dapat menangkapnya sebab
+    // urutan pendaftaran baru ada saat aplikasi sungguhan dirakit.
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/surveys/trash/retensi')
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).not.toBe(400);
   });
 });

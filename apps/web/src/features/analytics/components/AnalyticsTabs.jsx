@@ -22,10 +22,38 @@ import React from 'react';
  *    dalam Dropdown akhirnya bekerja;
  *  - `overflow-x-auto` pada deretan tab: kalau tetap tak cukup, yang digulir
  *    hanya deretan tab itu, bukan seluruh halaman.
+ *
+ * OFFSET STICKY DIKIRIM PEMANGGIL (7 Oktober 2026, laporan pengguna beserta
+ * tangkapan layar). `top-0` menempel pada tepi atas VIEWPORT, dan navbar kedua
+ * area admin `fixed` di tepi itu juga -- begitu halaman digulir, bilah ini
+ * meluncur ke BELAKANG navbar dan tab maupun pemilih survei tertutup separuh.
+ *
+ * Nilainya tak dapat dipaku di sini: komponen ini dipakai dua area dengan dua
+ * navbar yang tingginya berbeda dan dilaporkan ke dua variabel CSS berlainan
+ * (`--tinggi-navbar-kab`, `--tinggi-navbar-opd`). Memilih salah satunya berarti
+ * area yang lain pasti salah. Bakunya tetap `top-0` supaya pemakai lain --
+ * bila kelak ada, di halaman tanpa navbar tetap -- tak ikut berubah.
+ *
+ * `z-20`, TURUN DARI z-30 (7 Oktober 2026). Navbar kedua area juga z-30, dan
+ * pada z yang sama yang menang adalah yang belakangan di urutan DOM -- selalu
+ * bilah ini. Akibatnya ia MENUTUPI navbar setiap kali keduanya bertindihan.
+ * Yang diturunkan bilah ini, bukan dinaikkan navbarnya: z-30 navbar sudah
+ * berpasangan dengan laci sidebar (z-50) dan latarnya (z-40).
+ *
+ * YANG MASIH HARUS DIKETAHUI: `sticky` di sini TIDAK AKTIF pada kedua halaman
+ * analytics. Terukur di /admin-kab/analytics -- `top` ter-resolve 80px, tetapi
+ * saat `scrollY` 74 bilahnya berada di 30, bukan berhenti di 80. Sebabnya akar
+ * `AdminKabLayout` memakai `overflow-hidden`, dan ancestor ber-overflow bukan
+ * `visible` merebut peran scroll container sehingga sticky tak pernah terpicu.
+ * Jadi bilah ini sesungguhnya ikut tergulir seperti isi biasa. Membuang
+ * `overflow-hidden` itu belum dikerjakan: ia menahan gulir mendatar saat
+ * sidebar beranimasi, dan membuangnya butuh pengukurannya sendiri.
  */
-export default function AnalyticsTabs({ tabs, activeTab, onChange, rightSlot }) {
+export default function AnalyticsTabs({ tabs, activeTab, onChange, rightSlot, kelasSticky = 'top-0' }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-y-2 border-b border-outline-variant sticky top-0 bg-background pt-sm z-30 mb-lg">
+    <div
+      className={`flex flex-wrap items-end justify-between gap-y-2 border-b border-outline-variant sticky ${kelasSticky} bg-background pt-sm z-20 mb-lg`}
+    >
       <div className="flex min-w-0 overflow-x-auto hide-scrollbar">
         {tabs.map((tab) => (
           <button

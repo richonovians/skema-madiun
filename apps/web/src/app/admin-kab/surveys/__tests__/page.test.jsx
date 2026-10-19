@@ -59,12 +59,22 @@ beforeEach(() => {
   deleteSurvey.mockResolvedValue(undefined);
 });
 
+/**
+ * Aksi baris pindah ke MENU TITIK-TIGA (30 September 2026), jadi menekannya
+ * kini dua langkah. Dibungkus di sini supaya uji di bawah tetap berbicara
+ * tentang gerbang konfirmasinya, bukan tentang cara membuka menu.
+ */
+function pilihAksi(nama) {
+  fireEvent.click(screen.getByRole('button', { name: /aksi untuk/i }));
+  fireEvent.click(screen.getByRole('menuitem', { name: nama }));
+}
+
 describe('AdminKabSurveysPage — gerbang Salin', () => {
   it('Salin ditahan di dialog dan menyebut nama OPD-nya', async () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
 
     expect(screen.getByText('Salin survei ini?')).toBeInTheDocument();
     expect(
@@ -77,7 +87,7 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
     fireEvent.click(screen.getByRole('button', { name: /ya, salin/i }));
 
     await waitFor(() => expect(duplicateSurvey).toHaveBeenCalledWith('1'));
@@ -87,7 +97,7 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
     fireEvent.click(screen.getByRole('button', { name: /^batal$/i }));
 
     expect(duplicateSurvey).not.toHaveBeenCalled();
@@ -101,7 +111,7 @@ describe('AdminKabSurveysPage — gerbang Salin', () => {
     await screen.findByText('Survei Layanan Adminduk');
     expect(getSurveys).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: /^salin$/i }));
+    pilihAksi(/^Salin$/);
     fireEvent.click(screen.getByRole('button', { name: /ya, salin/i }));
 
     await waitFor(() => expect(getSurveys).toHaveBeenCalledTimes(2));
@@ -122,7 +132,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
 
     expect(await screen.findByText(/ditutup lebih dulu/i)).toBeInTheDocument();
     expect(screen.getByText(/dipulihkan/i)).toBeInTheDocument();
@@ -134,7 +144,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
 
     expect(await screen.findByText(/142 jawaban/i)).toBeInTheDocument();
   });
@@ -146,7 +156,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
 
     expect(await screen.findByText(/dipulihkan/i)).toBeInTheDocument();
     expect(screen.queryByText(/ditutup lebih dulu/i)).not.toBeInTheDocument();
@@ -157,7 +167,7 @@ describe('AdminKabSurveysPage — dialog buang ke Sampah', () => {
     render(<AdminKabSurveysPage />);
     await screen.findByText('Survei Layanan Adminduk');
 
-    fireEvent.click(screen.getByRole('button', { name: /^hapus$/i }));
+    pilihAksi(/^Hapus$/);
     fireEvent.click(screen.getByRole('button', { name: /ya, pindahkan/i }));
 
     await waitFor(() => expect(deleteSurvey).toHaveBeenCalledWith('1'));
@@ -175,5 +185,40 @@ describe('AdminKabSurveysPage — pintu masuk Sampah', () => {
       'href',
       '/admin-kab/surveys/sampah',
     );
+  });
+});
+
+/**
+ * CATATAN PEMOTONGAN (15 Oktober 2026).
+ *
+ * Halaman ini mengambil FETCH_LIMIT = 100 baris sekali lalu menyaring dan
+ * memaginasinya di klien. Di atas seratus, sisanya tak pernah terlihat dan
+ * kendali paginasinya justru menghitung halaman dari baris yang TERAMBIL --
+ * jadi ia tampak lengkap padahal bukan, dan pencarian di atas hanya mencari di
+ * dalam irisan itu.
+ *
+ * Yang dijaga di sini: halaman MENGATAKANNYA. Bukan memperbaiki pemotongannya,
+ * sebab paginasi sisi server menuntut backend menerima `search`, dan itu
+ * pekerjaan tersendiri.
+ */
+describe('AdminKabSurveysPage — catatan pemotongan', () => {
+  it('mengatakan daftarnya terpotong ketika total backend melebihi yang terambil', async () => {
+    getSurveys.mockResolvedValue({ data: [SURVEI], meta: { pagination: { total: 140 } } });
+
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    const catatan = await screen.findByRole('status');
+    expect(catatan).toHaveTextContent('1');
+    expect(catatan).toHaveTextContent('140');
+  });
+
+  it('TIDAK memasang catatan ketika seluruh baris memang terambil (kendali)', async () => {
+    getSurveys.mockResolvedValue({ data: [SURVEI], meta: { pagination: { total: 1 } } });
+
+    render(<AdminKabSurveysPage />);
+    await screen.findByText('Survei Layanan Adminduk');
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

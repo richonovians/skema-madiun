@@ -1,19 +1,33 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Question, QuestionOption, QuestionType, SurveyStatus } from '@prisma/client';
+import {
+  JenisKelamin,
+  Prisma,
+  Question,
+  QuestionOption,
+  QuestionType,
+  SurveyStatus,
+} from '@prisma/client';
+import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { ConfigService } from '@nestjs/config';
+import { dekripsiKolom } from '../../common/crypto/kolom';
+import { kunciData } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConsentService } from '../auth/consent.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QuestionOptionEntity } from '../questions/entities/question-option.entity';
 import { QuestionEntity } from '../questions/entities/question.entity';
+import { kunciSinggahanIkm } from '../ikm/singgahan-ikm.util';
 import { SubmitPublicResponseDto } from './dto/submit-public-response.dto';
 import { SubmitResponseDto } from './dto/submit-response.dto';
 import { AnswerEntity } from './entities/answer.entity';
@@ -24,11 +38,18 @@ import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 
 @Injectable()
 export class ResponsesService {
+  /** Kunci dekripsi `users.nomorHp`. Lihat `ambilDataDiriAkun`. */
+  private readonly kunci: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly consent: ConsentService,
     private readonly notifications: NotificationsService,
-  ) {}
+    config: ConfigService,
+    @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
+  ) {
+    this.kunci = kunciData(config);
+  }
 
   /** Ambil survei aktif beserta pertanyaannya untuk diisi responden (BE-22). */
   async getFill(surveyId: number, user: CurrentUser): Promise<SurveyFillEntity> {
@@ -119,10 +140,18 @@ export class ResponsesService {
           surveyId,
           userId: user.userId,
           dedupeUserId,
-          // `nomorHp` TIDAK disebut di sini, dan ketiadaannya disengaja: tak ada
-          // sumbernya untuk pengguna bersesi. Helpdesk tak mengirim nomor
-          // telepon dan `users` tak punya kolomnya, jadi menyebutkannya di sini
-          // hanya menulis null yang menyamar sebagai data yang dicoba diambil.
+          // `nomorHp` DISALIN DARI AKUN sejak 1 Oktober 2026 (petang), bersama
+          // seluruh data diri jalur ini. Sebelumnya ia satu-satunya yang
+          // dibaca dari payload, atas dasar pengukuran yang ternyata belum
+          // lengkap: `claims_supported` penyedia tak memuat `phone_number`,
+          // tetapi payload `userinfo` SUNGGUHAN memuat `identity.phone_number`
+          // -- dan spesifikasi OIDC memang menyebut daftar itu petunjuk, bukan
+          // jaminan tertutup.
+          //
+          // Akibatnya seluruh data diri jalur bersesi kini aman OLEH
+          // KONSTRUKSI: tak satu pun dapat dikarang lewat permintaan langsung,
+          // sebab tak satu pun dibaca dari payload.
+          nomorHp: dataDiri?.nomorHp ?? null,
           nama: dataDiri?.nama ?? null,
           jenisKelamin: dataDiri?.jenisKelamin ?? null,
           kelompokUmur: dataDiri?.kelompokUmur ?? null,
@@ -130,6 +159,7 @@ export class ResponsesService {
         },
         include: { answers: true },
       });
+      await this.batalkanSinggahanIkm(surveyId);
       // SESUDAH baris tersimpan: jumlah jawaban dihitung di dalam
       // NotificationsService, jadi memanggilnya lebih awal membuat tonggak
       // "jawaban pertama" tak pernah berbunyi.
@@ -229,6 +259,7 @@ export class ResponsesService {
       },
       include: { answers: true },
     });
+    await this.batalkanSinggahanIkm(surveyId);
     // `null`: pengisi tanpa sesi tak punya baris `users`, jadi tak ada siapa
     // pun yang perlu dikecualikan dari broadcast pengawasan.
     await this.notifications.notifySurveyResponse(
@@ -236,6 +267,23 @@ export class ResponsesService {
       null,
     );
     return this.toResponseEntity(created, created.answers);
+  }
+
+  /**
+   * Batalkan singgahan hitungan IKM survei ini (9 Oktober 2026, jalur A).
+   *
+   * DIPANGGIL SESUDAH baris jawabannya tersimpan, dan urutan itu menentukan
+   * benar-salahnya: membatalkan lebih dulu membuka jendela tempat pembaca lain
+   * dapat mengisi ulang singgahan dengan angka pra-jawaban, sehingga hasilnya
+   * basi persis seperti sebelum perbaikan ini.
+   *
+   * TIDAK dibungkus try/catch di sini: `PenyimpanSinggahan` sudah gagal-terbuka
+   * menurut kontraknya, dan menangkapnya untuk kedua kali hanya menyalin
+   * keputusan yang sama ke tempat kedua. Kalau pembatalannya gagal, TTL 60
+   * detik tetap menjadi batas atas umur angka basi.
+   */
+  private async batalkanSinggahanIkm(surveyId: number): Promise<void> {
+    await Promise.all(kunciSinggahanIkm(surveyId).map((kunci) => this.singgahan.hapus(kunci)));
   }
 
   /**
@@ -283,13 +331,30 @@ export class ResponsesService {
       where: { id: userId },
       select: {
         nama: true,
+        nomorHp: true,
+        jenisKelamin: true,
         respondentProfile: { select: { jenisKelamin: true, kelompokUmur: true } },
       },
     });
     if (!akun) return null;
     return {
       nama: akun.nama,
-      jenisKelamin: akun.respondentProfile?.jenisKelamin ?? null,
+      // Tersimpan sebagai amplop; baris lama yang masih polos dikembalikan apa
+      // adanya oleh `dekripsiKolom`, jadi tak ada jalur yang perlu menunggu
+      // migrasi selesai.
+      nomorHp: akun.nomorHp ? dekripsiKolom(akun.nomorHp, this.kunci) : null,
+      // HELPDESK DULU, `respondent_profiles` sebagai cadangan -- urutan yang
+      // diputuskan pengguna, dan yang angkanya mendukung: pada basis data lokal
+      // 1 Oktober 2026 hanya 1 dari 10 akun punya baris `respondent_profiles`,
+      // sementara 7 dari 8 respons bersesi tersimpan tanpa jenis kelamin.
+      //
+      // Harganya disebut terang-terangan: pada akun yang pernah mengisi
+      // profilnya sendiri, nilai dari Helpdesk MENIMPA isian orang itu.
+      jenisKelamin: akun.jenisKelamin ?? akun.respondentProfile?.jenisKelamin ?? null,
+      // Kelompok umur TAK PUNYA sumber di Helpdesk. Yang dikirimnya
+      // `tanggal_lahir`, dan batas-batas kelompoknya keputusan pengguna, bukan
+      // sesuatu yang boleh ditebak kode ini. Jadi tetap dari
+      // `respondent_profiles`, dan tetap sering kosong.
       kelompokUmur: akun.respondentProfile?.kelompokUmur ?? null,
     };
   }
@@ -320,13 +385,38 @@ export class ResponsesService {
         include: { answers: { orderBy: { question: { urutan: 'asc' } } } },
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { submittedAt: 'desc' },
+        // TERLAMA DAHULU, `id` sebagai pemecah seri (4 Oktober 2026, permintaan
+        // tersurat pengguna: "respon #1 di posisi paling atas dan seterusnya").
+        // Keputusan hari sebelumnya pada hari yang sama -- terbaru dahulu --
+        // dibalik di sini; dicatat supaya pembaca berikutnya tak menyangka
+        // salah satunya kekeliruan.
+        //
+        // Dua pengisi dapat mengirim pada milidetik yang sama, dan baris yang
+        // kunci urutnya seri boleh dikembalikan Postgres dalam urutan apa pun;
+        // karena `nomor` di bawah diturunkan dari POSISI, seri yang goyah akan
+        // menukar nomor dua respons antar-permintaan. `id` menaik monoton, jadi
+        // ia memutus seri itu secara tetap.
+        orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.surveyResponse.count({ where: { surveyId } }),
     ]);
 
+    // NOMOR URUT MASUK (4 Oktober 2026, laporan pengguna "respon paling pertama
+    // masuk akan tertimbun"). Barisnya menaik -- indeks 0 pada halaman 1 adalah
+    // yang paling lama, jadi nomornya 1.
+    //
+    // Tak bergantung pada `total` sama sekali, dan itu bukan kebetulan: nomor
+    // yang dihitung mundur dari `total` (bentuk pertamanya hari itu juga)
+    // berubah bagi SETIAP respons begitu ada satu pengisi baru. Dihitung maju
+    // dari offset, nomor sebuah respons tetap seumur hidupnya.
+    const offset = (page - 1) * limit;
+
     return paginate(
-      rows.map((r) => this.toResponseEntity(r, r.answers)),
+      rows.map((r, index) => {
+        const entity = this.toResponseEntity(r, r.answers);
+        entity.nomor = offset + index + 1;
+        return entity;
+      }),
       total,
       page,
       limit,
@@ -438,7 +528,15 @@ export class ResponsesService {
   }
 
   private toResponseEntity(
-    row: { id: number; surveyId: number; submittedAt: Date },
+    row: {
+      id: number;
+      surveyId: number;
+      submittedAt: Date;
+      nama?: string | null;
+      nomorHp?: string | null;
+      jenisKelamin?: JenisKelamin | null;
+      kelompokUmur?: string | null;
+    },
     answers: {
       id: number;
       questionId: number;
@@ -451,6 +549,15 @@ export class ResponsesService {
       id: row.id,
       surveyId: row.surveyId,
       submittedAt: row.submittedAt,
+      // `?? null`, BUKAN dibiarkan undefined. Keempat medan ini opsional pada
+      // tipe baris di atas supaya pemanggil yang memilih kolomnya sendiri tetap
+      // cocok, tetapi entity-nya harus selalu menyatakan keadaan yang sama:
+      // `undefined` hilang dari JSON, sehingga pembaca tak dapat membedakan
+      // "pengisi memilih anonim" dari "medannya tak ikut terkirim".
+      nama: row.nama ?? null,
+      nomorHp: row.nomorHp ?? null,
+      jenisKelamin: row.jenisKelamin ?? null,
+      kelompokUmur: row.kelompokUmur ?? null,
       answers: answers.map(
         (a) =>
           new AnswerEntity({

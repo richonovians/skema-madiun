@@ -18,7 +18,7 @@ import { useLogout } from '@/hooks/useLogout';
  * `mt-auto`, sementara `<aside>`-nya ber-`h-screen flex flex-col` TANPA
  * `overflow-y-auto`. Selama daftar menunya pendek, `mt-auto` menempelkan blok
  * itu ke dasar layar dan semuanya tampak benar. Tapi begitu isinya melebihi
- * tinggi layar -- dan itu pasti terjadi bagi SUPERUSER, yang menunya bertambah
+ * tinggi layar -- dan itu pasti terjadi bagi ADMIN KABUPATEN, yang menunya bertambah
  * "Manajemen User" dan "Audit Logs" -- blok itu terdorong keluar kotak
  * `fixed`, dan karena tak ada gulir di dalamnya sekaligus `fixed` membuatnya
  * tak ikut bergulir bersama halaman, tombolnya menjadi BENAR-BENAR tak
@@ -110,9 +110,9 @@ export default function AdminAccountMenu({ user, className = '' }) {
             <p className="truncate text-xs text-text-secondary">{user?.roleLabel ?? '-'}</p>
           </div>
 
-          {/* "Ganti Peran" tetap KHUSUS SUPERUSER, syarat yang sama seperti
-              waktu masih di sidebar -- peran lain tak punya peran lain untuk
-              dipindahi, jadi menampilkannya hanya membingungkan. */}
+          {/* "Ganti Peran" hanya untuk akun yang benar-benar memegang lebih
+              dari satu peran -- akun berperan tunggal tak punya tujuan untuk
+              berpindah, jadi menampilkannya hanya membingungkan. */}
           {bolehGantiPeran && (
             <Link
               href="/pilih-peran"

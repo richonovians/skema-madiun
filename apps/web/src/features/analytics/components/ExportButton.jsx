@@ -17,9 +17,14 @@ export default function ExportButton({ type = 'pdf', filters }) {
   };
 
   return (
-    <button 
+    /* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. Namanya
+       disamakan persis dengan tulisan yang tampak di layar lebar, supaya
+       perintah suara menyebut yang sama dengan yang dibaca mata. */
+    <button
       onClick={handleExport}
       disabled={loading}
+      aria-label={`Export ${type.toUpperCase()}`}
+      title={`Export ${type.toUpperCase()}`}
       className={`px-md py-sm rounded-lg flex items-center gap-xs transition-all shadow-sm font-bold text-label-md
         ${type === 'pdf' 
           ? 'bg-red-600 hover:bg-red-700 text-white' 

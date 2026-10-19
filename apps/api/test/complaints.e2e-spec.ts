@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { configureApp } from '../src/app.setup';
+import { terenkripsi } from '../src/common/crypto/envelope';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { devHeaders } from './helpers/auth.helper';
 import { bersihkanAuditAkunUji } from './helpers/audit.helper';
@@ -31,6 +32,8 @@ describe('Complaints (e2e)', () => {
   let opdId: number;
   let respondenId: number;
   let respondenId2: number;
+  let adminOpdId: number;
+  let adminKabId: number;
 
   beforeAll(async () => {
     // Batas harian pengaduan dinaikkan (14 September 2026): suite ini menguji
@@ -83,6 +86,47 @@ describe('Complaints (e2e)', () => {
       },
     });
     respondenId2 = r2.id;
+
+    // DUA PETUGAS, dengan id SUNGGUHAN. `complaint_replies.author_id` adalah FK
+    // ke `users`, dan `asOpd()`/`asKabupaten()` sebelum ini tak mengirim
+    // `x-dev-user-id` sama sekali -- sehingga `stub-auth.provider.ts:53`
+    // memakai baku `'1'`. Di basis data pengembangan pengguna ber-id 1 memang
+    // ada, karena ia baris pengguna pertama yang pernah dibuat di sana.
+    //
+    // Terukur 12 Oktober 2026, ketika suite ini mulai berjalan di basis data
+    // uji sendiri: pada jalan PERTAMA ia masih hijau, karena basis datanya
+    // benar-benar baru dan pengguna pertama yang dibuat suite ini mendapat id
+    // 1. Pada jalan kedua sekuensnya sudah terdorong, id 1 tak ada lagi, dan
+    // tiga uji balasan menjawab 500 dengan "Foreign key constraint violated on
+    // the constraint: `complaint_replies_author_id_fkey`". Lulus karena
+    // kebetulan sejarah seperti itu lebih buruk daripada memerah.
+    //
+    // `opdId` dibiarkan null pada baris petugas OPD: penautannya datang dari
+    // header `x-dev-opd-id`, dan `StubAuthProvider` tak pernah membaca baris
+    // ini. Keduanya TIDAK dihapus di `afterAll` -- aksinya teraudit, dan
+    // `audit_logs.actor_id` menunjuk baris ini.
+    const petugasOpd = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-cmp-admin-opd' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-cmp-admin-opd',
+        nama: 'Admin OPD CMP',
+        email: 'e2e-cmp-admin-opd@example.go.id',
+        roles: [Role.opd],
+      },
+    });
+    adminOpdId = petugasOpd.id;
+    const petugasKab = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-cmp-admin-kab' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-cmp-admin-kab',
+        nama: 'Admin Kabupaten CMP',
+        email: 'e2e-cmp-admin-kab@example.go.id',
+        roles: [Role.kabupaten],
+      },
+    });
+    adminKabId = petugasKab.id;
   }, 60000);
 
   afterAll(async () => {
@@ -94,8 +138,9 @@ describe('Complaints (e2e)', () => {
 
     // Berkas di DISK ikut dibersihkan, dan urutannya menentukan: begitu baris
     // lampirannya hilang, jejak menuju berkasnya juga hilang dan berkas itu jadi
-    // yatim selamanya. Sebelum ini suite ini hanya menghapus baris DB dan
-    // meninggalkan satu berkas setiap kali dijalankan (terhitung 39 yatim pada
+    // kehilangan induknya selamanya. Sebelum ini suite ini hanya menghapus
+    // baris DB dan meninggalkan satu berkas setiap kali dijalankan (terhitung 39
+    // berkas tanpa induk pada
     // 7 September 2026).
     const lampiran = await prisma.complaintAttachment.findMany({
       where: { complaint: { userId: pelapor } },
@@ -125,8 +170,8 @@ describe('Complaints (e2e)', () => {
   }, 30000);
 
   const asResponden = (userId: number) => devHeaders({ role: Role.responden, userId });
-  const asOpd = () => devHeaders({ role: Role.opd, opdId });
-  const asKabupaten = () => devHeaders({ role: Role.kabupaten });
+  const asOpd = () => devHeaders({ role: Role.opd, opdId, userId: adminOpdId });
+  const asKabupaten = () => devHeaders({ role: Role.kabupaten, userId: adminKabId });
 
   it('POST /complaints (Responden) tanpa lampiran -> 201 dengan ticketNo', async () => {
     const res = await request(app.getHttpServer())
@@ -140,6 +185,50 @@ describe('Complaints (e2e)', () => {
     expect(res.status).toBe(201);
     expect(res.body.data.ticketNo).toMatch(/^PGD\d{8}[A-Z0-9]{4}$/);
     expect(res.body.data.status).toBe('diterima');
+  });
+
+  /**
+   * ENKRIPSI KOLOM, DIBUKTIKAN DI BASIS DATANYA (23 September 2026).
+   *
+   * Respons API yang benar tidak membuktikan apa pun tentang enkripsi -- ia akan
+   * tetap benar seandainya enkripsinya dicopot seluruhnya. Yang membedakan
+   * hanya keadaan BARIS DI BASIS DATA, jadi uji ini membacanya langsung lewat
+   * Prisma, melewati seluruh jalur baca aplikasi.
+   */
+  it('uraian & pesan tersimpan TERENKRIPSI di basis data, tetapi terbaca lewat API', async () => {
+    const URAIAN = 'Pungli oleh petugas di loket 3, saya diminta Rp50.000';
+    const PESAN = 'Nomor saya 0812-3456-7890, mohon dihubungi';
+
+    const buat = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'aduan')
+      .field('judul', 'Uji enkripsi kolom')
+      .field('uraian', URAIAN);
+    expect(buat.status).toBe(201);
+    // API mengembalikan teks aslinya: dekripsi di jalur baca bekerja.
+    expect(buat.body.data.uraian).toBe(URAIAN);
+
+    const balas = await request(app.getHttpServer())
+      .post(`/api/v1/complaints/${buat.body.data.id}/replies`)
+      .set(asResponden(respondenId))
+      .field('pesan', PESAN);
+    expect(balas.status).toBe(201);
+    expect(balas.body.data.pesan).toBe(PESAN);
+
+    const baris = await prisma.complaint.findUnique({
+      where: { id: buat.body.data.id },
+      select: { uraian: true, replies: { select: { pesan: true } } },
+    });
+
+    expect(baris?.uraian.startsWith('enc:v1:')).toBe(true);
+    expect(baris?.uraian).not.toContain('Pungli');
+    expect(baris?.uraian).not.toContain('Rp50.000');
+
+    const pesanTersimpan = baris?.replies[0]?.pesan ?? '';
+    expect(pesanTersimpan.startsWith('enc:v1:')).toBe(true);
+    expect(pesanTersimpan).not.toContain('0812');
   });
 
   it('POST /complaints dengan lampiran valid (png) -> 201, attachments tersimpan', async () => {
@@ -185,10 +274,18 @@ describe('Complaints (e2e)', () => {
       urlBertandaTangan = res.body.data.attachments[0].fileUrl;
     });
 
-    it('API mengembalikan fileUrl yang sudah ber-exp & sig', () => {
+    it('API mengembalikan fileUrl yang sudah ber-exp, sub & sig', () => {
       // Kalau baris ini merah, penandatanganannya tak terpasang dan seluruh uji
       // di bawah kehilangan makna -- termasuk yang menuntut 403.
-      expect(urlBertandaTangan).toMatch(/^\/uploads\/complaints\/.+\?exp=\d+&sig=[A-Za-z0-9_-]+$/);
+      //
+      // `sub` masuk ke pola ini 9 Oktober 2026, ketika tautan lampiran diikat
+      // pada akun supaya dapat dicabut. Polanya DIJANGKARKAN pada ketiga
+      // parameter beserta urutannya, bukan dilonggarkan jadi `.+`: tautan yang
+      // kehilangan `sub` kembali menjadi tautan yang tak tahu siapa
+      // membukanya, dan pola yang longgar tak akan mengatakannya.
+      expect(urlBertandaTangan).toMatch(
+        /^\/uploads\/complaints\/.+\?exp=\d+&sub=\d+&sig=[A-Za-z0-9_-]+$/,
+      );
     });
 
     it('jalur POLOS tanpa tanda tangan -> 403 (inilah celah yang ditutup)', async () => {
@@ -207,6 +304,28 @@ describe('Complaints (e2e)', () => {
       expect(res.body).toEqual(PNG_ASLI);
       // Tanpa header ini peramban memblokir <img> lintas-origin walau 200.
       expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    });
+
+    /**
+     * SATU-SATUNYA UJI YANG MEMBUKTIKAN ENKRIPSINYA BENAR-BENAR TERJADI
+     * (23 September 2026).
+     *
+     * Uji di atas membuktikan pulang-perginya utuh, dan itu akan tetap hijau
+     * seandainya enkripsinya dicopot seluruhnya -- berkas polos yang disajikan
+     * apa adanya juga sama dengan yang diunggah. Yang membedakan keduanya hanya
+     * keadaan berkas DI DISK, jadi di situlah asersinya harus berada.
+     */
+    it('berkas di disk BUKAN bita aslinya, melainkan amplop terenkripsi', async () => {
+      const jalurUrl = urlBertandaTangan.split('?')[0];
+      const dirUnggahan = path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? 'uploads');
+      const diDisk = await fs.readFile(
+        path.join(dirUnggahan, jalurUrl.replace(/^\/uploads\//, '')),
+      );
+
+      expect(diDisk.equals(PNG_ASLI)).toBe(false);
+      expect(terenkripsi(diDisk)).toBe(true);
+      // Tanda tangan berkas PNG tak boleh tersisa di mana pun dalam ciphertext.
+      expect(diDisk.includes(Buffer.from('\x89PNG'))).toBe(false);
     });
 
     it('sig diutak-atik -> 403', async () => {
@@ -334,6 +453,86 @@ describe('Complaints (e2e)', () => {
     // Tanpa kontrol ini, uji di atas tak membuktikan apa pun tentang penyamaran.
     expect(dilihatAdmin.body.data.userId).toBe(respondenId);
     expect(typeof dilihatAdmin.body.data.reporterNama).toBe('string');
+  });
+
+  /**
+   * `isAnonim=false` HARUS tetap bernama (TC-BOOL-001, 15 Oktober 2026).
+   *
+   * Uji di atas hanya mengirim `isAnonim=true` atau menghilangkan medannya sama
+   * sekali. Keduanya lolos walau nilai `'false'` dibaca sebagai `true`, sebab
+   * jalur itu tak pernah dilalui -- dan `complaints.api.js` memang tak pernah
+   * mengirimkannya. Yang tak terjaga adalah kontrak API-nya: medan ini
+   * `@ApiPropertyOptional`, jadi pemakai Swagger atau skrip mana pun dapat
+   * mengirim `'false'` apa adanya.
+   *
+   * Terbukti merah oleh cacatnya sendiri, bukan oleh mutasi: sebelum
+   * `@Type(() => String)` dipasang, `enableImplicitConversion` menjalankan
+   * `Boolean('false')` -- bernilai `true` -- sebelum `@Transform` dipanggil,
+   * sehingga pengaduan ini tersimpan anonim dan identitas pelapornya disamarkan.
+   */
+  it('POST /complaints dengan isAnonim=false TETAP bernama, bukan anonim', async () => {
+    const dibuat = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'aduan')
+      .field('judul', 'Pengaduan bernama dengan isAnonim=false (uji e2e)')
+      .field('uraian', 'Nilai false harus dihormati, bukan dibaca sebagai true')
+      .field('isAnonim', 'false');
+
+    expect(dibuat.status).toBe(201);
+    expect(dibuat.body.data.isAnonim).toBe(false);
+
+    // Penyamaran terjadi di jalur BACA (complaints.service.ts), jadi di situlah
+    // akibatnya terlihat: anonim yang keliru akan menghapus identitas pelapor.
+    const dilihatAdmin = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${dibuat.body.data.ticketNo}`)
+      .set(asKabupaten());
+
+    expect(dilihatAdmin.status).toBe(200);
+    expect(dilihatAdmin.body.data.userId).toBe(respondenId);
+    expect(typeof dilihatAdmin.body.data.reporterNama).toBe('string');
+  });
+
+  /**
+   * `tanpaOpd=false` TIDAK menyaring apa pun (TC-BOOL-002, 15 Oktober 2026).
+   *
+   * Cacatnya sama seperti TC-BOOL-001 dan lebih mudah terlihat: `tanpaOpd`
+   * bernilai `true` membuat `complaints.service.ts:212` mempersempit daftar ke
+   * pengaduan tanpa OPD tujuan, jadi `false` yang dibaca `true` menyembunyikan
+   * SELURUH pengaduan yang sudah punya tujuan.
+   *
+   * Dibuktikan dua arah: `tanpaOpd=false` wajib memuat pengaduan ber-OPD, dan
+   * `tanpaOpd=true` wajib tidak memuat satu pun -- tanpa kendali kedua, uji
+   * pertama akan tetap hijau bila penyaringnya dibuang seluruhnya.
+   */
+  it('GET /complaints?tanpaOpd=false tidak menyaring, dan tanpaOpd=true tetap menyaring', async () => {
+    // Fixture: satu pengaduan TANPA tujuan, supaya kendali kedua punya isi.
+    const tanpaTujuan = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('kategori', 'aduan')
+      .field('judul', 'Pengaduan tanpa tujuan (uji e2e)')
+      .field('uraian', 'Pelapor tak tahu harus ditujukan ke OPD mana');
+    expect(tanpaTujuan.status).toBe(201);
+    expect(tanpaTujuan.body.data.opdId).toBeNull();
+
+    const bebas = await request(app.getHttpServer())
+      .get('/api/v1/complaints?tanpaOpd=false&limit=100')
+      .set(asKabupaten());
+
+    expect(bebas.status).toBe(200);
+    const barisBebas = bebas.body.data as { opdId: number | null }[];
+    expect(barisBebas.some((c) => c.opdId !== null)).toBe(true);
+
+    const tersaring = await request(app.getHttpServer())
+      .get('/api/v1/complaints?tanpaOpd=true&limit=100')
+      .set(asKabupaten());
+
+    expect(tersaring.status).toBe(200);
+    const barisTersaring = tersaring.body.data as { opdId: number | null }[];
+    expect(barisTersaring.length).toBeGreaterThan(0);
+    expect(barisTersaring.every((c) => c.opdId === null)).toBe(true);
   });
 
   it('POST /complaints oleh Admin OPD -> 403 (hanya Responden)', async () => {
@@ -718,7 +917,7 @@ describe('Complaints (e2e)', () => {
         .send({ opdId });
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, superuser/i);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten/i);
     });
 
     it('Responden pun tidak dapat meneruskan -> 403 (kontrol peran tak berwenang)', async () => {
@@ -728,7 +927,7 @@ describe('Complaints (e2e)', () => {
         .send({ opdId });
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten, superuser/i);
+      expect(String(res.body.message)).toMatch(/hanya untuk peran: kabupaten/i);
     });
 
     it('Admin Kabupaten meneruskan -> 200, opdId terisi', async () => {
@@ -748,6 +947,24 @@ describe('Complaints (e2e)', () => {
 
       const nomor = res.body.data.map((c: { ticketNo: string }) => c.ticketNo);
       expect(nomor).toContain(tiketNo);
+    });
+
+    /**
+     * TC-RBAC-012, jalur suksesnya. Matriksnya menyatakan Admin Kabupaten
+     * ditolak 403 di rute ini; yang sebenarnya terjadi: rutenya
+     * `@Roles(Role.kabupaten, Role.opd)`, jadi ia LOLOS gerbang peran, dan
+     * satu-satunya yang pernah menolaknya adalah aturan bisnis "belum
+     * diteruskan" yang diuji di atas. Sesudah diteruskan, tak ada lagi yang
+     * menolak -- dan itu belum pernah diuji sama sekali.
+     */
+    it('sesudah diteruskan, Admin Kabupaten dapat mengubah statusnya -> 200', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiketId}/status`)
+        .set(asKabupaten())
+        .send({ status: 'diproses' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('diproses');
     });
 
     it('meneruskan ulang -> 400 (bukan dialihkan diam-diam)', async () => {

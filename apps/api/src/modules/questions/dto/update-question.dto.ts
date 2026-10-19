@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -16,6 +16,9 @@ import { QuestionOptionInputDto } from './create-question.dto';
 export class UpdateQuestionDto {
   @ApiPropertyOptional()
   @IsOptional()
+  // Dipangkas SEBELUM divalidasi: kalimat yang hanya berisi spasi lolos
+  // `MinLength(1)` dan tampil sebagai pertanyaan kosong bagi responden.
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   teks?: string;

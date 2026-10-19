@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -45,7 +46,26 @@ export default function ConfirmActionModal({
     ? 'bg-red-600 hover:bg-red-700 shadow-red-200'
     : 'bg-primary hover:bg-primary-hover shadow-primary/20';
 
-  return (
+  // DIGAMBAR DI `document.body`, BUKAN DI TEMPAT KOMPONEN INI DIPANGGIL
+  // (4 Oktober 2026, laporan pengguna: "tombol perkecil sidebar muncul
+  // sendiri" saat modal builder terbuka).
+  //
+  // `z-[9999]` di bawah ini TIDAK berarti apa-apa terhadap dunia luar selama
+  // modalnya digambar di dalam leluhur yang punya konteks penumpukan sendiri.
+  // BuilderLayout berkelas `relative z-50`, jadi seluruh builder beserta
+  // modalnya adalah SATU lapisan setinggi 50 -- dan tombol ciutkan sidebar
+  // (`fixed z-[60]`, saudara di luar builder) digambar di atas latar gelapnya.
+  // Yang terlihat pengguna: segalanya meredup kecuali satu tombol yang
+  // tertinggal tajam, seolah ia baru saja muncul.
+  //
+  // Portal memutus ketergantungan itu untuk SETIAP tempat pemanggilan,
+  // sekarang dan nanti -- sama seperti RoleLoginPicker, meski sebabnya di sana
+  // leluhur ber-transform, bukan z-index.
+  //
+  // `document` diperiksa karena berkas ini ikut terangkut ke bundel server.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onCancel?.()}
@@ -96,6 +116,7 @@ export default function ConfirmActionModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

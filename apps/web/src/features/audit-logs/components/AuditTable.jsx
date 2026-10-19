@@ -4,16 +4,31 @@ import Badge from '@/components/ui/Badge';
 import { Eye, Clock } from 'lucide-react';
 import Button from '@/components/ui/Button';
 
+/**
+ * Warna lencana, BERKUNCI PADA KUNCI AKSI (6 Oktober 2026).
+ *
+ * Semula berkunci pada LABELNYA -- `CREATE`, `UPDATE`, `DELETE`,
+ * `UPDATE STATUS`. Begitu label diterjemahkan ke bahasa Indonesia, keempat
+ * warnanya hilang tanpa satu pun uji memerah dan seluruh lencana menjadi
+ * kelabu. Mengunci warna pada teks tampilan berarti setiap penggantian kata
+ * merusak maknanya; kunci aksi adalah nilai `audit_logs.aksi` yang tak pernah
+ * berubah karena alasan tampilan.
+ *
+ * Aksi di luar daftar ini memakai lencana baku dengan sengaja -- termasuk
+ * `purge` dan kedua aksi SSO. Memberi warna pada semuanya membuat tak ada yang
+ * menonjol, dan pilihan warna untuk aksi-aksi itu belum diputuskan pemilik
+ * produk.
+ */
 const ACTION_VARIANT = {
-  CREATE: 'success',
-  UPDATE: 'warning',
-  DELETE: 'danger',
-  'UPDATE STATUS': 'warning',
+  create: 'success',
+  update: 'warning',
+  update_status: 'warning',
+  delete: 'danger',
 };
 
 export default function AuditTable({ data, pagination }) {
-  const getActionBadge = (action) => (
-    <Badge variant={ACTION_VARIANT[action] ?? 'default'}>{action}</Badge>
+  const getActionBadge = (aksi, label) => (
+    <Badge variant={ACTION_VARIANT[aksi] ?? 'default'}>{label}</Badge>
   );
 
   const formatDate = (isoString) => {
@@ -65,7 +80,7 @@ export default function AuditTable({ data, pagination }) {
                   <div className="text-sm font-semibold text-slate-700">{log.module}</div>
                 </td>
                 <td className="p-4 align-top">
-                  <div className="mb-2">{getActionBadge(log.action)}</div>
+                  <div className="mb-2">{getActionBadge(log.aksi, log.action)}</div>
                   <div className="text-xs text-slate-600 line-clamp-2">{log.summary}</div>
                 </td>
                 <td className="p-4 align-top text-left">

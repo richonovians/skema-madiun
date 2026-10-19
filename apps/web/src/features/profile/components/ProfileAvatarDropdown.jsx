@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList, Repeat, AlertTriangle, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, LogOut, ChevronDown, ShieldCheck, MessageSquare, ClipboardList, Repeat, AlertTriangle, RefreshCw, UserRound } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import ProfileErrorAvatar from '@/components/ui/ProfileErrorAvatar';
 import { useAsync } from '@/hooks/useAsync';
@@ -172,6 +172,28 @@ export default function ProfileAvatarDropdown() {
           {/* Navigation Items */}
           <div className="space-y-0.5 py-1">
 
+            {/* SATU-SATUNYA jalan menuju /profile (4 Oktober 2026, permintaan
+                pengguna). Halamannya sudah lengkap sejak lama dan dijaga
+                proxy.js sebagai halaman khusus responden, tetapi tak ada satu
+                pun tautan menujunya di seluruh apps/web -- sampai sekarang ia
+                hanya terbuka bila alamatnya diketik sendiri.
+
+                Rutenya `/profile`, BUKAN `/profil`: itu nama berkas rutenya
+                yang sesungguhnya, dan nama itu juga yang tercantum di
+                RESPONDENT_ONLY_PREFIXES pada proxy.js.
+
+                Diletakkan paling atas karena ia lanjutan blok identitas di
+                atasnya -- tiga tautan sesudahnya menuju pekerjaan pengguna,
+                yang ini menuju dirinya sendiri. */}
+            <Link
+              href="/profile"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 px-3.5 py-3 text-sm font-medium text-text-primary rounded-xl hover:bg-primary-container/30 hover:text-primary transition-colors min-h-[44px]"
+            >
+              <UserRound size={16} className="text-text-secondary group-hover:text-primary shrink-0" />
+              <span>Profil Saya</span>
+            </Link>
+
             <Link
               href="/dashboard"
               onClick={() => setIsOpen(false)}
@@ -218,7 +240,7 @@ export default function ProfileAvatarDropdown() {
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3.5 py-3 text-sm font-semibold text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left min-h-[44px]"
+              className="w-full flex items-center gap-3 px-3.5 py-3 text-sm font-semibold text-red-600 rounded-xl hover:bg-red-50 transition-colors text-left min-h-[44px]"
             >
               <LogOut size={16} className="text-red-500 shrink-0" />
               <span>Logout</span>

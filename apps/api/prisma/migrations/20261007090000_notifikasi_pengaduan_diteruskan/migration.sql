@@ -1,0 +1,11 @@
+-- AlterEnum
+-- Pengaduan "lainnya" (tanpa tujuan) yang diteruskan ke OPD berwenang kini
+-- memberi tahu PELAPOR (7 Oktober 2026, permintaan pengguna). Sampai kini
+-- `forward()` hanya mengabari Admin OPD tujuan + Kabupaten lewat
+-- `complaint_created`; pelapor yang memilih "Lainnya" tak pernah tahu
+-- pengaduannya sudah sampai ke instansi yang benar.
+--
+-- Mengikuti pola migrasi 20260806051800_add_complaint_created_notification_type
+-- dan 20260913000000_notifikasi_jawaban_survei: satu nilai enum baru, tanpa
+-- dipakai di pernyataan yang sama (aman di luar/ dalam transaksi migrasi).
+ALTER TYPE "notification_type" ADD VALUE 'complaint_forwarded';

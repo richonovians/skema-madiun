@@ -1,8 +1,20 @@
+import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { dekripsi, INFO_LAMPIRAN, terenkripsi } from './common/crypto/envelope';
+import { resolveLampiran, tipeKonten } from './common/crypto/jalur-lampiran';
+import { kunciData } from './common/crypto/kunci';
+import { PENYIMPAN_CABUT_LAMPIRAN } from './common/uploads/penyimpan-cabut-lampiran.interface';
+import type { PenyimpanCabutLampiran } from './common/uploads/penyimpan-cabut-lampiran.interface';
 import { verifyAttachmentPath } from './modules/complaints/attachment-url.util';
+import type { HasilVerifikasi } from './modules/complaints/attachment-url.util';
+import { DokumentasiService } from './modules/dokumentasi/dokumentasi.service';
+import { anotasiRute } from './modules/dokumentasi/anotasi-rute';
+import { bangunKonfigOpenApi } from './modules/dokumentasi/openapi.config';
+import { HEADER_SESI_BERAKHIR } from './modules/auth/session/session-refresh.interceptor';
 
 /**
  * Konfigurasi aplikasi bersama — dipakai `main.ts` (runtime) DAN e2e test, agar
@@ -17,6 +29,8 @@ interface UploadRequestLike {
 interface UploadResponseLike {
   status: (code: number) => { json: (body: unknown) => void };
   setHeader: (name: string, value: string) => void;
+  /** Dipakai penyaji lampiran; badannya Buffer, bukan JSON. */
+  end: (body: Buffer) => void;
 }
 
 export function configureApp(app: INestApplication): void {
@@ -40,7 +54,29 @@ export function configureApp(app: INestApplication): void {
   );
 
   // Header keamanan baku (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, dst.) — OWASP baseline.
-  app.use(helmet());
+  //
+  // `upgrade-insecure-requests` DIBUANG saat aplikasi tidak disajikan lewat
+  // https (16 September 2026, laporan pengguna: /api/docs putih kosong).
+  // Direktif itu memerintahkan peramban menaikkan setiap permintaan http:// pada
+  // halaman ini menjadi https://; proxy pengembangan hanya mendengarkan port 80,
+  // jadi seluruh berkas Swagger ditolak sambungannya (ERR_CONNECTION_REFUSED)
+  // dan wadahnya tinggal kosong. `curl` tak mematuhi CSP, jadi dari baris
+  // perintah semuanya tetap terlihat 200 -- cacat yang sama persis dengan
+  // Cross-Origin-Resource-Policy di bawah (6 Agustus 2026).
+  //
+  // Skemanya dibaca dari WEB_APP_URL, bukan NODE_ENV: yang menentukan bukan
+  // "sedang mengembangkan atau tidak", melainkan apakah alamat yang dipakai
+  // benar-benar melayani https. Di produksi nilainya https, jadi direktifnya
+  // tetap terpasang dan tak ada yang melemah di sana.
+  const lewatHttps = (config.get<string>('app.webUrl') ?? '').startsWith('https://');
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: lewatHttps ? {} : { upgradeInsecureRequests: null },
+      },
+    }),
+  );
 
   // CORS eksplisit: hanya origin frontend yang diizinkan (bukan wildcard `*`),
   // `credentials: true` disiapkan untuk sesi cookie httpOnly saat SSO nyata aktif.
@@ -51,7 +87,12 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: config.get<string[]>('cors.origin'),
     credentials: true,
-    exposedHeaders: ['Content-Disposition'],
+    // `X-Sesi-Berakhir` (17 September 2026): waktu berakhirnya sesi sesudah
+    // diperpanjang. Sama seperti Content-Disposition, header di luar daftar aman
+    // CORS disembunyikan peramban dari JavaScript lintas-origin -- tanpa baris
+    // ini antarmuka tak pernah melihat perpanjangannya dan menyatakan sesi habis
+    // padahal cookienya baru saja disegarkan.
+    exposedHeaders: ['Content-Disposition', HEADER_SESI_BERAKHIR],
   });
 
   // ---------------------------------------------------------------- LAMPIRAN
@@ -74,6 +115,29 @@ export function configureApp(app: INestApplication): void {
   // terautentikasi lewat `assertAccess` -- pekerjaan terpisah yang lebih besar.
   const uploadDir = path.resolve(process.cwd(), config.get<string>('upload.dir') ?? 'uploads');
   const urlSecret = config.get<string>('session.jwtSecret') ?? '';
+  // Harus SAMA dengan yang dipakai ComplaintsService saat menandatangani: dari
+  // `exp` dan TTL inilah saat penerbitan dihitung mundur, dan selisih nilai
+  // membuat tautan terbaca lebih tua atau lebih muda daripada sebenarnya.
+  const urlTtl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
+  const pencabutan = app.get<PenyimpanCabutLampiran>(PENYIMPAN_CABUT_LAMPIRAN);
+  const logLampiran = new Logger('Lampiran');
+
+  /**
+   * 403 untuk SEMUA kegagalan, termasuk kedaluwarsa dan dicabut: membedakan
+   * status per sebab akan memberi tahu penebak bahwa sebuah jalur memang ada.
+   * Sebabnya tetap disebut di badan respons supaya antarmuka dapat
+   * menganjurkan "muat ulang halaman" alih-alih menampilkan gambar rusak tanpa
+   * keterangan.
+   */
+  const tolak = (res: UploadResponseLike, sebab: HasilVerifikasi | 'dicabut'): void => {
+    const pesan =
+      sebab === 'kedaluwarsa'
+        ? 'Tautan lampiran sudah kedaluwarsa. Muat ulang halaman untuk mendapatkan tautan baru.'
+        : sebab === 'dicabut'
+          ? 'Tautan lampiran sudah dicabut. Masuk kembali untuk mendapatkan tautan baru.'
+          : 'Tautan lampiran tidak sah.';
+    res.status(403).json({ success: false, statusCode: 403, message: pesan });
+  };
   const satuNilai = (v: unknown): string | null => {
     // `?exp=1&exp=2` membuat Express mengisinya sebagai array. Mengambil salah
     // satu berarti membiarkan pengirim memilih; menolak seluruhnya lebih jujur.
@@ -89,50 +153,126 @@ export function configureApp(app: INestApplication): void {
       return;
     }
 
+    const sub = satuNilai(req.query?.sub);
     const hasil = verifyAttachmentPath(
       req.path,
       satuNilai(req.query?.exp),
+      sub,
       satuNilai(req.query?.sig),
       urlSecret,
     );
     if (hasil === 'sah') {
-      next();
+      // PENCABUTAN DIPERIKSA SESUDAH TANDA TANGAN, bukan sebelum: menanyakan
+      // Redis untuk `sub` yang belum terbukti sah berarti siapa pun yang
+      // mengarang `?sub=` dapat membebani penyimpan tanpa memegang tanda
+      // tangan apa pun.
+      void (async () => {
+        try {
+          const dicabut = await pencabutan.dicabutPada(Number(sub));
+          const diterbitkan = Number(satuNilai(req.query?.exp)) - urlTtl;
+          if (dicabut !== null && diterbitkan < dicabut) {
+            tolak(res, 'dicabut');
+            return;
+          }
+          next();
+        } catch (err) {
+          // GAGAL TERTUTUP. Penyimpan yang tak dapat menjawab berarti menolak,
+          // bukan meloloskan; lihat docblock `PenyimpanCabutLampiran`.
+          logLampiran.error(
+            `Penyimpan pencabutan lampiran tak menjawab, akses ditolak: ${String(err)}`,
+          );
+          tolak(res, 'dicabut');
+        }
+      })();
       return;
     }
 
-    // 403 untuk SEMUA kegagalan, termasuk kedaluwarsa: membedakan status per
-    // sebab akan memberi tahu penebak bahwa sebuah jalur memang ada. Sebabnya
-    // tetap disebut di badan respons supaya antarmuka dapat menganjurkan "muat
-    // ulang halaman" alih-alih menampilkan gambar rusak tanpa keterangan.
-    res.status(403).json({
-      success: false,
-      statusCode: 403,
-      message:
-        hasil === 'kedaluwarsa'
-          ? 'Tautan lampiran sudah kedaluwarsa. Muat ulang halaman untuk mendapatkan tautan baru.'
-          : 'Tautan lampiran tidak sah.',
-    });
+    tolak(res, hasil);
   });
 
+  // PENYAJIAN LAMPIRAN TERENKRIPSI (23 September 2026).
+  //
+  // Menggantikan `useStaticAssets`, dan penggantinya harus ditulis sendiri
+  // karena berkas di disk kini bukan lagi berkas yang diminta peramban: ia
+  // amplop AES-256-GCM (lihat common/crypto/envelope.ts). `express.static` akan
+  // mengirimkan amplop itu apa adanya, dan peramban menampilkan gambar rusak.
+  //
+  // YANG IKUT HILANG BERSAMA `express.static`, dan karena itu ditulis ulang di
+  // sini: penegakan batas direktori (jalur-lampiran.ts) dan penentuan
+  // `Content-Type`. Keduanya dulu gratis, dan justru itu yang membuatnya mudah
+  // terlupakan.
+  //
   // `Cross-Origin-Resource-Policy: cross-origin` (2026-08-06, laporan bug user):
   // `helmet()` memasang default `same-origin` di SEMUA respons, dan peramban
   // (bukan curl -- itulah sebab verifikasi manual sebelumnya lolos) MEMBLOKIR
   // <img> lintas-origin walau responsnya 200 OK. Dilonggarkan HANYA di rute ini;
   // endpoint JSON lain tetap dijaga.
   //
-  // Lewat cast: tanda tangan fungsi ini `INestApplication` agar dapat dipakai
-  // seluruh e2e, sedangkan `useStaticAssets` milik NestExpressApplication.
-  // Adapter Express adalah bawaan `createNestApplication()`, jadi metode ini ada
-  // pada instansnya di runtime -- pola yang sama dengan `trust proxy` di atas.
-  (
-    app as unknown as {
-      useStaticAssets: (dir: string, options: Record<string, unknown>) => void;
+  // Middleware verifikasi tanda tangan di atas berjalan LEBIH DULU dan tak
+  // disentuh; permintaan yang sampai ke sini sudah bertanda tangan sah.
+  const kunciLampiran = kunciData(config);
+
+  app.use((req: UploadRequestLike, res: UploadResponseLike, next: () => void) => {
+    if (!req.path.startsWith('/uploads/')) {
+      next();
+      return;
     }
-  ).useStaticAssets(uploadDir, {
-    prefix: '/uploads',
-    setHeaders: (res: UploadResponseLike) => {
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    },
+
+    const berkas = resolveLampiran(uploadDir, req.path);
+    if (!berkas) {
+      // 404, bukan 403: jalur yang ditolak penjaga direktori tak boleh dapat
+      // jawaban yang membedakannya dari jalur yang memang tak ada.
+      res
+        .status(404)
+        .json({ success: false, statusCode: 404, message: 'Lampiran tidak ditemukan' });
+      return;
+    }
+
+    let isi: Buffer;
+    try {
+      isi = readFileSync(berkas);
+    } catch {
+      res
+        .status(404)
+        .json({ success: false, statusCode: 404, message: 'Lampiran tidak ditemukan' });
+      return;
+    }
+
+    let keluaran: Buffer;
+    if (terenkripsi(isi)) {
+      try {
+        // SELURUH berkas didekripsi dan tagnya diverifikasi SEBELUM satu byte
+        // pun dikirim. Mengalirkannya berarti mengirim plaintext yang belum
+        // terbukti utuh lalu "membatalkan" setelah separuh gambar sampai di
+        // peramban. Batas lampiran 5MB membuat ongkos menyangga ini kecil dan
+        // terbatas -- lihat complaints.constants.ts.
+        keluaran = dekripsi(isi, kunciLampiran, INFO_LAMPIRAN);
+      } catch {
+        // Tag tak cocok berarti berkasnya rusak ATAU kuncinya bukan kunci yang
+        // dipakai menulisnya. Keduanya masalah server, bukan permintaan yang
+        // salah, dan keduanya harus terdengar.
+        logLampiran.error(`Gagal mendekripsi lampiran ${path.basename(berkas)}`);
+        res
+          .status(500)
+          .json({ success: false, statusCode: 500, message: 'Lampiran tidak dapat dibaca' });
+        return;
+      }
+    } else {
+      // Berkas lama dari sebelum enkripsi dinyalakan. Tetap disajikan supaya
+      // pengaduan lama tak mendadak kehilangan buktinya, tetapi namanya
+      // DISEBUT di log: migrasi yang belum tuntas harus terlihat, bukan
+      // tertutupi oleh jalur yang diam-diam tetap bekerja.
+      logLampiran.warn(
+        `Lampiran masih polos di disk: ${path.basename(berkas)} ` +
+          '(jalankan `pnpm enkripsi:lampiran`)',
+      );
+      keluaran = isi;
+    }
+
+    res.setHeader('Content-Type', tipeKonten(berkas));
+    res.setHeader('Content-Length', String(keluaran.length));
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.end(keluaran);
   });
 
   // Prefiks versi API: seluruh endpoint di bawah /api/v1 (kontrak arsitektur).
@@ -149,4 +289,21 @@ export function configureApp(app: INestApplication): void {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+
+  // PEMBANGUN DOKUMEN OPENAPI didaftarkan DI SINI, bukan di `main.ts`.
+  //
+  // `configureApp()` dipakai `main.ts` DAN seluruh berkas e2e; menaruhnya di
+  // `main.ts` membuat endpoint `/dokumentasi/openapi` tak ada saat e2e,
+  // sehingga penjaga perannya tak pernah teruji pada jalur yang sama dengan
+  // produksi. Aturan itu tertulis tersurat di CLAUDE.md, dan endpoint
+  // ber-penjaga peran termasuk perilaku keamanan.
+  //
+  // Hanya MENDAFTARKAN, bukan membangun. Pembangunan menuntut rute sudah
+  // terdaftar -- yang baru terjadi di `app.init()` -- dan ditunda sampai ada
+  // permintaan pertama. Lihat DokumentasiService.
+  app
+    .get(DokumentasiService)
+    .daftarkanPembangun(() =>
+      anotasiRute(app, SwaggerModule.createDocument(app, bangunKonfigOpenApi())),
+    );
 }

@@ -13,6 +13,24 @@ export default function AdminSurveyCardActions({
 }) {
   const [copied, setCopied] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  /**
+   * Bagikan HANYA pada survei aktif (permintaan pengguna 22 September 2026).
+   *
+   * Ini membalik keputusan 11 September yang dulu tercatat tepat di atas
+   * tombolnya: draf pun boleh dibagikan supaya poster/QR dapat disiapkan lebih
+   * dulu, sebab id survei -- dan karenanya tautannya -- sudah final sejak
+   * survei dibuat. Alasan itu tidak salah, tetapi pengguna memilih yang
+   * sebaliknya: tombolnya hanya muncul bila tautannya benar-benar dapat diisi.
+   *
+   * DITUTUP ikut disembunyikan, juga atas pilihan pengguna. Survei yang sudah
+   * ditutup memang pernah terbit, tetapi tautannya tak lagi menerima jawaban.
+   *
+   * Statusnya dibaca dari `survey`, bukan dari prop `isDraft`, supaya satu
+   * aturan berlaku di kedua cabang render komponen ini.
+   */
+  const bolehDibagikan = survey?.status === 'AKTIF';
+
   const actionButtonClass =
     'px-md py-sm border border-outline rounded-lg text-label-md font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors';
 
@@ -88,11 +106,7 @@ export default function AdminSurveyCardActions({
               Lanjut Edit
             </button>
           </Link>
-          {/* Draf pun boleh dibagikan: id survei (dan karenanya tautan) sudah
-              final sejak dibuat, sehingga poster/QR bisa disiapkan sebelum
-              dipublikasikan. Modal memberi peringatan bahwa tautan belum bisa
-              diisi selama masih draf. */}
-          <ShareSurveyButton survey={survey} className={actionButtonClass} />
+          {bolehDibagikan && <ShareSurveyButton survey={survey} className={actionButtonClass} />}
           <button
             onClick={() => setShowDeleteModal(true)}
             className="px-md py-sm bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-label-md font-bold flex items-center gap-sm hover:bg-rose-100 transition-colors ml-auto"
@@ -114,7 +128,7 @@ export default function AdminSurveyCardActions({
           {copied ? 'Tersalin!' : 'Salin'}
         </button>
 
-        <ShareSurveyButton survey={survey} className={actionButtonClass} />
+        {bolehDibagikan && <ShareSurveyButton survey={survey} className={actionButtonClass} />}
 
         <Link href={`/admin-opd/surveys/${surveyId}/responses`}>
           <button className={actionButtonClass}>

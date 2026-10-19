@@ -51,8 +51,8 @@ beforeEach(() => {
 /**
  * Ganti isi kanvas dengan SATU pertanyaan kustom. Diperlukan bagi uji yang
  * menyentuh kendali per-pertanyaan: 9 unsur baku bawaan tak punya tombol hapus
- * sama sekali (teksnya kalimat resmi PermenPANRB), jadi mengujinya di sana
- * tidak membuktikan apa pun tentang penguncian.
+ * sama sekali (unsur tidak dapat dihapus), jadi mengujinya di sana tidak
+ * membuktikan apa pun tentang penguncian.
  */
 const muatPertanyaanKustom = () =>
   server.use(
@@ -153,7 +153,9 @@ describe('Builder — survei yang sudah terbit', () => {
     // Teks pertanyaan tetap hidup: salah ketik terbaca setiap responden
     // berikutnya, sementara nilai jawaban yang sudah masuk tak bergeser.
     expect(await screen.findByDisplayValue(/Persyaratan/i)).toBeEnabled();
-    expect(screen.getByRole('button', { name: /tambah 9 unsur baku/i })).toBeDisabled();
+    // Bilah sisi menyatakan keadaannya, dan kendali urutan tidak ditawarkan.
+    expect(screen.getByText(/susunan pertanyaan sedang terkunci/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /pindahkan pertanyaan/i })).toBeNull();
   });
 
   it('kendali yang terkunci TETAP TERLIHAT beserta sebabnya', async () => {
@@ -189,7 +191,7 @@ describe('Builder — survei yang sudah terbit', () => {
     await renderBuilder();
 
     expect(await screen.findByDisplayValue(/petugas ramah/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /tambah 9 unsur baku/i })).toBeEnabled();
+    expect(screen.getByText(/klik komponen untuk menambahkannya/i)).toBeInTheDocument();
     expect(screen.queryByText(/sudah menerima/i)).not.toBeInTheDocument();
     screen
       .getAllByRole('button', { name: /hapus pertanyaan/i })

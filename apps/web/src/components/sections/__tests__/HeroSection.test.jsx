@@ -90,10 +90,7 @@ describe('HeroSection', () => {
       el.classList.forEach((k) => k.startsWith('animate-') && dipakai.add(k));
     });
 
-    const css = readFileSync(
-      join(__dirname, '..', '..', '..', 'app', 'globals.css'),
-      'utf8',
-    );
+    const css = readFileSync(join(__dirname, '..', '..', '..', 'app', 'globals.css'), 'utf8');
     // Bawaan Tailwind memang tak pernah muncul di globals.css; yang dicari uji
     // ini adalah nama BUATAN SENDIRI yang lupa didaftarkan.
     const BAWAAN_TAILWIND = ['animate-pulse', 'animate-spin', 'animate-bounce', 'animate-ping'];
@@ -129,13 +126,75 @@ describe('HeroSection', () => {
    * Angkanya tidak: justru itu yang seharusnya dibaca warga sebelum memutuskan
    * mengisi survei, dan mayoritas dari mereka datang dari ponsel.
    */
-  it('ringkasan ponsel tidak ikut disembunyikan bersama rangka ilustrasi', async () => {
+  it('kartu statistiknya tidak ikut disembunyikan bersama rangka ilustrasi', async () => {
     isAuthenticated.mockReturnValue(false);
 
     const { container } = render(<HeroSection />);
     await screen.findByTestId('nilai-ikm');
 
     expect(container.querySelector('[data-rangka-ilustrasi]').className).toMatch(/hidden/);
-    expect(container.querySelector('[data-ringkas-ponsel]').closest('.hidden')).toBeNull();
+    expect(container.querySelector('[data-tumpukan-statistik]').closest('.hidden')).toBeNull();
+  });
+});
+
+/**
+ * EFEK 3D MILIK LAYAR LEBAR SAJA (16 September 2026, saat menggabungkan
+ * redesain hero 3D dari `main` dengan tumpukan kartu ponsel).
+ *
+ * `IlustrasiJendela` memasang `perspective(1200px) rotateX(4deg) rotateY(-12deg)
+ * rotateZ(2deg)` lewat `style` sebaris, jadi berlaku di SETIAP lebar. Sejak
+ * kartu statistik ikut hidup di ponsel sebagai tumpukan dalam alur biasa,
+ * ketiganya ikut termiringkan.
+ *
+ * Terukur di Chrome pada 393px sesudah penggabungan: lebar kotak pembatas
+ * tumpukan berubah-ubah 358-367px alih-alih tetap 361px -- tanda kotaknya
+ * memang terputar, sebab `getBoundingClientRect` mengembalikan kotak sejajar
+ * sumbu dari elemen yang miring. Tangkapan layarnya memastikan: garis dasar
+ * teksnya melandai.
+ *
+ * Rangka ilustrasi yang dinaungi efek ini sendiri `hidden lg:block`, jadi
+ * mengurungnya ke `lg` mempertahankan maksud aslinya dan sekaligus menegakkan
+ * kembali kartu di ponsel.
+ */
+describe('HeroSection — efek 3D tidak memiringkan kartu ponsel', () => {
+  it('transformasi 3D-nya tidak berlaku tanpa syarat', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    const pembungkus = container.querySelector('[data-ilustrasi-3d]');
+
+    expect(pembungkus).not.toBeNull();
+    expect(pembungkus.style.transform).toBe('');
+  });
+
+  it('dipasang lewat kelas yang hanya hidup mulai lg', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    const kelas = container.querySelector('[data-ilustrasi-3d]').className;
+
+    expect(kelas).toMatch(/lg:\[transform:perspective/);
+    expect(kelas).toMatch(/lg:\[transform-style:preserve-3d\]/);
+  });
+
+  /**
+   * PASANGAN kontrol. Efek yang dibuang seluruhnya juga meluluskan kedua uji di
+   * atas, sambil menghapus redesain yang baru saja masuk ke `main`.
+   */
+  it('KONTROL: sudut putaran aslinya dipertahankan apa adanya', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    const kelas = container.querySelector('[data-ilustrasi-3d]').className;
+
+    for (const bagian of ['rotateX(4deg)', 'rotateY(-12deg)', 'rotateZ(2deg)']) {
+      expect(kelas).toContain(bagian);
+    }
   });
 });

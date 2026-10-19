@@ -1,11 +1,15 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { JenisKelamin, Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { JenisKelamin, JenisPengguna, Role } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../audit/audit.service';
+import { enkripsiKolom } from '../../common/crypto/kolom';
 import { AuthService } from './auth.service';
-import type { SessionService } from './session/session.service';
+import type { PenerbitSesi } from './session/penerbit-sesi.service';
+import { PenyimpanCabutLampiranMemori } from '../../common/uploads/penyimpan-cabut-lampiran.memori';
+import { PenyimpanSesiMemori } from './session/penyimpan-sesi.memori';
 
 const cu = (actingRole: Role, userId = 1, over: Partial<CurrentUser> = {}): CurrentUser => ({
   userId,
@@ -29,6 +33,14 @@ const userRow = (overrides: Record<string, unknown> = {}) => ({
   createdAt: new Date(),
   updatedAt: new Date(),
   respondentProfile: null,
+  // Keempat kolom ini lahir 1 Oktober 2026 dan ikut terbaca `getMe` karena
+  // kueri-nya tanpa `select`. Ditulis TERSURAT sebagai null supaya fixture ini
+  // mewakili akun yang BELUM pernah login ulang -- keadaan seluruh akun yang
+  // sudah ada saat kolomnya dibuat.
+  nik: null,
+  nomorHp: null,
+  alamat: null,
+  jenisKelamin: null,
   ...overrides,
 });
 
@@ -37,11 +49,27 @@ describe('AuthService', () => {
     user: { findFirst: jest.fn(), update: jest.fn() },
     respondentProfile: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   } as unknown as PrismaService;
-  const sessionService = {
-    issue: jest.fn().mockReturnValue('signed.jwt.token'),
-  } as unknown as SessionService;
   const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
-  const service = new AuthService(prisma, sessionService, audit);
+  /** Kunci uji untuk kolom terenkripsi `users.nik` / `nomor_hp` / `alamat`. */
+  const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xd);
+  const config = {
+    get: jest.fn((kunci: string) =>
+      kunci === 'crypto.dataKey' ? KUNCI_UJI_KOLOM.toString('hex') : undefined,
+    ),
+  } as unknown as ConfigService;
+  // `PenerbitSesi` menggantikan `SessionService` di sini (7 Oktober 2026):
+  // penerbitan sesi kini sekaligus mendaftarkannya ke daftar pencabutan.
+  const penerbitSesi = {
+    terbitkan: jest.fn().mockResolvedValue('signed.jwt.token'),
+  } as unknown as PenerbitSesi;
+  const service = new AuthService(
+    prisma,
+    penerbitSesi,
+    audit,
+    config,
+    new PenyimpanSesiMemori(),
+    new PenyimpanCabutLampiranMemori(3600),
+  );
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -89,7 +117,6 @@ describe('AuthService', () => {
       [Role.responden, new Date(), false],
       [Role.kabupaten, null, false],
       [Role.opd, null, false],
-      [Role.superuser, null, false],
     ])('%s dengan consentAt=%s -> %s', async (role, consentAt, harapan) => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ role, consentAt }));
 
@@ -114,6 +141,25 @@ describe('AuthService', () => {
 
       expect(sesi.user.consentRequired).toBe(true);
       expect(sesi.user.ssoLinked).toBe(false);
+    });
+
+    /**
+     * JALUR KEDUA kolom `jenis_pengguna` keluar ke klien, dan ia tidak terlihat
+     * dari `getMe`: `devLogin` membungkus `MeEntity` di dalam `SessionEntity`,
+     * jadi yang harus bekerja adalah `@Exclude()` pada entity BERSARANG.
+     * Penahan yang benar di satu jalur tak membuktikan apa pun tentang jalur
+     * lain -- dan respons dev-login inilah yang dibaca frontend saat masuk.
+     */
+    it('jenis pengguna TIDAK bocor lewat SessionEntity dev-login', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        userRow({ jenisPengguna: JenisPengguna.asn }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
+
+      const sesi = await service.devLogin({ identifier: 'a@x.go.id' });
+      const keluar = instanceToPlain(sesi) as { user: Record<string, unknown> };
+
+      expect(keluar.user).not.toHaveProperty('jenisPengguna');
     });
 
     it('consentAt sendiri TIDAK ikut keluar', async () => {
@@ -232,7 +278,7 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('a@x.go.id');
       // Argumen kedua (peran yang dipilih) `undefined` di sini: akun uji ini
       // ber-role tunggal dan permintaannya tak menyebut peran apa pun.
-      expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 1 } }),
       );
@@ -247,8 +293,10 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('mengembalikan konfirmasi sukses (stateless — tak ada state server yang diubah)', () => {
-      expect(service.logout()).toEqual({ success: true });
+    it('mengembalikan konfirmasi sukses', async () => {
+      // Kini asinkron: logout mencabut sesinya di penyimpan, tak lagi sekadar
+      // menghapus cookie (7 Oktober 2026).
+      await expect(service.logout()).resolves.toEqual({ success: true });
     });
   });
 
@@ -259,29 +307,29 @@ describe('AuthService', () => {
    */
   describe('setActingRole', () => {
     it('menerbitkan sesi baru berisi klaim act yang diminta', async () => {
-      (sessionService.issue as jest.Mock).mockReturnValue('token-baru');
+      (penerbitSesi.terbitkan as jest.Mock).mockResolvedValue('token-baru');
 
       const hasil = await service.setActingRole(
-        cu(Role.superuser, 9, { roles: [Role.superuser, Role.opd], opdId: 1 }),
+        cu(Role.kabupaten, 9, { roles: [Role.kabupaten, Role.opd], opdId: 1 }),
         Role.opd,
       );
 
-      expect(sessionService.issue).toHaveBeenCalledWith(9, Role.opd);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(9, Role.opd, undefined);
       expect(hasil.token).toBe('token-baru');
     });
 
     it('MENOLAK role yang tidak dimiliki akun, tanpa menerbitkan apa pun', async () => {
       await expect(
-        service.setActingRole(cu(Role.opd, 9, { roles: [Role.opd], opdId: 1 }), Role.superuser),
+        service.setActingRole(cu(Role.opd, 9, { roles: [Role.opd], opdId: 1 }), Role.kabupaten),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(sessionService.issue).not.toHaveBeenCalled();
+      expect(penerbitSesi.terbitkan).not.toHaveBeenCalled();
     });
 
     it('MENOLAK role opd bila akun tak tertaut OPD', async () => {
       await expect(
         service.setActingRole(
-          cu(Role.superuser, 9, { roles: [Role.superuser, Role.opd], opdId: null }),
+          cu(Role.kabupaten, 9, { roles: [Role.kabupaten, Role.opd], opdId: null }),
           Role.opd,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -291,13 +339,13 @@ describe('AuthService', () => {
   describe('devLogin memilih peran', () => {
     it('meneruskan peran yang diminta ke penerbit token', async () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(
-        userRow({ roles: [Role.superuser, Role.opd], opdId: 1 }),
+        userRow({ roles: [Role.kabupaten, Role.opd], opdId: 1 }),
       );
       (prisma.user.update as jest.Mock).mockResolvedValue(userRow());
 
       await service.devLogin({ identifier: 'a@x.go.id', role: Role.opd });
 
-      expect(sessionService.issue).toHaveBeenCalledWith(1, Role.opd);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(1, Role.opd, undefined);
     });
 
     /**
@@ -308,7 +356,7 @@ describe('AuthService', () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow({ roles: [Role.opd] }));
 
       await expect(
-        service.devLogin({ identifier: 'a@x.go.id', role: Role.superuser }),
+        service.devLogin({ identifier: 'a@x.go.id', role: Role.kabupaten }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -318,7 +366,236 @@ describe('AuthService', () => {
 
       await service.devLogin({ identifier: 'a@x.go.id' });
 
-      expect(sessionService.issue).toHaveBeenCalledWith(1, undefined);
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(1, undefined, undefined);
     });
+  });
+});
+
+/**
+ * IDENTITAS PADA GET /auth/me (1 Oktober 2026).
+ *
+ * KEBOCORAN YANG DIPERBAIKI, dan sebabnya pantas dicatat supaya tak terulang.
+ * `getMe` memakai `findFirst` TANPA `select`, dan `toMeEntity` menyebar
+ * `...row` ke `MeEntity` yang serialisasinya EXPOSE-ALL. Artinya setiap kolom
+ * baru pada tabel `users` ikut keluar ke klien begitu kolomnya dibuat, tanpa
+ * ada yang perlu menuliskannya di mana pun.
+ *
+ * Terukur sebelum perbaikan ini: respons memuat `nik`, `nomorHp`, dan `alamat`
+ * sebagai SANDI MENTAH (`enc:v1:...`) beserta `jenisKelamin` -- keempatnya tak
+ * pernah dideklarasikan pada entity, dan tak seorang pun memutuskan
+ * mengirimkannya.
+ */
+describe('AuthService.getMe -- identitas dari akun', () => {
+  const prisma = {
+    user: { findFirst: jest.fn(), update: jest.fn() },
+    respondentProfile: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+  } as unknown as PrismaService;
+  const KUNCI = Buffer.alloc(32, 0xd);
+  const service = new AuthService(
+    prisma,
+    { terbitkan: jest.fn().mockResolvedValue('token-sesi') } as unknown as PenerbitSesi,
+    { record: jest.fn() } as unknown as AuditService,
+    {
+      get: jest.fn((k: string) => (k === 'crypto.dataKey' ? KUNCI.toString('hex') : undefined)),
+    } as unknown as ConfigService,
+    new PenyimpanSesiMemori(),
+    new PenyimpanCabutLampiranMemori(3600),
+  );
+
+  const barisBeridentitas = (over: Record<string, unknown> = {}) =>
+    userRow({
+      nik: enkripsiKolom('3520041502050002', KUNCI),
+      nomorHp: enkripsiKolom('+62895396662038', KUNCI),
+      alamat: enkripsiKolom('Dusun Timang Desa Waduk', KUNCI),
+      jenisKelamin: JenisKelamin.perempuan,
+      jenisPengguna: JenisPengguna.asn,
+      ...over,
+    });
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('mengirim ketiganya dalam keadaan TERDEKRIPSI', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const me = await service.getMe(cu(Role.responden));
+
+    // PENUH pada jalur ini, berbeda dari jalur pengaduan yang menyamarkan di
+    // backend: NIK ini milik pemilik sesi itu sendiri. Penyamarannya urusan
+    // tampilan, lihat me.adapter.js.
+    expect(me.nik).toBe('3520041502050002');
+    expect(me.nomorHp).toBe('+62895396662038');
+    expect(me.alamat).toBe('Dusun Timang Desa Waduk');
+  });
+
+  /**
+   * Uji ini yang membedakan "terkirim" dari "terkirim dengan benar". Tanpa dia,
+   * meneruskan sandi mentah apa adanya tetap lulus uji di atas -- sebab
+   * `dekripsiKolom` mengembalikan teks polos apa adanya demi migrasi bertahap,
+   * dan sandi mentah bukan teks polos melainkan blob yang terbaca sebagai
+   * string biasa oleh pemanggil yang tak memeriksanya.
+   */
+  it('TIDAK pernah membocorkan sandi mentah ke klien', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
+
+    for (const nilai of Object.values(keluar)) {
+      expect(String(nilai)).not.toContain('enc:v1:');
+    }
+  });
+
+  /**
+   * MINIMAL YANG DIBUTUHKAN, bukan segala yang kebetulan ada di barisnya.
+   * Halaman profil tidak menggambar jenis kelamin, dan medan yang terkirim
+   * tanpa ada yang memakainya adalah data pribadi yang beredar tanpa sebab.
+   */
+  it('TIDAK mengirim jenis kelamin', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
+
+    expect(keluar).not.toHaveProperty('jenisKelamin');
+  });
+
+  /**
+   * Alasan yang sama seperti jenis kelamin di atas, dan kolomnya lahir dengan
+   * jebakan yang sama: `jenis_pengguna` (6 Oktober 2026) ikut tersebar
+   * `Object.assign` tanpa ada yang memutuskan mengirimkannya. Status kepegawaian
+   * seseorang tak digambar satu pun layar dari endpoint ini; yang membutuhkan
+   * aturan ASN adalah halaman manajemen pengguna, dan ia menerima
+   * `bolehJadiAdminOpd` dari `GET /users` -- sebuah boolean, bukan statusnya.
+   */
+  it('TIDAK mengirim jenis pengguna (ASN atau warga)', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    const keluar = instanceToPlain(await service.getMe(cu(Role.responden)));
+
+    expect(keluar).not.toHaveProperty('jenisPengguna');
+  });
+
+  it('kolom yang kosong tetap null, bukan string kosong', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+      barisBeridentitas({ nik: null, nomorHp: null, alamat: null }),
+    );
+
+    const me = await service.getMe(cu(Role.responden));
+
+    expect(me.nik).toBeNull();
+    expect(me.nomorHp).toBeNull();
+    expect(me.alamat).toBeNull();
+  });
+
+  /**
+   * Endpoint ini hanya pernah mengembalikan akun PEMANGGILNYA. Dijaga tersurat
+   * karena ketiga medan yang baru ditambahkan membuat taruhannya naik: sebelum
+   * ini, salah kueri berarti membocorkan nama; sesudahnya, NIK dan alamat.
+   */
+  it('hanya pernah membaca akun pemanggilnya sendiri', async () => {
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue(barisBeridentitas());
+
+    await service.getMe(cu(Role.responden, 7));
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 7, deletedAt: null } }),
+    );
+  });
+});
+
+/**
+ * PENCABUTAN SESI (7 Oktober 2026).
+ *
+ * Sebelum ini `logout` benar-benar tak mengubah apa pun di server: ia hanya
+ * menghapus cookie, dan salinan cookie yang terlanjur keluar tetap sah sampai
+ * pagu `abs` lewat. Docblock lama AuthService.logout menyebut keadaan itu
+ * tersurat ("sesi lokal bersifat stateless").
+ */
+describe('AuthService — pencabutan sesi', () => {
+  const buat = () => {
+    const penyimpan = new PenyimpanSesiMemori();
+    const service = new AuthService(
+      { user: { findFirst: jest.fn(), update: jest.fn() } } as unknown as PrismaService,
+      { terbitkan: jest.fn() } as unknown as PenerbitSesi,
+      { record: jest.fn() } as unknown as AuditService,
+      {
+        get: jest.fn((k: string) =>
+          k === 'crypto.dataKey' ? Buffer.alloc(32, 0xd).toString('hex') : undefined,
+        ),
+      } as unknown as ConfigService,
+      penyimpan,
+      new PenyimpanCabutLampiranMemori(3600),
+    );
+    return { service, penyimpan };
+  };
+
+  const catatan = (uid: number) => ({ uid, abs: Math.floor(Date.now() / 1000) + 3600 });
+
+  it('logout mencabut sesi yang memanggilnya', async () => {
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+
+    await service.logout('sid-a');
+
+    await expect(penyimpan.hidup('sid-a')).resolves.toBe(false);
+  });
+
+  it('logout tanpa sid tetap berhasil, tanpa mencabut apa pun', async () => {
+    // Token terbitan lama tak punya sid. Melemparkan galat di sini berarti
+    // pemiliknya tak dapat keluar sama sekali.
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+
+    await expect(service.logout()).resolves.toEqual({ success: true });
+    await expect(penyimpan.hidup('sid-a')).resolves.toBe(true);
+  });
+
+  it('keluarkan semua perangkat mencabut seluruh sesi akun itu saja', async () => {
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+    await penyimpan.simpan('sid-b', catatan(7));
+    await penyimpan.simpan('sid-lain', catatan(8));
+
+    await service.keluarkanSemuaPerangkat(7);
+
+    await expect(penyimpan.hidup('sid-a')).resolves.toBe(false);
+    await expect(penyimpan.hidup('sid-b')).resolves.toBe(false);
+    await expect(penyimpan.hidup('sid-lain')).resolves.toBe(true);
+  });
+
+  /**
+   * 9 Oktober 2026. Sampai sebelum ini "keluarkan semua perangkat" berbohong:
+   * sesinya memang mati, tetapi URL lampiran yang terlanjur dipegang perangkat
+   * lain tetap dapat dibuka sampai `exp` lewat.
+   */
+  it('keluarkan semua perangkat ikut mencabut tautan lampiran akun itu', async () => {
+    const cabutLampiran = new PenyimpanCabutLampiranMemori(3600);
+    const service = new AuthService(
+      { user: { findFirst: jest.fn(), update: jest.fn() } } as unknown as PrismaService,
+      { terbitkan: jest.fn() } as unknown as PenerbitSesi,
+      { record: jest.fn() } as unknown as AuditService,
+      { get: jest.fn() } as unknown as ConfigService,
+      new PenyimpanSesiMemori(),
+      cabutLampiran,
+    );
+
+    await expect(cabutLampiran.dicabutPada(7)).resolves.toBeNull();
+    await service.keluarkanSemuaPerangkat(7);
+
+    await expect(cabutLampiran.dicabutPada(7)).resolves.toEqual(expect.any(Number));
+    // Akun lain tak tersentuh: pencabutan yang menyapu semua orang bukan
+    // "keluarkan perangkat SAYA".
+    await expect(cabutLampiran.dicabutPada(8)).resolves.toBeNull();
+  });
+
+  it('daftar sesi menandai mana yang sedang dipakai pemanggilnya', async () => {
+    // Tanpa penanda ini daftar perangkat tak dapat dibaca: pemiliknya tak tahu
+    // baris mana yang akan ia putus bila menekan "keluarkan".
+    const { service, penyimpan } = buat();
+    await penyimpan.simpan('sid-a', catatan(7));
+    await penyimpan.simpan('sid-b', catatan(7));
+
+    const daftar = await service.daftarSesi(7, 'sid-b');
+
+    expect(daftar.find((s) => s.sid === 'sid-b')?.iniSesiIni).toBe(true);
+    expect(daftar.find((s) => s.sid === 'sid-a')?.iniSesiIni).toBe(false);
   });
 });

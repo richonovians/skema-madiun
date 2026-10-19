@@ -42,9 +42,10 @@ describe('KartuStatistikHero', () => {
 
     // Angka sengaja tak lazim: kartu yang menuliskan nilainya langsung di dalam
     // kode akan tetap hijau pada 82,64 dan lolos tanpa pernah memanggil apa pun.
-    // DUA kali: sekali di kartu melayang untuk desktop, sekali di ringkasan
-    // ponsel. Keduanya harus membaca data yang sama.
-    expect(await screen.findAllByText('91,2')).toHaveLength(2);
+    // SEKALI saja. Sebelum 16 September 2026 angkanya muncul dua kali -- kartu
+    // desktop dan strip ringkasan khusus ponsel -- dan strip itu kini digantikan
+    // kartu yang sama, yang kini ikut tampil di layar sempit.
+    expect(await screen.findAllByText('91,2')).toHaveLength(1);
     expect(screen.getByText(/438/)).toBeInTheDocument();
   });
 
@@ -58,19 +59,63 @@ describe('KartuStatistikHero', () => {
   });
 
   /**
-   * PASANGAN kontrol, dan ini yang paling penting. Kartu yang tetap menggambar
-   * dirinya saat permintaannya gagal akan menuliskan "0" -- dan nol di halaman
-   * utama terbaca sebagai kabupaten tanpa satu pun layanan, bukan sebagai
-   * jaringan yang sedang putus.
+   * PASANGAN kontrol, dan ini yang paling penting -- jaminan yang WAJIB selamat
+   * dari perubahan 30 September 2026. Kartu yang tetap menggambar dirinya saat
+   * permintaannya gagal akan menuliskan "0", dan nol di halaman utama terbaca
+   * sebagai kabupaten tanpa satu pun layanan, bukan sebagai jaringan yang sedang
+   * putus.
+   *
+   * Yang berubah hanya CARA menjaminnya. Dulu ruang itu diisi kartu pernyataan;
+   * sejak 30 September 2026 ia tak diisi apa pun, jadi asersinya menjadi wadah
+   * yang benar-benar kosong. Kedua asersi angka di bawah sengaja DIPERTAHANKAN
+   * walau wadah kosong sudah mencakupnya: merekalah yang menyebutkan kekeliruan
+   * yang sebenarnya ditakuti, dan mereka tetap memerah bila suatu saat ada yang
+   * mengisi ruang ini dengan kartu berangka.
    */
-  it('KONTROL: saat gagal, kartu pernyataan yang muncul dan tak ada angka', async () => {
+  it('KONTROL: saat gagal, tak ada satu pun kartu yang digambar', async () => {
+    getStatistics.mockRejectedValue(new Error('jaringan putus'));
+
+    const { container } = render(<KartuStatistikHero />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+
+    expect(screen.queryByTestId('nilai-ikm')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  /**
+   * SEBAB perubahan 30 September 2026, ditulis sebagai uji supaya alasannya tak
+   * hilang bersama kodenya.
+   *
+   * Kartu pernyataan berbunyi "Status Layanan -- Terhubung SSO Madiun", dan ia
+   * muncul TEPAT ketika `GET /statistics` tak bisa dihubungi. Kalau API-nya tak
+   * menjawab, jalur SSO yang melewati API yang sama hampir pasti ikut tak sehat:
+   * kalimat itu menyatakan "terhubung" pada satu-satunya saat kita punya bukti
+   * bahwa sesuatu tidak terhubung.
+   */
+  it('KONTROL: klaim "Terhubung SSO Madiun" tak muncul justru saat terputus', async () => {
     getStatistics.mockRejectedValue(new Error('jaringan putus'));
 
     render(<KartuStatistikHero />);
+    await waitFor(() =>
+      expect(screen.queryByTestId('kerangka-statistik')).not.toBeInTheDocument(),
+    );
 
-    expect(await screen.findByText(/terhubung sso madiun/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('nilai-ikm')).not.toBeInTheDocument();
-    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    expect(screen.queryByText(/terhubung sso madiun/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * PARUH KEDUA dari pagar `error || !data?.summary`, yang sebelumnya tak diuji
+   * sama sekali. Permintaan yang BERHASIL namun jawabannya tak memuat `summary`
+   * harus diperlakukan sama seperti gagal -- tanpa ini, membuang `!data?.summary`
+   * dari pagarnya tak memerahkan satu uji pun, padahal akibatnya kartu yang
+   * membaca `summary.ikm` dari nilai tak terdefinisi.
+   */
+  it('BATAS: jawaban tanpa `summary` diperlakukan sama seperti gagal', async () => {
+    getStatistics.mockResolvedValue({ ikmTrend: [] });
+
+    const { container } = render(<KartuStatistikHero />);
+
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   it('grafik garis bertitik sebanyak periode pada data', async () => {
@@ -229,19 +274,14 @@ describe('KartuStatistikHero', () => {
   });
 
   /**
-   * PASANGAN kontrol. Kartu pernyataan muncul justru KETIKA /statistics gagal
-   * dihubungi -- menautkannya ke halaman yang datanya berasal dari endpoint yang
-   * sama berarti mengirim pengunjung ke halaman yang hampir pasti ikut kosong.
+   * DIBUANG 30 September 2026: "kartu pernyataan saat gagal BUKAN tautan".
+   *
+   * Yang dijaganya adalah agar ruang kegagalan tak menautkan pengunjung ke
+   * /statistics, yang datanya berasal dari endpoint yang sama dan karenanya
+   * hampir pasti ikut kosong. Sejak ruang itu tak diisi apa pun, jaminannya
+   * tercakup penuh oleh uji wadah kosong di atas -- dan uji ini akan hijau
+   * selamanya tanpa menahan apa pun, sebab ia hanya menghitung nol tautan.
    */
-  it('KONTROL: kartu pernyataan saat gagal BUKAN tautan', async () => {
-    getStatistics.mockRejectedValue(new Error('jaringan putus'));
-
-    render(<KartuStatistikHero />);
-    await screen.findByText(/terhubung sso madiun/i);
-
-    expect(screen.queryAllByRole('link')).toHaveLength(0);
-  });
-
   it('tidak memuat satu pun gambar atau alamat luar', async () => {
     getStatistics.mockResolvedValue(DATA);
 
@@ -295,20 +335,11 @@ describe('KartuStatistikHero', () => {
   });
 
   /**
-   * Kartu pernyataan hanya muncul saat jaringannya putus, jadi uji jalur sukses
-   * di atas tak pernah menyentuhnya -- terbukti lewat mutasi: mengembalikan
-   * labelnya ke `text-slate-400` tak memerahkan satu uji pun. Justru di keadaan
-   * inilah teksnya paling perlu terbaca, karena hanya kalimat itu yang tersisa
-   * untuk menjelaskan apa yang sedang terjadi.
+   * DIBUANG 30 September 2026: "kartu pernyataan saat gagal juga lolos kontras
+   * AA". Keadaan gagal kini tak menggambar teks sama sekali, jadi tak ada
+   * kontras yang perlu dijaga di sana. Jaminan kontras untuk jalur berhasil
+   * tetap berdiri pada uji tepat di atas.
    */
-  it('kartu pernyataan saat gagal juga lolos kontras AA', async () => {
-    getStatistics.mockRejectedValue(new Error('jaringan putus'));
-
-    const { container } = render(<KartuStatistikHero />);
-    await screen.findByText(/terhubung sso madiun/i);
-
-    expect(container.innerHTML).not.toMatch(/text-slate-400/);
-  });
 
   /**
    * Label periode terukur 9px dan label chip 10px. Kontras yang lolos tak
@@ -366,37 +397,9 @@ describe('KartuStatistikHero', () => {
   });
 
   /**
-   * Seluruh kolom ilustrasi terukur `display: none` di bawah `lg`, jadi setiap
-   * angka yang dimaksudkan menarik minat warga hanya sampai ke pengunjung
-   * desktop -- padahal warga membuka situs ini dari ponsel. Yang tak bisa hidup
-   * di layar 400px adalah TATA LETAKNYA (melayang, absolute, lebar tetap
-   * 268px), bukan datanya.
+   * Jaminan bahwa kartunya benar-benar sampai ke layar ponsel -- beserta keadaan
+   * memuat dan gagalnya -- pindah ke KartuHeroPonsel.test.jsx sejak 16 September
+   * 2026. Strip ringkasan yang dulu diuji di sini sudah tak ada: kartunya sendiri
+   * yang kini tampil di layar sempit.
    */
-  it('angkanya ikut sampai ke pengunjung ponsel', async () => {
-    getStatistics.mockResolvedValue(DATA);
-
-    const { container } = render(<KartuStatistikHero />);
-    await screen.findByTestId('nilai-ikm');
-
-    const ponsel = container.querySelector('[data-ringkas-ponsel]');
-    expect(ponsel).toBeInTheDocument();
-    expect(ponsel.className).toMatch(/lg:hidden/);
-    expect(ponsel).toHaveTextContent('91,2');
-  });
-
-  /**
-   * PASANGAN kontrol. Menyalin susunan melayang ke ponsel berarti menyalin juga
-   * yang membuatnya mustahil di sana: posisi absolut yang keluar dari alur, dan
-   * ayunan tanpa henti di layar yang sudah sempit.
-   */
-  it('KONTROL: ringkasan ponsel tak ikut melayang atau keluar alur', async () => {
-    getStatistics.mockResolvedValue(DATA);
-
-    const { container } = render(<KartuStatistikHero />);
-    await screen.findByTestId('nilai-ikm');
-
-    const ponsel = container.querySelector('[data-ringkas-ponsel]');
-    expect(ponsel.querySelectorAll('[class*="animate-melayang"]')).toHaveLength(0);
-    expect(ponsel.querySelectorAll('.absolute')).toHaveLength(0);
-  });
 });

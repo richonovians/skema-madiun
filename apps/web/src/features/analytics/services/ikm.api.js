@@ -1,5 +1,9 @@
 import api from '@/services/api';
-import { adaptIkmMetrics, adaptIkmServiceElements } from '../adapters/ikm.adapter';
+import {
+  adaptIkmMetrics,
+  adaptIkmServiceElements,
+  adaptSebaranSkor,
+} from '../adapters/ikm.adapter';
 
 /** Hasil IKM sebuah survei (Admin OPD pemilik & Kabupaten). */
 export async function getSurveyResults(surveyId) {
@@ -10,6 +14,7 @@ export async function getSurveyResults(surveyId) {
     serviceElements: adaptIkmServiceElements(result.nrrPerUnsur),
     periode: result.periode,
     jumlahResponden: result.jumlahResponden,
+    sebaranSkor: adaptSebaranSkor(result.sebaranSkor),
   };
 }
 

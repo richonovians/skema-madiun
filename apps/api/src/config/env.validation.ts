@@ -5,6 +5,8 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
+  NotEquals,
   Max,
   Min,
   MinLength,
@@ -21,6 +23,23 @@ export enum NodeEnvironment {
   Production = 'production',
   Test = 'test',
 }
+
+/**
+ * Nilai contoh `SESSION_JWT_SECRET` di `.env.example`, ditolak secara tersurat
+ * di bawah (23 September 2026).
+ *
+ * Panjangnya TEPAT 32 karakter, jadi `@MinLength(32)` dari temuan T7 meloloskannya
+ * dan `.env` yang disalin lalu tak pernah disunting boot dengan normal. Ini bukan
+ * dugaan: nilai ini ditemukan masih terpasang di `.env` sungguhan.
+ *
+ * Yang membuatnya berbahaya bukan lemahnya nilai itu, melainkan bahwa ia TERCATAT
+ * DI GIT. Rahasia ini menandatangani seluruh token sesi, dan token sesi diperiksa
+ * murni dari tanda tangannya tanpa catatan pembanding di basis data. Siapa pun
+ * yang dapat membuka repositori ini karenanya dapat menerbitkan token untuk id dan
+ * peran mana pun. Ia juga menurunkan kunci HMAC URL lampiran bertanda tangan, jadi
+ * kebocorannya sekaligus membatalkan perbaikan temuan T1.
+ */
+const CONTOH_SESSION_JWT_SECRET = 'ganti-dengan-string-acak-panjang';
 
 class EnvironmentVariables {
   @IsOptional()
@@ -106,10 +125,76 @@ class EnvironmentVariables {
   // 32 karakter = 256 bit bila acak, sepadan dengan HS256 yang dipakai.
   @IsString()
   @IsNotEmpty()
+  @NotEquals(CONTOH_SESSION_JWT_SECRET, {
+    message:
+      'SESSION_JWT_SECRET masih bernilai contoh dari .env.example, dan nilai itu tercatat di Git. ' +
+      'Ganti dengan nilai acak: openssl rand -hex 32',
+  })
   @MinLength(32, {
     message: 'SESSION_JWT_SECRET minimal 32 karakter (rahasia penanda tangan token sesi)',
   })
   SESSION_JWT_SECRET!: string;
+
+  /**
+   * KUNCI INDUK ENKRIPSI DATA (23 September 2026). Melindungi dua hal sekaligus:
+   * lampiran pengaduan di disk, dan dua kolom teks bebas paling pribadi di basis
+   * data (`complaints.uraian`, `complaint_replies.pesan`).
+   *
+   * KEHILANGAN KUNCI INI BERARTI KEHILANGAN DATANYA. Bukan "sulit dipulihkan",
+   * melainkan hilang: tak ada pintu belakang di `envelope.ts`, dan memang tak
+   * boleh ada. Prosedur pencadangan kunci WAJIB dijalankan SEBELUM enkripsi
+   * dinyalakan -- lihat docs/keamanan/enkripsi-at-rest.md.
+   *
+   * 64 karakter heksadesimal = 32 byte, sepadan dengan AES-256 yang dipakai.
+   * Buat dengan `openssl rand -hex 32`.
+   *
+   * OPSIONAL DI SINI, bukan wajib seperti SESSION_JWT_SECRET, dan itu disengaja:
+   * `NODE_ENV=test` jatuh ke kunci uji tetap supaya seluruh uji yang ada tak
+   * menuntut konfigurasi baru. Yang menolaknya di luar `test` adalah `kunci.ts`, yang
+   * melempar saat kunci dipakai pertama kali. Validator di sini menjaga BENTUK
+   * nilainya, bukan ada-tidaknya: kunci yang panjangnya salah jauh lebih
+   * berbahaya daripada kunci yang tak ada, sebab yang pertama menyala.
+   */
+  @IsOptional()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'DATA_ENCRYPTION_KEY harus 64 karakter heksadesimal (openssl rand -hex 32)',
+  })
+  DATA_ENCRYPTION_KEY?: string;
+
+  /**
+   * KUNCI INDUK ENKRIPSI CADANGAN. Terpisah dari kunci data dengan sengaja,
+   * karena KUSTODINYA berbeda: kunci cadangan harus dapat diserahkan kepada
+   * pemegang salinan luar, sedangkan kunci data tak boleh meninggalkan server
+   * aplikasi.
+   *
+   * Perlu diketahui betul: sebuah cadangan TIDAK CUKUP untuk memulihkan sistem.
+   * Isinya memuat kolom dan lampiran yang terenkripsi DATA_ENCRYPTION_KEY, jadi
+   * pemulihan di server baru menuntut KEDUA kunci. Cadangan tanpa kunci data
+   * adalah hiasan.
+   */
+  @IsOptional()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'BACKUP_ENCRYPTION_KEY harus 64 karakter heksadesimal (openssl rand -hex 32)',
+  })
+  BACKUP_ENCRYPTION_KEY?: string;
+
+  /**
+   * PERNYATAAN bahwa disk yang memuat direktori data PostgreSQL terenkripsi
+   * (LUKS di Linux, BitLocker di Windows).
+   *
+   * Wajib `"true"` di produksi; aplikasi menolak boot tanpanya. Di luar
+   * produksi ia diabaikan. Penegakannya ada di `gerbang-penyimpanan.ts`, bukan
+   * di sini, karena yang ditolak bergantung pada NODE_ENV dan pesannya perlu
+   * panjang.
+   *
+   * INI PERNYATAAN, BUKAN VERIFIKASI. Aplikasi tak dapat memeriksa enkripsi
+   * volume pada host, apalagi dari dalam container. Gunanya memaksa seseorang
+   * menyatakannya secara sadar saat menggelar, sehingga kelalaian yang tak
+   * bergejala berubah menjadi kegagalan boot yang berisik.
+   */
+  @IsOptional()
+  @IsString()
+  DB_STORAGE_ENCRYPTED?: string;
 
   @IsOptional()
   @IsInt()
@@ -171,6 +256,15 @@ class EnvironmentVariables {
   @IsString()
   HELPDESK_SSO_ROLE_MAP?: string;
 
+  // Field klaim sumber nilai peran (28 September 2026). Tidak divalidasi
+  // bentuknya, alasan yang sama seperti dua tetangganya: nama field yang salah
+  // tulis hanya membuat pemetaan tak menemukan apa pun, dan akun baru jatuh ke
+  // `responden` -- keadaan paling tidak berbahaya. Mematikan API saat boot demi
+  // ini jauh lebih mahal daripada kegagalan yang ditimbulkannya.
+  @IsOptional()
+  @IsString()
+  HELPDESK_SSO_ROLE_CLAIM?: string;
+
   // Nama field klaim yang membawa OPD ASN, dipisah koma (8 September 2026).
   // Tidak divalidasi bentuknya, alasan yang sama seperti di atas: nama field
   // yang salah tulis hanya membuat pencocokan tak menemukan apa pun — dan
@@ -190,6 +284,79 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   WEB_APP_URL?: string;
+
+  /**
+   * RETENSI LOG AUDIT (30 September 2026) — lama jejak audit disimpan sebelum
+   * DIHAPUS PERMANEN.
+   *
+   * TIDAK ADA = retensi MATI, dan itu bakunya. Ketiadaan konfigurasi harus
+   * berarti menyimpan data: kalau bakunya menghapus, satu env yang lupa disalin
+   * ke server baru akan memusnahkan log tanpa ada yang memutuskannya.
+   *
+   * Bentuknya dijaga DI SINI, bukan diserahkan ke `parseInt` di
+   * configuration.ts. `parseInt('dua minggu')` menghasilkan NaN, dan NaN yang
+   * lolos ke penjadwal membuat retensi diam-diam mati — kegagalan yang baru
+   * terlihat berbulan-bulan kemudian, saat seseorang menyadari tak ada baris
+   * yang pernah terhapus.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUDIT_RETENTION_DAYS?: number;
+
+  /**
+   * Izin TERSURAT untuk retensi di bawah `RETENSI_MINIMUM_HARI`
+   * (AuditRetensiService). Tanpa ini, nilai sependek itu menolak berjalan —
+   * satu digit hilang mengubah 14 menjadi 1, dan itu memusnahkan hampir
+   * seluruh log dalam satu lintasan yang tak dapat dibatalkan.
+   */
+  @IsOptional()
+  @IsString()
+  AUDIT_RETENTION_ALLOW_SHORT?: string;
+
+  /**
+   * Umur sebuah survei di Sampah sebelum ia dimusnahkan otomatis, dalam hari
+   * (30 September 2026, permintaan pengguna: setahun).
+   *
+   * BOLEH TIDAK ADA, dan itu beda penting dari AUDIT_RETENTION_DAYS di atas:
+   * pemusnahan ini MENYALA secara baku pada 365 hari, sebab yang diminta adalah
+   * fitur yang berjalan sendiri. Env-nya untuk mengubah atau mematikan
+   * kebijakan di produksi tanpa menyebarkan ulang aplikasi.
+   *
+   * Bentuknya dijaga di sini, bukan diserahkan ke `parseInt`.
+   * `parseInt('setahun')` menghasilkan NaN; batas waktu yang dihitung darinya
+   * menjadi Invalid Date, dan setiap perbandingan terhadap Invalid Date bernilai
+   * false. Akibatnya tak ada yang termusnahkan dan tak ada pula yang memerah --
+   * fitur yang mengaku berjalan sambil diam-diam tidak melakukan apa-apa.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  SURVEY_PURGE_DAYS?: number;
+
+  /**
+   * Izin TERSURAT untuk umur Sampah di bawah `PEMUSNAHAN_MINIMUM_HARI`
+   * (SurveiPemusnahanService). Palangnya ada sebab satu digit hilang mengubah
+   * 365 menjadi 36, dan Sampah adalah tempat orang menaruh sesuatu justru
+   * karena belum yakin hendak membuangnya.
+   */
+  @IsOptional()
+  @IsString()
+  SURVEY_PURGE_ALLOW_SHORT?: string;
+
+  /**
+   * Saklar mati pemusnahan otomatis survei. Hanya `'false'` yang mematikan;
+   * tidak ada sama sekali berarti MENYALA.
+   *
+   * Ada sebagai knop tersendiri, bukan sebagai nilai istimewa pada
+   * `SURVEY_PURGE_DAYS`, sebab angka hari itu sudah ber-`@Min(1)` justru
+   * karena 0 berbahaya. Membebani angka yang sama dengan makna kedua
+   * ("0 = jangan jalan") membuat palang dan saklar saling bertabrakan di satu
+   * nilai, dan yang kalah adalah palangnya.
+   */
+  @IsOptional()
+  @IsString()
+  SURVEY_PURGE_ENABLED?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

@@ -15,8 +15,27 @@ import ShareSurveyModal from './ShareSurveyModal';
  * ukuran tombol aksi yang berbeda (kartu di Admin OPD vs baris tabel ringkas di
  * Admin Kabupaten).
  */
-export default function ShareSurveyButton({ survey, className = '', iconSize = 18, label = 'Bagikan' }) {
+export default function ShareSurveyButton({
+  survey,
+  className = '',
+  iconSize = 18,
+  label = 'Bagikan',
+  namaInstansi,
+}) {
   const [isOpen, setIsOpen] = useState(false);
+
+  /**
+   * Nama instansi dicetak pada poster QR. Diturunkan dari `survey.opdName`
+   * supaya pemanggil yang sudah menyandingkan nama OPD ke tiap survei -- tabel
+   * monitoring Admin Kabupaten -- tak perlu meneruskan prop tambahan sama
+   * sekali. `namaInstansi` tetap dapat diisi pemanggil bila namanya berasal
+   * dari tempat lain.
+   *
+   * Kosong bukan galat: poster tetap tersusun, hanya tanpa baris instansi.
+   * Memaksa prop ini berarti satu daftar survei yang lupa menyandingkan nama
+   * akan mematikan seluruh unduhan QR-nya.
+   */
+  const instansi = namaInstansi ?? survey?.opdName ?? '';
 
   return (
     <>
@@ -25,7 +44,13 @@ export default function ShareSurveyButton({ survey, className = '', iconSize = 1
         {label}
       </button>
 
-      {isOpen && <ShareSurveyModal survey={survey} onClose={() => setIsOpen(false)} />}
+      {isOpen && (
+        <ShareSurveyModal
+          survey={survey}
+          namaInstansi={instansi}
+          onClose={() => setIsOpen(false)}
+        />
+      )}
     </>
   );
 }

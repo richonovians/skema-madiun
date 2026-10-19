@@ -1,28 +1,26 @@
 import { Role } from '@prisma/client';
+import { ambilJalurKlaim } from './sso-claim-path';
 
 /**
  * Peran yang BOLEH ditetapkan dari klaim SSO.
  *
- * `superuser` ADA di daftar ini sejak 6 September 2026, dan itu PEMBALIKAN
- * keputusan keamanan 27 Agustus 2026 yang sengaja mengeluarkannya — pengguna
- * meminta tipe "admin" dari Helpdesk menjadi superuser di SKEMA.
+ * `superuser` sempat ada di daftar ini sejak 6 September 2026 — pembalikan
+ * keputusan keamanan 27 Agustus 2026 yang sengaja mengeluarkannya, karena
+ * pengguna meminta tipe "admin" dari Helpdesk menjadi superuser di SKEMA. Ia
+ * hilang bersama perannya 15 September 2026, dan pemetaan yang masih berbunyi
+ * `admin:superuser` kini DIABAIKAN — dijaga `sso-role.mapper.spec.ts`.
  *
- * Pembalikan itu tidak dibiarkan tanpa pengaman, tapi pengamannya BUKAN di
- * berkas ini:
+ * Pengaman pembalikan itu tetap berlaku bagi peran admin yang masih ada, dan
+ * pengamannya BUKAN di berkas ini:
  *   1. Baku tetap `responden` bila `HELPDESK_SSO_ROLE_MAP` kosong (dan hari ini
  *      ia memang kosong), jadi tak ada yang berubah sampai seseorang mengisinya.
  *   2. Peran ditetapkan HANYA saat akun dibuat — SsoService.resolveRolesAndOpd
  *      tak pernah berjalan pada akun yang sudah ada, sehingga tak ada jalan bagi
  *      klaim untuk menurunkan siapa pun.
- *   3. Akun yang lahir memegang `superuser` dari klaim menulis satu baris
+ *   3. Akun yang lahir memegang peran admin dari klaim menulis satu baris
  *      `audit_logs` — lihat SsoService.provision.
  */
-const MAPPABLE_ROLES: readonly string[] = [
-  Role.superuser,
-  Role.kabupaten,
-  Role.opd,
-  Role.responden,
-];
+const MAPPABLE_ROLES: readonly string[] = [Role.kabupaten, Role.opd, Role.responden];
 
 /** Pemisah antar peran DI DALAM satu paket (`opd+responden`). */
 const PACKAGE_SEPARATOR = '+';
@@ -52,6 +50,59 @@ export function parseClaimValues(groups: unknown, role: unknown): string[] {
     }
   }
   return out;
+}
+
+/**
+ * Field klaim yang dibaca bila `HELPDESK_SSO_ROLE_CLAIM` tak diisi.
+ *
+ * Persis dua klaim yang selama ini dibaca `parseClaimValues`, supaya setiap
+ * lingkungan yang sudah terpasang berperilaku sama tanpa menyentuh env-nya.
+ */
+const FIELD_PERAN_BAKU = ['groups', 'role'];
+
+/**
+ * Nama field klaim yang membawa nilai peran, dipisah koma.
+ *
+ * Boleh berupa jalur bersarang (`identity.user_type`), dan justru itu sebabnya
+ * env ini ada: contoh payload Helpdesk (28 September 2026) menaruh penentu ASN
+ * vs masyarakat di `identity.user_type`, sementara `groups` dan `role` di
+ * tingkat atas hanya membawa nilai tata kelola (`admin`) yang tak dapat
+ * membedakan seorang ASN dari seorang warga.
+ *
+ * @param raw isi `HELPDESK_SSO_ROLE_CLAIM`
+ */
+export function parseRoleClaimFields(raw: string | undefined): string[] {
+  const dari = (raw ?? '')
+    .split(',')
+    .map((bagian) => bagian.trim())
+    .filter(Boolean);
+  return [...new Set(dari.length > 0 ? dari : FIELD_PERAN_BAKU)];
+}
+
+/**
+ * Nilai peran dari field-field yang dikonfigurasi, sudah dinormalkan.
+ *
+ * HANYA field yang dikonfigurasi yang dibaca. Membaca seluruh klaim berarti
+ * `nama`, `jabatan`, dan `instansi` seseorang ikut menjadi kandidat peran, dan
+ * seorang yang kebetulan bernama sama dengan sebuah kunci pemetaan akan
+ * memperoleh peran itu.
+ *
+ * Aturan bentuk nilainya sama persis dengan `parseClaimValues`, yang kini
+ * menjadi pembungkus tipis fungsi ini.
+ */
+export function extractRoleClaimValues(
+  klaim: Record<string, unknown> | undefined | null,
+  fields: string[],
+): string[] {
+  const keluar: string[] = [];
+  for (const field of fields) {
+    for (const nilai of flatten(ambilJalurKlaim(klaim, field))) {
+      if (!keluar.includes(nilai)) {
+        keluar.push(nilai);
+      }
+    }
+  }
+  return keluar;
 }
 
 function flatten(value: unknown): string[] {
@@ -99,7 +150,7 @@ function fromScalarOrObject(item: unknown): string[] {
  * `nilaiKlaim:paket` dipisah koma, dengan paket berisi satu peran atau beberapa
  * peran yang dipisah `+`:
  *
- *   `pegawai-dinas:opd+responden,admin:superuser+opd+responden`
+ *   `pegawai-dinas:opd+responden,admin:kabupaten+opd+responden`
  *
  * Bentuk LAMA (`admin-kab:kabupaten`) tetap sah dan menghasilkan paket berisi
  * satu peran — env yang sudah terpasang di lingkungan mana pun tak rusak oleh

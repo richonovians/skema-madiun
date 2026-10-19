@@ -1,5 +1,6 @@
 import { IKM_MUTU_LABEL } from '@/utils/enumLabels';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import { VALUE_LABEL } from '@/features/statistics/adapters/statistics.adapter';
 
 /**
  * Terjemahkan IkmResultEntity backend (GET /surveys/:id/results) ke bentuk yang
@@ -26,6 +27,19 @@ export function adaptIkmMetrics(result) {
       trend: null, // gap: butuh data historis, lihat catatan di atas
       status: null,
     },
+    // Rata-rata SEMUA jawaban skala (1-4), BUKAN IKM (7 Oktober 2026). Tetap
+    // terisi untuk survei tanpa 9 unsur baku, yang `ikm.value`-nya null. `?? null`:
+    // respons dari backend lama tak membawa kuncinya, dan `undefined` yang lolos
+    // akan menyeberang ke komponen sebagai nilai bertipe tak menentu.
+    averageScore: {
+      value: result.nilaiRataRata ?? null,
+    },
+    // Jenis survei dan NILAI SURVEI survei custom (8 Oktober 2026), diteruskan
+    // apa adanya: layar analisis memakai `jenis` untuk memilih antara Nilai IKM
+    // dan Nilai Survei, tanpa menghitung ulang. `jenis` tidak dikarang bila
+    // backend lama belum mengirimnya.
+    jenis: result.jenis,
+    nilaiSurvei: result.nilaiSurvei ?? null,
     totalRespondents: {
       value: result.jumlahResponden,
       badge: null,
@@ -34,6 +48,35 @@ export function adaptIkmMetrics(result) {
       grade: result.mutu ? `${result.mutu} - ${IKM_MUTU_LABEL[result.mutu]}` : null,
     },
   };
+}
+
+/**
+ * `sebaranSkor` backend (GET /surveys/:id/results, 8 Oktober 2026) -> bentuk
+ * kartu Distribusi Skor: per pertanyaan skala, empat nilai berlabel beserta
+ * persentasenya.
+ *
+ * `persen` EKSAK, tidak dibulatkan: ia menjadi lebar segmen bilah, dan tiga
+ * segmen 1/3 yang dibulatkan berjumlah 99%. Pembulatan untuk teks dilakukan
+ * komponennya. `total` 0 memberi persen 0, bukan NaN.
+ *
+ * `null`/`undefined` tetap `undefined`, BUKAN larik kosong: tampilan harus bisa
+ * membedakan "backend belum mengirimnya" dari "survei ini tak punya pertanyaan
+ * skala" (larik kosong dari backend).
+ */
+export function adaptSebaranSkor(sebaranSkor) {
+  if (sebaranSkor == null) return undefined;
+  return sebaranSkor.map((p) => ({
+    id: p.pertanyaanId,
+    kode: p.kodeUnsur ?? null,
+    teks: p.teks,
+    total: p.total,
+    nilai: p.sebaran.map((s) => ({
+      nilai: s.nilai,
+      label: VALUE_LABEL[s.nilai] ?? `Nilai ${s.nilai}`,
+      jumlah: s.jumlah,
+      persen: p.total > 0 ? (s.jumlah / p.total) * 100 : 0,
+    })),
+  }));
 }
 
 export function adaptIkmServiceElements(nrrPerUnsur) {

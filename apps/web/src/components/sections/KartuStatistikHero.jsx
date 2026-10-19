@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Building2, Clock, ShieldCheck, Lock } from 'lucide-react';
+import { CheckCircle2, Building2, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useAsync } from '@/hooks/useAsync';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
@@ -90,6 +90,22 @@ const KELAS_FOKUS =
  */
 const KELAS_JEDA = 'hover:[animation-play-state:paused]';
 
+/**
+ * Wadah ketiga kartu, dan satu-satunya tempat perbedaan ponsel/desktop diputuskan
+ * (16 September 2026, laporan pengguna: kartunya tak terlihat di ponsel 6,78").
+ *
+ * Di bawah `lg` ia kolom biasa; mulai `lg` ia kembali `block` sehingga anak-anaknya
+ * yang ber-`lg:absolute` menumpang pada rangka ilustrasi seperti semula. Yang tak
+ * bisa hidup di layar 393px memang hanya TATA LETAKNYA -- posisi absolut terhadap
+ * rangka yang di sana tak digambar, lebar tetap 268px, dan ayunan tanpa henti.
+ * Kartunya sendiri bisa.
+ *
+ * Kartunya sengaja TIDAK digambar dua kali. Satu pohon DOM berarti setiap angka,
+ * tautan, dan penanda fokus yang sudah dijaga uji tetap berlaku untuk kedua lebar
+ * layar; salinan kedua akan menggandakan semuanya dan diam-diam boleh menyimpang.
+ */
+const KELAS_TUMPUKAN = 'flex flex-col gap-3 lg:block';
+
 function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHover = '' }) {
   return (
     <div className={clsx(KELAS_KARTU, kelasHover, 'flex items-center gap-3 px-3.5 py-2.5')}>
@@ -112,69 +128,25 @@ function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHov
   );
 }
 
-/**
- * Ditampilkan saat `GET /statistics` gagal dihubungi.
- *
- * BUKAN kartu angka yang dibiarkan menggambar nol. Nol di halaman utama terbaca
- * sebagai kabupaten tanpa satu pun layanan, bukan sebagai jaringan yang sedang
- * putus, dan itu keliru dengan cara yang merugikan. Kolomnya juga tidak
- * dikosongkan begitu saja: kolom yang mendadak hilang terbaca sebagai halaman
- * rusak.
- */
-function KartuPernyataan() {
-  return (
-    <>
-      <div className="animate-melayang absolute -bottom-7 -left-7">
-        <div className={clsx(KELAS_KARTU, 'flex items-center gap-3 px-4 py-3')}>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500">
-            <ShieldCheck size={19} className="text-white" />
-          </span>
-          <div className="leading-tight">
-            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-              Status Layanan
-            </p>
-            <p className="text-sm font-bold whitespace-nowrap text-slate-800">
-              Terhubung SSO Madiun
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="animate-melayang-lambat absolute -top-6 -right-5"
-        style={{ animationDelay: '400ms' }}
-      >
-        <div className={clsx(KELAS_KARTU, 'flex items-center gap-3 px-4 py-3')}>
-          <span className="bg-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-            <Lock size={19} className="text-white" />
-          </span>
-          <div className="leading-tight">
-            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-              Data Pribadi
-            </p>
-            <p className="text-sm font-bold whitespace-nowrap text-slate-800">
-              Dengan Persetujuan Anda
-            </p>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 function Kerangka() {
   return (
-    <div data-testid="kerangka-statistik" aria-hidden="true">
+    <div data-testid="kerangka-statistik" aria-hidden="true" className={KELAS_TUMPUKAN}>
       <div
-        className={clsx(KELAS_KARTU, 'absolute top-14 -left-12 h-[124px] w-[268px] animate-pulse')}
-      />
-      <div
-        className={clsx(KELAS_KARTU, 'absolute -top-9 right-0 h-[108px] w-[200px] animate-pulse')}
+        className={clsx(
+          KELAS_KARTU,
+          'h-[124px] w-full animate-pulse lg:absolute lg:top-14 lg:-left-12 lg:w-[268px]',
+        )}
       />
       <div
         className={clsx(
           KELAS_KARTU,
-          'absolute -bottom-10 left-10 h-[104px] w-[212px] animate-pulse',
+          'h-[108px] w-full animate-pulse lg:absolute lg:-top-9 lg:right-0 lg:w-[200px]',
+        )}
+      />
+      <div
+        className={clsx(
+          KELAS_KARTU,
+          'h-[104px] w-full animate-pulse lg:absolute lg:-bottom-10 lg:left-10 lg:w-[212px]',
         )}
       />
     </div>
@@ -197,46 +169,6 @@ function Kerangka() {
 const AMBANG_PENILAIAN = 30;
 
 /**
- * Ringkasan untuk ponsel: angka yang sama, tanpa tata letak yang melayang.
- *
- * Seluruh kolom ilustrasi terukur `display: none` di bawah `lg`, jadi sebelumnya
- * setiap angka yang dimaksudkan menarik minat warga hanya sampai ke pengunjung
- * desktop -- padahal warga membuka situs ini dari ponsel. Yang tak bisa hidup di
- * layar 400px adalah TATA LETAKNYA: posisi absolut yang keluar dari alur, lebar
- * tetap 268px, dan ayunan tanpa henti. Datanya bisa.
- *
- * Sengaja BUKAN tautan. Tiga kartu desktop sudah menuju /statistics dan navbar
- * menyediakan jalan yang sama; menambah satu lagi hanya memperpanjang daftar
- * tautan serupa yang harus dilewati pengguna pembaca layar.
- */
-function RingkasanPonsel({ nilaiIkm, cukupPenilaian, jumlahPenilaian }) {
-  return (
-    <div
-      data-ringkas-ponsel
-      className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 lg:hidden"
-    >
-      {cukupPenilaian ? (
-        <div className="leading-tight">
-          <p className="text-2xl font-bold text-slate-900">{nilaiIkm}</p>
-          <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-            Nilai IKM
-          </p>
-        </div>
-      ) : (
-        <div className="leading-tight">
-          <p className="text-sm font-bold text-slate-800">
-            Nilai IKM menunggu {AMBANG_PENILAIAN} penilaian
-          </p>
-          <p className="text-[11px] font-medium text-slate-500">
-            Terkumpul {jumlahPenilaian} sejauh ini.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
  * Tumpukan kartu melayang di atas ilustrasi hero (14 September 2026, permintaan
  * pengguna, mengikuti referensi yang dikirimkannya).
  *
@@ -252,7 +184,7 @@ function RingkasanPonsel({ nilaiIkm, cukupPenilaian, jumlahPenilaian }) {
  * predikat resmi.
  *
  * Pemanggilannya sengaja berada di komponen ini, bukan di HeroSection: kegagalan
- * jaringan cukup mengganti tumpukan kartunya, tanpa pernah menyentuh judul,
+ * jaringan cukup menghapus tumpukan kartunya, tanpa pernah menyentuh judul,
  * paragraf, dan tombol masuk yang menjadi isi utama halaman.
  */
 export default function KartuStatistikHero() {
@@ -260,7 +192,32 @@ export default function KartuStatistikHero() {
   const { data, isLoading, error } = useAsync(ambil);
 
   if (isLoading) return <Kerangka />;
-  if (error || !data?.summary) return <KartuPernyataan />;
+
+  /**
+   * TAK MENGGAMBAR APA PUN saat `GET /statistics` tak terjawab (30 September
+   * 2026, keputusan pengguna).
+   *
+   * Yang berdiri di sini sampai tanggal itu adalah dua kartu pernyataan, dan
+   * yang pertama berbunyi "Status Layanan -- Terhubung SSO Madiun". Ia muncul
+   * TEPAT ketika API-nya tak bisa dihubungi, sedangkan jalur SSO melewati API
+   * yang sama: kalimat itu menyatakan "terhubung" pada satu-satunya saat kita
+   * justru punya bukti sebaliknya.
+   *
+   * Penggantinya sengaja BUKAN pesan galat. Pemberitahuan kegagalan di hero
+   * menceritakan kepada warga sebuah masalah yang tak bisa mereka perbuat apa-
+   * apa, sekaligus membuat beranda tampak rusak padahal judul, paragraf, dan
+   * tombol masuknya baik-baik saja. Tempat pesan kegagalan adalah halaman
+   * /statistics itu sendiri.
+   *
+   * Yang TETAP dijaga dari versi lama: kartu berangka tak boleh digambar di
+   * sini. Nol di halaman utama terbaca sebagai kabupaten tanpa satu pun layanan,
+   * bukan sebagai jaringan yang sedang putus.
+   *
+   * Di `lg` ke atas rangka ilustrasi hero tetap digambar, jadi yang hilang hanya
+   * kartu melayangnya. Di bawah `lg` rangka itu sendiri `hidden`, jadi kolomnya
+   * memang kosong dan halamannya sekadar memendek.
+   */
+  if (error || !data?.summary) return null;
 
   const { summary, ikmTrend = [], complaintStatus } = data;
   const deret = ikmTrend.map((t) => t.value);
@@ -278,24 +235,28 @@ export default function KartuStatistikHero() {
   const cukupPenilaian = jumlahPenilaian >= AMBANG_PENILAIAN;
 
   return (
-    <>
-      {/* Tumpukan melayang ini milik desktop saja. Ia bersandar pada posisi
-          absolut terhadap rangka ilustrasi dan lebar tetap 268px; keduanya tak
-          punya tempat di layar 400px. Yang menggantikannya di ponsel adalah
-          RingkasanPonsel di bawah, dengan angka yang sama. */}
-      <div className="hidden lg:block">
-        {/* DUA lapisan animasi, dan pemisahannya perlu. Utilitas `animate-*`
+    <div data-tumpukan-statistik className={KELAS_TUMPUKAN}>
+      {/* DUA lapisan animasi, dan pemisahannya perlu. Utilitas `animate-*`
             menetapkan properti `animation` secara utuh, jadi memasang gerak masuk
             dan gerak melayang pada elemen yang sama membuat yang satu menghapus
             yang lain. Pembungkus luar mengurus kemunculan, pembungkus dalam
             mengurus ayunan. */}
-        <div
-          className="animate-fade-in-up absolute top-14 -left-12 z-20"
-          style={{ animationDelay: '0ms' }}
-        >
-          <div className={clsx('animate-melayang', KELAS_JEDA)}>
+      <div
+        className="animate-fade-in-up z-20 lg:absolute lg:top-14 lg:-left-12"
+        style={{ animationDelay: '0ms' }}
+      >
+        {/* Lapisan kedalaman 3D dari redesain hero (main). Sengaja `lg:`-saja:
+            `transform` menjadikan elemennya blok penampung sekaligus konteks
+            tumpuk, dan di bawah `lg` kartu-kartu ini hidup dalam alur biasa
+            sebagai tumpukan ponsel -- efek kedalaman tak punya arti di sana
+            sebab rangka ilustrasi yang menaunginya pun tak digambar.
+            Ia berdiri sendiri, BUKAN digabung ke lapisan ayunan: utilitas
+            `animate-*` menetapkan `animation` secara utuh dan geraknya memakai
+            `transform`, jadi keduanya akan saling menelan di elemen yang sama. */}
+        <div className="lg:[transform:translateZ(50px)]">
+          <div className={clsx('lg:animate-melayang', KELAS_JEDA)}>
             <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
-              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-[268px] px-4 py-3.5')}>
+              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3.5 lg:w-[268px]')}>
                 <span className="bg-primary/10 text-primary inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold">
                   Nilai IKM
                 </span>
@@ -339,15 +300,25 @@ export default function KartuStatistikHero() {
             </Link>
           </div>
         </div>
+      </div>
 
-        {/* Kartu batang: satu batang per periode, yang terbaru diberi warna tegas. */}
-        <div
-          className="animate-fade-in-up absolute -top-9 right-0 z-10"
-          style={{ animationDelay: '130ms' }}
-        >
-          <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
+      {/* Kartu batang: satu batang per periode, yang terbaru diberi warna tegas. */}
+      <div
+        className="animate-fade-in-up z-10 lg:absolute lg:-top-9 lg:right-0"
+        style={{ animationDelay: '130ms' }}
+      >
+        {/* Lapisan kedalaman 3D dari redesain hero (main). Sengaja `lg:`-saja:
+            `transform` menjadikan elemennya blok penampung sekaligus konteks
+            tumpuk, dan di bawah `lg` kartu-kartu ini hidup dalam alur biasa
+            sebagai tumpukan ponsel -- efek kedalaman tak punya arti di sana
+            sebab rangka ilustrasi yang menaunginya pun tak digambar.
+            Ia berdiri sendiri, BUKAN digabung ke lapisan ayunan: utilitas
+            `animate-*` menetapkan `animation` secara utuh dan geraknya memakai
+            `transform`, jadi keduanya akan saling menelan di elemen yang sama. */}
+        <div className="lg:[transform:translateZ(30px)]">
+          <div className={clsx('lg:animate-melayang-lambat', KELAS_JEDA)}>
             <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
-              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-[200px] px-4 py-3.5')}>
+              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3.5 lg:w-[200px]')}>
                 <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
                   Tren IKM
                 </p>
@@ -381,13 +352,23 @@ export default function KartuStatistikHero() {
             </Link>
           </div>
         </div>
+      </div>
 
-        {/* Dua chip kecil yang bertumpuk, mengikuti susunan pada referensi. */}
-        <div
-          className="animate-fade-in-up absolute -bottom-10 left-10 z-30"
-          style={{ animationDelay: '260ms' }}
-        >
-          <div className={clsx('animate-melayang-lambat', KELAS_JEDA)}>
+      {/* Dua chip kecil yang bertumpuk, mengikuti susunan pada referensi. */}
+      <div
+        className="animate-fade-in-up z-30 lg:absolute lg:-bottom-10 lg:left-10"
+        style={{ animationDelay: '260ms' }}
+      >
+        {/* Lapisan kedalaman 3D dari redesain hero (main). Sengaja `lg:`-saja:
+            `transform` menjadikan elemennya blok penampung sekaligus konteks
+            tumpuk, dan di bawah `lg` kartu-kartu ini hidup dalam alur biasa
+            sebagai tumpukan ponsel -- efek kedalaman tak punya arti di sana
+            sebab rangka ilustrasi yang menaunginya pun tak digambar.
+            Ia berdiri sendiri, BUKAN digabung ke lapisan ayunan: utilitas
+            `animate-*` menetapkan `animation` secara utuh dan geraknya memakai
+            `transform`, jadi keduanya akan saling menelan di elemen yang sama. */}
+        <div className="lg:[transform:translateZ(60px)]">
+          <div className={clsx('lg:animate-melayang-lambat', KELAS_JEDA)}>
             <Link href="/statistics" className={clsx('group flex flex-col gap-2', KELAS_FOKUS)}>
               {/* Instalasi baru belum punya pengaduan yang selesai, jadi
             `avgSlaDays` belum bernilai. "0 hari" terbaca sebagai janji tanggapan
@@ -431,12 +412,6 @@ export default function KartuStatistikHero() {
           </div>
         </div>
       </div>
-
-      <RingkasanPonsel
-        nilaiIkm={angka(summary.ikm)}
-        cukupPenilaian={cukupPenilaian}
-        jumlahPenilaian={angka(jumlahPenilaian)}
-      />
-    </>
+    </div>
   );
 }

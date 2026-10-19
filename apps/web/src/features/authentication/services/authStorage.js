@@ -15,7 +15,7 @@ const TOKEN_KEY = 'token';
 // karena proxy.js Edge Runtime tak boleh bergantung pada isi klaim token.
 const ROLE_KEY = 'role';
 // Peran yang SEDANG DIPAKAI pada sesi ini (5 September 2026):
-// 'kabupaten' | 'opd' | 'responden' | 'superuser'. MENGGANTIKAN cookie `area`
+// 'kabupaten' | 'opd' | 'responden'. MENGGANTIKAN cookie `area`
 // milik superuser beserta cookie `opd` -- mekanismenya kini berlaku bagi siapa
 // pun ber-role banyak, bukan kekhususan satu peran.
 //
@@ -208,6 +208,31 @@ function simpanPenandaPersetujuan(role, consentRequired) {
   saveConsentFlag(role ? !consentRequired : false);
 }
 
+/**
+ * Perbarui masa berlaku sesi dari kabar server (17 September 2026).
+ *
+ * Sejak sesi memakai jendela menganggur yang diperpanjang selama dipakai,
+ * waktu berakhirnya berubah di tengah jalan. Backend menyebutkannya pada header
+ * `X-Sesi-Berakhir`, dan `api.js` meneruskannya ke sini.
+ *
+ * Cookie navigasi ikut ditulis ulang, bukan hanya nilai di localStorage: cookie
+ * `role` & `consent` dulu diberi umur sepanjang sesi saat login, jadi tanpa
+ * penyegaran ini keduanya mati di jadwal lama sementara cookie `session` milik
+ * backend hidup lebih panjang. Proxy lalu melihat sesi hidup TANPA peran, dan
+ * memantulkan admin dari areanya sendiri -- persis cacat 2 September 2026,
+ * hanya dengan sebab yang berbeda.
+ */
+export function perbaruiMasaBerlakuSesi(epochDetik) {
+  if (typeof window === 'undefined') return;
+  if (!Number.isFinite(epochDetik) || epochDetik <= 0) return;
+  // Hanya untuk sesi yang memang sedang berjalan. Menulisnya pada keadaan
+  // logout akan membuat `isAuthenticated()` menyatakan ada sesi yang tak ada.
+  if (!localStorage.getItem(SSO_EXPIRES_KEY)) return;
+
+  localStorage.setItem(SSO_EXPIRES_KEY, String(epochDetik));
+  selaraskanCookieSesi();
+}
+
 export function saveConsentFlag(sudahMenyetujui) {
   if (typeof window === 'undefined') return;
   const nilai = sudahMenyetujui ? '1' : '0';
@@ -228,7 +253,7 @@ export function saveConsentFlag(sudahMenyetujui) {
  *
  * Cookie `session` sendiri TIDAK disentuh dari sini dan memang tak bisa.
  *
- * @param {string} role peran backend ('kabupaten'|'opd'|'responden'|'superuser')
+ * @param {string} role peran backend ('kabupaten'|'opd'|'responden')
  * @param {number} expiresAt detik epoch; 0/NaN diabaikan
  * @param {boolean} [consentRequired] dari `GET /auth/me`
  */
@@ -288,9 +313,10 @@ function matikanSesiDiServer() {
  *
  * Sampai 8 September 2026 fungsi ini hanya membersihkan sisi klien, dan
  * batasannya dinyatakan terus terang: cookie `session` HttpOnly tak dapat
- * dihapus dari JavaScript, jadi ketiga pemanggil logout (useLogout,
- * ProfileActions, ProfileAvatarDropdown) memanggil `POST /auth/logout` lebih
- * dulu. Yang terlewat: pemanggil LAIN tidak.
+ * dihapus dari JavaScript, jadi para pemanggil logout (useLogout,
+ * ProfileAvatarDropdown; ProfileActions ikut sampai dihapus 4 Oktober 2026)
+ * memanggil `POST /auth/logout` lebih dulu. Yang terlewat: pemanggil LAIN
+ * tidak.
  *
  * `isAuthenticated()` memanggilnya begitu `sso_expires_at` hilang atau lewat,
  * dan interceptor 401 di `api.js` juga. Pada jalur-jalur itu sesi server tetap

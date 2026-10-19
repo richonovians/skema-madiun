@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
 import { ComplaintStatus, Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -32,10 +33,17 @@ const kabupatenUser = (): CurrentUser => ({
   actingRole: Role.kabupaten,
   opdId: null,
 });
-const superUser = (): CurrentUser => ({
+/**
+ * Akun Admin Kabupaten KEDUA (id 3), dipakai untuk membuktikan bahwa bukan
+ * akunnya yang menentukan melainkan perannya. Pembantu ini sempat bernama
+ * `superUser` sambil membangun `Role.kabupaten` -- peran `superuser` dilebur
+ * 15 September 2026 dan nilai enumnya dibuang, jadi namanya menyebut peran yang
+ * tak mungkin dibangun (dibereskan 14 Oktober 2026).
+ */
+const kabupatenUserLain = (): CurrentUser => ({
   userId: 3,
-  roles: [Role.superuser],
-  actingRole: Role.superuser,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
   opdId: null,
 });
 
@@ -60,6 +68,12 @@ const p2002 = () =>
     clientVersion: 'test',
   });
 
+/**
+ * Kunci uji untuk enkripsi kolom. Bukan kunci sungguhan mana pun, dan tak
+ * pernah menyentuh disk: suite ini hanya memeriksa apa yang DIKIRIM ke Prisma.
+ */
+const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xb);
+
 describe('ComplaintsService', () => {
   const prisma = {
     opd: { findUnique: jest.fn() },
@@ -80,16 +94,36 @@ describe('ComplaintsService', () => {
    * diam-diam ikut terpakai -- perbandingan `10 < 'uploads'` bernilai false dan
    * SELURUH pembuatan pengaduan tertolak dengan pesan yang menyebut "uploads"
    * sebagai jumlah.
+   *
+   * DIPERKETAT 23 September 2026 menjadi PETA SUNGGUHAN, bukan satu pengecualian
+   * plus cadangan 'uploads'. Bentuk lama sudah setengah jalan: ia menjawab
+   * `complaint.batasHarian` dengan benar dan SELURUH kunci lain dengan 'uploads'
+   * -- termasuk kunci yang belum ada saat tiruan itu ditulis. Begitu service
+   * membaca `crypto.dataKey`, ia menerima string 'uploads' sebagai kunci
+   * enkripsi, dan suite ini gagal seluruhnya dengan pesan yang tak ada
+   * hubungannya dengan apa yang sedang diuji.
+   *
+   * Peta ini gagal ke arah yang benar: kunci yang tak dikenal menjawab
+   * `undefined`, sehingga service memakai nilai bakunya sendiri alih-alih
+   * sebuah string yang kebetulan ada.
    */
+  const NILAI_KONFIG: Record<string, unknown> = {
+    'upload.dir': 'uploads',
+    'complaint.batasHarian': BATAS_HARIAN_PENGADUAN_BAKU,
+    'session.jwtSecret': 'rahasia-uji-yang-panjangnya-lebih-dari-32-karakter',
+    'upload.signedUrlTtlSeconds': 3600,
+    // Kunci uji tetap. Bukan kunci sungguhan mana pun, dan tak pernah menyentuh
+    // disk: suite ini tak menulis lampiran ke direktori nyata.
+    'crypto.dataKey': KUNCI_UJI_KOLOM.toString('hex'),
+  };
   const config = {
-    get: jest.fn((kunci: string) =>
-      kunci === 'complaint.batasHarian' ? BATAS_HARIAN_PENGADUAN_BAKU : 'uploads',
-    ),
+    get: jest.fn((kunci: string) => NILAI_KONFIG[kunci]),
   } as unknown as ConfigService;
   const notificationsService = {
     notifyComplaintCreated: jest.fn(),
     notifyComplaintStatusChanged: jest.fn(),
     notifyComplaintReply: jest.fn(),
+    notifyComplaintForwarded: jest.fn(),
   } as unknown as NotificationsService;
   const consent = {
     assertConsented: jest.fn().mockResolvedValue(undefined),
@@ -123,7 +157,7 @@ describe('ComplaintsService', () => {
       ).rejects.toThrow(ForbiddenException);
 
       // Urutan penting: menulis lampiran lalu menolak berarti meninggalkan
-      // berkas yatim di disk untuk pengaduan yang tak pernah ada.
+      // berkas tanpa induk di disk untuk pengaduan yang tak pernah ada.
       expect(prisma.opd.findUnique).not.toHaveBeenCalled();
     });
   });
@@ -417,7 +451,10 @@ describe('ComplaintsService', () => {
         expect.objectContaining({
           include: {
             attachments: true,
-            user: { select: { nama: true } },
+            // Ketiga kolom identitas ikut sejak 1 Oktober 2026 -- hanya di
+            // jalur detail ini. Bentuknya ditegaskan sendiri pada blok
+            // "identitas pelapor pada detail" di bawah.
+            user: { select: { nama: true, nik: true, nomorHp: true, alamat: true } },
             opd: { select: { nama: true } },
           },
         }),
@@ -490,10 +527,22 @@ describe('ComplaintsService', () => {
         data: {
           complaintId: 1,
           authorId: 1,
-          pesan: 'Bukan wewenang OPD ini',
+          // TERENKRIPSI, bukan teks polos (23 September 2026). Catatan penolakan
+          // adalah tulisan bebas petugas tentang kasus seorang warga, disimpan
+          // di kolom yang sama dengan pesan percakapan, jadi ia diperlakukan
+          // sama. Nilainya tak dapat ditulis sebagai harapan tetap di sini:
+          // garam dan iv acak membuatnya berbeda setiap kali.
+          pesan: expect.stringMatching(/^enc:v1:/) as unknown as string,
           dariPelapor: false,
         },
       });
+
+      // Dan ia harus dapat DIBUKA KEMBALI. Tanpa asersi ini, uji di atas akan
+      // tetap hijau seandainya kode menulis blob yang tak berarti apa-apa.
+      const ditulis = (prisma.complaintReply.create as jest.Mock).mock.calls[0][0] as {
+        data: { pesan: string };
+      };
+      expect(dekripsiKolom(ditulis.data.pesan, KUNCI_UJI_KOLOM)).toBe('Bukan wewenang OPD ini');
     });
 
     it('(D9) sukses -> memicu notifyComplaintStatusChanged dgn baris terbaru', async () => {
@@ -595,7 +644,7 @@ describe('ComplaintsService', () => {
         // pelapor, tetapi ia sedang bertugas, bukan sedang mengadu.
         (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ userId: 3 }));
 
-        await service.addReply(1, { pesan: 'Halo' }, undefined, superUser());
+        await service.addReply(1, { pesan: 'Halo' }, undefined, kabupatenUserLain());
 
         expect(balasanTersimpan().dariPelapor).toBe(false);
       });
@@ -622,7 +671,14 @@ describe('ComplaintsService', () => {
 
       await service.addReply(1, { pesan: 'Halo' }, undefined, respondenUser(10));
 
-      expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(row, 10);
+      // Diserahkan UTUH, bukan id-nya saja: arah balasan ditentukan peran yang
+      // sedang dipakai. Menyerahkan id akan mengembalikan cacat 22 September
+      // 2026 -- balasan petugas dari akun pelapor digolongkan sebagai balasan
+      // pelapor, dan kotak masuk wargannya tak pernah menyala.
+      expect(notificationsService.notifyComplaintReply).toHaveBeenCalledWith(
+        row,
+        expect.objectContaining({ userId: 10, actingRole: Role.responden }),
+      );
     });
   });
   /**
@@ -820,8 +876,9 @@ describe('ComplaintsService', () => {
 
     it('Admin Kabupaten berhasil: opdId terisi, audit tercatat, OPD tujuan diberi tahu', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9 });
-      (prisma.complaint.update as jest.Mock).mockResolvedValue(complaintRow({ opdId: 9 }));
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9, nama: 'Dinas Kesehatan' });
+      const updatedRow = complaintRow({ opdId: 9 });
+      (prisma.complaint.update as jest.Mock).mockResolvedValue(updatedRow);
 
       const hasil = await service.forward(1, { opdId: 9 }, kabupatenUser());
 
@@ -838,14 +895,20 @@ describe('ComplaintsService', () => {
       // Tanpa ini OPD tujuan tak akan pernah tahu ada tiket yang menjadi
       // tanggung jawabnya -- persis keluhan 6 Agustus 2026 soal tiket baru.
       expect(notificationsService.notifyComplaintCreated).toHaveBeenCalled();
+      // DAN pelapor diberi tahu bahwa pengaduan "Lainnya"-nya sudah mendarat di
+      // instansi berwenang (7 Oktober 2026) -- dengan NAMA OPD-nya, bukan id.
+      expect(notificationsService.notifyComplaintForwarded).toHaveBeenCalledWith(
+        updatedRow,
+        'Dinas Kesehatan',
+      );
     });
 
-    it('Superuser juga berhasil', async () => {
+    it('Admin Kabupaten dengan akun lain juga berhasil', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9 });
       (prisma.complaint.update as jest.Mock).mockResolvedValue(complaintRow({ opdId: 9 }));
 
-      await expect(service.forward(1, { opdId: 9 }, superUser())).resolves.toBeDefined();
+      await expect(service.forward(1, { opdId: 9 }, kabupatenUserLain())).resolves.toBeDefined();
     });
 
     /**
@@ -893,6 +956,120 @@ describe('ComplaintsService', () => {
       await expect(service.forward(99, { opdId: 9 }, kabupatenUser())).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  /**
+   * Identitas pelapor pada detail pengaduan (1 Oktober 2026, laporan pengguna:
+   * "profil pelapor pengaduan belum mengambil data profil/akun dari helpdesk").
+   *
+   * Sumbernya kini ada -- ketiga kolom `users` diisi dari klaim Helpdesk saat
+   * login (lihat sso-identitas.mapper.ts). Yang diuji di sini: ketiganya sampai
+   * ke kartu "Profil Pelapor", TIDAK ikut ke daftar, dan hilang sepenuhnya pada
+   * pengaduan anonim.
+   */
+  describe('ComplaintsService — identitas pelapor pada detail', () => {
+    const sandi = (teks: string) => enkripsiKolom(teks, KUNCI_UJI_KOLOM);
+
+    const userLengkap = {
+      nama: 'Warga Contoh',
+      nik: sandi('3520041502050002'),
+      nomorHp: sandi('+62895396662038'),
+      alamat: sandi('Dusun Timang Desa Waduk'),
+    };
+
+    it('mendekripsi ketiganya ke dalam entity detail', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ user: userLengkap, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(hasil.reporterNama).toBe('Warga Contoh');
+      // TERSAMAR, bukan penuh (1 Oktober 2026). Nomor penuhnya tak pernah
+      // meninggalkan server -- lihat common/identitas/nik.ts.
+      expect(hasil.reporterNik).toBe('3520 04•• •••• 0002');
+      expect(hasil.reporterNomorHp).toBe('+62895396662038');
+      expect(hasil.reporterAlamat).toBe('Dusun Timang Desa Waduk');
+    });
+
+    /**
+     * PAGAR TERPENTING perubahan ini. Uji di atas membuktikan bentuk yang
+     * tersamar muncul; uji ini membuktikan bentuk PENUHNYA tidak -- di medan mana
+     * pun, bukan hanya di medan yang kebetulan diperiksa.
+     */
+    it('nomor NIK penuh TIDAK muncul di satu medan pun', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ user: userLengkap, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(JSON.stringify(hasil)).not.toContain('3520041502050002');
+    });
+
+    it('meminta ketiga kolom itu pada include-nya', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+
+      await service.findByTicketNo('PGDX', kabupatenUser());
+
+      const include = (prisma.complaint.findUnique as jest.Mock).mock.calls[0][0].include;
+      expect(include.user.select).toEqual({
+        nama: true,
+        nik: true,
+        nomorHp: true,
+        alamat: true,
+      });
+    });
+
+    /**
+     * DAFTAR TIDAK IKUT MEMBAWANYA. Daftar pengaduan tak menggambar satu pun dari
+     * ketiganya, dan menariknya untuk tiap baris berarti NIK serta alamat rumah
+     * puluhan orang melintas di satu respons yang tak memerlukannya. Pembatasan
+     * termurah adalah tidak mengambilnya sejak kueri.
+     */
+    it('daftar pengaduan tidak ikut menarik NIK maupun alamat', async () => {
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[complaintRow()], 1]);
+
+      await service.findAll({ page: 1, limit: 20 }, kabupatenUser());
+
+      const include = (prisma.complaint.findMany as jest.Mock).mock.calls[0][0].include;
+      expect(include.user.select).toEqual({ nama: true });
+    });
+
+    /**
+     * Janji anonim berlaku untuk SELURUH identitas, bukan hanya namanya. Tanpa
+     * uji ini, menambah tiga medan ke entity diam-diam membuka tiga jalan baru
+     * yang justru paling menunjuk satu orang.
+     */
+    it('pengaduan anonim: ketiganya hilang SEBAGAI KUNCI, bukan diisi null', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ isAnonim: true, user: userLengkap, opd: { nama: 'Dinkes' } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      for (const kunci of ['reporterNama', 'reporterNik', 'reporterNomorHp', 'reporterAlamat']) {
+        expect(Object.keys(hasil)).not.toContain(kunci);
+      }
+    });
+
+    /**
+     * Kolom kosong adalah keadaan NORMAL: SSO melayani ASN maupun warga umum,
+     * dan tak satu pun medan ini dijamin ada. Yang kosong tak boleh menjelma
+     * jadi string kosong -- tampilan membedakan "tak ada" dari "ada tapi kosong"
+     * untuk memutuskan menyembunyikan barisnya.
+     */
+    it('kolom yang null tetap null, tidak menjadi string kosong', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ user: { nama: 'Warga Contoh', nik: null, nomorHp: null, alamat: null } }),
+      );
+
+      const hasil = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(hasil.reporterNik).toBeNull();
+      expect(hasil.reporterNomorHp).toBeNull();
+      expect(hasil.reporterAlamat).toBeNull();
     });
   });
 });

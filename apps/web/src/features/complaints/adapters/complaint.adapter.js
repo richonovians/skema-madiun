@@ -42,18 +42,33 @@ export function adaptComplaint(complaint) {
       name: reporterName,
       initials: reporterName ? getInitials(reporterName) : '',
       // nik/phone/address (dipakai ComplaintReporterProfile.jsx, halaman detail
-      // Admin OPD, INT-20): TIDAK ADA sumbernya di backend -- RespondentProfile
-      // sengaja cuma demografis IKM, bukan identitas pribadi (lihat gap sama
-      // di me.adapter.js, INT-16). Eksplisit null, bukan dikarang; komponen
-      // menampilkan '-' untuk field ini.
-      nik: null,
-      phone: null,
-      address: null,
+      // Admin OPD, INT-20). SUMBERNYA AKHIRNYA ADA, 1 Oktober 2026: ketiga
+      // kolom `users` diisi dari klaim SSO Helpdesk saat login, dan
+      // `GET /complaints/:ticketNo` mengirimkannya terdekripsi. Sebelum itu
+      // ketiganya dipaku null di sini dan kartunya menggambar tiga tanda
+      // hubung selamanya -- keluhan yang melahirkan pekerjaan ini.
+      //
+      // `?? null` BUKAN HIASAN. Daftar pengaduan sengaja TIDAK menarik ketiga
+      // kolom ini, jadi kuncinya memang tak ada di sana; tanpa ini komponen
+      // menerima `undefined` dan tak dapat membedakannya dari "Helpdesk tak
+      // mengirimkannya". Pada pengaduan anonim backend menghapus kuncinya,
+      // sehingga jalur yang sama membuat ketiganya null tanpa perlu
+      // memeriksa `isAnonim` sekali lagi di sini.
+      nik: isAnonim ? null : (complaint.reporterNik ?? null),
+      phone: isAnonim ? null : (complaint.reporterNomorHp ?? null),
+      address: isAnonim ? null : (complaint.reporterAlamat ?? null),
     },
     title: complaint.judul,
     description: complaint.uraian,
     dateStr: formatDateId(createdAt),
     createdAt,
+    // Dipakai Statistik & Laporan Admin OPD untuk rata-rata waktu penyelesaian
+    // pada periode terpilih. Backend menghitung `avgResponseHours` dari
+    // `updatedAt - createdAt` pengaduan SELESAI, jadi yang menyaring per periode
+    // harus memegang kedua ujungnya. `?? null`: kunci ini baru ikut diteruskan
+    // sekarang, dan respons lama/tiruan yang tak membawanya tak boleh menjadi
+    // `undefined` yang lolos ke perhitungan.
+    updatedAt: complaint.updatedAt ?? null,
     ageDays,
     status: STATUS_MAP[complaint.status] ?? complaint.status,
     // Kode kategori mentah ('aduan'/'lapor'/'lainnya') -- label ramah-baca
@@ -159,13 +174,13 @@ export function toCreateComplaintPayload({ opdId, kategori, title, description, 
  * KOREKSI (2026-08-19, laporan bug user "kirim pesan dari role admin kabupaten
  * masih menampilkan admin OPD"): catatan lama di sini menyatakan hanya 2 pihak
  * yang boleh membalas (pelapor & Admin OPD pemilik) -- itu KELIRU.
- * `ComplaintsService.assertAccess` meloloskan `Role.kabupaten` lebih dulu
- * (superuser), jadi ada TIGA kemungkinan pengirim. Akibatnya label lama
+ * `ComplaintsService.assertAccess` meloloskan `Role.kabupaten` lebih dulu,
+ * jadi ada TIGA kemungkinan pengirim: pelapor, Admin OPD, Admin Kabupaten. Akibatnya label lama
  * "Admin OPD" bukan sekadar generik, tapi salah: pada data pengembangan, 4 dari
  * 10 balasan ditulis akun kabupaten dan semuanya dilabeli Admin OPD.
  *
  * `senderName` kini "Admin" untuk SEMUA pengirim non-pelapor -- benar untuk
- * ketiga peran admin sekaligus. Membedakan "Admin Kabupaten" vs "Admin OPD"
+ * kedua peran admin sekaligus. Membedakan "Admin Kabupaten" vs "Admin OPD"
  * MUSTAHIL di frontend tanpa backend mengekspos peran penulis; menebaknya dari
  * OPD pengaduan akan salah setiap kali kabupaten yang membalas.
  *

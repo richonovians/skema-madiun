@@ -5,6 +5,7 @@ import ComplaintListHeader from '@/features/complaints/components/ComplaintListH
 import ComplaintListFilter from '@/features/complaints/components/ComplaintListFilter';
 import AdminComplaintTable from '@/features/complaints/components/AdminComplaintTable';
 import Pagination from '@/components/ui/Pagination';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -62,6 +63,12 @@ export default function AdminOPDComplaintsPage() {
 
   const totalItems = filteredComplaints.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  // Baris yang diambil berhenti di FETCH_LIMIT, dan penyaring serta pencarian di
+  // atas bekerja atas irisan itu saja -- jadi baris yang cocok tetapi tak
+  // terambil tak akan pernah muncul. Total sebenarnya hanya diketahui dari meta
+  // backend; tanpa menyebutnya, halaman ini tampak lengkap padahal bukan.
+  const totalSeluruhnya = response?.meta?.pagination?.total ?? 0;
+  const barisTerambil = response?.data?.length ?? 0;
 
   const paginatedComplaints = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -169,6 +176,12 @@ export default function AdminOPDComplaintsPage() {
           totalItems={totalItems}
           itemsPerPage={ITEMS_PER_PAGE}
           onPageChange={setCurrentPage}
+        />
+        <CatatanPemotongan
+          ditampilkan={barisTerambil}
+          total={totalSeluruhnya}
+          namaItem="pengaduan"
+          adaPenyaring
         />
       </div>
     </div>

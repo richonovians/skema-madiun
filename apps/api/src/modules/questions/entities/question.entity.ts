@@ -10,6 +10,13 @@ export class QuestionEntity extends BaseEntity<QuestionEntity> {
   tipe: QuestionType;
   isIkmUnsur: boolean;
   kodeUnsur: string | null;
+  /**
+   * Nama resmi unsur menurut `kodeUnsur` (mis. "Persyaratan"), atau `null` bila
+   * pertanyaan ini bukan unsur baku. Terpisah dari `teks`: sejak 8 Oktober 2026
+   * `teks` pada unsur adalah KALIMAT pertanyaan buatan OPD, sedangkan nama
+   * unsurnya standar yang tidak berubah.
+   */
+  namaUnsur: string | null;
   urutan: number;
   createdAt: Date;
   updatedAt: Date;

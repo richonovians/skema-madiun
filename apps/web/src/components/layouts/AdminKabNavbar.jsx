@@ -1,7 +1,7 @@
 'use client';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { Menu, CalendarRange, Layers } from 'lucide-react';
+import { Menu, CalendarRange } from 'lucide-react';
 import Dropdown from '@/components/ui/Dropdown';
 import NotificationDropdown from '@/components/ui/NotificationDropdown';
 import AdminAccountMenu from './AdminAccountMenu';
@@ -13,30 +13,45 @@ import { useAdminKabLayout } from './AdminKabLayoutProvider';
 import { useAsync } from '@/hooks/useAsync';
 import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '@/features/profile/services/profile.api';
-import { getOpdList } from '@/features/opd/services/opd.api';
-import { buildRecentPeriodeOptions } from '@/features/surveys/adapters/survey.adapter';
+import { buildTahunOptions } from '@/features/surveys/adapters/survey.adapter';
+import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 
 // "Semua Periode" sengaja jadi opsi pertama DAN nilai awal -- lihat alasannya di
 // AdminKabLayoutProvider.jsx (dashboard eksekutif tak boleh tampil kosong hanya
 // karena triwulan berjalan belum punya survei bernilai).
-const ALL_PERIODS = { value: '', label: 'Semua Periode' };
-const PERIODE_OPTIONS = [ALL_PERIODS, ...buildRecentPeriodeOptions()];
+// "Semua Periode" DIBUANG bersama dropdown gabungannya (6 Oktober 2026).
+// Penggantinya "Semua Triwulan" pada dropdown Triwulan, yang menyaring setahun
+// penuh. Tahun kini WAJIB terisi: itu pilihan tersurat pemilik produk saat
+// desainnya disajikan, dengan akibat yang disebut di sana -- melihat SELURUH
+// tahun sekaligus tak lagi mungkin dari penyaring ini.
+const TAHUN_OPTIONS = buildTahunOptions();
 
 // Dipetakan dari rute yang BENAR-BENAR ada (lihat app/admin-kab/* dan tautan di
 // AdminKabSidebar.jsx). Judul lama mencocokkan '/management-opd' dan
 // '/management-users' -- dua rute yang tak pernah ada di proyek ini, sehingga
 // LIMA dari enam halaman jatuh ke judul umum "Panel Admin Kabupaten".
 // Diurut dari yang paling spesifik supaya pencocokan awalan tak salah ambil.
-const PAGE_TITLES = [
+//
+// DAFTAR INI MUDAH TERTINGGAL, dan sudah terjadi dua kali: `dokumentasi-api`
+// (5 Oktober 2026) dan `analytics` (6 Oktober 2026) dua-duanya dilupakan saat
+// halamannya ditambahkan, sehingga bilahnya berbunyi "Panel Admin Kabupaten"
+// -- terbaca seperti rute yang tak dikenal. Ditemukan lewat potret halamannya,
+// bukan oleh satu pun uji. Karena itu `JudulNavbarKab.test.jsx` kini
+// membandingkan daftar ini dengan tautan di AdminKabSidebar, dan halaman
+// berikutnya yang ditambahkan tanpa judul akan memerahkan uji itu.
+//
+// Diekspor HANYA untuk uji tersebut. Tak ada komponen lain yang membacanya.
+export const PAGE_TITLES = [
   ['/admin-kab/dashboard', 'Dashboard Eksekutif'],
-  ['/admin-kab/opd', 'Manajemen OPD'],
+  ['/admin-kab/opd', 'Daftar OPD'],
   ['/admin-kab/surveys', 'Monitoring Survei'],
   ['/admin-kab/complaints', 'Pengaduan'],
+  ['/admin-kab/analytics', 'Statistik & Laporan'],
   ['/admin-kab/users', 'Manajemen User'],
   ['/admin-kab/audit-logs', 'Audit Logs'],
+  ['/admin-kab/dokumentasi-api', 'Dokumentasi API'],
 ];
 
-const ALL_SERVICES = { value: '', label: 'Semua Layanan' };
 
 /**
  * Navbar Admin Kabupaten.
@@ -53,32 +68,36 @@ const ALL_SERVICES = { value: '', label: 'Semua Layanan' };
  * (keduanya sudah lampau), dan jenis layanannya huruf kecil ('kesehatan')
  * sementara backend menyimpannya kapital ('Kesehatan') dan mencocokkan persis.
  *
- * Sekarang keduanya nyata dan diteruskan ke `GET /dashboard/ikm`, yang memang
- * menerima `periode` + `jenisLayanan` (DashboardIkmQueryDto):
- * - periode memakai format kanonik {tahun}-Q{1-4}, bukan tahun saja -- backend
- *   mencocokkan `IkmResult.periode`/`Survey.periode` PERSIS, jadi "2026" tak
- *   akan cocok apa pun.
- * - pilihan jenis layanan dibangun dari nilai `jenisLayanan` yang SUNGGUHAN ada
- *   di data OPD, bukan daftar tetap. Dropdown-nya disembunyikan bila tak ada
- *   satu pun OPD yang punya nilai itu (kondisi data saat ini: hanya 1 dari 54
- *   OPD terisi, sisanya null karena OPD cuma cache read-only dari Helpdesk).
+ * Sekarang periodenya nyata dan diteruskan ke `GET /dashboard/ikm`, dengan
+ * format kanonik {tahun}-Q{1-4} -- bukan tahun saja, sebab backend mencocokkan
+ * `IkmResult.periode`/`Survey.periode` PERSIS, jadi "2026" tak akan cocok apa
+ * pun.
+ *
+ * Penyaring jenis layanan DIBUANG 15 September 2026 atas permintaan pengguna.
+ * Bersamanya hilang `GET /opd` yang dipanggil hanya untuk membangun pilihannya,
+ * pada SETIAP halaman Admin Kabupaten -- termasuk lima halaman yang tak pernah
+ * menampilkan penyaring sama sekali.
  */
 export default function AdminKabNavbar() {
   const {
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
     periode,
     setPeriode,
-    jenisLayanan,
-    setJenisLayanan,
   } = useAdminKabLayout();
   const pathname = usePathname();
 
   const pageTitle =
     PAGE_TITLES.find(([prefix]) => pathname?.startsWith(prefix))?.[1] ?? 'Panel Admin Kabupaten';
 
-  // Penyaring HANYA di dashboard -- satu-satunya halaman yang membacanya.
-  const isDashboard = pathname?.startsWith('/admin-kab/dashboard');
+  // Penyaring HANYA di halaman yang membacanya: dashboard, dan -- sejak 7 Oktober
+  // 2026 -- Statistik & Laporan, yang menyaring pemilih survei dan seluruh angka
+  // pengaduannya dengan `periode`. Menampilkannya di halaman lain mengulang
+  // masalah lama: kontrol yang tak berefek apa pun. Halaman yang ditambahkan ke
+  // daftar ini WAJIB membaca `periode` dari useAdminKabLayout().
+  const tampilkanPenyaring =
+    pathname?.startsWith('/admin-kab/dashboard') || pathname?.startsWith('/admin-kab/analytics');
 
   const fetchProfile = useCallback(() => getMyProfile(), []);
   const { data: user, isLoading, error, refetch } = useAsync(fetchProfile);
@@ -88,16 +107,6 @@ export default function AdminKabNavbar() {
   // pembedaan 401-vs-jaringan di ProfileLoadError.jsx dan api.js.
   const gagalProfil = error != null;
   const alasanGagal = isUnauthorizedError(error) ? 'expired' : 'offline';
-
-  const fetchServiceOptions = useCallback(async () => {
-    if (!isDashboard) return [];
-    const { data: opdList } = await getOpdList({ limit: 100 });
-    const jenis = [...new Set(opdList.map((opd) => opd.serviceType).filter(Boolean))].sort();
-    return jenis.map((value) => ({ value, label: value }));
-  }, [isDashboard]);
-  const { data: serviceOptions } = useAsync(fetchServiceOptions);
-
-  const hasServiceFilter = (serviceOptions?.length ?? 0) > 0;
 
   /**
    * Melaporkan tinggi nyata bilah ini ke `--tinggi-navbar-kab`, yang dipakai
@@ -123,14 +132,25 @@ export default function AdminKabNavbar() {
    */
   const headerRef = useRef(null);
   useEffect(() => {
-    const el = headerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-
-    const observer = new ResizeObserver(([entry]) => {
-      const tinggi = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
-      document.documentElement.style.setProperty('--tinggi-navbar-kab', `${Math.ceil(tinggi)}px`);
+    if (!headerRef.current) return;
+    
+    // ResizeObserver digunakan untuk memperbarui tinggi bilah ke properti khusus
+    // CSS (`--tinggi-navbar-kab`), sehingga padding-top halaman SELALU tepat
+    // selebar tinggi aktual bilah ini.
+    // SEBELUMNYA `AdminKabLayout` mematok padding 110px di ponsel dan 80px
+    // di desktop, tapi begitu halaman tak butuh penyaring (tinggi menyusut
+    // ke 64px/80px) atau layar amat sempit sehingga penyaring membungkus lagi,
+    // angka tetap itu jadi keliru dan merusak tata letak.
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        document.documentElement.style.setProperty(
+          '--tinggi-navbar-kab',
+          `${entry.target.offsetHeight}px`
+        );
+      }
     });
-    observer.observe(el);
+    
+    observer.observe(headerRef.current);
 
     return () => {
       observer.disconnect();
@@ -162,10 +182,10 @@ export default function AdminKabNavbar() {
   return (
     <header
       ref={headerRef}
-      className="fixed top-0 right-0 left-0 md:left-64 min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-30 gap-x-2 gap-y-2 xl:gap-lg transition-all"
+      className={`fixed top-0 right-0 left-0 ${isDesktopSidebarCollapsed ? 'md:left-20' : 'md:left-64'} min-h-[64px] md:min-h-[80px] bg-surface border-b border-outline-variant flex flex-wrap xl:flex-nowrap items-center px-4 py-2 xl:px-lg xl:py-0 z-30 gap-x-2 gap-y-2 xl:gap-lg transition-all duration-300`}
     >
       <button
-        className="md:hidden -ml-1 p-2 text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+        className="md:hidden -ml-1 flex items-center justify-center min-w-[44px] min-h-[44px] text-on-surface hover:bg-surface-container rounded-lg shrink-0"
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         aria-label="Buka menu navigasi"
       >
@@ -205,32 +225,18 @@ export default function AdminKabNavbar() {
           berkumpul di ujung kanan bersama lonceng & akun -- tanpa lagi menjadi
           SATU-SATUNYA yang mendorong ke kanan, yang membuat lima halaman
           tanpa penyaring tertinggal rata kiri. */}
-      {isDashboard && (
+      {tampilkanPenyaring && (
         <div className="order-last flex w-full items-center gap-2 pb-1 xl:order-3 xl:w-auto xl:shrink-0 xl:pb-0">
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
             <CalendarRange size={18} className="hidden lg:block text-secondary shrink-0" />
-            <Dropdown
-              id="filter-kab-periode"
-              options={PERIODE_OPTIONS}
+            <PenyaringPeriode
               value={periode}
               onChange={setPeriode}
-              variant="primary"
-              className="w-full"
+              tahunOptions={TAHUN_OPTIONS}
+              className="flex w-full items-center gap-2"
+              dropdownClassName=""
             />
           </div>
-          {hasServiceFilter && (
-            <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <Layers size={18} className="hidden lg:block text-secondary shrink-0" />
-              <Dropdown
-                id="filter-kab-layanan"
-                options={[ALL_SERVICES, ...serviceOptions]}
-                value={jenisLayanan}
-                onChange={setJenisLayanan}
-                variant="primary"
-                className="w-full"
-              />
-            </div>
-          )}
         </div>
       )}
 

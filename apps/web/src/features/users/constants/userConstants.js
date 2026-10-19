@@ -1,9 +1,9 @@
-// SUPERUSER dipisah kembali dari ADMIN_KABUPATEN (2026-08-20, atas permintaan
-// user; sebelumnya digabung pada 2026-08-05). Bedanya BUKAN sekadar nama:
-// superuser mewarisi seluruh hak Admin Kabupaten DITAMBAH akses log aktivitas,
-// dan hanya superuser yang boleh memilih peran saat login.
+// SUPERUSER DILEBUR ke ADMIN_KABUPATEN (15 September 2026, permintaan
+// pengguna). Kuasanya -- manajemen pengguna & log aktivitas -- pindah ke Admin
+// Kabupaten, dan perannya dihapus sampai ke nilai enum di basis data, jadi tak
+// ada lagi jalan membuatnya. Sebelumnya keduanya sempat dipisah (2026-08-20)
+// lalu digabung (2026-08-05) -- peleburan ini yang terakhir.
 export const USER_ROLES = {
-  SUPERUSER: 'SUPERUSER',
   ADMIN_KABUPATEN: 'ADMIN_KABUPATEN',
   ADMIN_OPD: 'ADMIN_OPD',
   RESPONDENT: 'RESPONDENT',

@@ -5,7 +5,7 @@ import AvailableSurveysWidget from '@/features/surveys/components/AvailableSurve
 import ActivityHistoryTable from '@/features/dashboards/components/ActivityHistoryTable';
 
 export const metadata = {
-  title: 'Dashboard - SKEMA Madiun',
+  title: 'Dashboard',
 };
 
 export default function RespondentDashboard() {

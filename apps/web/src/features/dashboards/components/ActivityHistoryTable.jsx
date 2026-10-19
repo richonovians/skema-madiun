@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import EmptyState from '@/components/ui/EmptyState';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
 import { getMySurveyResponses } from '@/features/surveys/services/surveys.api';
@@ -46,7 +47,16 @@ export default function ActivityHistoryTable() {
       getComplaints({ page: 1, limit: MAX_ROWS }),
       getMySurveyResponses({ page: 1, limit: MAX_ROWS }),
     ]);
-    return { complaints: complaints.data ?? [], surveyResponses: surveyResponses.data ?? [] };
+    return {
+      complaints: complaints.data ?? [],
+      surveyResponses: surveyResponses.data ?? [],
+      // Totalnya WAJIB datang dari meta, bukan dari panjang array: kedua
+      // permintaan di atas sudah dibatasi MAX_ROWS, jadi array-nya akan selalu
+      // berbunyi "sepuluh dari sepuluh" dan pemotongannya tak pernah terlihat.
+      totalAktivitas:
+        (complaints.meta?.pagination?.total ?? 0) +
+        (surveyResponses.meta?.pagination?.total ?? 0),
+    };
   }, []);
 
   const { data, isLoading, error } = useAsync(fetchActivities);
@@ -136,6 +146,18 @@ export default function ActivityHistoryTable() {
             </Tbody>
           </Table>
         </Card>
+      )}
+
+      {/* Tabel ini memotong di MAX_ROWS dan sampai 15 Oktober 2026 tak
+          mengatakannya: tanpa catatan dan tanpa tautan "lihat semua", warga
+          dengan dua puluh pengaduan melihat sepuluh tanpa alasan menyangka ada
+          sisanya. */}
+      {!isLoading && !error && activities.length > 0 && (
+        <CatatanPemotongan
+          ditampilkan={activities.length}
+          total={data?.totalAktivitas ?? 0}
+          namaItem="aktivitas"
+        />
       )}
     </section>
   );

@@ -106,6 +106,11 @@ export default function IsiSurveiPage() {
 
   useEffect(() => {
     if (fillData && !fillData.sudahMengisi && !perluGerbang) {
+      // `nomorHp` TAK LAGI DITERUSKAN dari sini (1 Oktober 2026, petang):
+      // seluruh data diri jalur BERSESI disalin backend dari akun. Pilihan
+      // anonimnya tetap diteruskan. Jalur PUBLIK tak berubah sama sekali --
+      // pengunjung tanpa sesi tetap mengetik data dirinya di
+      // GerbangPengisianPublik, yang masuk lewat `dataPublik`.
       initSurvey(fillData, {
         anonim: !adaSesi,
         dataPublik,
@@ -130,7 +135,7 @@ export default function IsiSurveiPage() {
           action={
             <Link href="/">
               <button className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors">
-                Kembali ke Beranda
+                Kembali ke Layanan
               </button>
             </Link>
           }
@@ -179,7 +184,7 @@ export default function IsiSurveiPage() {
               href="/"
               className="inline-block px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors"
             >
-              Kembali ke Beranda
+              Kembali ke Layanan
             </Link>
           }
         />

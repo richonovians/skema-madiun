@@ -7,15 +7,33 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Role, User } from '@prisma/client';
+import { JenisKelamin, JenisPengguna, Role, User } from '@prisma/client';
+import { enkripsiKolom } from '../../common/crypto/kolom';
+import { kunciData } from '../../common/crypto/kunci';
+import { PENYIMPAN_CABUT_LAMPIRAN } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
+import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
 import { SsoProfile, SsoSource } from './interfaces/sso-source.interface';
+import { readCookie } from './session/cookie.util';
+import { SESSION_COOKIE } from './session/session-cookie.service';
+import { PenerbitSesi } from './session/penerbit-sesi.service';
+import type { PerangkatSesi } from './session/penyimpan-sesi.interface';
 import { SessionService } from './session/session.service';
+import { ambilJalurKlaim } from './sso-claim-path';
 import { bentukKlaim } from './sso-claim-shape';
+import { ambilIdentitasKlaim } from './sso-identitas.mapper';
+import { petakanJenisKelamin } from './sso-jenis-kelamin.mapper';
+import { petakanJenisPengguna } from './sso-jenis-pengguna.mapper';
 import { extractOpdClaimValues, normalkanNamaOpd, parseOpdClaimFields } from './sso-opd.mapper';
-import { parseClaimValues, parseRolePackages, resolveRolesFromClaims } from './sso-role.mapper';
+import {
+  extractRoleClaimValues,
+  parseRoleClaimFields,
+  parseRolePackages,
+  resolveRolesFromClaims,
+} from './sso-role.mapper';
+import { peranSetelahSinkron } from './sinkron-peran-opd';
 import { SsoStateService } from './sso-state.service';
 
 /** Batas kolom `users.nama` (VarChar(50)) & `users.email` (VarChar(100)). */
@@ -37,14 +55,24 @@ export class SsoService {
    */
   private bentukKlaimSudahDicatat = false;
 
+  /** Kunci enkripsi kolom identitas. Lihat `identitasUntukDisimpan`. */
+  private readonly kunci: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly sessionService: SessionService,
+    private readonly penerbitSesi: PenerbitSesi,
     private readonly stateService: SsoStateService,
     private readonly audit: AuditService,
+    @Inject(PENYIMPAN_CABUT_LAMPIRAN) private readonly cabutLampiran: PenyimpanCabutLampiran,
     @Inject(SSO_SOURCE) private readonly ssoSource: SsoSource,
-  ) {}
+  ) {
+    // Dibaca SEKALI saat konstruksi, sama seperti ComplaintsService. Kalau
+    // kuncinya belum disetel, kegagalannya muncul saat aplikasi menyala --
+    // bukan saat seseorang sedang login dan tak punya cara memperbaikinya.
+    this.kunci = kunciData(config);
+  }
 
   /** Langkah 1: alihkan pengguna ke halaman login Helpdesk. */
   async beginLogin(): Promise<{ redirectUrl: string; setCookie: string }> {
@@ -62,6 +90,7 @@ export class SsoService {
     code: string | undefined,
     state: string | undefined,
     cookieHeader: string | undefined,
+    perangkat?: PerangkatSesi,
   ): Promise<{ token: string; clearCookie: string }> {
     this.assertConfigured();
 
@@ -69,6 +98,31 @@ export class SsoService {
     // menghubungi Helpdesk atas permintaan yang belum terbukti berasal dari alur
     // login kita sendiri.
     if (!this.stateService.verify(state, cookieHeader)) {
+      const sesiBerjalan = this.sesiMasihSah(cookieHeader);
+      if (sesiBerjalan) {
+        // CALLBACK DUPLIKAT YANG TERLAMBAT (28 September 2026), terukur di log
+        // akses, bukan dibayangkan: alamat `authorize` Helpdesk sempat
+        // dihubungi DUA KALI untuk satu percobaan masuk, sehingga dua `code`
+        // berbeda kembali dengan `state` yang sama. Yang pertama berhasil dan
+        // membuang cookie `state` sebagaimana mestinya; yang kedua karena itu
+        // pasti ditolak di sini.
+        //
+        // Penolakan itu tidak berhenti di layar galat. `AuthCallbackLoader`
+        // pada cabang galat memanggil `clearSession()`, yang menembakkan
+        // `POST /auth/logout` -- sesi yang BARU SAJA berhasil ikut dibuang.
+        // Pengguna benar-benar sudah masuk, lalu dikeluarkan lagi oleh
+        // penanganan galatnya sendiri.
+        //
+        // PENJAGA CSRF TIDAK DILEMAHKAN. Syaratnya bukan "state boleh dipakai
+        // ulang", melainkan "permintaan ini membawa cookie sesi yang MASIH
+        // SAH". Pemiliknya tak memperoleh apa pun yang belum dipegangnya, tak
+        // ada sesi baru diterbitkan, dan `code` tetap tak pernah ditukar.
+        this.logger.warn(
+          'Callback SSO ber-state basi, tetapi permintaannya membawa sesi yang masih sah — ' +
+            'diperlakukan sebagai callback duplikat, bukan kegagalan.',
+        );
+        return { token: sesiBerjalan, clearCookie: this.stateService.clearCookie() };
+      }
       throw new BadRequestException(
         'Parameter state tidak sah atau kedaluwarsa. Silakan ulangi proses masuk.',
       );
@@ -90,7 +144,7 @@ export class SsoService {
     await this.audit.record(user.id, 'login', 'auth', { via: 'sso', sub: profile.sub });
 
     return {
-      token: this.sessionService.issue(user.id),
+      token: await this.penerbitSesi.terbitkan(user.id, undefined, perangkat),
       clearCookie: this.stateService.clearCookie(),
     };
   }
@@ -98,7 +152,7 @@ export class SsoService {
   /**
    * Catat BENTUK payload klaim Helpdesk sekali per proses (9 September 2026).
    *
-   * MENGAPA PERLU, padahal `opdIdUntukSinkron` sudah mencatat nama klaim.
+   * MENGAPA PERLU, padahal `opdIdDariKlaim` sudah mencatat nama klaim.
    * Pencatatan itu punya empat batas yang justru mengenai kasus yang sedang
    * diselidiki: ia hanya berjalan pada jalur sinkronisasi (akun yang sudah
    * dikenal lewat `sub`), sehingga bungkam pada login pertama; ia mencatat NAMA
@@ -143,7 +197,7 @@ export class SsoService {
    * satu pun akan cocok dengan `sub` asli Helpdesk. Tanpa pencocokan lewat email,
    * SETIAP akun lama — termasuk Admin Kabupaten — akan dibuatkan akun baru
    * berperan `responden`, sementara akun lamanya beserta seluruh riwayat
-   * pengaduan & surveinya menjadi yatim.
+   * pengaduan & surveinya tertinggal tanpa induk.
    *
    *   1. `sso_subject == sub`  → pengguna yang sudah pernah masuk lewat SSO.
    *   2. `email == email`      → akun lama; `sso_subject` DINAIKKAN ke `sub` asli.
@@ -168,8 +222,8 @@ export class SsoService {
         // TEMUAN AUDIT T5 (7 September 2026). Ini SATU-SATUNYA tempat sebuah
         // klaim SSO membuat pemegangnya MEWARISI peran akun yang sudah ada.
         // Sebelum penjaga ini, klaim `email` dipercaya tanpa syarat: siapa pun
-        // yang dapat membuat akun Helpdesk ber-email `superuser@...` akan
-        // ditautkan ke akun superuser SKEMA beserta seluruh haknya.
+        // yang dapat membuat akun Helpdesk ber-email `admin-kab@...` akan
+        // ditautkan ke akun Admin Kabupaten SKEMA beserta seluruh haknya.
         //
         // Gagal TERTUTUP, termasuk saat klaimnya hilang: "tak ada bukti
         // terverifikasi" bukan berarti "terverifikasi" (pola yang sama dipakai
@@ -195,8 +249,11 @@ export class SsoService {
           );
         }
 
+        // NILAI `sso_subject` sengaja tidak ikut dicetak (22 September 2026):
+        // ia pengenal identitas seseorang, dan `id` sudah cukup untuk menelusuri
+        // barisnya di `users` bila memang perlu dilihat.
         this.logger.log(
-          `Menyelaraskan akun lama id=${byEmail.id} — sso_subject "${byEmail.ssoSubject}" dinaikkan ke sub Helpdesk`,
+          `Menyelaraskan akun lama id=${byEmail.id} — sso_subject dinaikkan ke sub Helpdesk`,
         );
         const upgraded = await this.prisma.user.update({
           where: { id: byEmail.id },
@@ -259,6 +316,8 @@ export class SsoService {
         // role, pemilih itu tak pernah tampil.
         roles,
         ...(opdId === null ? {} : { opdId }),
+        // NIK, nomor HP, & alamat dari klaim Helpdesk (1 Oktober 2026).
+        ...this.identitasUntukDisimpan(profile),
         lastLoginAt: new Date(),
         // `consentAt` SENGAJA dibiarkan null. Kolom itu catatan persetujuan UU
         // PDP; mengisinya otomatis berarti mencatat persetujuan yang belum
@@ -266,22 +325,37 @@ export class SsoService {
         // antarmuka, bukan efek samping login.
       },
     });
+    // ALAMAT EMAIL tidak ikut dicetak (22 September 2026). Baris ini sudah
+    // membawa `id`, yang menunjuk barisnya di `users` tanpa menggandakan data
+    // pribadi ke berkas log — tempat yang tak punya masa retensi, tak
+    // terenkripsi, dan biasanya terbaca lebih banyak orang daripada basis
+    // datanya sendiri. Alasannya sama persis dengan `sso-claim-shape.ts`, yang
+    // menolak menyalin nilai klaim ke log; berkas ini yang belum ikut.
     this.logger.log(
-      `Pengguna baru dari SSO: id=${created.id} email=${created.email} peran=${created.roles.join(',')}` +
+      `Pengguna baru dari SSO: id=${created.id} peran=${created.roles.join(',')}` +
         (created.opdId === null ? '' : ` opdId=${created.opdId}`),
     );
 
-    // Pengaman KETIGA atas dicabutnya larangan memetakan `superuser` dari klaim
-    // (6 September 2026; dua lainnya: baku `responden` bila env kosong, dan
-    // penetapan hanya saat akun dibuat). Hak tertinggi yang diberikan sistem di
-    // luar SKEMA harus meninggalkan jejak -- tanpa ini, Helpdesk yang salah
-    // kirim memberi hak itu tanpa ada yang pernah tahu.
-    if (created.roles.includes(Role.superuser)) {
-      this.logger.warn(
-        `Akun baru id=${created.id} lahir memegang superuser dari klaim Helpdesk (sub=${profile.sub})`,
-      );
-      await this.audit.record(created.id, 'sso_grant_superuser', 'auth', {
-        sub: profile.sub,
+    // Pengaman KETIGA atas peran tertinggi yang diberikan dari luar SKEMA (dua
+    // lainnya: baku `responden` bila env kosong, dan penetapan hanya saat akun
+    // dibuat). Hak itu harus meninggalkan jejak -- tanpa ini, Helpdesk yang
+    // salah kirim memberikannya tanpa ada yang pernah tahu.
+    //
+    // Sasarannya mengikuti PERAN TERTINGGI, bukan nama tertentu. Sejak
+    // `superuser` dilebur (15 September 2026), `kabupaten` yang memegang
+    // manajemen pengguna dan log aktivitas -- membiarkan pengaman ini menjaga
+    // nama yang sudah tak ada sama dengan membuangnya.
+    if (created.roles.includes(Role.kabupaten)) {
+      // `sub` Helpdesk TIDAK ikut, baik ke log maupun ke `audit_logs.detail`
+      // (22 September 2026). Barisnya sudah menunjuk akunnya lewat `id`, dan
+      // `users.sso_subject` menyimpan nilainya — menyalinnya ke tabel kedua
+      // tak menambah satu pun kemampuan penelusuran, hanya menggandakan
+      // pengenal identitas ke tempat yang dibaca Admin Kabupaten. Itu persis
+      // penggandaan yang dilarang temuan T8.
+      //
+      // Yang dijaga pengaman ini tetap utuh: SIAPA, peran apa, dan kapan.
+      this.logger.warn(`Akun baru id=${created.id} lahir memegang kabupaten dari klaim Helpdesk`);
+      await this.audit.record(created.id, 'sso_grant_kabupaten', 'auth', {
         roles: created.roles,
       });
     }
@@ -304,23 +378,35 @@ export class SsoService {
   private async resolveRolesAndOpd(
     profile: SsoProfile,
   ): Promise<{ roles: Role[]; opdId: number | null }> {
-    const values = parseClaimValues(profile.groups, profile.role);
+    const values = this.nilaiPeranDariKlaim(profile);
     const resolved = resolveRolesFromClaims(
       values,
       parseRolePackages(this.config.get<string>('helpdesk.ssoRoleMap')),
     );
 
-    if (resolved.length === 0) {
-      return { roles: [Role.responden], opdId: null };
-    }
-    if (!resolved.includes(Role.opd)) {
-      // Tak tertaut OPD mana pun -- sama seperti akun seed Admin Kabupaten.
-      return { roles: resolved, opdId: null };
-    }
+    const peran = resolved.length > 0 ? resolved : [Role.responden];
 
+    // OPD DICARI TANPA MEMANDANG PERAN (29 September 2026). Sebelumnya
+    // pencarian ini dilewati bagi akun yang tak berperan `opd`, dengan alasan
+    // `opd_id` hanya berguna bagi Admin OPD. Alasan itu benar selama ASN selalu
+    // lahir berperan `opd`; sejak ASN lahir sebagai `responden` saja, ia
+    // berubah dari penghematan menjadi lubang:
+    //
+    //   - Admin Kabupaten tak melihat instansi seorang ASN yang baru sekali
+    //     masuk, padahal keterangan itulah yang dibutuhkan untuk memutuskan
+    //     apakah ia pantas dijadikan Admin OPD, dan Admin OPD dari OPD mana;
+    //   - menaikkannya sebelum ia masuk untuk kedua kalinya menghasilkan peran
+    //     `opd` dengan `opdId` kosong, dan dashboard OPD-nya menjawab 403.
+    //
+    // `opd_id` adalah keterangan TEMPAT BERTUGAS, bukan hak akses. Mengisinya
+    // bagi seorang responden tak memberi kemampuan apa pun, dan `acceptLogin`
+    // memang sudah menyegarkannya pada setiap login tanpa melihat peran --
+    // jadi yang berubah di sini hanyalah ia tak perlu menunggu login kedua.
     const opd = await this.findOpdFromClaims(profile);
-    if (opd) {
-      return { roles: resolved, opdId: opd.id };
+    const opdId = opd ? opd.id : null;
+
+    if (!peran.includes(Role.opd) || opdId !== null) {
+      return { roles: peran, opdId };
     }
 
     // Peran `opd` TANPA opdId adalah keadaan setengah jadi: dashboard OPD-nya
@@ -332,7 +418,7 @@ export class SsoService {
     // paket `superuser+opd+responden` kehilangan hak tertingginya hanya karena
     // OPD-nya belum terdaftar -- kegagalan yang jauh lebih besar daripada
     // sebabnya.
-    const tanpaOpd = resolved.filter((role) => role !== Role.opd);
+    const tanpaOpd = peran.filter((role) => role !== Role.opd);
     this.logger.warn(
       `Klaim menunjuk peran OPD tapi tak ada OPD aktif yang cocok (nilai: ${values.join(', ') || '-'}) — peran opd tidak diberikan, sisa paket: ${tanpaOpd.join(',') || 'kosong'}`,
     );
@@ -359,7 +445,7 @@ export class SsoService {
     return [
       ...new Set([
         ...extractOpdClaimValues(profile.klaim, fields),
-        ...parseClaimValues(profile.groups, profile.role),
+        ...this.nilaiPeranDariKlaim(profile),
       ]),
     ];
   }
@@ -442,8 +528,16 @@ export class SsoService {
   }
 
   /**
-   * `opdId` yang perlu ditulis saat login, atau `null` bila TAK ADA yang perlu
-   * diubah (8 September 2026).
+   * OPD yang DITUNJUK KLAIM login ini, atau `null` bila klaimnya tak ada atau
+   * tak cocok ke OPD aktif mana pun (8 September 2026).
+   *
+   * MENGEMBALIKAN OPD KLAIM, BUKAN "YANG PERLU DITULIS" (6 Oktober 2026).
+   * Dulu fungsi ini mengembalikan `null` untuk DUA keadaan yang berbeda artinya:
+   * klaim tidak ada, dan klaim sama dengan yang tersimpan. Peleburan itu tak
+   * merugikan selama satu-satunya pertanyaan adalah "perlu menulis?", tetapi
+   * `peranSetelahSinkron` menuntut bedanya -- klaim yang hilang tak boleh
+   * mencabut apa pun, sedangkan klaim yang sama hanya berarti tak ada yang
+   * berubah. Pemanggil yang memutuskan perlu-tulis sekarang, dari nilai ini.
    *
    * Permintaan pengguna: data yang berasal dari Helpdesk harus tetap sinkron dan
    * tak dapat diacak-acak dari SKEMA. Karena itu login menjadi satu-satunya
@@ -456,7 +550,7 @@ export class SsoService {
    * hak setiap Admin OPD sekaligus, dan kegagalan itu SENYAP. Peran pun tetap
    * TIDAK disinkronkan di sini; yang disinkronkan hanya OPD.
    */
-  private async opdIdUntukSinkron(user: User, profile: SsoProfile): Promise<number | null> {
+  private async opdIdDariKlaim(user: User, profile: SsoProfile): Promise<number | null> {
     const values = this.nilaiKandidatOpd(profile);
     if (values.length === 0) {
       // Lazim & benar bagi non-ASN. Nama-nama field dicatat di tingkat debug
@@ -479,18 +573,84 @@ export class SsoService {
       );
       return null;
     }
-    if (opd.id === user.opdId) {
-      return null;
+    if (opd.id !== user.opdId) {
+      this.logger.log(
+        `Tautan OPD akun ${user.id} disinkronkan dari Helpdesk: ` +
+          `${user.opdId ?? '(kosong)'} -> ${opd.id}`,
+      );
     }
-
-    this.logger.log(
-      `Tautan OPD akun ${user.id} disinkronkan dari Helpdesk: ` +
-        `${user.opdId ?? '(kosong)'} -> ${opd.id}`,
-    );
     return opd.id;
   }
 
-  /** Tolak akun nonaktif, lalu segarkan nama & waktu login. */
+  /**
+   * Jenis pengguna (ASN atau warga) dari klaim login ini, atau `null`.
+   *
+   * Jalur bercabang bersarang-dahulu-lalu-rata, pola yang sama dengan ketiga
+   * medan identitas: payload `userinfo` menaruhnya di `identity.user_type`,
+   * sedangkan `/api/me` meratakannya menjadi `user_type`.
+   *
+   * `null` berarti TAK DIBERITAHU -- bukan "bukan ASN". Dua pemakainya
+   * memperlakukannya begitu: yang satu tak menulis kuncinya sama sekali, yang
+   * lain tak mencabut apa pun.
+   */
+  private jenisPenggunaDariKlaim(profile: SsoProfile): JenisPengguna | null {
+    return (
+      petakanJenisPengguna(ambilJalurKlaim(profile.klaim, 'identity.user_type')) ??
+      petakanJenisPengguna(ambilJalurKlaim(profile.klaim, 'user_type'))
+    );
+  }
+
+  /**
+   * Ketiga kolom identitas dalam bentuk siap ditulis, atau objek KOSONG.
+   *
+   * KUNCI YANG TAK TERBACA SENGAJA TIDAK MUNCUL, bukan ditulis sebagai null.
+   * Ini pola yang sama dengan `nama` di `acceptLogin`, dan alasannya sama:
+   * satu login yang klaimnya kebetulan tak membawa `location` -- karena
+   * penyedia mengubah bentuk, karena seksinya sedang kosong -- akan MENGHAPUS
+   * alamat yang sudah tersimpan bila kuncinya ikut ditulis. Menulis null
+   * adalah pernyataan "orang ini tidak punya alamat", dan klaim yang hilang
+   * tidak pernah menyatakan itu.
+   *
+   * Enkripsinya di sini, di satu tempat yang dilewati jalur pembuatan maupun
+   * jalur penyegaran. Lihat common/crypto/kolom.ts untuk apa yang dilindungi
+   * dan apa yang tidak.
+   */
+  private identitasUntukDisimpan(profile: SsoProfile): {
+    nik?: string;
+    nomorHp?: string;
+    alamat?: string;
+    jenisKelamin?: JenisKelamin;
+  } {
+    const identitas = ambilIdentitasKlaim(profile.klaim);
+    // TIDAK TERENKRIPSI, sengaja berbeda dari ketiga medan di bawahnya. Dua
+    // nilai saja, jadi enkripsi nyaris tak menambah perlindungan sementara ia
+    // melepas jaminan tipe enum dan memaksa rekapitulasi mendekripsi tiap
+    // baris hanya untuk menghitung.
+    //
+    // Jalurnya bercabang seperti ketiga medan itu: `demographics.jenis_kelamin`
+    // (userinfo, bersarang) lalu `jenis_kelamin` (/api/me, rata). Nilainya pun
+    // tak seragam antar endpoint -- lihat sso-jenis-kelamin.mapper.ts.
+    const jenisKelamin =
+      petakanJenisKelamin(ambilJalurKlaim(profile.klaim, 'demographics.jenis_kelamin')) ??
+      petakanJenisKelamin(ambilJalurKlaim(profile.klaim, 'jenis_kelamin'));
+    return {
+      ...(jenisKelamin ? { jenisKelamin } : {}),
+      ...(identitas.nik ? { nik: enkripsiKolom(identitas.nik, this.kunci) } : {}),
+      ...(identitas.nomorHp ? { nomorHp: enkripsiKolom(identitas.nomorHp, this.kunci) } : {}),
+      ...(identitas.alamat ? { alamat: enkripsiKolom(identitas.alamat, this.kunci) } : {}),
+    };
+  }
+
+  /**
+   * Tolak akun nonaktif, lalu segarkan nama & waktu login.
+   *
+   * SATU-SATUNYA TEMPAT SSO MENURUNKAN HAK (6 Oktober 2026). Peran tetap TIDAK
+   * disinkronkan di sini -- klaim tak pernah MENAIKKAN peran akun lama, dan
+   * keputusan 27 Agustus 2026 itu utuh. Yang ditambahkan hanya satu arah:
+   * peran `opd` dicabut ketika klaim HADIR dan BERTENTANGAN dengan yang
+   * tersimpan. Aturannya ada di `sinkron-peran-opd.ts`, beserta alasan mengapa
+   * klaim yang hilang tak boleh mencabut apa pun.
+   */
   private async acceptLogin(user: User, profile: SsoProfile): Promise<User> {
     if (!user.isActive) {
       throw new ForbiddenException('Akun tidak aktif');
@@ -499,20 +659,69 @@ export class SsoService {
     const nama = profile.nama ? truncate(profile.nama, NAMA_MAX) : null;
     // OPD ikut disegarkan setiap login (8 September 2026), dengan sifat yang
     // sama seperti nama di bawah: hanya bila Helpdesk benar-benar mengirimnya.
-    const opdId = await this.opdIdUntukSinkron(user, profile);
-    return this.prisma.user.update({
+    const opdKlaim = await this.opdIdDariKlaim(user, profile);
+    const opdId = opdKlaim !== null && opdKlaim !== user.opdId ? opdKlaim : null;
+
+    const jenisPengguna = this.jenisPenggunaDariKlaim(profile);
+    const sinkron = peranSetelahSinkron({
+      roles: user.roles,
+      opdIdTersimpan: user.opdId,
+      opdIdDariKlaim: opdKlaim,
+      jenisPenggunaDariKlaim: jenisPengguna,
+    });
+
+    const diperbarui = await this.prisma.user.update({
       where: { id: user.id },
       data: {
         lastLoginAt: new Date(),
         ...(opdId === null ? {} : { opdId }),
+        // `roles` DITULIS HANYA bila ada sebab tersurat. Tanpa penjaga ini
+        // setiap login menimpa kolom peran dengan nilai hasil hitungan, dan
+        // satu kekeliruan di `peranSetelahSinkron` akan melucuti seluruh Admin
+        // OPD tanpa suara -- tepat kegagalan yang ditolak 27 Agustus 2026.
+        ...(sinkron.alasan ? { roles: sinkron.roles } : {}),
+        // `jenis_pengguna` disegarkan tiap login (6 Oktober 2026). Dipakai
+        // gerbang Admin OPD di UsersService, bukan oleh jalur login ini.
+        ...(jenisPengguna ? { jenisPengguna } : {}),
         // Nama disegarkan dari Helpdesk (sumbernya di sana), tapi EMAIL TIDAK.
         // Alasannya: `users.email` unik, sehingga menyalin email baru bisa
         // bertabrakan dengan akun lain dan menggagalkan login karena hal yang
         // tak ada urusannya dengan si pengguna. Perubahan email ditangani
         // terpisah bila kelak dibutuhkan.
         ...(nama ? { nama } : {}),
+        // Identitas pelapor disegarkan tiap login dengan sifat yang sama
+        // seperti nama di atas: hanya yang benar-benar dikirim Helpdesk.
+        ...this.identitasUntukDisimpan(profile),
       },
     });
+
+    if (sinkron.alasan) {
+      // DICATAT SESUDAH tulisannya berhasil, bukan sebelum: jejak audit yang
+      // menyatakan hak seseorang dicabut sementara tulisannya gagal lebih
+      // menyesatkan daripada tak ada jejak sama sekali.
+      //
+      // Masuk `audit_logs`, bukan cuma log aplikasi. Ini perubahan hak akses
+      // yang terjadi tanpa ada manusia menekan apa pun, dan aktornya adalah
+      // pemilik akun itu sendiri -- satu-satunya orang yang terlibat.
+      this.logger.warn(
+        `Peran Admin OPD akun ${user.id} dicabut saat login (${sinkron.alasan}): ` +
+          `opd ${user.opdId ?? '(kosong)'} -> ${opdKlaim ?? '(tak ada klaim)'}, ` +
+          `peran sisa: ${sinkron.roles.join(',')}`,
+      );
+      await this.audit.record(user.id, 'sso_cabut_peran_opd', 'auth', {
+        alasan: sinkron.alasan,
+        opdIdLama: user.opdId,
+        opdIdBaru: opdKlaim,
+        peranSisa: sinkron.roles,
+      });
+      // TAUTAN LAMPIRAN IKUT DICABUT (9 Oktober 2026). Orang ini baru saja
+      // kehilangan hak membaca pengaduan OPD lamanya, tetapi URL lampiran yang
+      // sempat dirender di perambannya tetap dapat dibuka sampai `exp` lewat.
+      // Pencabutan peran yang menyisakan pintu terbuka bukan pencabutan.
+      await this.cabutLampiran.cabut(user.id, Math.floor(Date.now() / 1000));
+    }
+
+    return diperbarui;
   }
 
   /**
@@ -598,6 +807,69 @@ export class SsoService {
     this.logger.debug(
       `Bentuk klaim SSO — groups: ${describe(profile.groups)}, role: ${describe(profile.role)}`,
     );
+  }
+
+  /**
+   * Nilai kandidat peran dari klaim mentah, menurut `HELPDESK_SSO_ROLE_CLAIM`.
+   *
+   * DIBACA DARI `profile.klaim`, bukan dari `profile.groups`/`profile.role`
+   * (28 September 2026). Dua field itu dipetakan di `HelpdeskSsoClient` dari
+   * kunci TINGKAT ATAS, sementara penentu ASN vs masyarakat ternyata ada di
+   * `identity.user_type` — bersarang, dan karena itu tak pernah sampai ke sini
+   * lewat jalur lama betapapun benarnya env diisi.
+   *
+   * Bakunya tetap `groups,role`, jadi lingkungan yang belum mengisi env baru
+   * ini berperilaku persis seperti sebelumnya.
+   *
+   * `profile.groups` & `profile.role` TETAP DIHORMATI bila klaim mentahnya tak
+   * memuatnya. Keduanya field sah pada `SsoProfile`, dan sebuah `SsoSource`
+   * boleh mengisinya tanpa menyertakan payload mentah — membaca `klaim` saja
+   * akan diam-diam mematikan pemetaan peran bagi sumber semacam itu.
+   */
+  /**
+   * Token sesi dari cookie permintaan, HANYA bila ia masih sah.
+   *
+   * Keberadaan cookie saja tak cukup: sepotong teks apa pun bernama `session`
+   * akan meloloskan callback ber-state basi. Yang menentukan tandatangan dan
+   * masa berlakunya, dan itu dijawab `SessionService.verify`.
+   */
+  private sesiMasihSah(cookieHeader: string | undefined): string | null {
+    const token = readCookie(cookieHeader, SESSION_COOKIE);
+    if (!token) {
+      return null;
+    }
+    return this.sessionService.verify(token) ? token : null;
+  }
+
+  private nilaiPeranDariKlaim(profile: SsoProfile): string[] {
+    const fields = parseRoleClaimFields(this.config.get<string>('helpdesk.ssoRoleClaim'));
+    const keluar: string[] = [];
+    const tambah = (nilai: string[]): void => {
+      for (const satu of nilai) {
+        if (!keluar.includes(satu)) {
+          keluar.push(satu);
+        }
+      }
+    };
+
+    try {
+      tambah(extractRoleClaimValues(profile.klaim, fields));
+    } catch (err) {
+      // Payload datang dari jaringan dan dapat berbentuk apa pun, termasuk
+      // objek yang pengaksesan propertinya sendiri melempar. Penentuan peran
+      // TIDAK BOLEH menjadi sebab orang gagal masuk: yang benar adalah jatuh ke
+      // peran baku, bukan meledak. Alasan yang sama dengan
+      // `catatBentukKlaimSekali`.
+      this.logger.warn(`Gagal membaca klaim peran: ${(err as Error)?.message ?? err}`);
+    }
+
+    // Cadangan bagi `SsoSource` yang mengisi kedua field ini tanpa menyertakan
+    // payload mentah. Objek kecil dirakit sendiri, BUKAN salinan `profile.klaim`
+    // -- menyalinnya berarti membaca setiap propertinya, dan itu persis jalan
+    // yang baru saja dijaga di atas.
+    tambah(extractRoleClaimValues({ groups: profile.groups, role: profile.role }, fields));
+
+    return keluar;
   }
 }
 

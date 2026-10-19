@@ -1,76 +1,120 @@
+import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Konfigurasi Playwright.
+ * Origin pengujian (16 September 2026). SEBELUMNYA `http://localhost:3000`, dan
+ * itu alamat yang justru TIDAK melayani API di proyek ini: reverse proxy
+ * menyatukan frontend & backend pada satu origin, dan `NEXT_PUBLIC_API_URL`
+ * bernilai relatif (`/api/v1`), sehingga membuka port 3000 langsung membuat
+ * setiap panggilan API jatuh ke Next.js dan dijawab 404. Uji yang berjalan di
+ * sana memakai aplikasi yang tak pernah mendapat data.
  *
- * `baseURL` menunjuk `http://skema.local`, BUKAN `http://localhost:3000` seperti
- * pada kerangka bawaan. Aplikasi ini dilayani lewat reverse proxy satu-origin di
- * port 80 supaya frontend dan backend berbagi asal yang sama
- * (`NEXT_PUBLIC_API_URL=/api/v1`, relatif). Membuka port 3000 secara langsung
- * membalas 404 pada praktis semua rute, sehingga alamat lama itu membuat setiap
- * spec gagal tanpa sebab yang jelas.
- *
- * Blok `webServer` bawaan DIHAPUS, bukan sekadar disesuaikan: Playwright hanya
- * bisa menyalakan `next dev`, sedangkan yang harus hidup di `skema.local` adalah
- * reverse proxy beserta API-nya. Menyalakan `next dev` dari sini juga berbahaya —
- * proses build/dev kedua menimpa direktori `.next` milik server yang sedang
- * berjalan dan membuat seluruh rute 404. Lingkungan pengembangan dinyalakan
- * sendiri sebelum suite dijalankan; bila belum hidup, helper `masukApi()`
- * menjelaskan hal itu dalam pesan galatnya.
+ * Dapat ditimpa lewat `E2E_ORIGIN`, dan nilainya sengaja sama dengan yang
+ * dipakai berkas spec supaya keduanya tak bisa berselisih diam-diam.
  */
+const ORIGIN = process.env.E2E_ORIGIN ?? 'http://skema.local';
+
 export default defineConfig({
   testDir: './e2e',
-  // Menyiapkan survei uji SEKALI, sebelum worker mana pun menyala — lihat
-  // catatan pada pastikanSurveiUji() soal dua worker yang berlomba membuatnya.
-  globalSetup: './e2e/support/global-setup.js',
+  /**
+   * Sesi diterbitkan SEKALI di sini, bukan di tiap worker: setiap dev-login
+   * menulis satu baris `audit_logs` ke basis data yang dipakai tim (lihat
+   * e2e/global-setup.ts). Berjalan tanpa `E2E_IDENTIFIER` pun aman -- spec yang
+   * butuh sesi melewati dirinya sendiri dengan pesan yang menyebutkan caranya.
+   */
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  // SATU worker secara bawaan, dan angka ini hasil pengukuran -- bukan kehati-hatian.
-  //
-  // Bawaan Playwright (`undefined`) adalah separuh prosesor logis; di mesin ini
-  // berarti EMPAT peramban sekaligus. Diukur 15 September 2026 pada satu jalan
-  // penuh yang sama, berulang:
-  //
-  //   4 worker : 5 dari 19 GAGAL, 4,0 menit
-  //   2 worker : 0 gagal, lalu 1 gagal pada ulangan, 2,2 / 1,9 menit
-  //   1 worker : 0 gagal, 2,3 menit
-  //
-  // Perhatikan kolom waktunya: satu worker TIDAK lebih lambat daripada empat.
-  // Paralelisme di sini tak memberi apa pun untuk ditukar -- ia hanya menukar
-  // kestabilan dengan ketiadaan keuntungan.
-  //
-  // Sebabnya terukur terpisah, dan letaknya di SISI PERAMBAN, bukan di server:
-  // memuat `/`, `/surveys`, dan `/complaints/new` memakan ~1,5 detik bila satu
-  // konteks dijalankan sendirian, dan ~12 detik bila empat konteks berjalan
-  // serentak -- delapan kali lipat. Pada saat yang sama, EMPAT permintaan HTTP
-  // serentak tanpa peramban dilayani dalam 0,09-0,47 detik. Jadi yang kehabisan
-  // napas empat Chrome yang berebut satu mesin (4 inti fisik, RAM bebas ~2,7 GB)
-  // sambil mengurai bundel Next.js mode dev, bukan `next dev` maupun proxy-nya.
-  //
-  // Bentuk kegagalannya menegaskan hal yang sama: `domcontentloaded` menyala,
-  // `load` tak pernah tuntas, lalu 60 detik habis. Inilah "kegoyahan yang belum
-  // terjelaskan" di TEST_CASES §Y.3.
-  //
-  // Mesin yang lebih lapang boleh menaikkannya: `E2E_WORKERS=4 pnpm test:e2e`.
-  // Naikkan hanya bila jalan penuh terbukti hijau berulang kali di mesin itu.
-  workers: Number(process.env.E2E_WORKERS ?? 1),
+  // Lokal 1, CI 2 -- alasannya panjang, ditulis di dekat `workers` di bawah.
+  retries: process.env.CI ? 2 : 1,
+  /**
+   * SATU worker, juga di mesin sendiri. Sebelumnya lokal memakai bawaan
+   * Playwright (setengah jumlah inti -- empat di mesin 8 inti), dan empat
+   * peramban yang meminta rute berbeda serentak melampaui satu kompilator
+   * `next dev`: halamannya tersaji sebelum CSS dan bundel JS-nya jadi.
+   *
+   * Terukur 21 September 2026, satu variabel diubah:
+   *
+   *   4 worker -> 4, lalu 2, lalu 1 gagal; 3, 4, 5 dilewati
+   *   1 worker -> 0 gagal, 75 lulus, 3 dilewati
+   *
+   * Yang paling berbahaya bukan kegagalannya melainkan penyamarannya:
+   * beberapa uji memakai `test.skip((await tombol.count()) === 0, ...)`,
+   * sehingga tombol yang BELUM SEMPAT DIRENDER menjadi "dilewati", bukan
+   * "gagal". Angkanya lalu tampak membaik tiap jalan padahal yang tak terukur
+   * tetap sama banyaknya.
+   *
+   * Harganya ~6 menit, bukan ~3. Yang 3 menit itu tak ada gunanya.
+   */
+  workers: 1,
+
+  /**
+   * SATU PERCOBAAN ULANG (23 September 2026).
+   *
+   * MENGAPA, DAN BUKAN "SUPAYA HIJAU". Suite ini memerah pada 1-3 uji dari ~85
+   * setiap lari penuh, SELALU uji yang berbeda, dan seluruhnya hijau ketika
+   * berkasnya dijalankan sendirian. Akibatnya lari penuh tak pernah dapat
+   * hijau -- dan suite yang selalu merah mengajari orang mengabaikannya, yang
+   * berarti regresi sungguhan pun ikut lewat tanpa dilihat. Itu bahaya yang
+   * sedang berlangsung, bukan hipotetis.
+   *
+   * INI TIDAK MENYEMBUNYIKAN KEGAGALAN. Uji yang gagal DUA KALI tetap `failed`
+   * dan kode keluarnya tetap 1. Yang lulus pada percobaan kedua masuk kategori
+   * `flaky` yang TERPISAH dari `passed` -- jadi kegoyahannya tercatat dan dapat
+   * dihitung, bukan lenyap.
+   *
+   * ONGKOSNYA NOL PADA LARI SEHAT: uji yang lulus tak pernah diulang.
+   *
+   * SEBABNYA SUDAH DICARI DAN BUKAN KOMPILASI. Dugaan bahwa `next dev`
+   * mengompilasi rute saat pertama diminta sempat diuji dengan menjalankan
+   * seluruh suite terhadap build produksi (lihat scripts/server-e2e.mjs):
+   * hasilnya 1/2/1 kegagalan versus 1/0/3 pada server dev -- tidak lebih baik.
+   * Gejalanya pun tak seragam; salah satunya tombol yang terender rapi tetapi
+   * `disabled` selama 15 detik, yang mematahkan seluruh teori "halaman belum
+   * siap". Akar masalah tunggal tampaknya memang tidak ada.
+   *
+   * Menghidupkan ini sekaligus menghidupkan `trace: 'on-first-retry'` di bawah,
+   * yang selama ini tak pernah dapat berjalan karena percobaan ulangnya tak
+   * pernah ada. Jejak itulah yang akan menjelaskan kegoyahan berikutnya.
+   *
+   * NILAINYA DISATUKAN DENGAN SETELAN CI DI ATAS, bukan ditulis kedua kalinya.
+   * Kunci ganda pada objek literal membuat yang belakangan menimpa yang
+   * pertama TANPA GEJALA -- di sini itu sempat terjadi dan diam-diam
+   * menurunkan percobaan CI dari 2 menjadi 1.
+   */
   reporter: 'html',
-  // Server pengembangan Next.js mengompilasi rute saat pertama diminta; kunjungan
-  // pertama ke halaman wizard survei bisa memakan belasan detik pada mesin biasa.
-  // Batas bawaan 30 detik membuat suite merah karena kompilasi, bukan karena bug.
-  timeout: 60_000,
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://skema.local',
+    baseURL: ORIGIN,
     trace: 'on-first-retry',
   },
+  /**
+   * `channel: 'chrome'` memakai Chrome yang SUDAH terpasang di mesin, bukan
+   * chromium bawaan Playwright. Tanpa itu `pnpm test:e2e` berhenti seketika di
+   * mesin mana pun yang belum menjalankan `playwright install`, dengan galat
+   * "Executable doesn't exist" alih-alih hasil uji. Terukur 16 September 2026:
+   * itulah yang terjadi di sini.
+   */
   projects: [
     {
       name: 'chromium',
-      // Memakai Chrome yang sudah terpasang di mesin, bukan Chromium unduhan
-      // Playwright — penyiapan di komputer tim jadi tak menuntut unduhan peramban
-      // ratusan megabita lewat jaringan kantor.
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
   ],
+  /**
+   * Dijalankan dari AKAR repositori, bukan dari apps/web: `pnpm dev` di sini
+   * hanya menyalakan frontend, sementara uji e2e menempuh jalur yang sama
+   * dengan pengguna dan karenanya butuh backend juga.
+   *
+   * Nginx (docker compose) TIDAK ikut dinyalakan dari sini, dan memang tak
+   * bisa: ia yang menyajikan origin di atas. Bila Docker mati, Playwright
+   * menunggu `url` sampai batas waktu lalu berhenti dengan jelas, bukan
+   * menjalankan uji terhadap alamat yang tak melayani apa-apa.
+   */
+  webServer: {
+    command: 'pnpm dev',
+    cwd: resolve(__dirname, '../..'),
+    url: ORIGIN,
+    reuseExistingServer: !process.env.CI,
+    timeout: 180_000,
+  },
 });

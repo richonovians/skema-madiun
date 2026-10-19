@@ -80,7 +80,7 @@ export class RolesGuard implements CanActivate {
     //
     // Sampai 6 September 2026, `kabupaten` & `superuser` melampaui seluruh
     // `@Roles` tanpa syarat. Akibatnya dekoratornya BERBOHONG: rute
-    // ber-`@Roles(Role.superuser)` di audit.controller.ts juga terbuka bagi
+    // ber-`@Roles(Role.kabupaten)` di audit.controller.ts juga terbuka bagi
     // kabupaten, dan setiap rute ber-`@Roles(Role.opd)` terbuka bagi keduanya.
     // Yang menahan hanya pemeriksaan di dalam service -- sehingga rute BARU yang
     // lupa memeriksanya diam-diam terbuka bagi dua peran terkuat. Itu fail-OPEN,

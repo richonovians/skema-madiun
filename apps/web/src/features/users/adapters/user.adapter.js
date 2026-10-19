@@ -11,12 +11,11 @@ import { formatDateId, getInitials } from '@/utils/format';
  * API, lihat UserEntity). Adapter ini hanya map ACTIVE/INACTIVE; komponen yang
  * mengandalkan PENDING perlu disesuaikan, bukan ditebak di sini.
  */
-// `superuser` dipisah kembali dari `kabupaten` (2026-08-20) -- lihat userConstants.js.
+// `superuser` DILEBUR ke `kabupaten` (15 September 2026) -- lihat userConstants.js.
 const ROLE_MAP = {
   opd: 'ADMIN_OPD',
   kabupaten: 'ADMIN_KABUPATEN',
   responden: 'RESPONDENT',
-  superuser: 'SUPERUSER',
 };
 
 export function adaptUser(user) {
@@ -30,6 +29,16 @@ export function adaptUser(user) {
     // perlu diingat di dua tempat.
     roles: (user.roles ?? []).map((r) => ROLE_MAP[r] ?? r),
     opdId: user.opdId ?? null,
+    // DILEWATKAN, bukan dihitung di sini (6 Oktober 2026). Aturannya
+    // bergantung pada `NODE_ENV` backend -- gerbang ASN hanya hidup di
+    // produksi -- dan frontend tak tahu apa pun tentang itu. Dua salinan
+    // aturan berarti kotak centang yang dapat ditekan tetapi ditolak 400.
+    //
+    // `null` berarti BACKEND TAK MEMBERITAHU, dan sengaja bukan `true` atau
+    // `false`: keduanya pernyataan yang belum dibuat siapa pun. Komponennya
+    // menonaktifkan pilihan hanya pada `false` tersurat -- penegakan
+    // sebenarnya tetap di `UsersService`, halaman ini cuma pengarahan UX.
+    bolehJadiAdminOpd: user.bolehJadiAdminOpd ?? null,
     organization: user.opdNama ?? null,
     createdAt: formatDateId(user.createdAt),
     status: user.isActive ? 'ACTIVE' : 'INACTIVE',
@@ -44,28 +53,13 @@ const ROLE_TO_BACKEND = {
   ADMIN_OPD: 'opd',
   ADMIN_KABUPATEN: 'kabupaten',
   RESPONDENT: 'responden',
-  SUPERUSER: 'superuser',
 };
 
-/**
- * Terjemahkan payload form buat-akun (bentuk komponen, lihat
- * app/admin-kab/users/create/page.jsx) -> CreateUserDto backend.
- *
- * CATATAN GAP: form mengumpulkan `phone` & `isActive`, TAPI backend
- * (CreateUserDto) tidak punya field ini sama sekali -- sengaja TIDAK
- * dikirim di sini, bukan lupa. `isActive` khususnya: akun baru SELALU aktif
- * di backend (UsersService.create hardcode isActive:true); kalau perlu
- * nonaktif sejak awal, panggil updateUserStatus terpisah setelah create.
- * `phone` murni tak punya tempat di skema User sama sekali.
+/*
+ * TANPA `toCreateUserPayload`. Halamannya dibuang 30 September 2026, jadi tak
+ * ada lagi form buat-akun yang payloadnya perlu diterjemahkan. `ROLE_TO_BACKEND`
+ * di atas TETAP dipakai `toUpdateUserPayload` di bawah.
  */
-export function toCreateUserPayload({ fullName, email, roles, opdId }) {
-  return {
-    nama: fullName,
-    email,
-    roles: (roles ?? []).map((r) => ROLE_TO_BACKEND[r] ?? r),
-    opdId: opdId ? Number(opdId) : undefined,
-  };
-}
 
 /**
  * Terjemahkan payload edit akun -> UpdateUserDto backend — HANYA `roles`.

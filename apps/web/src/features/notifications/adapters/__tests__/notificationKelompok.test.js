@@ -14,6 +14,26 @@ const SEKARANG = new Date('2026-09-13T15:00:00+07:00');
 
 const notif = (id, createdAt) => ({ id, createdAt, title: `Notifikasi ${id}` });
 
+/**
+ * Stempel waktu pada tanggal kalender LOKAL, digeser dari SEKARANG.
+ *
+ * Uji batas hari HARUS dibangun begini, bukan dengan offset +07:00 yang
+ * ditulis tangan. Pengelompokan memakai tanggal kalender lokal pembacanya,
+ * sehingga "13 September 00.30 +07:00" adalah 12 September bagi mesin yang
+ * berjalan di UTC. Runner GitHub berjalan di UTC, dan uji di bawah memang
+ * merah di sana sementara hijau di mesin pengembang (UTC+7) -- satu-satunya
+ * dari 891 uji apps/web yang begitu.
+ *
+ * Zona waktu CI sengaja TIDAK dipatok ke WIB. Dibiarkan UTC, ia jadi penjaga
+ * cuma-cuma untuk asumsi zona waktu yang terselip seperti ini.
+ */
+const padaHariLokal = (geserHari, jam, menit) => {
+  const d = new Date(SEKARANG);
+  d.setDate(d.getDate() + geserHari);
+  d.setHours(jam, menit, 0, 0);
+  return d.toISOString();
+};
+
 describe('kelompokkanNotifikasi', () => {
   let nowSpy;
   beforeEach(() => {
@@ -55,8 +75,8 @@ describe('kelompokkanNotifikasi', () => {
    */
   it('batasnya tanggal kalender, bukan selisih 24 jam', () => {
     const hasil = kelompokkanNotifikasi([
-      notif(1, '2026-09-13T00:30:00+07:00'),
-      notif(2, '2026-09-12T23:30:00+07:00'),
+      notif(1, padaHariLokal(0, 0, 30)),
+      notif(2, padaHariLokal(-1, 23, 30)),
     ]);
 
     expect(hasil.map((k) => k.label)).toEqual(['Hari ini', 'Kemarin']);

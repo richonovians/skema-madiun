@@ -44,13 +44,14 @@
   --spacing-gutter: 24px;
   --spacing-container-max: 1280px;
 
-  --font-poppins: "Poppins", sans-serif;
-  --font-h1: "Poppins", sans-serif;
-  --font-h2: "Poppins", sans-serif;
-  --font-h3: "Poppins", sans-serif;
-  --font-body: "Poppins", sans-serif;
-  --font-headline: "Poppins", sans-serif;
-  --font-label: "Poppins", sans-serif;
+  --font-sans: var(--font-poppins), 'Poppins', sans-serif;
+  --font-poppins: var(--font-poppins), 'Poppins', sans-serif;
+  --font-h1: var(--font-poppins), 'Poppins', sans-serif;
+  --font-h2: var(--font-poppins), 'Poppins', sans-serif;
+  --font-h3: var(--font-poppins), 'Poppins', sans-serif;
+  --font-body: var(--font-poppins), 'Poppins', sans-serif;
+  --font-headline: var(--font-poppins), 'Poppins', sans-serif;
+  --font-label: var(--font-poppins), 'Poppins', sans-serif;
 
   --text-h1: 3rem;
   --text-h1--line-height: 1.1;
@@ -136,11 +137,11 @@
      seluruh keluarga di proyek ini menunjuk ke Poppins, jadi elemennya
      mewarisi huruf yang sama saja. Didefinisikan hanya supaya kelas yang
      tertulis di 97 tempat itu benar-benar ada -- bukan karena ada yang rusak. */
-  --font-h4: "Poppins", sans-serif;
-  --font-body-md: "Poppins", sans-serif;
-  --font-label-md: "Poppins", sans-serif;
-  --font-headline-md: "Poppins", sans-serif;
-  --font-headline-lg: "Poppins", sans-serif;
+  --font-h4: var(--font-poppins), 'Poppins', sans-serif;
+  --font-body-md: var(--font-poppins), 'Poppins', sans-serif;
+  --font-label-md: var(--font-poppins), 'Poppins', sans-serif;
+  --font-headline-md: var(--font-poppins), 'Poppins', sans-serif;
+  --font-headline-lg: var(--font-poppins), 'Poppins', sans-serif;
 
   /* `animate-fade-in-up` dipakai di 10+ tempat (HeroSection, ServiceFlow, dan
      seluruh /about) LENGKAP dengan `animationDelay` bertingkat (100ms, 200ms,
@@ -270,6 +271,13 @@
      nyaris tak terlihat. */
   --tinggi-navbar-kab: 110px;
 
+  /* Lebar sidebar admin, dipakai BuilderLayout untuk menentukan tepi kiri
+     lapisan layar-penuhnya (30 September 2026). Nilai di sini yang berlaku
+     sebelum JS jalan dan di luar area admin; AdminSidebar & AdminKabSidebar
+     menimpanya lewat inline style pada :root, yang mengalahkan aturan ini.
+     16rem sepadan dengan md:w-64 -- keadaan mengembang, yakni bakunya. */
+  --lebar-sidebar: 16rem;
+
   /* Padanannya untuk Admin OPD (1 September 2026). Bilah itu kini dua baris di
      ponsel -- identitas di atas, penyaring triwulan di bawah -- supaya nama
      OPD tak lagi tergerus jadi satu huruf. Karena tingginya jadi berubah
@@ -285,7 +293,15 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-poppins);
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
+}
+
+/* Pastikan semua elemen form dan kontrol teks mewarisi font Poppins */
+input,
+button,
+textarea,
+select {
+  font-family: inherit;
 }
 
 /* Dipakai di 7 tempat sebagai pasangan `overflow-x-auto` (bagan dashboard

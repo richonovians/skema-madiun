@@ -93,7 +93,14 @@ const useSurveyStore = create((set, get) => ({
   setCaptchaToken: (captchaToken) => set({ captchaToken }),
 
   submitSurvey: async () => {
-    const { surveyData, answers, isAnonimMode, dataPublik, tanpaDataDiri, captchaToken } = get();
+    const {
+      surveyData,
+      answers,
+      isAnonimMode,
+      dataPublik,
+      tanpaDataDiri,
+      captchaToken,
+    } = get();
     if (!surveyData) {
       return { success: false, error: 'Survei belum dimuat' };
     }

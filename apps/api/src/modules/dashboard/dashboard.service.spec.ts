@@ -2,6 +2,8 @@ import { ForbiddenException } from '@nestjs/common';
 import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PenyimpanSinggahanNonaktif } from '../../common/cache/penyimpan-singgahan.nonaktif';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import { DashboardService } from './dashboard.service';
 import type { IkmService } from '../ikm/ikm.service';
 
@@ -17,10 +19,15 @@ const kabupatenUser = (): CurrentUser => ({
   actingRole: Role.kabupaten,
   opdId: null,
 });
-const superUser = (): CurrentUser => ({
+/**
+ * Akun Admin Kabupaten KEDUA (id 3). Pembantu ini sempat bernama `superUser`
+ * sambil membangun `Role.kabupaten`; peran `superuser` dilebur 15 September
+ * 2026 dan nilai enumnya dibuang (dibereskan 14 Oktober 2026).
+ */
+const kabupatenUserLain = (): CurrentUser => ({
   userId: 3,
-  roles: [Role.superuser],
-  actingRole: Role.superuser,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
   opdId: null,
 });
 const respondenUser = (): CurrentUser => ({
@@ -45,13 +52,30 @@ describe('DashboardService', () => {
     opd: { count: jest.fn().mockResolvedValue(0) },
     ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
     user: { count: jest.fn().mockResolvedValue(0) },
-    statisticsInsight: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
   } as unknown as PrismaService;
   const ikmService = {
     getResults: jest.fn(),
     computeResult: jest.fn(),
+    /**
+     * MENERUSKAN ke `computeResult`, bukan mock tersendiri. `getStatistics`
+     * beralih ke jalur batch (13 Oktober 2026) supaya endpoint publik ini tak
+     * lagi memanggil `computeResult` sekali per survei aktif, tetapi yang diuji
+     * berkas INI adalah perangkaian di `DashboardService` -- bukan bentuk kueri
+     * `IkmService`. Dengan meneruskan, seluruh uji di bawah mempertahankan
+     * maksud dan angka harapannya yang semula. Jaminan "tiga kueri, apa pun
+     * jumlah surveinya" diuji di `ikm.service.spec.ts`.
+     */
+    hitungHasilBanyak: jest.fn(async (surveys: { id: number }[]) => {
+      const peta = new Map<number, unknown>();
+      for (const survey of surveys) {
+        peta.set(survey.id, await (ikmService.computeResult as jest.Mock)(survey));
+      }
+      return peta;
+    }),
   } as unknown as IkmService;
-  const service = new DashboardService(prisma, ikmService);
+  // Singgahan NONAKTIF: selalu meleset, jadi getStatistics tetap menghitung dari
+  // (mock) basis data dan seluruh assertion di bawah tetap menguji hitungannya.
+  const service = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -83,13 +107,15 @@ describe('DashboardService', () => {
      * sudah tak ada di tanda tangan mana pun, jadi jaminan itu kini struktural.
      * Yang menjaganya di tingkat HTTP -- di mana query masih bisa dikirim
      * siapa pun -- ada di test/multi-role.e2e-spec.ts
-     * ("act=superuser + ?opdId= -> 403").
+     * ("act=kabupaten + ?opdId= -> 403").
      *
      * Jalan yang benar sekarang: berpindah ke peran `opd` lewat
      * `POST /auth/acting-role`, yang memakai `users.opd_id` akun itu sendiri.
      */
-    it('Superuser -> Forbidden (dashboard OPD bukan miliknya)', async () => {
-      await expect(service.getOpdDashboard(superUser())).rejects.toThrow(ForbiddenException);
+    it('Admin Kabupaten -> Forbidden (dashboard OPD bukan miliknya)', async () => {
+      await expect(service.getOpdDashboard(kabupatenUserLain())).rejects.toThrow(
+        ForbiddenException,
+      );
       // Bukan cuma status penolakannya: tak boleh ada satu pun query yang
       // sempat berjalan atas OPD yang bukan miliknya.
       expect(prisma.survey.findFirst).not.toHaveBeenCalled();
@@ -188,8 +214,14 @@ describe('DashboardService', () => {
         { periode: '2026-Q1', value: 80 },
         { periode: '2026-Q2', value: 90 },
       ]);
+      // `deletedAt: null` DIKETATKAN, bukan dilonggarkan (BUG-013, 19 Oktober
+      // 2026). Pernyataan ini semula menuntut `{ survey: { opdId: 5 } }` persis
+      // dan karena itu memerah begitu penyaring Sampah dipasang. Menggantinya
+      // dengan `objectContaining` yang lebih longgar akan membuang justru
+      // penjagaan yang baru didapat, jadi klausa barunya ditulis tersurat:
+      // isolasi OPD dan penyaring Sampah keduanya terjaga di satu pernyataan.
       expect(prisma.ikmResult.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { survey: { opdId: 5 } } }),
+        expect.objectContaining({ where: { survey: { opdId: 5, deletedAt: null } } }),
       );
     });
 
@@ -221,7 +253,65 @@ describe('DashboardService', () => {
       expect(result.summary.totalRespondents).toBe(0);
       expect(result.summary.completionRate).toBeNull();
       expect(result.ikmTrend).toEqual([]);
-      expect(result.insight.text).toBeNull();
+      // `insight` DIBUANG 6 Oktober 2026 bersama fiturnya; diuji sebagai
+      // ketiadaan supaya ia tak kembali diam-diam lewat salinan kode lama.
+      expect(result).not.toHaveProperty('insight');
+    });
+
+    it('(7 Oktober 2026) kena singgahan -> kembalikan nilai tersimpan tanpa menyentuh basis data', async () => {
+      const tersimpan = { summary: { ikm: 77, totalRespondents: 9 }, ikmTrend: [] };
+      const singgahanKena = {
+        ambil: jest.fn().mockResolvedValue(tersimpan),
+        simpan: jest.fn(),
+      };
+      const svc = new DashboardService(
+        prisma,
+        ikmService,
+        singgahanKena as unknown as PenyimpanSinggahan,
+      );
+
+      const result = await svc.getStatistics();
+
+      expect(result.summary.ikm).toBe(77);
+      expect(result.summary.totalRespondents).toBe(9);
+      // Short-circuit terbukti: tak satu pun query statistik berjalan, dan nilai
+      // yang kena tidak ditulis ulang.
+      expect(prisma.surveyResponse.count).not.toHaveBeenCalled();
+      expect(singgahanKena.simpan).not.toHaveBeenCalled();
+    });
+
+    /**
+     * PENAHAN CACHE STAMPEDE (13 Oktober 2026). Endpoint ini `@Public()` dan
+     * terekspos langsung ke poster/QR, jadi sepuluh pengunjung yang tiba pada
+     * detik singgahannya kosong semuanya masuk ke jalur hitung. Terukur pada
+     * 6,7 juta baris `answers`: kesepuluh koneksi itu menghasilkan 0 permintaan
+     * tuntas dan 10 galat, karena mereka berebut kolam koneksi Prisma berisi
+     * sembilan.
+     *
+     * Singgahan NONAKTIF dipakai dengan sengaja: ia selalu meleset, jadi yang
+     * diuji persis keadaan paling buruk -- singgahan kosong, sepuluh permintaan
+     * serentak.
+     */
+    it('(13 Oktober 2026) sepuluh permintaan SERENTAK ke singgahan kosong hanya menghitung sekali', async () => {
+      const svc = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
+
+      await Promise.all(Array.from({ length: 10 }, () => svc.getStatistics()));
+
+      expect(prisma.ikmResult.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Permintaan BERURUTAN tetap menghitung ulang. Penahannya hanya meredam
+     * yang serentak; yang menyimpan nilainya tetap `PenyimpanSinggahan`, dan
+     * di uji ini singgahannya nonaktif.
+     */
+    it('permintaan berurutan TIDAK ikut diredam: penahannya bukan singgahan', async () => {
+      const svc = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
+
+      await svc.getStatistics();
+      await svc.getStatistics();
+
+      expect(prisma.ikmResult.findMany).toHaveBeenCalledTimes(2);
     });
 
     it('(2026-08-05) survei AKTIF yg sudah punya responden ikut masuk summary.ikm/ikmTrend', async () => {
@@ -421,44 +511,18 @@ describe('DashboardService', () => {
         { kode: 'aduan', nama: 'Aduan', count: 3 },
       ]);
     });
-
-    it('insight bawa teks tersimpan (D6), bukan dikarang', async () => {
-      (prisma.statisticsInsight.findUnique as jest.Mock).mockResolvedValue({
-        text: 'Capaian meningkat',
-        updatedAt: new Date('2026-08-01'),
-      });
-
-      const result = await service.getStatistics();
-
-      expect(result.insight.text).toBe('Capaian meningkat');
-    });
-  });
-
-  describe('updateInsight', () => {
-    it('(D6) upsert baris tunggal id=1', async () => {
-      (prisma.statisticsInsight.upsert as jest.Mock).mockResolvedValue({
-        id: 1,
-        text: 'Narasi baru',
-        updatedAt: new Date('2026-08-01'),
-        updatedBy: 2,
-      });
-
-      const result = await service.updateInsight({ text: 'Narasi baru' }, kabupatenUser());
-
-      expect(prisma.statisticsInsight.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 1 },
-          create: expect.objectContaining({ id: 1, text: 'Narasi baru', updatedBy: 2 }),
-          update: expect.objectContaining({ text: 'Narasi baru', updatedBy: 2 }),
-        }),
-      );
-      expect(result.text).toBe('Narasi baru');
-    });
   });
 
   /**
-   * JUMLAH AKUN AKTIF (permintaan pengguna 6 September 2026): halaman superuser
-   * menampilkan seluruh akun aktif, halaman Admin OPD hanya akun OPD itu.
+   * `updateInsight` DIBUANG 6 Oktober 2026 bersama seluruh fitur Insight &
+   * Kesimpulan (permintaan pengguna). Ketiadaan endpointnya dijaga
+   * `dashboard.e2e-spec.ts`; di sini tak ada lagi metode yang dapat diuji.
+   */
+
+  /**
+   * JUMLAH AKUN AKTIF (permintaan pengguna 6 September 2026): halaman Admin
+   * Kabupaten menampilkan seluruh akun aktif, halaman Admin OPD hanya akun OPD
+   * itu.
    */
   describe('jumlah akun aktif', () => {
     it('statistik: activeUsers menghitung akun aktif yang belum dihapus', async () => {

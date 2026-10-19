@@ -16,24 +16,50 @@ datasource db {
 // ENUM
 // =====================================================================
 
-// `kabupaten` = Admin Kabupaten SEKALIGUS superuser (2026-08-05: role
-// `superuser` terpisah DIHAPUS/digabung ke sini atas permintaan user --
-// sebelumnya ditambah 20260727000000_add_superuser_role, kini dilebur
-// balik). `kabupaten` mewarisi bypass penuh RolesGuard (lihat guard).
-// `superuser` DIKEMBALIKAN (2026-08-20, atas permintaan user) setelah sebelumnya
-// digabung ke `kabupaten` (lihat migrasi 20260805150000_remove_superuser_role_merge_kabupaten,
-// yang juga atas permintaan user). Bedanya sekarang JELAS dan bukan sekadar nama:
-// - superuser: seluruh hak kabupaten, DITAMBAH akses log aktivitas (audit log)
-// - kabupaten: sama seperti sebelumnya, TAPI tanpa akses log aktivitas
-// Perbedaan itu ditegakkan di AuditService (bukan di @Roles) karena RolesGuard
-// memberi kabupaten bypass penuh atas @Roles -- lihat catatan di sana.
+// TIGA PERAN, dan `superuser` bukan salah satunya. Riwayatnya berputar empat
+// kali, jadi urutannya perlu tertulis utuh:
+//
+//   27 Juli 2026      `superuser` ditambahkan (20260727000000_add_superuser_role)
+//   5 Agustus 2026    dilebur ke `kabupaten` (20260805150000_remove_superuser_role_merge_kabupaten)
+//   20 Agustus 2026   dikembalikan (20260820000000_readd_superuser_role), bedanya
+//                     akses log aktivitas, ditegakkan di dalam AuditService karena
+//                     RolesGuard waktu itu memberi kedua peran bypass penuh atas @Roles
+//   15 September 2026 dilebur untuk TERAKHIR kali (20260915140000_lebur_superuser_ke_kabupaten),
+//                     nilai enumnya dibuang
+//
+// Dua klaim di paragraf ini sempat bertahan sebagai keadaan sekarang padahal
+// sudah mati, dan keduanya dibereskan 14 Oktober 2026: `superuser` "DIKEMBALIKAN"
+// (ia dilebur lagi tiga minggu kemudian, dan enum di bawah ini sendiri sudah
+// menyatakannya), serta bypass penuh `kabupaten` atas @Roles (dibongkar temuan
+// audit T6, 7 September 2026 -- @Roles kini ditegakkan apa adanya, fail-closed).
+//
+// Yang berlaku sekarang: log aktivitas dan manajemen pengguna milik `kabupaten`,
+// dijaga `@Roles(Role.kabupaten)` di controllernya dengan pemeriksaan service
+// sebagai lapis kedua.
 enum Role {
   kabupaten
   opd
   responden
-  superuser
+
+  // `superuser` DIHAPUS 15 September 2026 (permintaan pengguna): kuasanya --
+  // manajemen pengguna & log aktivitas -- pindah ke `kabupaten`, dan nilai
+  // enumnya dibuang supaya tak ada jalan tersisa membuat peran itu lagi.
+  // Lihat migrasi 20260915140000_lebur_superuser_ke_kabupaten.
 
   @@map("user_role")
+}
+
+enum JenisPengguna {
+  asn
+  masyarakat
+
+  // Dari klaim Helpdesk `identity.user_type` (6 Oktober 2026). DUA NILAI SAJA,
+  // dan sengaja tidak lebih: payload sungguhan hanya pernah mengirim keduanya,
+  // dan menambah nilai yang belum pernah terlihat berarti menebak. Nilai di
+  // luar daftar ini dipetakan menjadi `null` oleh sso-jenis-pengguna.mapper.ts,
+  // bukan disimpan apa adanya.
+
+  @@map("jenis_pengguna")
 }
 
 enum JenisKelamin {
@@ -49,6 +75,37 @@ enum SurveyStatus {
   ditutup
 
   @@map("survey_status")
+}
+
+// Jenis survei (8 Oktober 2026). `skm_permenpanrb` memuat kerangka U1-U9 yang
+// tidak dapat dihapus -- hanya kalimat pertanyaannya yang boleh diubah OPD --
+// sedangkan `custom` (dulu `umum`) bebas, tanpa nilai IKM, dan menghasilkan
+// "Nilai Survei" menurut `tujuan` + `metodeNilai`. Dipilih saat survei dibuat dan
+// tidak dapat diganti sesudahnya.
+enum JenisSurvei {
+  skm_permenpanrb
+  custom
+
+  @@map("jenis_survei")
+}
+
+// Tujuan survei custom (8 Oktober 2026): menentukan kamus kata kategori hasil
+// (Puas / Baik ...) dan nama angka pada metode indeks persen.
+enum TujuanSurvei {
+  kepuasan
+  evaluasi
+  penilaian
+
+  @@map("tujuan_survei")
+}
+
+// Cara angka Nilai Survei ditampilkan: rata-rata skala 1-4 ("3,40 / 4") atau
+// indeks persen ("85%"). Hanya tampilan; jawabannya sama.
+enum MetodeNilai {
+  rata_rata
+  indeks_persen
+
+  @@map("metode_nilai")
 }
 
 enum QuestionType {
@@ -87,6 +144,11 @@ enum NotificationType {
   // pernah tahu ada tiket baru kecuali lewat balasan susulan) -- beri tahu
   // Admin OPD tujuan + kabupaten (oversight), TIDAK beri tahu pelapor sendiri.
   complaint_created
+  // Pengaduan "lainnya" (tanpa tujuan) diteruskan ke OPD berwenang (7 Oktober
+  // 2026). Kebalikan arah `complaint_created`: ini justru beri tahu PELAPOR
+  // bahwa pengaduannya sudah sampai ke instansi yang menanganinya. Ditambahkan
+  // lewat migrasi 20261007090000_notifikasi_pengaduan_diteruskan.
+  complaint_forwarded
   // Jawaban survei masuk (13 September 2026, laporan pengguna). Dikirim pada
   // TONGGAK saja, bukan tiap jawaban: survei IKM bertarget ratusan responden
   // akan menenggelamkan notifikasi pengaduan yang butuh tindakan. Pesannya
@@ -120,6 +182,42 @@ model User {
   // menyatakan KEPEMILIKAN; sesi menyatakan PILIHAN.
   roles       Role[]
   opdId       Int?      @map("opd_id") // wajib bila `roles` memuat `opd`; null selain itu
+  // IDENTITAS PELAPOR DARI HELPDESK (1 Oktober 2026). Ketiganya disalin dari
+  // klaim `userinfo` saat login dan disegarkan tiap login; lihat
+  // sso-identitas.mapper.ts untuk jalur klaimnya dan alasan tiga medan ini
+  // saja yang diambil dari seksi `demographics`/`location` yang jauh lebih luas.
+  //
+  // TERENKRIPSI, lihat common/crypto/kolom.ts. NIK dan alamat rumah adalah
+  // identitas yang menunjuk satu orang secara langsung, dan keduanya TIDAK
+  // PERNAH dicari lewat `contains` di API mana pun -- justru syarat itulah
+  // yang membuat `users.nama` harus dibiarkan polos sementara ketiga kolom ini
+  // tidak.
+  //
+  // `@db.Text`, bukan VarChar: base64url amplopnya sekitar 1,37x panjang asli
+  // ditambah 49 bita header, dan batas panjang di sini berarti login gagal
+  // ketika seseorang kebetulan beralamat panjang. Pembatasannya dilakukan
+  // SEBELUM enkripsi (BATAS_ALAMAT), tempat panjangnya masih punya arti.
+  nik         String?   @db.Text
+  nomorHp     String?   @map("nomor_hp") @db.Text
+  alamat      String?   @db.Text
+  // TIDAK TERENKRIPSI, berbeda dari tiga kolom di atasnya (1 Oktober 2026).
+  // Nilainya hanya dua, sehingga enkripsi nyaris tak menambah perlindungan,
+  // sementara menyimpannya sebagai teks melepas jaminan tipe dari basis data
+  // dan membuat rekapitulasi harus mendekripsi tiap baris untuk menghitung.
+  // NIK dan alamat menunjuk satu orang secara langsung; jenis kelamin sendirian
+  // tidak.
+  //
+  // Dipetakan dari klaim Helpdesk yang pengkodeannya TIDAK SERAGAM antar
+  // endpoint ("Laki-laki" vs "L") -- lihat sso-jenis-kelamin.mapper.ts.
+  jenisKelamin JenisKelamin? @map("jenis_kelamin")
+  // ASN atau warga, menurut Helpdesk (6 Oktober 2026). SATU-SATUNYA ukuran
+  // yang dipakai gerbang "boleh dijadikan Admin OPD" di produksi.
+  //
+  // `null` BUKAN berarti warga. Ia berarti SKEMA belum pernah diberitahu --
+  // akun yang belum login lewat SSO, atau payload yang tak membawa medannya.
+  // Gerbangnya karena itu menuntut `asn` secara tersurat dan tidak pernah
+  // menyimpulkan apa pun dari `null`.
+  jenisPengguna JenisPengguna? @map("jenis_pengguna")
   isActive    Boolean   @default(true) @map("is_active")
   consentAt   DateTime? @map("consent_at") // persetujuan PDP saat pertama login
   lastLoginAt DateTime? @map("last_login_at")
@@ -193,11 +291,32 @@ model Survey {
   judul               String       @db.VarChar(100)
   periode             String       @db.VarChar(20)
   status              SurveyStatus @default(draft)
+  // Pembuat survei lewat API WAJIB menyatakan jenisnya (CreateSurveyDto);
+  // `@default(custom)` hanya jaring pengaman bagi jalur yang membuat baris
+  // langsung. Migrasi 20261008090000_jenis_survei mengisi baris lama
+  // (berpertanyaan unsur = `skm_permenpanrb`, sisanya `custom`, dulu `umum`).
+  jenis               JenisSurvei  @default(custom)
+  // Hanya bermakna untuk survei custom (8 Oktober 2026). CHECK
+  // `surveys_nilai_survei_ck` hidup di migrasi 20261008120000_nilai_survei karena
+  // Prisma tak dapat menyatakannya: survei SKM tak boleh membawa keduanya. NULL
+  // pada custom dibaca bawaan (kepuasan + rata_rata); API mewajibkan keduanya
+  // saat membuat.
+  tujuan              TujuanSurvei?
+  metodeNilai         MetodeNilai? @map("metode_nilai")
   allowMultipleSubmit Boolean      @default(false) @map("allow_multiple_submit")
   // Pengisian TANPA sesi (4 September 2026). Baku `false`, sehingga seluruh
   // survei yang sudah ada tidak berubah perilakunya sedikit pun. Hanya
   // endpoint /public/surveys/* yang membacanya.
   izinkanAnonim       Boolean      @default(false) @map("izinkan_anonim")
+  // SURVEI UTAMA per OPD (15 September 2026). Tombol "Lanjut Isi Survei" pada
+  // halaman sukses pengaduan mengarah ke survei utama milik OPD yang diadukan.
+  //
+  // Batas "paling banyak satu per OPD" TIDAK terlihat di berkas ini: ia indeks
+  // unik parsial (`surveys_opd_utama_unik`, `WHERE is_utama AND deleted_at IS
+  // NULL`) yang hanya hidup di migrasi 20260915090000_survei_utama_per_opd,
+  // karena Prisma tak dapat menyatakan indeks parsial. Jangan simpulkan dari
+  // sini bahwa kolomnya bebas diisi ganda.
+  isUtama             Boolean      @default(false) @map("is_utama")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
   // SOFT DELETE (11 September 2026). `deletedAt` terisi = survei ada di Sampah:
@@ -361,19 +480,6 @@ model IkmResult {
 // STATISTIK PUBLIK (D6, 2026-08-05)
 // =====================================================================
 
-// Narasi `insight.text` di halaman /statistics publik -- keputusan D6:
-// disediakan tempat penyimpanan agar bisa diisi ADMIN (bukan dihapus dari UI,
-// bukan auto-generated dari angka). Baris tunggal (`id` selalu 1, di-upsert),
-// bukan tabel riwayat -- cukup satu narasi aktif pada satu waktu.
-model StatisticsInsight {
-  id        Int      @id @default(1)
-  text      String   @db.Text
-  updatedBy Int?     @map("updated_by")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("statistics_insight")
-}
-
 // =====================================================================
 // PENGADUAN
 // =====================================================================
@@ -383,8 +489,7 @@ model Complaint {
   ticketNo    String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
   userId      Int             @map("user_id")
   // Opsional sejak 6 September 2026: pengirim yang tak tahu tujuannya memilih
-  // "Lainnya (belum tahu tujuannya)", lalu Superuser/Admin Kabupaten
-  // meneruskannya lewat
+  // "Lainnya (belum tahu tujuannya)", lalu Admin Kabupaten meneruskannya lewat
   // PATCH /complaints/:id/opd. NULL berarti "belum bertujuan" -- bukan status
   // tersendiri, karena statusnya tetap `diterima` sampai OPD-nya menangani.
   opdId       Int?            @map("opd_id")
@@ -463,8 +568,18 @@ model ComplaintReply {
 // query "punya berapa belum dibaca" & tandai-dibaca per pengguna, sepadan
 // dgn skala pemakaian (bukan broadcast massal).
 model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int              @map("user_id")
+  id     Int @id @default(autoincrement())
+  userId Int @map("user_id")
+
+  /// Peran TUJUAN notifikasi ini (16 September 2026, pertanyaan pengguna soal
+  /// akun berperan jamak). Satu akun boleh memegang beberapa peran, dan
+  /// pengiriman notifikasi menyasar KEPEMILIKAN peran sementara navigasinya
+  /// dikurung per peran yang sedang dipakai -- tanpa kolom ini kotak masuknya
+  /// bercampur, dan lencananya menghitung hal yang tak dapat dibuka di sesi itu.
+  /// Diisi saat notifikasi DIBUAT, karena di situlah diketahui pasti kepada
+  /// siapa pesannya ditujukan.
+  untukPeran Role @map("untuk_peran")
+
   type      NotificationType
   title     String           @db.VarChar(150)
   message   String           @db.VarChar(500)
@@ -476,6 +591,7 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([userId, untukPeran, isRead])
   @@map("notifications")
 }
 
@@ -495,5 +611,17 @@ model AuditLog {
 
   @@index([actorId])
   @@index([entitas])
+  // Setiap pembukaan halaman log mengurutkan `timestamp` menurun, dan penyaring
+  // rentang tanggal memakai kolom yang sama. Tanpa indeks ini PostgreSQL membaca
+  // seluruh tabel lalu mengurutkannya hanya untuk 20 baris pertama.
+  //
+  // SEJAK 30 SEPTEMBER 2026 indeks ini punya pemakai kedua, dan kalimat lama di
+  // sini ("tabel ini tak pernah dipangkas, sebab menghapus jejak audit
+  // dipalang") sudah tidak benar: AuditRetensiService memangkas baris yang
+  // melewati AUDIT_RETENTION_DAYS, dan ia memilih barisnya lewat kolom yang
+  // sama. Yang berubah bukan sikap terhadap jejak audit melainkan bahwa
+  // sekarang ada KEBIJAKAN -- batas tetap, dari env, dinyatakan kepada
+  // pembacanya di halaman Log Aktivitas. Retensi MATI bila env itu tak disetel.
+  @@index([timestamp])
   @@map("audit_logs")
 }

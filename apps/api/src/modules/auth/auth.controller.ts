@@ -28,6 +28,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from './auth.service';
+import { perangkatDari } from './session/perangkat.util';
 import { ConsentService } from './consent.service';
 import { DevLoginDto } from './dto/dev-login.dto';
 import { SetActingRoleDto } from './dto/set-acting-role.dto';
@@ -92,10 +93,13 @@ export class AuthController {
   @Public()
   @UseGuards(NonProductionGuard)
   @Post('dev-login')
+  @ApiOperation({
+    summary: 'Login sementara tanpa SSO untuk dev/staging. Tidak tersedia di produksi.',
+  })
   @Throttle(DEV_LOGIN_PER_MINUTE)
   @ApiOkResponse({ type: SessionEntity })
-  devLogin(@Body() dto: DevLoginDto): Promise<SessionEntity> {
-    return this.authService.devLogin(dto);
+  devLogin(@Body() dto: DevLoginDto, @Req() req: Request): Promise<SessionEntity> {
+    return this.authService.devLogin(dto, perangkatDari(req));
   }
 
   /**
@@ -171,6 +175,7 @@ export class AuthController {
         query.code,
         query.state,
         req.headers.cookie,
+        perangkatDari(req),
       );
       // DUA header Set-Cookie sekaligus (array, bukan string): cookie `state`
       // dibuang karena sekali pakai, cookie `session` dipasang sebagai hasil
@@ -211,6 +216,7 @@ export class AuthController {
    * ditelusuri bersamaan), keduanya memakai pemanggilan langsung.
    */
   @Post('logout')
+  @ApiOperation({ summary: 'Keluar sesi. Cookie sesi dihapus di sisi server.' })
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser() user: CurrentUser,
@@ -218,7 +224,36 @@ export class AuthController {
   ): Promise<{ success: true }> {
     res.setHeader('Set-Cookie', this.sessionCookie.clear());
     await this.audit.record(user.userId, 'logout', 'auth', {});
-    return this.authService.logout();
+    // `user.sid` kosong pada token terbitan lama; AuthService.logout
+    // memperlakukannya sebagai "tak ada yang dapat dicabut", bukan galat.
+    return this.authService.logout(user.sid);
+  }
+
+  /**
+   * Putuskan seluruh sesi akun ini, termasuk yang sedang memanggil.
+   *
+   * Cookie milik pemanggil ikut dihapus supaya ia tak tertinggal memegang
+   * cookie yang pasti ditolak pada permintaan berikutnya, yang akan terbaca
+   * olehnya sebagai aplikasi rusak alih-alih sebagai keluar yang berhasil.
+   */
+  @Post('logout-semua')
+  @ApiOperation({ summary: 'Keluarkan akun ini dari SEMUA perangkat.' })
+  @HttpCode(HttpStatus.OK)
+  async logoutSemua(
+    @CurrentUser() user: CurrentUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ success: true }> {
+    await this.authService.keluarkanSemuaPerangkat(user.userId);
+    res.setHeader('Set-Cookie', this.sessionCookie.clear());
+    await this.audit.record(user.userId, 'logout_semua', 'auth', {});
+    return { success: true };
+  }
+
+  /** Perangkat yang sedang memegang sesi akun ini. */
+  @Get('sesi')
+  @ApiOperation({ summary: 'Daftar sesi aktif milik akun ini.' })
+  async daftarSesi(@CurrentUser() user: CurrentUser) {
+    return this.authService.daftarSesi(user.userId, user.sid);
   }
 
   /**
@@ -236,6 +271,7 @@ export class AuthController {
    * tanpa menggesernya. Lihat ConsentService.record.
    */
   @Post('consent')
+  @ApiOperation({ summary: 'Catat persetujuan pemrosesan data pribadi (UU PDP).' })
   @HttpCode(HttpStatus.OK)
   async consent(@CurrentUser() user: CurrentUser): Promise<{ consentAt: string }> {
     const consentAt = await this.consentService.record(user);
@@ -278,7 +314,11 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ role: Role; expiresAt: number; consentRequired: boolean; token?: string }> {
-    const { token, consentRequired } = await this.authService.setActingRole(user, dto.role);
+    const { token, consentRequired } = await this.authService.setActingRole(
+      user,
+      dto.role,
+      perangkatDari(req),
+    );
     const expiresAt = this.sessionCookie.expiresAt(token);
 
     const value = req.headers['authorization'];
@@ -309,6 +349,7 @@ export class AuthController {
    * halaman log aktivitas. Isi datanya disunting lewat kunci `nama`.
    */
   @Patch('profile')
+  @ApiOperation({ summary: 'Ubah profil dan data diri. Medan demografis khusus responden.' })
   @Audit('user', 'update_profile')
   @ApiOkResponse({ type: MeEntity })
   updateProfile(

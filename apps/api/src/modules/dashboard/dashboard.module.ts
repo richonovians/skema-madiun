@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { SinggahanModule } from '../../common/cache/singgahan.module';
 import { IkmModule } from '../ikm/ikm.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 
 @Module({
-  imports: [IkmModule],
+  imports: [IkmModule, SinggahanModule],
   controllers: [DashboardController],
   providers: [DashboardService],
 })

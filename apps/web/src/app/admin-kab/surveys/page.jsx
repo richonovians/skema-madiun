@@ -2,14 +2,13 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Trash2 } from 'lucide-react';
 import SurveyOverviewCards from '@/features/surveys/components/admin-kab/SurveyOverviewCards';
 import SurveyFilterBar from '@/features/surveys/components/admin-kab/SurveyFilterBar';
 import SurveyMonitoringTable from '@/features/surveys/components/admin-kab/SurveyMonitoringTable';
 import SurveyFormModal from '@/features/surveys/components/admin-kab/SurveyFormModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Pagination from '@/components/ui/Pagination';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { downloadTablePdf } from '@/utils/pdf';
@@ -25,7 +24,11 @@ import {
   duplicateSurvey,
 } from '@/features/surveys/services/surveys.api';
 import { getOpdList } from '@/features/opd/services/opd.api';
-import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import {
+  cocokPeriode,
+  formatPeriodeLabel,
+  parsePeriodeFilter,
+} from '@/features/surveys/adapters/survey.adapter';
 
 const ITEMS_PER_PAGE = 10;
 // Kabupaten melihat SEMUA survei lintas OPD (opdWhereFilter kosong utk role
@@ -66,6 +69,13 @@ const CONFIRM_COPY = {
     description: (survey) =>
       `Salinan "${survey.title}" akan dibuat sebagai draf baru pada ${survey.opdName} beserta seluruh pertanyaannya. Jawaban responden tidak ikut disalin.`,
     confirmLabel: 'Ya, Salin',
+    tone: 'primary',
+  },
+  jadikanUtama: {
+    title: 'Jadikan survei utama OPD ini?',
+    description: (survey) =>
+      `"${survey.title}" akan menjadi survei utama ${survey.opdName || 'OPD ini'} — tujuan tombol "Lanjut Isi Survei" pada halaman sukses pengaduan. Bila OPD ini sudah punya survei utama lain, penunjukannya otomatis berpindah ke survei ini (yang lama tak lagi menjadi utama).`,
+    confirmLabel: 'Ya, Jadikan Utama',
     tone: 'primary',
   },
   delete: {
@@ -140,7 +150,12 @@ export default function AdminKabSurveysPage() {
       getSurveys({ limit: FETCH_LIMIT }),
       getOpdList({ limit: FETCH_LIMIT }),
     ]);
-    return { surveys: surveysResult.data, opdList: opdResult.data };
+    return {
+      surveys: surveysResult.data,
+      opdList: opdResult.data,
+      // Hanya survei yang berpaginasi di layar ini, jadi cukup totalnya.
+      totalSurveys: surveysResult.meta?.pagination?.total ?? 0,
+    };
   }, []);
 
   const { data, isLoading, error, refetch } = useAsync(fetchData);
@@ -170,12 +185,19 @@ export default function AdminKabSurveysPage() {
 
   // Periode kanonik "{tahun}-Q{1-4}" terurut leksikografis (lihat periode.util.ts
   // backend) -- diurutkan menurun supaya periode terbaru di atas.
-  const periodeOptions = useMemo(() => {
-    const unique = [...new Set(surveys.map((s) => s.period).filter(Boolean))].sort().reverse();
-    return [
-      { value: '', label: 'Semua Periode' },
-      ...unique.map((periode) => ({ value: periode, label: formatPeriodeLabel(periode) })),
-    ];
+  // TAHUN saja (6 Oktober 2026): triwulannya kini dropdown tersendiri. Diambil
+  // dari periode survei yang BENAR-BENAR ada, bukan dari rentang baku -- daftar
+  // ini menyaring data di layar, dan menawarkan tahun tanpa satu pun survei
+  // hanya menghasilkan tabel kosong.
+  const tahunOptions = useMemo(() => {
+    const unique = [
+      ...new Set(
+        surveys
+          .map((s) => parsePeriodeFilter(s.period)?.tahun)
+          .filter((t) => t !== undefined && t !== null),
+      ),
+    ].sort((a, b) => b - a);
+    return unique.map((t) => ({ value: String(t), label: String(t) }));
   }, [surveys]);
 
   // Opsi OPD untuk FORM buat-survei = SELURUH OPD (bukan cuma yang sudah punya
@@ -302,6 +324,17 @@ export default function AdminKabSurveysPage() {
       );
       return;
     }
+    if (type === 'jadikanUtama') {
+      // Hanya `isUtama` yang dikirim; medan lain `undefined` ikut dibuang
+      // JSON.stringify, jadi backend hanya mengubah status utama (mode 'meta')
+      // dan melepas survei utama lama OPD ini dalam satu transaksi.
+      await runRowAction(
+        survey.id,
+        () => updateSurvey(survey.id, { isUtama: true }),
+        `"${survey.title}" kini menjadi survei utama ${survey.opdName || 'OPD-nya'}.`,
+      );
+      return;
+    }
     await runRowAction(
       survey.id,
       () => deleteSurvey(survey.id),
@@ -319,7 +352,9 @@ export default function AdminKabSurveysPage() {
 
       const matchOpd = !filters.opd || String(survey.opdId) === filters.opd;
       const matchStatus = !filters.status || survey.status === filters.status;
-      const matchPeriode = !filters.periode || survey.period === filters.periode;
+      // `cocokPeriode` (bukan `===`): penyaringnya kini dapat berupa TAHUN SAJA,
+      // yang harus cocok untuk seluruh triwulan tahun itu.
+      const matchPeriode = cocokPeriode(survey.period, filters.periode);
 
       return matchSearch && matchOpd && matchStatus && matchPeriode;
     });
@@ -327,6 +362,12 @@ export default function AdminKabSurveysPage() {
 
   const totalItems = filteredSurveys.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  // Baris yang diambil berhenti di FETCH_LIMIT, dan penyaring serta pencarian di
+  // atas bekerja atas irisan itu saja -- jadi baris yang cocok tetapi tak
+  // terambil tak akan pernah muncul. Total sebenarnya hanya diketahui dari meta
+  // backend; tanpa menyebutnya, halaman ini tampak lengkap padahal bukan.
+  const totalSeluruhnya = data?.totalSurveys ?? 0;
+  const barisTerambil = data?.surveys?.length ?? 0;
 
   const paginatedSurveys = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -384,18 +425,9 @@ export default function AdminKabSurveysPage() {
 
   return (
     <div className="p-lg w-full space-y-6">
-      <div className="flex justify-end">
-        {/* Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali --
-            survei yang terlanjur dibuang akan terlihat seperti hilang. */}
-        <Link
-          href="/admin-kab/surveys/sampah"
-          className="px-lg py-sm border border-outline rounded-lg text-sm font-bold flex items-center gap-sm hover:bg-surface-container-low transition-colors"
-        >
-          <Trash2 size={16} />
-          Sampah
-        </Link>
-      </div>
-
+      {/* Tautan Sampah PINDAH ke SurveyFilterBar (1 Oktober 2026, permintaan
+          pengguna) supaya sejajar dengan Reset Filter, Buat Survei, dan Ekspor.
+          Barisnya sendiri dibuang, bukan disisakan kosong. */}
       <SurveyOverviewCards surveys={surveys} />
 
       {actionNotice && (
@@ -418,7 +450,7 @@ export default function AdminKabSurveysPage() {
           onExportExcel={handleExportExcel}
           onExportPDF={handleExportPDF}
           opdOptions={opdOptions}
-          periodeOptions={periodeOptions}
+          tahunOptions={tahunOptions}
         />
 
         <SurveyMonitoringTable
@@ -429,6 +461,7 @@ export default function AdminKabSurveysPage() {
           onReopen={(survey) => setConfirmAction({ type: 'reopen', survey })}
           onDelete={(survey) => setConfirmAction({ type: 'delete', survey })}
           onDuplicate={(survey) => setConfirmAction({ type: 'duplicate', survey })}
+          onJadikanUtama={(survey) => setConfirmAction({ type: 'jadikanUtama', survey })}
           busySurveyId={busySurveyId}
         />
 
@@ -440,6 +473,12 @@ export default function AdminKabSurveysPage() {
             itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={setCurrentPage}
             itemName="survei"
+          />
+          <CatatanPemotongan
+            ditampilkan={barisTerambil}
+            total={totalSeluruhnya}
+            namaItem="survei"
+            adaPenyaring
           />
         </div>
       </div>

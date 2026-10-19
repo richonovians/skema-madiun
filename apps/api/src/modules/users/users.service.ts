@@ -5,7 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role, User } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { JenisPengguna, Prisma, Role, User } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -13,35 +14,66 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { bolehJadiAdminOpd } from './boleh-admin-opd';
 import { UserEntity } from './entities/user.entity';
 import { UserStatsEntity } from './entities/user-stats.entity';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
-   * Manajemen pengguna HANYA untuk `superuser` (2026-08-20, atas permintaan
-   * user) -- Admin Kabupaten biasa tak lagi boleh membuat/mengubah/menghapus akun
-   * maupun melihat daftarnya.
+   * Manajemen pengguna HANYA untuk `kabupaten` -- Admin OPD dan Responden tak
+   * boleh membuat/mengubah/menghapus akun maupun melihat daftarnya. Pemiliknya
+   * `superuser` sejak 2026-08-20 atas permintaan pengguna, lalu berpindah ke
+   * `kabupaten` bersama peleburan 15 September 2026.
    *
    * Dulu pemeriksaan ini SATU-SATUNYA gerbang: RolesGuard memberi `kabupaten`
-   * bypass penuh atas seluruh @Roles, sehingga mengganti `@Roles(Role.kabupaten)`
-   * menjadi `@Roles(Role.superuser)` di controller tak akan berpengaruh apa pun.
+   * bypass penuh atas seluruh @Roles, sehingga nilai apa pun pada `@Roles` di
+   * controller tak berpengaruh sama sekali. Docblock ini sempat menyatakannya
+   * sebagai "mengganti `@Roles(Role.kabupaten)` menjadi `@Roles(Role.kabupaten)`"
+   * -- kedua sisinya menjadi sama ketika nama perannya diganti tanpa membaca
+   * kalimatnya.
    * Bypass itu dibongkar T6 (7 September 2026), dekoratornya sudah dibetulkan,
    * dan controller kini menolak kabupaten lebih dahulu.
    *
    * Pemeriksaan ini TETAP sebagai lapis kedua (alasannya di
-   * `AuditService.assertSuperuser`), dengan pesan yang BERBEDA dari pesan guard
+   * `AuditService.assertKabupaten`), dengan pesan yang BERBEDA dari pesan guard
    * supaya sebuah uji tak dapat lulus karena gerbang yang salah.
    *
    * Konsekuensi yang disengaja: ini juga menutup pintu terakhir untuk MENGUBAH
-   * peran akun lain (`PATCH /users/:id`), jadi hanya superuser yang dapat
+   * peran akun lain (`PATCH /users/:id`), jadi hanya Admin Kabupaten yang dapat
    * mengangkat/menurunkan admin. Itulah maksud pembatasannya.
    */
-  private assertSuperuser(actor: CurrentUser): void {
-    if (actor.actingRole !== Role.superuser) {
-      throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Superuser');
+  /** Apakah proses ini berjalan di produksi; kunci yang sama dengan `NonProductionGuard`. */
+  private get produksi(): boolean {
+    return this.config.get<string>('app.nodeEnv') === 'production';
+  }
+
+  /**
+   * Satu-satunya pembentuk `UserEntity` di berkas ini (6 Oktober 2026).
+   *
+   * Sebelumnya setiap metode memanggil `new UserEntity(...)` sendiri, dan itu
+   * bentuk yang membuat medan turunan terlupa di salah satu jalur: halaman daftar
+   * akan tahu siapa yang boleh dijadikan Admin OPD sementara halaman sunting
+   * tidak, atau sebaliknya.
+   */
+  private entity(row: User & { opdNama?: string | null }): UserEntity {
+    return new UserEntity({
+      ...row,
+      bolehJadiAdminOpd: bolehJadiAdminOpd({
+        jenisPengguna: row.jenisPengguna,
+        produksi: this.produksi,
+      }),
+    });
+  }
+
+  private assertKabupaten(actor: CurrentUser): void {
+    if (actor.actingRole !== Role.kabupaten) {
+      throw new ForbiddenException('Manajemen pengguna hanya dapat diakses oleh Admin Kabupaten');
     }
   }
 
@@ -52,7 +84,7 @@ export class UsersService {
    * hanya butuh satu angka, sedangkan statistik menjalankan selusin agregasi.
    */
   async getStats(actor: CurrentUser): Promise<UserStatsEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
 
     const [totalUsers, activeUsers] = await this.prisma.$transaction([
       this.prisma.user.count({ where: { deletedAt: null } }),
@@ -66,7 +98,7 @@ export class UsersService {
     query: ListUsersQueryDto,
     actor: CurrentUser,
   ): Promise<PaginatedResult<UserEntity>> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     const { page, limit, role, opdId } = query;
 
     const where: Prisma.UserWhereInput = { deletedAt: null };
@@ -93,7 +125,7 @@ export class UsersService {
     return paginate(
       rows.map((row) => {
         const { opd, ...rest } = row;
-        return new UserEntity({ ...rest, opdNama: opd?.nama });
+        return this.entity({ ...rest, opdNama: opd?.nama });
       }),
       total,
       page,
@@ -102,8 +134,8 @@ export class UsersService {
   }
 
   async findOne(id: number, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
-    return new UserEntity(await this.getActiveOrThrow(id));
+    this.assertKabupaten(actor);
+    return this.entity(await this.getActiveOrThrow(id));
   }
 
   /**
@@ -134,8 +166,52 @@ export class UsersService {
     return { roles: unik, opdId: unik.includes(Role.opd) ? (opdId ?? null) : null };
   }
 
+  /**
+   * Peran `opd` hanya boleh DIBERIKAN kepada akun yang Helpdesk nyatakan ASN
+   * (6 Oktober 2026, permintaan pengguna: "perketat opsi jadikan admin opd
+   * hanya untuk user type asn").
+   *
+   * HANYA AKTIF DI PRODUKSI, dan itu syarat tersurat pengguna pada hari yang
+   * sama: "penerapan ... digunakan saat projek ini sudah pada tahap produksi.
+   * karena projek ini masih pengembangan, akun seed/pending masih tetap bisa
+   * mengambil peran opd." Empat dari lima pemegang peran `opd` di basis data
+   * pengembangan adalah akun `seed-*`/`pending:*` yang masuk lewat dev-login
+   * dan tak pernah melewati SSO, sehingga `jenis_pengguna` mereka tak akan
+   * pernah terisi. Menyalakan gerbang ini di sana berarti akun uji kehilangan
+   * jalan memperoleh kembali peran yang dicabut.
+   *
+   * Kunci lingkungannya `app.nodeEnv`, sama dengan `NonProductionGuard` --
+   * bukan bendera env kedua yang harus diingat orang.
+   *
+   * GAGAL TERTUTUP. `jenisPengguna === null` berarti SKEMA belum pernah
+   * diberitahu, bukan "orang ini warga", dan tetap ditolak: memberi hak
+   * mengelola sebuah instansi atas dasar ketidaktahuan lebih buruk daripada
+   * menundanya sampai pemiliknya sekali login lewat SSO.
+   *
+   * PENJAGA YANG ADA SEBELUM INI tidak digantikan, melainkan dilengkapi.
+   * `normalisasiRoles` menolak peran `opd` tanpa `opdId`, dan penolakan itu
+   * mirip tetapi bukan hal yang sama -- pesannya tak pernah menyebut ASN, dan
+   * ia lolos begitu Helpdesk sempat menuliskan `opd_id` bagi siapa pun.
+   */
+  private assertBolehJadiAdminOpd(jenisPengguna: JenisPengguna | null): void {
+    if (bolehJadiAdminOpd({ jenisPengguna, produksi: this.produksi })) {
+      return;
+    }
+    throw new BadRequestException(
+      'Peran Admin OPD hanya untuk akun ASN menurut Helpdesk. ' +
+        'Akun ini belum pernah dinyatakan ASN, jadi perannya belum dapat diberikan.',
+    );
+  }
+
   async create(dto: CreateUserDto, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
+    // Akun yang BARU DIBUAT tak pernah punya `jenis_pengguna`: ia belum sekali
+    // pun melewati Helpdesk. Di produksi itu berarti ia tak bisa lahir sebagai
+    // Admin OPD -- dan tanpa pemeriksaan ini `POST /users` menjadi jalan
+    // memutari seluruh pengetatan, tanpa satu pun halaman yang menampilkannya.
+    if (dto.roles.includes(Role.opd)) {
+      this.assertBolehJadiAdminOpd(null);
+    }
     const normal = this.normalisasiRoles(dto.roles, dto.opdId);
     if (normal.opdId != null) {
       await this.assertOpdExists(normal.opdId);
@@ -161,12 +237,15 @@ export class UsersService {
         isActive: true,
       },
     });
-    return new UserEntity(created);
+    return this.entity(created);
   }
 
-  /** `roles` opsional; sejak 2026-08-20 hanya superuser yang boleh mengubahnya. */
+  /**
+   * `roles` opsional; hanya Admin Kabupaten yang boleh mengubahnya. Pembatasan
+   * itu lahir 2026-08-20, waktu itu atas nama `superuser`.
+   */
   async update(id: number, dto: UpdateUserDto, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     const target = await this.getActiveOrThrow(id);
 
     // Perbandingan HIMPUNAN, bukan `!==` pada array: urutan role yang berbeda
@@ -180,10 +259,28 @@ export class UsersService {
       throw new ForbiddenException('Tidak bisa mengubah role akun sendiri');
     }
 
+    // DIBERIKAN, bukan dipelihara. Akun yang sudah memegang peran `opd` tetap
+    // dapat disunting -- termasuk untuk MENCABUT peran itu, yang justru akan
+    // terhalang bila gerbangnya memeriksa himpunan hasil alih-alih
+    // penambahannya.
+    const diberiPeranOpd =
+      dto.roles !== undefined && dto.roles.includes(Role.opd) && !target.roles.includes(Role.opd);
+    if (diberiPeranOpd) {
+      this.assertBolehJadiAdminOpd(target.jenisPengguna);
+    }
+
     // `opdId` diambil dari BARIS, bukan dari DTO -- ia sudah tak ada di sana
     // (kepemilikan data, 8 September 2026). Yang tetap ditegakkan: role `opd`
-    // menuntut tautan OPD yang SUDAH ADA. Konsekuensinya disengaja: satu-satunya
-    // jalan memberi seseorang peran Admin OPD adalah lewat Helpdesk.
+    // menuntut tautan OPD yang SUDAH ADA, dan tautan itu hanya dapat lahir dari
+    // login SSO.
+    //
+    // KALIMAT LAMA DI SINI berbunyi "satu-satunya jalan memberi seseorang peran
+    // Admin OPD adalah lewat Helpdesk", dan itu tak pernah benar-benar tepat:
+    // Helpdesk menyediakan TAUTANNYA, sedangkan perannya tetap diberikan Admin
+    // Kabupaten dari halaman ini. Sejak 6 Oktober 2026 ada gerbang kedua di
+    // atas (`assertBolehJadiAdminOpd`) yang menuntut akunnya ASN menurut
+    // Helpdesk -- dan gerbang itu, bukan baris ini, yang menegakkan aturan
+    // tersebut.
     const normal = this.normalisasiRoles(dto.roles ?? target.roles, target.opdId);
 
     const updated = await this.prisma.user.update({
@@ -198,7 +295,7 @@ export class UsersService {
         // yang dapat memulihkannya.
       },
     });
-    return new UserEntity(updated);
+    return this.entity(updated);
   }
 
   async updateStatus(
@@ -206,14 +303,14 @@ export class UsersService {
     dto: UpdateUserStatusDto,
     actor: CurrentUser,
   ): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     await this.getActiveOrThrow(id);
 
     const updated = await this.prisma.user.update({
       where: { id },
       data: { isActive: dto.isActive },
     });
-    return new UserEntity(updated);
+    return this.entity(updated);
   }
 
   /**
@@ -225,7 +322,7 @@ export class UsersService {
    * Anti-self-lockout sama seperti `update()` role: tak boleh hapus akun sendiri.
    */
   async remove(id: number, actor: CurrentUser): Promise<UserEntity> {
-    this.assertSuperuser(actor);
+    this.assertKabupaten(actor);
     await this.getActiveOrThrow(id);
     if (id === actor.userId) {
       throw new ForbiddenException('Tidak bisa menghapus akun sendiri');
@@ -235,7 +332,7 @@ export class UsersService {
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });
-    return new UserEntity(updated);
+    return this.entity(updated);
   }
 
   private async assertOpdExists(opdId: number): Promise<void> {

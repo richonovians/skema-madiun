@@ -1,8 +1,16 @@
 'use client';
 import React from 'react';
-import { LineChart, Users, AlertTriangle, Network } from 'lucide-react';
+import { LineChart, Users, AlertTriangle, Network, UserCheck } from 'lucide-react';
 
-export default function KabSummaryMetrics({ data }) {
+/**
+ * @param {object} props
+ * @param {object} props.data ringkasan dari `GET /dashboard/ikm`, mengikuti
+ *   penyaring periode & jenis layanan di navbar
+ * @param {number|null} [props.activeUsers] jumlah akun aktif seluruh sistem.
+ *   Prop TERSENDIRI karena asalnya `GET /statistics`, yang TIDAK mengikuti
+ *   penyaring itu -- sama seperti "Keaktifan Sistem" di sebelahnya.
+ */
+export default function KabSummaryMetrics({ data, activeUsers = null }) {
   if (!data) return null;
 
   // GAP (bukan dikarang): mutu agregat lintas-OPD TIDAK dihitung backend --
@@ -12,8 +20,15 @@ export default function KabSummaryMetrics({ data }) {
   // yang memang official).
   const ikmGradeLabel = data.ikmGrade ? `Mutu: ${data.ikmGrade} (${data.ikmLabel})` : 'Mutu: -';
 
+  // `null` DIBEDAKAN dari 0. Halaman ini mengambil kedua sumbernya terpisah,
+  // jadi keempat kartu lain sudah tergambar ketika angka ini belum tiba -- dan
+  // "0 akun aktif" pada saat itu adalah kabar palsu.
+  const akunAktif = activeUsers == null ? '-' : activeUsers.toLocaleString('id-ID');
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
+    // LIMA kolom sejak kartu "Akun Aktif" bergabung (15 September 2026,
+    // permintaan pengguna).
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-lg">
 
       {/* Metric Card 1 */}
       <div className="bg-white p-lg rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 border border-slate-100 flex flex-col justify-between group transition-all duration-300">
@@ -87,6 +102,24 @@ export default function KabSummaryMetrics({ data }) {
             {data.systemActivityPercent}%
           </h3>
           <p className="text-[10px] text-text-secondary mt-xs">Seluruh OPD Terintegrasi</p>
+        </div>
+      </div>
+
+      {/* Metric Card 5 */}
+      <div className="bg-white p-lg rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 border border-slate-100 flex flex-col justify-between group transition-all duration-300">
+        <div className="flex justify-between items-start mb-md">
+          <span className="p-sm bg-primary-container/40 text-primary rounded-lg">
+            <UserCheck size={24} />
+          </span>
+        </div>
+        <div>
+          <p className="text-text-secondary text-sm font-medium mb-xs">Akun Aktif</p>
+          <h3 className="text-4xl font-extrabold text-text-primary tracking-tight tabular-nums">
+            {akunAktif}
+          </h3>
+          {/* Lingkupnya tersurat: angka ini menghitung AKUN, bukan warga yang
+              dilayani, dan tak mengikuti penyaring periode di navbar. */}
+          <p className="text-[10px] text-text-secondary mt-xs">Di seluruh sistem</p>
         </div>
       </div>
 

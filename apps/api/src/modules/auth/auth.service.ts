@@ -1,11 +1,15 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ConfigService } from '@nestjs/config';
+import { dekripsiKolom } from '../../common/crypto/kolom';
+import { kunciData } from '../../common/crypto/kunci';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ConsentService } from './consent.service';
@@ -13,15 +17,28 @@ import { DevLoginDto } from './dto/dev-login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
 import { SessionEntity } from './entities/session.entity';
-import { SessionService } from './session/session.service';
+import { PenerbitSesi } from './session/penerbit-sesi.service';
+import { PENYIMPAN_CABUT_LAMPIRAN } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
+import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
+import { PENYIMPAN_SESI } from './session/penyimpan-sesi.interface';
+import type { PenyimpanSesi, SesiTerdaftar } from './session/penyimpan-sesi.interface';
+import type { PerangkatSesi } from './session/penyimpan-sesi.interface';
 
 @Injectable()
 export class AuthService {
+  /** Kunci dekripsi `users.nik` / `nomor_hp` / `alamat`. Lihat `getMe`. */
+  private readonly kunci: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly sessionService: SessionService,
+    private readonly penerbitSesi: PenerbitSesi,
     private readonly audit: AuditService,
-  ) {}
+    config: ConfigService,
+    @Inject(PENYIMPAN_SESI) private readonly penyimpanSesi: PenyimpanSesi,
+    @Inject(PENYIMPAN_CABUT_LAMPIRAN) private readonly cabutLampiran: PenyimpanCabutLampiran,
+  ) {
+    this.kunci = kunciData(config);
+  }
 
   /**
    * Login sementara (BUKAN SSO) — terbitkan sesi untuk pengguna seed yang sudah ada,
@@ -30,7 +47,7 @@ export class AuthService {
    * tersedia — SessionService.issue() yang dipanggil di sini akan tetap dipakai sama
    * persis oleh callback itu nanti (lihat SessionService).
    */
-  async devLogin(dto: DevLoginDto): Promise<SessionEntity> {
+  async devLogin(dto: DevLoginDto, perangkat?: PerangkatSesi): Promise<SessionEntity> {
     const identifier = dto.identifier.trim();
     const row = await this.prisma.user.findFirst({
       where: {
@@ -60,7 +77,7 @@ export class AuthService {
     // log aplikasi. Lihat catatan di AuthController.logout.
     await this.audit.record(row.id, 'login', 'auth', { via: 'dev-login' });
 
-    const token = this.sessionService.issue(row.id, dto.role);
+    const token = await this.penerbitSesi.terbitkan(row.id, dto.role, perangkat);
     // Peran yang dipakai sesi ini: yang diminta, atau -- bila akunnya ber-role
     // tunggal -- satu-satunya yang ada. `null` berarti "belum memilih", dan
     // frontend memakainya untuk mengarahkan ke /pilih-peran.
@@ -77,8 +94,45 @@ export class AuthService {
    * kontrak stabil bagi frontend, dan titik perluasan bila pencabutan sisi-server
    * dibutuhkan nanti (mis. saat SSO nyata aktif) tanpa mengubah kontrak klien.
    */
-  logout(): { success: true } {
+  /**
+   * Keluar sesi, dan kini BENAR-BENAR mencabutnya (7 Oktober 2026).
+   *
+   * Sebelum ini logout tak mengubah apa pun di server: ia hanya menghapus
+   * cookie, sehingga salinan cookie yang terlanjur keluar tetap sah sampai pagu
+   * `abs` lewat.
+   *
+   * `sid` kosong berarti token terbitan lama. Itu BUKAN galat dan tidak boleh
+   * dilempar: pemiliknya tetap harus dapat keluar, hanya saja tak ada yang
+   * dapat dicabut.
+   */
+  async logout(sid?: string): Promise<{ success: true }> {
+    if (sid) {
+      await this.penyimpanSesi.cabut(sid);
+    }
     return { success: true };
+  }
+
+  /** Putuskan seluruh sesi akun ini, termasuk yang sedang memanggil. */
+  async keluarkanSemuaPerangkat(userId: number): Promise<void> {
+    await this.penyimpanSesi.cabutSemua(userId);
+    // TAUTAN LAMPIRAN IKUT DICABUT (9 Oktober 2026). Tanpa baris ini "keluarkan
+    // semua perangkat" berbohong: sesinya memang mati, tetapi URL lampiran yang
+    // terlanjur dipegang perangkat lain tetap dapat dibuka sampai `exp` lewat.
+    await this.cabutLampiran.cabut(userId, Math.floor(Date.now() / 1000));
+  }
+
+  /**
+   * Sesi aktif milik satu akun.
+   *
+   * `iniSesiIni` ada supaya daftarnya dapat dibaca: tanpa penanda itu pemiliknya
+   * tak tahu baris mana yang akan ia putus sendiri bila menekan "keluarkan".
+   */
+  async daftarSesi(
+    userId: number,
+    sidSekarang?: string,
+  ): Promise<(SesiTerdaftar & { iniSesiIni: boolean })[]> {
+    const daftar = await this.penyimpanSesi.daftar(userId);
+    return daftar.map((sesi) => ({ ...sesi, iniSesiIni: sesi.sid === sidSekarang }));
   }
 
   /**
@@ -141,6 +195,7 @@ export class AuthService {
   async setActingRole(
     user: CurrentUser,
     role: Role,
+    perangkat?: PerangkatSesi,
   ): Promise<{ token: string; consentRequired: boolean }> {
     if (!user.roles.includes(role)) {
       throw new ForbiddenException('Akun Anda tidak memiliki peran tersebut');
@@ -164,7 +219,15 @@ export class AuthService {
       consentRequired = ConsentService.isRequired(role, row?.consentAt ?? null);
     }
 
-    return { token: this.sessionService.issue(user.userId, role), consentRequired };
+    // Pergantian peran menerbitkan sesi BARU dengan sid baru, bukan menyunting
+    // yang lama: klaim `act` ada di dalam token yang sudah ditandatangani dan
+    // tak dapat diubah di tempat. Sesi lama dibiarkan habis sendiri -- ia ada
+    // di peramban yang sama dan langsung tertimpa, dan itu persis perilaku
+    // sebelum daftar pencabutan ada.
+    return {
+      token: await this.penerbitSesi.terbitkan(user.userId, role, perangkat),
+      consentRequired,
+    };
   }
 
   /** Profil pengguna aktif + profil demografis (bila responden). */
@@ -176,7 +239,25 @@ export class AuthService {
     if (!row) {
       throw new NotFoundException('Pengguna tidak ditemukan');
     }
-    return toMeEntity(row, user.actingRole);
+    return toMeEntity(
+      {
+        ...row,
+        // DIDEKRIPSI DI SINI, menimpa nilai mentah yang ikut tersebar
+        // `...row`. Tanpa penimpaan ini responsnya memuat sandi `enc:v1:...`
+        // -- bukan dugaan melainkan keadaan yang terukur begitu ketiga kolom
+        // ini lahir, sebab serialisasi MeEntity bersifat expose-all.
+        // PENUH, TIDAK DISAMARKAN, dan itu keputusan tersurat pengguna
+        // (1 Oktober 2026) -- berbeda dari jalur pengaduan yang menyamarkan di
+        // hulu. Bedanya: NIK di sini milik PEMILIK SESI ITU SENDIRI, sehingga
+        // mengirimkannya ke perambannya bukan kebocoran. Penyamarannya urusan
+        // tampilan (lihat `samarkanNik` di me.adapter.js), yang melindungi dari
+        // tatapan sekilas ke layar -- bukan dari jaringan.
+        nik: row.nik ? dekripsiKolom(row.nik, this.kunci) : null,
+        nomorHp: row.nomorHp ? dekripsiKolom(row.nomorHp, this.kunci) : null,
+        alamat: row.alamat ? dekripsiKolom(row.alamat, this.kunci) : null,
+      },
+      user.actingRole,
+    );
   }
 
   /** Ubah nama (semua peran) + demografis (khusus responden). Data dipakai ulang antar survei. */

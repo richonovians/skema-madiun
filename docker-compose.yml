@@ -41,6 +41,32 @@ services:
   # Butuh satu langkah manual sekali saja (berkas hosts):
   #   127.0.0.1 skema.local
   # Windows: C:\Windows\System32\drivers\etc\hosts (WAJIB run-as-administrator)
+  # Daftar pencabutan sesi (7 Oktober 2026).
+  #
+  # `--appendonly yes` WAJIB, bukan pilihan rasa. Pemeriksaan sesi di API gagal
+  # tertutup, sehingga Redis yang restart dengan keadaan kosong akan menolak
+  # SETIAP sesi yang sedang berjalan sekaligus: semua orang terlempar keluar
+  # pada permintaan berikutnya. Dengan AOF, sesi selamat melewati restart.
+  #
+  # Tak dipublikasikan ke host selain 127.0.0.1: isinya penanda sesi, dan Redis
+  # bawaannya tanpa kata sandi.
+  redis:
+    image: redis:7-alpine
+    container_name: skm-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - skm-network
+
   proxy:
     image: nginx:1.29-alpine
     container_name: skm-proxy
@@ -98,6 +124,8 @@ services:
 volumes:
   postgres-data:
     name: skm-postgres-data
+  redis-data:
+    name: skm-redis-data
 
 networks:
   skm-network:

@@ -1,0 +1,32 @@
+Task ID,Task Name,Description,List (Sprint),Milestone,Status,Priority,Start Date,Due Date,Duration (days),Depends On,External Blocker,Assignee
+S0,Fondasi Backend & Sprint 0,"Monorepo, Docker, skema Prisma 13 tabel, migrasi init, seed, config/env, envelope respons, exception filter, ClassSerializer, Swagger",S0 - Fondasi,M0 - Fondasi,Complete,High,2026-07-20,2026-07-22,3,,,Backend
+BE-5,Harness Test Jest,Setup unit test + e2e harness (prasyarat laporan test),S0 - Fondasi,M0 - Fondasi,Complete,High,2026-07-20,2026-07-20,1,S0,,Backend
+BE-1-2-3,Pola Common (pagination + entity + data-isolation),"Pagination page/limit, serialisasi BaseEntity, util assertOpdAccess data-isolation OPD",S0 - Fondasi,M0 - Fondasi,Complete,High,2026-07-21,2026-07-21,1,S0,,Backend
+BE-8,GET /ref/unsur,Endpoint 9 unsur baku SKM (template PermenPANRB 14/2017),S0 - Fondasi,M0 - Fondasi,Complete,Normal,2026-07-21,2026-07-21,1,BE-1-2-3,,Backend
+BE-7,GitLab CI,Pipeline .gitlab-ci.yml (lint/build/test),S0 - Fondasi,M0 - Fondasi,Complete,Normal,2026-07-21,2026-07-21,1,S0,,Backend
+AUTH-SEAM,Seam Auth + RolesGuard,"StubAuthProvider, RolesGuard global, dekorator Roles/Public/CurrentUser",S0 - Fondasi,M0 - Fondasi,Complete,High,2026-07-20,2026-07-22,2,S0,,Backend
+OPD-1-2,OPD read-only (GET list + detail) + seam OpdSource,"GET /opd, GET /opd/:id, interface OpdSource + StubOpdSource",S0 - Fondasi,M0 - Fondasi,Complete,High,2026-07-22,2026-07-22,1,AUTH-SEAM,,Backend
+OPD-3,POST /opd/sync,"Upsert OPD dari OpdSource by external_id, set synced_at, nonaktifkan (bukan hapus) yang berrelasi",S1 - Master Data,M1 - Master Data,To Do,High,2026-07-23,2026-07-24,2,OPD-1-2,,Backend
+REF-2,GET /ref/complaint-categories,Daftar kategori pengaduan (referensi),S1 - Master Data,M1 - Master Data,To Do,Normal,2026-07-27,2026-07-27,1,AUTH-SEAM,,Backend
+USR-1,Modul Users (provisioning admin),"GET /users, POST /users, GET /users/:id, PATCH /users/:id, PATCH /users/:id/status. Buat/nonaktif akun Admin OPD, mapping role+OPD",S1 - Master Data,M1 - Master Data,To Do,High,2026-07-28,2026-07-30,3,AUTH-SEAM,,Backend
+SVY-1,Surveys CRUD + lifecycle,"POST/GET list (filter peran/OPD)/GET :id/PATCH/DELETE draft/PATCH status (draft to aktif to ditutup). Data-isolation OPD",S2 - Survei,M2 - Survei,To Do,High,2026-08-06,2026-08-11,4,USR-1,,Backend
+QST-1,Questions CRUD + reorder,"GET/POST questions, PATCH/DELETE :id, PATCH reorder. Tipe skala + teks (MVP)",S2 - Survei,M2 - Survei,To Do,High,2026-08-12,2026-08-14,3,SVY-1,,Backend
+QST-2,Terapkan template 9 unsur,POST /surveys/:id/questions/template - generate 9 pertanyaan unsur baku IKM,S2 - Survei,M2 - Survei,To Do,High,2026-08-17,2026-08-18,2,QST-1,,Backend
+SVY-2,Duplicate survei,POST /surveys/:id/duplicate - salin paket survei periode sebelumnya beserta pertanyaan,S2 - Survei,M2 - Survei,To Do,Normal,2026-08-19,2026-08-20,2,QST-1,,Backend
+FILL-1,Survei aktif + ambil kuesioner,"GET /surveys/active (responden), GET /surveys/:id/fill (struktur kuesioner untuk diisi)",S3 - Pengisian,M3 - Pengisian,To Do,High,2026-08-21,2026-08-24,2,QST-2,,Backend
+RESP-1,Submit jawaban survei,"POST /surveys/:id/responses. Validasi, persist answers, anti-duplikat unique index (survey_id,user_id) to 409 saat allow_multiple_submit=false",S3 - Pengisian,M3 - Pengisian,To Do,High,2026-08-25,2026-08-27,3,FILL-1,,Backend
+RESP-2,List respons masuk,GET /surveys/:id/responses untuk Admin OPD,S3 - Pengisian,M3 - Pengisian,To Do,Normal,2026-08-28,2026-08-28,1,RESP-1,,Backend
+IKM-1,IkmService (rumus tunggal),"Perhitungan NRR per unsur, bobot 1/9, nilai IKM x25, mutu A/B/C/D (PermenPANRB 14/2017). Satu sumber rumus",S4 - IKM,M4 - IKM (MVP),To Do,Urgent,2026-08-31,2026-09-02,3,RESP-1,,Backend
+IKM-2,Hasil survei + snapshot,GET /surveys/:id/results (live-compute + snapshot ke ikm_results saat survei ditutup),S4 - IKM,M4 - IKM (MVP),To Do,Urgent,2026-09-03,2026-09-04,2,IKM-1,,Backend
+CMP-1,Pengaduan core,"POST /complaints (generate ticketNo unik), GET /complaints (filter kepemilikan), GET /complaints/:ticketNo",S5 - Pengaduan,Fase 2 - Pengaduan,To Do,High,2026-09-07,2026-09-09,3,USR-1,,Backend
+CMP-2,Lampiran multi-file,Upload multipart/form-data ke tabel complaint_attachments (storage volume Docker),S5 - Pengaduan,Fase 2 - Pengaduan,To Do,Normal,2026-09-10,2026-09-11,2,CMP-1,,Backend
+CMP-3,Transisi status pengaduan,PATCH /complaints/:id/status (diproses/selesai/ditolak dengan alasan),S5 - Pengaduan,Fase 2 - Pengaduan,To Do,High,2026-09-14,2026-09-14,1,CMP-1,,Backend
+CMP-4,Replies pengaduan,"GET /complaints/:id/replies, POST /complaints/:id/replies (riwayat percakapan)",S5 - Pengaduan,Fase 2 - Pengaduan,To Do,Normal,2026-09-15,2026-09-16,2,CMP-1,,Backend
+DASH-1,Dashboard agregat kabupaten,GET /dashboard/ikm - agregat & perbandingan IKM seluruh OPD + filter periode/jenis layanan,S6 - Agregasi & Ekspor,Fase 2 - Agregasi,To Do,High,2026-09-17,2026-09-18,2,IKM-2,,Backend
+EXP-1,Export laporan,GET /surveys/:id/results/export (CSV to Excel to PDF),S6 - Agregasi & Ekspor,Fase 2 - Agregasi,To Do,Normal,2026-09-21,2026-09-23,3,IKM-2,,Backend
+AUD-1,Audit log,"Rekam aksi admin (siapa mengubah apa kapan), GET /audit-logs",S7 - Penyempurnaan,Fase 3 - Penyempurnaan,To Do,Normal,2026-09-24,2026-09-28,3,USR-1,,Backend
+QST-3,Pilihan ganda,"Implementasi tipe pilihan (question_options + selected_option_id + scoring). Skema sudah siap di DB",S7 - Penyempurnaan,Fase 3 - Penyempurnaan,To Do,Low,2026-09-29,2026-10-01,3,QST-1,,Backend
+NOTIF-1,Notifikasi email/in-app,Notifikasi ke responden saat status pengaduan berubah (FR-CMP-06),S7 - Penyempurnaan,Fase 3 - Penyempurnaan,To Do,Normal,2026-10-02,2026-10-06,3,CMP-3,,Backend
+PERF-1,Hardening & security review,"Optimasi performa dashboard (<3s), rate limiting login, OWASP, review keamanan",S7 - Penyempurnaan,Fase 3 - Penyempurnaan,To Do,High,2026-10-07,2026-10-09,3,IKM-2,,Backend
+SSO-1,SsoAuthProvider (OIDC nyata),"Ganti StubAuthProvider: OIDC callback, JIT provisioning, JWKS, sesi lokal httpOnly. MENUNGGU SPEC SSO HELPDESK",S8 - Integrasi Eksternal,Fase 3 - Integrasi,Blocked,High,2026-10-12,2026-10-15,4,AUTH-SEAM,Spec SSO Helpdesk,Backend
+OPD-4,HelpdeskOpdClient (sync nyata),"Ganti StubOpdSource dengan klien HTTP API OPD Helpdesk. MENUNGGU API OPD HELPDESK",S8 - Integrasi Eksternal,Fase 3 - Integrasi,Blocked,High,2026-10-16,2026-10-19,2,OPD-3,API OPD Helpdesk,Backend

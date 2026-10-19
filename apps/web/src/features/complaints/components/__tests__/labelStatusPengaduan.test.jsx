@@ -44,3 +44,23 @@ describe('Label status pengaduan', () => {
     expect(screen.queryByText('Diterima')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * EJAANNYA "Status Progres", bukan "Status Progress" (permintaan pengguna
+ * 22 September 2026). Serapan Indonesia untuk *progress* adalah "progres"
+ * dengan satu s, dan SurveyProgress.jsx sudah menulisnya begitu sejak awal --
+ * dua ejaan berbeda untuk hal yang sama di satu aplikasi.
+ */
+describe('ComplaintProgressStepper — ejaan kepala kartu', () => {
+  it('berbunyi "Status Progres"', () => {
+    render(<ComplaintProgressStepper currentStatus="diterima" />);
+
+    expect(screen.getByText('Status Progres')).toBeInTheDocument();
+  });
+
+  it('tidak lagi memakai ejaan lama "Status Progress"', () => {
+    render(<ComplaintProgressStepper currentStatus="diterima" />);
+
+    expect(screen.queryByText('Status Progress')).not.toBeInTheDocument();
+  });
+});

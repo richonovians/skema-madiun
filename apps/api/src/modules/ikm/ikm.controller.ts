@@ -1,5 +1,5 @@
 import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,7 +18,7 @@ export class IkmController {
 
   /** Hasil IKM survei: NRR per unsur + nilai IKM + mutu (Admin OPD pemilik & Kabupaten). */
   @Get('surveys/:surveyId/results')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: IkmResultEntity })
   getResults(
     @Param('surveyId', ParseIntPipe) surveyId: number,
@@ -33,7 +33,11 @@ export class IkmController {
    * tidak masuk akal untuk file unduhan).
    */
   @Get('surveys/:surveyId/results/export')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @ApiOperation({
+    summary:
+      'Ekspor laporan hasil IKM sebagai CSV, Excel, atau PDF. Membalas berkas, bukan envelope JSON.',
+  })
+  @Roles(Role.kabupaten, Role.opd)
   @ApiProduces(
     'text/csv',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -55,7 +59,7 @@ export class IkmController {
 
   /** Agregat & perbandingan IKM seluruh OPD (Admin Kabupaten), filter periode/jenis layanan. */
   @Get('dashboard/ikm')
-  @Roles(Role.kabupaten, Role.superuser)
+  @Roles(Role.kabupaten)
   @ApiOkResponse({ type: IkmDashboardEntity })
   getDashboard(@Query() query: DashboardIkmQueryDto): Promise<IkmDashboardEntity> {
     return this.ikmService.getDashboard(query);

@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { Bell, BellOff, Check, Loader2 } from 'lucide-react';
 import { useAsync } from '@/hooks/useAsync';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
+import useSegarkanBerkala from '@/hooks/useSegarkanBerkala';
 import {
+  NOTIFIKASI_BERUBAH_EVENT,
   getNotifications,
   getUnreadNotificationCount,
   markNotificationRead,
@@ -13,6 +15,22 @@ import {
 } from '@/features/notifications/services/notifications.api';
 
 const LIST_LIMIT = 10;
+
+/**
+ * Jeda penyegaran latar (16 September 2026, pertanyaan pengguna: lencananya tak
+ * ikut berubah saat ada notifikasi baru).
+ *
+ * Satu menit, dan angkanya kompromi yang disengaja. Notifikasi di sini bukan
+ * percakapan langsung: isinya perubahan status pengaduan dan survei baru, yang
+ * terlambat satu menit tak mengubah apa pun bagi penerimanya. Lebih rapat
+ * berarti setiap pengguna yang membiarkan tabnya terbuka membebani API tanpa
+ * ada yang benar-benar menunggu, sementara lebih renggang membuat lencananya
+ * terasa mati lagi.
+ *
+ * Diekspor supaya ujinya memajukan waktu dengan angka yang sama persis, bukan
+ * angka yang disalin dan diam-diam berbeda saat nilai ini diubah.
+ */
+export const JEDA_SEGARKAN_MS = 60_000;
 
 /**
  * D9 (2026-08-05, in-app saja): SEBELUMNYA murni shell UI -- panel selalu
@@ -53,6 +71,51 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
   }, []);
   const { data, isLoading, refetch } = useAsync(fetchData);
 
+  /**
+   * Penyegaran latar tiap satu menit, tidur selagi tab tersembunyi, dan ikut
+   * menyegarkan saat jendelanya mendapat fokus. Tanpa ini lonceng hanya
+   * mengambil data sekali per pemasangan, dan karena ia hidup di navbar milik
+   * layout, berpindah halaman pun tak memasangnya ulang.
+   *
+   * Ketukan DILEWATI bila permintaan sebelumnya masih berjalan: `useAsync` tak
+   * punya penjaga permintaan ganda, dan pada jaringan lambat ketukan berikutnya
+   * akan menumpuk permintaan yang jawabannya bisa datang tak berurutan.
+   */
+  const sedangMemuat = useRef(isLoading);
+  useEffect(() => {
+    sedangMemuat.current = isLoading;
+  }, [isLoading]);
+
+  const segarkanLatar = useCallback(() => {
+    if (sedangMemuat.current) return;
+    refetch();
+  }, [refetch]);
+
+  useSegarkanBerkala(segarkanLatar, JEDA_SEGARKAN_MS);
+
+  /**
+   * Membuka panel ikut mengambil data (17 September 2026, laporan pengguna:
+   * notifikasi baru terlihat lebih dulu di halaman riwayat daripada di lonceng).
+   *
+   * Sebabnya tombol ini dulu hanya membuka panel, sehingga isinya potret dari
+   * penyegaran terakhir. Halaman riwayat sebaliknya komponen rute: ia dipasang
+   * ulang tiap kali dibuka, jadi membukanya dengan sendirinya sudah merupakan
+   * permintaan baru. Gerakan yang paling jelas berarti "saya ingin memeriksa
+   * notifikasi" justru satu-satunya yang tak pernah meminta apa pun.
+   *
+   * Hanya saat MEMBUKA -- menutup panel tak perlu meminta data yang takkan
+   * dilihat siapa pun, dan tanpa syarat ini satu ketukan tombol menembak dua
+   * kali. Jeda minimum milik `focus` sengaja tidak berlaku di sini: jeda itu
+   * menjinakkan peristiwa pasif yang terjadi tanpa seorang pun memintanya,
+   * sedangkan ini gerakan yang disengaja. Penumpukan permintaan tetap dijaga
+   * `segarkanLatar`, yang melewati ketukan selagi permintaan sebelumnya
+   * berjalan.
+   */
+  const bukaTutupPanel = () => {
+    if (!isOpen) segarkanLatar();
+    setIsOpen(!isOpen);
+  };
+
   // TIDAK memakai useBodyScrollLock (2026-08-24, permintaan user: "ketika panel
   // notif muncul masih tetap bisa di scroll backgroundnya"). Kunci gulir halaman
   // memang keliru di sini: ini dropdown, bukan dialog -- ia tak menutupi halaman
@@ -72,6 +135,19 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  /**
+   * Lonceng ini hidup di layout, jadi ia TETAP terpasang saat pengguna membuka
+   * halaman riwayat notifikasi dan menandai semuanya terbaca di sana. `useAsync`
+   * hanya mengambil data sekali per pemasangan, sehingga tanpa langganan ini ia
+   * memegang hitungan yang diambil sebelum tombol itu ditekan -- dan terus
+   * memperlihatkannya sampai halaman dimuat ulang (laporan pengguna 15
+   * September 2026).
+   */
+  useEffect(() => {
+    window.addEventListener(NOTIFIKASI_BERUBAH_EVENT, refetch);
+    return () => window.removeEventListener(NOTIFIKASI_BERUBAH_EVENT, refetch);
+  }, [refetch]);
 
   const handleItemClick = async (notification) => {
     setIsOpen(false);
@@ -109,7 +185,7 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
           tak melihatnya bisa mengetahuinya. */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={bukaTutupPanel}
         aria-label={hasIndicator ? `Notifikasi, ${unreadCount} belum dibaca` : 'Notifikasi'}
         aria-expanded={isOpen}
         className={`p-2 hover:bg-surface-container-low rounded-full transition-all flex items-center justify-center min-w-[44px] min-h-[44px] relative ${isOpen ? 'bg-surface-container-low text-primary' : 'text-outline'}`}
@@ -153,7 +229,12 @@ export default function NotificationDropdown({ className = '', allHref = '/notif
               )}
             </div>
 
-            {isLoading ? (
+            {/* `&& !data`: spinner hanya untuk pemuatan PERTAMA. `useAsync`
+                menyalakan `isLoading` pada setiap panggilan, termasuk
+                penyegaran latar tiap satu menit -- tanpa syarat ini panel yang
+                sedang dibuka berkedip jadi spinner secara berkala, dan daftar
+                yang sedang dibaca orang lenyap sekejap tanpa sebab. */}
+            {isLoading && !data ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 size={20} className="animate-spin text-slate-300" />
               </div>

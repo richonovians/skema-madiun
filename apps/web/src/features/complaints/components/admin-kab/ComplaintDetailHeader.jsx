@@ -57,8 +57,13 @@ export default function ComplaintDetailHeader({ complaint, chatHistory = [] }) {
         </Link>
 
         <div className="relative group space-y-1" ref={exportRef}>
-          <button 
+          {/* Nama yang dapat diakses: lihat catatan di SurveyFilterBar. */}
+          <button
             onClick={() => setIsExportOpen(!isExportOpen)}
+            aria-label="Ekspor"
+            title="Ekspor"
+            aria-haspopup="menu"
+            aria-expanded={isExportOpen}
             className="flex items-center justify-between gap-1 sm:gap-3 min-h-[44px] px-md rounded-lg font-medium text-xs sm:text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm"
           >
             <div className="flex items-center gap-2">
@@ -116,9 +121,14 @@ export default function ComplaintDetailHeader({ complaint, chatHistory = [] }) {
                 {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
               </Badge>
             </div>
-            <h1 className="text-headline-sm font-bold text-slate-900 leading-tight">
-              {complaint.title}
-            </h1>
+            {/* JUDULNYA DIBUANG dari sini (22 September 2026, permintaan
+                pengguna). Ia tidak hilang dari halaman: turun ke kartu "Isi
+                Pengaduan" dengan label "Judul Pengaduan" di sebelahnya, tempat
+                ia berpasangan dengan uraian yang menjelaskannya. Di kepala ini
+                ia hanya mengulang apa yang terbaca beberapa sentimeter di
+                bawahnya. Nomor tiket dan lencana status tetap: dua hal yang
+                dicari orang saat menyalin nomor aduan atau memastikan tiketnya
+                masih berjalan. */}
           </div>
         </div>
       </div>

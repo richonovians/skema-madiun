@@ -17,19 +17,21 @@ import {
  * Role yang dapat DIBERIKAN lewat Manajemen User.
  *
  * `superuser` disertakan 2026-08-20 supaya akun superuser bisa dibuat/diubah
- * lewat manajemen pengguna, bukan cuma lewat seed.
+ * lewat manajemen pengguna, bukan cuma lewat seed. Ia DIBUANG dari daftar ini
+ * bersama perannya pada 15 September 2026.
  *
  * `responden` disertakan 5 September 2026 atas permintaan pengguna ("semua
  * user role bisa memakai dan memilih lebih dari 1 role"). Namanya berubah dari
  * `ADMIN_ROLES` karena `responden` bukan role admin -- daftar ini sekarang
  * berisi SELURUH role yang ada.
  *
- * `superuser` ADA di sini tapi TETAP tak dapat dipetakan dari klaim SSO (lihat
- * MAPPABLE_ROLES di sso-role.mapper.ts). Bedanya menentukan: di sini yang
- * memberi adalah manusia yang sudah superuser, di sana sistem di luar kendali
- * kita.
+ * Daftar ini BERBEDA dari `MAPPABLE_ROLES` di sso-role.mapper.ts, dan bedanya
+ * menentukan: di sini yang memberi peran adalah manusia yang sudah Admin
+ * Kabupaten, di sana sistem di luar kendali kita. Baris ini sempat berbunyi
+ * "`superuser` ADA di sini tapi TETAP tak dapat dipetakan" -- ia tidak ada di
+ * sini, dan sejak 15 September 2026 perannya pun tak ada.
  */
-export const ASSIGNABLE_ROLES: Role[] = [Role.superuser, Role.kabupaten, Role.opd, Role.responden];
+export const ASSIGNABLE_ROLES: Role[] = [Role.kabupaten, Role.opd, Role.responden];
 
 export class CreateUserDto {
   @ApiProperty({ maxLength: 50 })

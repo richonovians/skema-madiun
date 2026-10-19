@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import InsightCard from './InsightCard';
 import TopOpdRanking from './TopOpdRanking';
 import BarChart from './charts/BarChart';
+import EfektivitasPengaduan from './EfektivitasPengaduan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
@@ -22,16 +22,11 @@ export default function StatisticsDashboard() {
     return <ErrorState title="Gagal memuat statistik" description={error.message} onRetry={refetch} />;
   }
 
-  const { insight, complaintCategories, topOpd } = data;
+  const { complaintCategories, summary, topOpd } = data;
 
   return (
     <div className="bg-background py-8 sm:py-12 px-4 sm:px-6">
       <div className="max-w-[1280px] mx-auto flex flex-col gap-8">
-        {/* Insight Section */}
-        <section>
-          <InsightCard text={insight.text} />
-        </section>
-
         {/* Visualisasi Pengaduan & Top OPD */}
         <section className="mt-4">
           <div className="mb-6 border-b border-border pb-2">
@@ -39,11 +34,23 @@ export default function StatisticsDashboard() {
             <p className="text-text-secondary">Analisis kategori pengaduan terbanyak dan peringkat OPD dalam penanganan laporan.</p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 items-start gap-6">
             {/* Kategori Terbanyak */}
+            {/* Kategori DAN efektivitas penyelesaian, satu kartu. Kartu kanan
+                menggambar empat kartu OPD berpadding tebal sementara kategori
+                pengaduan hanya tiga baris tipis; pada grid yang meregang
+                setinggi baris, bagian bawah kartu ini kosong. Yang mengisinya
+                bukan pengganjal -- `summary` ikut dalam permintaan yang sama
+                dan halaman ini belum pernah memakainya sama sekali.
+
+                Semula sebaran status per-kasus; diganti pada hari yang sama
+                (7 Oktober 2026) atas keputusan pemilik produk. Lihat docblock
+                EfektivitasPengaduan.jsx untuk alasannya. */}
             <div className="w-full">
               {complaintCategories.length > 0 ? (
-                <BarChart title="Top Kategori Pengaduan" data={complaintCategories} />
+                <BarChart title="Top Kategori Pengaduan" data={complaintCategories}>
+                  <EfektivitasPengaduan summary={summary} />
+                </BarChart>
               ) : (
                 <div className="bg-white rounded-2xl p-6 border border-border shadow-sm text-sm text-text-secondary">
                   Belum ada data pengaduan.

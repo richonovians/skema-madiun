@@ -26,6 +26,10 @@ import {
   Prisma,
   Role,
 } from '@prisma/client';
+import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
+import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
+import { samarkanNik } from '../../common/identitas/nik';
+import { kunciData } from '../../common/crypto/kunci';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -71,8 +75,13 @@ type ComplaintWithAttachments = Complaint & {
     sizeBytes: number | null;
     createdAt: Date;
   }[];
-  /** Hanya terisi bila query di-`include` (lihat findAll, INT-11). */
-  user?: { nama: string };
+  /**
+   * Hanya terisi bila query di-`include`. `findAll` memilih `nama` saja;
+   * `findByTicketNo` memilih ketiga kolom identitas juga (1 Oktober 2026),
+   * sehingga ketiganya OPSIONAL di sini -- bukan kelalaian melainkan
+   * pernyataan bahwa daftar memang tak menariknya.
+   */
+  user?: { nama: string; nik?: string | null; nomorHp?: string | null; alamat?: string | null };
   /**
    * Hanya terisi bila query di-`include` (lihat findByTicketNo, INT-18).
    * `null` bila pengaduannya belum bertujuan (6 September 2026) -- relasinya
@@ -91,6 +100,13 @@ export class ComplaintsService {
   private readonly urlSecret: string;
   private readonly urlTtl: number;
   private readonly batasHarianPengaduan: number;
+  /**
+   * Kunci induk enkripsi at-rest (23 September 2026). Diambil sekali di
+   * konstruktor dengan alasan yang sama seperti `urlSecret` di atas, dan dengan
+   * satu alasan tambahan: bila kuncinya belum disetel, `kunciData` melempar
+   * SAAT MODUL DIBANGUN, bukan saat warga pertama menekan tombol kirim.
+   */
+  private readonly kunci: Buffer;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,6 +124,7 @@ export class ComplaintsService {
     this.urlTtl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
     this.batasHarianPengaduan =
       config.get<number>('complaint.batasHarian') ?? BATAS_HARIAN_PENGADUAN_BAKU;
+    this.kunci = kunciData(config);
   }
 
   /**
@@ -124,10 +141,10 @@ export class ComplaintsService {
    * (403 dari penjaga), bukan lampiran yang bocor -- gagal ke arah aman, dan
    * terlihat seketika.
    */
-  private tandaTanganiLampiran<T extends { fileUrl: string }>(rows: T[]): T[] {
+  private tandaTanganiLampiran<T extends { fileUrl: string }>(rows: T[], sub: number): T[] {
     return rows.map((a) => ({
       ...a,
-      fileUrl: signAttachmentPath(a.fileUrl, this.urlSecret, this.urlTtl),
+      fileUrl: signAttachmentPath(a.fileUrl, this.urlSecret, this.urlTtl, sub),
     }));
   }
 
@@ -138,7 +155,7 @@ export class ComplaintsService {
     user: CurrentUser,
   ): Promise<ComplaintEntity> {
     // PALING AWAL, sebelum validasi & sebelum lampiran ditulis ke disk (celah 2,
-    // 2026-08-27): menulis berkas lalu menolak akan meninggalkan lampiran yatim
+    // 2026-08-27): menulis berkas lalu menolak akan meninggalkan lampiran tanpa induk
     // untuk pengaduan yang tak pernah ada.
     await this.consent.assertConsented(user);
 
@@ -158,7 +175,7 @@ export class ComplaintsService {
     try {
       complaint = await this.insertWithUniqueTicket(dto, user.userId, saved);
     } catch (err) {
-      // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort).
+      // DB gagal setelah file tersimpan → bersihkan file tanpa induk (best-effort).
       await this.cleanupFiles(saved);
       throw err;
     }
@@ -168,7 +185,7 @@ export class ComplaintsService {
     // ter-commit ikut terhapus (cleanupFiles), padahal pengaduannya sendiri
     // berhasil dibuat -- caller salah dikira gagal total.
     await this.notificationsService.notifyComplaintCreated(complaint);
-    return this.toEntity(complaint);
+    return this.toEntity(complaint, user.userId);
   }
 
   /**
@@ -216,7 +233,7 @@ export class ComplaintsService {
     ]);
 
     return paginate(
-      rows.map((row) => this.toEntity(row)),
+      rows.map((row) => this.toEntity(row, user.userId)),
       total,
       page,
       limit,
@@ -236,7 +253,9 @@ export class ComplaintsService {
       where: { ticketNo },
       include: {
         attachments: true,
-        user: { select: { nama: true } },
+        // Ketiga kolom identitas IKUT DI SINI SAJA, tidak di findAll. Lihat
+        // ComplaintEntity.reporterNik untuk sebabnya.
+        user: { select: { nama: true, nik: true, nomorHp: true, alamat: true } },
         opd: { select: { nama: true } },
       },
     });
@@ -244,7 +263,7 @@ export class ComplaintsService {
       throw new NotFoundException(`Pengaduan dengan nomor tiket ${ticketNo} tidak ditemukan`);
     }
     this.assertAccess(user, complaint);
-    return this.toEntity(complaint);
+    return this.toEntity(complaint, user.userId);
   }
 
   /** Ubah status pengaduan (Admin OPD pemilik). Ditolak WAJIB disertai catatan/alasan. */
@@ -287,7 +306,10 @@ export class ComplaintsService {
               data: {
                 complaintId: id,
                 authorId: user.userId,
-                pesan: dto.catatan,
+                // Catatan penolakan adalah teks bebas petugas tentang kasus
+                // seorang warga; ia disimpan di kolom yang sama dengan pesan
+                // percakapan, jadi ia diperlakukan sama.
+                pesan: enkripsiKolom(dto.catatan, this.kunci),
                 dariPelapor: false,
               },
             }),
@@ -295,7 +317,7 @@ export class ComplaintsService {
         : []),
     ]);
     await this.notificationsService.notifyComplaintStatusChanged(updated, user.userId);
-    return this.toEntity(updated as ComplaintWithAttachments);
+    return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }
 
   /** Riwayat tanggapan pada satu tiket. */
@@ -308,7 +330,7 @@ export class ComplaintsService {
       include: { attachments: true },
       orderBy: { createdAt: 'asc' },
     });
-    return rows.map((row) => this.toReplyEntity(row, complaint));
+    return rows.map((row) => this.toReplyEntity(row, complaint, user.userId));
   }
 
   /**
@@ -347,7 +369,7 @@ export class ComplaintsService {
         data: {
           complaintId,
           authorId: user.userId,
-          pesan: dto.pesan ?? '',
+          pesan: enkripsiKolom(dto.pesan ?? '', this.kunci),
           // Peran yang SEDANG DIPAKAI, bukan perbandingan id. Satu akun lazim
           // memegang beberapa peran sekaligus, sehingga akun pelapor yang
           // menangani pengaduannya sendiri memiliki `userId` yang sama persis
@@ -365,10 +387,12 @@ export class ComplaintsService {
         },
         include: { attachments: true },
       });
-      await this.notificationsService.notifyComplaintReply(complaint, user.userId);
-      return this.toReplyEntity(created, complaint);
+      // `user` utuh, bukan `user.userId`: arah balasan ditentukan peran yang
+      // sedang dipakai -- alasan yang sama persis dengan `dariPelapor` di atas.
+      await this.notificationsService.notifyComplaintReply(complaint, user);
+      return this.toReplyEntity(created, complaint, user.userId);
     } catch (err) {
-      // DB gagal setelah file tersimpan → bersihkan file yatim (best-effort, pola sama create()).
+      // DB gagal setelah file tersimpan → bersihkan file tanpa induk (best-effort, pola sama create()).
       await this.cleanupFiles(saved);
       throw err;
     }
@@ -391,7 +415,7 @@ export class ComplaintsService {
     throw new ForbiddenException('Peran tidak memiliki akses ke pengaduan');
   }
 
-  /** Akses per-record: kabupaten & superuser semua; OPD hanya OPD-nya; Responden hanya miliknya. */
+  /** Akses per-record: peran berakses penuh semua; OPD hanya OPD-nya; Responden hanya miliknya. */
   private assertAccess(
     user: CurrentUser,
     complaint: { userId: number; opdId: number | null },
@@ -422,7 +446,7 @@ export class ComplaintsService {
    * OPD yang berwenang (permintaan pengguna 6 September 2026).
    *
    * HAK DITEGAKKAN DUA LAPIS sejak T6 (7 September 2026):
-   * `@Roles(Role.kabupaten, Role.superuser)` di controller menolak lebih dahulu,
+   * `@Roles(Role.kabupaten)` di controller menolak lebih dahulu,
    * dan pemeriksaan di bawah tetap ada sebagai lapis kedua. Dulu hanya ada lapis
    * ini, karena bypass menyeluruh membuat dekorator apa pun tak berlaku bagi
    * kedua peran itu.
@@ -436,9 +460,7 @@ export class ComplaintsService {
     const complaint = await this.getByIdOrThrow(id);
 
     if (!hasFullAccess(user.actingRole)) {
-      throw new ForbiddenException(
-        'Hanya Superuser dan Admin Kabupaten yang dapat meneruskan pengaduan ke OPD',
-      );
+      throw new ForbiddenException('Hanya Admin Kabupaten yang dapat meneruskan pengaduan ke OPD');
     }
     if (complaint.opdId != null) {
       throw new BadRequestException(
@@ -469,8 +491,13 @@ export class ComplaintsService {
     // saat tiket itu benar-benar masuk. Tanpa ini ia tak akan pernah tahu ada
     // tanggung jawab baru -- persis keluhan 6 Agustus 2026 soal tiket baru.
     await this.notificationsService.notifyComplaintCreated(updated);
+    // DAN beri tahu PELAPOR bahwa pengaduan "Lainnya"-nya sudah mendarat di
+    // instansi yang berwenang (7 Oktober 2026). `complaint_created` di atas
+    // sengaja melewati pelapor; inilah satu-satunya kabar yang ia terima bahwa
+    // penerusannya terjadi.
+    await this.notificationsService.notifyComplaintForwarded(updated, opd.nama);
 
-    return this.toEntity(updated as ComplaintWithAttachments);
+    return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }
 
   /**
@@ -561,7 +588,7 @@ export class ComplaintsService {
             opdId: dto.opdId ?? null,
             kategori: dto.kategori,
             judul: dto.judul,
-            uraian: dto.uraian,
+            uraian: enkripsiKolom(dto.uraian, this.kunci),
             isAnonim: dto.isAnonim ?? false,
             attachments: { create: attachmentData },
           },
@@ -619,7 +646,16 @@ export class ComplaintsService {
       // pengirim memilih bagaimana berkasnya dieksekusi di peramban orang lain.
       const filename = `${randomUUID()}-${safeFilename(file.originalname, file.mimetype)}`;
       const absolutePath = path.join(dir, filename);
-      await fs.writeFile(absolutePath, file.buffer);
+      // TERENKRIPSI DI DISK (23 September 2026). Lampiran pengaduan adalah foto
+      // bukti: wajah, dokumen, kadang identitas. Sampai hari ini ia tersimpan
+      // apa adanya, sehingga siapa pun yang memperoleh berkas disknya membacanya
+      // langsung tanpa melewati satu pun pemeriksaan yang ditulis aplikasi ini.
+      //
+      // `sizeBytes` di bawah TETAP ukuran berkas ASLI, bukan ciphertext. Angka
+      // itulah yang ditampilkan kepada pengguna, dan 49 byte amplop bukan
+      // urusannya. Ukuran yang tersimpan juga tetap dapat dibandingkan dengan
+      // batas 5MB tanpa harus tahu soal enkripsi sama sekali.
+      await fs.writeFile(absolutePath, enkripsi(file.buffer, this.kunci, INFO_LAMPIRAN));
       saved.push({
         fileUrl: `/uploads/complaints/${filename}`,
         mimeType: file.mimetype,
@@ -636,7 +672,9 @@ export class ComplaintsService {
         try {
           await fs.unlink(file.absolutePath);
         } catch (err) {
-          this.logger.warn(`Gagal membersihkan file yatim ${file.absolutePath}: ${String(err)}`);
+          this.logger.warn(
+            `Gagal membersihkan file tanpa induk ${file.absolutePath}: ${String(err)}`,
+          );
         }
       }),
     );
@@ -652,17 +690,52 @@ export class ComplaintsService {
    * pengecualian berbasis peran di sini, janji anonim bergantung pada disiplin
    * pemakainya, bukan pada sistem.
    */
-  private toEntity(row: ComplaintWithAttachments): ComplaintEntity {
+  /**
+   * Dekripsi kolom yang boleh tak ada. TIGA KEADAAN DIBEDAKAN: `undefined`
+   * (kueri tak menariknya), `null` (Helpdesk tak mengirimnya), dan teks
+   * (ada isinya). Menyatukan dua yang pertama akan membuat daftar pengaduan
+   * tampak menyatakan bahwa seluruh pelapor tak punya NIK.
+   */
+  private dekripsiOpsional(nilai: string | null | undefined): string | null | undefined {
+    if (nilai === undefined || nilai === null) {
+      return nilai;
+    }
+    return dekripsiKolom(nilai, this.kunci);
+  }
+
+  private toEntity(row: ComplaintWithAttachments, sub: number): ComplaintEntity {
     const { user, opd, ...rest } = row;
     const entity = new ComplaintEntity({
       ...rest,
-      attachments: this.tandaTanganiLampiran(rest.attachments),
+      // DEKRIPSI DI SINI, di chokepoint yang komentar berkas ini sendiri sudah
+      // menyatakan dilewati SELURUH jalur baca (23 September 2026). Baris lama
+      // yang masih polos dikembalikan apa adanya oleh `dekripsiKolom`, jadi
+      // migrasi boleh bertahap dan sistem tak pernah harus berhenti.
+      uraian: dekripsiKolom(rest.uraian, this.kunci),
+      attachments: this.tandaTanganiLampiran(rest.attachments, sub),
       reporterNama: user?.nama,
+      // DIDEKRIPSI DI CHOKEPOINT YANG SAMA dengan `uraian` di atas. `undefined`
+      // dipertahankan sebagai `undefined` (daftar tak menariknya) sementara
+      // `null` dipertahankan sebagai `null` (Helpdesk memang tak mengirimnya) --
+      // tampilan membedakan keduanya untuk memutuskan menyembunyikan baris.
+      // DISAMARKAN DI SINI, di hulu. NIK ini milik PELAPOR, bukan milik
+      // petugas yang membukanya; nomor penuhnya tak punya alasan meninggalkan
+      // server. Ditaruh di chokepoint yang sama dengan dekripsi supaya ekspor
+      // PDF -- yang membaca medan ini juga -- ikut terlindungi tanpa pekerjaan
+      // tambahan. Lihat common/identitas/nik.ts.
+      reporterNik: samarkanNik(this.dekripsiOpsional(user?.nik)),
+      reporterNomorHp: this.dekripsiOpsional(user?.nomorHp),
+      reporterAlamat: this.dekripsiOpsional(user?.alamat),
       opdNama: opd?.nama,
     });
     if (row.isAnonim) {
       delete entity.userId;
       delete entity.reporterNama;
+      // Janji anonim berlaku untuk SELURUH identitas, bukan namanya saja.
+      // Ketiga medan ini justru yang paling menunjuk satu orang.
+      delete entity.reporterNik;
+      delete entity.reporterNomorHp;
+      delete entity.reporterAlamat;
     }
     return entity;
   }
@@ -675,14 +748,21 @@ export class ComplaintsService {
   private toReplyEntity(
     row: ComplaintReply & { attachments: ComplaintAttachment[] },
     complaint: { userId: number; isAnonim: boolean },
+    sub: number,
   ): ComplaintReplyEntity {
     const entity = new ComplaintReplyEntity({
       ...row,
+      // Sepasang dengan enkripsi di ketiga jalur tulis. Pembaca yang kelak
+      // melewati chokepoint ini akan menampilkan `enc:v1:...` kepada pengguna --
+      // kegagalan yang TERLIHAT, bukan senyap, dan itulah sebabnya pendekatan
+      // tersurat ini dipilih alih-alih ekstensi Prisma yang mengenai semua
+      // bentuk kueri sekaligus dan gagal tanpa gejala.
+      pesan: dekripsiKolom(row.pesan, this.kunci),
       // Lampiran pada balasan chat menempuh jalur penyajian yang SAMA
       // (`/uploads/*`), jadi ia perlu tanda tangan yang sama. Tanpa ini gambar
       // di percakapan gagal dimuat 403 -- gejalanya berbeda dari kebocoran,
       // tapi tetap harus benar.
-      attachments: this.tandaTanganiLampiran(row.attachments),
+      attachments: this.tandaTanganiLampiran(row.attachments, sub),
     });
     if (complaint.isAnonim && row.authorId === complaint.userId) {
       delete entity.authorId;

@@ -46,7 +46,28 @@ export default () => ({
     url: process.env.DATABASE_URL,
   },
   swagger: {
-    enabled: (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
+    // GERBANG PRODUKSI, bukan sekadar bawaan (9 Oktober 2026).
+    //
+    // Sebelumnya bawaannya `'true'` dan `NODE_ENV` tak dilihat sama sekali,
+    // sehingga penggelaran yang lupa menyetel SATU variabel menyajikan Swagger
+    // UI di produksi. Itu gagal TERBUKA, satu-satunya di repo ini yang begitu;
+    // `periksaPenyimpanan` dan gerbang `TURNSTILE_SECRET_KEY` keduanya gagal
+    // tertutup.
+    //
+    // DI PRODUKSI VARIABELNYA DIABAIKAN, tanpa pintu darurat. `main.ts`
+    // menyatakan UI ini hanya untuk non-produksi, dan yang hidup di produksi
+    // adalah endpoint `/dokumentasi/openapi` yang dijaga `@Roles(kabupaten)`.
+    // Sebuah variabel yang DAPAT membuka UI publik di produksi adalah
+    // variabel yang kelak tersetel karena kelalaian, dan kelalaian itu tak
+    // bergejala -- aplikasinya jalan sempurna sambil menyiarkan seluruh peta
+    // endpoint-nya.
+    //
+    // HANYA `'true'` YANG LOLOS di non-produksi, pola yang sama dengan
+    // `periksaPenyimpanan`: nilai yang tak terbaca sebagai "ya" bukan
+    // pernyataan.
+    enabled:
+      (process.env.NODE_ENV ?? 'development') !== 'production' &&
+      (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
     path: 'api/docs',
   },
   cors: {
@@ -73,6 +94,43 @@ export default () => ({
       10,
     ),
   },
+  audit: {
+    // RETENSI LOG AUDIT (30 September 2026, permintaan pengguna). `null` =
+    // MATI, dan itu bakunya — lihat alasannya di env.validation.ts serta
+    // AuditRetensiService.
+    //
+    // BENTUK nilainya sudah dijaga env.validation.ts (bilangan bulat >= 1),
+    // jadi di sini cukup membedakan "ada" dari "tidak ada". Pembagian ini sama
+    // dengan yang dipakai `crypto.dataKey` di bawah: gerbang boot menjaga
+    // bentuk, pemakainya menjaga ada-tidaknya.
+    retentionDays: process.env.AUDIT_RETENTION_DAYS
+      ? parseInt(process.env.AUDIT_RETENTION_DAYS, 10)
+      : null,
+    // Sakelar untuk nilai retensi yang lebih pendek daripada batas aman.
+    // Memakainya adalah keputusan operasional yang tercatat di log, bukan
+    // kelonggaran yang diam-diam berlaku.
+    retentionAllowShort: process.env.AUDIT_RETENTION_ALLOW_SHORT === 'true',
+  },
+  survey: {
+    // PEMUSNAHAN OTOMATIS SURVEI DI SAMPAH (30 September 2026, permintaan
+    // pengguna: setahun). Beda tajam dari `audit.retentionDays` di atas yang
+    // baku MATI: yang ini baku MENYALA pada 365 hari, sebab yang diminta
+    // memang fitur yang berjalan sendiri tanpa harus disetel lebih dulu.
+    //
+    // BENTUK nilainya sudah dijaga env.validation.ts (bilangan bulat >= 1),
+    // jadi di sini cukup membedakan "ada" dari "tidak ada" lalu mengisi
+    // bakunya. Pembagian tugas yang sama dipakai blok audit di atas.
+    purgeDays: process.env.SURVEY_PURGE_DAYS ? parseInt(process.env.SURVEY_PURGE_DAYS, 10) : 365,
+    // Sakelar untuk umur Sampah yang lebih pendek daripada batas aman.
+    // Memakainya adalah keputusan operasional yang tercatat di log, bukan
+    // kelonggaran yang diam-diam berlaku.
+    purgeAllowShort: process.env.SURVEY_PURGE_ALLOW_SHORT === 'true',
+    // MENYALA kecuali dimatikan tersurat. Perhatikan bentuknya: `!== 'false'`,
+    // bukan `=== 'true'`. Dengan `=== 'true'` kebijakan ini akan MATI pada
+    // setiap server yang belum menyalin env barunya -- persis kebalikan dari
+    // yang diminta, dan kegagalannya sunyi.
+    purgeEnabled: process.env.SURVEY_PURGE_ENABLED !== 'false',
+  },
   upload: {
     // Path lokal (relatif ke cwd proses) — storage lokal via volume Docker dulu (keputusan
     // arsitektur), siap dipindah ke S3 nanti tanpa mengubah kontrak `fileUrl` di DB.
@@ -88,9 +146,42 @@ export default () => ({
     // yang menentukan seberapa lama kebocoran itu berguna.
     signedUrlTtlSeconds: parseInt(process.env.UPLOAD_SIGNED_URL_TTL_SECONDS ?? '3600', 10),
   },
+  crypto: {
+    // Kunci induk enkripsi at-rest (23 September 2026). Dibiarkan '' di sini,
+    // BUKAN dilempar: yang berhak melempar adalah `kunci.ts` saat kunci benar-
+    // benar dipakai. Melempar di berkas konfigurasi berarti seluruh aplikasi
+    // menolak boot walau bagian yang butuh kunci tak pernah disentuh, dan itu
+    // akan memaksa setiap uji serta setiap perkakas baris perintah menyetelnya.
+    //
+    // BENTUK nilainya sudah dijaga env.validation.ts; ADA-TIDAKNYA dijaga
+    // kunci.ts. Pembagian itu disengaja, alasannya ditulis di kedua berkas.
+    dataKey: process.env.DATA_ENCRYPTION_KEY ?? '',
+    backupKey: process.env.BACKUP_ENCRYPTION_KEY ?? '',
+  },
+  redis: {
+    /**
+     * Penyimpan daftar pencabutan sesi DAN penghitung batas laju (7 Oktober
+     * 2026). Satu URL memilih keduanya sekaligus.
+     *
+     * KOSONG BERARTI DALAM MEMORI, dan itu hanya sah untuk pengembangan: isinya
+     * hilang saat proses mati, dan dua proses API tak saling melihat sesi
+     * maupun kuota laju satu sama lain. Gerbang boot menolak menyala di
+     * produksi tanpa nilai ini.
+     */
+    url: process.env.REDIS_URL,
+  },
   session: {
     jwtSecret: process.env.SESSION_JWT_SECRET,
-    ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '24', 10),
+    // PAGU MUTLAK sesi, bukan lagi umur tetapnya (17 September 2026). Sesi
+    // berakhir paling lambat sekian jam sesudah login, berapa pun aktivitas
+    // pemiliknya. Bakunya 12 jam supaya satu sesi tak pernah melampaui satu
+    // hari kerja.
+    ttlHours: parseInt(process.env.SESSION_TTL_HOURS ?? '12', 10),
+    // Jendela menganggur: sesi yang tak dipakai selama sekian menit berakhir,
+    // dan pemakaian memperbaruinya. Inilah yang menjawab keluhan "sesi kemarin
+    // masih bisa dipakai hari ini" -- laptop yang ditinggal semalam kehilangan
+    // sesinya, sedangkan orang yang sedang bekerja tak pernah terputus.
+    idleMinutes: parseInt(process.env.SESSION_IDLE_MINUTES ?? '60', 10),
     // Domain cookie sesi (2026-08-27). KOSONG di dev dan itu benar: cookie
     // mengabaikan nomor port, jadi cookie milik host `localhost` yang disetel
     // API di :3001 sudah ikut terkirim ke frontend di :3000 dengan sendirinya.
@@ -132,6 +223,12 @@ export default () => ({
     // Helpdesk belum dikonfirmasi: begitu jawabannya datang, yang berubah cuma
     // satu baris env. Lihat sso-role.mapper.ts untuk aturan penguraiannya --
     // termasuk kenapa `superuser` tak pernah bisa dipetakan dari sini.
+    // Field klaim yang membawa nilai peran, dipisah koma, boleh bersarang
+    // (`identity.user_type`). KOSONG = `groups,role` seperti sebelumnya.
+    // Contoh payload userinfo Helpdesk (28 September 2026) menaruh penentu ASN
+    // vs masyarakat di `identity.user_type`, yang tak terjangkau kunci tingkat
+    // atas -- lihat sso-claim-path.ts.
+    ssoRoleClaim: process.env.HELPDESK_SSO_ROLE_CLAIM,
     ssoRoleMap: process.env.HELPDESK_SSO_ROLE_MAP,
 
     // Nama field klaim userinfo yang membawa OPD seorang ASN, dipisah koma

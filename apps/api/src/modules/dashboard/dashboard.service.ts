@@ -1,12 +1,16 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { ComplaintStatus, Role, SurveyStatus } from '@prisma/client';
+import {
+  PENYIMPAN_SINGGAHAN,
+  type PenyimpanSinggahan,
+} from '../../common/cache/penyimpan-singgahan.interface';
+import { SekaliJalan } from '../../common/cache/sekali-jalan';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
 import { periodeFromDate } from '../surveys/utils/periode.util';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
-import { UpdateInsightDto } from './dto/update-insight.dto';
 import {
   OpdDashboardEntity,
   PerformanceMetricEntity,
@@ -18,7 +22,6 @@ import {
   PeriodePointEntity,
   ServiceElementAggregateEntity,
   StatisticsEntity,
-  StatisticsInsightEntity,
   StatisticsSummaryEntity,
   TopOpdEntity,
   ValueDistributionEntity,
@@ -40,6 +43,18 @@ const TOP_OPD_LIMIT = 5;
 const SLA_TARGET_HOURS = 24;
 const RECENT_FEEDBACK_LIMIT = 5;
 
+/**
+ * Singgahan statistik publik (7 Oktober 2026). Satu kunci tetap: `getStatistics`
+ * tak berparameter, jadi jawabannya tunggal dan global -- tak ada risiko bocor
+ * lintas-OPD, tak ada variasi kunci.
+ *
+ * TTL 60 detik. Statistik publik ikut menghitung survei AKTIF secara live, jadi
+ * umur pendek menjaga angkanya mendekati kini sekaligus meredam lonjakan dari
+ * poster/QR. Bukan lewat env: ini knob operasional kecil, bukan kebijakan.
+ */
+const KUNCI_SINGGAHAN_STATISTIK = 'statistik-publik';
+const TTL_SINGGAHAN_STATISTIK_DETIK = 60;
+
 const round = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
@@ -50,13 +65,21 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ikmService: IkmService,
+    @Inject(PENYIMPAN_SINGGAHAN) private readonly singgahan: PenyimpanSinggahan,
   ) {}
+
+  /**
+   * Penahan stampede untuk `getStatistics`. Kuncinya tetap -- endpoint ini tak
+   * berparameter -- sehingga seluruh permintaan serentak ikut satu hitungan.
+   * Alasan dan batasnya ada satu tempat: docblock `SekaliJalan`.
+   */
+  private readonly sekaliJalan = new SekaliJalan();
 
   /**
    * `GET /dashboard/opd` (INT-12) -- ringkasan satu OPD.
    *
    * HANYA peran `opd`, dan hanya OPD yang tertaut di akunnya sendiri. Peran
-   * `superuser` & `kabupaten` DITOLAK -- lihat resolveDashboardOpdId().
+   * `kabupaten` DITOLAK -- lihat resolveDashboardOpdId().
    */
   async getOpdDashboard(user: CurrentUser): Promise<OpdDashboardEntity> {
     const opdId = this.resolveDashboardOpdId(user);
@@ -80,7 +103,12 @@ export class DashboardService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.surveyResponse.count({ where: { survey: { opdId } } }),
+      // `TIDAK_DIBUANG` di sini, dan di lima tempat lain pada berkas ini,
+      // adalah perbaikan BUG-013 (19 Oktober 2026). Survei yang masuk Sampah
+      // tetap ikut dihitung karena tak satu pun query ini menyaring
+      // `deletedAt`, sehingga angka yang DIPAMPANG kepada publik dan kepada
+      // Admin OPD tak bergeser sedikit pun ketika surveinya dibuang.
+      this.prisma.surveyResponse.count({ where: { survey: { opdId, ...TIDAK_DIBUANG } } }),
       this.prisma.complaint.count({
         where: { opdId, status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] } },
       }),
@@ -90,7 +118,10 @@ export class DashboardService {
       }),
       this.prisma.complaint.count({ where: { opdId } }),
       this.prisma.answer.findMany({
-        where: { question: { tipe: 'teks', survey: { opdId } }, teks: { not: null } },
+        where: {
+          question: { tipe: 'teks', survey: { opdId, ...TIDAK_DIBUANG } },
+          teks: { not: null },
+        },
         select: {
           id: true,
           teks: true,
@@ -110,7 +141,7 @@ export class DashboardService {
       // akal dan sepenuhnya salah.
       this.prisma.user.count({ where: { deletedAt: null, isActive: true, opdId } }),
       this.prisma.ikmResult.findMany({
-        where: { survey: { opdId } },
+        where: { survey: { opdId, ...TIDAK_DIBUANG } },
         select: { periode: true, nilaiIkm: true },
       }),
     ]);
@@ -191,7 +222,7 @@ export class DashboardService {
    * - `opd` → OPD akunnya sendiri. `requestedOpdId` DIABAIKAN, bukan divalidasi:
    *   dengan begitu tak ada jalan bagi akun OPD mengintip OPD lain lewat
    *   parameter, dan tak perlu pesan error yang membocorkan OPD mana yang ada.
-   * - SEMUA peran lain → DITOLAK, `superuser` termasuk.
+   * - SEMUA peran lain → DITOLAK, `kabupaten` termasuk.
    *
    * Cabang `superuser → OPD yang diminta` DIBUANG 6 September 2026 atas
    * permintaan pengguna: "ketika login sebagai admin OPD akan langsung redirect
@@ -215,7 +246,7 @@ export class DashboardService {
    * Ia TETAP sebagai lapis kedua, dan pesannyalah yang menuntun pengguna
    * berpindah peran (pola sama seperti AuditService & UsersService).
    *
-   * Yang TIDAK ikut ditutup: `superuser` & `kabupaten` tetap dapat MEMBACA data
+   * Yang TIDAK ikut ditutup: peran berakses penuh tetap dapat MEMBACA data
    * lintas OPD lewat monitoring survei, pengaduan, dan hasil IKM
    * (opdWhereFilter). Itu pengawasan, bukan "masuk sebagai Admin OPD";
    * menutupnya akan mengosongkan dashboard Admin Kabupaten.
@@ -243,10 +274,16 @@ export class DashboardService {
 
     const [thisMonthCount, lastMonthCount] = await Promise.all([
       this.prisma.surveyResponse.count({
-        where: { survey: { opdId }, submittedAt: { gte: startThisMonth } },
+        where: {
+          survey: { opdId, ...TIDAK_DIBUANG },
+          submittedAt: { gte: startThisMonth },
+        },
       }),
       this.prisma.surveyResponse.count({
-        where: { survey: { opdId }, submittedAt: { gte: startLastMonth, lt: startThisMonth } },
+        where: {
+          survey: { opdId, ...TIDAK_DIBUANG },
+          submittedAt: { gte: startLastMonth, lt: startThisMonth },
+        },
       }),
     ]);
 
@@ -257,7 +294,28 @@ export class DashboardService {
   }
 
   /** `GET /statistics` (INT-14, D2: PUBLIK tanpa autentikasi). */
+  /**
+   * `GET /statistics` (INT-14, publik) -- dibungkus singgahan read-through.
+   *
+   * Pada meleset, hitung dari basis data lalu simpan; pada kena, bungkus ulang
+   * ke `StatisticsEntity` agar ClassSerializerInterceptor melihat bentuk yang
+   * sama dengan hitungan segar (aman: entity statistik tanpa `@Exclude`).
+   * Singgahan gagal-terbuka, jadi Redis yang mati hanya membuatnya selalu
+   * meleset -- lambat, tak pernah salah.
+   */
   async getStatistics(): Promise<StatisticsEntity> {
+    return this.sekaliJalan.jalankan(KUNCI_SINGGAHAN_STATISTIK, async () => {
+      const tersimpan = await this.singgahan.ambil<StatisticsEntity>(KUNCI_SINGGAHAN_STATISTIK);
+      if (tersimpan) {
+        return new StatisticsEntity(tersimpan);
+      }
+      const hasil = await this.hitungStatistik();
+      await this.singgahan.simpan(KUNCI_SINGGAHAN_STATISTIK, hasil, TTL_SINGGAHAN_STATISTIK_DETIK);
+      return hasil;
+    });
+  }
+
+  private async hitungStatistik(): Promise<StatisticsEntity> {
     const [
       closedIkmRows,
       totalRespondents,
@@ -268,10 +326,15 @@ export class DashboardService {
       complaintStatusRows,
       complaintCategoryRows,
       scaleAnswerRows,
-      insightRow,
       activeSurveys,
     ] = await Promise.all([
       this.prisma.ikmResult.findMany({
+        // Satu query ini memberi EMPAT keluaran sekaligus -- `summary.ikm`,
+        // `ikmTrend`, `serviceElements`, dan `topOpd` -- jadi satu penyaring
+        // yang hilang di sini salah di empat tempat yang terlihat berbeda.
+        // Itulah satu-satunya sebab yang disebut laporan BUG-013; enam
+        // lainnya ditemukan saat memperbaikinya.
+        where: { survey: TIDAK_DIBUANG },
         select: {
           nilaiIkm: true,
           periode: true,
@@ -281,7 +344,7 @@ export class DashboardService {
           survey: { select: { opdId: true, status: true, opd: { select: { nama: true } } } },
         },
       }),
-      this.prisma.surveyResponse.count(),
+      this.prisma.surveyResponse.count({ where: { survey: TIDAK_DIBUANG } }),
       this.prisma.complaint.count(),
       // Satu query dipakai utk DUA turunan (resolvedComplaints via filter status di
       // bawah, DAN bucket tren per triwulan) -- hindari 2x full-table scan Complaint.
@@ -294,10 +357,11 @@ export class DashboardService {
       this.prisma.complaint.groupBy({ by: ['kategori'], _count: { _all: true } }),
       this.prisma.answer.groupBy({
         by: ['nilai'],
-        where: { nilai: { not: null } },
+        // Jalurnya dua lapis di sini: `answer` tak mengenal survei langsung,
+        // ia menggapainya lewat `response`.
+        where: { nilai: { not: null }, response: { survey: TIDAK_DIBUANG } },
         _count: { _all: true },
       }),
-      this.prisma.statisticsInsight.findUnique({ where: { id: 1 } }),
       this.prisma.survey.findMany({
         where: { status: SurveyStatus.aktif },
         include: { opd: { select: { nama: true } } },
@@ -309,20 +373,26 @@ export class DashboardService {
     // temuan audit: SEBELUMNYA statistik publik buta total thd survei yang
     // masih berjalan sampai ditutup -- lihat catatan sama di
     // `IkmService.getDashboard`, sumber rumus tunggal tetap `computeResult`).
-    const activeComputed = await Promise.all(
-      activeSurveys.map(async (survey) => ({
-        survey,
-        result: await this.ikmService.computeResult(survey),
-      })),
-    );
-    const activeIkmRows = activeComputed
-      .filter(({ result }) => result.nilaiIkm !== null)
-      .map(({ survey, result }) => ({
-        nilaiIkm: result.nilaiIkm as number,
-        periode: survey.periode,
-        nrrPerUnsur: result.nrrPerUnsur,
-        survey: { opdId: survey.opdId, opd: { nama: survey.opd.nama } },
-      }));
+    // SATU panggilan batch, bukan satu per survei. Jalur lama memanggil
+    // `computeResult` di dalam `Promise.all` dan endpoint PUBLIK ini menjawab
+    // HTTP 500 pada permintaan tunggal begitu survei aktifnya 744 -- kolam
+    // koneksi Prisma berisi 9 dan menyerah setelah 10 detik. Alasan lengkapnya
+    // ada di docblock `IkmService.hitungHasilBanyak`.
+    const hasilAktif = await this.ikmService.hitungHasilBanyak(activeSurveys);
+    const activeIkmRows = activeSurveys.flatMap((survey) => {
+      const result = hasilAktif.get(survey.id);
+      if (result === undefined || result.nilaiIkm === null) {
+        return [];
+      }
+      return [
+        {
+          nilaiIkm: result.nilaiIkm,
+          periode: survey.periode,
+          nrrPerUnsur: result.nrrPerUnsur,
+          survey: { opdId: survey.opdId, opd: { nama: survey.opd.nama } },
+        },
+      ];
+    });
     // Snapshot milik survei yang SUDAH DIBUKA KEMBALI dibuang (31 Agustus 2026):
     // survei itu ikut `activeIkmRows` di atas, jadi tanpa saringan ini ia
     // terhitung dua kali dan nilai IKM kabupaten yang dipampang ke publik
@@ -398,11 +468,6 @@ export class DashboardService {
 
     const topOpd = this.topOpdByIkm(ikmResults);
 
-    const insight = new StatisticsInsightEntity({
-      text: insightRow?.text ?? null,
-      updatedAt: insightRow?.updatedAt ?? null,
-    });
-
     return new StatisticsEntity({
       summary,
       ikmTrend,
@@ -412,18 +477,7 @@ export class DashboardService {
       serviceElements,
       valueDistribution,
       topOpd,
-      insight,
     });
-  }
-
-  /** Isi/perbarui narasi `/statistics` (D6) -- Admin Kabupaten. Upsert baris tunggal (id=1). */
-  async updateInsight(dto: UpdateInsightDto, user: CurrentUser): Promise<StatisticsInsightEntity> {
-    const row = await this.prisma.statisticsInsight.upsert({
-      where: { id: 1 },
-      create: { id: 1, text: dto.text, updatedBy: user.userId },
-      update: { text: dto.text, updatedBy: user.userId },
-    });
-    return new StatisticsInsightEntity({ text: row.text, updatedAt: row.updatedAt });
   }
 
   /** Rata-rata (default) atau jumlah nilai per periode triwulan, terurut kronologis (format kanonik = sortable). */

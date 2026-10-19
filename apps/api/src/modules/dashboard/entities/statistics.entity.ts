@@ -97,17 +97,6 @@ export class ValueDistributionEntity extends BaseEntity<ValueDistributionEntity>
   count: number;
 }
 
-export class StatisticsInsightEntity extends BaseEntity<StatisticsInsightEntity> {
-  @ApiPropertyOptional({
-    description:
-      'Narasi analisis, diisi manual Admin Kabupaten (D6). Null bila belum pernah diisi.',
-  })
-  text: string | null;
-
-  @ApiPropertyOptional()
-  updatedAt: Date | null;
-}
-
 /** Hasil `GET /statistics` (INT-14, PUBLIK -- D2, tanpa autentikasi). */
 export class StatisticsEntity extends BaseEntity<StatisticsEntity> {
   @ApiProperty({ type: StatisticsSummaryEntity })
@@ -146,7 +135,4 @@ export class StatisticsEntity extends BaseEntity<StatisticsEntity> {
     description: 'Top 5 OPD berdasar rata-rata nilai IKM',
   })
   topOpd: TopOpdEntity[];
-
-  @ApiProperty({ type: StatisticsInsightEntity })
-  insight: StatisticsInsightEntity;
 }

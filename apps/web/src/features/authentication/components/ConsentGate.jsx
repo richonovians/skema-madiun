@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { ShieldCheck, FileText, Eye, Trash2, Lock, AlertTriangle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -111,6 +112,24 @@ export default function ConsentGate({ role = 'responden' }) {
           </div>
         ))}
       </dl>
+
+      {/* Tautan ke keterangan lengkap, diletakkan SEBELUM kotak centang (25
+          September 2026). Empat butir di atas adalah ringkasan, dan persetujuan
+          yang bebas menuntut kesempatan membaca sumbernya sebelum mencentang,
+          bukan sesudah. Membuka di tab baru supaya isian yang sedang dikerjakan
+          tak hilang. */}
+      <p className="text-sm text-text-secondary -mt-1 mb-4">
+        Keterangan lengkapnya, termasuk masa simpan dan cara menggunakan hak Anda, ada di{' '}
+        <Link
+          href="/kebijakan-privasi"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary font-medium underline underline-offset-4"
+        >
+          Kebijakan Privasi
+        </Link>
+        .
+      </p>
 
       <form onSubmit={handleSubmit} noValidate>
         {/* role="alert" + aria-live: galat harus terdengar pembaca layar, bukan

@@ -2,9 +2,22 @@ import React from 'react';
 import Card from '@/components/ui/Card';
 import { Table, Thead, Tbody, Tr, Th } from '@/components/ui/Table';
 import Pagination from '@/components/ui/Pagination';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import ComplaintRow from './ComplaintRow';
 
-export default function ComplaintTable({ complaints = [] }) {
+/**
+ * @param {object[]} complaints Baris yang BENAR-BENAR dirender; tabel ini tak
+ *   memotong apa pun sendiri.
+ * @param {number} [totalAll] `meta.pagination.total` dari backend. Halamannya
+ *   mengambil 50 baris, jadi inilah satu-satunya cara mengetahui ada sisa.
+ *
+ * KENDALI PAGINASINYA DULU BERDUSTA (15 Oktober 2026): `totalPages`,
+ * `currentPage`, dan `itemsPerPage` dipatok mati `1/1/3`, sehingga footer
+ * berbunyi "Menampilkan 1-3 dari 12" di bawah tabel berisi dua belas baris,
+ * dengan kedua panah mati. Angkanya kini diturunkan dari baris yang ada:
+ * tabel ini memang satu halaman, dan footernya mengatakan begitu.
+ */
+export default function ComplaintTable({ complaints = [], totalAll = 0 }) {
   return (
     <Card className="overflow-hidden border border-border shadow-sm">
       <Table>
@@ -32,7 +45,21 @@ export default function ComplaintTable({ complaints = [] }) {
           ))}
         </Tbody>
       </Table>
-      <Pagination totalItems={complaints.length} totalPages={1} currentPage={1} itemsPerPage={3} />
+      <Pagination
+        totalItems={complaints.length}
+        totalPages={1}
+        currentPage={1}
+        itemsPerPage={complaints.length || 1}
+      />
+      {totalAll > complaints.length && (
+        <div className="px-6 pb-4 bg-surface-container-low">
+          <CatatanPemotongan
+            ditampilkan={complaints.length}
+            total={totalAll}
+            namaItem="pengaduan"
+          />
+        </div>
+      )}
     </Card>
   );
 }

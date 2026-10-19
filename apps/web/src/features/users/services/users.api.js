@@ -1,17 +1,12 @@
 import api from '@/services/api';
-import { adaptUser, adaptUserList, toCreateUserPayload, toUpdateUserPayload } from '../adapters/user.adapter';
+import { adaptUser, adaptUserList, toUpdateUserPayload } from '../adapters/user.adapter';
 
-/**
- * Membuat akun administrator baru.
- * @param {{fullName: string, email: string, role: string, opdId?: number}} payload
- *   role pakai nilai frontend (USER_ROLES.ADMIN_OPD dkk) -- diterjemahkan ke
- *   backend ('opd'/'kabupaten'/dst) oleh toCreateUserPayload.
- * @returns {Promise<Object>} User (bentuk frontend, lihat user.adapter.js)
+/*
+ * TANPA `createUser`. Halaman "Buat Akun Admin Baru" dibuang 30 September 2026
+ * (permintaan pengguna), dan pembungkus ini satu-satunya pemanggilnya. Endpoint
+ * `POST /users` di backend TETAP ADA dan tetap teruji di users.e2e-spec.ts --
+ * yang dibuang jalan masuk dari antarmuka, bukan kontrak apinya.
  */
-export async function createUser(payload) {
-  const response = await api.post('/users', toCreateUserPayload(payload));
-  return adaptUser(response.data);
-}
 
 /**
  * Mengambil daftar pengguna dengan filter opsional.
@@ -37,9 +32,10 @@ export async function getUserById(userId) {
  * Mengubah ROLE akun (`PATCH /users/:id`).
  *
  * HANYA role, sejak 8 September 2026: `nama` & `opdId` berasal dari Helpdesk
- * dan backend menolak keduanya dengan 400 (UpdateUserDto). Sejak 2026-08-20
- * hanya superuser yang boleh memanggilnya, dan backend menolak 403 bila
- * userId == diri sendiri (cegah self-lockout).
+ * dan backend menolak keduanya dengan 400 (UpdateUserDto). Hanya Admin
+ * Kabupaten yang boleh memanggilnya -- pembatasan itu lahir 2026-08-20 atas
+ * nama `superuser` dan berpindah bersama peleburan 15 September 2026 -- dan
+ * backend menolak 403 bila userId == diri sendiri (cegah self-lockout).
  * @param {number|string} userId
  * @param {{roles?: string[]}} payload
  * @returns {Promise<Object>}

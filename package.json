@@ -31,10 +31,17 @@
   },
   "pnpm": {
     "//overrides": [
-      "Kerentanan pada dependensi TRANSITIF (audit keamanan 7 September 2026).",
+      "Kerentanan pada dependensi TRANSITIF (audit keamanan 7 September 2026,",
+      "ditinjau ulang 22 September 2026).",
       "Seluruh entri di bawah adalah kenaikan PATCH/MINOR dalam mayor yang SAMA,",
       "jadi rentang semver paket yang menariknya tetap terpenuhi. Versi mayor",
-      "TIDAK dipaksa di sini -- lihat catatan uuid & deepmerge-ts di bawah."
+      "TIDAK dipaksa di sini -- lihat catatan uuid & deepmerge-ts di bawah.",
+      "",
+      "multer (22 September 2026): 2.2.0 ditarik @nestjs/platform-express 11.",
+      "Empat advisori, dan yang paling mengena BUKAN yang tertinggi tingkatnya:",
+      "batas `limits.fileSize` dapat dilewati lewat race pada fileFilter async.",
+      "Jalur unggah lampiran pengaduan bersandar persis pada batas itu, dan",
+      "penjaganya test/lampiran-batas-ukuran.e2e-spec.ts. Tiga sisanya DoS."
     ],
     "overrides": {
       "brace-expansion@1": "^1.1.18",
@@ -45,6 +52,7 @@
       "js-yaml@3": "^3.15.1",
       "js-yaml@4": "^4.3.1",
       "js-yaml@5": "^5.2.2",
+      "multer": "^2.3.0",
       "nanoid@3": "^3.3.18",
       "postcss": "^8.5.23",
       "qs": "^6.16.0",

@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { Audit } from '../../common/decorators/audit.decorator';
@@ -35,6 +35,9 @@ export class OpdController {
    * sekali (403 diam-diam tertelan di frontend, ditemukan saat wiring INT-18).
    */
   @Get()
+  @ApiOperation({
+    summary: 'Daftar OPD dari cache lokal. Terbuka bagi semua peran terautentikasi.',
+  })
   @ApiOkResponse({ type: OpdEntity, isArray: true })
   findAll(@Query() query: ListOpdQueryDto): Promise<PaginatedResult<OpdEntity>> {
     return this.opdService.findAll(query);
@@ -42,7 +45,7 @@ export class OpdController {
 
   /** Sinkronisasi data OPD dari Helpdesk (upsert by external_id). Hanya Admin Kabupaten. */
   @Post('sync')
-  @Roles(Role.kabupaten, Role.superuser)
+  @Roles(Role.kabupaten)
   @Audit('opd', 'sync')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ type: OpdSyncReport })
@@ -52,7 +55,7 @@ export class OpdController {
 
   /** Detail OPD. Admin Kabupaten (semua) atau Admin OPD (miliknya sendiri). */
   @Get(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: OpdEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,

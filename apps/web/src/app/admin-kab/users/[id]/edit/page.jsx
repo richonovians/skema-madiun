@@ -102,10 +102,26 @@ export default function EditUserPage() {
     // `opdId` TIDAK lagi dikosongkan saat Admin OPD dibuka centangnya
     // (8 September 2026). Dulu itu benar, karena field-nya ikut terkirim dan
     // backend memang mengosongkan tautannya. Sekarang tautan itu milik Helpdesk
-    // dan tak pernah dikirim dari sini — mengosongkan salinan lokalnya hanya
+    // dan tak pernah dikirim dari sini - mengosongkan salinan lokalnya hanya
     // membuat nama instansi hilang dari layar begitu centangnya dipasang lagi,
     // padahal di basis data ia tak pernah berubah.
-    setFormData((prev) => ({ ...prev, roles }));
+    //
+    // Ketika mencentang role salah satu dari Admin OPD / Admin Kabupaten,
+    // maka role Masyarakat (Responden) otomatis tercentang (21 September 2026).
+    setFormData((prev) => {
+      const prevRoles = prev?.roles ?? [];
+      const justCheckedAdminOpd =
+        !prevRoles.includes(USER_ROLES.ADMIN_OPD) && roles.includes(USER_ROLES.ADMIN_OPD);
+      const justCheckedAdminKab =
+        !prevRoles.includes(USER_ROLES.ADMIN_KABUPATEN) && roles.includes(USER_ROLES.ADMIN_KABUPATEN);
+
+      let nextRoles = roles;
+      if ((justCheckedAdminOpd || justCheckedAdminKab) && !roles.includes(USER_ROLES.RESPONDENT)) {
+        nextRoles = [...roles, USER_ROLES.RESPONDENT];
+      }
+
+      return { ...prev, roles: nextRoles };
+    });
     if (errors.roles) setErrors((prev) => ({ ...prev, roles: null }));
   };
 
@@ -181,6 +197,11 @@ export default function EditUserPage() {
               errors={errors}
               opdOptions={opdOptions}
               roleLocked={isSelf}
+              // DARI BACKEND, tidak dihitung di sini (6 Oktober 2026).
+              // Aturannya bergantung pada `NODE_ENV` backend -- gerbang ASN
+              // hanya hidup di produksi -- dan halaman ini tak tahu apa pun
+              // tentang itu. Lihat catatan di RoleAssignmentCard.
+              bolehJadiAdminOpd={data?.user?.bolehJadiAdminOpd ?? null}
               // Instansi milik Helpdesk (8 September 2026): ditampilkan, tak
               // dapat diubah. Halaman TAMBAH admin tidak memasang ini, karena
               // akun manual belum punya data Helpdesk sama sekali.

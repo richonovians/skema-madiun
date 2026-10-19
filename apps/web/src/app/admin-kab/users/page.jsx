@@ -1,20 +1,21 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import UsersRoleFilter from '@/features/users/components/UsersRoleFilter';
 import UsersTable from '@/features/users/components/UsersTable';
-import { Plus } from 'lucide-react';
-import Button from '@/components/ui/Button';
+import { Search, X } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
+import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import ActiveAccountsInfo from '@/components/ui/ActiveAccountsInfo';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { USER_ROLES } from '@/features/users/constants/userConstants';
 import {
   getUsers,
   getUserStats,
+  updateUser,
   updateUserStatus,
   deleteUser,
 } from '@/features/users/services/users.api';
@@ -52,19 +53,50 @@ const CONFIRM_COPY = {
     confirmLabel: 'Ya, Hapus Akun',
     tone: 'danger',
   },
+  /**
+   * Pintasan menaikkan ASN menjadi Admin OPD (30 September 2026).
+   *
+   * INSTANSINYA DISEBUT, bukan cuma nama orangnya: yang diserahkan di sini
+   * adalah kuasa atas data satu instansi, dan yang menekan harus melihat
+   * instansi mana itu sebelum menekan -- bukan sesudahnya.
+   */
+  'promote-opd': {
+    title: 'Jadikan Admin OPD?',
+    description: (user) =>
+      `"${user.name}" akan dapat mengelola survei, pertanyaan, respons, dan pengaduan milik ` +
+      `${user.organization ?? 'instansi yang tertaut di akunnya'}. Perannya sebagai warga tetap dipertahankan.`,
+    confirmLabel: 'Ya, Jadikan Admin OPD',
+    tone: 'primary',
+  },
 };
 
+/**
+ * Peran sesudah dinaikkan menjadi Admin OPD.
+ *
+ * `responden` IKUT ditambahkan bila belum ada, sama seperti halaman Ubah Role
+ * (21 September 2026): mencentang salah satu peran administrator di sana
+ * otomatis mencentang Responden juga. Dua jalan menuju hasil yang sama harus
+ * menghasilkan hal yang sama -- kalau tidak, pintasan ini justru mengubah akun
+ * secara berbeda dari cara panjangnya, dan bedanya tak akan terlihat siapa pun.
+ *
+ * `opdId` TIDAK disertakan: ia milik Helpdesk, dan `UpdateUserDto` menolaknya
+ * 400. Penyaringnya ada di `toUpdateUserPayload`, jadi di sini cukup tak
+ * mengirimkannya.
+ */
+function rolesSetelahNaik(user) {
+  return Array.from(
+    new Set([...(user.roles ?? []), USER_ROLES.ADMIN_OPD, USER_ROLES.RESPONDENT]),
+  );
+}
+
 export default function ManajemenUsersPage() {
-  const router = useRouter();
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
-  // Belum ada input pencarian lokal di halaman ini (lihat catatan di JSX bawah)
-  // -- state disiapkan utk saat Navbar bisa menyalurkan query pencarian.
-  const [searchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [actionError, setActionError] = useState(null);
-  // `confirmAction` = { type: 'deactivate'|'activate'|'delete', user } saat
-  // dialog terbuka. `busyUserId` mengunci dialognya selagi permintaan berjalan
-  // supaya klik ganda tak mengirim dua permintaan.
+  // `confirmAction` = { type: 'deactivate'|'activate'|'delete'|'promote-opd', user }
+  // saat dialog terbuka. `busyUserId` mengunci dialognya selagi permintaan
+  // berjalan supaya klik ganda tak mengirim dua permintaan.
   const [confirmAction, setConfirmAction] = useState(null);
   const [busyUserId, setBusyUserId] = useState(null);
 
@@ -93,11 +125,22 @@ export default function ManajemenUsersPage() {
   // Pagination Logic
   const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+  // Baris yang diambil berhenti di FETCH_LIMIT, dan penyaring serta pencarian di
+  // atas bekerja atas irisan itu saja -- jadi baris yang cocok tetapi tak
+  // terambil tak akan pernah muncul. Total sebenarnya hanya diketahui dari meta
+  // backend; tanpa menyebutnya, halaman ini tampak lengkap padahal bukan.
+  const totalSeluruhnya = response?.meta?.pagination?.total ?? 0;
+  const barisTerambil = response?.data?.length ?? 0;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handleRoleFilterChange = (val) => {
     setActiveRoleFilter(val);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
     setCurrentPage(1);
   };
 
@@ -111,6 +154,8 @@ export default function ManajemenUsersPage() {
     try {
       if (type === 'delete') {
         await deleteUser(user.id);
+      } else if (type === 'promote-opd') {
+        await updateUser(user.id, { roles: rolesSetelahNaik(user) });
       } else {
         await updateUserStatus(user.id, type === 'activate');
       }
@@ -134,48 +179,59 @@ export default function ManajemenUsersPage() {
 
   return (
     <div className="p-lg flex flex-col min-h-0 flex-1 w-full max-w-container-max mx-auto">
-      {/*
-        Catatan: searchQuery state sudah disiapkan di page ini (local state).
-        Untuk sementara waktu, tidak ada input text lokal karena sesuai instruksi,
-        input text ada di AdminNavbar.
-        Apabila nanti Navbar dapat menerima prop onSearch, state ini bisa dihubungkan ke sana,
-        atau kita bisa menambahkan local search bar di sini jika dibutuhkan.
-      */}
+      {/* Search bar -- mencari berdasarkan nama atau email pengguna */}
+      <div className="mb-lg">
+        <div className="relative">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant pointer-events-none"
+          />
+          <input
+            id="user-search-input"
+            type="text"
+            placeholder="Cari berdasarkan nama atau email..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="w-full min-h-[44px] pl-10 pr-10 py-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all text-body-md"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Hapus pencarian"
+              onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-outline-variant hover:text-text-primary transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* Menumpuk sampai `xl`, dulu `md`. Diukur, bukan dikira: penyaring peran
-          butuh ~700px dan tombol ~275px, jadi keduanya baru benar-benar cukup
-          sebaris pada area konten >=1000px -- yaitu sejak lebar layar 1280px.
-          Pada `md` (768px) area kontennya hanya ~512px dan keduanya digencet:
-          teks tombol terbelah empat baris, penyaringnya terpotong. Pada `lg`
-          (1024px) penyaringnya membungkus jadi tiga baris. */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-lg gap-4">
-        {/* TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
-            Penyaring di halaman ini berupa tab peran yang salah satunya selalu
-            aktif dan "Semua Pengguna" ada di paling kiri, jadi menetralkannya
-            sudah satu ketukan; tombol reset hanya menduplikasi tab itu. */}
+      {/* Filter role.
+          TANPA tombol "Reset Filter" -- diminta pengguna, 2 September 2026.
+          Penyaring di halaman ini berupa tab peran yang salah satunya selalu
+          aktif dan "Semua Pengguna" ada di paling kiri, jadi menetralkannya
+          sudah satu ketukan; tombol reset hanya menduplikasi tab itu.
+
+          TANPA tombol "Buat Akun Admin Baru" -- diminta pengguna, 30 September
+          2026. Halaman /admin-kab/users/create IKUT DIBUANG pada tanggal yang
+          sama, jadi tak ada lagi jalan membuat akun admin dari antarmuka:
+          akun lahir dari SSO Helpdesk, lalu perannya diatur di halaman ini. */}
+      <div className="mb-lg">
         <UsersRoleFilter
           activeRoleFilter={activeRoleFilter}
           setActiveRoleFilter={handleRoleFilterChange}
         />
-        <Button
-          variant="primary-box"
-          // `shrink-0` + `whitespace-nowrap`: sebagai flex item tombol ini
-          // menyusut secara baku sampai labelnya terbelah empat baris.
-          className="shadow-md px-6 py-3 w-full xl:w-auto xl:shrink-0 whitespace-nowrap"
-          onClick={() => router.push('/admin-kab/users/create')}
-        >
-          <Plus size={20} />
-          <span>Buat Akun Admin Baru</span>
-        </Button>
       </div>
 
-      {/* BARIS SENDIRI, bukan anak baris tab+tombol di atas. Ketiganya bersama
-          melebihi lebar layar 1440px sekalipun (tab ~700px + strip ~290px +
-          tombol ~250px), jadi satu di antaranya PASTI mengalah: sebelum ini
-          stripnya yang digencet sampai kalimatnya terbelah dua baris, dan
-          begitu ia dibuat tak menyusut, tombol "Buat Akun Admin Baru" yang
-          terlempar ke baris kedua. Diberi barisnya sendiri, tak ada yang
-          mengalah -- dan letaknya sama dengan pada kedua dashboard. */}
+      {/* BARIS SENDIRI, bukan anak baris tab di atas. Ketika tombol "Buat Akun
+          Admin Baru" masih ada, ketiganya bersama melebihi lebar layar 1440px
+          sekalipun dan salah satu PASTI mengalah: stripnya digencet sampai
+          kalimatnya terbelah dua baris, lalu begitu ia dibuat tak menyusut,
+          tombolnya yang terlempar ke baris kedua. Tombol itu kini tiada, tapi
+          barisnya tetap dipisah -- letak inilah yang sama dengan pada kedua
+          dashboard, dan menyatukannya kembali hanya membuat halaman ini
+          berbeda dari keduanya. */}
       <div className="mb-lg">
         <ActiveAccountsInfo
           activeCount={stats?.activeUsers ?? null}
@@ -196,14 +252,24 @@ export default function ManajemenUsersPage() {
           onRequestAction={(user, type) => setConfirmAction({ type, user })}
           pagination={
             totalItems > 0 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={totalItems}
-                itemsPerPage={ITEMS_PER_PAGE}
-                onPageChange={setCurrentPage}
-                itemName="pengguna"
-              />
+              <>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={setCurrentPage}
+                  itemName="pengguna"
+                />
+                <div className="px-6 pb-3">
+                  <CatatanPemotongan
+                    ditampilkan={barisTerambil}
+                    total={totalSeluruhnya}
+                    namaItem="pengguna"
+                    adaPenyaring
+                  />
+                </div>
+              </>
             )
           }
         />

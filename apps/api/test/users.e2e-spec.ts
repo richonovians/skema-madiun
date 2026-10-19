@@ -17,10 +17,11 @@ import { devHeaders } from './helpers/auth.helper';
  * atas dekorator itu. Sepuluh uji di sini lalu merah selama berminggu-minggu
  * sebagai "kegagalan lama yang dimaklumi".
  *
- * Yang dilakukan sekarang: perannya diperbaiki menjadi `superuser`, DAN
- * ditambahkan blok yang menegaskan `kabupaten` kini ditolak. Kebijakan yang
- * berubah harus terbaca sebagai keputusan yang diuji, bukan sebagai uji yang
- * dihapus tanpa jejak.
+ * Yang dilakukan waktu itu: perannya diperbaiki menjadi `superuser`, DAN
+ * ditambahkan blok yang menegaskan `kabupaten` ditolak. Kebijakan yang berubah
+ * harus terbaca sebagai keputusan yang diuji, bukan sebagai uji yang dihapus
+ * tanpa jejak. Peleburan 15 September 2026 membalik arahnya: pemegang hak
+ * sekarang `kabupaten`, dan blok penolakan itu kini menguji Admin OPD.
  *
  * Ada asumsi lama KEDUA yang baru terlihat sesudah perannya dibetulkan:
  * `data.role` (tunggal) sudah tak ada sejak entity beralih ke `roles: Role[]`
@@ -29,29 +30,38 @@ import { devHeaders } from './helpers/auth.helper';
  * kegagalan berikutnya.
  *
  * PESANNYA ikut diperiksa pada uji anti-self-lockout, dan itu bukan kerewelan:
- * `assertSuperuser` dan anti-self-lockout keduanya menjawab 403. Tanpa memeriksa
+ * `assertKabupaten` dan anti-self-lockout keduanya menjawab 403. Tanpa memeriksa
  * pesannya, uji self-lockout akan tetap hijau bahkan bila yang menolak
  * sebenarnya gerbang peran — yaitu lulus karena sebab yang salah, persis
  * keadaan yang membuat dua uji di berkas ini dulu tampak sehat.
  */
 /**
  * Cocok untuk KEDUA gerbang, dan itu memang yang diinginkan sejak T6 dibereskan
- * (7 September 2026): `@Roles(Role.superuser)` pada controller kini ditegakkan
- * guard ("Sumber daya ini hanya untuk peran: superuser"), sementara
- * `UsersService.assertSuperuser` tetap ada sebagai lapis kedua ("Manajemen
- * pengguna hanya dapat diakses oleh Superuser"). Yang dijaga di sini: penolakan
- * itu MENYEBUT superuser, sehingga tak tertukar dengan penolakan lain --
- * anti-self-lockout tetap diperiksa dengan pesannya sendiri.
+ * (7 September 2026): `@Roles(Role.kabupaten)` pada controller ditegakkan guard
+ * ("Sumber daya ini hanya untuk peran: kabupaten"), sementara
+ * `UsersService.assertKabupaten` tetap ada sebagai lapis kedua ("Manajemen
+ * pengguna hanya dapat diakses oleh Admin Kabupaten"). Yang dijaga di sini:
+ * penolakan itu MENYEBUT kabupaten, sehingga tak tertukar dengan penolakan lain
+ * -- anti-self-lockout tetap diperiksa dengan pesannya sendiri.
+ *
+ * Docblock ini sempat menyebut `superuser` pada ketiganya sekaligus: nama
+ * metode, kedua pesan, dan peran yang dijaga. Pola di bawahnya selalu
+ * `/kabupaten/i`, jadi naskahnya berbohong tentang barisnya sendiri
+ * (dibereskan 14 Oktober 2026).
  */
-const PESAN_SUPERUSER = /superuser/i;
+const PESAN_PERAN = /kabupaten/i;
 
 describe('Users (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let opdId: number;
 
-  /** Semua manajemen pengguna kini menuntut peran-yang-dipakai `superuser`. */
-  const asSuper = (userId?: number) => devHeaders({ role: Role.superuser, userId });
+  /**
+   * Seluruh manajemen pengguna menuntut peran-yang-dipakai `kabupaten`.
+   * Docblock ini sempat menyebut `superuser`, peran yang dilebur 15 September
+   * 2026 -- nama yang keliru tentang baris di bawahnya sendiri.
+   */
+  const asKab = (userId?: number) => devHeaders({ role: Role.kabupaten, userId });
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -78,10 +88,10 @@ describe('Users (e2e)', () => {
   }, 30000);
 
   const buatAkun = (body: Record<string, unknown>) =>
-    request(app.getHttpServer()).post('/api/v1/users').set(asSuper()).send(body);
+    request(app.getHttpServer()).post('/api/v1/users').set(asKab()).send(body);
 
-  describe('Superuser mengelola akun', () => {
-    it('Superuser membuat Admin OPD -> 201', async () => {
+  describe('Admin Kabupaten mengelola akun', () => {
+    it('Admin Kabupaten membuat Admin OPD -> 201', async () => {
       const res = await buatAkun({
         nama: 'Admin OPD E2E',
         email: 'opd@users.e2e.test',
@@ -94,7 +104,7 @@ describe('Users (e2e)', () => {
       expect(res.body.data).not.toHaveProperty('deletedAt'); // field internal disembunyikan
     });
 
-    it('Superuser membuat akun kabupaten -> 201', async () => {
+    it('Admin Kabupaten membuat akun kabupaten -> 201', async () => {
       const res = await buatAkun({
         nama: 'Kab E2E',
         email: 'kab@users.e2e.test',
@@ -105,7 +115,7 @@ describe('Users (e2e)', () => {
       expect(res.body.data.roles).toEqual(['kabupaten']);
     });
 
-    it('Superuser mengubah role akun lain (opd -> kabupaten) -> 200', async () => {
+    it('Admin Kabupaten mengubah role akun lain (opd -> kabupaten) -> 200', async () => {
       const created = await buatAkun({
         nama: 'Ubah Role E2E',
         email: 'ubahrole@users.e2e.test',
@@ -115,22 +125,22 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${created.body.data.id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ roles: ['kabupaten'] });
 
       expect(res.status).toBe(200);
       expect(res.body.data.roles).toEqual(['kabupaten']);
     });
 
-    it('GET /users (superuser) -> 200 paginated', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users?limit=5').set(asSuper());
+    it('GET /users (Admin Kabupaten) -> 200 paginated', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/users?limit=5').set(asKab());
 
       expect(res.status).toBe(200);
       expect(res.body.meta.pagination).toBeDefined();
     });
 
-    it('GET /users/stats (superuser) -> 200', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asSuper());
+    it('GET /users/stats (Admin Kabupaten) -> 200', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asKab());
 
       expect(res.status).toBe(200);
       expect(typeof res.body.data.activeUsers).toBe('number');
@@ -138,12 +148,12 @@ describe('Users (e2e)', () => {
     });
 
     it('GET /users/:id tidak ada -> 404', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users/99999999').set(asSuper());
+      const res = await request(app.getHttpServer()).get('/api/v1/users/99999999').set(asKab());
 
       expect(res.status).toBe(404);
     });
 
-    it('Superuser menghapus akun lain (soft delete) -> 200, hilang dari GET /users', async () => {
+    it('Admin Kabupaten menghapus akun lain (soft delete) -> 200, hilang dari GET /users', async () => {
       const created = await buatAkun({
         nama: 'Hapus E2E',
         email: 'hapus@users.e2e.test',
@@ -154,32 +164,30 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .delete(`/api/v1/users/${targetId}`)
-        .set(asSuper());
+        .set(asKab());
 
       expect(res.status).toBe(200);
       expect(res.body.data.isActive).toBe(false);
 
       const detail = await request(app.getHttpServer())
         .get(`/api/v1/users/${targetId}`)
-        .set(asSuper());
+        .set(asKab());
       expect(detail.status).toBe(404); // findOne memfilter deletedAt: null
     });
 
     it('DELETE /users/:id tidak ada -> 404', async () => {
-      const res = await request(app.getHttpServer())
-        .delete('/api/v1/users/99999999')
-        .set(asSuper());
+      const res = await request(app.getHttpServer()).delete('/api/v1/users/99999999').set(asKab());
 
       expect(res.status).toBe(404);
     });
   });
 
   describe('anti-self-lockout (dijaga PESANnya, bukan cuma statusnya)', () => {
-    it('Superuser DILARANG mengubah role akun sendiri -> 403 "role akun sendiri"', async () => {
+    it('Admin Kabupaten DILARANG mengubah role akun sendiri -> 403 "role akun sendiri"', async () => {
       const created = await buatAkun({
         nama: 'Self Lockout E2E',
         email: 'selflockout@users.e2e.test',
-        roles: ['superuser'],
+        roles: ['kabupaten'],
       });
       const selfId: number = created.body.data.id;
 
@@ -190,7 +198,7 @@ describe('Users (e2e)', () => {
       // memuat perubahan role saja.
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${selfId}`)
-        .set(asSuper(selfId))
+        .set(asKab(selfId))
         .send({ roles: ['opd'] });
 
       expect(res.status).toBe(403);
@@ -199,17 +207,17 @@ describe('Users (e2e)', () => {
       expect(String(res.body.message)).toMatch(/role akun sendiri/i);
     });
 
-    it('Superuser DILARANG menghapus akun sendiri -> 403 "menghapus akun sendiri"', async () => {
+    it('Admin Kabupaten DILARANG menghapus akun sendiri -> 403 "menghapus akun sendiri"', async () => {
       const created = await buatAkun({
         nama: 'Self Delete E2E',
         email: 'selfdelete@users.e2e.test',
-        roles: ['superuser'],
+        roles: ['kabupaten'],
       });
       const selfId: number = created.body.data.id;
 
       const res = await request(app.getHttpServer())
         .delete(`/api/v1/users/${selfId}`)
-        .set(asSuper(selfId));
+        .set(asKab(selfId));
 
       expect(res.status).toBe(403);
       expect(String(res.body.message)).toMatch(/menghapus akun sendiri/i);
@@ -217,32 +225,39 @@ describe('Users (e2e)', () => {
   });
 
   /**
-   * PASANGAN yang membuat blok pertama berarti. Tanpa blok ini, "superuser ->
-   * 200" bisa saja karena endpointnya terbuka bagi peran mana pun.
+   * PASANGAN yang membuat blok pertama berarti. Tanpa blok ini, "Admin
+   * Kabupaten -> 200" bisa saja karena endpointnya terbuka bagi peran mana pun.
+   *
+   * Lawannya berganti pada 15 September 2026: sebelumnya `kabupaten`, karena
+   * manajemen pengguna milik `superuser` seorang. Sesudah peleburan, yang harus
+   * tetap tertutup adalah Admin OPD.
    */
-  describe('kabupaten BUKAN superuser (kebijakan 20 Agustus 2026)', () => {
-    const asKab = () => devHeaders({ role: Role.kabupaten });
+  describe('Admin OPD BUKAN Admin Kabupaten', () => {
+    // Pelakunya Admin OPD, dan namanya harus mengatakan itu. Alias ini sempat
+    // bernama `asKab` sambil membangun `Role.opd`, di dalam blok yang justru
+    // menguji bahwa Admin OPD ditolak.
+    const asOpd = () => devHeaders({ role: Role.opd, opdId });
 
-    it('GET /users (kabupaten) -> 403', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users').set(asKab());
-
-      expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(PESAN_SUPERUSER);
-    });
-
-    it('GET /users/stats (kabupaten) -> 403', async () => {
-      const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asKab());
+    it('GET /users (Admin OPD) -> 403', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/users').set(asOpd());
 
       expect(res.status).toBe(403);
-      expect(String(res.body.message)).toMatch(PESAN_SUPERUSER);
+      expect(String(res.body.message)).toMatch(PESAN_PERAN);
     });
 
-    it('POST /users (kabupaten) -> 403, dan akunnya TIDAK terbuat', async () => {
+    it('GET /users/stats (Admin OPD) -> 403', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/users/stats').set(asOpd());
+
+      expect(res.status).toBe(403);
+      expect(String(res.body.message)).toMatch(PESAN_PERAN);
+    });
+
+    it('POST /users (Admin OPD) -> 403, dan akunnya TIDAK terbuat', async () => {
       const email = 'ditolak-kab@users.e2e.test';
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/users')
-        .set(asKab())
+        .set(asOpd())
         .send({ nama: 'Tak Boleh', email, roles: ['opd'], opdId });
 
       expect(res.status).toBe(403);
@@ -250,7 +265,7 @@ describe('Users (e2e)', () => {
       await expect(prisma.user.findFirst({ where: { email } })).resolves.toBeNull();
     });
 
-    it('PATCH /users/:id (kabupaten) -> 403, dan role TIDAK berubah', async () => {
+    it('PATCH /users/:id (Admin OPD) -> 403, dan role TIDAK berubah', async () => {
       const created = await buatAkun({
         nama: 'Target Kab E2E',
         email: 'target-kab@users.e2e.test',
@@ -261,15 +276,15 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asKab())
-        .send({ roles: ['superuser'] });
+        .set(asOpd())
+        .send({ roles: ['kabupaten'] });
 
       expect(res.status).toBe(403);
       const sesudah = await prisma.user.findUnique({ where: { id }, select: { roles: true } });
       expect(sesudah?.roles).toEqual([Role.opd]);
     });
 
-    it('DELETE /users/:id (kabupaten) -> 403, dan akunnya TETAP aktif', async () => {
+    it('DELETE /users/:id (Admin OPD) -> 403, dan akunnya TETAP aktif', async () => {
       const created = await buatAkun({
         nama: 'Hapus Kab E2E',
         email: 'hapus-kab@users.e2e.test',
@@ -278,7 +293,7 @@ describe('Users (e2e)', () => {
       });
       const id: number = created.body.data.id;
 
-      const res = await request(app.getHttpServer()).delete(`/api/v1/users/${id}`).set(asKab());
+      const res = await request(app.getHttpServer()).delete(`/api/v1/users/${id}`).set(asOpd());
 
       expect(res.status).toBe(403);
       const sesudah = await prisma.user.findUnique({
@@ -322,7 +337,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ nama: 'Nama Timpaan' });
 
       expect(res.status).toBe(400);
@@ -352,7 +367,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ opdId });
 
       expect(res.status).toBe(400);
@@ -371,7 +386,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ roles: ['kabupaten'] });
 
       expect(res.status).toBe(200);
@@ -394,7 +409,7 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}`)
-        .set(asSuper())
+        .set(asKab())
         .send({ roles: ['opd'] });
 
       // Penjaga ini HARUS bertahan: tanpa tautan OPD, peran Admin OPD adalah
@@ -414,11 +429,82 @@ describe('Users (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/users/${id}/status`)
-        .set(asSuper())
+        .set(asKab())
         .send({ isActive: false });
 
       expect(res.status).toBe(200);
       expect(res.body.data.isActive).toBe(false);
+    });
+  });
+
+  /**
+   * Gerbang ASN (6 Oktober 2026) — DIUJI SEBAGAI GERBANG YANG MATI.
+   *
+   * Pengguna meminta pengetatan ini berlaku HANYA di produksi, karena akun
+   * `seed-*`/`pending:*` di pengembangan tak pernah melewati SSO dan
+   * `jenis_pengguna`-nya tak akan pernah terisi. Suite e2e berjalan dengan
+   * `NODE_ENV=test`, jadi yang dapat dibuktikan di sini bukan penolakannya,
+   * melainkan bahwa gerbangnya TIDAK merembes ke lingkungan yang bukan
+   * tempatnya.
+   *
+   * Dinyatakan tersurat supaya tak ada yang membaca kelulusan blok ini sebagai
+   * bukti bahwa gerbangnya bekerja. Yang membuktikan penolakannya adalah uji
+   * unit `users.service.spec.ts`, yang menjalankan kedua lingkungan.
+   */
+  describe('gerbang ASN tidak aktif di luar produksi', () => {
+    it('akun tanpa `jenis_pengguna` TETAP dapat diberi peran `opd` di NODE_ENV=test', async () => {
+      // LAHIR BERPERAN `opd`, lalu dicabut. Membuatnya langsung sebagai
+      // `responden` ber-`opdId` TIDAK bisa: `normalisasiRoles` mengosongkan
+      // tautan OPD begitu peran `opd` tak ikut dikirim, sehingga akunnya lahir
+      // tanpa tautan dan yang menolak PATCH nanti adalah penjaga LAMA
+      // ("opdId wajib diisi") -- uji ini akan gagal karena sebab yang salah.
+      const created = await buatAkun({
+        nama: 'Non ASN E2E',
+        email: 'non-asn@users.e2e.test',
+        roles: ['opd', 'responden'],
+        opdId,
+      });
+      const id: number = created.body.data.id;
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asKab())
+        .send({ roles: ['responden'] })
+        .expect(200);
+
+      // Prasyarat diperiksa, bukan diandaikan: tautan OPD TETAP ada sesudah
+      // pencabutan (milik Helpdesk, tak ikut terhapus), sementara
+      // `jenis_pengguna` memang kosong -- akun ini tak pernah melewati SSO.
+      const baris = await prisma.user.findUnique({
+        where: { id },
+        select: { jenisPengguna: true, opdId: true },
+      });
+      expect(baris?.jenisPengguna).toBeNull();
+      expect(baris?.opdId).not.toBeNull();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${id}`)
+        .set(asKab())
+        .send({ roles: ['opd', 'responden'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.roles).toEqual(expect.arrayContaining(['opd']));
+    });
+
+    it('`bolehJadiAdminOpd` ikut terkirim, dan di luar produksi bernilai true', async () => {
+      const created = await buatAkun({
+        nama: 'Boleh Flag E2E',
+        email: 'boleh-flag@users.e2e.test',
+        roles: ['responden'],
+      });
+      const id: number = created.body.data.id;
+
+      const res = await request(app.getHttpServer()).get(`/api/v1/users/${id}`).set(asKab());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.bolehJadiAdminOpd).toBe(true);
+      // Status kepegawaiannya sendiri TIDAK ikut keluar.
+      expect(res.body.data).not.toHaveProperty('jenisPengguna');
     });
   });
 });

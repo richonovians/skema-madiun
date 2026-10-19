@@ -11,7 +11,7 @@ import CommitmentSection from '@/features/about/components/CommitmentSection';
 import FAQSection from '@/features/about/components/FAQSection';
 
 export const metadata = {
-  title: 'Tentang Kami | SKEMA Madiun',
+  title: 'Tentang Kami',
   description: 'Pelajari lebih lanjut tentang SKEMA Madiun (Sistem Keluhan, Evaluasi, dan Manajemen Aspirasi) Kabupaten Madiun.',
 };
 

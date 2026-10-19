@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes } from 'node:crypto';
 import { Role } from '@prisma/client';
 
 export interface SessionPayload {
@@ -15,7 +17,39 @@ export interface SessionPayload {
    * (`resolveActingRole`). Karena itu mencabut role tetap berlaku seketika.
    */
   act?: Role;
+  /**
+   * BATAS MUTLAK sesi, detik epoch (17 September 2026). Dihitung sekali saat
+   * login dan tak pernah bergeser, berapa kali pun jendela menganggur
+   * diperbarui. Tanpa klaim ini, memperbarui `exp` pada tiap permintaan membuat
+   * sesi orang yang membuka aplikasi tiap hari tak pernah berakhir.
+   *
+   * Opsional karena token yang diterbitkan SEBELUM perubahan ini tak memilikinya.
+   * Token semacam itu dibiarkan habis menurut umur lamanya, bukan diperpanjang.
+   */
+  abs?: number;
+  /**
+   * Penanda SESI, bukan penanda akun (7 Oktober 2026). Kunci pada daftar
+   * pencabutan `PenyimpanSesi`. Tanpa ini tak ada yang membedakan satu sesi
+   * dari sesi lain milik akun yang sama, sehingga mencabut satu perangkat
+   * berarti mencabut semuanya.
+   *
+   * Opsional karena token terbitan SEBELUM perubahan ini tak memilikinya. Token
+   * semacam itu tetap diterima sampai habis umurnya dan memang tak dapat
+   * dicabut; preseden yang sama dipakai saat klaim `abs` lahir.
+   */
+  sid?: string;
+  /** Diisi JWT sendiri; dibaca untuk menghitung sisa jendela menganggur. */
+  exp?: number;
 }
+
+/**
+ * Sisa jendela di bawah ambang ini memicu perpanjangan. Setengah jendela
+ * dipilih supaya perpanjangan tidak terjadi pada SETIAP permintaan (satu
+ * Set-Cookie per permintaan, tanpa manfaat apa pun) sekaligus tak menunggu
+ * sampai nyaris habis, yang membuat sesi mati di tengah pekerjaan hanya karena
+ * permintaan terakhirnya kebetulan sedikit terlambat.
+ */
+const AMBANG_PERPANJANG = 0.5;
 
 /**
  * Terbitkan & verifikasi token sesi lokal (JWT) — SKM menerbitkan sesinya sendiri
@@ -31,10 +65,75 @@ export interface SessionPayload {
 export class SessionService {
   private readonly logger = new Logger(SessionService.name);
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** Jendela menganggur, detik. Sesi yang tak dipakai selama ini berakhir. */
+  private get jendelaDetik(): number {
+    return (this.config.get<number>('session.idleMinutes') ?? 60) * 60;
+  }
+
+  /** Umur maksimum sesi sejak login, detik. Tak dapat diperpanjang aktivitas. */
+  private get paguDetik(): number {
+    return (this.config.get<number>('session.ttlHours') ?? 12) * 3600;
+  }
+
+  private static get sekarang(): number {
+    return Math.floor(Date.now() / 1000);
+  }
 
   issue(userId: number, act?: Role): string {
-    return this.jwtService.sign(act ? { sub: userId, act } : { sub: userId });
+    const abs = SessionService.sekarang + this.paguDetik;
+    // 128 bit acak kriptografis. Sid yang dapat ditebak membuat pencabutan
+    // salah sasaran: siapa pun yang menebaknya dapat mencabut sesi orang lain.
+    const sid = randomBytes(16).toString('hex');
+    return this.tandaTangani({ sub: userId, ...(act ? { act } : {}), abs, sid }, this.jendelaDetik);
+  }
+
+  /**
+   * Token pengganti dengan jendela menganggur yang disegarkan. `abs` DIBAWA apa
+   * adanya, dan jendelanya dipangkas bila melewatinya -- di situlah pagu
+   * mutlaknya benar-benar berlaku.
+   *
+   * `null` berarti tak boleh diperpanjang: pagunya sudah lewat, atau tokennya
+   * terbitan lama yang memang tak punya pagu.
+   */
+  perpanjang(payload: SessionPayload): string | null {
+    if (typeof payload.abs !== 'number') {
+      return null;
+    }
+    const sisaPagu = payload.abs - SessionService.sekarang;
+    if (sisaPagu <= 0) {
+      return null;
+    }
+    // `sid` DIBAWA apa adanya, tidak diterbitkan ulang. Perpanjangan berjalan
+    // diam-diam lewat SessionRefreshInterceptor; sid baru di sana membuat
+    // catatan di penyimpan menjadi tanpa induk dan sesinya tak lagi dapat
+    // dicabut, tanpa gejala apa pun sampai ada yang mencoba mencabutnya.
+    return this.tandaTangani(
+      {
+        sub: payload.sub,
+        ...(payload.act ? { act: payload.act } : {}),
+        abs: payload.abs,
+        ...(payload.sid ? { sid: payload.sid } : {}),
+      },
+      Math.min(this.jendelaDetik, sisaPagu),
+    );
+  }
+
+  /** Sisa jendelanya sudah tinggal separuh atau kurang. */
+  perluDiperpanjang(token: string): boolean {
+    const payload = this.verify(token);
+    if (!payload || typeof payload.exp !== 'number') {
+      return false;
+    }
+    return payload.exp - SessionService.sekarang <= this.jendelaDetik * AMBANG_PERPANJANG;
+  }
+
+  private tandaTangani(payload: SessionPayload, umurDetik: number): string {
+    return this.jwtService.sign(payload, { expiresIn: Math.max(1, Math.floor(umurDetik)) });
   }
 
   /**
@@ -61,7 +160,13 @@ export class SessionService {
         typeof payload.act === 'string' && (Object.values(Role) as string[]).includes(payload.act)
           ? (payload.act as Role)
           : undefined;
-      return act ? { sub: payload.sub, act } : { sub: payload.sub };
+      return {
+        sub: payload.sub,
+        ...(act ? { act } : {}),
+        ...(typeof payload.abs === 'number' ? { abs: payload.abs } : {}),
+        ...(typeof payload.sid === 'string' ? { sid: payload.sid } : {}),
+        ...(typeof payload.exp === 'number' ? { exp: payload.exp } : {}),
+      };
     } catch (err) {
       this.logger.debug(`Token sesi tidak valid/kedaluwarsa: ${String(err)}`);
       return null;

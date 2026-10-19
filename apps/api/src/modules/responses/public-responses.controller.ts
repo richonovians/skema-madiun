@@ -8,7 +8,7 @@ import {
   ParseIntPipe,
   Post,
 } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { BatasPerSurvei } from '../../common/decorators/batas-per-survei.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -49,6 +49,7 @@ export class PublicResponsesController {
   ) {}
 
   @Get(':surveyId/fill')
+  @ApiOperation({ summary: 'Ambil survei untuk diisi tanpa login (tautan atau QR publik).' })
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOkResponse({ type: SurveyFillEntity })
@@ -57,6 +58,7 @@ export class PublicResponsesController {
   }
 
   @Post(':surveyId/responses')
+  @ApiOperation({ summary: 'Kirim jawaban survei tanpa login. Dilindungi captcha Turnstile.' })
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiCreatedResponse({ type: ResponseEntity })

@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { QuestionType, Role, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
@@ -61,6 +61,7 @@ describe('IKM (e2e)', () => {
         opdId,
         judul: 'Survei IKM E2E',
         periode: '2026-Q1',
+        jenis: JenisSurvei.skm_permenpanrb,
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -111,6 +112,7 @@ describe('IKM (e2e)', () => {
         opdId: opdId2,
         judul: 'Survei IKM E2E 2',
         periode: '2026-Q1',
+        jenis: JenisSurvei.skm_permenpanrb,
         status: SurveyStatus.aktif,
         questions: {
           create: [
@@ -150,8 +152,9 @@ describe('IKM (e2e)', () => {
     await prisma.surveyResponse.deleteMany({
       where: { survey: { opdId: { in: [opdId, opdId2] } } },
     });
-    // Notifikasi jawaban survei menyasar akun kabupaten & superuser SUNGGUHAN
-    // di basis data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
+    // Notifikasi jawaban survei menyasar akun berperan penuh
+    // (`FULL_ACCESS_ROLES`, kini hanya `kabupaten`) yang SUNGGUHAN ada di basis
+    // data lokal, jadi pembersihannya tak bisa ikut penghapusan akun uji.
     await bersihkanNotifikasiSurvei(prisma, opdId);
     await bersihkanNotifikasiSurvei(prisma, opdId2);
     await prisma.survey.deleteMany({ where: { opdId: { in: [opdId, opdId2] } } });
@@ -177,6 +180,20 @@ describe('IKM (e2e)', () => {
     expect(res.body.data.jumlahResponden).toBe(0);
     expect(res.body.data.nilaiIkm).toBeNull();
     expect(res.body.data.mutu).toBeNull();
+    // `toBeNull`, bukan `toBeFalsy`: kuncinya HARUS ada. Field yang hilang dari
+    // respons (undefined) berarti serializer tak mengeluarkannya, dan itu
+    // kegagalan yang berbeda dari "belum ada jawaban skala".
+    expect(res.body.data.nilaiRataRata).toBeNull();
+    // Sebaran skor (8 Oktober 2026): pertanyaannya tetap tampil walau belum
+    // dijawab -- total 0, bukan dibuang -- dengan keempat nilai berjumlah 0.
+    expect(res.body.data.sebaranSkor).toHaveLength(2);
+    for (const p of res.body.data.sebaranSkor as {
+      total: number;
+      sebaran: { jumlah: number }[];
+    }[]) {
+      expect(p.total).toBe(0);
+      expect(p.sebaran.map((s) => s.jumlah)).toEqual([0, 0, 0, 0]);
+    }
   });
 
   it('GET /surveys/:id/results (Admin OPD lain) -> 403', async () => {
@@ -184,6 +201,22 @@ describe('IKM (e2e)', () => {
       .get(`/api/v1/surveys/${surveyId}/results`)
       .set(devHeaders({ role: Role.opd, opdId: opdId + 99999 }));
     expect(res.status).toBe(403);
+  });
+
+  /**
+   * TC-RBAC-010, sel Kabupaten. Diletakkan SEBELUM uji live-compute di bawah,
+   * yang menambah dua respons: di sini surveinya belum berjawab, jadi uji ini
+   * tak bergantung pada angka IKM yang diubah uji berikutnya. Yang dibuktikan
+   * cuma satu hal -- peran berakses penuh membuka hasil survei milik OPD mana
+   * pun, tanpa tautan OPD di akunnya.
+   */
+  it('GET /surveys/:id/results (Admin Kabupaten) -> 200 walau bukan OPD-nya', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/surveys/${surveyId}/results`)
+      .set(devHeaders({ role: Role.kabupaten }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.surveyId).toBe(surveyId);
   });
 
   it('live-compute setelah 2 responden menilai 4 semua -> nilaiIkm=100, mutu A', async () => {
@@ -208,6 +241,53 @@ describe('IKM (e2e)', () => {
     expect(res.body.data.nilaiIkm).toBe(100);
     expect(res.body.data.mutu).toBe('A');
     expect(res.body.data.nrrPerUnsur).toHaveLength(2);
+    // Semua jawaban skala bernilai 4 -> rata-ratanya 4.
+    expect(res.body.data.nilaiRataRata).toBe(4);
+    // ...dan sebarannya: dua responden memilih 4 pada tiap pertanyaan, berurut
+    // sesuai `urutan`, dengan kode unsur bakunya.
+    const sebaran = res.body.data.sebaranSkor as {
+      pertanyaanId: number;
+      kodeUnsur: string | null;
+      total: number;
+      sebaran: { nilai: number; jumlah: number }[];
+    }[];
+    expect(sebaran.map((p) => p.pertanyaanId)).toEqual([q1, q2]);
+    expect(sebaran.map((p) => p.kodeUnsur)).toEqual(['U1', 'U2']);
+    for (const p of sebaran) {
+      expect(p.total).toBe(2);
+      expect(p.sebaran).toEqual([
+        { nilai: 1, jumlah: 0 },
+        { nilai: 2, jumlah: 0 },
+        { nilai: 3, jumlah: 0 },
+        { nilai: 4, jumlah: 2 },
+      ]);
+    }
+  });
+
+  /**
+   * NILAI RATA-RATA di respons HTTP sungguhan (7 Oktober 2026). Kueri agregatnya
+   * sudah diuji terhadap DB pengembangan, tetapi tak satu pun uji sebelumnya
+   * membuktikan bahwa kuncinya KELUAR di jawaban `GET /surveys` dan
+   * `GET /surveys/:id` -- jalur yang dibaca tabel survei Kabupaten dan kartu
+   * ringkasan halaman respons.
+   */
+  it('GET /surveys/:id dan GET /surveys memuat nilaiRataRata', async () => {
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/surveys/${surveyId}`)
+      .set(opdHeaders());
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.nilaiRataRata).toBe(4);
+
+    const daftar = await request(app.getHttpServer())
+      .get('/api/v1/surveys')
+      .query({ limit: 100 })
+      .set(opdHeaders());
+    expect(daftar.status).toBe(200);
+    const baris = (daftar.body.data as { id: number; nilaiRataRata: number | null }[]).find(
+      (s) => s.id === surveyId,
+    );
+    expect(baris).toBeDefined();
+    expect(baris?.nilaiRataRata).toBe(4);
   });
 
   it('menutup survei -> snapshot tersimpan di ikm_results', async () => {
@@ -297,6 +377,41 @@ describe('IKM (e2e)', () => {
   });
 
   describe('GET /surveys/:id/results/export (EXP-1)', () => {
+    // 8 Oktober 2026: laporan survei custom memuat Nilai Survei, bukan IKM.
+    it('survei custom: CSV memuat Nilai Survei + Kategori, tanpa Nilai IKM, nama berkas hasil-survei', async () => {
+      const custom = await prisma.survey.create({
+        data: {
+          opdId,
+          judul: 'Survei Custom Ekspor',
+          periode: '2026-Q1',
+          tujuan: 'evaluasi',
+          metodeNilai: 'indeks_persen',
+          questions: { create: [{ teks: 'Bagus?', tipe: QuestionType.skala, urutan: 1 }] },
+        },
+        include: { questions: true },
+      });
+      for (const nilai of [4, 3]) {
+        await prisma.surveyResponse.create({
+          data: {
+            surveyId: custom.id,
+            answers: { create: [{ questionId: custom.questions[0].id, nilai }] },
+          },
+        });
+      }
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/surveys/${custom.id}/results/export`)
+        .query({ format: 'csv' })
+        .set(opdHeaders());
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toContain('hasil-survei-');
+      expect(res.text).toContain('Laporan Hasil Survei');
+      expect(res.text).toContain('Indeks Evaluasi,"87,5%"');
+      expect(res.text).toContain('Kategori,Sangat Baik');
+      expect(res.text).not.toContain('Nilai IKM');
+    });
+
     it('format=csv (Admin OPD pemilik) -> 200, Content-Type text/csv, berisi data survei', async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/surveys/${surveyId}/results/export`)

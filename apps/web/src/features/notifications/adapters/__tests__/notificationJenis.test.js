@@ -12,10 +12,11 @@ import { gayaJenisNotifikasi, JENIS_NOTIFIKASI } from '../notificationJenis';
 describe('gayaJenisNotifikasi', () => {
   const SEMUA = Object.keys(JENIS_NOTIFIKASI);
 
-  it('mengenali keempat jenis yang benar-benar dibuat backend', () => {
+  it('mengenali kelima jenis yang benar-benar dibuat backend', () => {
     expect(SEMUA.sort()).toEqual(
       [
         'complaint_created',
+        'complaint_forwarded',
         'complaint_reply',
         'complaint_status_changed',
         'survey_response_created',

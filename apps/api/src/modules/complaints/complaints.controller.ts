@@ -16,6 +16,7 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
@@ -54,6 +55,9 @@ export class ComplaintsController {
    * keluhannya.
    */
   @Post()
+  @ApiOperation({
+    summary: 'Ajukan pengaduan dan dapatkan nomor tiket. Lampiran opsional (multipart).',
+  })
   @Roles(Role.responden)
   @Audit('complaint')
   @UseInterceptors(
@@ -77,6 +81,7 @@ export class ComplaintsController {
    * `@Roles` = seluruh peran terautentikasi boleh, isolasi ditegakkan di service.
    */
   @Get()
+  @ApiOperation({ summary: 'Daftar pengaduan, tersaring menurut kepemilikan dan OPD pengguna.' })
   @ApiOkResponse({ type: ComplaintEntity, isArray: true })
   findAll(
     @Query() query: ListComplaintQueryDto,
@@ -97,7 +102,7 @@ export class ComplaintsController {
 
   /** Ubah status pengaduan (Admin OPD pemilik). */
   @Patch(':id/status')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('complaint', 'update_status')
   @ApiOkResponse({ type: ComplaintEntity })
   updateStatus(
@@ -112,7 +117,7 @@ export class ComplaintsController {
    * Teruskan pengaduan yang belum bertujuan ke OPD yang berwenang
    * (6 September 2026).
    *
-   * `@Roles(Role.kabupaten, Role.superuser)` DITAMBAHKAN saat T6 dibereskan
+   * `@Roles(Role.kabupaten)` DITAMBAHKAN saat T6 dibereskan
    * (7 September 2026). Sebelumnya rute ini sengaja TANPA dekorator, dan
    * alasannya masuk akal saat itu: bypass menyeluruh membuat
    * `@Roles(Role.kabupaten)` MELOLOSKAN lebih banyak, bukan lebih sedikit.
@@ -124,7 +129,8 @@ export class ComplaintsController {
    * di service tetap ada, dengan pesan yang lebih spesifik.
    */
   @Patch(':id/opd')
-  @Roles(Role.kabupaten, Role.superuser)
+  @ApiOperation({ summary: 'Teruskan pengaduan yang belum bertujuan ke OPD yang berwenang.' })
+  @Roles(Role.kabupaten)
   @Audit('complaint', 'forward')
   @ApiOkResponse({ type: ComplaintEntity })
   forward(
@@ -153,7 +159,8 @@ export class ComplaintsController {
    * pernah tercatat, dan itu celah yang sama.
    */
   @Post(':id/replies')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd, Role.responden)
+  @ApiOperation({ summary: 'Tambah tanggapan pada pengaduan. Lampiran opsional (multipart).' })
+  @Roles(Role.kabupaten, Role.opd, Role.responden)
   @Audit('complaint_reply')
   @UseInterceptors(
     FilesInterceptor('lampiran', 5, {

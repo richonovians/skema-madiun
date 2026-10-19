@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import ActiveAccountsInfo from '../ActiveAccountsInfo';
 
 /**
- * Info jumlah akun aktif (permintaan pengguna 6 September 2026): superuser
- * melihat seluruh sistem, Admin OPD hanya akun OPD-nya.
+ * Info jumlah akun aktif (permintaan pengguna 6 September 2026): Admin
+ * Kabupaten melihat seluruh sistem, Admin OPD hanya akun OPD-nya.
  *
  * Satu komponen dipakai ketiga halaman supaya angka yang sama tak dijelaskan
  * dengan tiga kalimat berbeda -- yang bedanya cuma LINGKUPnya, dan lingkup itu

@@ -4,11 +4,14 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { enkripsiKolom } from '../../common/crypto/kolom';
 import { JenisKelamin, QuestionType, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { ConsentService } from '../auth/consent.service';
 import type { NotificationsService } from '../notifications/notifications.service';
+import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
 import { ResponsesService } from './responses.service';
 
 const responden = (userId = 10): CurrentUser => ({
@@ -63,10 +66,36 @@ describe('ResponsesService', () => {
   const notifications = {
     notifySurveyResponse: jest.fn().mockResolvedValue(undefined),
   } as unknown as NotificationsService;
-  const service = new ResponsesService(prisma, consent, notifications);
+  /**
+   * Kunci uji tetap untuk kolom terenkripsi. `users.nomorHp` disimpan sebagai
+   * amplop (lihat common/crypto/kolom.ts), jadi layanan ini harus
+   * mendekripsinya sebelum menyalinnya ke respons.
+   */
+  const KUNCI_UJI_KOLOM = Buffer.alloc(32, 0xc);
+  const config = {
+    get: jest.fn((kunci: string) =>
+      kunci === 'crypto.dataKey' ? KUNCI_UJI_KOLOM.toString('hex') : undefined,
+    ),
+  } as unknown as ConfigService;
+  /**
+   * Pembatal singgahan hitungan IKM. Lihat describe terakhir berkas ini untuk
+   * alasan keberadaannya.
+   */
+  const singgahan = {
+    ambil: jest.fn().mockResolvedValue(null),
+    simpan: jest.fn().mockResolvedValue(undefined),
+    hapus: jest.fn().mockResolvedValue(undefined),
+  } as unknown as PenyimpanSinggahan;
+  const service = new ResponsesService(prisma, consent, notifications, config, singgahan);
 
   const AKUN_BERPROFIL = {
     nama: 'Siti Aminah',
+    // Kedua kolom ini lahir 1 Oktober 2026 dan ikut di-`select` sejak nomor HP
+    // serta jenis kelamin disalin dari akun Helpdesk. Ditulis TERSURAT sebagai
+    // null supaya fixture ini mewakili akun yang BELUM pernah login ulang --
+    // keadaan seluruh akun yang sudah ada saat kolomnya dibuat.
+    nomorHp: null,
+    jenisKelamin: null,
     respondentProfile: { jenisKelamin: JenisKelamin.perempuan, kelompokUmur: '26-35' },
   };
 
@@ -332,6 +361,189 @@ describe('ResponsesService', () => {
       expect(prisma.surveyResponse.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           include: { answers: { orderBy: { question: { urutan: 'asc' } } } },
+        }),
+      );
+    });
+
+    /**
+     * DATA DIRI PENGISI DIBUKA KEPADA ADMIN (1 Oktober 2026, keputusan tersurat
+     * pengguna sesudah laporan "data responden bukan anonim belum tampil").
+     *
+     * Keempat kolomnya sudah tersimpan sejak 8 September 2026, tetapi
+     * `ResponseEntity` hanya memuat id/surveyId/submittedAt -- catatan di
+     * schema.prisma menyebutnya tersurat: "BELUM ADA PEMBACANYA... keempatnya
+     * data pribadi yang tersimpan tanpa pemakai". Laporan itulah pembacanya.
+     *
+     * Barisnya TIDAK perlu kueri tambahan: `findAllForSurvey` sudah memakai
+     * `include`, jadi seluruh kolom baris itu memang sudah terambil dan selama
+     * ini dibuang oleh pemetanya.
+     */
+    it('mengembalikan data diri pengisi yang tersimpan', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [
+          {
+            id: 9,
+            surveyId: 1,
+            submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+            nama: 'Siti Aminah',
+            nomorHp: '081234567890',
+            jenisKelamin: JenisKelamin.perempuan,
+            kelompokUmur: '26-35',
+            answers: [],
+          },
+        ],
+        1,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items[0]).toEqual(
+        expect.objectContaining({
+          nama: 'Siti Aminah',
+          nomorHp: '081234567890',
+          jenisKelamin: JenisKelamin.perempuan,
+          kelompokUmur: '26-35',
+        }),
+      );
+    });
+
+    it('KONTROL: respons anonim tetap null pada keempat kolomnya', async () => {
+      // Pagar yang menentukan sah-tidaknya seluruh perubahan ini. Pengisi yang
+      // memilih anonim menyimpan null pada keempat kolom, dan pemetanya tak
+      // boleh menggantinya dengan string kosong, '-' , atau apa pun yang
+      // terbaca sebagai data. Tanpa uji ini, membuka kolomnya dan membocorkan
+      // identitas orang yang memilih tidak memberikannya terlihat sama saja.
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [
+          {
+            id: 10,
+            surveyId: 1,
+            submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+            nama: null,
+            nomorHp: null,
+            jenisKelamin: null,
+            kelompokUmur: null,
+            answers: [],
+          },
+        ],
+        1,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items[0]).toEqual(
+        expect.objectContaining({
+          nama: null,
+          nomorHp: null,
+          jenisKelamin: null,
+          kelompokUmur: null,
+        }),
+      );
+    });
+
+    /**
+     * NOMOR RESPONS ADALAH URUTAN MASUK, BUKAN POSISI DI LAYAR (4 Oktober 2026,
+     * laporan pengguna: "urutan respon survei terbalik, respon paling pertama
+     * masuk akan tertimbun").
+     *
+     * Sebelumnya layar menomori dari POSISI ARRAY (`index + 1`) atas daftar yang
+     * diurutkan terbaru-dahulu. Akibatnya nomor itu bukan identitas: respons
+     * yang kemarin "#1" menjadi "#2" begitu ada pengisi baru, dan respons yang
+     * benar-benar pertama justru memperoleh angka terbesar. Nomor yang berubah
+     * sendiri tak dapat dipakai merujuk apa pun -- admin yang mencatat "lihat
+     * respons #3" menunjuk respons yang berbeda keesokan harinya.
+     *
+     * Frontend TIDAK DAPAT menghitungnya sendiri: ia hanya memegang satu
+     * halaman dan tak tahu ada berapa respons sebelum baris pertamanya. Karena
+     * itu nomornya dihitung di sini, dari `total` yang memang sudah diambil
+     * transaksi yang sama.
+     *
+     * URUTANNYA MENAIK sejak 4 Oktober 2026 (permintaan kedua pengguna pada
+     * hari yang sama: "respon #1 di posisi paling atas dan seterusnya").
+     * Keputusan sebelumnya -- terbaru-dahulu, nomor dihitung mundur dari
+     * `total` -- dibalik pada hari ia ditulis, dan itu ikut dicatat di sini
+     * supaya pembaca berikutnya tak menyangka salah satunya kekeliruan.
+     *
+     * Menaik juga membuat nomornya lebih murah: `offset + index + 1` tak
+     * bergantung pada `total` sama sekali, jadi respons yang masuk di tengah
+     * paginasi tak dapat menggeser nomor siapa pun.
+     */
+    it('menomori respons menurut urutan masuk, dari yang paling lama', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      // 3 respons, terlama dahulu. Nomornya 1, 2, 3.
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [
+          { id: 10, surveyId: 1, submittedAt: new Date('2026-10-01T00:00:00.000Z'), answers: [] },
+          { id: 20, surveyId: 1, submittedAt: new Date('2026-10-02T00:00:00.000Z'), answers: [] },
+          { id: 30, surveyId: 1, submittedAt: new Date('2026-10-03T00:00:00.000Z'), answers: [] },
+        ],
+        3,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items.map((r) => r.nomor)).toEqual([1, 2, 3]);
+      // Yang paling lama masuk berada di BARIS PERTAMA dan bernomor 1.
+      expect(hasil.items[0]).toEqual(expect.objectContaining({ id: 10, nomor: 1 }));
+    });
+
+    it('nomor pada halaman kedua melanjutkan, tidak mengulang dari 1', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      // total 25, limit 20, halaman 2 berisi 5 respons terbaru → nomor 21..25.
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        [21, 22, 23, 24, 25].map((n) => ({
+          id: n,
+          surveyId: 1,
+          submittedAt: new Date('2026-10-01T00:00:00.000Z'),
+          answers: [],
+        })),
+        25,
+      ]);
+
+      const hasil = await service.findAllForSurvey(
+        1,
+        { page: 2, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(hasil.items.map((r) => r.nomor)).toEqual([21, 22, 23, 24, 25]);
+    });
+
+    /**
+     * `submittedAt` KEMBAR BUKAN PERKARA TEORETIS: dua pengisi dapat mengirim
+     * dalam milidetik yang sama, dan Postgres tak menjanjikan urutan apa pun
+     * bagi baris yang kunci urutnya seri. Tanpa pemecah seri, kedua respons itu
+     * dapat bertukar tempat antar-permintaan, dan karena nomornya diturunkan
+     * dari posisi, nomor keduanya ikut bertukar. `id` menaik monoton, jadi ia
+     * pemecah seri yang stabil.
+     */
+    it('urutannya punya pemecah seri id supaya nomornya tidak goyah', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue({ id: 1, opdId: 5 });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+
+      await service.findAllForSurvey(
+        1,
+        { page: 1, limit: 20 },
+        { userId: 1, roles: [Role.kabupaten], actingRole: Role.kabupaten, opdId: null },
+      );
+
+      expect(prisma.surveyResponse.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
         }),
       );
     });
@@ -651,15 +863,137 @@ describe('ResponsesService', () => {
       expect(data.kelompokUmur).toBeNull();
     });
 
-    it('nomorHp TIDAK pernah ditulis pada jalur bersesi', async () => {
-      // Tak ada sumbernya, dan itu terukur: Helpdesk tak mengirim nomor telepon
-      // dan `users` tak punya kolomnya. Menulis null di sini akan menyamar
-      // sebagai data yang dicoba diambil lalu tak ada.
+    /**
+     * DIBALIK LAGI, 1 Oktober 2026 (petang), atas permintaan tersurat pengguna:
+     * "halaman sebelum mengisi survei tidak menampilkan form apapun".
+     *
+     * Uji ini sempat berbunyi "nomorHp ditulis DARI PAYLOAD", dan alasannya
+     * waktu itu benar: Helpdesk dianggap tak mengirim nomor telepon, terukur
+     * pada metadata penyedia yang `claims_supported`-nya tak memuat
+     * `phone_number`. ITU TERNYATA BUKAN JAWABAN YANG LENGKAP. Payload
+     * `userinfo` sungguhan memuat `identity.phone_number`, dan spesifikasi OIDC
+     * memang menyebut `claims_supported` sebagai petunjuk, bukan jaminan
+     * tertutup. Sejak nomornya ada di akun, meminta pengisi mengetiknya berarti
+     * menyuruh orang mengulang yang sudah diketahui sistem.
+     *
+     * Nomor HP kini DISALIN DARI AKUN seperti nama dan demografis, sehingga
+     * seluruh data diri jalur bersesi aman oleh konstruksi: tak satu pun dapat
+     * dikarang lewat permintaan langsung.
+     */
+    it('nomorHp DISALIN DARI AKUN, bukan dari payload', async () => {
       siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: enkripsiKolom('+62895396662038', KUNCI_UJI_KOLOM),
+        jenisKelamin: JenisKelamin.perempuan,
+        respondentProfile: null,
+      });
 
       await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
 
-      expect('nomorHp' in dataYangDitulis()).toBe(false);
+      expect(dataYangDitulis().nomorHp).toBe('+62895396662038');
+    });
+
+    /**
+     * PAGAR TERPENTING pada perubahan ini. DTO jalur bersesi sudah membuang
+     * medan `nomorHp`, tetapi layanan ini tak boleh bergantung pada satu
+     * lapisan saja: payload yang menyelundupkan nomor tak boleh berakhir di
+     * basis data sebagai data diri orang lain.
+     */
+    it('nomorHp yang diselundupkan lewat payload DIABAIKAN', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: enkripsiKolom('+62895396662038', KUNCI_UJI_KOLOM),
+        jenisKelamin: null,
+        respondentProfile: null,
+      });
+
+      await service.submit(
+        1,
+        { answers: [{ questionId: 101, nilai: 4 }], nomorHp: '080000000000' } as never,
+        responden(7),
+      );
+
+      expect(dataYangDitulis().nomorHp).toBe('+62895396662038');
+    });
+
+    it('akun tanpa nomor HP: kolomnya null, BUKAN undefined', async () => {
+      // `undefined` pada `create` Prisma berarti "pakai nilai baku". `null`
+      // menyatakan tersurat bahwa nomornya memang tak ada -- keadaan normal,
+      // sebab Helpdesk tak menjamin medan itu terisi.
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: null,
+        jenisKelamin: null,
+        respondentProfile: null,
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect(dataYangDitulis().nomorHp).toBeNull();
+    });
+
+    it('KONTROL: tanpaDataDiri mengosongkan nomorHp walau akunnya punya', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: enkripsiKolom('+62895396662038', KUNCI_UJI_KOLOM),
+        jenisKelamin: JenisKelamin.perempuan,
+        respondentProfile: null,
+      });
+
+      await service.submit(
+        1,
+        { answers: [{ questionId: 101, nilai: 4 }], tanpaDataDiri: true },
+        responden(7),
+      );
+
+      const data = dataYangDitulis();
+      expect(data.nomorHp).toBeNull();
+      expect(data.nama).toBeNull();
+      expect(data.jenisKelamin).toBeNull();
+    });
+
+    /**
+     * URUTAN SUMBER, keputusan tersurat pengguna: Helpdesk dulu,
+     * `respondent_profiles` sebagai cadangan. Diukur sebelum diputuskan --
+     * pada basis data lokal 1 Oktober 2026 hanya 1 dari 10 akun punya baris
+     * `respondent_profiles`, dan 7 dari 8 respons bersesi tersimpan tanpa
+     * jenis kelamin. Sumber lama memang hampir selalu kosong.
+     */
+    it('jenis kelamin diambil dari akun Helpdesk lebih dulu', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: null,
+        jenisKelamin: JenisKelamin.perempuan,
+        respondentProfile: { jenisKelamin: JenisKelamin.laki_laki, kelompokUmur: '26-35' },
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      expect(dataYangDitulis().jenisKelamin).toBe(JenisKelamin.perempuan);
+    });
+
+    it('respondent_profiles dipakai bila akun Helpdesk tak membawanya', async () => {
+      siapkan();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        nama: 'Siti Aminah',
+        nomorHp: null,
+        jenisKelamin: null,
+        respondentProfile: { jenisKelamin: JenisKelamin.laki_laki, kelompokUmur: '26-35' },
+      });
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(7));
+
+      const data = dataYangDitulis();
+      expect(data.jenisKelamin).toBe(JenisKelamin.laki_laki);
+      // Kelompok umur TETAP dari respondent_profiles: Helpdesk tak
+      // mengirimkannya sama sekali (yang ada `tanggal_lahir`, dan batas
+      // kelompoknya keputusan pengguna, bukan tebakan kode ini).
+      expect(data.kelompokUmur).toBe('26-35');
     });
 
     it('akun yang tidak ditemukan tidak menggagalkan pengiriman', async () => {
@@ -775,6 +1109,129 @@ describe('ResponsesService', () => {
         BadRequestException,
       );
       expect(notifications.notifySurveyResponse).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * PEMBATALAN SINGGAHAN IKM (9 Oktober 2026, pilihan pengguna: jalur A).
+   *
+   * Cacat yang menyebabkannya nyata dan terukur, bukan hipotetis: `ikm.e2e-spec.ts`
+   * memanggil `GET /surveys/:id/results` ketika survei belum berresponden, yang
+   * menyinggahkan sebaran KOSONG selama 60 detik; dua jawaban lalu masuk dan
+   * `total` tetap 0. Uji itu bernama "live-compute", jadi harapan produknya
+   * memang seketika.
+   *
+   * Rata-ratanya tak ikut memerah hanya karena kebetulan: nilai `null` sengaja
+   * tak pernah disimpan, sehingga survei kosong tak menyinggahkan apa pun.
+   * Begitu satu jawaban ada, rata-ratanya basi juga -- jadi KEDUA kunci
+   * dibatalkan di sini, bukan hanya yang tertangkap uji.
+   *
+   * DIPASANG DI JALUR TULIS, bukan dengan memperpendek TTL: TTL sekecil apa pun
+   * masih jendela basi, dan satu `DEL` per jawaban jauh lebih murah daripada
+   * menghitung ulang IKM setiap permintaan baca.
+   */
+  describe('pembatalan singgahan IKM saat jawaban masuk', () => {
+    const responsTersimpan = { id: 1, surveyId: 1, submittedAt: new Date(), answers: [] };
+    /**
+     * SELURUH kunci, bukan sejumlah tertentu yang dihafal: daftarnya bertambah
+     * dari dua menjadi tiga pada 9 Oktober 2026 ketika `computeResult` ikut
+     * disinggahkan, dan ketiga uji di bawah MEMERAH saat itu. Itu memang
+     * gunanya -- menambah hitungan tersinggahkan tanpa menambah pembatalannya
+     * adalah cara paling mudah membuat angka basi, dan uji inilah yang
+     * menghentikannya.
+     */
+    const kunciTerhapus = () => (singgahan.hapus as jest.Mock).mock.calls.flat().sort() as string[];
+
+    beforeEach(() => (singgahan.hapus as jest.Mock).mockClear());
+
+    it('submit bersesi membatalkan SELURUH kunci survei itu', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      // `ikm-dashboard-gen` ikut sejak 13 Oktober 2026: jawaban baru mengubah
+      // survei AKTIF yang dihitung live di rekapitulasi dashboard, dan kunci
+      // dashboard tak dapat diturunkan dari id survei sehingga yang hangus
+      // adalah token generasinya.
+      expect(kunciTerhapus()).toEqual([
+        'ikm-dashboard-gen',
+        'ikm-hasil:1',
+        'ikm-rata:1',
+        'ikm-sebaran:1',
+      ]);
+    });
+
+    /**
+     * Jalur publik ikut, dan ini bukan kelengkapan belaka: survei berkode QR di
+     * loket dijawab LEWAT JALUR INI, jadi melewatkannya berarti justru survei
+     * yang paling sering dijawab yang angkanya paling basi.
+     */
+    it('submitPublic membatalkan SELURUH kunci survei itu', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ izinkanAnonim: true, questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submitPublic(1, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      // `ikm-dashboard-gen` ikut sejak 13 Oktober 2026: jawaban baru mengubah
+      // survei AKTIF yang dihitung live di rekapitulasi dashboard, dan kunci
+      // dashboard tak dapat diturunkan dari id survei sehingga yang hangus
+      // adalah token generasinya.
+      expect(kunciTerhapus()).toEqual([
+        'ikm-dashboard-gen',
+        'ikm-hasil:1',
+        'ikm-rata:1',
+        'ikm-sebaran:1',
+      ]);
+    });
+
+    /**
+     * URUTANNYA MENENTUKAN BENAR-SALAHNYA. Membatalkan SEBELUM baris tersimpan
+     * membuka balapan: pembaca lain dapat mengisi ulang singgahan dengan angka
+     * pra-jawaban di antara dua langkah itu, dan hasilnya basi persis seperti
+     * sebelum perbaikan ini -- dengan `DEL` yang terlihat sudah dipanggil.
+     */
+    it('dibatalkan SESUDAH baris tersimpan, bukan sebelumnya', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue(responsTersimpan);
+
+      await service.submit(1, { answers: [{ questionId: 101, nilai: 4 }] }, responden(10));
+
+      const urutanSimpan = (prisma.surveyResponse.create as jest.Mock).mock.invocationCallOrder[0];
+      const urutanBatal = (singgahan.hapus as jest.Mock).mock.invocationCallOrder[0];
+      expect(urutanBatal).toBeGreaterThan(urutanSimpan);
+    });
+
+    it('survei lain tak tersentuh: kuncinya dibangun dari surveyId yang dijawab', async () => {
+      (prisma.survey.findFirst as jest.Mock).mockResolvedValue(
+        aktifSurvey({ id: 42, izinkanAnonim: true, questions: [skalaQ(101)] }),
+      );
+      (prisma.surveyResponse.create as jest.Mock).mockResolvedValue({
+        ...responsTersimpan,
+        surveyId: 42,
+      });
+
+      await service.submitPublic(42, { answers: [{ questionId: 101, nilai: 4 }], setuju: true });
+
+      // Maksud uji ini: kunci PER SURVEI dibangun dari survei yang dijawab,
+      // sehingga survei lain tak tersentuh. `ikm-dashboard-gen` memang tak
+      // berkunci per survei -- ia rekapitulasi lintas OPD -- jadi ia dipisahkan
+      // alih-alih melemahkan penegasannya menjadi `arrayContaining`.
+      const terhapus = kunciTerhapus();
+      expect(terhapus).toContain('ikm-dashboard-gen');
+      expect(terhapus.filter((k: string) => k !== 'ikm-dashboard-gen')).toEqual([
+        'ikm-hasil:42',
+        'ikm-rata:42',
+        'ikm-sebaran:42',
+      ]);
     });
   });
 });

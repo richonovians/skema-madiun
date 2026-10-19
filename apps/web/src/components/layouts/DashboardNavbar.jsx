@@ -70,7 +70,7 @@ export default function DashboardNavbar() {
               className={getLinkClass('/')}
               onClick={(e) => handleNavClick(e, '/')}
             >
-              Beranda
+              Layanan
             </Link>
             <Link 
               href="/dashboard" 
@@ -123,7 +123,7 @@ export default function DashboardNavbar() {
                 handleNavClick(e, '/');
               }}
             >
-              Beranda
+              Layanan
             </Link>
             <Link 
               href="/dashboard" 

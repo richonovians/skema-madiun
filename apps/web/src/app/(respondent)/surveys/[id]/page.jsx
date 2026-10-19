@@ -47,6 +47,10 @@ export default function SurveyWizardPage() {
 
   useEffect(() => {
     if (fillData && !fillData.sudahMengisi && !perluGerbang) {
+      // SATU pilihan saja yang diteruskan dari gerbang (1 Oktober 2026,
+      // petang). `nomorHp` tak lagi ada di sini: seluruh data diri -- nama,
+      // nomor HP, jenis kelamin -- disalin backend dari akun pengirim, jadi tak
+      // satu pun dapat dikarang dari klien.
       initSurvey(fillData, { tanpaDataDiri: pilihanBersesi?.anonim === true });
     }
     return () => {

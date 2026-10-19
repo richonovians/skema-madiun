@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -10,48 +11,110 @@ import {
   MessageSquare,
   ClipboardList,
   X,
-  History
+  History,
+  BookOpen,
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import AdminSidebarLogout from './AdminSidebarLogout';
 import { useAdminKabLayout } from './AdminKabLayoutProvider';
-import { useAsync } from '@/hooks/useAsync';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import { getMyProfile } from '@/features/profile/services/profile.api';
-import { USER_ROLES } from '@/features/users/constants/userConstants';
 
 /**
- * "Audit Logs" DAN "Manajemen User" hanya untuk SUPERUSER (2026-08-20, atas
- * permintaan user): Admin Kabupaten biasa tak boleh melihat log aktivitas maupun
- * mengelola akun. Konsekuensinya sengaja: pengangkatan/penurunan peran admin kini
- * sepenuhnya di tangan superuser.
+ * "Audit Logs" DAN "Manajemen User" milik ADMIN KABUPATEN. Keduanya sempat
+ * khusus `superuser` (2026-08-20, atas permintaan pengguna) dan berpindah ke
+ * sini bersama peleburan 15 September 2026; karena keduanya berada di bawah
+ * `/admin-kab` yang memang milik peran ini, sidebar ini tak lagi menyaring
+ * apa pun berdasarkan peran.
  *
- * Perannya dibaca dari `GET /auth/me`, BUKAN dari cookie `role` -- cookie itu
- * bisa disunting bebas di peramban, jadi tak layak jadi dasar keputusan tampilan
- * yang seolah-olah hak akses. Batas sesungguhnya tetap di backend
- * (AuditService.assertSuperuser & UsersService.assertSuperuser, 403 walau URL
- * dipaksa); menyembunyikan menu di sini supaya pengguna tak diarahkan ke halaman
- * yang pasti gagal.
+ * Batas sesungguhnya tetap di backend: `@Roles(Role.kabupaten)` pada
+ * `audit.controller.ts` & `users.controller.ts`, dengan
+ * `AuditService.assertKabupaten` dan `UsersService.assertKabupaten` sebagai
+ * lapis kedua -- 403 walau URL dipaksa.
  *
- * "Ganti Peran" juga khusus superuser: pilihan perannya saat login mengurung
- * navigasinya ke satu area (lihat proxy.js), dan ini jalan berpindahnya tanpa
- * harus keluar-masuk lagi.
+ * Docblock ini sempat menyebut kedua menu itu khusus superuser, menyebut dua
+ * metode service yang sudah tak ada (`assertSuperuser`), dan menyatakan "Ganti
+ * Peran" khusus superuser padahal butir itu tinggal di `AdminAccountMenu` dan
+ * bergantung pada JUMLAH peran yang dimiliki akun (dibereskan 14 Oktober 2026).
  */
 export default function AdminKabSidebar() {
   const pathname = usePathname();
-  const fetchProfile = useCallback(() => getMyProfile(), []);
-  const { data: profile } = useAsync(fetchProfile);
-  const isSuperuser = profile?.actingRole === USER_ROLES.SUPERUSER;
+
+  const {
+    isMobileSidebarOpen,
+    setIsMobileSidebarOpen,
+    isDesktopSidebarCollapsed,
+    setIsDesktopSidebarCollapsed,
+  } = useAdminKabLayout();
+
+  /**
+   * MELAPORKAN LEBARNYA ke properti khusus CSS `--lebar-sidebar`
+   * (30 September 2026, laporan pengguna: builder survei rusak saat sidebar
+   * diciutkan).
+   *
+   * BuilderLayout menutup layar dengan `md:fixed md:inset-0` dan perlu tahu
+   * di mana tepi kiri isinya. Ia TAK BISA menanyakannya lewat context: builder
+   * dipakai dua area dengan dua provider berbeda, dan `useAdminLayout()`
+   * melempar di luar provider-nya, sehingga memanggil salah satunya akan
+   * mematikan area yang lain. Variabel CSS tak peduli provider mana yang
+   * sedang hidup.
+   *
+   * Polanya sama persis dengan `--tinggi-navbar-kab` di AdminKabNavbar:
+   * komponen yang MENGETAHUI ukurannya melaporkannya, pemakainya membaca.
+   * Nilai awalnya ada di globals.css (`:root`), dipakai sebelum JS jalan.
+   *
+   * Angkanya sepadan dengan kelas lebarnya sendiri di bawah: `md:w-64` =
+   * 16rem dan `md:w-20` = 5rem, dengan `--spacing: .25rem` di globals.css.
+   * Keduanya harus berubah bersama.
+   */
+  React.useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--lebar-sidebar',
+      isDesktopSidebarCollapsed ? '5rem' : '16rem',
+    );
+    return () => {
+      // Dibersihkan saat keluar dari area admin: nilainya milik sidebar ini,
+      // dan halaman warga yang dibuka sesudahnya tak punya sidebar sama sekali.
+      document.documentElement.style.removeProperty('--lebar-sidebar');
+    };
+  }, [isDesktopSidebarCollapsed]);
+
+  // CIUT HANYA BERLAKU DARI `md` KE ATAS (23 September 2026, laporan pengguna).
+  //
+  // Sebelumnya efek ciut tak dipagari lebar layar sama sekali, padahal semua
+  // yang MEMAKAI state ini sudah dipagari: margin konten `md:ml-20`, offset
+  // navbar `md:left-20`, dan tombol pengalihnya sendiri `hidden md:flex`.
+  // Akibatnya bila ciut menyala lalu layar menyempit di bawah 768px, laci
+  // ponsel terbuka sebagai strip 80px berisi ikon tanpa nama -- bahkan tombol
+  // X penutupnya ikut hilang, sebab ia pun berada di balik syarat yang sama.
+  // Tombol untuk mengembalikannya `hidden` di bawah `md` dan merupakan
+  // SATU-SATUNYA pemanggil setternya, jadi keadaan itu tak dapat dipulihkan
+  // tanpa memuat ulang halaman.
+  //
+  // Diselesaikan lewat CSS, bukan pendengar resize atau media query di JS:
+  // yang terakhir memunculkan beda hasil antara render server dan peramban,
+  // yang tak dipunyai pendekatan ini.
+  const kelasLabelCiut = isDesktopSidebarCollapsed ? 'md:hidden' : '';
 
   const getLinkClass = (path) => {
-    // Exact match or active section
     const isActive = pathname === path || pathname.startsWith(`${path}/`);
-    
-    return isActive
-      ? "flex items-center gap-md px-md py-sm bg-blue-600 text-white rounded-lg font-bold transition-all duration-150"
-      : "flex items-center gap-md px-md py-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg";
-  };
 
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen } = useAdminKabLayout();
+    // `min-h-[44px]` (21 September 2026): terukur 239x40 di laci ponsel --
+    // empat piksel di bawah sasaran sentuh 44px yang sudah dipakai belasan
+    // tombol lain di proyek ini. Tinggi tampak tak berubah pada layar lebar,
+    // sebab di sana isinya memang sudah melewati 44px.
+    let base =
+      'flex items-center gap-md py-sm min-h-[44px] rounded-lg transition-all duration-300 relative group hover:translate-x-1 hover:shadow-sm ';
+    base += isDesktopSidebarCollapsed ? 'px-md md:justify-center md:px-0 ' : 'px-md ';
+
+    if (isActive) {
+      base += 'bg-blue-600 text-white font-bold shadow-md ';
+    } else {
+      base += 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 ';
+    }
+    return base;
+  };
 
   // Sama seperti AdminSidebar: latar laci menutupi layar, tapi halaman di
   // belakangnya tetap bergulir kalau tidak dikunci.
@@ -59,73 +122,176 @@ export default function AdminKabSidebar() {
 
   return (
     <>
-      {/* Mobile Overlay */}
+      {/* Overlay untuk mobile */}
       {isMobileSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden"
+        <div
+          className="md:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
-      
-      <aside className={`
-        bg-slate-900 text-slate-300 font-body-md text-body-md h-screen w-64 fixed left-0 top-0 shadow-xl flex flex-col py-md px-sm z-50
-        overflow-y-auto overscroll-contain
-        transition-transform duration-300 ease-in-out
-        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div className="mb-xl px-md flex items-center justify-between">
-          <div>
-            <h1 className="font-headline-md text-headline-md font-bold text-blue-400">Admin Kabupaten</h1>
-            <p className="text-sm opacity-60">Portal Eksekutif</p>
+
+      {/* Tombol Toggle Desktop diletakkan di LUAR aside agar tidak terpotong overflow */}
+      <button
+        className={`hidden md:flex fixed top-8 h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-slate-50 shadow-sm z-[60] transition-all duration-300 hover:scale-110 ${
+          isDesktopSidebarCollapsed ? 'left-[66px]' : 'left-[242px]'
+        }`}
+        onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+        title={isDesktopSidebarCollapsed ? 'Perbesar Sidebar' : 'Perkecil Sidebar'}
+      >
+        {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+
+      <aside
+        className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen w-64 ${isDesktopSidebarCollapsed ? 'md:w-20' : 'md:w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* Header sejajar dengan AdminKabNavbar (h-64/80, border-b) */}
+        <div
+          className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full justify-between px-4 ${isDesktopSidebarCollapsed ? 'md:justify-center md:px-0' : ''}`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
+              {/* Sama persis dengan AdminSidebar.jsx: 3:2 mengikuti berkasnya
+                  yang 1536x1024, dengan `w-[37px] h-auto` yang menjaga ukuran
+                  tergambarnya tidak berubah. Lihat catatan di sana. */}
+              <Image
+                src="/images/navbar/skema-logo-2.png"
+                alt="Logo SKEMA"
+                width={48}
+                height={32}
+                className="object-contain brightness-0 invert scale-[1.7] w-[37px] h-auto"
+              />
+            </div>
+            <span
+              className={`font-bold text-[17px] text-slate-900 tracking-tight uppercase truncate ${kelasLabelCiut}`}
+            >
+              Admin Kabupaten
+            </span>
           </div>
-          <button 
-            className="md:hidden text-slate-400 hover:text-white"
+
+          <button
+            type="button"
+            aria-label="Tutup menu navigasi"
+            title="Tutup menu navigasi"
+            className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 shrink-0 ml-2"
             onClick={() => setIsMobileSidebarOpen(false)}
           >
-            <X size={24} />
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
-        
-        <nav className="flex-1 space-y-sm">
-          <Link href="/admin-kab/dashboard" className={getLinkClass('/admin-kab/dashboard')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
+
+        <div className={`px-5 mb-2 mt-4 ${kelasLabelCiut}`}>
+          <span className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+            Portal & Ikhtisar
+          </span>
+        </div>
+
+        <nav className={`flex-1 space-y-sm px-2 ${isDesktopSidebarCollapsed ? 'md:mt-4' : ''}`}>
+          <Link
+            href="/admin-kab/dashboard"
+            title="Dashboard"
+            className={getLinkClass('/admin-kab/dashboard')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <LayoutDashboard
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Dashboard</span>
           </Link>
-          <Link href="/admin-kab/opd" className={getLinkClass('/admin-kab/opd')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <Building2 size={20} />
-            <span>Manajemen OPD</span>
+          <Link
+            href="/admin-kab/opd"
+            title="Daftar OPD"
+            className={getLinkClass('/admin-kab/opd')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Building2
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Daftar OPD</span>
           </Link>
-          <Link href="/admin-kab/surveys" className={getLinkClass('/admin-kab/surveys')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <ClipboardList size={20} />
-            <span>Monitoring Survei</span>
+          <Link
+            href="/admin-kab/surveys"
+            title="Monitoring Survei"
+            className={getLinkClass('/admin-kab/surveys')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <ClipboardList
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Monitoring Survei</span>
           </Link>
-          <Link href="/admin-kab/complaints" className={getLinkClass('/admin-kab/complaints')} onClick={() => setIsMobileSidebarOpen(false)}>
-            <MessageSquare size={20} />
-            <span>Pengaduan</span>
+          <Link
+            href="/admin-kab/complaints"
+            title="Pengaduan"
+            className={getLinkClass('/admin-kab/complaints')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <MessageSquare
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Pengaduan</span>
           </Link>
-          {/* Manajemen User & Audit Logs: khusus SUPERUSER (2026-08-20). */}
-          {isSuperuser && (
-            <>
-              <Link href="/admin-kab/users" className={getLinkClass('/admin-kab/users')} onClick={() => setIsMobileSidebarOpen(false)}>
-                <Users size={20} />
-                <span>Manajemen User</span>
-              </Link>
-              <Link href="/admin-kab/audit-logs" className={getLinkClass('/admin-kab/audit-logs')} onClick={() => setIsMobileSidebarOpen(false)}>
-                <History size={20} />
-                <span>Audit Logs</span>
-              </Link>
-            </>
-          )}
+          <Link
+            href="/admin-kab/analytics"
+            title="Statistik & Laporan"
+            className={getLinkClass('/admin-kab/analytics')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <TrendingUp
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Statistik & Laporan</span>
+          </Link>
+          {/* Manajemen User & Audit Logs: milik Admin Kabupaten sejak peleburan
+              peran superuser (15 September 2026). Sidebar ini memang hanya
+              tampil di area Admin Kabupaten, jadi tak ada penjaga tambahan. */}
+          <Link
+            href="/admin-kab/users"
+            title="Manajemen User"
+            className={getLinkClass('/admin-kab/users')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <Users
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Manajemen User</span>
+          </Link>
+          <Link
+            href="/admin-kab/audit-logs"
+            title="Audit Logs"
+            className={getLinkClass('/admin-kab/audit-logs')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <History
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Audit Logs</span>
+          </Link>
+          <Link
+            href="/admin-kab/dokumentasi-api"
+            title="Dokumentasi API"
+            className={getLinkClass('/admin-kab/dokumentasi-api')}
+            onClick={() => setIsMobileSidebarOpen(false)}
+          >
+            <BookOpen
+              size={20}
+              className="shrink-0 transition-transform duration-300 group-hover:scale-110"
+            />
+            <span className={kelasLabelCiut}>Dokumentasi API</span>
+          </Link>
         </nav>
 
-        {/* "Keluar" kembali ke sini atas permintaan pengguna (1 September 2026).
-            Yang membuatnya aman sekarang: `<aside>` di atas sudah
-            `overflow-y-auto overscroll-contain`, jadi menu superuser yang
-            lebih tinggi dari layar bisa digulir dan tombol ini tetap dapat
-            dicapai -- persis kelas masalah yang dulu membuatnya dipindahkan.
-            Alasan panjangnya di AdminSidebarLogout.
-            "Ganti Peran" TETAP hanya di ikon profil (AdminAccountMenu). */}
-        <AdminSidebarLogout />
+        <div className="px-2 mt-auto">
+          <AdminSidebarLogout isCollapsed={isDesktopSidebarCollapsed} />
+        </div>
       </aside>
     </>
   );

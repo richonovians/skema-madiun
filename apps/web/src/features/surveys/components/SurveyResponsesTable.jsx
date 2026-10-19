@@ -33,9 +33,24 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
         <Thead>
           <Tr>
             <Th>Respons</Th>
+            {/* PENGISI (1 Oktober 2026, keputusan tersurat pengguna sesudah
+                laporan "data responden bukan anonim belum tampil"). Namanya
+                saja: nomor HP sengaja tinggal di halaman detail, sebab daftar
+                dipakai memindai banyak baris sekaligus dan memajang data hubung
+                puluhan orang pada satu layar tak dibutuhkan untuk memindai. */}
+            <Th>Pengisi</Th>
             <Th>Waktu Pengisian</Th>
             <Th>Nilai Rata-Rata</Th>
-            <Th>
+            {/* `relative` (16 September 2026): `sr-only` adalah
+                `position: absolute`, dan tanpa penampung di sel ini blok
+                penampungnya melompat sampai ke blok awal dokumen -- keluar dari
+                wadah `overflow-x-auto` milik tabel, yang karenanya tak menjepitnya.
+                Terukur pada 320px: tepi kanannya 329px sementara layar 320px,
+                dan halaman benar-benar bisa digeser 9px ke samping meski jalur
+                itu kosong (`sr-only` memakai `clip: rect(0,0,0,0)`, jadi tak
+                menggambar apa pun). Dengan `relative` di sini, ia kembali diukur
+                dan dijepit di dalam gulirannya sendiri. */}
+            <Th className="relative">
               <span className="sr-only">Aksi</span>
             </Th>
           </Tr>
@@ -44,7 +59,31 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
           {responses.map((response, index) => (
             <Tr key={response.id}>
               <Td>
-                <span className="font-medium text-on-surface">Respons #{index + 1}</span>
+                {/* NOMOR DARI BACKEND, bukan posisi baris (4 Oktober 2026,
+                    laporan pengguna "respon paling pertama masuk akan
+                    tertimbun"). `index + 1` membuat nomor berubah sendiri tiap
+                    ada pengisi baru, dan mengulang dari 1 di tiap halaman.
+                    Frontend tak dapat menghitungnya: ia hanya memegang satu
+                    potongan dan tak tahu ada berapa respons sebelumnya.
+
+                    Tanpa `nomor` (mis. jalur yang tak berpaginasi), labelnya
+                    kehilangan angka alih-alih jatuh kembali ke posisi array --
+                    jatuh ke posisi berarti mengembalikan cacat ini. */}
+                <span className="font-medium text-on-surface">
+                  {response.nomor != null ? `Respons #${response.nomor}` : 'Respons'}
+                </span>
+              </Td>
+              {/* "Anonim" DITULIS di sini, bukan di adapter. Null dari backend
+                  berarti pengisi memilih tidak memberi datanya, dan adapter
+                  meneruskannya apa adanya supaya pilihan itu tetap dapat
+                  dibedakan dari data yang hilang. Menerjemahkannya menjadi kata
+                  adalah keputusan TAMPILAN, dan tempatnya di sini. */}
+              <Td>
+                {response.respondent?.name ? (
+                  <span className="text-on-surface">{response.respondent.name}</span>
+                ) : (
+                  <span className="text-on-surface-variant italic">Anonim</span>
+                )}
               </Td>
               <Td>
                 <span className="text-on-surface-variant">{formatDate(response.submittedAt)}</span>
@@ -66,7 +105,7 @@ export default function SurveyResponsesTable({ surveyId, responses, basePath }) 
           ))}
           {responses.length === 0 && (
             <Tr>
-              <Td colSpan={4} className="text-center py-xl text-on-surface-variant">
+              <Td colSpan={5} className="text-center py-xl text-on-surface-variant">
                 Belum ada respons untuk survei ini.
               </Td>
             </Tr>

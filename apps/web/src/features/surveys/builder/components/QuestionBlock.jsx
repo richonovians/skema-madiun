@@ -164,6 +164,11 @@ export default function QuestionBlock({
   onUpdate,
   onTextCommit,
   onEditOptions,
+  /**
+   * Kalimat pertanyaan boleh disunting. Mati hanya saat survei DITUTUP: aturan
+   * `teks` backend mengizinkannya sampai sana, juga setelah jawaban masuk.
+   */
+  canEditText = true,
   /** Sebab susunan terkunci, atau `null` bila bebas diubah. */
   alasanTerkunci = null,
 }) {
@@ -172,10 +177,15 @@ export default function QuestionBlock({
   const isBaku = question.isBaku;
   const options = question.options ?? [];
   const isScale = question.type === 'Skala Penilaian 1-4';
-  // Opsi/label dapat disunting untuk skala & pilihan ganda (isian teks tak punya
-  // opsi sama sekali), dan hanya selama survei masih draf -- `assertDraft`
-  // backend menolak di luar itu, jadi tombolnya sekalian disembunyikan.
-  const canEditOptions = canReorder && (isScale || question.type === 'Pilihan Ganda');
+  // Dua aturan berbeda (8 Oktober 2026):
+  //  - LABEL SKALA mengikuti aturan kalimat pertanyaan (`canEditText`): boleh
+  //    sampai survei ditutup, juga sesudah jawaban masuk, sebab jawaban skala
+  //    menyimpan skor, bukan penunjuk ke baris opsi;
+  //  - OPSI PILIHAN GANDA mengikuti aturan susunan (`canReorder`): jawabannya
+  //    menunjuk id opsi, jadi terkunci begitu ada jawaban.
+  // Isian teks tak punya opsi sama sekali.
+  const canEditOptions =
+    (isScale && canEditText) || (canReorder && question.type === 'Pilihan Ganda');
 
   const dragCardProps = canReorder
     ? {
@@ -226,27 +236,39 @@ export default function QuestionBlock({
             </h4>
           </div>
           <div className="flex items-center gap-sm">
-            {/* Unsur baku terkunci untuk DIUBAH, tapi URUTANNYA boleh dipindah --
-                endpoint reorder backend menuntut seluruh id pertanyaan dan tak
-                membedakan baku/kustom, dan nilai IKM dihitung dari kodeUnsur,
-                bukan dari posisi, jadi memindahkannya tidak mengubah hitungan. */}
+            {/* Kode dan nama unsur terkunci, dan unsur TIDAK DAPAT DIHAPUS (8 Oktober
+                2026, permintaan pengguna: yang customizable adalah pertanyaannya,
+                bukan standar pengukurannya). Dulu di sini ada tombol "Hapus 9
+                unsur baku"; kerangka kini lahir bersama survei SKM dan backend
+                menolak menghapusnya.
+
+                URUTANNYA boleh dipindah: endpoint reorder tidak membedakan
+                baku/kustom, dan nilai IKM dihitung dari kodeUnsur, bukan dari
+                posisi, jadi memindahkannya tidak mengubah hitungan. */}
             {controls}
             <span className="px-2 py-1 bg-surface-variant text-[10px] font-bold rounded-full text-on-surface-variant">
-              TEMPLATE BAKU
+              UNSUR BAKU
             </span>
           </div>
         </div>
         <div className="mb-md">
-          <textarea
-            className="w-full bg-white/50 border border-border rounded-lg p-md text-body-md font-body-md resize-none focus:ring-0 cursor-text"
-            readOnly
+          {/* Kalimat pertanyaan unsur DAPAT disunting OPD. Bergaris seperti kotak
+              pertanyaan kustom supaya jelas bahwa ini isian, bukan judul. Nama
+              resmi unsurnya ada di badge di atas dan tidak ikut berubah. */}
+          <input
+            className="w-full text-body-md font-body-md bg-white rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-md py-sm text-text-primary cursor-text read-only:bg-surface-container-low read-only:cursor-default"
+            placeholder="Tulis pertanyaan di sini..."
+            type="text"
+            aria-label={`Kalimat pertanyaan ${question.title}`}
             value={question.text}
-            rows={2}
+            readOnly={!canEditText}
+            onChange={(e) => onUpdate?.(question.id, { text: e.target.value })}
+            onBlur={(e) => canEditText && onTextCommit && onTextCommit(question.id, e.target.value)}
           />
         </div>
-        {/* Unsur baku terkunci TEKSnya (kalimat resmi PermenPANRB), tapi LABEL
-            skalanya boleh disesuaikan -- yang berubah cuma kalimat tiap skor,
-            sementara skor 1-4 (dasar rumus IKM) dipaksa tetap oleh backend. */}
+        {/* LABEL skala tiap unsur juga boleh disesuaikan -- yang berubah cuma
+            kalimat tiap skor, sementara skor 1-4 (dasar rumus IKM) dipaksa
+            tetap oleh backend. */}
         <div className="mb-md flex flex-col gap-md">
           <AnswerPreview type={question.type} options={options} />
           {canEditOptions && (
@@ -283,13 +305,20 @@ export default function QuestionBlock({
           <label className="block text-xs font-bold text-primary mb-xs uppercase">
             {question.title}
           </label>
+          {/* BERGARIS, BUKAN TAMPAK SEPERTI JUDUL (4 Oktober 2026, permintaan
+              pengguna). Dulu `border-none p-0`: satu-satunya petunjuk bahwa ini
+              kotak isian adalah teks pengganti yang lenyap begitu diisi, jadi
+              pertanyaan yang sudah terisi terbaca sebagai judul mati. Kotak
+              teks unsur baku di atas SUDAH bergaris sejak awal; ini
+              menyamakannya, bukan memperkenalkan gaya baru. */}
           <input
-            className="w-full text-headline-md font-headline-md border-none focus:ring-0 p-0 text-text-primary cursor-text"
+            className="w-full text-headline-md font-headline-md bg-white rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-md py-sm text-text-primary cursor-text"
             placeholder="Tulis pertanyaan di sini..."
             type="text"
             value={question.text}
+            readOnly={!canEditText}
             onChange={(e) => onUpdate(question.id, { text: e.target.value })}
-            onBlur={(e) => onTextCommit && onTextCommit(question.id, e.target.value)}
+            onBlur={(e) => canEditText && onTextCommit && onTextCommit(question.id, e.target.value)}
           />
         </div>
         <div className="flex items-center gap-sm shrink-0">

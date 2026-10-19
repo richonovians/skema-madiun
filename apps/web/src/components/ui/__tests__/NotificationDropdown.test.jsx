@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, paginated, notificationFixture } from '@/mocks/handlers';
-import NotificationDropdown from '../NotificationDropdown';
+import NotificationDropdown, { JEDA_SEGARKAN_MS } from '../NotificationDropdown';
+import { NOTIFIKASI_BERUBAH_EVENT } from '@/features/notifications/services/notifications.api';
 
 /**
  * Notifikasi in-app (D9) — sebelumnya TIDAK punya cakupan uji sama sekali,
@@ -275,6 +276,274 @@ describe('NotificationDropdown', () => {
       fireEvent.click(lonceng());
 
       expect(await screen.findByRole('link', { name: /lihat semua notifikasi/i })).toBeInTheDocument();
+    });
+  });
+});
+
+/**
+ * LONCENG IKUT MENYELARASKAN DIRI (laporan pengguna 15 September 2026).
+ *
+ * "Tandai semua dibaca" di halaman riwayat tak memperbarui lonceng ini.
+ * Sebabnya lonceng dan halaman itu memegang state `useAsync` masing-masing,
+ * yang hanya mengambil data sekali saat mount -- dan lonceng tinggal di layout,
+ * sehingga ia tetap terpasang selama pengguna berada di halaman riwayat,
+ * memegang hitungan yang diambil SEBELUM tombolnya ditekan.
+ *
+ * Yang diuji di sini bukan tombol halaman itu, melainkan kesediaan lonceng
+ * mendengar: apakah ia mengambil ulang hitungannya ketika ada yang mengabarkan
+ * status baca berubah, dari mana pun kabar itu datang.
+ */
+describe('NotificationDropdown — menyelaraskan diri dengan layar lain', () => {
+  const lonceng = () => screen.getByRole('button', { name: /notifikasi/i });
+
+  it('mengambil ulang hitungannya saat status baca dikabarkan berubah', async () => {
+    givenNotifications([BELUM_DIBACA], 3);
+    render(<NotificationDropdown />);
+    expect(await screen.findByRole('button', { name: /3 belum dibaca/i })).toBeInTheDocument();
+
+    // Layar lain menandai semuanya terbaca: server kini menjawab nol.
+    givenNotifications([], 0);
+    await act(async () => {
+      window.dispatchEvent(new Event(NOTIFIKASI_BERUBAH_EVENT));
+    });
+
+    await waitFor(() => expect(lonceng()).toHaveAccessibleName('Notifikasi'));
+  });
+
+  /**
+   * PASANGAN kontrol. Tanpa ini, uji di atas tetap hijau seandainya lonceng
+   * mengambil ulang datanya karena sebab lain -- polling, render ulang, atau
+   * sekadar urutan janji yang kebetulan menguntungkan. Yang harus dibuktikan
+   * adalah PERISTIWA itu yang melakukannya.
+   */
+  it('KONTROL: tanpa kabar apa pun, hitungannya tidak berubah sendiri', async () => {
+    givenNotifications([BELUM_DIBACA], 3);
+    render(<NotificationDropdown />);
+    expect(await screen.findByRole('button', { name: /3 belum dibaca/i })).toBeInTheDocument();
+
+    givenNotifications([], 0);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(lonceng()).toHaveAccessibleName('Notifikasi, 3 belum dibaca');
+  });
+});
+
+/**
+ * LENCANA YANG TAK IKUT BERUBAH SAAT ADA NOTIFIKASI BARU (16 September 2026,
+ * pertanyaan pengguna).
+ *
+ * `useAsync` mengambil data sekali per pemasangan, dan satu-satunya penyegaran
+ * lain adalah `skema:notifikasi-berubah` yang HANYA ditembakkan tab ini sendiri
+ * sesudah menandai notifikasi terbaca. Notifikasi yang dibuat pihak lain, mis.
+ * OPD membalas pengaduan, tak pernah sampai. Loncengnya hidup di navbar milik
+ * layout, jadi berpindah halaman pun tak memasangnya ulang.
+ *
+ * Aturan tidurnya diuji terpisah di useSegarkanBerkala.test.js; berkas ini
+ * menguji bahwa loncengnya benar-benar memakainya.
+ */
+describe('NotificationDropdown — penyegaran berkala', () => {
+  beforeEach(() => {
+    jest.useFakeTimers({ now: NOW });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('lencananya ikut naik tanpa komponen dipasang ulang', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+
+    expect(
+      await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' }),
+    ).toBeInTheDocument();
+
+    // Notifikasi baru muncul di server, bukan karena aksi pengguna di tab ini.
+    givenNotifications([BELUM_DIBACA], 3);
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(JEDA_SEGARKAN_MS);
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Notifikasi, 3 belum dibaca' }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  /**
+   * KONTROL, dan inilah yang membuat perubahan ini terasa mengganggu bila
+   * keliru: `useAsync.execute` menyalakan `isLoading` pada SETIAP panggilan,
+   * sementara panel merender `isLoading ? spinner : daftar`. Tanpa syarat
+   * "hanya saat belum ada data", panel yang sedang dibuka berkedip jadi spinner
+   * tiap satu jeda.
+   */
+  it('KONTROL: panel yang terbuka tidak berkedip jadi spinner saat menyegarkan', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    const { container } = render(<NotificationDropdown />);
+
+    fireEvent.click(screen.getByRole('button', { name: /notifikasi/i }));
+    expect(await screen.findByText('Status Pengaduan Diperbarui')).toBeInTheDocument();
+
+    let lepaskan;
+    server.use(
+      http.get(`${API_BASE}/notifications`, async () => {
+        await new Promise((resolve) => {
+          lepaskan = resolve;
+        });
+        return paginated([BELUM_DIBACA], '/notifications');
+      }),
+    );
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(JEDA_SEGARKAN_MS);
+    });
+
+    // Permintaan masih menggantung: isinya harus tetap terlihat, tanpa spinner.
+    expect(screen.getByText('Status Pengaduan Diperbarui')).toBeInTheDocument();
+    expect(container.querySelector('.animate-spin')).not.toBeInTheDocument();
+
+    await act(async () => {
+      lepaskan?.();
+      await jest.advanceTimersByTimeAsync(0);
+    });
+  });
+});
+
+/**
+ * MEMBUKA LONCENG ITU SENDIRI MENGAMBIL DATA (17 September 2026, laporan
+ * pengguna: notifikasi baru justru terlihat lebih dulu di halaman riwayat,
+ * bukan di loncengnya).
+ *
+ * Sebabnya tombol lonceng hanya membuka panel dan tak pernah meminta apa pun,
+ * sehingga isinya potret dari penyegaran terakhir. Halaman riwayat adalah
+ * komponen rute -- ia dipasang ulang setiap kali dibuka, dan `useAsync`
+ * mengambil data pada tiap pemasangan. Membuka halaman itu dengan sendirinya
+ * sudah merupakan permintaan baru, sementara membuka lonceng tidak.
+ *
+ * Gerakan yang paling jelas berarti "saya ingin memeriksa notifikasi" justru
+ * satu-satunya yang tak pernah memicu permintaan. Jeda minimum 10 detik milik
+ * `focus` SENGAJA tidak berlaku di sini: jeda itu untuk peristiwa pasif yang
+ * terjadi tanpa seorang pun memintanya, sedangkan membuka lonceng disengaja.
+ */
+describe('NotificationDropdown — membuka panel menyegarkan isinya', () => {
+  const lonceng = () => screen.getByRole('button', { name: /^notifikasi/i });
+
+  it('mengambil data lagi saat panel dibuka', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+    expect(
+      await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' }),
+    ).toBeInTheDocument();
+
+    // Notifikasi baru lahir di server sesudah lonceng memuat isinya.
+    givenNotifications([BELUM_DIBACA, SUDAH_DIBACA], 4);
+    fireEvent.click(lonceng());
+
+    await waitFor(() => expect(lonceng()).toHaveAccessibleName('Notifikasi, 4 belum dibaca'));
+  });
+
+  /**
+   * Satu ketukan tombol tidak boleh menembak dua kali. Tanpa syarat "hanya saat
+   * membuka", menutup panel ikut meminta data yang takkan dilihat siapa pun.
+   */
+  it('tidak mengambil data saat panel ditutup', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+    await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' });
+
+    fireEvent.click(lonceng());
+    expect(await screen.findByText('Status Pengaduan Diperbarui')).toBeInTheDocument();
+
+    const diminta = jest.fn();
+    server.use(
+      http.get(`${API_BASE}/notifications/unread-count`, () => {
+        diminta();
+        return ok({ count: 9 }, '/notifications/unread-count');
+      }),
+    );
+
+    fireEvent.click(lonceng());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(diminta).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `useAsync` tak punya penjaga permintaan ganda. Pada jaringan lambat, membuka
+   * dan menutup berulang akan menumpuk permintaan yang jawabannya bisa datang
+   * tak berurutan -- jawaban lama menimpa yang baru.
+   */
+  it('tidak menumpuk permintaan saat dibuka lagi selagi yang sebelumnya berjalan', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    render(<NotificationDropdown />);
+    await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' });
+
+    let jumlahPermintaan = 0;
+    let lepaskan;
+    server.use(
+      http.get(`${API_BASE}/notifications`, async () => {
+        jumlahPermintaan += 1;
+        await new Promise((resolve) => {
+          lepaskan = resolve;
+        });
+        return paginated([BELUM_DIBACA], '/notifications');
+      }),
+    );
+
+    fireEvent.click(lonceng());
+    await waitFor(() => expect(jumlahPermintaan).toBe(1));
+    fireEvent.click(lonceng());
+    fireEvent.click(lonceng());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(jumlahPermintaan).toBe(1);
+
+    await act(async () => {
+      lepaskan?.();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  });
+
+  /**
+   * KONTROL. `useAsync.execute` menyalakan `isLoading` pada SETIAP panggilan,
+   * dan panel merender `isLoading ? pemintal : daftar`. Penyegaran yang dipicu
+   * pembukaan panel karena itu berisiko membuat panel yang baru saja dibuka
+   * tampil sebagai pemintal kosong, bukan daftar yang sudah ada.
+   */
+  it('KONTROL: panel yang baru dibuka menampilkan daftar lama, bukan pemintal', async () => {
+    givenNotifications([BELUM_DIBACA], 1);
+    const { container } = render(<NotificationDropdown />);
+    await screen.findByRole('button', { name: 'Notifikasi, 1 belum dibaca' });
+
+    let lepaskan;
+    server.use(
+      http.get(`${API_BASE}/notifications`, async () => {
+        await new Promise((resolve) => {
+          lepaskan = resolve;
+        });
+        return paginated([BELUM_DIBACA], '/notifications');
+      }),
+    );
+
+    fireEvent.click(lonceng());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    expect(screen.getByText('Status Pengaduan Diperbarui')).toBeInTheDocument();
+    expect(container.querySelector('.animate-spin')).not.toBeInTheDocument();
+
+    await act(async () => {
+      lepaskan?.();
+      await new Promise((r) => setTimeout(r, 0));
     });
   });
 });

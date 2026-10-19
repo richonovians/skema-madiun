@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
@@ -37,7 +43,7 @@ export class ResponsesController {
    * catatannya menjawab "warga mengirim jawaban survei mana", BUKAN dijawab
    * apa. Kunci `answers` dipertahankan sedangkan nilainya disunting -- lihat
    * daftar tolak di `audit-redact.util.ts`, yang sengaja diperluas lebih dulu
-   * supaya jawaban warga tak tersalin ke tabel yang dibaca superuser.
+   * supaya jawaban warga tak tersalin ke tabel yang dibaca Admin Kabupaten.
    *
    * Jalur TANPA SESI (`PublicResponsesController`) SENGAJA tidak diaudit:
    * pengisinya tak punya baris `users`, sedangkan `audit_logs.actor_id`
@@ -45,6 +51,7 @@ export class ResponsesController {
    * `audit-warga.e2e-spec.ts`.
    */
   @Post('surveys/:surveyId/responses')
+  @ApiOperation({ summary: 'Kirim jawaban survei. Pengiriman ganda dibalas 409.' })
   @Roles(Role.responden)
   @Audit('response')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -65,6 +72,7 @@ export class ResponsesController {
    * yang di sini hanya akan melihat riwayatnya sendiri.
    */
   @Get('me/survey-responses')
+  @ApiOperation({ summary: 'Riwayat survei yang sudah diisi pengguna yang sedang masuk.' })
   @Roles(Role.responden)
   @ApiOkResponse({ type: MyResponseEntity, isArray: true })
   findMine(
@@ -76,7 +84,7 @@ export class ResponsesController {
 
   /** Daftar respons survei untuk admin (Admin OPD: milik OPD-nya; Kabupaten: semua). */
   @Get('surveys/:surveyId/responses')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: ResponseEntity, isArray: true })
   findAll(
     @Param('surveyId', ParseIntPipe) surveyId: number,

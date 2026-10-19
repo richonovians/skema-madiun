@@ -1,6 +1,13 @@
 import ExcelJS from 'exceljs';
 import { IkmMutu } from '@prisma/client';
-import { IkmExportService, barisUnsurPdf, KOLOM_PDF, LEBAR_ISI_A4 } from './ikm-export.service';
+import { NilaiSurveiEntity } from './entities/nilai-survei.entity';
+import {
+  IkmExportService,
+  barisNilai,
+  barisUnsurPdf,
+  KOLOM_PDF,
+  LEBAR_ISI_A4,
+} from './ikm-export.service';
 
 const result = (over: Record<string, unknown> = {}) => ({
   surveyId: 1,
@@ -167,6 +174,109 @@ describe('IkmExportService', () => {
         opdNama: 'Dinas X',
         result: result() as never,
       });
+      expect(buffer.subarray(0, 4).toString()).toBe('%PDF');
+    });
+  });
+
+  /**
+   * SURVEI CUSTOM (8 Oktober 2026). Laporan survei custom tidak punya Nilai IKM,
+   * Mutu, maupun tabel unsur: yang ada adalah Nilai Survei (judul menurut tujuan
+   * dan metode) beserta kategori. `ctx.nilaiSurvei`: `undefined` = survei SKM,
+   * `null` = custom yang belum dapat dinilai, objek = custom bernilai.
+   */
+  describe('survei custom', () => {
+    const nilai = new NilaiSurveiEntity({
+      judul: 'Nilai Survei',
+      nilai: 3.4,
+      tampilan: '3,40 / 4',
+      kategori: 'Sangat Puas',
+    });
+    const persen = new NilaiSurveiEntity({
+      judul: 'Indeks Kepuasan',
+      nilai: 85,
+      tampilan: '85%',
+      kategori: 'Sangat Puas',
+    });
+    const ctxCustom = (nilaiSurvei: NilaiSurveiEntity | null) => ({
+      surveyJudul: 'Survei C',
+      opdNama: 'Dinas X',
+      result: result({ nilaiIkm: null, mutu: null, nrrPerUnsur: [] }) as never,
+      nilaiSurvei,
+    });
+
+    it('buildFilename memakai awalan hasil-survei', () => {
+      expect(service.buildFilename(1, '2026', 'csv', 'hasil-survei')).toBe(
+        'hasil-survei-1-2026.csv',
+      );
+      // Bawaannya tetap hasil-ikm.
+      expect(service.buildFilename(1, '2026', 'csv')).toBe('hasil-ikm-1-2026.csv');
+    });
+
+    it('barisNilai SKM: Nilai IKM + Mutu, tak berubah', () => {
+      const ctx = { surveyJudul: 'S', opdNama: 'O', result: result() as never };
+      expect(barisNilai(ctx, 'csv')).toEqual([
+        ['Nilai IKM', 100],
+        ['Mutu', 'A'],
+      ]);
+      expect(barisNilai(ctx, 'pdf')).toEqual([
+        ['Nilai IKM', '100,00'],
+        ['Mutu', 'A'],
+      ]);
+    });
+
+    it('barisNilai custom bernilai: judul + tampilan, lalu Kategori', () => {
+      expect(barisNilai(ctxCustom(nilai), 'csv')).toEqual([
+        ['Nilai Survei', '3,40 / 4'],
+        ['Kategori', 'Sangat Puas'],
+      ]);
+      expect(barisNilai(ctxCustom(persen), 'excel')).toEqual([
+        ['Indeks Kepuasan', '85%'],
+        ['Kategori', 'Sangat Puas'],
+      ]);
+    });
+
+    it('barisNilai custom tanpa nilai: "Belum dapat dinilai", bukan nol', () => {
+      expect(barisNilai(ctxCustom(null), 'csv')).toEqual([
+        ['Nilai Survei', 'Belum dapat dinilai'],
+        ['Kategori', '-'],
+      ]);
+    });
+
+    it('CSV: judul laporan survei, nilai + kategori, tanpa Nilai IKM, Mutu, atau tabel unsur', () => {
+      const csv = service.toCsv(ctxCustom(nilai)).toString('utf-8');
+      expect(csv).toContain('Laporan Hasil Survei');
+      expect(csv).not.toContain('Laporan Hasil IKM');
+      expect(csv).toContain('Nilai Survei,"3,40 / 4"');
+      expect(csv).toContain('Kategori,Sangat Puas');
+      expect(csv).not.toContain('Nilai IKM');
+      expect(csv).not.toContain('Mutu');
+      expect(csv).not.toContain('Kode Unsur');
+    });
+
+    it('CSV custom tanpa nilai menulis "Belum dapat dinilai"', () => {
+      const csv = service.toCsv(ctxCustom(null)).toString('utf-8');
+      expect(csv).toContain('Nilai Survei,Belum dapat dinilai');
+    });
+
+    it('Excel: lembar "Hasil Survei" memuat nilai + kategori, tanpa tabel unsur', async () => {
+      const buffer = await service.toExcel(ctxCustom(persen));
+      const workbook = new ExcelJS.Workbook();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interop exceljs
+      await workbook.xlsx.load(buffer as any);
+      const sheet = workbook.getWorksheet('Hasil Survei');
+      expect(sheet).toBeDefined();
+      const teks: string[] = [];
+      sheet!.eachRow((row) => teks.push(row.values!.toString()));
+      const semua = teks.join('\n');
+      expect(semua).toContain('Indeks Kepuasan');
+      expect(semua).toContain('85%');
+      expect(semua).toContain('Sangat Puas');
+      expect(semua).not.toContain('Nilai IKM');
+      expect(semua).not.toContain('Kode Unsur');
+    });
+
+    it('PDF custom menghasilkan berkas PDF yang sah', async () => {
+      const buffer = await service.toPdf(ctxCustom(nilai));
       expect(buffer.subarray(0, 4).toString()).toBe('%PDF');
     });
   });

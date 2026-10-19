@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Role, Survey, SurveyStatus } from '@prisma/client';
+import { JenisSurvei, Prisma, Role, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess, opdWhereFilter } from '../../common/auth/opd-scope.util';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
+import { ChangeSurveyJenisDto } from './dto/change-survey-jenis.dto';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 import { ListActiveSurveyQueryDto } from './dto/list-active-survey-query.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
@@ -12,6 +13,10 @@ import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
+import { assertKerangkaLengkap, buatUnsurAwal, unsurHilang } from './kerangka-unsur.util';
+import { assertBolehGantiJenis } from './ganti-jenis.util';
+import { assertPengaturanNilaiBuat, assertPengaturanNilaiUbah } from './pengaturan-nilai.util';
+import { operasiPemusnahanSurvei } from './survey-pemusnahan.util';
 import { assertSurveyEditable, TIDAK_DIBUANG } from './survey-scope.util';
 
 /** Transisi status yang diizinkan. */
@@ -99,22 +104,48 @@ export class SurveysService {
     // GET /surveys yang mengisinya). Builder survei memakainya untuk mengunci
     // susunan pertanyaan; tanpa angka ini ia selalu membaca 0 dan penguncian
     // tak pernah menyala -- pengguna baru tahu aturannya dari galat backend.
-    const summary = await this.ikmService.getSummary(survey);
-    return new SurveyEntity({ ...survey, ...summary });
+    // `terakhirMasuk` ikut sejak 4 Oktober 2026, untuk kartu ringkasan pada
+    // layar daftar respons yang kini dipaginasi sungguhan. Sebelum paginasi,
+    // layar itu menghitungnya sendiri dari 100 baris yang kebetulan termuat;
+    // sesudahnya, halaman 1 yang menaik justru akan melaporkan respons PALING
+    // LAMA sebagai "terakhir". Satu agregat kecil di sini menjawabnya untuk
+    // seluruh survei, berapa pun halamannya.
+    const [summary, agregat] = await Promise.all([
+      this.ikmService.getSummary(survey),
+      this.prisma.surveyResponse.aggregate({
+        where: { surveyId: id },
+        _max: { submittedAt: true },
+      }),
+    ]);
+    return new SurveyEntity({
+      ...survey,
+      ...summary,
+      terakhirMasuk: agregat._max.submittedAt ?? null,
+    });
   }
 
   /** Buat paket survei. Admin OPD → OPD-nya sendiri; kabupaten (=superuser) → wajib `opdId`. */
   async create(dto: CreateSurveyDto, user: CurrentUser): Promise<SurveyEntity> {
     const opdId = this.resolveOpdId(dto, user);
     await this.assertOpdExists(opdId);
+    // Sebelum menulis apa pun: custom wajib memilih tujuan + metode, SKM tidak boleh.
+    assertPengaturanNilaiBuat(dto.jenis, dto.tujuan, dto.metodeNilai);
 
     const created = await this.prisma.survey.create({
       data: {
         opdId,
         judul: dto.judul,
         periode: dto.periode,
+        jenis: dto.jenis,
+        tujuan: dto.tujuan,
+        metodeNilai: dto.metodeNilai,
         allowMultipleSubmit: dto.allowMultipleSubmit ?? false,
         izinkanAnonim: dto.izinkanAnonim ?? false,
+        // Survei SKM lahir bersama kesembilan unsurnya, dalam penulisan yang
+        // sama (nested create atomik): tak pernah ada survei SKM tanpa kerangka.
+        ...(dto.jenis === JenisSurvei.skm_permenpanrb
+          ? { questions: { create: buatUnsurAwal() } }
+          : {}),
       },
     });
     return new SurveyEntity(created);
@@ -131,16 +162,85 @@ export class SurveysService {
     // seluruh medannya.
     const periodeBerganti = dto.periode !== undefined && dto.periode !== survey.periode;
     assertSurveyEditable(survey, jumlahJawaban, periodeBerganti ? 'periode' : 'meta');
+    // Tujuan + metode hanya mengatur TAMPILAN (aksi `meta`: boleh sampai survei
+    // ditutup, juga sesudah jawaban masuk); survei SKM tidak memakainya.
+    assertPengaturanNilaiUbah(survey.jenis, dto.tujuan, dto.metodeNilai);
 
-    const updated = await this.prisma.survey.update({
-      where: { id },
-      data: {
-        judul: dto.judul,
-        periode: dto.periode,
-        allowMultipleSubmit: dto.allowMultipleSubmit,
-        // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
-        izinkanAnonim: dto.izinkanAnonim,
-      },
+    // Satu transaksi, dan URUTANNYA mengikat: survei utama OPD yang lama harus
+    // dilepas SEBELUM yang baru dinyalakan. Indeks unik parsial
+    // `surveys_opd_utama_unik` diperiksa PostgreSQL per pernyataan, bukan
+    // ditunda sampai commit, jadi menyalakan lebih dulu akan ditolak oleh
+    // barisnya sendiri yang belum sempat dilepas.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.isUtama === true) {
+        await tx.survey.updateMany({
+          where: { opdId: survey.opdId, isUtama: true, id: { not: id }, deletedAt: null },
+          data: { isUtama: false },
+        });
+      }
+
+      return tx.survey.update({
+        where: { id },
+        data: {
+          judul: dto.judul,
+          periode: dto.periode,
+          allowMultipleSubmit: dto.allowMultipleSubmit,
+          // undefined = tak diubah (pola sama allowMultipleSubmit di atas).
+          izinkanAnonim: dto.izinkanAnonim,
+          isUtama: dto.isUtama,
+          // undefined = tak diubah.
+          tujuan: dto.tujuan,
+          metodeNilai: dto.metodeNilai,
+        },
+      });
+    });
+    return new SurveyEntity(updated);
+  }
+
+  /**
+   * GANTI JENIS SKM -> CUSTOM (8 Oktober 2026). Hanya selagi survei DRAF dan belum
+   * menerima jawaban (aturan di `assertBolehGantiJenis`).
+   *
+   * Sembilan unsur dihapus, pertanyaan tambahan milik OPD dipertahankan dan
+   * diurut ulang 1..n, lalu jenis + tujuan + metode disimpan -- dalam SATU
+   * transaksi, dengan pemeriksaan jawaban di dalamnya supaya tak ada celah antara
+   * memeriksa dan menulis.
+   *
+   * Penjaga kerangka (`kerangka-unsur.util`) SENGAJA tidak dipakai untuk
+   * penghapusan ini: ia melarang menghapus unsur, dan di sinilah jenisnya berubah
+   * sehingga kerangka itu berhenti berlaku. Opsi pertanyaan ikut terhapus lewat
+   * ON DELETE CASCADE; tak ada jawaban yang menunjuknya karena survei belum dijawab.
+   */
+  async gantiJenis(
+    id: number,
+    dto: ChangeSurveyJenisDto,
+    user: CurrentUser,
+  ): Promise<SurveyEntity> {
+    const survey = await this.getAccessibleOrThrow(id, user);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const jumlahJawaban = await tx.surveyResponse.count({ where: { surveyId: id } });
+      assertBolehGantiJenis(survey, jumlahJawaban, dto.jenis);
+      // Sesudah pemeriksaan di atas jenis tujuan pasti `custom`, jadi galat di sini
+      // hanya "tujuan dan metode wajib".
+      assertPengaturanNilaiBuat(dto.jenis, dto.tujuan, dto.metodeNilai);
+
+      await tx.question.deleteMany({
+        where: { surveyId: id, OR: [{ isIkmUnsur: true }, { kodeUnsur: { not: null } }] },
+      });
+      const sisa = await tx.question.findMany({
+        where: { surveyId: id },
+        orderBy: { urutan: 'asc' },
+        select: { id: true },
+      });
+      for (const [i, q] of sisa.entries()) {
+        await tx.question.update({ where: { id: q.id }, data: { urutan: i + 1 } });
+      }
+
+      return tx.survey.update({
+        where: { id },
+        data: { jenis: dto.jenis, tujuan: dto.tujuan, metodeNilai: dto.metodeNilai },
+      });
     });
     return new SurveyEntity(updated);
   }
@@ -238,25 +338,17 @@ export class SurveysService {
   }
 
   /**
-   * Musnahkan permanen. Hanya dari Sampah, dan hanya peran berhak penuh --
-   * penjaga perannya ada di `@Roles` controller.
+   * Musnahkan permanen. Hanya dari Sampah; penjaga perannya ada di `@Roles`
+   * controller, dan kurungan per-OPD-nya di `getTrashedOrThrow`.
    *
-   * URUTANNYA DITULIS TERSURAT, dan itu bukan kehati-hatian berlebih:
-   * `answers.question_id` TANPA `onDelete` alias RESTRICT, sehingga penghapusan
-   * berjenjang dari `surveys` dapat gagal ketika pertanyaan dibuang sementara
-   * jawabannya masih ada. Satu transaksi, dari daun ke akar.
+   * Rangkaian penghapusannya ada di `operasiPemusnahanSurvei`, dipakai bersama
+   * pemusnahan terjadwal. Alasan lengkapnya -- termasuk mengapa urutan daun ke
+   * akar itu wajib -- tertulis di berkas util tersebut.
    */
   async purge(id: number, user: CurrentUser): Promise<void> {
     const survey = await this.getTrashedOrThrow(id, user);
 
-    await this.prisma.$transaction([
-      this.prisma.answer.deleteMany({ where: { response: { surveyId: survey.id } } }),
-      this.prisma.surveyResponse.deleteMany({ where: { surveyId: survey.id } }),
-      this.prisma.questionOption.deleteMany({ where: { question: { surveyId: survey.id } } }),
-      this.prisma.question.deleteMany({ where: { surveyId: survey.id } }),
-      this.prisma.ikmResult.deleteMany({ where: { surveyId: survey.id } }),
-      this.prisma.survey.delete({ where: { id: survey.id } }),
-    ]);
+    await this.prisma.$transaction(operasiPemusnahanSurvei(this.prisma, survey.id));
   }
 
   /** Publikasikan / tutup survei (transisi tervalidasi). */
@@ -276,6 +368,21 @@ export class SurveysService {
       );
     }
 
+    if (dto.status === SurveyStatus.aktif && survey.jenis === JenisSurvei.skm_permenpanrb) {
+      // Berlaku juga saat survei DIBUKA KEMBALI: survei SKM yang unsurnya sudah
+      // tak lengkap tak boleh menerima jawaban baru, karena IKM-nya dihitung
+      // dengan bobot yang keliru. Menutup tidak diperiksa -- hasil yang ada
+      // tetap harus dapat dikunci.
+      const pertanyaan = await this.prisma.question.findMany({
+        where: { surveyId: id },
+        select: { kodeUnsur: true },
+      });
+      assertKerangkaLengkap(
+        survey,
+        pertanyaan.map((q) => q.kodeUnsur),
+      );
+    }
+
     const updated = await this.prisma.survey.update({
       where: { id },
       data: { status: dto.status },
@@ -286,6 +393,13 @@ export class SurveysService {
       await this.ikmService.snapshot(id);
     }
 
+    // Peringkat dashboard berubah pada SETIAP peralihan status, bukan hanya saat
+    // ditutup: membuka kembali memindahkan survei dari snapshot ke hitungan
+    // live. Karena itu di luar cabang di atas. Terukur lewat e2e 13 Oktober
+    // 2026 -- `role-journeys` menutup survei lalu menuntut survei itu muncul di
+    // `GET /dashboard/ikm`, dan singgahan tanpa pembatalan menahannya 60 detik.
+    await this.ikmService.batalkanSinggahanDashboard();
+
     return new SurveyEntity(updated);
   }
 
@@ -294,7 +408,10 @@ export class SurveysService {
     await this.getAccessibleOrThrow(id, user);
     const original = await this.prisma.survey.findFirst({
       where: { id, ...TIDAK_DIBUANG },
-      include: { questions: true },
+      // `options` WAJIB ikut dimuat (BUG-005, 16 Oktober 2026). Sebelum ini
+      // barisnya berbunyi `include: { questions: true }`, sehingga opsi jawaban
+      // tak pernah ada di memori dan mustahil tersalin di bawah.
+      include: { questions: { include: { options: { orderBy: { urutan: 'asc' } } } } },
     });
     if (!original) {
       throw new NotFoundException(`Survei dengan id ${id} tidak ditemukan`);
@@ -305,21 +422,78 @@ export class SurveysService {
         opdId: original.opdId,
         judul: `${original.judul} (Salinan)`,
         periode: original.periode,
+        jenis: original.jenis,
+        tujuan: original.tujuan,
+        metodeNilai: original.metodeNilai,
         allowMultipleSubmit: original.allowMultipleSubmit,
         izinkanAnonim: original.izinkanAnonim,
         status: SurveyStatus.draft,
         questions: {
-          create: original.questions.map((q) => ({
-            teks: q.teks,
-            tipe: q.tipe,
-            isIkmUnsur: q.isIkmUnsur,
-            kodeUnsur: q.kodeUnsur,
-            urutan: q.urutan,
-          })),
+          create: [
+            ...original.questions.map((q) => ({
+              teks: q.teks,
+              tipe: q.tipe,
+              isIkmUnsur: q.isIkmUnsur,
+              kodeUnsur: q.kodeUnsur,
+              urutan: q.urutan,
+              // BUG-005 (Critical, 2 September 2026 -> 16 Oktober 2026).
+              //
+              // Tanpa baris ini salinan kehilangan SELURUH opsi jawabannya, dan
+              // akibatnya bukan satu pertanyaan yang rusak melainkan survei yang
+              // BUNTU: pertanyaan `pilihan` bersifat wajib sementara tak ada satu
+              // pun opsi untuk dipilih, sehingga responden tersangkut tanpa jalan
+              // maju maupun mengirim. Terukur: asli 7 opsi, salinan 0.
+              //
+              // Penjaga `'Pertanyaan pilihan ganda memerlukan minimal 2 opsi'` di
+              // `QuestionsService` TIDAK menolong di sini dan tak pernah akan:
+              // salinan dibuat lewat nested create Prisma, yang melewati
+              // `CreateQuestionDto` sepenuhnya. Jadi satu-satunya yang menjaga
+              // jalur ini adalah baris ini beserta ujinya di
+              // `test/surveys.e2e-spec.ts`.
+              //
+              // `nilai` ikut disalin, bukan dihitung ulang: pada tipe skala ia
+              // skor yang menjadi dasar rumus IKM, dan menyalin label tanpa skor
+              // akan menggeser bobot tanpa ada yang memerah.
+              options: {
+                create: q.options.map((o) => ({
+                  label: o.label,
+                  nilai: o.nilai,
+                  urutan: o.urutan,
+                })),
+              },
+            })),
+            // Unsur pelengkap sengaja TANPA opsi: pada tipe skala, tiadanya opsi
+            // berarti "pakai label baku PermenPANRB", bukan "labelnya hilang".
+            // Lihat `buatUnsurAwal()`.
+            ...this.unsurPelengkap(original),
+          ],
         },
       },
     });
     return new SurveyEntity(created);
+  }
+
+  /**
+   * Unsur yang hilang dari survei SKM lama, dibuat ulang pada salinannya (8
+   * Oktober 2026). Survei SKM yang unsurnya tak lengkap tak dapat diaktifkan dan
+   * tak punya jalan memperbaikinya (pertanyaan ber-kodeUnsur selalu ditolak),
+   * sehingga menggandakan adalah satu-satunya jalan pulih. Diletakkan di akhir
+   * dengan kalimat awal berupa nama unsur; kalimat yang sudah ada tidak diubah.
+   */
+  private unsurPelengkap(
+    original: Survey & { questions: { kodeUnsur: string | null; urutan: number }[] },
+  ) {
+    if (original.jenis !== JenisSurvei.skm_permenpanrb) {
+      return [];
+    }
+    const hilang = unsurHilang(original.questions.map((q) => q.kodeUnsur));
+    if (hilang.length === 0) {
+      return [];
+    }
+    const urutanTerakhir = original.questions.reduce((maks, q) => Math.max(maks, q.urutan), 0);
+    return buatUnsurAwal()
+      .filter((unsur) => hilang.includes(unsur.kodeUnsur))
+      .map((unsur, i) => ({ ...unsur, urutan: urutanTerakhir + 1 + i }));
   }
 
   private resolveOpdId(dto: CreateSurveyDto, user: CurrentUser): number {
@@ -329,7 +503,7 @@ export class SurveysService {
       }
       return user.opdId; // Admin OPD selalu membuat untuk OPD-nya sendiri
     }
-    // kabupaten & superuser (terdaftar di @Roles sejak T6) atau lainnya
+    // kabupaten (terdaftar di @Roles sejak T6) atau lainnya
     if (dto.opdId == null) {
       throw new BadRequestException('opdId wajib diisi');
     }

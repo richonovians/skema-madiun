@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { instanceToPlain } from 'class-transformer';
+import { JenisPengguna, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -17,8 +19,9 @@ const actor = (actingRole: Role): CurrentUser => ({
   actingRole,
   opdId: null,
 });
-const SUPERUSER = actor(Role.superuser);
 const KABUPATEN = actor(Role.kabupaten);
+const OPD = actor(Role.opd);
+const RESPONDEN = actor(Role.responden);
 
 const userRow = {
   id: 10,
@@ -35,6 +38,15 @@ const userRow = {
   updatedAt: new Date(),
 };
 
+/**
+ * `ConfigService` tiruan. HANYA `app.nodeEnv` yang dibaca UsersService, dan
+ * kunci itu menentukan hidup-matinya gerbang ASN.
+ */
+const konfig = (nodeEnv: string): ConfigService =>
+  ({
+    get: (key: string) => (key === 'app.nodeEnv' ? nodeEnv : undefined),
+  }) as unknown as ConfigService;
+
 describe('UsersService', () => {
   const prisma = {
     user: {
@@ -47,14 +59,14 @@ describe('UsersService', () => {
     opd: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
-  const service = new UsersService(prisma);
+  const service = new UsersService(prisma, konfig('development'));
 
   beforeEach(() => jest.clearAllMocks());
 
   it('findAll mengembalikan PaginatedResult (mengecualikan soft-deleted)', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[userRow], 1]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, SUPERUSER);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, KABUPATEN);
 
     expect(result.items).toHaveLength(1);
     expect(result.pagination.total).toBe(1);
@@ -66,7 +78,7 @@ describe('UsersService', () => {
       1,
     ]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, SUPERUSER);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, KABUPATEN);
 
     expect(result.items[0].opdNama).toBe('Dinas Kesehatan');
     expect((result.items[0] as unknown as { opd?: unknown }).opd).toBeUndefined();
@@ -78,29 +90,29 @@ describe('UsersService', () => {
       1,
     ]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, SUPERUSER);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, KABUPATEN);
 
     expect(result.items[0].opdNama).toBeUndefined();
   });
 
   it('findOne melempar NotFound bila tidak ada', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
-    await expect(service.findOne(99, SUPERUSER)).rejects.toThrow(NotFoundException);
+    await expect(service.findOne(99, KABUPATEN)).rejects.toThrow(NotFoundException);
   });
 
-  it('Superuser membuat Admin OPD → sukses', async () => {
+  it('Admin Kabupaten membuat Admin OPD → sukses', async () => {
     (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 1 });
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.create as jest.Mock).mockResolvedValue(userRow);
 
     const dto: CreateUserDto = { nama: 'Admin A', email: 'a@x.go.id', roles: [Role.opd], opdId: 1 };
-    const result = await service.create(dto, SUPERUSER);
+    const result = await service.create(dto, KABUPATEN);
 
     expect(result.roles).toEqual([Role.opd]);
     expect(prisma.user.create).toHaveBeenCalled();
   });
 
-  it('Superuser membuat akun kabupaten lain → sukses', async () => {
+  it('Admin Kabupaten membuat akun kabupaten lain → sukses', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.user.create as jest.Mock).mockResolvedValue({
       ...userRow,
@@ -109,14 +121,14 @@ describe('UsersService', () => {
     });
 
     const dto: CreateUserDto = { nama: 'K', email: 'k@x.go.id', roles: [Role.kabupaten] };
-    const result = await service.create(dto, SUPERUSER);
+    const result = await service.create(dto, KABUPATEN);
 
     expect(result.roles).toEqual([Role.kabupaten]);
   });
 
   it('membuat Admin OPD tanpa opdId → BadRequest', async () => {
     const dto: CreateUserDto = { nama: 'A', email: 'a@x.go.id', roles: [Role.opd] };
-    await expect(service.create(dto, SUPERUSER)).rejects.toThrow(BadRequestException);
+    await expect(service.create(dto, KABUPATEN)).rejects.toThrow(BadRequestException);
   });
 
   it('email/ssoSubject duplikat → Conflict', async () => {
@@ -124,14 +136,14 @@ describe('UsersService', () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow);
 
     const dto: CreateUserDto = { nama: 'A', email: 'a@x.go.id', roles: [Role.opd], opdId: 1 };
-    await expect(service.create(dto, SUPERUSER)).rejects.toThrow(ConflictException);
+    await expect(service.create(dto, KABUPATEN)).rejects.toThrow(ConflictException);
   });
 
   it('updateStatus mengubah isActive → sukses', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(userRow);
     (prisma.user.update as jest.Mock).mockResolvedValue({ ...userRow, isActive: false });
 
-    const result = await service.updateStatus(10, { isActive: false }, SUPERUSER);
+    const result = await service.updateStatus(10, { isActive: false }, KABUPATEN);
 
     expect(result.isActive).toBe(false);
     expect(prisma.user.update).toHaveBeenCalledWith({
@@ -159,7 +171,7 @@ describe('UsersService', () => {
       roles: [Role.kabupaten],
     });
 
-    const result = await service.update(10, { roles: [Role.kabupaten] }, SUPERUSER);
+    const result = await service.update(10, { roles: [Role.kabupaten] }, KABUPATEN);
 
     expect(result.roles).toEqual([Role.kabupaten]);
     // Kolom `opdId` TIDAK muncul di badan pembaruan sama sekali. Bedanya dengan
@@ -171,7 +183,7 @@ describe('UsersService', () => {
     });
   });
 
-  it('update: superuser TIDAK BOLEH mengubah role akun sendiri (cegah self-lockout) → Forbidden', async () => {
+  it('update: Admin Kabupaten TIDAK BOLEH mengubah role akun sendiri (cegah self-lockout) → Forbidden', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue({
       ...userRow,
       id: 1,
@@ -182,7 +194,7 @@ describe('UsersService', () => {
     // (kepemilikan data Helpdesk, 8 September 2026). Yang diuji di sini gerbang
     // self-lockout, dan ia berjalan SEBELUM normalisasi role -- jadi badan
     // berisi role saja sudah cukup untuk memicunya.
-    await expect(service.update(1, { roles: [Role.opd] }, SUPERUSER)).rejects.toThrow(
+    await expect(service.update(1, { roles: [Role.opd] }, KABUPATEN)).rejects.toThrow(
       ForbiddenException,
     );
     expect(prisma.user.update).not.toHaveBeenCalled();
@@ -195,7 +207,7 @@ describe('UsersService', () => {
       opdId: null,
     });
 
-    await expect(service.update(10, { roles: [Role.opd] }, SUPERUSER)).rejects.toThrow(
+    await expect(service.update(10, { roles: [Role.opd] }, KABUPATEN)).rejects.toThrow(
       BadRequestException,
     );
   });
@@ -208,7 +220,7 @@ describe('UsersService', () => {
       deletedAt: new Date(),
     });
 
-    const result = await service.remove(10, SUPERUSER);
+    const result = await service.remove(10, KABUPATEN);
 
     expect(result.isActive).toBe(false);
     expect(prisma.user.update).toHaveBeenCalledWith({
@@ -220,61 +232,64 @@ describe('UsersService', () => {
   it('remove: TIDAK BOLEH menghapus akun sendiri (cegah self-lockout) → Forbidden', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue({ ...userRow, id: 1 });
 
-    await expect(service.remove(1, SUPERUSER)).rejects.toThrow(ForbiddenException);
+    await expect(service.remove(1, KABUPATEN)).rejects.toThrow(ForbiddenException);
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
   it('remove: user tak ada/sudah terhapus → NotFound', async () => {
     (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
 
-    await expect(service.remove(99, SUPERUSER)).rejects.toThrow(NotFoundException);
+    await expect(service.remove(99, KABUPATEN)).rejects.toThrow(NotFoundException);
   });
 
-  // Manajemen pengguna khusus superuser (2026-08-20). Sejak T6 (7 Sep 2026)
-  // `@Roles(Role.superuser)` di controller juga menahannya; yang diuji di sini
-  // lapis service -- yang tetap berlaku bila daftar dekorator kelak diperluas
-  // keliru. Gerbang guard-nya diuji di test/users.e2e-spec.ts.
-  describe('khusus superuser (2026-08-20)', () => {
-    it('findAll oleh Admin Kabupaten → Forbidden, DB tak disentuh', async () => {
+  // LAPIS KEDUA, di bawah `@Roles(Role.kabupaten)` di controller. Ia tetap
+  // berlaku bila daftar dekorator kelak diperluas keliru -- dan justru itu
+  // gunanya, karena perluasan seperti itu tak memunculkan galat apa pun.
+  // Gerbang guard-nya diuji di test/users.e2e-spec.ts.
+  //
+  // Arah ujinya BERBALIK pada 15 September 2026: sebelumnya di sinilah
+  // `kabupaten` ditolak, karena manajemen pengguna milik `superuser` seorang.
+  describe('pembatasan peran', () => {
+    it('findAll oleh Admin OPD -> Forbidden, DB tak disentuh', async () => {
       await expect(
-        service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, KABUPATEN),
+        service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, OPD),
       ).rejects.toThrow(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('findOne oleh Admin Kabupaten → Forbidden sebelum query', async () => {
-      await expect(service.findOne(10, KABUPATEN)).rejects.toThrow(ForbiddenException);
+    it('findOne oleh Admin OPD -> Forbidden sebelum query', async () => {
+      await expect(service.findOne(10, OPD)).rejects.toThrow(ForbiddenException);
       expect(prisma.user.findFirst).not.toHaveBeenCalled();
     });
 
-    it('create oleh Admin Kabupaten → Forbidden, tak ada akun dibuat', async () => {
+    it('create oleh Admin OPD -> Forbidden, tak ada akun dibuat', async () => {
       const dto: CreateUserDto = { nama: 'A', email: 'a@x.go.id', roles: [Role.opd], opdId: 1 };
-      await expect(service.create(dto, KABUPATEN)).rejects.toThrow(ForbiddenException);
+      await expect(service.create(dto, OPD)).rejects.toThrow(ForbiddenException);
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
-    it('update role oleh Admin Kabupaten → Forbidden (hanya superuser yang boleh mengangkat admin)', async () => {
-      await expect(service.update(10, { roles: [Role.kabupaten] }, KABUPATEN)).rejects.toThrow(
+    it('update role oleh Admin OPD -> Forbidden (mengangkat admin bukan haknya)', async () => {
+      await expect(service.update(10, { roles: [Role.kabupaten] }, OPD)).rejects.toThrow(
         ForbiddenException,
       );
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it('updateStatus oleh Admin Kabupaten → Forbidden', async () => {
-      await expect(service.updateStatus(10, { isActive: false }, KABUPATEN)).rejects.toThrow(
+    it('updateStatus oleh Admin OPD -> Forbidden', async () => {
+      await expect(service.updateStatus(10, { isActive: false }, OPD)).rejects.toThrow(
         ForbiddenException,
       );
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it('remove oleh Admin Kabupaten → Forbidden, akun tak ikut tersoft-delete', async () => {
-      await expect(service.remove(10, KABUPATEN)).rejects.toThrow(ForbiddenException);
+    it('remove oleh Admin OPD -> Forbidden, akun tak ikut tersoft-delete', async () => {
+      await expect(service.remove(10, OPD)).rejects.toThrow(ForbiddenException);
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it('Admin OPD juga ditolak (bukan cuma kabupaten)', async () => {
+    it('responden juga ditolak (bukan cuma Admin OPD)', async () => {
       await expect(
-        service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, actor(Role.opd)),
+        service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, RESPONDEN),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -294,15 +309,15 @@ describe('UsersService', () => {
         {
           nama: 'Pak A',
           email: 'a2@example.go.id',
-          roles: [Role.superuser, Role.opd],
+          roles: [Role.kabupaten, Role.opd],
           opdId: 1,
         } as CreateUserDto,
-        SUPERUSER,
+        KABUPATEN,
       );
 
       expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ roles: [Role.superuser, Role.opd], opdId: 1 }),
+          data: expect.objectContaining({ roles: [Role.kabupaten, Role.opd], opdId: 1 }),
         }),
       );
     });
@@ -311,7 +326,7 @@ describe('UsersService', () => {
       await expect(
         service.create(
           { nama: 'X', email: 'x@e.go.id', roles: [] } as unknown as CreateUserDto,
-          SUPERUSER,
+          KABUPATEN,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -324,7 +339,7 @@ describe('UsersService', () => {
             email: 'x@e.go.id',
             roles: [Role.kabupaten, Role.opd],
           } as CreateUserDto,
-          SUPERUSER,
+          KABUPATEN,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -336,7 +351,7 @@ describe('UsersService', () => {
 
       await service.create(
         { nama: 'X', email: 'x2@e.go.id', roles: [Role.kabupaten], opdId: 1 } as CreateUserDto,
-        SUPERUSER,
+        KABUPATEN,
       );
 
       expect(prisma.user.create).toHaveBeenCalledWith(
@@ -352,7 +367,7 @@ describe('UsersService', () => {
       await expect(
         service.create(
           { nama: 'Warga', email: 'w@e.go.id', roles: [Role.responden] } as CreateUserDto,
-          SUPERUSER,
+          KABUPATEN,
         ),
       ).resolves.toBeDefined();
     });
@@ -361,11 +376,11 @@ describe('UsersService', () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue({
         ...userRow,
         id: 1,
-        roles: [Role.superuser],
+        roles: [Role.kabupaten],
         opdId: null,
       });
 
-      await expect(service.update(1, { roles: [Role.opd] }, SUPERUSER)).rejects.toThrow(
+      await expect(service.update(1, { roles: [Role.opd] }, KABUPATEN)).rejects.toThrow(
         ForbiddenException,
       );
     });
@@ -379,21 +394,21 @@ describe('UsersService', () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue({
         ...userRow,
         id: 1,
-        roles: [Role.superuser, Role.opd],
+        roles: [Role.kabupaten, Role.opd],
         opdId: 1,
       });
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 1 });
       (prisma.user.update as jest.Mock).mockResolvedValue(userRow);
 
       await expect(
-        service.update(1, { roles: [Role.opd, Role.superuser] }, SUPERUSER),
+        service.update(1, { roles: [Role.opd, Role.kabupaten] }, KABUPATEN),
       ).resolves.toBeDefined();
     });
 
     it('findAll menyaring dengan roles: { has }', async () => {
       (prisma.$transaction as jest.Mock).mockResolvedValue([[userRow], 1]);
 
-      await service.findAll({ page: 1, limit: 20, role: Role.opd } as ListUsersQueryDto, SUPERUSER);
+      await service.findAll({ page: 1, limit: 20, role: Role.opd } as ListUsersQueryDto, KABUPATEN);
 
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -412,7 +427,7 @@ describe('UsersService', () => {
     it('menghitung akun aktif & total, keduanya tanpa yang soft-deleted', async () => {
       (prisma.$transaction as jest.Mock).mockResolvedValue([7, 5]);
 
-      const hasil = await service.getStats(SUPERUSER);
+      const hasil = await service.getStats(KABUPATEN);
 
       expect(hasil.totalUsers).toBe(7);
       expect(hasil.activeUsers).toBe(5);
@@ -423,9 +438,254 @@ describe('UsersService', () => {
       expect(panggilan[1][0]).toEqual({ where: { deletedAt: null, isActive: true } });
     });
 
-    it('bukan superuser -> Forbidden', async () => {
-      await expect(service.getStats(KABUPATEN)).rejects.toThrow(ForbiddenException);
+    it('bukan Admin Kabupaten -> Forbidden', async () => {
+      await expect(service.getStats(OPD)).rejects.toThrow(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('UsersService — gerbang Admin OPD hanya untuk ASN', () => {
+  /**
+   * PERMINTAAN PENGGUNA 6 Oktober 2026: "perketat opsi jadikan admin opd hanya
+   * untuk user type asn", dengan satu syarat tersurat yang ia tambahkan
+   * sendiri: "penerapan ... digunakan saat projek ini sudah pada tahap
+   * produksi. karena projek ini masih pengembangan, akun seed/pending masih
+   * tetap bisa mengambil peran opd."
+   *
+   * Itu sebabnya setiap uji di bawah menyebut lingkungannya tersurat. Gerbang
+   * yang hanya diuji pada satu lingkungan bukan gerbang yang teruji: yang perlu
+   * dibuktikan justru DUA-DUANYA -- ia menolak di produksi, dan ia membiarkan
+   * di pengembangan.
+   */
+  const buat = (nodeEnv: string) => {
+    const prisma = {
+      user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+      opd: { findUnique: jest.fn().mockResolvedValue({ id: 1 }) },
+    } as unknown as PrismaService;
+    return { prisma, service: new UsersService(prisma, konfig(nodeEnv)) };
+  };
+
+  const target = (overrides: Record<string, unknown> = {}) => ({
+    ...userRow,
+    id: 10,
+    roles: [Role.responden],
+    opdId: 5,
+    jenisPengguna: null,
+    ...overrides,
+  });
+
+  describe('produksi: menolak', () => {
+    it('menolak memberi peran opd pada akun yang jenis penggunanya BELUM DIKETAHUI', async () => {
+      // `null` bukan "warga", melainkan "belum diberitahu" -- dan gerbangnya
+      // gagal TERTUTUP, sebab memberi hak atas dasar ketidaktahuan lebih buruk
+      // daripada menundanya.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(target());
+
+      await expect(
+        service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('pesan galatnya menyebut ASN, bukan menyebut opdId', async () => {
+      // Penjaga yang ADA SEBELUM ini menolak dengan alasan "opdId wajib diisi",
+      // yang tak pernah menjelaskan aturan sebenarnya kepada siapa pun.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(target());
+
+      await expect(
+        service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN),
+      ).rejects.toThrow(/ASN/);
+    });
+
+    it('menolak akun yang Helpdesk nyatakan sebagai warga', async () => {
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ jenisPengguna: JenisPengguna.masyarakat }),
+      );
+
+      await expect(
+        service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('menolak akun BARU yang dibuat langsung berperan opd', async () => {
+      // `POST /users` tak punya halaman lagi, tapi endpointnya masih ada. Tanpa
+      // gerbang di sini, seluruh pengetatan dapat dilewati satu permintaan.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.create(
+          {
+            nama: 'Admin Baru',
+            email: 'baru@x.go.id',
+            roles: [Role.opd],
+            opdId: 1,
+          } as CreateUserDto,
+          KABUPATEN,
+        ),
+      ).rejects.toThrow(/ASN/);
+      expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('produksi: membiarkan', () => {
+    it('mengizinkan pemberian peran opd pada akun ASN', async () => {
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ jenisPengguna: JenisPengguna.asn }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden], jenisPengguna: JenisPengguna.asn }),
+      );
+
+      await service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('tidak menghalangi penyuntingan akun yang SUDAH berperan opd', async () => {
+      // Gerbangnya menjaga PEMBERIAN, bukan pemeliharaan. Kalau ia juga
+      // menghalangi penyuntingan akun yang sudah memegang peran itu, Admin
+      // Kabupaten tak dapat lagi menyentuh akun Admin OPD mana pun -- termasuk
+      // untuk mencabut perannya.
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden], jenisPengguna: null }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden] }),
+      );
+
+      await service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('tidak menghalangi PENCABUTAN peran opd dari akun non-ASN', async () => {
+      const { prisma, service } = buat('production');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden], jenisPengguna: null }),
+      );
+      (prisma.user.update as jest.Mock).mockResolvedValue(target({ roles: [Role.responden] }));
+
+      await service.update(10, { roles: [Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('pengembangan: gerbang MATI', () => {
+    it('mengizinkan akun seed/pending mengambil peran opd', async () => {
+      // Syarat tersurat pengguna. Kalau uji ini memerah, gerbangnya sudah
+      // merembes ke lingkungan yang bukan tempatnya.
+      const { prisma, service } = buat('development');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(target());
+      (prisma.user.update as jest.Mock).mockResolvedValue(
+        target({ roles: [Role.opd, Role.responden] }),
+      );
+
+      await service.update(10, { roles: [Role.opd, Role.responden] }, KABUPATEN);
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('mengizinkan pembuatan akun berperan opd', async () => {
+      const { prisma, service } = buat('development');
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.user.create as jest.Mock).mockResolvedValue(target({ roles: [Role.opd] }));
+
+      await service.create(
+        { nama: 'Admin Baru', email: 'baru@x.go.id', roles: [Role.opd], opdId: 1 } as CreateUserDto,
+        KABUPATEN,
+      );
+
+      expect(prisma.user.create).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+describe('UsersService — UserEntity.bolehJadiAdminOpd', () => {
+  /**
+   * SATU ATURAN YANG SAMA, DISALURKAN KE ANTARMUKA. Halaman manajemen pengguna
+   * tidak boleh menghitung sendiri siapa yang boleh dijadikan Admin OPD: ia tak
+   * tahu `NODE_ENV` backend, dan dua salinan aturan akan menghasilkan kotak
+   * centang yang dapat ditekan tetapi pasti ditolak.
+   */
+  const buat = (nodeEnv: string) => {
+    const prisma = {
+      user: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      $transaction: jest.fn(),
+    } as unknown as PrismaService;
+    return { prisma, service: new UsersService(prisma, konfig(nodeEnv)) };
+  };
+
+  it('produksi: akun ASN -> true', async () => {
+    const { prisma, service } = buat('production');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: JenisPengguna.asn,
+    });
+
+    const hasil = await service.findOne(10, KABUPATEN);
+
+    expect(hasil.bolehJadiAdminOpd).toBe(true);
+  });
+
+  it('produksi: akun yang belum diketahui -> false', async () => {
+    const { prisma, service } = buat('production');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: null,
+    });
+
+    const hasil = await service.findOne(10, KABUPATEN);
+
+    expect(hasil.bolehJadiAdminOpd).toBe(false);
+  });
+
+  it('pengembangan: siapa pun -> true', async () => {
+    const { prisma, service } = buat('development');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: null,
+    });
+
+    const hasil = await service.findOne(10, KABUPATEN);
+
+    expect(hasil.bolehJadiAdminOpd).toBe(true);
+  });
+
+  it('daftar pengguna ikut membawanya pada setiap baris', async () => {
+    // Halaman daftar yang menampilkan tombol sunting perlu tahu ini tanpa
+    // memanggil satu endpoint per baris.
+    const { prisma, service } = buat('production');
+    (prisma.$transaction as jest.Mock).mockResolvedValue([
+      [{ ...userRow, jenisPengguna: JenisPengguna.asn, opd: { nama: 'Dinas Kesehatan' } }],
+      1,
+    ]);
+
+    const hasil = await service.findAll({ page: 1, limit: 20 } as ListUsersQueryDto, KABUPATEN);
+
+    expect(hasil.items[0].bolehJadiAdminOpd).toBe(true);
+  });
+
+  it('TIDAK mengirim `jenisPengguna` itu sendiri ke klien', async () => {
+    // Status kepegawaian adalah keterangan tentang orangnya; yang dibutuhkan
+    // antarmuka hanyalah boleh atau tidak. Kolomnya dideklarasikan di
+    // `UserEntity` justru supaya dapat DITAHAN -- serialisasi di repo ini
+    // expose-all, jadi kolom yang tak disebut ikut keluar sendiri.
+    const { prisma, service } = buat('production');
+    (prisma.user.findFirst as jest.Mock).mockResolvedValue({
+      ...userRow,
+      jenisPengguna: JenisPengguna.asn,
+    });
+
+    const keluar = instanceToPlain(await service.findOne(10, KABUPATEN));
+
+    expect(keluar).not.toHaveProperty('jenisPengguna');
+    expect(keluar.bolehJadiAdminOpd).toBe(true);
   });
 });

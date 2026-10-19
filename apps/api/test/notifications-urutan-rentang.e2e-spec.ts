@@ -66,6 +66,10 @@ describe('Notifications: urutan & rentang waktu (e2e)', () => {
     await prisma.notification.createMany({
       data: BARIS.map((b) => ({
         userId,
+        // Akunnya berperan warga saja, dan sejak kotak masuk dipisah per peran
+        // (16 September 2026) baris yang bertanda peran lain memang tak akan
+        // terlihat oleh sesi ini.
+        untukPeran: Role.responden,
         type: NotificationType.complaint_created,
         title: b.judul,
         message: `Pesan untuk ${b.judul}`,

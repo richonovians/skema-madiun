@@ -271,6 +271,90 @@ describe('Notifications (e2e)', () => {
     expect(res.status).toBe(404);
   });
 
+  /**
+   * `unreadOnly=false` TIDAK menyaring apa pun (TC-BOOL-003, 15 Oktober 2026).
+   *
+   * Uji-uji di atas hanya mengirim `unreadOnly=true`, dan
+   * `NotificationHistoryScreen.jsx:112` menghilangkan medannya alih-alih
+   * mengirim `false`, jadi nilai itu tak pernah dilalui siapa pun. Medannya
+   * tetap bagian kontrak API (`@ApiPropertyOptional`), dan di sana ia terbalik.
+   *
+   * Penggunanya SENDIRI, bukan `respondenId` bersama, supaya uji ini tak
+   * bergantung pada urutan jalan maupun mengubah hitungan uji `read-all` di
+   * bawahnya. Barisnya ditanam langsung lewat Prisma karena yang diuji adalah
+   * penyaringnya, bukan jalur yang melahirkan notifikasinya.
+   *
+   * Terbukti merah oleh cacatnya sendiri: sebelum diperbaiki, `unreadOnly=false`
+   * mengembalikan hanya yang belum dibaca, sehingga notifikasi yang sudah
+   * dibaca hilang dari daftar yang semestinya memuat keduanya.
+   */
+  it('GET /notifications?unreadOnly=false memuat yang sudah DAN belum dibaca', async () => {
+    const pemilik = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-notif-bool' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-notif-bool',
+        nama: 'Responden Uji unreadOnly',
+        email: 'e2e-notif-bool@example.go.id',
+        roles: [Role.responden],
+      },
+    });
+
+    const sebagaiPemilik = () => devHeaders({ role: Role.responden, userId: pemilik.id });
+
+    try {
+      await prisma.notification.deleteMany({ where: { userId: pemilik.id } });
+      await prisma.notification.createMany({
+        data: [
+          {
+            userId: pemilik.id,
+            untukPeran: Role.responden,
+            type: 'complaint_status_changed',
+            title: 'Sudah dibaca',
+            message: 'Notifikasi yang sudah dibaca',
+            isRead: true,
+          },
+          {
+            userId: pemilik.id,
+            untukPeran: Role.responden,
+            type: 'complaint_status_changed',
+            title: 'Belum dibaca',
+            message: 'Notifikasi yang belum dibaca',
+            isRead: false,
+          },
+        ],
+      });
+
+      const judul = (res: { body: { data: { title: string }[] } }) =>
+        res.body.data.map((n) => n.title).sort();
+
+      // KONTROL: tanpa penyaring, keduanya memang terbaca. Tanpa ini, hasil
+      // yang kurang di bawah tak dapat dibedakan dari fixture yang gagal dibuat.
+      const kontrol = await request(app.getHttpServer())
+        .get('/api/v1/notifications?limit=50')
+        .set(sebagaiPemilik());
+      expect(kontrol.status).toBe(200);
+      expect(judul(kontrol)).toEqual(['Belum dibaca', 'Sudah dibaca']);
+
+      const semua = await request(app.getHttpServer())
+        .get('/api/v1/notifications?unreadOnly=false&limit=50')
+        .set(sebagaiPemilik());
+      expect(semua.status).toBe(200);
+      expect(judul(semua)).toEqual(['Belum dibaca', 'Sudah dibaca']);
+
+      // KENDALI KEDUA: `true` tetap harus menyaring, kalau tidak uji di atas
+      // akan tetap hijau walau penyaringnya dibuang seluruhnya.
+      const hanyaBelum = await request(app.getHttpServer())
+        .get('/api/v1/notifications?unreadOnly=true&limit=50')
+        .set(sebagaiPemilik());
+      expect(hanyaBelum.status).toBe(200);
+      expect(judul(hanyaBelum)).toEqual(['Belum dibaca']);
+    } finally {
+      await prisma.notification.deleteMany({ where: { userId: pemilik.id } });
+      await prisma.user.delete({ where: { id: pemilik.id } });
+    }
+  });
+
   it('PATCH /notifications/read-all menandai SEMUA notifikasi Responden dibaca', async () => {
     const patchRes = await request(app.getHttpServer())
       .patch('/api/v1/notifications/read-all')

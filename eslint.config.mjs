@@ -17,6 +17,11 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      // Keluaran kompilasi pelari uji beban. Direktorinya terpisah dari `dist`
+      // supaya tak menimpa keluaran `nest start --watch`, dan karena itu
+      // `**/dist/**` di atas TIDAK mengenainya: tanpa baris ini `pnpm lint`
+      // melaporkan 860 galat atas kode yang dibangkitkan tsc.
+      '**/dist-beban/**',
       '**/.next/**',
       '**/build/**',
       '**/coverage/**',
@@ -54,7 +59,29 @@ export default tseslint.config(
     },
   },
 
-  // 6) HARUS TERAKHIR: matikan seluruh aturan format ESLint yang berpotensi
+  // 6) Berkas CommonJS (.cjs): `require` adalah SATU-SATUNYA cara memuat modul
+  //    di sana, jadi `no-require-imports` bukan aturan gaya melainkan larangan
+  //    menulis berkas itu sama sekali.
+  //
+  //    Dipakai skrip perkakas di apps/api/scripts. CommonJS-nya disengaja dan
+  //    ada alasannya, ditulis di kepala scripts/lib/envelope.cjs: dengan begitu
+  //    Jest dapat me-`require` berkas itu langsung, sehingga uji silang yang
+  //    menjaga format amplop tetap sama antara aplikasi dan perkakas pemulihan
+  //    benar-benar dapat berjalan.
+  {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
+  // 7) HARUS TERAKHIR: matikan seluruh aturan format ESLint yang berpotensi
   //    bentrok dengan Prettier. Formatting sepenuhnya ditangani Prettier.
   eslintConfigPrettier,
 );

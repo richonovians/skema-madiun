@@ -1,6 +1,14 @@
 import React from 'react';
 
-export default function BarChart({ data, title }) {
+/**
+ * `children` (7 Oktober 2026): isi tambahan di BAWAH deretan batang, di dalam
+ * kartu yang sama. Dipakai halaman statistik publik untuk menyandingkan
+ * sebaran status dengan daftar kategori, alih-alih meninggalkan bagian bawah
+ * kartu kosong saat kartu tetangganya jauh lebih tinggi.
+ *
+ * Opsional, jadi seluruh pemakai lain tak berubah sama sekali.
+ */
+export default function BarChart({ data, title, children = null }) {
   // Find max value to calculate percentage width
   const maxCount = Math.max(...data.map(d => d.count), 1); // fallback to 1 to avoid div by 0
 
@@ -34,6 +42,14 @@ export default function BarChart({ data, title }) {
           );
         })}
       </div>
+
+      {/* Jarak TETAP, bukan margin otomatis. Dorongan ke dasar kartu sempat
+          dipakai agar isi tambahan ini merapat ke bawah kartu yang diregangkan,
+          dan itu tidak menghilangkan ruang kosongnya -- hanya memindahkannya ke
+          atas garis pemisah, di mana ia terlihat sama kosongnya (laporan
+          pengguna, 7 Oktober 2026). Peregangannya sendiri yang dihentikan,
+          lewat `items-start` pada grid pemanggilnya. */}
+      {children && <div className="mt-8">{children}</div>}
     </div>
   );
 }

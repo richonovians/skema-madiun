@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -47,12 +48,41 @@ export default function ConfirmDialog({
 
   const isDanger = tone === 'danger';
 
-  return (
+  // DIGAMBAR DI `document.body`, BUKAN DI TEMPAT KOMPONEN INI DIPANGGIL
+  // (4 Oktober 2026, laporan pengguna: "tombol perkecil sidebar muncul
+  // sendiri" saat modal builder terbuka).
+  //
+  // `z-[9999]` di bawah ini TIDAK berarti apa-apa terhadap dunia luar selama
+  // modalnya digambar di dalam leluhur yang punya konteks penumpukan sendiri.
+  // BuilderLayout berkelas `relative z-50`, jadi seluruh builder beserta
+  // modalnya adalah SATU lapisan setinggi 50 -- dan tombol ciutkan sidebar
+  // (`fixed z-[60]`, saudara di luar builder) digambar di atas latar gelapnya.
+  // Yang terlihat pengguna: segalanya meredup kecuali satu tombol yang
+  // tertinggal tajam, seolah ia baru saja muncul.
+  //
+  // Portal memutus ketergantungan itu untuk SETIAP tempat pemanggilan,
+  // sekarang dan nanti -- sama seperti RoleLoginPicker, meski sebabnya di sana
+  // leluhur ber-transform, bukan z-index.
+  //
+  // `document` diperiksa karena berkas ini ikut terangkut ke bundel server.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && !isProcessing && onCancel?.()}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]">
+      {/* `role="dialog"` + `aria-modal` (4 Oktober 2026). Sebelumnya dialog ini
+          hanya sepasang <div>: terlihat sebagai modal, tetapi bagi pembaca layar
+          ia cuma teks yang muncul entah dari mana, tanpa tanda bahwa isi di
+          belakangnya sedang tak dapat dipakai. `aria-labelledby` menunjuk ke
+          judulnya supaya dialognya terbaca bernama, bukan "dialog" kosong. */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="judul-konfirmasi"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]"
+      >
         <div className="p-6 text-center space-y-3">
           <div
             className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-2 ${
@@ -62,7 +92,9 @@ export default function ConfirmDialog({
             {icon ?? <AlertTriangle size={32} />}
           </div>
 
-          <h3 className="text-xl font-bold text-text-primary">{title}</h3>
+          <h3 id="judul-konfirmasi" className="text-xl font-bold text-text-primary">
+            {title}
+          </h3>
           <p className="text-sm text-text-secondary leading-relaxed">{description}</p>
         </div>
 
@@ -87,6 +119,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

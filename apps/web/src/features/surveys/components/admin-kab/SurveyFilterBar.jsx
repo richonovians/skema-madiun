@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useState, useRef, useEffect } from 'react';
 import Input from '@/components/ui/Input';
+import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
-import { Search, Download, FileText, ChevronDown, Filter, Plus } from 'lucide-react';
+import { Trash2, Search, Download, FileText, ChevronDown, Filter, Plus } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 
@@ -25,7 +27,7 @@ export default function SurveyFilterBar({
   onExportExcel,
   onExportPDF,
   opdOptions = [],
-  periodeOptions = [],
+  tahunOptions = [],
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -101,17 +103,47 @@ export default function SurveyFilterBar({
 
           <ResetFilterButton onReset={onResetFilters} />
 
+          {/* SAMPAH (1 Oktober 2026, permintaan pengguna: "pindahkan tombol
+              sampah ... sejajar dengan tombol reset filter, buat survei,
+              ekspor"). Sebelumnya ia berdiri sendiri pada barisnya sendiri di
+              atas kartu ringkasan, terpisah dari seluruh aksi lain halaman ini.
+              Dirender DI SINI, bukan dioper sebagai children dari halamannya:
+              urutan tombol menjadi urusan satu komponen saja, dan pemanggilnya
+              tak perlu ikut mengingatnya.
+              Tanpa tautan ini halaman Sampah tak punya pintu masuk sama sekali
+              -- survei yang terlanjur dibuang akan terlihat seperti hilang. */}
+          <Link
+            href="/admin-kab/surveys/sampah"
+            className="border-outline flex min-h-[44px] items-center gap-2 rounded-lg border px-md text-xs font-bold transition-colors hover:bg-surface-container-low sm:text-body-md"
+          >
+            <Trash2 size={18} aria-hidden="true" />
+            <span>Sampah</span>
+          </Link>
+
+          {/* `aria-label` + `title` (21 September 2026). Labelnya disembunyikan
+              di bawah 640px, dan elemen ber-`display: none` tidak ikut menyusun
+              nama yang dapat diakses -- tombol ini karena itu dulu hanya
+              disebut "tombol" oleh pembaca layar, dan tak punya apa pun untuk
+              diucapkan oleh perintah suara. Polanya sendiri dipertahankan:
+              menampilkan label penuh di 320px akan mendorong tombol keluar
+              layar. Contoh yang sejak awal sudah benar: ResetFilterButton. */}
           <button
             onClick={onCreateSurvey}
+            aria-label="Buat Survei"
+            title="Buat Survei"
             className="flex items-center gap-2 min-h-[44px] px-md rounded-lg bg-primary text-on-primary hover:bg-primary-hover transition-colors font-bold text-xs sm:text-body-md shadow-sm shadow-primary/20"
           >
-            <Plus size={18} />
+            <Plus size={18} aria-hidden="true" />
             <span className="hidden sm:inline">Buat Survei</span>
           </button>
 
           <div className="relative group space-y-1" ref={exportRef}>
             <button
               onClick={() => setIsExportOpen(!isExportOpen)}
+              aria-label="Ekspor"
+              title="Ekspor"
+              aria-haspopup="menu"
+              aria-expanded={isExportOpen}
               className="flex items-center justify-between gap-1 sm:gap-3 min-h-[44px] px-md rounded-lg font-medium text-xs sm:text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm"
             >
               <div className="flex items-center gap-2">
@@ -190,10 +222,14 @@ export default function SurveyFilterBar({
           value={filters.status}
           onChange={(val) => handleChange('status', val)}
         />
-        <Dropdown
-          options={periodeOptions}
+        {/* DUA dropdown sejak 6 Oktober 2026 (permintaan pengguna). `periodeOptions`
+            yang lama -- daftar gabungan "Triwulan I - 2026" -- digantikan
+            `tahunOptions`; triwulannya tetap sama di mana pun dan tinggal di
+            dalam komponennya. */}
+        <PenyaringPeriode
           value={filters.periode}
           onChange={(val) => handleChange('periode', val)}
+          tahunOptions={tahunOptions}
         />
       </div>
     </div>

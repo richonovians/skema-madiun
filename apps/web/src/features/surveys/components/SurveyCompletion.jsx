@@ -6,11 +6,12 @@ import { CheckCircle2, Home, FileText } from 'lucide-react';
 import useSurveyStore from '../store/useSurveyStore';
 
 /**
- * @param {boolean} [tampilkanTautanWarga] Tautan "Daftar Survei" & "Beranda"
+ * @param {boolean} [tampilkanTautanWarga] Tautan "Daftar Survei" & "Dashboard"
  * keduanya menuju rute khusus peran `responden` (/surveys, /dashboard), yang
  * memantulkan pengunjung tanpa sesi ke '/'. Pengisi anonim lewat /survei/:id
- * karena itu diberi satu tautan beranda publik — jalan buntu adalah cacat,
- * bukan detail kosmetik. Baku `true` supaya pemakaian yang sudah ada tak berubah.
+ * karena itu diberi satu tautan ke halaman depan publik `/`, berlabel
+ * "Kembali ke Layanan" — jalan buntu adalah cacat, bukan detail kosmetik. Baku
+ * `true` supaya pemakaian yang sudah ada tak berubah.
  */
 export default function SurveyCompletion({ tampilkanTautanWarga = true }) {
   const { surveyData } = useSurveyStore();
@@ -52,7 +53,7 @@ export default function SurveyCompletion({ tampilkanTautanWarga = true }) {
             <Link href="/" className="w-full sm:w-1/2 mx-auto block">
               <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
                 <Home size={20} />
-                <span>Kembali ke Beranda</span>
+                <span>Kembali ke Layanan</span>
               </button>
             </Link>
           )}
@@ -68,7 +69,13 @@ export default function SurveyCompletion({ tampilkanTautanWarga = true }) {
           <Link href="/dashboard" className="w-full sm:w-1/2 block">
             <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95 group/btn">
               <Home size={20} className="group-hover/btn:-translate-y-1 transition-transform" />
-              <span>Beranda</span>
+              {/* "Dashboard", bukan label halaman depan (4 Oktober 2026,
+                  laporan pengguna). Tujuannya `/dashboard`, yaitu dasbor warga,
+                  sementara halaman depan publik ada di `/`. Tombol anonim di
+                  atas MEMANG menuju `/` dan karena itu labelnya memakai kata
+                  halaman depan -- "Layanan" sejak 15 Oktober 2026, sebelumnya
+                  "Beranda". Pembedaannya dijaga SurveyCompletion.test.jsx. */}
+              <span>Dashboard</span>
             </button>
           </Link>
           )}

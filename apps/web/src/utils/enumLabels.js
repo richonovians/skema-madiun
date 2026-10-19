@@ -44,7 +44,6 @@ export const COMPLAINT_STATUS_BADGE_VARIANT = {
 };
 
 export const ROLE_LABEL = {
-  SUPERUSER: 'Superuser',
   ADMIN_OPD: 'Admin OPD',
   ADMIN_KABUPATEN: 'Admin Kabupaten',
   RESPONDENT: 'Responden',

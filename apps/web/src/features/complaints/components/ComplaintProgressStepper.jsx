@@ -42,7 +42,11 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
 
   return (
     <Card className="p-5 sm:p-6 md:p-8">
-      <h3 className="font-h3 text-h3 mb-6 text-text-primary">Status Progress</h3>
+      {/* "Progres", satu s: serapan Indonesia untuk *progress*.
+          SurveyProgress.jsx sudah menulisnya begitu sejak awal, dan dua ejaan
+          berbeda untuk hal yang sama dalam satu aplikasi terbaca seperti
+          kelalaian. Diperbaiki 22 September 2026 atas permintaan pengguna. */}
+      <h3 className="font-h3 text-h3 mb-6 text-text-primary">Status Progres</h3>
       <div className="relative space-y-6">
         {steps.map((step, index) => {
           const state = getStepState(step.id, currentStatus);

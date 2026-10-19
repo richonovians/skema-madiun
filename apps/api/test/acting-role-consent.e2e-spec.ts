@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { SessionService } from '../src/modules/auth/session/session.service';
+import { PenerbitSesi } from '../src/modules/auth/session/penerbit-sesi.service';
 
 /**
  * Laporan pengguna 14 September 2026: akun warga ber-peran banyak yang belum
@@ -23,6 +23,13 @@ import { SessionService } from '../src/modules/auth/session/session.service';
  * `NODE_ENV='development'` dipaksa supaya SessionAuthProvider yang sungguhan
  * aktif; di NODE_ENV=test, StubAuthProvider memperlakukan setiap permintaan
  * sebagai kabupaten dan tak ada satu pun uji di sini yang membuktikan apa pun.
+ *
+ * TOKENNYA DITERBITKAN LEWAT `PenerbitSesi`, BUKAN `SessionService.issue()`
+ * (7 Oktober 2026). Sejak daftar pencabutan sesi hidup, `issue()` menempelkan
+ * klaim `sid` tanpa mendaftarkannya ke penyimpan, dan karena pemeriksaan sesi
+ * gagal tertutup setiap token semacam itu dijawab 401. Uji yang mencetak token
+ * di belakang pintu penerbitan karena itu menguji jalur yang tak pernah dilalui
+ * pengguna sungguhan.
  */
 const EMAIL = 'e2e-actingrole-consent@example.go.id';
 const SUBJECT = 'e2e-actingrole-consent';
@@ -30,7 +37,7 @@ const SUBJECT = 'e2e-actingrole-consent';
 describe('Ganti peran & persetujuan PDP (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let sessionService: SessionService;
+  let penerbit: PenerbitSesi;
   let userId: number;
   const originalNodeEnv = process.env.NODE_ENV;
 
@@ -45,7 +52,7 @@ describe('Ganti peran & persetujuan PDP (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
-    sessionService = app.get(SessionService);
+    penerbit = app.get(PenerbitSesi);
 
     await prisma.user.deleteMany({ where: { ssoSubject: SUBJECT } });
     // Meniru persis akun yang dilaporkan: dua peran, persetujuan masih kosong.
@@ -90,7 +97,7 @@ describe('Ganti peran & persetujuan PDP (e2e)', () => {
    */
   it('berpindah ke responden melaporkan persetujuan masih dibutuhkan', async () => {
     await kembalikanBelumSetuju();
-    const res = await gantiPeran(Role.responden, sessionService.issue(userId));
+    const res = await gantiPeran(Role.responden, await penerbit.terbitkan(userId));
 
     expect(res.status).toBe(200);
     expect(res.body.data.consentRequired).toBe(true);
@@ -104,7 +111,7 @@ describe('Ganti peran & persetujuan PDP (e2e)', () => {
    */
   it('berpindah ke kabupaten melaporkan persetujuan tidak dibutuhkan', async () => {
     await kembalikanBelumSetuju();
-    const res = await gantiPeran(Role.kabupaten, sessionService.issue(userId));
+    const res = await gantiPeran(Role.kabupaten, await penerbit.terbitkan(userId));
 
     expect(res.status).toBe(200);
     expect(res.body.data.consentRequired).toBe(false);
@@ -113,7 +120,7 @@ describe('Ganti peran & persetujuan PDP (e2e)', () => {
   it('warga yang sudah menyetujui tidak diminta menyetujui lagi', async () => {
     await prisma.user.update({ where: { id: userId }, data: { consentAt: new Date() } });
 
-    const res = await gantiPeran(Role.responden, sessionService.issue(userId));
+    const res = await gantiPeran(Role.responden, await penerbit.terbitkan(userId));
 
     expect(res.status).toBe(200);
     expect(res.body.data.consentRequired).toBe(false);
@@ -124,7 +131,7 @@ describe('Ganti peran & persetujuan PDP (e2e)', () => {
   /** Medan lama tak boleh hilang: frontend memakai ketiganya. */
   it('respons tetap membawa role, expiresAt, dan token seperti sebelumnya', async () => {
     await kembalikanBelumSetuju();
-    const res = await gantiPeran(Role.responden, sessionService.issue(userId));
+    const res = await gantiPeran(Role.responden, await penerbit.terbitkan(userId));
 
     expect(res.body.data.role).toBe(Role.responden);
     expect(typeof res.body.data.expiresAt).toBe('number');

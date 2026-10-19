@@ -13,7 +13,7 @@ import { forwardComplaint } from '../../services/complaints.api';
  * Meneruskan pengaduan yang belum bertujuan ke OPD yang berwenang
  * (permintaan pengguna 6 September 2026).
  *
- * Hanya terpakai oleh Superuser & Admin Kabupaten — haknya ditegakkan BACKEND
+ * Hanya terpakai oleh Admin Kabupaten — haknya ditegakkan BACKEND
  * (ComplaintsService.forward), bukan oleh ada-tidaknya modal ini di layar.
  * Menyembunyikan tombol adalah kenyamanan; penolakan 403-nya yang menjaga.
  *

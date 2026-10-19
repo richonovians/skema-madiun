@@ -1,35 +1,37 @@
 import { KUNCI_TOMBOL, peranUntukTombol, tombolUntukRoles } from '../tombolPeran';
 
 /**
- * TIGA TOMBOL, BUKAN EMPAT (permintaan pengguna 8 September 2026).
+ * TIGA TOMBOL PERAN.
  *
- * Kata penggunanya: "role superuser masuk melewati tombol admin kabupaten bukan
- * tombol superuser tetapi hak aksesnya tetap berbeda dengan admin kabupaten
- * (bisa manajemen user dan audit log). Jadi pilihan tombol peran hanya ada 3."
+ * Berkas ini lahir dari permintaan 8 September 2026 ("pilihan tombol peran hanya
+ * ada 3"), ketika `superuser` masih peran tersendiri dan tombol Admin Kabupaten
+ * mewakili DUA role sekaligus. Sejak peleburan 15 September 2026 percabangan itu
+ * hilang: setiap tombol memetakan ke peran senama.
  *
- * Yang diuji di sini PEMETAANNYA, bukan tampilannya — dan itu sengaja: peran
- * yang dikirim ke `POST /auth/acting-role` menjadi klaim `act` di token, dan
- * klaim itulah yang menentukan hak akses sesungguhnya (acting-role.util.ts:
+ * Yang diuji tetap PEMETAANNYA, bukan tampilannya — dan itu sengaja: peran yang
+ * dikirim ke `POST /auth/acting-role` menjadi klaim `act` di token, dan klaim
+ * itulah yang menentukan hak akses sesungguhnya (acting-role.util.ts:
  * hak = `act` ∩ `roles`). Salah memetakan di sini berarti salah memberi hak,
  * bukan cuma salah label.
  */
 describe('tombolUntukRoles', () => {
-  it('akun HANYA superuser tetap punya jalan masuk — lewat tombol Admin Kabupaten', () => {
-    // Kegagalan yang paling mudah terlewat: kalau daftar tombol disaring dengan
-    // `roles.includes(kunciTombol)` seperti sebelumnya, akun ber-role
-    // `[superuser]` melihat NOL tombol dan terkunci di luar aplikasi.
-    expect(tombolUntukRoles(['superuser'])).toEqual([KUNCI_TOMBOL.KABUPATEN]);
+  it('akun Admin Kabupaten melihat tombolnya', () => {
+    expect(tombolUntukRoles(['kabupaten'])).toEqual([KUNCI_TOMBOL.KABUPATEN]);
   });
 
-  it('akun superuser DAN kabupaten hanya menghasilkan SATU tombol, bukan dua', () => {
-    expect(tombolUntukRoles(['superuser', 'kabupaten'])).toEqual([KUNCI_TOMBOL.KABUPATEN]);
-  });
+  it('akun ber-peran jamak melihat satu tombol per peran', () => {
+    const semua = tombolUntukRoles(['kabupaten', 'opd', 'responden']);
 
-  it('tak ada lagi tombol "superuser" di daftar mana pun', () => {
-    const semua = tombolUntukRoles(['superuser', 'kabupaten', 'opd', 'responden']);
-
-    expect(semua).not.toContain('superuser');
     expect(semua).toEqual([KUNCI_TOMBOL.KABUPATEN, KUNCI_TOMBOL.OPD, KUNCI_TOMBOL.WARGA]);
+  });
+
+  /**
+   * Peran `superuser` dihapus 15 September 2026, termasuk nilai enumnya di basis
+   * data. Token lama yang masih menyebutnya tak boleh menghasilkan tombol hantu
+   * -- sama seperti nama peran salah ketik mana pun.
+   */
+  it('nama peran yang sudah dihapus tidak menghasilkan tombol', () => {
+    expect(tombolUntukRoles(['superuser'])).toEqual([]);
   });
 
   it('urutannya tetap, tidak mengikuti urutan `roles` yang datang dari server', () => {
@@ -43,32 +45,21 @@ describe('tombolUntukRoles', () => {
 });
 
 describe('peranUntukTombol', () => {
-  it('tombol Admin Kabupaten pada akun superuser -> act=superuser (hak tertinggi)', () => {
-    // Inti permintaannya: tombolnya sama, haknya berbeda.
-    expect(peranUntukTombol(KUNCI_TOMBOL.KABUPATEN, ['superuser'])).toBe('superuser');
+  it('setiap tombol memetakan ke peran senama', () => {
+    expect(peranUntukTombol(KUNCI_TOMBOL.KABUPATEN)).toBe('kabupaten');
+    expect(peranUntukTombol(KUNCI_TOMBOL.OPD)).toBe('opd');
+    expect(peranUntukTombol(KUNCI_TOMBOL.WARGA)).toBe('responden');
   });
 
-  it('tombol yang SAMA pada akun kabupaten biasa -> act=kabupaten', () => {
-    expect(peranUntukTombol(KUNCI_TOMBOL.KABUPATEN, ['kabupaten'])).toBe('kabupaten');
-  });
-
-  it('akun ber-DUA role itu -> act=superuser, bukan kabupaten', () => {
-    // Akibat yang disadari & disetujui pengguna: pemegang kedua role kehilangan
-    // pilihan sengaja TURUN menjadi kabupaten biasa. Satu tombol, selalu hak
-    // tertinggi. Diuji supaya perubahan arah itu tak terjadi diam-diam.
-    expect(peranUntukTombol(KUNCI_TOMBOL.KABUPATEN, ['kabupaten', 'superuser'])).toBe('superuser');
-  });
-
-  it('tombol lain memetakan ke peran senama', () => {
-    expect(peranUntukTombol(KUNCI_TOMBOL.OPD, ['opd'])).toBe('opd');
-    expect(peranUntukTombol(KUNCI_TOMBOL.WARGA, ['responden'])).toBe('responden');
-  });
-
-  it('TIDAK menaikkan hak pada tombol selain Admin Kabupaten', () => {
-    // Penjaga: seorang superuser yang memilih "Masyarakat" harus benar-benar menjadi
-    // warga — termasuk terkena gerbang persetujuan UU PDP. Kalau di sini
-    // dinaikkan menjadi `superuser`, gerbang itu terlewati.
-    expect(peranUntukTombol(KUNCI_TOMBOL.WARGA, ['superuser', 'responden'])).toBe('responden');
-    expect(peranUntukTombol(KUNCI_TOMBOL.OPD, ['superuser', 'opd'])).toBe('opd');
+  /**
+   * PENJAGA yang tetap berlaku sesudah peleburan: pemetaannya tak boleh
+   * bergantung pada daftar role yang dimiliki akun. Seorang Admin Kabupaten
+   * yang memilih "Masyarakat" harus benar-benar menjadi warga -- termasuk
+   * terkena gerbang persetujuan UU PDP. Menaikkan haknya di sini akan melewati
+   * gerbang itu tanpa satu pun galat.
+   */
+  it('TIDAK menaikkan hak, berapa pun peran yang dimiliki akun', () => {
+    expect(peranUntukTombol(KUNCI_TOMBOL.WARGA, ['kabupaten', 'responden'])).toBe('responden');
+    expect(peranUntukTombol(KUNCI_TOMBOL.OPD, ['kabupaten', 'opd'])).toBe('opd');
   });
 });

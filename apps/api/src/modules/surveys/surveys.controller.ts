@@ -11,7 +11,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -22,19 +22,24 @@ import { ListActiveSurveyQueryDto } from './dto/list-active-survey-query.dto';
 import { ListSurveyQueryDto } from './dto/list-survey-query.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { UpdateSurveyStatusDto } from './dto/update-survey-status.dto';
+import { ChangeSurveyJenisDto } from './dto/change-survey-jenis.dto';
 import { SurveyEntity } from './entities/survey.entity';
 import { TrashedSurveyEntity } from './entities/trashed-survey.entity';
+import { SurveiPemusnahanService } from './survei-pemusnahan.service';
 import { SurveysService } from './surveys.service';
 
 @ApiTags('surveys')
 @ApiBearerAuth()
 @Controller('surveys')
 export class SurveysController {
-  constructor(private readonly surveysService: SurveysService) {}
+  constructor(
+    private readonly surveysService: SurveysService,
+    private readonly pemusnahanService: SurveiPemusnahanService,
+  ) {}
 
   /** Daftar survei (Kabupaten: semua; Admin OPD: milik OPD-nya). */
   @Get()
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
   findAll(
     @Query() query: ListSurveyQueryDto,
@@ -45,7 +50,7 @@ export class SurveysController {
 
   /** Buat paket survei (Admin OPD). */
   @Post()
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   create(@Body() dto: CreateSurveyDto, @CurrentUser() user: CurrentUser): Promise<SurveyEntity> {
@@ -58,6 +63,7 @@ export class SurveysController {
    * urutan registrasi, sehingga literal `active` harus mendahului param `:id`.
    */
   @Get('active')
+  @ApiOperation({ summary: 'Daftar survei aktif yang dapat dipilih responden.' })
   @Roles(Role.responden)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
   findActive(@Query() query: ListActiveSurveyQueryDto): Promise<PaginatedResult<SurveyEntity>> {
@@ -70,7 +76,8 @@ export class SurveysController {
    * mendahului param `:id`. Alasan yang sama berlaku bagi `active` di atas.
    */
   @Get('trash')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @ApiOperation({ summary: 'Isi Sampah: survei yang dibuang dan belum dimusnahkan.' })
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: TrashedSurveyEntity, isArray: true })
   findTrashed(
     @Query() query: ListSurveyQueryDto,
@@ -79,9 +86,24 @@ export class SurveysController {
     return this.surveysService.findTrashed(query, user);
   }
 
+  /**
+   * Umur Sampah yang berlaku, dalam hari (`null` = pemusnahan otomatis
+   * dimatikan). Dipajang di halaman Sampah kedua peran.
+   *
+   * Dibuka untuk `opd` juga, dan itu perlu: sejak 30 September 2026 Admin OPD
+   * memusnahkan sendiri isi Sampah-nya, jadi ia berhak tahu kebijakan yang
+   * akan menghabisinya lebih dulu.
+   */
+  @Get('trash/retensi')
+  @Roles(Role.kabupaten, Role.opd)
+  @ApiOperation({ summary: 'Umur Sampah survei dalam hari (null = tanpa pemusnahan otomatis)' })
+  retensiSampah(): { hari: number | null } {
+    return { hari: this.pemusnahanService.hariPemusnahan() };
+  }
+
   /** Detail survei. */
   @Get(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @ApiOkResponse({ type: SurveyEntity })
   findOne(
     @Param('id', ParseIntPipe) id: number,
@@ -92,7 +114,7 @@ export class SurveysController {
 
   /** Ubah survei (draft, Admin OPD). */
   @Patch(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @ApiOkResponse({ type: SurveyEntity })
   update(
@@ -109,7 +131,10 @@ export class SurveysController {
    * permanennya ada di `DELETE /surveys/:id/purge`.
    */
   @Delete(':id')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @ApiOperation({
+    summary: 'Buang survei ke Sampah (soft delete). Pemusnahan permanen ada di /surveys/:id/purge.',
+  })
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
@@ -118,7 +143,7 @@ export class SurveysController {
 
   /** Pulihkan survei dari Sampah. */
   @Post(':id/restore')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'restore')
   @ApiOkResponse({ type: SurveyEntity })
   restore(
@@ -129,11 +154,23 @@ export class SurveysController {
   }
 
   /**
-   * Musnahkan permanen dari Sampah. TANPA Role.opd, dan itu keputusan tersurat:
-   * tindakan ini tak dapat dibatalkan dan ikut membawa jawaban responden.
+   * Musnahkan permanen dari Sampah.
+   *
+   * DIBUKA UNTUK Role.opd (30 September 2026, permintaan pengguna). Sebelumnya
+   * peran ini sengaja dikecualikan sebab tindakannya tak dapat dibatalkan dan
+   * ikut membawa jawaban responden. Yang membuat pelebaran ini aman bukan
+   * berkurangnya akibat -- akibatnya sama persis -- melainkan bahwa
+   * `getTrashedOrThrow` memanggil `assertOpdAccess`, sehingga Admin OPD hanya
+   * dapat menjangkau survei OPD-nya sendiri. Ia memusnahkan hasil pengukuran
+   * yang memang menjadi tanggung jawabnya.
+   *
+   * Kurungan itulah yang harus tetap dijaga. Uji `Admin OPD TETAP ditolak
+   * memusnahkan survei OPD LAIN` di surveys-trash.e2e-spec.ts ada untuk itu,
+   * dan ia lebih penting daripada uji jalur bahagianya.
    */
   @Delete(':id/purge')
-  @Roles(Role.kabupaten, Role.superuser)
+  @ApiOperation({ summary: 'Musnahkan survei permanen dari Sampah. Tidak dapat dibatalkan.' })
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'purge')
   @HttpCode(HttpStatus.OK)
   purge(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser): Promise<void> {
@@ -142,7 +179,7 @@ export class SurveysController {
 
   /** Publikasikan / tutup survei (Admin OPD). */
   @Patch(':id/status')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'update_status')
   @ApiOkResponse({ type: SurveyEntity })
   updateStatus(
@@ -153,9 +190,30 @@ export class SurveysController {
     return this.surveysService.updateStatus(id, dto, user);
   }
 
+  /**
+   * Ganti jenis survei SKM menjadi Custom (8 Oktober 2026). Satu-satunya jalan
+   * mengganti jenis; `PATCH /surveys/:id` tetap menolak `jenis`.
+   */
+  @Patch(':id/jenis')
+  @Roles(Role.kabupaten, Role.opd)
+  @Audit('survey', 'ganti_jenis')
+  @ApiOperation({
+    summary: 'Ganti jenis survei SKM menjadi Custom (hanya draf tanpa jawaban).',
+    description:
+      'Hanya selagi survei berstatus draf dan belum ada jawaban. Sembilan unsur dihapus, pertanyaan tambahan dipertahankan dan diurut ulang. Tujuan dan metode nilai wajib. PATCH /surveys/:id tetap menolak jenis.',
+  })
+  @ApiOkResponse({ type: SurveyEntity })
+  gantiJenis(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ChangeSurveyJenisDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<SurveyEntity> {
+    return this.surveysService.gantiJenis(id, dto, user);
+  }
+
   /** Duplikasi survei periode sebelumnya (Admin OPD). */
   @Post(':id/duplicate')
-  @Roles(Role.kabupaten, Role.superuser, Role.opd)
+  @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'duplicate')
   @ApiOkResponse({ type: SurveyEntity })
   duplicate(

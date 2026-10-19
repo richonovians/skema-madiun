@@ -119,3 +119,129 @@ describe('AdminResolutionWorkspace', () => {
     });
   });
 });
+
+/**
+ * TEMPLATE PESAN SISI ADMIN (17 September 2026, permintaan pengguna).
+ *
+ * Komponen ini dipakai Admin OPD DAN Admin Kabupaten, jadi satu daftar yang
+ * keliru di sini merusak kedua area sekaligus.
+ */
+describe('AdminResolutionWorkspace — template pesan', () => {
+  const kotakPesan = () => screen.getByPlaceholderText(/tulis jawaban solusi/i);
+  const bukaTemplate = () => {
+    fireEvent.click(screen.getByRole('button', { name: /template pesan/i }));
+  };
+
+  it('menawarkan template admin', () => {
+    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    bukaTemplate();
+
+    expect(screen.getByText('Pengaduan diterima')).toBeInTheDocument();
+  });
+
+  /** KONTROL: kalimat pelapor tak boleh ditawarkan kepada admin. */
+  it('KONTROL: tidak menawarkan satu pun template warga', () => {
+    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    bukaTemplate();
+
+    expect(screen.queryByText('Mengirim bukti tambahan')).not.toBeInTheDocument();
+    expect(screen.queryByText('Masalah belum teratasi')).not.toBeInTheDocument();
+  });
+
+  it('mengisi kotak yang kosong, lengkap dengan nomor tiketnya', () => {
+    render(
+      <AdminResolutionWorkspace
+        currentStatus="Diproses"
+        nomorTiket="PGD20260917ABCD"
+        onSendUpdate={jest.fn()}
+      />,
+    );
+
+    bukaTemplate();
+    fireEvent.click(screen.getByText('Sedang diproses'));
+
+    expect(kotakPesan()).toHaveValue(
+      'Pengaduan PGD20260917ABCD sedang kami proses. Kami akan mengabari Anda begitu ada perkembangan.',
+    );
+  });
+
+  it('menyambung tanpa menghapus kalimat yang sedang diketik', () => {
+    render(
+      <AdminResolutionWorkspace currentStatus="Diproses" nomorTiket="PGD1" onSendUpdate={jest.fn()} />,
+    );
+    fireEvent.change(kotakPesan(), { target: { value: 'Selamat pagi.' } });
+
+    bukaTemplate();
+    fireEvent.click(screen.getByText('Sedang diproses'));
+
+    expect(kotakPesan()).toHaveValue(
+      'Selamat pagi.\nPengaduan PGD1 sedang kami proses. Kami akan mengabari Anda begitu ada perkembangan.',
+    );
+  });
+
+  /**
+   * LAMPIRAN DAPAT DICAPAI KEYBOARD (21 September 2026).
+   *
+   * Pemicunya dulu `<label>` yang membungkus input ber-`display: none`. Label
+   * bukan elemen yang dapat difokus, dan input yang tersembunyi bukan titik
+   * henti Tab -- keduanya bersama berarti admin yang tak memakai tetikus tak
+   * punya jalan apa pun untuk melampirkan berkas. Yang dikunci di sini bukan
+   * tampilannya, melainkan bahwa pemicunya sebuah tombol bernama yang
+   * benar-benar membuka pemilih berkas.
+   */
+  it('lampiran dipicu tombol bernama, bukan label yang tak dapat difokus', () => {
+    const { container } = render(
+      <AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />,
+    );
+
+    const tombol = screen.getByRole('button', { name: /lampirkan dokumen\/foto/i });
+    const input = container.querySelector('input[type="file"]');
+    const bukaPemilih = jest.spyOn(input, 'click');
+
+    fireEvent.click(tombol);
+
+    expect(bukaPemilih).toHaveBeenCalled();
+  });
+/**
+   * PEMISAH TANGGAL (21 September 2026). Ruang kerja admin merender
+   * percakapannya sendiri, terpisah dari ChatMessageList milik warga. Kalau
+   * hanya salah satu yang diberi pemisah, admin tetap membaca percakapan
+   * tanpa pegangan tanggal -- padahal justru merekalah yang menelusuri tiket
+   * lama.
+   */
+  it("menggambar pemisah tanggal di antara kelompok pesan", () => {
+    const kemarin = new Date(Date.now() - 86_400_000).toISOString();
+    render(
+      <AdminResolutionWorkspace
+        currentStatus="Diproses"
+        onSendUpdate={jest.fn()}
+        chatHistory={[
+          { role: "user", text: "pesan kemarin", createdAt: kemarin, timestamp: "09.00 WIB" },
+          { role: "admin", text: "balasan hari ini", createdAt: new Date().toISOString(), timestamp: "10.00 WIB" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Kemarin")).toBeInTheDocument();
+    expect(screen.getByText("Hari ini")).toBeInTheDocument();
+  });
+
+  it("KONTROL: seluruh pesan tetap tampil sesudah dikelompokkan", () => {
+    const kemarin = new Date(Date.now() - 86_400_000).toISOString();
+    render(
+      <AdminResolutionWorkspace
+        currentStatus="Diproses"
+        onSendUpdate={jest.fn()}
+        chatHistory={[
+          { role: "user", text: "pesan kemarin", createdAt: kemarin, timestamp: "09.00 WIB" },
+          { role: "admin", text: "balasan hari ini", createdAt: new Date().toISOString(), timestamp: "10.00 WIB" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("pesan kemarin")).toBeInTheDocument();
+    expect(screen.getByText("balasan hari ini")).toBeInTheDocument();
+  });
+});

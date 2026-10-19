@@ -1,5 +1,5 @@
 import { Controller, Get, Param, ParseIntPipe, Patch, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ListNotificationQueryDto } from './dto/list-notification-query.dto';
 import { NotificationEntity, UnreadCountEntity } from './entities/notification.entity';
@@ -27,12 +27,14 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
+  @ApiOperation({ summary: 'Tandai satu notifikasi sebagai sudah dibaca.' })
   @ApiOkResponse({ type: NotificationEntity })
   markAsRead(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUser) {
     return this.notificationsService.markAsRead(id, user);
   }
 
   @Patch('read-all')
+  @ApiOperation({ summary: 'Tandai seluruh notifikasi pengguna sebagai sudah dibaca.' })
   markAllAsRead(@CurrentUser() user: CurrentUser) {
     return this.notificationsService.markAllAsRead(user);
   }

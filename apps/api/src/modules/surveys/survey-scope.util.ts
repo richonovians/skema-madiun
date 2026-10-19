@@ -21,10 +21,12 @@ export const TIDAK_DIBUANG = { deletedAt: null } as const;
  * - `meta`    : judul, izin pengisian tanpa login, multi-submit. Hanya mengatur
  *               pengisian berikutnya.
  * - `periode` : bagian kunci unik `ikm_results(surveyId, periode)`.
- * - `susunan` : tambah/hapus/urut pertanyaan & ubah opsi. Skor 1-4 yang
- *               tersimpan menunjuk label opsi, jadi mengubahnya mengubah arti
- *               jawaban lama tanpa jejak.
- * - `teks`    : memperbaiki kalimat pertanyaan. Nilai jawaban tak bergeser.
+ * - `susunan` : tambah/hapus/urut pertanyaan & ubah opsi PILIHAN GANDA. Jawaban
+ *               pilihan menunjuk id opsi, jadi mengubahnya merusak jawaban lama.
+ * - `teks`    : memperbaiki kalimat pertanyaan DAN mengganti label skala 1-4.
+ *               Jawaban skala menyimpan skor (bukan penunjuk ke baris opsi),
+ *               jadi nilai jawaban tak bergeser; yang berubah hanya kata yang
+ *               ditampilkan.
  */
 export type AksiUbah = 'meta' | 'periode' | 'susunan' | 'teks';
 

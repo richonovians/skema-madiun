@@ -71,7 +71,7 @@ describe('Halaman Ubah Role Admin', () => {
     const adminOpd = screen.getByLabelText('Admin OPD');
     expect(adminOpd).toBeEnabled();
     expect(adminOpd).toBeChecked();
-    expect(screen.getByLabelText('Superuser')).not.toBeChecked();
+    expect(screen.getByLabelText('Admin Kabupaten')).not.toBeChecked();
   });
 
   it('TIDAK mengirim `nama` ke backend saat disimpan', async () => {
@@ -108,5 +108,58 @@ describe('Halaman Ubah Role Admin', () => {
     // memuat 'SSO Helpdesk Diskominfo', jadi pola selebar itu lulus walau
     // keterangan penguncian belum ditulis sama sekali.
     expect(screen.getByText(new RegExp('tidak dapat diubah dari SKEMA', 'i'))).toBeInTheDocument();
+  });
+  it('otomatis mencentang role Masyarakat (Responden) saat mencentang Admin Kabupaten atau Admin OPD', async () => {
+    render(<EditUserPage />);
+
+    await screen.findByLabelText(NAMA);
+
+    const adminKab = screen.getByLabelText('Admin Kabupaten');
+    const responden = screen.getByLabelText('Masyarakat (Responden)');
+
+    expect(adminKab).not.toBeChecked();
+    expect(responden).not.toBeChecked();
+
+    // Klik centang Admin Kabupaten
+    fireEvent.click(adminKab);
+
+    expect(adminKab).toBeChecked();
+    expect(responden).toBeChecked();
+  });
+
+  /**
+   * Gerbang ASN (6 Oktober 2026). Uji TINGKAT HALAMAN, dan itu yang menentukan:
+   * komponennya sudah terbukti menonaktifkan pilihan bila diberi `false`, tetapi
+   * tak ada artinya bila halaman ini tak pernah MENYALURKAN nilai itu dari
+   * backend. Tanpa uji ini, propnya bisa hilang dari `page.jsx` tanpa satu pun
+   * uji memerah.
+   */
+  it('menyalurkan `bolehJadiAdminOpd: false` dari backend ke pilihan perannya', async () => {
+    // Akun yang BELUM berperan opd -- pilihan yang dilarang hanya pemberian,
+    // bukan pencabutan.
+    server.use(
+      http.get(`${API_BASE}/users/:id`, () =>
+        ok({ ...TARGET, roles: ['responden'], bolehJadiAdminOpd: false }, '/users/22'),
+      ),
+    );
+    render(<EditUserPage />);
+
+    await screen.findByLabelText(NAMA);
+
+    expect(screen.getByLabelText('Admin OPD')).toBeDisabled();
+    expect(screen.getByText(/hanya untuk akun ASN/i)).toBeInTheDocument();
+  });
+
+  it('`bolehJadiAdminOpd: true` membiarkan pilihannya seperti biasa', async () => {
+    server.use(
+      http.get(`${API_BASE}/users/:id`, () =>
+        ok({ ...TARGET, roles: ['responden'], bolehJadiAdminOpd: true }, '/users/22'),
+      ),
+    );
+    render(<EditUserPage />);
+
+    await screen.findByLabelText(NAMA);
+
+    expect(screen.getByLabelText('Admin OPD')).not.toBeDisabled();
   });
 });

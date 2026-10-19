@@ -1,9 +1,9 @@
 import React from 'react';
 import StatCard from '@/components/ui/StatCard';
-import { BarChart, Users, Ticket, Timer } from 'lucide-react';
+import { BarChart, Users, Ticket, Timer, UserCheck } from 'lucide-react';
 
 /**
- * Empat kartu ringkasan Admin OPD. Angkanya KUMULATIF seluruh periode --
+ * Lima kartu ringkasan Admin OPD. Angkanya KUMULATIF seluruh periode --
  * `GET /dashboard/opd` tak menerima parameter periode (lihat catatan di
  * OpdDashboardHeader.jsx), jadi jangan disangka mengikuti penyaring triwulan.
  *
@@ -28,8 +28,17 @@ export default function DashboardSummary({ summaryData }) {
         ? `Sesuai target SLA (${summaryData.slaTarget})`
         : `Melewati target SLA (${summaryData.slaTarget})`;
 
+  // `null` DIBEDAKAN dari 0. Nol adalah pernyataan -- "tak ada akun aktif di
+  // OPD ini" -- sedangkan medan yang tak terkirim berarti kita belum tahu.
+  const { activeOpdUsers } = summaryData;
+  const akunAktif = activeOpdUsers == null ? '-' : activeOpdUsers.toLocaleString('id-ID');
+
   return (
-    <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-lg">
+    // LIMA kolom sejak kartu "Akun Aktif" bergabung (15 September 2026,
+    // permintaan pengguna). Pada lebar dua kolom kartu terakhir memang berdiri
+    // sendirian di baris penutup; itu tak terhindarkan dengan jumlah ganjil, dan
+    // yang sendirian adalah kartu yang paling belakang urutannya.
+    <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-lg">
       <StatCard
         title="Skor IKM"
         value={summaryData.ikmScore}
@@ -63,6 +72,19 @@ export default function DashboardSummary({ summaryData }) {
         trend={slaTrend}
         trendType={avgResponseHours == null ? 'neutral' : isSlaMet ? 'positive' : 'negative'}
         icon={Timer}
+      />
+
+      {/* Lingkupnya ikut tertulis, dan itu bukan kerapian: yang dihitung adalah
+          AKUN admin yang tertaut OPD ini, biasanya satu atau dua orang,
+          sementara tetangganya sebaris menghitung warga dan tiket. Tanpa
+          keterangan itu angka 1 di samping "Total Responden 1" terbaca sebagai
+          "cuma satu warga yang dilayani". */}
+      <StatCard
+        title="Akun Aktif"
+        value={akunAktif}
+        trend="Akun admin tertaut OPD ini"
+        trendType="neutral"
+        icon={UserCheck}
       />
     </section>
   );
