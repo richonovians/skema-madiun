@@ -2327,6 +2327,34 @@ benar-benar ada. Ditemukan saat menulis TC-FE-040.
 > akan gagal dengan pesan yang menuding uji-nya. Lihat juga
 > [CAT-023](#cat-023), sebab ini satu gejala dari pemisahan cabang yang lebih
 > besar.
+>
+> **(19 Oktober 2026) SUDAH DIPERBAIKI DI `main` JUGA** (`1bd55ec`), jadi
+> kalimat "Sudah diperbaiki" di atas kini benar di kedua cabang — selama empat
+> hari ia hanya benar di satu. Barisnya di `main` sekarang mengambil `File` dari
+> `node:buffer` dengan penjaga `if (File)`, dan penjaga itu DIPERTAHANKAN dengan
+> sengaja: bila kelak `node:buffer` pun berhenti mengekspornya, yang benar
+> adalah membiarkan `File` milik jsdom apa adanya, bukan menimpanya dengan
+> `undefined` sekali lagi.
+>
+> **Angka "empat uji" pada catatan 15 Oktober di atas MENGECILKAN akibatnya.**
+> Yang tersandera bukan empat uji, melainkan DUA BERKAS PENUH:
+> `KitUiBersama.test.jsx` dan `ComplaintChat.test.jsx`. Selama satu berkas
+> memerah, seluruh berkas itu tak dapat dipindahkan ke `main` — jadi biaya cacat
+> ini bukan empat uji yang hilang, melainkan 22 uji di dua berkas. Terukur:
+> daftar berkas yang dapat dipindahkan naik dari enam berkas / 44 uji menjadi
+> **tujuh berkas / 66 uji** semata karena perbaikan ini. Lihat catatan
+> 19 Oktober di [CAT-023](#cat-023).
+>
+> **Dua kalimat lain di atas juga tak lagi berlaku, dan disebut di sini alih-alih
+> ditulis ulang di tempatnya.** "Tak ada satu pun uji di `main` yang memakai
+> `new File(...)` hari ini" sudah tidak benar: kedua berkas itu kini hidup di
+> `main` dan keduanya memakainya. Dan cacat ini tidak lagi dapat "sepenuhnya
+> diam", sebab penjaga langsung dipasang di
+> `apps/web/src/__tests__/penyiapan-file-global.test.js` pada `main` — dua uji
+> yang memeriksa `typeof global.File` dan membangun sebuah berkas sungguhan,
+> dibuktikan merah lebih dulu (`"undefined"`, lalu `TypeError: File is not a
+> constructor`). Kekambuhan kini memerah pada langkah `Uji unit web` di CI dan
+> menyebut penyiapannya, bukan menuding uji yang kebetulan memakai `File`.
 
 ---
 
@@ -3588,6 +3616,65 @@ lebih dulu dan perbarui kesembilan uji basi di sana; atau biarkan apa adanya dan
 terima bahwa 44 uji yang sudah ditulis tak dijalankan oleh siapa pun. Yang
 ketiga adalah keadaan hari ini, dan ia berlangsung tanpa pernah diputuskan.
 
+#### Jalan pertama diambil, sebagian (19 Oktober 2026)
+
+Perbaikan `jest.setup.js` dan **tujuh** berkas uji pindah ke `main` (`1bd55ec`).
+Bukan enam, dan bukan 44 uji: **tujuh berkas / 66 uji**, seluruhnya hijau
+terhadap kode `main` hari ini.
+
+**DAFTARNYA DIUKUR ULANG SESUDAH PERBAIKAN `jest.setup.js`, BUKAN DIPAKAI DARI
+TABEL DI ATAS.** Itu bukan kehati-hatian berlebih: empat kemerahan di tabel ini
+disebabkan cacat setelan itu sendiri, jadi memakai bacaan 15 Oktober akan
+meninggalkan dua berkas baik di `tester` tanpa alasan. Yang pindah:
+
+- `components/ui/__tests__/KitUiBersama.test.jsx`
+- `components/ui/__tests__/pagar-bug-015-dialog-konfirmasi.test.jsx`
+- `components/ui/__tests__/pagar-bug-017-dropdown.test.jsx`
+- `features/about/components/__tests__/HalamanTentang.test.jsx`
+- `features/complaints/components/__tests__/ComplaintChat.test.jsx`
+- `features/dashboard/components/__tests__/GrafikDashboard.test.jsx`
+- `features/surveys/components/__tests__/pagar-bug-016-captcha-gagal.test.jsx`
+
+Angkanya satu jalan jest atas ketujuhnya: `7 passed, 7 total` suite dan
+`66 passed, 66 total` uji. Hitungan per berkas sengaja TIDAK dibagi dengan
+tangan; itu hanya akan melahirkan angka yang tak pernah dijalankan.
+
+**SATU BARIS DI TABEL DI ATAS TERNYATA SALAH, dan kesalahannya milik penguji.**
+`AuthCallbackLoader.test.jsx` didaftarkan sebagai hijau seluruhnya pada
+15 Oktober. Ia TIDAK dipindahkan, dan sebabnya terukur hari ini: lulus 7 dari 7
+ketika dijalankan sendiri, tetapi **gagal pada satu dari dua jalan suite penuh**
+(210 berkas). Mekanismenya sudah pasti, bukan dugaan:
+`await screen.findByText(/Masuk sebagai — Rahmat Hidayat/)` memakai tenggat
+bawaan 1.000 ms, dan di bawah beban suite penuh nama itu belum tiba — cetakan
+DOM pada kegagalannya menunjukkan kerangka modal pemilih peran sudah terender
+sementara namanya belum.
+
+Jadi berkas itu GOYAH, bukan basi, dan dugaan pertama penguji — bahwa ia tak
+layak diangkut — TIDAK terbukti: jalan suite penuh yang kedua hijau seluruhnya
+(211 berkas / 1.734 uji). Ia dapat dipindahkan, tetapi tidak apa adanya.
+Alasannya ada di `.github/workflows/ci.yml` repo ini sendiri: gerbang yang merah
+tanpa ada yang rusak adalah cara tercepat membuat orang berhenti memercayai CI.
+Penawarnya kecil dan menyasar mekanisme yang terukur itu — naikkan tenggat pada
+satu `findByText` tersebut. Satu catatan kejujuran: dua jalan tidak membuktikan
+ketiadaan kegoyahan, hanya menunjukkan penawarnya menyasar sebab yang benar.
+
+**Lima berkas yang tetap tinggal**, beserta sebab yang tidak berubah dari tabel
+di atas: `NavigasiPeran` dan `AdminNavbarIdentitas` (berporos pada peran
+`superuser` yang sudah dilebur), `UmpanBalikAksi` (aksinya kini butir di
+`RowActionsMenu`), `RingkasanDashboard` (uji terlalu longgar), dan
+`SurveyResponses` (fikstur tanpa `response.nomor`). Kelimanya menuntut penulisan
+ulang terhadap komponen `main` hari ini — pekerjaan tersendiri, bukan
+penyalinan.
+
+**PEMISAHANNYA SENDIRI BELUM SELESAI, dan ini yang paling mudah disalahbaca dari
+catatan ini.** Yang pindah hanya berkas uji dan satu perbaikan setelan; arah
+sebaliknya tidak tersentuh. `tester` masih tidak memuat kode `main`: 342 berkas
+hanya-di-`main` dan 349 yang berbeda isinya tetap seperti pengukuran 15 Oktober,
+11 spec Playwright milik `tester` masih BELUM dinilai sama sekali, dan 5 berkas
+sumber mati masih ada. Satu akibat dari pemisahan itu kini bahkan sudah dapat
+diduga tanggalnya: pagar `test.fail()` BUG-013 di cabang ini akan memerah pada
+merge `main` berikutnya — lihat peringatan di bagian rekap dokumen ini.
+
 ---
 
 ## 6. Riwayat revisi
@@ -3627,3 +3714,4 @@ ketiga adalah keadaan hari ini, dan ia berlangsung tanpa pernah diputuskan.
 | 4.9 | 15 Oktober 2026 | **Benturan merge BUG-021 dilumpuhkan** (`9a9ce6d` di `main`): kedua berkas dilebur menjadi satu bertiga belas kasus, gaya berpindah ke MSW supaya enam kasus September tetap menembus service dan adapter sungguhan, dan 19 ujinya dibuktikan ulang lewat tujuh belas mutasi. Benturan git-nya tetap ada; yang berubah, penyelesaiannya kini cukup mengambil versi `main` tanpa kehilangan cakupan. **CAT-023 baru** menyisir pemisahan cabang yang melahirkannya: `tester` tertinggal sebulan dari `main` (commit bersama terakhir `de41245`, 15 September), 720 berkas berbeda di luar `docs/`, dan 29 berkas hidup hanya di `tester`. Ketiga belas berkas uji milik `tester` DIJALANKAN terhadap kode `main`: 113 uji, enam berkas hijau seluruhnya (44 uji), tujuh berkas dengan 14 uji merah — sembilan karena produknya sengaja berubah, empat karena `main` kekurangan perbaikan `jest.setup.js` yang sudah ada di `tester` (**CAT-009 dikoreksi**: "sudah diperbaiki" hanya benar di `tester`), satu karena uji yang terlalu longgar. Kekhawatiran anonimitas pada kolom "Pengisi" diperiksa dan TIDAK terbukti. **Rekap temuan dikoreksi** dari 20/14/5 Low menjadi 21/15/6 Low: angka lamanya ditambah satu alih-alih dihitung ulang dari tabelnya. |
 | 5.0 | 16 Oktober 2026 | **BUG-005 DITUTUP** (`6d2f298` di `main`), dan dengan itu tak ada lagi temuan Critical yang terbuka — pertama kalinya sejak dokumen ini dibuat. Itulah sebabnya nomor minornya naik ke 5.0, bukan 4.10. Akar masalahnya dua lapis: `duplicate()` tak pernah memuat relasi `options`, dan penjaga "minimal 2 opsi" di `QuestionsService` tak berada di jalur nested create sehingga tak pernah dapat menangkapnya. Ujinya merah lebih dulu oleh cacatnya sendiri (`Expected: 7, Received: 0`, sama persis dengan bukti 2 September). Satu koreksi atas laporan aslinya ikut dicatat: opsi pada tipe `skala` memang opsional menurut rancangan — terukur 46 dari 46 pertanyaan skala di `skm_db` tanpa opsi — jadi label yang kembali ke baku adalah kehilangan penyesuaian, bukan kebuntuan. Basis data pengembangan diperiksa dan nol salinan rusak ditemukan, tetapi hasil itu lemah sebab `skm_db` juga memuat nol survei salinan; produksi tidak diperiksa dan pertanyaannya tetap terbuka di sana. TC-FE-031 ❌ menjadi ✅. Rekap dihitung ulang dari tabelnya, bukan dikurangi: 7 ditutup, 14 terbuka, 0 Critical. |
 | 5.1 | 19 Oktober 2026 | **BUG-013 DITUTUP** (`f1c132e` di `main`), dan dengan itu tak ada lagi temuan Critical MAUPUN High yang terbuka. Laporan aslinya menyebut SATU sebab; penyisirannya menemukan **tujuh** tempat tanpa penyaring `deletedAt`, dan query `ikmResult` yang disebut laporan itu sendiri menyuapi EMPAT keluaran, bukan dua seperti tertulis di entrinya — kedua pernyataan itu dikoreksi sebagai catatan bertanggal, bukan ditulis ulang. Satu lubang kedelapan disangka ada lalu dibatalkan oleh pengukuran: `remove` menyetel `status: ditutup`, jadi survei di Sampah tak pernah dapat `aktif`. Ujinya merah lebih dulu oleh cacatnya sendiri (`totalRespondents` diharap 1, diterima 2), lalu sembilan uji e2e dipasang; tujuh di antaranya dibuktikan lewat tujuh mutasi, dua sisanya uji prasyarat yang memang tak dapat dibunuh mutasi semacam itu. Satu cacat UJI ikut diperbaiki: `(INT-14) topOpd` terikat singgahan 60 detik dan gagal tiap kali suite dijalankan ulang selagi singgahannya hangat — terukur di Redis, `opdId 755` sementara barisnya sudah dihapus. **Pagar `test.fail()` BUG-013 di cabang ini akan merah pada merge `main` berikutnya; cabut anotasinya, jangan hapus specnya.** Urutan baris 4.9 dan 5.0 di tabel ini juga dibetulkan — 4.9 (15 Okt) sempat tercatat SESUDAH 5.0 (16 Okt). |
+| 5.2 | 19 Oktober 2026 | **CAT-009 ditutup di `main` juga** (`1bd55ec`): `jest.setup.js` berhenti menimpa `global.File` dengan `undefined`, dan penjaga langsung dipasang di `src/__tests__/penyiapan-file-global.test.js` yang dibuktikan merah lebih dulu. Dua angka pada catatan 15 Oktober dikoreksi, bukan ditulis ulang: biayanya bukan empat uji melainkan DUA BERKAS PENUH (22 uji), dan daftar berkas yang dapat dipindahkan naik dari enam berkas / 44 uji menjadi tujuh berkas / 66 uji semata karena perbaikan itu. **CAT-023 jalan pertama diambil sebagian**: ketujuh berkas itu pindah ke `main`, lima berkas basi tetap tinggal dengan sebabnya masing-masing, dan pemisahan cabangnya SENDIRI belum tersentuh — 342 berkas hanya-di-`main`, 349 berbeda isinya, 11 spec Playwright belum dinilai. Satu baris tabel CAT-023 terbukti salah: `AuthCallbackLoader` didaftarkan hijau, padahal ia GOYAH — lulus 7/7 sendiri, gagal pada satu dari dua jalan suite penuh karena tenggat bawaan 1.000 ms pada `findByText`. Dugaan pertama bahwa ia tak layak diangkut TIDAK terbukti; ia layak, tetapi tidak apa adanya. |
