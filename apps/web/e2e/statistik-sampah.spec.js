@@ -22,12 +22,20 @@ import { AKUN, masukApi, panggilApi } from './support/api.js';
  * titik tren pada periode itu hanya dapat digerakkan oleh survei yang dibuat
  * berkas ini.
  *
- * ── Kenapa uji kedua ditandai `test.fail()` ──────────────────────────────────
- * Cacatnya BELUM diperbaiki. Menuliskannya sebagai harapan biasa berarti suite
- * merah setiap hari karena hal yang sudah diketahui, dan merah yang permanen
- * berhenti dibaca orang. `test.fail()` membalik arahnya: selama cacatnya ada,
- * suite hijau; begitu seseorang memperbaikinya, uji ini MERAH dan menuntut
- * anotasinya dicabut — sejak saat itu ia menjadi pagar regresi sungguhan.
+ * ── `test.fail()` SUDAH DICABUT, dan mekanismenya bekerja (19 Oktober 2026) ──
+ * Uji kedua di bawah dulu ditandai `test.fail()` karena cacatnya belum
+ * diperbaiki. Alasannya: menuliskannya sebagai harapan biasa berarti suite merah
+ * setiap hari karena hal yang sudah diketahui, dan merah yang permanen berhenti
+ * dibaca orang. `test.fail()` membalik arahnya — selama cacatnya ada suite
+ * hijau, dan begitu seseorang memperbaikinya uji ini MERAH dengan bunyi
+ * "Expected to fail, but passed" lalu menuntut anotasinya dicabut.
+ *
+ * Itu benar-benar terjadi. BUG-013 diperbaiki di `main` pada 19 Oktober 2026
+ * (tujuh penyaring `deletedAt: null` yang hilang, bukan satu seperti yang
+ * laporannya sebut), lalu `main` ditarik ke cabang ini pada hari yang sama.
+ * Anotasinya dicabut di sini; SPECNYA TIDAK DIHAPUS. Sejak saat ini ia pagar
+ * regresi sungguhan: bila penyaring itu hilang lagi, uji di bawah memerah.
+ *
  * Itulah pelajaran CAT-004, yang tiga minggu menganggur sebagai catatan lalu
  * menjelma jadi BUG-005 tanpa ada yang menangkapnya.
  *
@@ -131,13 +139,16 @@ test.describe('BUG-013 — survei di Sampah dan angka publik', () => {
   });
 
   test('survei yang sudah dibuang tak lagi menggerakkan tren IKM publik', async () => {
-    test.fail(
-      true,
-      'BUG-013 masih terbuka: `DashboardService.getStatistics` membaca ' +
-        '`prisma.ikmResult.findMany()` tanpa penyaring `survey.deletedAt: null`, ' +
-        'sehingga snapshot milik survei di Sampah tetap terhitung. Cabut anotasi ' +
-        'ini begitu penyaringnya dipasang — mulai saat itu berkas ini jadi pagar regresi.',
-    );
+    // Anotasi `test.fail()` DICABUT 19 Oktober 2026, bukan specnya yang dihapus.
+    //
+    // Yang dulu tertulis di sini: "BUG-013 masih terbuka —
+    // `DashboardService.getStatistics` membaca `prisma.ikmResult.findMany()`
+    // tanpa penyaring `survey.deletedAt: null`, sehingga snapshot milik survei
+    // di Sampah tetap terhitung." Penyaringnya sudah dipasang, dan ternyata
+    // bukan satu tempat melainkan TUJUH; lihat blok Penutupan BUG-013 di
+    // `docs/BUG_REPORTS.md`.
+    //
+    // Pernyataan di bawah kini harapan biasa, dan itulah tujuannya sejak awal.
 
     expect(
       await titikTren(PERIODE_UJI),
