@@ -103,7 +103,12 @@ export class DashboardService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.surveyResponse.count({ where: { survey: { opdId } } }),
+      // `TIDAK_DIBUANG` di sini, dan di lima tempat lain pada berkas ini,
+      // adalah perbaikan BUG-013 (19 Oktober 2026). Survei yang masuk Sampah
+      // tetap ikut dihitung karena tak satu pun query ini menyaring
+      // `deletedAt`, sehingga angka yang DIPAMPANG kepada publik dan kepada
+      // Admin OPD tak bergeser sedikit pun ketika surveinya dibuang.
+      this.prisma.surveyResponse.count({ where: { survey: { opdId, ...TIDAK_DIBUANG } } }),
       this.prisma.complaint.count({
         where: { opdId, status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] } },
       }),
@@ -113,7 +118,10 @@ export class DashboardService {
       }),
       this.prisma.complaint.count({ where: { opdId } }),
       this.prisma.answer.findMany({
-        where: { question: { tipe: 'teks', survey: { opdId } }, teks: { not: null } },
+        where: {
+          question: { tipe: 'teks', survey: { opdId, ...TIDAK_DIBUANG } },
+          teks: { not: null },
+        },
         select: {
           id: true,
           teks: true,
@@ -133,7 +141,7 @@ export class DashboardService {
       // akal dan sepenuhnya salah.
       this.prisma.user.count({ where: { deletedAt: null, isActive: true, opdId } }),
       this.prisma.ikmResult.findMany({
-        where: { survey: { opdId } },
+        where: { survey: { opdId, ...TIDAK_DIBUANG } },
         select: { periode: true, nilaiIkm: true },
       }),
     ]);
@@ -266,10 +274,16 @@ export class DashboardService {
 
     const [thisMonthCount, lastMonthCount] = await Promise.all([
       this.prisma.surveyResponse.count({
-        where: { survey: { opdId }, submittedAt: { gte: startThisMonth } },
+        where: {
+          survey: { opdId, ...TIDAK_DIBUANG },
+          submittedAt: { gte: startThisMonth },
+        },
       }),
       this.prisma.surveyResponse.count({
-        where: { survey: { opdId }, submittedAt: { gte: startLastMonth, lt: startThisMonth } },
+        where: {
+          survey: { opdId, ...TIDAK_DIBUANG },
+          submittedAt: { gte: startLastMonth, lt: startThisMonth },
+        },
       }),
     ]);
 
@@ -315,6 +329,12 @@ export class DashboardService {
       activeSurveys,
     ] = await Promise.all([
       this.prisma.ikmResult.findMany({
+        // Satu query ini memberi EMPAT keluaran sekaligus -- `summary.ikm`,
+        // `ikmTrend`, `serviceElements`, dan `topOpd` -- jadi satu penyaring
+        // yang hilang di sini salah di empat tempat yang terlihat berbeda.
+        // Itulah satu-satunya sebab yang disebut laporan BUG-013; enam
+        // lainnya ditemukan saat memperbaikinya.
+        where: { survey: TIDAK_DIBUANG },
         select: {
           nilaiIkm: true,
           periode: true,
@@ -324,7 +344,7 @@ export class DashboardService {
           survey: { select: { opdId: true, status: true, opd: { select: { nama: true } } } },
         },
       }),
-      this.prisma.surveyResponse.count(),
+      this.prisma.surveyResponse.count({ where: { survey: TIDAK_DIBUANG } }),
       this.prisma.complaint.count(),
       // Satu query dipakai utk DUA turunan (resolvedComplaints via filter status di
       // bawah, DAN bucket tren per triwulan) -- hindari 2x full-table scan Complaint.
@@ -337,7 +357,9 @@ export class DashboardService {
       this.prisma.complaint.groupBy({ by: ['kategori'], _count: { _all: true } }),
       this.prisma.answer.groupBy({
         by: ['nilai'],
-        where: { nilai: { not: null } },
+        // Jalurnya dua lapis di sini: `answer` tak mengenal survei langsung,
+        // ia menggapainya lewat `response`.
+        where: { nilai: { not: null }, response: { survey: TIDAK_DIBUANG } },
         _count: { _all: true },
       }),
       this.prisma.survey.findMany({

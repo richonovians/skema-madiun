@@ -214,8 +214,14 @@ describe('DashboardService', () => {
         { periode: '2026-Q1', value: 80 },
         { periode: '2026-Q2', value: 90 },
       ]);
+      // `deletedAt: null` DIKETATKAN, bukan dilonggarkan (BUG-013, 19 Oktober
+      // 2026). Pernyataan ini semula menuntut `{ survey: { opdId: 5 } }` persis
+      // dan karena itu memerah begitu penyaring Sampah dipasang. Menggantinya
+      // dengan `objectContaining` yang lebih longgar akan membuang justru
+      // penjagaan yang baru didapat, jadi klausa barunya ditulis tersurat:
+      // isolasi OPD dan penyaring Sampah keduanya terjaga di satu pernyataan.
       expect(prisma.ikmResult.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { survey: { opdId: 5 } } }),
+        expect.objectContaining({ where: { survey: { opdId: 5, deletedAt: null } } }),
       );
     });
 
