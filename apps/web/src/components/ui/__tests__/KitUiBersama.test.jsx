@@ -10,11 +10,11 @@ import FileDropzone from '../FileDropzone';
 import ImageViewer from '../ImageViewer';
 
 /**
- * TC-FE-046 â€” Kit UI bersama.
+ * TC-FE-046 — Kit UI bersama.
  *
  * Delapan komponen yang dipakai berulang di hampir setiap halaman, dan sampai
  * 3 September 2026 tak satu pun punya kasus uji. Kerusakan pada komponen
- * bersama tidak berhenti di satu layar â€” ia menular ke setiap halaman yang
+ * bersama tidak berhenti di satu layar — ia menular ke setiap halaman yang
  * memakainya sekaligus, dan justru karena itu paling mahal ditemukan terlambat.
  *
  * Yang diuji adalah kontrak pemakaiannya: apa yang dirender, keadaan apa yang
@@ -206,7 +206,7 @@ describe('Badge (TC-FE-046)', () => {
 
   it('jatuh ke varian bawaan untuk nama yang tak dikenal', () => {
     // Salah ketik nama varian tak boleh menghasilkan lencana tanpa gaya sama
-    // sekali â€” teks gelap di atas latar gelap tak terbaca.
+    // sekali — teks gelap di atas latar gelap tak terbaca.
     render(<Badge variant="ungu-muda">Entah</Badge>);
     expect(screen.getByText('Entah')).toHaveClass('bg-surface-container-high');
   });

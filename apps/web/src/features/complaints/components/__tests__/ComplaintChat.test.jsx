@@ -4,12 +4,12 @@ import ChatMessageList from '../chat/ChatMessageList';
 import ChatReplyForm from '../chat/ChatReplyForm';
 
 /**
- * TC-FE-040 â€” Percakapan pengaduan.
+ * TC-FE-040 — Percakapan pengaduan.
  *
  * Kerusakan yang ditangkap:
  *  - keberpihakan pesan tertukar. `ChatMessageBubble` memakai
  *    `senderRole = 'user'` sebagai nilai bawaan, jadi peran yang gagal
- *    diteruskan membuat balasan ADMIN tampil sebagai pesan warga sendiri â€”
+ *    diteruskan membuat balasan ADMIN tampil sebagai pesan warga sendiri —
  *    warga bisa mengira tanggapan resmi itu tulisannya sendiri;
  *  - tombol kirim aktif meski tak ada isi apa pun, menghasilkan balasan kosong;
  *  - balasan berlampiran tanpa teks ditolak. Ini pernah menjadi cacat nyata
@@ -21,8 +21,8 @@ import ChatReplyForm from '../chat/ChatReplyForm';
  * CATATAN 15 September 2026. Berkas ini dulu membuka dengan empat kasus atas
  * `adaptComplaintReplyToChatMessage`. Keempatnya DIBUANG, bukan diperbaiki:
  * `complaint.adapter.test.js` (milik tim dev) kini menguji adapter yang sama
- * lebih dalam â€” termasuk label pelapor anonim dan akun pelapor yang menjawab
- * sebagai petugas â€” dan menduakan cakupan hanya menggandakan biaya perawatan.
+ * lebih dalam — termasuk label pelapor anonim dan akun pelapor yang menjawab
+ * sebagai petugas — dan menduakan cakupan hanya menggandakan biaya perawatan.
  * Yang tersisa di sini adalah dua permukaan yang belum diuji siapa pun:
  * `ChatMessageList` dan sisi `ChatReplyForm` di luar tombol Enter.
  */
@@ -98,7 +98,7 @@ describe('ChatReplyForm (TC-FE-040)', () => {
       target: { files: [berkas] },
     });
 
-    // Tanpa satu huruf pun di kolom teks, tombolnya harus tetap aktif â€”
+    // Tanpa satu huruf pun di kolom teks, tombolnya harus tetap aktif —
     // inilah cacat yang dilaporkan pengguna pada 6 Agustus 2026.
     await waitFor(() => expect(tombolKirim()).toBeEnabled());
     fireEvent.click(tombolKirim());

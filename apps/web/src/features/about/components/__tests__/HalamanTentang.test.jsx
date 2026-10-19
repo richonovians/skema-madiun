@@ -13,7 +13,7 @@ import CommitmentSection from '../CommitmentSection';
 import AboutPlatform from '../AboutPlatform';
 
 /**
- * TC-FE-047 â€” Halaman "Tentang Kami" (`/about`).
+ * TC-FE-047 — Halaman "Tentang Kami" (`/about`).
  *
  * Dua belas komponen, tak pernah punya kasus uji sampai 3 September 2026.
  * Halaman publik: siapa pun bisa membukanya tanpa masuk, termasuk pengunjung
@@ -22,7 +22,7 @@ import AboutPlatform from '../AboutPlatform';
  * Kerusakan yang ditangkap:
  *  - angka statistik yang gagal dimuat tampil sebagai **0**, bukan '-'. Pada
  *    halaman publik pemerintah daerah, "0 Total Pengaduan" adalah pernyataan
- *    yang salah dan dapat dikutip â€” jauh lebih buruk daripada strip;
+ *    yang salah dan dapat dikutip — jauh lebih buruk daripada strip;
  *  - kegagalan memuat menyembunyikan seluruh seksinya sehingga tata letak
  *    halaman melompat, atau sebaliknya menyisakan angka tanpa keterangan;
  *  - akordeon FAQ membuka semua jawaban sekaligus, atau tak dapat ditutup lagi;
@@ -41,7 +41,7 @@ afterAll(() => server.close());
  * Handler bawaan `/statistics` di handlers.ts dipakai apa adanya untuk jalur
  * berhasil, BUKAN diganti tiruan sendiri. Percobaan pertama menuliskan amplop
  * ringkas berisi `summary` saja dan gagal: `adaptStatistics` juga membaca
- * `insight.text`, `complaintCategories`, `valueDistribution`, dan `topOpd` â€”
+ * `insight.text`, `complaintCategories`, `valueDistribution`, dan `topOpd` —
  * tiruan yang kurang lengkap melempar, halamannya jatuh ke keadaan galat, dan
  * kegagalannya terbaca seolah angka statistiknya yang salah.
  */
@@ -56,7 +56,7 @@ describe('AboutStatistics (TC-FE-047)', () => {
     expect(screen.getByText('Total OPD Terintegrasi')).toBeInTheDocument();
     expect(screen.getByText('Tingkat Penyelesaian')).toBeInTheDocument();
     // Tingkat penyelesaian memakai akhiran '%', dan akhirannya hilang saat
-    // nilainya tak ada â€” dua hal yang harus bergerak bersama.
+    // nilainya tak ada — dua hal yang harus bergerak bersama.
     expect(screen.getByText(String(RINGKASAN_BAWAAN.completionRate))).toBeInTheDocument();
     expect(screen.getByText('%')).toBeInTheDocument();
   });
@@ -147,7 +147,7 @@ describe('FAQSection (TC-FE-047)', () => {
 });
 
 describe('Seluruh seksi halaman Tentang (TC-FE-047)', () => {
-  /** Tiap seksi harus benar-benar menghasilkan isi â€” bukan wadah kosong. */
+  /** Tiap seksi harus benar-benar menghasilkan isi — bukan wadah kosong. */
   const SEKSI = [
     ['AboutHero', AboutHero],
     ['AboutPlatform', AboutPlatform],
@@ -172,7 +172,7 @@ describe('Seluruh seksi halaman Tentang (TC-FE-047)', () => {
     );
 
     // Gambar tanpa `alt` tak berarti apa-apa bagi pembaca layar, dan halaman
-    // ini publik â€” pengunjungnya termasuk penyandang disabilitas.
+    // ini publik — pengunjungnya termasuk penyandang disabilitas.
     for (const img of container.querySelectorAll('img')) {
       expect(img).toHaveAttribute('alt');
       expect(img.getAttribute('alt')).not.toBe('');
