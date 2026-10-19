@@ -8,6 +8,39 @@ const createJestConfig = nextJest({
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  // TENGGAT UJI DINAIKKAN DARI BAWAAN 5.000 ms (19 Oktober 2026).
+  //
+  // Suite ini GOYAH di bawah beban, dan itu terukur bukan diduga. Pada 202
+  // berkas uji, tiga dari tiga jalan penuh hijau seluruhnya. Pada 211 berkas,
+  // DUA DARI TIGA jalan memerah -- 1 lalu 4 kegagalan -- di empat berkas yang
+  // isinya tak berubah sama sekali:
+  //
+  //   admin-kab/audit-logs/__tests__/page.test.jsx
+  //   features/surveys/builder/.../BuilderNilaiSurvei.test.jsx
+  //   features/notifications/.../NotificationHistoryScreen.test.jsx
+  //   features/surveys/.../SurveyManagement.integration.test.jsx
+  //
+  // Semuanya satu kelas kegagalan: tenggat habis. Satu `Exceeded timeout of
+  // 5000 ms for a test`, tiga `Unable to find an element with the text` dari
+  // tenggat `findBy` bawaan 1.000 ms (dinaikkan di `jest.setup.js`).
+  //
+  // Sebabnya pertikaian, bukan cacat produk: jest memakai `inti - 1` pekerja,
+  // dan di mesin berinti delapan itu tujuh peramban jsdom berebut satu CPU.
+  // `ubuntu-latest` di CI biasanya berinti empat, jadi tekanan di sana sekitar
+  // separuh -- kegoyahan ini mungkin tak pernah terlihat di CI, tetapi ia
+  // terlihat oleh siapa pun yang menjalankan suite di mesinnya sendiri.
+  //
+  // HARGANYA DITULIS TERSURAT: uji yang benar-benar menggantung kini butuh 20
+  // detik untuk memerah, bukan 5. Itu ditukar dengan sengaja -- gerbang yang
+  // merah tanpa ada yang rusak adalah cara tercepat membuat orang berhenti
+  // memercayai uji, alasan yang sudah ditulis sendiri di
+  // `.github/workflows/ci.yml`.
+  //
+  // Yang TIDAK dipilih, dan alasannya: mengunci `maxWorkers` menghilangkan
+  // pertikaiannya tetapi memperlambat setiap jalan, dan menambal keempat
+  // berkas satu per satu membiarkan berkas rapuh BERIKUTNYA jatuh dengan cara
+  // yang sama.
+  testTimeout: 20000,
   // `e2e/` berisi spec Playwright, dan namanya (`*.spec.ts`) juga cocok dengan
   // testMatch baku Jest -- tanpa pengecualian ini Jest ikut menjalankannya dan
   // suite-nya gagal seketika (`test` milik Playwright, bukan Jest).

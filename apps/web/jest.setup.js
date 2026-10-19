@@ -1,4 +1,17 @@
 require('@testing-library/jest-dom');
+
+// TENGGAT `findBy*` / `waitFor` DINAIKKAN DARI BAWAAN 1.000 ms
+// (19 Oktober 2026). Alasan, pengukuran, dan harga yang ditukar ada satu
+// tempat: docblock `testTimeout` di `jest.config.js`. Ringkasnya, tiga dari
+// empat kegagalan yang terukur di bawah beban berbunyi `Unable to find an
+// element with the text`, yaitu tenggat inilah yang habis -- bukan tenggat
+// uji milik jest.
+//
+// `configure` diambil dari `@testing-library/react`, BUKAN dari
+// `@testing-library/dom`: paket yang kedua bukan dependensi langsung
+// `apps/web`, jadi pnpm tak membuatnya dapat di-resolve dari sini.
+const { configure } = require('@testing-library/react');
+configure({ asyncUtilTimeout: 5000 });
 const { TextEncoder, TextDecoder } = require('util');
 const { BroadcastChannel, MessagePort, MessageChannel } = require('node:worker_threads');
 const { ReadableStream, TransformStream, WritableStream } = require('node:stream/web');
