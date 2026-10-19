@@ -1161,6 +1161,19 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > `skm_db`, dan keduanya milik pengguna; menjalankannya tanpa diminta bukan
 > verifikasi, melainkan efek samping. Angka E2E di bawah karena itu tetap
 > bacaan terakhir yang tercatat, bukan bacaan hari ini.
+>
+> **KOREKSI, hari yang sama: alasan di paragraf tepat di atas SALAH, dan
+> tabelnya sudah dibaca ulang.** Yang menuntut server dev hidup adalah
+> MENJALANKAN specnya; MENGHITUNGNYA tidak. `playwright test --list` mengompilasi
+> seluruh spec lalu mendaftar ujinya tanpa membuka peramban, tanpa menyentuh
+> basis data, dan tanpa memanggil `globalSetup` — nol efek samping. Bacaan
+> 19 Oktober 2026: **7 berkas / 19 uji**, dan setiap baris tabel E2E di bawah
+> beserta baris Totalnya cocok, **nol meleset**. Jadi kedua paruh §Y.1 kini
+> terukur pada hari yang sama, bukan satu paruh saja.
+>
+> Yang masih benar-benar menunggu server: apakah kesembilan belas uji itu LULUS
+> hari ini. Jumlah uji dan hasil uji dua pertanyaan berbeda, dan hanya yang
+> pertama yang dapat dijawab tanpa menjalankan apa pun.
 
 Sejak 2 September 2026 ada lapisan kedua yang berjalan di peramban sungguhan
 (`pnpm test:e2e`, terpisah dari Jest):
