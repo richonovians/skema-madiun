@@ -37,8 +37,8 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.0 |
-| **Tanggal** | 15 Oktober 2026 |
+| **Versi** | 5.3 |
+| **Tanggal** | 19 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
 | **Dokumen terkait** | [TEST_PLAN.md](TEST_PLAN.md) · [TEST_CASES.md](TEST_CASES.md) · [TEST_EXPLORATORY.md](TEST_EXPLORATORY.md) |
@@ -2345,6 +2345,12 @@ benar-benar ada. Ditemukan saat menulis TC-FE-040.
 > **tujuh berkas / 66 uji** semata karena perbaikan ini. Lihat catatan
 > 19 Oktober di [CAT-023](#cat-023).
 >
+> Angka tujuh itu bukan angka akhir, dan sebab kenaikan berikutnya BUKAN
+> perbaikan ini. Berkas kedelapan menyusul pada hari yang sama lewat perbaikan
+> tenggat uji yang terpisah (`6b1a7bc`); rinciannya di koreksi
+> [CAT-023](#cat-023) 19 Oktober. Yang dapat dikreditkan kepada perbaikan
+> `global.File` tetap enam-ke-tujuh.
+>
 > **Dua kalimat lain di atas juga tak lagi berlaku, dan disebut di sini alih-alih
 > ditulis ulang di tempatnya.** "Tak ada satu pun uji di `main` yang memakai
 > `new File(...)` hari ini" sudah tidak benar: kedua berkas itu kini hidup di
@@ -3675,6 +3681,76 @@ sumber mati masih ada. Satu akibat dari pemisahan itu kini bahkan sudah dapat
 diduga tanggalnya: pagar `test.fail()` BUG-013 di cabang ini akan memerah pada
 merge `main` berikutnya — lihat peringatan di bagian rekap dokumen ini.
 
+#### Koreksi: dua kalimat di atas berhenti benar pada hari yang sama (19 Oktober 2026)
+
+Catatan di atas ditulis pagi ini dan dua kalimatnya sudah tidak berlaku sebelum
+hari itu berakhir. Keduanya dibiarkan utuh di tempatnya dan dikoreksi di sini,
+bukan ditulis ulang, supaya urutan kejadiannya tetap terbaca.
+
+**Pertama: "Ia TIDAK dipindahkan" sudah salah.** `AuthCallbackLoader.test.jsx`
+ikut pindah ke `main` beberapa jam kemudian (`6b1a7bc`), dan yang pindah adalah
+**salinan apa adanya dari `tester`** — tak satu baris pun disunting.
+
+**Kedua: penawar yang dianjurkan di atas tidak dipakai, dan itu bukan karena
+berubah pikiran.** Anjurannya "naikkan tenggat pada satu `findByText` tersebut".
+Suntingan itu benar-benar ditulis lebih dulu, lalu DIBUANG, karena pengukuran
+berikutnya menunjukkan sasarannya terlalu sempit.
+
+**YANG MENGUBAHNYA: porting tujuh berkas itu sendiri membuat suite web `main`
+goyah, dan itu akibat pekerjaan penguji, bukan cacat yang sudah ada lalu
+kebetulan terlihat.** Bandingan tiga jalan suite penuh pada tiap keadaan, kode
+produk persis sama dan hanya jumlah berkas uji yang berbeda:
+
+| Keadaan                             | Berkas | Jalan hijau seluruhnya |
+| ----------------------------------- | ------ | ---------------------- |
+| sembilan berkas tambahan disisihkan | 202    | 3 dari 3               |
+| dengan tambahan, tenggat bawaan     | 211    | **1 dari 3**           |
+| dengan tambahan, tenggat dinaikkan  | 211    | 3 dari 3               |
+
+Baris pertama itulah yang menentukan tafsirnya. Tanpa mengukurnya, kesimpulan
+yang paling mudah diambil adalah "keempat berkas itu memang sudah goyah sejak
+lama" — dan baris pertama membantahnya: pada 202 berkas suite itu hijau tiga
+dari tiga kali.
+
+**Empat berkas yang memerah, dan tak satu pun isinya disentuh siapa pun hari
+itu:** `app/admin-kab/audit-logs/__tests__/page.test.jsx`,
+`features/surveys/builder/components/__tests__/BuilderNilaiSurvei.test.jsx`,
+`features/notifications/components/__tests__/NotificationHistoryScreen.test.jsx`,
+dan `features/surveys/components/__tests__/SurveyManagement.integration.test.jsx`.
+Seluruhnya satu kelas kegagalan — satu `Exceeded timeout of 5000 ms for a test`
+dan tiga `Unable to find an element with the text`, yang terakhir berarti tenggat
+`findBy` bawaan 1.000 ms yang habis. Kelas yang sama dengan kegagalan
+`AuthCallbackLoader`, dan itulah yang membuat satu penawar menyeluruh lebih masuk
+akal daripada empat tambalan.
+
+**Sebabnya pertikaian CPU, bukan cacat produk.** Jest memakai `inti - 1`
+pekerja; di mesin berinti delapan itu tujuh jsdom berebut satu CPU, dan sembilan
+berkas tambahan mendorong tekanan itu melewati ambang. `ubuntu-latest` di CI
+biasanya berinti empat, jadi tekanan di sana sekitar separuh — **kegoyahan ini
+mungkin tak pernah terlihat di CI sama sekali.** Itu bukan alasan membiarkannya;
+ia terlihat oleh siapa pun yang menjalankan suite di mesinnya sendiri.
+
+**Penawar yang akhirnya dipakai dua baris, di `main`:** `testTimeout: 20000` di
+`apps/web/jest.config.js` dan `configure({ asyncUtilTimeout: 5000 })` di
+`apps/web/jest.setup.js`. `configure` diambil dari `@testing-library/react`,
+BUKAN dari `@testing-library/dom` — paket kedua bukan dependensi langsung
+`apps/web`, jadi pnpm tak membuatnya dapat di-resolve dari sana. Harganya nyata
+dan disebut di kodenya: uji yang benar-benar menggantung kini butuh 20 detik
+untuk memerah, bukan 5. Waktu jalan suite tidak bergerak berarti (157,8 detik),
+sebab tenggat yang longgar hanya berlaku ketika sesuatu memang lambat.
+
+**Hitungan berkas yang pindah kini DELAPAN, dan uji yang ikut 73.** Angka 73
+bukan jumlahan dengan tangan atas daftar tujuh di atas, melainkan selisih dua
+jalan suite penuh yang sungguh dijalankan: 1.734 uji pada 211 berkas berbanding
+1.659 uji pada 202 berkas, yaitu 75 uji, dikurangi 2 uji milik penjaga baru
+`src/__tests__/penyiapan-file-global.test.js` yang bukan berkas `tester`.
+Daftarnya: tujuh di atas ditambah
+`features/authentication/components/__tests__/AuthCallbackLoader.test.jsx`.
+
+**Lima berkas yang tetap tinggal tidak berubah**, dan sebabnya tidak berubah
+pula. Pemisahan cabangnya pun tetap tak tersentuh: yang bertambah hari itu hanya
+satu berkas uji dan satu perbaikan setelan uji, keduanya ke arah `main`.
+
 ---
 
 ## 6. Riwayat revisi
@@ -3715,3 +3791,4 @@ merge `main` berikutnya — lihat peringatan di bagian rekap dokumen ini.
 | 5.0 | 16 Oktober 2026 | **BUG-005 DITUTUP** (`6d2f298` di `main`), dan dengan itu tak ada lagi temuan Critical yang terbuka — pertama kalinya sejak dokumen ini dibuat. Itulah sebabnya nomor minornya naik ke 5.0, bukan 4.10. Akar masalahnya dua lapis: `duplicate()` tak pernah memuat relasi `options`, dan penjaga "minimal 2 opsi" di `QuestionsService` tak berada di jalur nested create sehingga tak pernah dapat menangkapnya. Ujinya merah lebih dulu oleh cacatnya sendiri (`Expected: 7, Received: 0`, sama persis dengan bukti 2 September). Satu koreksi atas laporan aslinya ikut dicatat: opsi pada tipe `skala` memang opsional menurut rancangan — terukur 46 dari 46 pertanyaan skala di `skm_db` tanpa opsi — jadi label yang kembali ke baku adalah kehilangan penyesuaian, bukan kebuntuan. Basis data pengembangan diperiksa dan nol salinan rusak ditemukan, tetapi hasil itu lemah sebab `skm_db` juga memuat nol survei salinan; produksi tidak diperiksa dan pertanyaannya tetap terbuka di sana. TC-FE-031 ❌ menjadi ✅. Rekap dihitung ulang dari tabelnya, bukan dikurangi: 7 ditutup, 14 terbuka, 0 Critical. |
 | 5.1 | 19 Oktober 2026 | **BUG-013 DITUTUP** (`f1c132e` di `main`), dan dengan itu tak ada lagi temuan Critical MAUPUN High yang terbuka. Laporan aslinya menyebut SATU sebab; penyisirannya menemukan **tujuh** tempat tanpa penyaring `deletedAt`, dan query `ikmResult` yang disebut laporan itu sendiri menyuapi EMPAT keluaran, bukan dua seperti tertulis di entrinya — kedua pernyataan itu dikoreksi sebagai catatan bertanggal, bukan ditulis ulang. Satu lubang kedelapan disangka ada lalu dibatalkan oleh pengukuran: `remove` menyetel `status: ditutup`, jadi survei di Sampah tak pernah dapat `aktif`. Ujinya merah lebih dulu oleh cacatnya sendiri (`totalRespondents` diharap 1, diterima 2), lalu sembilan uji e2e dipasang; tujuh di antaranya dibuktikan lewat tujuh mutasi, dua sisanya uji prasyarat yang memang tak dapat dibunuh mutasi semacam itu. Satu cacat UJI ikut diperbaiki: `(INT-14) topOpd` terikat singgahan 60 detik dan gagal tiap kali suite dijalankan ulang selagi singgahannya hangat — terukur di Redis, `opdId 755` sementara barisnya sudah dihapus. **Pagar `test.fail()` BUG-013 di cabang ini akan merah pada merge `main` berikutnya; cabut anotasinya, jangan hapus specnya.** Urutan baris 4.9 dan 5.0 di tabel ini juga dibetulkan — 4.9 (15 Okt) sempat tercatat SESUDAH 5.0 (16 Okt). |
 | 5.2 | 19 Oktober 2026 | **CAT-009 ditutup di `main` juga** (`1bd55ec`): `jest.setup.js` berhenti menimpa `global.File` dengan `undefined`, dan penjaga langsung dipasang di `src/__tests__/penyiapan-file-global.test.js` yang dibuktikan merah lebih dulu. Dua angka pada catatan 15 Oktober dikoreksi, bukan ditulis ulang: biayanya bukan empat uji melainkan DUA BERKAS PENUH (22 uji), dan daftar berkas yang dapat dipindahkan naik dari enam berkas / 44 uji menjadi tujuh berkas / 66 uji semata karena perbaikan itu. **CAT-023 jalan pertama diambil sebagian**: ketujuh berkas itu pindah ke `main`, lima berkas basi tetap tinggal dengan sebabnya masing-masing, dan pemisahan cabangnya SENDIRI belum tersentuh — 342 berkas hanya-di-`main`, 349 berbeda isinya, 11 spec Playwright belum dinilai. Satu baris tabel CAT-023 terbukti salah: `AuthCallbackLoader` didaftarkan hijau, padahal ia GOYAH — lulus 7/7 sendiri, gagal pada satu dari dua jalan suite penuh karena tenggat bawaan 1.000 ms pada `findByText`. Dugaan pertama bahwa ia tak layak diangkut TIDAK terbukti; ia layak, tetapi tidak apa adanya. |
+| 5.3 | 19 Oktober 2026 | **Dua kalimat pada catatan CAT-023 pagi ini berhenti benar sebelum hari itu berakhir, dan dikoreksi alih-alih ditulis ulang.** `AuthCallbackLoader.test.jsx` IKUT pindah ke `main` (`6b1a7bc`) sebagai salinan apa adanya, sehingga "Ia TIDAK dipindahkan" salah; dan penawar yang dianjurkan di sana — menaikkan tenggat pada satu `findByText` — ditulis lebih dulu lalu DIBUANG. Sebabnya terukur: porting tujuh berkas itu sendiri yang membuat suite web `main` goyah, bukan cacat lama yang kebetulan terlihat. Tiga jalan suite penuh per keadaan memisahkannya — 202 berkas hijau 3 dari 3, 211 berkas dengan tenggat bawaan hanya 1 dari 3, 211 berkas dengan tenggat dinaikkan kembali 3 dari 3 — dan keempat berkas yang memerah tak satu pun disentuh. Satu kelas kegagalan, sebabnya pertikaian CPU (`inti - 1` pekerja di mesin berinti delapan), dan CI berinti empat mungkin tak pernah melihatnya. Penawarnya dua baris: `testTimeout: 20000` dan `configure({ asyncUtilTimeout: 5000 })`. Hitungan berkas yang pindah menjadi DELAPAN / 73 uji, diturunkan dari selisih dua jalan suite (1.734 − 1.659 = 75, dikurangi 2 uji penjaga `global.File`) alih-alih dijumlahkan dengan tangan. Nomor versi di kepala dokumen juga dibetulkan: ia masih berbunyi 5.0 / 15 Oktober padahal tabel ini sudah mencatat 5.1 dan 5.2 — kelalaian penguji pada dua commit sebelumnya. |
