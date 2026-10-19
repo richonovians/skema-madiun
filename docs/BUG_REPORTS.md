@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.4 |
+| **Versi** | 5.5 |
 | **Tanggal** | 19 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -172,7 +172,7 @@ regresi sungguhan.
 
 | Temuan | Pagar | Lapisan |
 | ------ | ----- | ------- |
-| [BUG-013](#bug-013) | `e2e/statistik-sampah.spec.js` | E2E (API) |
+| [BUG-013](#bug-013) | `e2e/statistik-sampah.spec.js` | E2E (API) — **pagar regresi sungguhan sejak 19 Oktober 2026**, `test.fail()` dicabut |
 | [BUG-014](#bug-014) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
 | [BUG-015](#bug-015) | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL |
 | [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL |
@@ -189,6 +189,27 @@ regresi sungguhan.
 > melapor `Expected to fail, but passed`. Yang harus dikerjakan saat itu:
 > **cabut `test.fail()`-nya, jangan hapus specnya** — sejak saat itu ia pagar
 > regresi sungguhan. Rinciannya di [TEST_CASES.md §Y.8](TEST_CASES.md).
+
+> ✅ **SUDAH TERJADI, DAN SUDAH DIKERJAKAN pada hari yang sama (19 Oktober
+> 2026).** `main` ditarik ke cabang ini beberapa jam sesudah peringatan di atas
+> ditulis, dan anotasinya dicabut — specnya TIDAK dihapus. Peringatan itu
+> dibiarkan utuh di atas, bukan dibuang, sebab ia catatan bahwa mekanismenya
+> bekerja: cacat diperbaiki, pagar menuntut perhatian, pagar jadi penjaga.
+>
+> Satu hal yang TIDAK diandaikan dan karena itu diperiksa: merge itu menukar
+> SELURUH `apps/api` di cabang ini, jadi pagar lain yang menjaga cacat backend
+> bisa ikut lulus tanpa diduga. Ketiganya diperiksa di kodenya dan masih benar
+> — BUG-014 (`operasiPemusnahanSurvei` menghapus lima tabel, notifikasi tak
+> termasuk), BUG-018 (`complaints.service.ts:493` masih memanggil
+> `notifyComplaintCreated`), BUG-019 (`auth.controller.ts:168` masih meneruskan
+> `error_description`). Ketiga pagar `test.failing()` Jest juga masih benar, dan
+> buktinya tak perlu dicari terpisah: suite web hijau seluruhnya, dan pagar yang
+> sudah tak perlu akan memerahkannya.
+>
+> Pencabutan itu BELUM dijalankan lewat Playwright — `apps/api` belum hidup di
+> mesin penguji saat commitnya dibuat. Yang sudah dipastikan hanya bahwa specnya
+> tetap tersusun: `playwright test --list` melaporkan 2 uji tanpa membuka
+> peramban dan tanpa menyentuh basis data.
 
 Tiap pagar didahului **uji kendali yang wajib lulus**, dan tiap-tiap dibuktikan
 **dua arah**: cacatnya diperbaiki sementara di kode produksi, pagarnya diamati
@@ -1291,6 +1312,11 @@ menunjukkan tempat yang tepat: satu klausa lagi di query yang sama.
 Ditulis sebagai `test.fail()`: selama cacatnya ada, suite tetap hijau; begitu
 penyaringnya dipasang, uji itu **merah** (`Expected to fail, but passed`) dan
 menuntut anotasinya dicabut — sejak saat itu ia jadi pagar regresi sungguhan.
+
+**Anotasi itu DICABUT 19 Oktober 2026** sesudah `main` ditarik ke cabang ini,
+dan specnya tidak dihapus. Pernyataannya kini harapan biasa, jadi berkas itu
+sudah menjadi pagar regresi yang dijanjikan di paragraf atas — bukan lagi
+pencatat cacat.
 Dibuktikan dua arah dengan memasang penyaringnya sementara lalu
 mengembalikannya. Rinciannya di [TEST_CASES.md §Y.8](TEST_CASES.md).
 
@@ -3862,6 +3888,104 @@ baris**: panggilan `test.fail(...)` di dalam uji kedua pada
 `apps/web/e2e/statistik-sampah.spec.js`. **Specnya JANGAN dihapus** — sejak
 saat itu ia menjadi pagar regresi sungguhan.
 
+#### MERGE-NYA DIKERJAKAN pada hari yang sama, dan sebabnya bukan kerapian (19 Oktober 2026)
+
+Tiga catatan di atas memperlakukan merge `main` ke cabang ini sebagai pilihan
+yang dapat ditunda. Pilihan itu habis beberapa jam kemudian: **`apps/api` di
+cabang ini ternyata sudah tidak dapat dijalankan sama sekali.**
+
+Terukur saat pengguna mencoba menyalakan server dev. Lima puluhan galat
+TypeScript, dan ketiga jenisnya satu akar yang sama — klien Prisma di
+`node_modules` dibuat dari schema `main`, basis data `skm_db` juga sudah
+bermigrasi mengikuti `main`, sementara sumber di sini masih schema sebulan lalu:
+
+| Yang diperiksa | `tester` | `main` / `skm_db` |
+| --- | --- | --- |
+| enum `Role` di schema | kabupaten opd responden **superuser** | kabupaten opd responden |
+| enum `user_role` di `skm_db` | — | kabupaten opd responden (superuser TAK ADA) |
+| `statistics_insight` | ada di schema | TIDAK ADA di `skm_db` (`to_regclass` NULL) |
+| `notifications.untuk_peran` | tak ada di schema | ADA dan NOT NULL |
+| jumlah migrasi | 21 | 33 |
+
+`prisma generate` diperiksa lebih dulu dan TIDAK menyelesaikannya: ia membuat
+kodenya kompilasi lalu gagal saat dijalankan, sebab `Role.superuser` ditolak
+Postgres, `statisticsInsight` memukul tabel yang tak ada, dan setiap
+`notification.create` gagal pada kolom wajib yang kodenya tak pernah isi.
+Menurunkan `skm_db` ke schema cabang ini DITOLAK: Prisma tak dapat bermigrasi ke
+belakang, dan satu-satunya jalan ke sana `migrate reset`, yang membuang seluruh
+isi basis data pengembangan termasuk 528 baris `audit_logs` — dan baris audit
+tidak pernah boleh dihapus di repo ini.
+
+**ENAM BENTURAN, dan semuanya selesai dengan mengambil versi `main`** — tetapi
+bukan karena `main` otomatis menang, melainkan karena tiap sisi `main` terbukti
+superset atau lebih dalam:
+
+| Berkas | Alasan |
+| --- | --- |
+| `tsconfig.json`, `tsconfig.build.json` | versi `main` superset; perbaikan CAT-014 (`prisma/**/*`) tetap ada, ditambah `scripts` |
+| `prisma/seed.ts` | `main` membuang blok `seed-superuser`, dan docblock-nya menjelaskan justru kegagalan ini: `Role.superuser` jadi `undefined` dan seed berhenti di akun kedua |
+| `apps/web/jest.setup.js` | kedua sisi perbaikan `global.File` yang sama; komentar `main` bertanggal dan menyebut CAT-009/CAT-023 |
+| `apps/web/playwright.config.ts` | `E2E_ORIGIN` dapat ditimpa; `globalSetup` menunjuk `e2e/global-setup.ts` |
+| `admin-opd/complaints/page.test.jsx` | 13 uji / 317 baris berbanding 6 / 120 — persis resolusi yang sudah diramalkan revisi 4.9 |
+
+`seed.ts` diselesaikan PER-HUNK, bukan `git checkout --theirs`, supaya bagian
+yang sudah melebur otomatis tidak ikut terbuang.
+
+**MERGE OTOMATIS MENANAM SATU CACAT SENYAP, dan ini temuan yang paling pantas
+diingat dari seluruh operasi ini.** `apps/web/jest.config.js` berakhir dengan
+`testPathIgnorePatterns` **terdeklarasi dua kali**; deklarasi kedua menimpa yang
+pertama dan MEMBUANG `<rootDir>/.next/` dari daftar, sehingga Jest kembali
+menyisir direktori build `next dev`. Kunci objek kembar di JavaScript bukan
+galat — yang terakhir menang — dan tak satu alat pun memerah: berkasnya
+JavaScript yang sah, eslint tak mempersoalkannya, dan `.prettierignore`
+mengecualikan `apps/web`. Satu-satunya cara menemukannya membandingkan berkasnya
+dengan versi `main`. `apps/web/.gitignore` kena hal serupa (satu blok Playwright
+terduplikasi) dan dilebur dengan mempertahankan dua baris yang hanya ada di sini.
+
+**HASILNYA:** `apps/api` kini BYTE-IDENTIK dengan `main`, dan `apps/web` berbeda
+dari `main` hanya pada 16 berkas — enam spec e2e milik cabang ini, empat
+penopangnya, `.gitignore`, dan lima berkas uji yang diperbaiki di bawah. Kelima
+berkas sumber mati ikut terhapus. Kelima dokumen pengujian utuh; mereka disalin
+ke luar repositori lebih dulu dan dicocokkan byte-per-byte sesudahnya.
+
+**LIMA BERKAS UJI MERAH, dan "lima berkas basi" ternyata gambaran yang terlalu
+kasar.** Tiga dari lima bukan perkara selektor:
+
+| Berkas | Merah | Tindakan |
+| --- | --- | --- |
+| `SurveyResponses` | 1 / 10 | fikstur dapat `nomor`; nomor urut kini dari backend, bukan dari indeks baris |
+| `RingkasanDashboard` | 1 / 14 | pernyataan DIPERSEMPIT ke kartu IKM lewat `within()`; `-` kedua milik kartu "Akun Aktif" |
+| `AdminNavbarIdentitas` | 1 / 7 | uji DIPENSIUNKAN — menuntut label `Superuser` yang tak mungkin lagi dikirim backend |
+| `NavigasiPeran` | 4 / 6 | **premisnya DIBALIK**, bukan dibuang |
+| `UmpanBalikAksi` | 3 / 3 | DIPERBAIKI — helper jadi tiga langkah lewat `RowActionsMenu` |
+
+`NavigasiPeran` yang paling perlu dijelaskan, sebab ia menjaga hal SEBALIKNYA
+dari yang kini benar: bahwa **Manajemen User** dan **Audit Logs** hanya milik
+superuser dan harus disembunyikan dari Admin Kabupaten. `proxy.js` baris 40-43
+menyatakan `SUPERUSER_ONLY_PREFIXES` dibuang bersama perannya, dan
+`AdminKabSidebar` kini merender kedua menu itu tanpa syarat peran. Membuang
+berkas itu diperiksa lebih dulu dan ditolak: ia SATU-SATUNYA uji yang menyentuh
+kedua menu tersebut di navigasi, jadi membuangnya meninggalkan celah tanpa
+penjaga. Arah pernyataannya dibalik, dan dua uji lama pensiun seutuhnya karena
+keduanya menjaga kebocoran menu yang DIGERBANGI PERAN — tak ada lagi menu
+semacam itu, jadi uji yang menjaga ketiadaan akan hijau selamanya tanpa pernah
+memeriksa apa pun.
+
+Kedua uji baru itu dibuktikan dapat memerah lewat dua mutasi pada
+`AdminKabSidebar.jsx` yang dipulihkan di blok `finally`: menyesatkan `href`
+Manajemen User membunuh uji rute, dan menghapus labelnya membunuh keduanya.
+
+**Satu pergeseran lain tersingkap, dan ia tersembunyi justru oleh kegagalan yang
+lain.** Daftar `MENU_UMUM` basi dalam tiga hal sekaligus: `Manajemen OPD` sudah
+berganti nama menjadi `Daftar OPD`, lalu `Statistik & Laporan` dan
+`Dokumentasi API` lahir sesudahnya. Selama uji itu memerah karena sebab
+superuser, tak ada yang pernah sampai ke pernyataan berikutnya — **satu
+kegagalan menutupi kegagalan sesudahnya.**
+
+Sesudah kelimanya dibereskan: **216 suite / 1.770 uji hijau pada dua jalan penuh
+berurutan**, eslint kode=0. Jumlah uji turun dari 1.774 dan itu diharapkan —
+satu uji dipensiunkan dan blok lima uji menjadi dua.
+
 ---
 
 ## 6. Riwayat revisi
@@ -3904,3 +4028,4 @@ saat itu ia menjadi pagar regresi sungguhan.
 | 5.2 | 19 Oktober 2026 | **CAT-009 ditutup di `main` juga** (`1bd55ec`): `jest.setup.js` berhenti menimpa `global.File` dengan `undefined`, dan penjaga langsung dipasang di `src/__tests__/penyiapan-file-global.test.js` yang dibuktikan merah lebih dulu. Dua angka pada catatan 15 Oktober dikoreksi, bukan ditulis ulang: biayanya bukan empat uji melainkan DUA BERKAS PENUH (22 uji), dan daftar berkas yang dapat dipindahkan naik dari enam berkas / 44 uji menjadi tujuh berkas / 66 uji semata karena perbaikan itu. **CAT-023 jalan pertama diambil sebagian**: ketujuh berkas itu pindah ke `main`, lima berkas basi tetap tinggal dengan sebabnya masing-masing, dan pemisahan cabangnya SENDIRI belum tersentuh — 342 berkas hanya-di-`main`, 349 berbeda isinya, 11 spec Playwright belum dinilai. Satu baris tabel CAT-023 terbukti salah: `AuthCallbackLoader` didaftarkan hijau, padahal ia GOYAH — lulus 7/7 sendiri, gagal pada satu dari dua jalan suite penuh karena tenggat bawaan 1.000 ms pada `findByText`. Dugaan pertama bahwa ia tak layak diangkut TIDAK terbukti; ia layak, tetapi tidak apa adanya. |
 | 5.3 | 19 Oktober 2026 | **Dua kalimat pada catatan CAT-023 pagi ini berhenti benar sebelum hari itu berakhir, dan dikoreksi alih-alih ditulis ulang.** `AuthCallbackLoader.test.jsx` IKUT pindah ke `main` (`6b1a7bc`) sebagai salinan apa adanya, sehingga "Ia TIDAK dipindahkan" salah; dan penawar yang dianjurkan di sana — menaikkan tenggat pada satu `findByText` — ditulis lebih dulu lalu DIBUANG. Sebabnya terukur: porting tujuh berkas itu sendiri yang membuat suite web `main` goyah, bukan cacat lama yang kebetulan terlihat. Tiga jalan suite penuh per keadaan memisahkannya — 202 berkas hijau 3 dari 3, 211 berkas dengan tenggat bawaan hanya 1 dari 3, 211 berkas dengan tenggat dinaikkan kembali 3 dari 3 — dan keempat berkas yang memerah tak satu pun disentuh. Satu kelas kegagalan, sebabnya pertikaian CPU (`inti - 1` pekerja di mesin berinti delapan), dan CI berinti empat mungkin tak pernah melihatnya. Penawarnya dua baris: `testTimeout: 20000` dan `configure({ asyncUtilTimeout: 5000 })`. Hitungan berkas yang pindah menjadi DELAPAN / 73 uji, diturunkan dari selisih dua jalan suite (1.734 − 1.659 = 75, dikurangi 2 uji penjaga `global.File`) alih-alih dijumlahkan dengan tangan. Nomor versi di kepala dokumen juga dibetulkan: ia masih berbunyi 5.0 / 15 Oktober padahal tabel ini sudah mencatat 5.1 dan 5.2 — kelalaian penguji pada dua commit sebelumnya. |
 | 5.4 | 19 Oktober 2026 | **Besarnya merge `main` ke `tester` akhirnya terukur, dan uji-cobanya menyingkap satu cacat porting milik penguji.** `git merge-tree` melaporkan 13 berkas berbenturan, bukan ratusan: angka 342 dan 349 pada CAT-023 tetap benar tetapi BUKAN ukuran kesulitan merge-nya. Tujuh dari 13 benturan itu cacat, bukan perbedaan sah — salinan tujuh berkas uji di `main` RUSAK karena skrip penyalinnya membaca cp1252 lalu menulis UTF-8, sehingga 58 baris menjadi mojibake, termasuk nama `describe`/`it` pada tiga berkas pagar. Tak satu alat pun memerah: prettier mengecualikan `apps/web`, eslint tak mempersoalkan aksara dalam komentar, dan mojibake-nya UTF-8 yang sah. Diperbaiki di `main` (`978fcb2`), ketujuhnya kini byte-identik dengan sumbernya di sini, `tester` sendiri bersih 0 dari 748 berkas, dan benturan merge turun 13 → 6. **Pagar `test.fail()` BUG-013 diputuskan dibiarkan terpasang**, dicabut saat merge; dasarnya BUG-013 sudah berpagar sembilan uji e2e `apps/api` di `main`, jadi menunggu tidak meninggalkan celah. **Tiga puluh dua tautan jangkar putus diperbaiki** dengan memasang 11 jangkar HTML eksplisit; hitungan "tujuh" yang pernah dicatat mengecilkannya karena hanya menyisir tautan internal `BUG_REPORTS.md` dan melewatkan tautan dari `TEST_PLAN.md` dan `TEST_EXPLORATORY.md`. |
+| 5.5 | 19 Oktober 2026 | **`main` AKHIRNYA DITARIK KE `tester`** (`fbdf85c`), dan pilihannya habis bukan karena kerapian: `apps/api` di cabang ini terbukti TIDAK DAPAT DIJALANKAN — lima puluhan galat TypeScript dari satu akar, yakni klien Prisma dan `skm_db` yang sudah mengikuti `main` sementara schema di sini masih sebulan lalu (21 migrasi berbanding 33). `prisma generate` diperiksa dan tidak menyelesaikannya; menurunkan `skm_db` DITOLAK sebab satu-satunya jalan `migrate reset`, yang membuang 528 baris `audit_logs`. Enam benturan, semuanya selesai dengan versi `main` karena tiap sisinya terbukti superset atau lebih dalam; `seed.ts` diselesaikan per-hunk. **Merge otomatis menanam satu cacat senyap**: `testPathIgnorePatterns` terdeklarasi dua kali di `apps/web/jest.config.js` dan yang kedua membuang `<rootDir>/.next/` — kunci objek kembar bukan galat, dan tak satu alat pun memerah. Kelima berkas uji basi dibereskan satu per satu, dan tiga di antaranya bukan perkara selektor; `NavigasiPeran` PREMISNYA DIBALIK alih-alih dibuang sebab ia satu-satunya penjaga kedua menu bekas-superuser di navigasi, dengan dua uji baru dibuktikan merah lewat mutasi. Daftar `MENU_UMUM` juga ternyata basi dalam tiga hal, tersembunyi karena satu kegagalan menutupi kegagalan sesudahnya. **Anotasi `test.fail()` BUG-013 dicabut** (`b760088`), specnya tidak dihapus; tiga pagar backend lain diperiksa di kodenya dan masih benar. Suite: 216 suite / 1.770 uji hijau pada dua jalan, eslint kode=0. |
