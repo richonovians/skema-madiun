@@ -12,14 +12,36 @@ global.ReadableStream = ReadableStream;
 global.TransformStream = TransformStream;
 global.WritableStream = WritableStream;
 
-const { fetch, Headers, Request, Response, FormData, File } = require('undici');
+const { fetch, Headers, Request, Response, FormData } = require('undici');
 
 global.fetch = fetch;
 global.Headers = Headers;
 global.Request = Request;
 global.Response = Response;
 global.FormData = FormData;
-global.File = File;
+
+// `File` DIAMBIL DARI `node:buffer`, BUKAN DARI UNDICI (19 Oktober 2026).
+//
+// Baris di atas sebelumnya ikut mengambil `File` dari undici, lalu menugaskannya
+// ke `global.File`. Sejak undici 8 paket itu tak lagi mengekspor `File`, jadi
+// nilainya `undefined` — dan penugasannya MENIMPA implementasi jsdom yang
+// sebenarnya berfungsi. Terukur di cabang ini: undici 8.10.0, `undici.File`
+// `undefined`, `node:buffer.File` sebuah fungsi.
+//
+// Gejalanya menuding tempat yang salah: uji yang membangun sebuah berkas gagal
+// dengan "File is not a constructor", seolah ujinya keliru, padahal penyiapan
+// inilah yang merusaknya. Selama itu terjadi, seluruh permukaan lampiran
+// mustahil diuji di `main`.
+//
+// Perbaikan ini sudah ada di cabang `tester` sejak lama dan tak pernah sampai
+// ke sini; itu tercatat sebagai CAT-009 dan CAT-023 di dokumen pengujian.
+// Penjaganya ada di `src/__tests__/penyiapan-file-global.test.js`.
+//
+// `if (File)` dipertahankan, bukan dihilangkan: bila suatu saat `node:buffer`
+// pun berhenti mengekspornya, yang benar adalah MEMBIARKAN `File` milik jsdom
+// apa adanya, bukan menimpanya dengan `undefined` sekali lagi.
+const { File } = require('node:buffer');
+if (File) global.File = File;
 
 global.ReadableStream = ReadableStream;
 global.TransformStream = TransformStream;
