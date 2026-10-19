@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import KabSummaryMetrics from '../kabupaten/KabSummaryMetrics';
 import RecentActivities from '../kabupaten/RecentActivities';
 import { adaptRecentActivity, adaptRecentActivityList } from '../../adapters/recentActivities.adapter';
@@ -60,8 +60,16 @@ describe('KabSummaryMetrics (TC-FE-045)', () => {
   it('membedakan IKM yang belum ada dari IKM bernilai nol', () => {
     render(<KabSummaryMetrics data={{ ...RINGKASAN, ikmScore: null }} />);
 
-    expect(screen.getByText('-')).toBeInTheDocument();
-    expect(screen.queryByText('0.00')).not.toBeInTheDocument();
+    // Pernyataannya DIPERSEMPIT ke kartu IKM, 19 Oktober 2026. Sebelumnya
+    // `getByText('-')` tanpa cakupan, dan itu memerah begitu `main` ditarik ke
+    // cabang ini: komponennya sekarang punya kartu "Akun Aktif" yang juga
+    // berbunyi `-` karena fikstur ini tak membawa medannya. Dua kartu bertanda
+    // pisah membuat querynya ambigu — dan ambiguitas itu menunjukkan ujinya
+    // memang terlalu longgar sejak awal, sebab ia tak pernah memastikan tanda
+    // pisah yang ditemukannya milik kartu yang sedang diuji.
+    const kartuIkm = screen.getByText('Rata-Rata IKM Kabupaten').parentElement;
+    expect(within(kartuIkm).getByText('-')).toBeInTheDocument();
+    expect(within(kartuIkm).queryByText('0.00')).not.toBeInTheDocument();
   });
 
   it('tidak merender apa pun sebelum datanya tiba', () => {

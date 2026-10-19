@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, userFixture } from '@/mocks/handlers';
@@ -8,19 +8,36 @@ import DashboardNavbar from '../DashboardNavbar';
 import { AdminKabLayoutProvider } from '../AdminKabLayoutProvider';
 
 /**
- * TC-FE-005 — Navigasi disembunyikan menurut peran.
+ * TC-FE-005 — Menu yang ditawarkan tiap peran.
  *
- * Dua menu Admin Kabupaten hanya milik SUPERUSER (keputusan user 2026-08-20,
- * lihat `SUPERUSER_ONLY_PREFIXES` di proxy.js): **Manajemen User** dan
- * **Audit Logs**. Admin Kabupaten biasa tak boleh melihat keduanya.
+ * **PREMIS BERKAS INI TERBALIK, BUKAN HILANG (19 Oktober 2026).** Sampai hari
+ * ini ia menjaga hal sebaliknya: bahwa **Manajemen User** dan **Audit Logs**
+ * hanya milik SUPERUSER dan HARUS DISEMBUNYIKAN dari Admin Kabupaten biasa
+ * (keputusan 20 Agustus 2026, dulu bersandar pada `SUPERUSER_ONLY_PREFIXES` di
+ * `proxy.js`). Peran `superuser` dilebur ke `kabupaten` pada 15 September 2026
+ * dan nilai enumnya dibuang; `SUPERUSER_ONLY_PREFIXES` ikut dibuang bersamanya
+ * — lihat `proxy.js` baris 40-43. Kedua menu itu kini MILIK Admin Kabupaten,
+ * dirender tanpa syarat peran oleh `AdminKabSidebar`.
  *
- * Yang ditangkap berkas ini:
- *  - penjaga `isSuperuser` hilang → Admin Kabupaten biasa melihat tautan yang
- *    pasti memantulkannya kembali begitu ditekan (proxy menolak, tapi menu itu
- *    sudah terlanjur menjanjikan sesuatu yang tak ada);
- *  - peran dibaca dari cookie `role` alih-alih `GET /auth/me` — cookie dapat
- *    disunting bebas di peramban, jadi menu superuser bisa dimunculkan siapa pun;
- *  - menu warga kehilangan tautan pokoknya.
+ * Empat uji lama karena itu menuntut keadaan yang tak mungkin lagi terjadi, dan
+ * dua di antaranya menuntut KEBALIKAN dari perilaku yang sekarang benar. Uji
+ * itu tidak dibiarkan memerah dan tidak pula dibuang begitu saja: arahnya
+ * dibalik, sebab berkas inilah SATU-SATUNYA yang menguji kedua menu tersebut
+ * muncul di navigasi. Membuangnya tanpa pengganti meninggalkan celah.
+ *
+ * Dua uji lama memang pensiun seutuhnya, dan sebabnya bukan kemalasan:
+ *  - "tidak memunculkan menu superuser hanya karena cookie `role` disunting"
+ *  - "tidak menampilkan menu superuser selagi peran belum diketahui"
+ * Keduanya menjaga kebocoran menu YANG DIGERBANGI PERAN. Tak ada lagi menu
+ * semacam itu di sidebar ini, jadi tak ada yang dapat bocor; uji yang menjaga
+ * ketiadaan akan hijau selamanya tanpa pernah memeriksa apa pun.
+ *
+ * Yang masih dijaga:
+ *  - kedelapan menu Admin Kabupaten benar-benar ditawarkan, termasuk dua yang dulu
+ *    tergerbang — seseorang yang menghidupkan ulang penjaga peran itu akan
+ *    memerahkan berkas ini;
+ *  - kedua menu tersebut menunjuk rute yang benar;
+ *  - menu warga tak kehilangan tautan pokoknya dan tak memuat tautan admin.
  *
  * Yang SENGAJA tidak diklaim: menyembunyikan menu bukan penjagaan akses.
  * Penjagaannya ada di proxy.js (navigasi) dan `@Roles` backend (data).
@@ -56,39 +73,51 @@ const renderSidebar = () =>
     </AdminKabLayoutProvider>,
   );
 
-/** Menu yang setiap Admin Kabupaten berhak lihat, superuser atau bukan. */
-const MENU_UMUM = ['Dashboard', 'Manajemen OPD', 'Monitoring Survei', 'Pengaduan'];
-/** Menu yang HANYA milik superuser. */
-const MENU_SUPERUSER = ['Manajemen User', 'Audit Logs'];
+/**
+ * Menu Admin Kabupaten selain dua bekas-superuser di bawah.
+ *
+ * DIBACA ULANG DARI `AdminKabSidebar` 19 Oktober 2026, bukan diwarisi dari
+ * daftar lama — dan daftar lama ternyata basi dalam tiga hal sekaligus:
+ * `Manajemen OPD` sudah berganti nama menjadi `Daftar OPD`, lalu
+ * `Statistik & Laporan` dan `Dokumentasi API` lahir sesudahnya. Pergeseran itu
+ * TERSEMBUNYI selama ini karena uji yang memuatnya sudah memerah lebih dulu
+ * karena sebab lain; satu kegagalan menutupi kegagalan berikutnya.
+ */
+const MENU_UMUM = [
+  'Dashboard',
+  'Daftar OPD',
+  'Monitoring Survei',
+  'Pengaduan',
+  'Statistik & Laporan',
+  'Dokumentasi API',
+];
+/**
+ * Dua menu yang DULU tergerbang peran `superuser` dan sejak 15 September 2026
+ * menjadi milik Admin Kabupaten. Namanya dipertahankan agar riwayatnya terbaca.
+ */
+const MENU_BEKAS_SUPERUSER = ['Manajemen User', 'Audit Logs'];
 
 describe('Sidebar Admin Kabupaten (TC-FE-005)', () => {
-  it('menyembunyikan Manajemen User & Audit Logs dari Admin Kabupaten biasa', async () => {
+  it('menawarkan kedelapan menunya, termasuk dua yang dulu tergerbang superuser', async () => {
     sebagai('kabupaten');
     renderSidebar();
 
-    // Ditunggu sampai menu umumnya muncul lebih dulu — tanpa ini, "tak ada"
-    // bisa berarti "belum sempat dirender", dan pengujiannya lulus karena
-    // memeriksa halaman yang masih kosong.
+    // Menu umumnya ditunggu lebih dulu. Tanpa ini, "menu X ada" dapat lulus
+    // sekadar karena sidebar-nya belum selesai dirender dan querynya kebetulan
+    // menemukan apa pun; menunggu satu jangkar memastikan DOM-nya sudah berisi.
     for (const menu of MENU_UMUM) {
       expect(await screen.findByText(menu)).toBeInTheDocument();
     }
 
-    for (const menu of MENU_SUPERUSER) {
-      expect(screen.queryByText(menu)).not.toBeInTheDocument();
-    }
-  });
-
-  it('menampilkan kedua menu itu kepada superuser', async () => {
-    sebagai('superuser');
-    renderSidebar();
-
-    for (const menu of [...MENU_UMUM, ...MENU_SUPERUSER]) {
+    // Inilah pernyataan yang arahnya dibalik 19 Oktober 2026. Dulu kedua menu
+    // ini dituntut TIDAK ADA bagi `kabupaten`.
+    for (const menu of MENU_BEKAS_SUPERUSER) {
       expect(await screen.findByText(menu)).toBeInTheDocument();
     }
   });
 
-  it('mengarahkan menu superuser ke rute yang benar', async () => {
-    sebagai('superuser');
+  it('mengarahkan Manajemen User & Audit Logs ke rute yang benar', async () => {
+    sebagai('kabupaten');
     renderSidebar();
 
     expect((await screen.findByText('Manajemen User')).closest('a')).toHaveAttribute(
@@ -99,44 +128,6 @@ describe('Sidebar Admin Kabupaten (TC-FE-005)', () => {
       'href',
       '/admin-kab/audit-logs',
     );
-  });
-
-  it('tidak memunculkan menu superuser hanya karena cookie `role` disunting', async () => {
-    // Cookie dapat diubah siapa pun lewat DevTools. Yang menentukan harus
-    // jawaban `GET /auth/me`, dan di sini backend berkata "kabupaten".
-    document.cookie = 'role=superuser; path=/';
-    sebagai('kabupaten');
-    renderSidebar();
-
-    await screen.findByText('Dashboard');
-    for (const menu of MENU_SUPERUSER) {
-      expect(screen.queryByText(menu)).not.toBeInTheDocument();
-    }
-    document.cookie = 'role=; path=/; max-age=0';
-  });
-
-  it('tidak menampilkan menu superuser selagi peran belum diketahui', async () => {
-    // Selama `GET /auth/me` masih berjalan, `profile` undefined. Menampilkan
-    // menu lebih dulu lalu menyembunyikannya membuat menu berkedip — dan pada
-    // sekejap itu Admin Kabupaten biasa sempat melihat tautan yang bukan haknya.
-    let lepaskan;
-    const tertahan = new Promise((r) => {
-      lepaskan = r;
-    });
-    server.use(
-      http.get(`${API_BASE}/auth/me`, async () => {
-        await tertahan;
-        return ok(userFixture({ id: 1, roles: ['kabupaten'], actingRole: 'kabupaten', opdId: null }), '/auth/me');
-      }),
-    );
-
-    renderSidebar();
-
-    for (const menu of MENU_SUPERUSER) {
-      expect(screen.queryByText(menu)).not.toBeInTheDocument();
-    }
-    lepaskan();
-    await waitFor(() => expect(screen.getByText('Dashboard')).toBeInTheDocument());
   });
 });
 

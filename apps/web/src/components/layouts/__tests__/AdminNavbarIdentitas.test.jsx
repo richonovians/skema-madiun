@@ -163,21 +163,20 @@ describe('AdminKabNavbar — Admin Kabupaten (TC-FE-028)', () => {
     expect(await screen.findByText('Admin Kabupaten')).toBeInTheDocument();
   });
 
-  it('membedakan superuser dari admin kabupaten biasa', async () => {
-    // Peran inilah yang menentukan tampil-tidaknya log aktivitas & manajemen
-    // pengguna, dan ia datang dari backend — bukan dari cookie yang bisa
-    // disunting di peramban.
-    server.use(
-      http.get(`${API_BASE}/auth/me`, () =>
-        ok(userFixture({ id: 2, nama: 'Rahmat Hidayat', roles: ['superuser'], actingRole: 'superuser', opdId: null }), '/auth/me'),
-      ),
-    );
-
-    renderKab();
-
-    expect(await screen.findByText('Rahmat Hidayat')).toBeInTheDocument();
-    expect(await screen.findByText('Superuser')).toBeInTheDocument();
-  });
+  // UJI "membedakan superuser dari admin kabupaten biasa" DIPENSIUNKAN
+  // 19 Oktober 2026, saat `main` ditarik ke cabang ini.
+  //
+  // Ia menuntut navbar menampilkan label `Superuser` untuk
+  // `actingRole: 'superuser'`. Peran itu dilebur ke `kabupaten` pada
+  // 15 September 2026 dan nilainya DIBUANG dari enum `Role`, jadi backend tak
+  // dapat lagi mengirimkannya dan labelnya tak mungkin muncul. Harapannya
+  // bukan sekadar basi — ia mustahil, dan uji yang mustahil hanya dapat
+  // memerah selamanya.
+  //
+  // Kepeduliannya sendiri tidak hilang bersamanya: bahwa label peran datang
+  // dari `GET /auth/me` dan bukan dari cookie yang dapat disunting. Itu dijaga
+  // uji tepat di atas ini, yang menuntut 'Admin Kabupaten' terbaca dari jawaban
+  // `/auth/me`.
 
   it('tidak menampilkan satu pun identitas karangan lama', async () => {
     server.use(

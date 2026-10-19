@@ -75,15 +75,28 @@ const daftarBerisi = (survei) =>
   );
 
 /**
- * Tekan aksi baris lalu setujui dialog konfirmasinya.
+ * Buka menu aksi baris, tekan butirnya, lalu setujui dialog konfirmasinya.
  *
- * Nama keduanya dipakai PERSIS, bukan pola: tombol barisnya berbunyi
- * "Publikasikan" dan tombol konfirmasinya "Ya, Publikasikan", jadi pola longgar
- * mencocokkan dua-duanya sekaligus dan pengujiannya gagal dengan pesan yang
- * tak menyebut sebab sesungguhnya.
+ * TIGA LANGKAH SEJAK 19 Oktober 2026, dulu dua. Aksi baris tidak lagi tombol
+ * telanjang di kolom Aksi: kolom itu kini memuat SATU pemicu per baris
+ * (`RowActionsMenu`) yang namanya "Aksi untuk <judul survei>", dan
+ * "Publikasikan" menjadi butir `role="menuitem"` di dalamnya. Berkas ini
+ * memerah seluruhnya ketika `main` ditarik ke cabang ini, dan sebabnya SEMATA
+ * selektor — ketiga perilaku yang dijaganya tetap ada.
+ *
+ * Polanya disamakan dengan `SurveyMonitoringTable.test.jsx` milik tim dev
+ * (`bukaMenu()` di sana) supaya kedua berkas tak menua ke arah yang berbeda.
+ * Pemicunya dicari dengan pola longgar `/aksi untuk/i` dan itu aman di sini:
+ * fikstur berkas ini hanya memuat SATU survei, jadi hanya ada satu pemicu.
+ *
+ * Nama butir dan tombol konfirmasi dipakai PERSIS, bukan pola: butirnya
+ * berbunyi "Publikasikan" dan tombol konfirmasinya "Ya, Publikasikan", jadi
+ * pola longgar mencocokkan dua-duanya sekaligus dan pengujiannya gagal dengan
+ * pesan yang tak menyebut sebab sesungguhnya.
  */
-async function jalankanAksi(namaTombol, namaKonfirmasi) {
-  fireEvent.click(await screen.findByRole('button', { name: namaTombol, exact: true }));
+async function jalankanAksi(namaButir, namaKonfirmasi) {
+  fireEvent.click(await screen.findByRole('button', { name: /aksi untuk/i }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: namaButir, exact: true }));
   const konfirmasi = await screen.findByRole('button', { name: namaKonfirmasi, exact: true });
   fireEvent.click(konfirmasi);
 }

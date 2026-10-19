@@ -23,9 +23,19 @@ import SurveyResponseAnswers from '../SurveyResponseAnswers';
  *  - jawaban uraian yang dikosongkan terbaca sebagai jawaban yang tak terkirim.
  */
 
+/**
+ * `nomor` ditambahkan 19 Oktober 2026, saat `main` ditarik ke cabang ini.
+ *
+ * Nomor urut respons kini DATANG DARI BACKEND lewat `response.nomor`, bukan
+ * dihitung dari indeks baris: `SurveyResponsesTable` merender
+ * `Respons #${response.nomor}` dan jatuh ke `'Respons'` polos bila medannya
+ * tak ada. Fikstur ini lahir sebelum medan itu, sehingga ia menguji keadaan
+ * yang tak pernah terjadi pada data sungguhan — dan uji penomorannya memerah
+ * karena fiksturnya, bukan karena produknya.
+ */
 const RESPONS = [
-  { id: 901, submittedAt: '2026-09-01T02:15:00.000Z', averageScore: 3.5 },
-  { id: 902, submittedAt: '2026-09-02T04:30:00.000Z', averageScore: null },
+  { id: 901, nomor: 1, submittedAt: '2026-09-01T02:15:00.000Z', averageScore: 3.5 },
+  { id: 902, nomor: 2, submittedAt: '2026-09-02T04:30:00.000Z', averageScore: null },
 ];
 
 /** Kata-kata yang TIDAK boleh muncul di daftar respons SKM. */
