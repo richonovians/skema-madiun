@@ -17,10 +17,6 @@
 # ukurannya besar, jadi tak ada gunanya masuk riwayat.
 /playwright-report/
 /test-results/
-
-# playwright (hasil jalan & laporan, bukan berkas sumber)
-/test-results/
-/playwright-report/
 /blob-report/
 /playwright/.cache/
 
