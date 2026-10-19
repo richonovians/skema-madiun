@@ -5,6 +5,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { PENYIMPAN_SINGGAHAN } from '../src/common/cache/penyimpan-singgahan.interface';
+import type { PenyimpanSinggahan } from '../src/common/cache/penyimpan-singgahan.interface';
 import { devHeaders } from './helpers/auth.helper';
 
 describe('Dashboard & Statistics (e2e)', () => {
@@ -236,5 +238,148 @@ describe('Dashboard & Statistics (e2e)', () => {
       expect(res.body.data.newComplaints).toEqual(expect.any(Number));
       expect(res.body.data.openComplaints).toBeGreaterThanOrEqual(1); // pengaduan e2e ini (status diterima)
     });
+  });
+
+  /**
+   * BUG-013 (High, dilaporkan 15 September 2026).
+   *
+   * Survei yang dibuang ke Sampah tetap ikut menghitung angka yang DIPAMPANG
+   * KEPADA PUBLIK. Terukur saat dilaporkan: IKM kabupaten tidak bergeser sedikit
+   * pun sesudah survei dibuang (71,11 tetap 71,11), total responden tetap 6, dan
+   * papan peringkat Dinas Kesehatan tetap 62,5. Kendalinya pun sudah diukur:
+   * memusnahkan survei yang sama secara permanen mengembalikan seluruh angka ke
+   * keadaan semula, jadi yang menggerakkannya memang survei di Sampah.
+   *
+   * Laporan itu menyebut satu sebab, `ikmResult.findMany` tanpa `where`.
+   * Penyisiran 19 Oktober 2026 menemukan TUJUH tempat, dan uji di bawah menjaga
+   * keempat gejala yang dapat dibaca dari luar:
+   *
+   *  1. `summary.totalRespondents`  -- `surveyResponse.count()` tanpa penyaring.
+   *  2. `valueDistribution`         -- `answer.groupBy` tanpa penyaring survei.
+   *  3. `ikmTrend`                  -- dari `ikmResult` tanpa penyaring.
+   *  4. Dasbor Admin OPD            -- jumlah responden, riwayat IKM, dan umpan
+   *                                    balik terbaru, ketiganya tanpa penyaring.
+   *
+   * SINGGAHAN DIBUANG SEBELUM TIAP PEMBACAAN. `GET /statistics` dibungkus
+   * singgahan ber-TTL 60 detik tanpa invalidasi -- itu rancangan yang disengaja
+   * dan bukan bagian dari cacat ini, tetapi tanpa `hapus()` di bawah, pembacaan
+   * kedua akan mengembalikan angka lama dan uji ini akan "lulus" atau "gagal"
+   * karena singgahan, bukan karena penyaringnya. Antarmuka `PenyimpanSinggahan`
+   * sudah menyediakan `hapus`, jadi tak ada kode produksi yang diubah demi
+   * keterujian.
+   *
+   * Surveinya MILIK BLOK INI sendiri, bukan survei bersama di `beforeAll`: uji
+   * lain di berkas ini mengubah status survei itu, dan menumpanginya membuat
+   * hasil di sini bergantung pada urutan jalan.
+   */
+  describe('BUG-013 — survei di Sampah tidak boleh menghitung apa pun', () => {
+    const PERIODE = '2029-Q3';
+    const UMPAN_BALIK = 'Umpan balik penjaga BUG-013';
+    let singgahan: PenyimpanSinggahan;
+    let surveiSampahId: number;
+
+    const bacaStatistik = async () => {
+      // Tanpa ini, pembacaan kedua dijawab singgahan 60 detik dan ujinya
+      // mengukur singgahan alih-alih penyaringnya.
+      await singgahan.hapus('statistik-publik');
+      const res = await request(app.getHttpServer()).get('/api/v1/statistics');
+      expect(res.status).toBe(200);
+      return res.body.data;
+    };
+
+    const bacaDasborOpd = async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/dashboard/opd')
+        .set(devHeaders({ role: Role.opd, userId: opdUserId, opdId }));
+      expect(res.status).toBe(200);
+      return res.body.data;
+    };
+
+    const jumlahNilai = (
+      data: { valueDistribution: { value: number; count: number }[] },
+      nilai: number,
+    ) => data.valueDistribution.find((v) => v.value === nilai)?.count ?? 0;
+
+    beforeAll(async () => {
+      singgahan = app.get<PenyimpanSinggahan>(PENYIMPAN_SINGGAHAN, { strict: false });
+
+      const survei = await prisma.survey.create({
+        data: {
+          opdId,
+          judul: 'Survei Yang Akan Dibuang (BUG-013)',
+          periode: PERIODE,
+          status: SurveyStatus.aktif,
+          questions: {
+            create: [
+              {
+                teks: 'Kepuasan layanan (penjaga BUG-013)',
+                tipe: QuestionType.skala,
+                urutan: 1,
+                isIkmUnsur: true,
+                kodeUnsur: 'U1',
+              },
+              { teks: 'Saran (penjaga BUG-013)', tipe: QuestionType.teks, urutan: 2 },
+            ],
+          },
+        },
+        include: { questions: { orderBy: { urutan: 'asc' } } },
+      });
+      surveiSampahId = survei.id;
+      const [skala, teks] = survei.questions;
+
+      const respons = await prisma.surveyResponse.create({
+        data: { surveyId: survei.id },
+      });
+      await prisma.answer.createMany({
+        data: [
+          // Nilai 1 dipilih supaya jejaknya pada `valueDistribution` dan pada IKM
+          // tak dapat tertukar dengan jawaban survei bersama (yang bernilai 4).
+          { responseId: respons.id, questionId: skala.id, nilai: 1 },
+          { responseId: respons.id, questionId: teks.id, teks: UMPAN_BALIK },
+        ],
+      });
+    }, 60000);
+
+    it('statistik publik berhenti menghitungnya sesudah survei masuk Sampah', async () => {
+      const sebelum = await bacaStatistik();
+      const dasborSebelum = await bacaDasborOpd();
+
+      // Prasyarat: selama masih hidup, survei ini MEMANG terhitung. Tanpa
+      // pemeriksaan ini, uji di bawah bisa "lulus" hanya karena surveinya tak
+      // pernah masuk hitungan sejak awal.
+      expect(jumlahNilai(sebelum, 1)).toBeGreaterThan(0);
+      expect(sebelum.ikmTrend.some((t: { periode: string }) => t.periode === PERIODE)).toBe(true);
+      expect(
+        dasborSebelum.recentFeedback.some((f: { text: string }) => f.text === UMPAN_BALIK),
+      ).toBe(true);
+
+      const buang = await request(app.getHttpServer())
+        .delete(`/api/v1/surveys/${surveiSampahId}`)
+        .set(devHeaders({ role: Role.opd, userId: opdUserId, opdId }));
+      expect(buang.status).toBe(200);
+
+      const sesudah = await bacaStatistik();
+      const dasborSesudah = await bacaDasborOpd();
+
+      // 1. Respondennya berhenti dihitung -- tepat satu, bukan "berkurang".
+      expect(sesudah.summary.totalRespondents).toBe(sebelum.summary.totalRespondents - 1);
+
+      // 2. Jawaban skalanya berhenti dihitung.
+      expect(jumlahNilai(sesudah, 1)).toBe(jumlahNilai(sebelum, 1) - 1);
+
+      // 3. Titik trennya lenyap. Periode ini hanya dimiliki survei tersebut, jadi
+      //    ketiadaannya tak dapat berasal dari survei lain.
+      expect(sesudah.ikmTrend.some((t: { periode: string }) => t.periode === PERIODE)).toBe(false);
+
+      // 4. Dasbor Admin OPD ikut berhenti menghitungnya, termasuk umpan balik
+      //    terbaru yang mengutip jawaban teks survei yang sudah dibuang.
+      expect(dasborSesudah.totalRespondents).toBe(dasborSebelum.totalRespondents - 1);
+      expect(dasborSesudah.ikmTrend.some((t: { periode: string }) => t.periode === PERIODE)).toBe(
+        false,
+      );
+      expect(
+        dasborSesudah.recentFeedback.some((f: { text: string }) => f.text === UMPAN_BALIK),
+      ).toBe(false);
+    }, 60000);
   });
 });
