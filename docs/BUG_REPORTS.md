@@ -104,7 +104,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
-| [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | Baru       | C-14    |
+| [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | Baru       | C-16    |
@@ -114,7 +114,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 21 temuan: 7 ditutup, **14 terbuka (0 Critical, 1 High, 7 Medium, 6 Low)**
+**Rekap** — 21 temuan: 8 ditutup, **13 terbuka (0 Critical, 0 High, 7 Medium, 6 Low)**
 
 > **(15 Oktober 2026) Baris di atas sebelumnya berbunyi "20 temuan ... 14
 > terbuka ... 5 Low", dan itu salah hitung.** Sebabnya kesalahan penguji yang
@@ -131,6 +131,15 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > (BUG-001, 002, **005**, 004, 006, 020, 021), sisanya 14 terbuka — **tak ada
 > lagi yang Critical**; High BUG-013; Medium BUG-008, 009, 014, 015, 016, 017,
 > 019; Low BUG-003, 007, 010, 011, 012, 018.
+>
+> **(19 Oktober 2026) Dihitung ulang sekali lagi sesudah BUG-013 ditutup**, juga
+> dari baris tabelnya dan bukan dengan mengurangi satu: 21 baris, delapan
+> `Ditutup` (BUG-001, 002, 004, 005, 006, **013**, 020, 021), sisanya 13 terbuka
+> — **tak ada lagi yang Critical MAUPUN High**; Medium BUG-008, 009, 014, 015,
+> 016, 017, 019; Low BUG-003, 007, 010, 011, 012, 018. Tujuh Medium itu kini
+> tingkat tertinggi yang terbuka, dan dokumen ini TIDAK memeringkat di antara
+> mereka; yang dapat dikatakan tanpa mengarang: hanya [BUG-008](#bug-008) yang
+> akibatnya terlihat oleh pengunjung publik, sisanya di layar internal.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -143,6 +152,13 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > teratas sekarang [BUG-013](#bug-013), satu-satunya High yang tersisa (survei
 > di Sampah tetap terhitung pada statistik publik). Tautan `/surveys/333` di
 > atas sudah mati sejak 4 September 2026 ketika reproduksinya dihapus.
+>
+> **(19 Oktober 2026) BUG-013 pun sudah ditutup, jadi tak ada lagi temuan
+> Critical MAUPUN High yang terbuka.** Kalimat "yang menempati urutan teratas
+> sekarang BUG-013" di atas dibiarkan sebagai rekaman tanggal itu. Tingkat
+> tertinggi yang terbuka kini Medium, tujuh temuan; lihat catatan hitung ulang
+> 19 Oktober di atas untuk apa yang dapat dan tidak dapat dikatakan tentang
+> urutannya.
 
 Tiga temuan pertama sudah diperbaiki tim dev dan diverifikasi ulang pada
 2 September 2026. BUG-002 kini terkunci uji otomatis; BUG-001 belum.
@@ -163,6 +179,16 @@ regresi sungguhan.
 | [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL |
 | [BUG-018](#bug-018) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
 | [BUG-019](#bug-019) | `e2e/sso-galat.spec.js` | E2E (API) |
+
+> ⚠️ **PAGAR BUG-013 AKAN MERAH BEGITU `main` DITARIK KE CABANG INI.** Perbaikan
+> BUG-013 mendarat di `main` pada 19 Oktober 2026, sedangkan
+> `apps/web/e2e/statistik-sampah.spec.js` hidup HANYA di `tester` dan masih
+> ditulis sebagai `test.fail()`. Itu memang rancangannya — anotasi itu ada
+> justru untuk memerah pada momen perbaikan — tetapi akibatnya harus diduga
+> lebih dulu, bukan ditemukan sebagai kejutan: pada merge berikutnya spec itu
+> melapor `Expected to fail, but passed`. Yang harus dikerjakan saat itu:
+> **cabut `test.fail()`-nya, jangan hapus specnya** — sejak saat itu ia pagar
+> regresi sungguhan. Rinciannya di [TEST_CASES.md §Y.8](TEST_CASES.md).
 
 Tiap pagar didahului **uji kendali yang wajib lulus**, dan tiap-tiap dibuktikan
 **dua arah**: cacatnya diperbaiki sementara di kode produksi, pagarnya diamati
@@ -1267,6 +1293,100 @@ penyaringnya dipasang, uji itu **merah** (`Expected to fail, but passed`) dan
 menuntut anotasinya dicabut — sejak saat itu ia jadi pagar regresi sungguhan.
 Dibuktikan dua arah dengan memasang penyaringnya sementara lalu
 mengembalikannya. Rinciannya di [TEST_CASES.md §Y.8](TEST_CASES.md).
+
+---
+
+#### Penutupan (19 Oktober 2026)
+
+**Diperbaiki di `main`:** `f1c132e` (perbaikan) dan `a930af2` (merge), disusul
+`777b22d` dan `658be77` yang menutup dua celah penjagaan ujinya. Cabang `tester`
+TIDAK memuat perbaikan itu; lihat peringatan pagar di bagian rekap dokumen ini.
+
+**DUA PERNYATAAN DI ATAS TERNYATA MENGECILKAN MASALAHNYA, dan keduanya
+dikoreksi di sini alih-alih ditulis ulang di tempatnya** — teks bertanggal 15
+September dibiarkan utuh sebagai rekaman apa yang diketahui hari itu.
+
+1. Paragraf "Sebabnya kini pasti" menyebut query `ikmResult` menyuapi **DUA**
+   keluaran, `summary.ikm` dan `ikmTrend`. Sebenarnya **EMPAT**: `serviceElements`
+   (rata-rata NRR per unsur) dan `topOpd` (papan peringkat) juga dibangun dari
+   `ikmResults` yang sama. Papan peringkat itu bahkan sudah tercatat bergerak di
+   tabel "Hasil sebenarnya" di atas (Dinas Kesehatan 100 → 62,5), jadi gejalanya
+   terukur sejak awal sementara sebabnya belum dihubungkan.
+2. Paragraf yang sama menutup dengan "satu klausa lagi di query yang sama".
+   Penyisiran 19 Oktober menemukan **TUJUH tempat** tanpa penyaring `deletedAt`,
+   bukan satu:
+
+   | Tempat | Keluaran yang tercemar |
+   | ------ | ---------------------- |
+   | `hitungStatistik` · `ikmResult.findMany` tanpa `where` | `summary.ikm`, `ikmTrend`, `serviceElements`, `topOpd` |
+   | `hitungStatistik` · `surveyResponse.count()` tanpa `where` | `summary.totalRespondents` |
+   | `hitungStatistik` · `answer.groupBy` hanya menyaring `nilai` | `valueDistribution` |
+   | `getOpdDashboard` · `surveyResponse.count` | jumlah responden dasbor OPD |
+   | `getOpdDashboard` · `answer.findMany` | umpan balik terbaru dasbor OPD |
+   | `getOpdDashboard` · `ikmResult.findMany` | riwayat IKM dasbor OPD |
+   | `getRespondentTrendPercent` · dua `surveyResponse.count` | persentase tren responden |
+
+   Pada `answer.groupBy` jalurnya dua lapis: `answer` tak mengenal survei
+   langsung, ia menggapainya lewat `response`.
+
+**SATU LUBANG KEDELAPAN DISANGKA ADA, LALU DIBATALKAN OLEH PENGUKURAN.**
+`activeSurveys` di `hitungStatistik` hanya menyaring `status: aktif` dan karena
+itu terlihat ikut bocor. Ia tidak: `SurveysService.remove` menyetel
+`status: ditutup` ketika survei yang dibuang sedang aktif, jadi survei di Sampah
+tak pernah dapat berstatus `aktif`. Penyaring di sana akan menjadi kode mati
+yang menyesatkan pembaca berikutnya, dan sengaja TIDAK ditambahkan.
+
+**Uji dibuktikan merah lebih dulu, dan merah karena perilaku.** Sebelum satu
+baris produksi diubah, uji e2e baru di `apps/api/test/dashboard.e2e-spec.ts`
+gagal pada `summary.totalRespondents`: diharap 1, diterima 2 — angkanya tak
+bergerak sama sekali sesudah survei dibuang, persis gejala yang dilaporkan
+15 September. `tsc --noEmit -p tsconfig.spec.json` kode=0 dijalankan lebih dulu
+supaya merah yang muncul tak mungkin berasal dari galat impor.
+
+**Sembilan uji, dan tujuh di antaranya dibuktikan lewat tujuh mutasi.** Tiap
+penyaring dilepas satu per satu, suitenya dijalankan, lalu sumbernya dipulihkan.
+Mutasi query `ikmResult` membunuh empat uji sekaligus (`ikmTrend`,
+`summary.ikm`, `serviceElements`, `topOpd`) — bukti langsung atas koreksi nomor
+1 di atas. Dua uji sisanya TIDAK terbunuh oleh mutasi mana pun, dan itu
+sifatnya: keduanya uji **prasyarat**, yang menuntut sesuatu memang terhitung,
+sementara melepas penyaring justru membuat lebih banyak terhitung. Keduanya ada
+untuk mencegah tujuh uji lain lulus secara hampa.
+
+**Prasyarat kedua lahir dari kegagalan, bukan dari rancangan.** Versinya yang
+pertama menuntut periode survei sudah muncul di riwayat IKM dasbor OPD sebelum
+dibuang, dan MEMERAH — benar memerah: riwayat itu dibaca dari snapshot
+`ikm_results`, bukan dihitung langsung, jadi survei yang masih aktif belum punya
+barisnya. Berarti "hilangnya" sesudah dibuang tak membuktikan apa pun.
+Prasyaratnya diganti menjadi yang sungguh berlaku: barisnya memang ADA sesudah
+pembuangan, karena `remove` memanggil `snapshot()` tepat saat membuang.
+
+**Tak ada data yang perlu diperbaiki.** Cacatnya ada di jalur BACA, bukan tulis:
+snapshot di `ikm_results` tetap benar dan hanya berhenti dihitung. Catatan di
+atas ("snapshot IKM memang sengaja dibuat saat survei aktif dibuang ... yang
+terlewat adalah penyaring `deletedAt`") terbukti tepat.
+
+**Satu keterbatasan tetap ada dan BUKAN bagian dari perbaikan ini.**
+`GET /statistics` dibungkus singgahan ber-TTL 60 detik tanpa invalidasi, jadi
+angka publik dapat tertinggal paling lama satu menit sesudah survei dibuang. Itu
+rancangan yang disengaja untuk meredam lonjakan dari poster/QR, bukan sisa cacat
+ini.
+
+**Satu cacat UJI ikut ditemukan dan diperbaiki sambil jalan.** Tujuh jalan
+mutasi beruntun juga menjatuhkan uji lama `(INT-14) topOpd ...` pada enam dari
+tujuh jalan, dan sebabnya bukan mutasinya: `afterAll` menghapus baris OPD
+`E2EDASH`, sehingga `upsert` pada jalan berikutnya mencetak id baru, sementara
+muatan singgahan 60 detik masih memegang id lama. Diukur langsung di Redis,
+bukan disimpulkan: `singgahan:statistik-publik` berisi
+`topOpd: [{ opdId: 755, … }]` sementara `opd_id_seq` sudah di 755 dan baris 755
+tak ada lagi di tabel `opd`. Percobaan empat jalan memisahkan sebabnya — dengan
+pembuang singgahan lulus dua kali, tanpanya gagal dua kali. Akibatnya lebih
+dalam daripada kegoyahan: APA yang diuji bergantung pada keadaan singgahan.
+Satu `hapus` membuat jawabannya satu.
+
+**Verifikasi (isi di disk, pascacommit):** unit api 84 suite / 1.359 uji, e2e
+api 41 suite / **455** uji (sebelumnya 446), uji komponen web 202 suite / 1.659
+uji, eslint kode=0, prettier bersih, nol CRLF. Playwright TIDAK dijalankan —
+dan justru di sanalah pagar `test.fail()` yang akan memerah itu hidup.
 
 ---
 
@@ -3504,5 +3624,6 @@ ketiga adalah keadaan hari ini, dan ia berlangsung tanpa pernah diputuskan.
 | 4.6 | 15 Oktober 2026 | **BUG-020 ditutup.** Tiga medan sisanya -- `isAnonim`, `tanpaOpd`, `unreadOnly` -- diperbaiki dengan `@Type(() => String)` dan masing-masing dapat uji e2e yang dibuktikan merah lebih dulu oleh cacatnya sendiri, bukan oleh mutasi. TC-BOOL-001 s.d. 003 di Modul J kini ✅. Satu kesalahan penguji ikut dicatat: uji `tanpaOpd` mula-mula memerah dengan 400 karena `limit=200` melampaui batas 100, merah karena alasan yang salah, lalu dibetulkan. e2e api 441 -> 444 uji. |
 | 4.7 | 15 Oktober 2026 | **BUG-021** — `ComplaintTable` memanggil `Pagination` dengan `1/1/3` dipatok mati, sehingga daftar pengaduan warga berbunyi "Menampilkan 1-3 dari 12" di bawah dua belas baris; ditambah pemotongan diam di lima halaman admin (`FETCH_LIMIT = 100`), daftar warga (50), dan Riwayat Aktivitas (10). Ditutup lewat satu komponen bersama `CatatanPemotongan` dan angka paginasi yang diturunkan dari baris yang ada, 21 uji dibuktikan merah lebih dulu. Pemotongannya sendiri TIDAK diperbaiki dan dicatat sebagai **CAT-022**, sebab paginasi sisi server menuntut backend menerima `search`. Dua pemasangan tanpa uji disebut tersurat. TC-FE-050 & 051 lahir dari sini. Label "Beranda" juga berganti menjadi "Layanan" di seluruh antarmuka pada hari yang sama; sebelas sebutan bertanggal di dokumen ini dibiarkan utuh. |
 | 4.8 | 15 Oktober 2026 | **Dua pemasangan tanpa uji pada BUG-021 ditutup** (`06a7da7` di `main`): `admin-kab/complaints` dan `admin-opd/complaints` mendapat uji halaman pertamanya, 6 + 7 kasus. Kode halamannya sudah ada sehingga uji baru lulus pada jalan pertama, jadi ketiga belas uji dibuktikan lewat SEBELAS MUTASI yang dipasang satu per satu lalu dipulihkan; setiap uji terbunuh oleh setidaknya satu. TC-FE-051 dikoreksi: "tiga uji halaman admin" menjadi lima. Dua kesalahan penguji pada catatan 4.7 ikut dikoreksi, bukan dihapus: berkas yang disebut "tak ada lagi" sebenarnya hidup di `tester` dan hanya tak ada di `main`, dan angka "200 berkas / 1.640 uji" adalah bacaan `main` yang tak dapat dibandingkan dengan tabel pemetaan §Y.1 yang dibaca di `tester`. Satu benturan merge ditinggalkan dengan sengaja pada jalur uji halaman OPD, berisi dua berkas yang lahir sendiri-sendiri; penyelesaiannya gabungan, bukan pilihan. |
-| 5.0 | 16 Oktober 2026 | **BUG-005 DITUTUP** (`6d2f298` di `main`), dan dengan itu tak ada lagi temuan Critical yang terbuka — pertama kalinya sejak dokumen ini dibuat. Itulah sebabnya nomor minornya naik ke 5.0, bukan 4.10. Akar masalahnya dua lapis: `duplicate()` tak pernah memuat relasi `options`, dan penjaga "minimal 2 opsi" di `QuestionsService` tak berada di jalur nested create sehingga tak pernah dapat menangkapnya. Ujinya merah lebih dulu oleh cacatnya sendiri (`Expected: 7, Received: 0`, sama persis dengan bukti 2 September). Satu koreksi atas laporan aslinya ikut dicatat: opsi pada tipe `skala` memang opsional menurut rancangan — terukur 46 dari 46 pertanyaan skala di `skm_db` tanpa opsi — jadi label yang kembali ke baku adalah kehilangan penyesuaian, bukan kebuntuan. Basis data pengembangan diperiksa dan nol salinan rusak ditemukan, tetapi hasil itu lemah sebab `skm_db` juga memuat nol survei salinan; produksi tidak diperiksa dan pertanyaannya tetap terbuka di sana. TC-FE-031 ❌ menjadi ✅. Rekap dihitung ulang dari tabelnya, bukan dikurangi: 7 ditutup, 14 terbuka, 0 Critical. |
 | 4.9 | 15 Oktober 2026 | **Benturan merge BUG-021 dilumpuhkan** (`9a9ce6d` di `main`): kedua berkas dilebur menjadi satu bertiga belas kasus, gaya berpindah ke MSW supaya enam kasus September tetap menembus service dan adapter sungguhan, dan 19 ujinya dibuktikan ulang lewat tujuh belas mutasi. Benturan git-nya tetap ada; yang berubah, penyelesaiannya kini cukup mengambil versi `main` tanpa kehilangan cakupan. **CAT-023 baru** menyisir pemisahan cabang yang melahirkannya: `tester` tertinggal sebulan dari `main` (commit bersama terakhir `de41245`, 15 September), 720 berkas berbeda di luar `docs/`, dan 29 berkas hidup hanya di `tester`. Ketiga belas berkas uji milik `tester` DIJALANKAN terhadap kode `main`: 113 uji, enam berkas hijau seluruhnya (44 uji), tujuh berkas dengan 14 uji merah — sembilan karena produknya sengaja berubah, empat karena `main` kekurangan perbaikan `jest.setup.js` yang sudah ada di `tester` (**CAT-009 dikoreksi**: "sudah diperbaiki" hanya benar di `tester`), satu karena uji yang terlalu longgar. Kekhawatiran anonimitas pada kolom "Pengisi" diperiksa dan TIDAK terbukti. **Rekap temuan dikoreksi** dari 20/14/5 Low menjadi 21/15/6 Low: angka lamanya ditambah satu alih-alih dihitung ulang dari tabelnya. |
+| 5.0 | 16 Oktober 2026 | **BUG-005 DITUTUP** (`6d2f298` di `main`), dan dengan itu tak ada lagi temuan Critical yang terbuka — pertama kalinya sejak dokumen ini dibuat. Itulah sebabnya nomor minornya naik ke 5.0, bukan 4.10. Akar masalahnya dua lapis: `duplicate()` tak pernah memuat relasi `options`, dan penjaga "minimal 2 opsi" di `QuestionsService` tak berada di jalur nested create sehingga tak pernah dapat menangkapnya. Ujinya merah lebih dulu oleh cacatnya sendiri (`Expected: 7, Received: 0`, sama persis dengan bukti 2 September). Satu koreksi atas laporan aslinya ikut dicatat: opsi pada tipe `skala` memang opsional menurut rancangan — terukur 46 dari 46 pertanyaan skala di `skm_db` tanpa opsi — jadi label yang kembali ke baku adalah kehilangan penyesuaian, bukan kebuntuan. Basis data pengembangan diperiksa dan nol salinan rusak ditemukan, tetapi hasil itu lemah sebab `skm_db` juga memuat nol survei salinan; produksi tidak diperiksa dan pertanyaannya tetap terbuka di sana. TC-FE-031 ❌ menjadi ✅. Rekap dihitung ulang dari tabelnya, bukan dikurangi: 7 ditutup, 14 terbuka, 0 Critical. |
+| 5.1 | 19 Oktober 2026 | **BUG-013 DITUTUP** (`f1c132e` di `main`), dan dengan itu tak ada lagi temuan Critical MAUPUN High yang terbuka. Laporan aslinya menyebut SATU sebab; penyisirannya menemukan **tujuh** tempat tanpa penyaring `deletedAt`, dan query `ikmResult` yang disebut laporan itu sendiri menyuapi EMPAT keluaran, bukan dua seperti tertulis di entrinya — kedua pernyataan itu dikoreksi sebagai catatan bertanggal, bukan ditulis ulang. Satu lubang kedelapan disangka ada lalu dibatalkan oleh pengukuran: `remove` menyetel `status: ditutup`, jadi survei di Sampah tak pernah dapat `aktif`. Ujinya merah lebih dulu oleh cacatnya sendiri (`totalRespondents` diharap 1, diterima 2), lalu sembilan uji e2e dipasang; tujuh di antaranya dibuktikan lewat tujuh mutasi, dua sisanya uji prasyarat yang memang tak dapat dibunuh mutasi semacam itu. Satu cacat UJI ikut diperbaiki: `(INT-14) topOpd` terikat singgahan 60 detik dan gagal tiap kali suite dijalankan ulang selagi singgahannya hangat — terukur di Redis, `opdId 755` sementara barisnya sudah dihapus. **Pagar `test.fail()` BUG-013 di cabang ini akan merah pada merge `main` berikutnya; cabut anotasinya, jangan hapus specnya.** Urutan baris 4.9 dan 5.0 di tabel ini juga dibetulkan — 4.9 (15 Okt) sempat tercatat SESUDAH 5.0 (16 Okt). |
