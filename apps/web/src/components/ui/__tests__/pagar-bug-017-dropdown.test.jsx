@@ -3,11 +3,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import Dropdown from '../Dropdown';
 
 /**
- * Pagar regresi BUG-017 â€” `Dropdown` menyebut namanya, tak pernah menyebut
+ * Pagar regresi BUG-017 — `Dropdown` menyebut namanya, tak pernah menyebut
  * pilihannya.
  *
  * Pemicunya `<button id={id}>` yang dilabeli `<label htmlFor={id}>`. Pada
- * perhitungan nama aksesibel, label itu MENANG atas isi tombol â€” sehingga
+ * perhitungan nama aksesibel, label itu MENANG atas isi tombol — sehingga
  * nilainya, yang justru satu-satunya isi tombol itu, diabaikan seluruhnya.
  * Pemakai awas melihat "Dinas Kesehatan"; pembaca layar mengumumkan "Instansi,
  * tombol", sebelum maupun sesudah memilih.
@@ -16,15 +16,15 @@ import Dropdown from '../Dropdown';
  * akibatnya bukan ketidaknyamanan: pelapor tunanetra tak pernah dapat
  * memastikan instansi mana yang akan menerima laporannya sebelum menekan Kirim.
  *
- * â”€â”€ Kenapa `test.failing()` dan kenapa ada kendali â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Kenapa `test.failing()` dan kenapa ada kendali ──────────────────────────
  * Sama seperti pagar BUG-015: cacatnya belum diperbaiki, jadi suite tetap hijau
- * selama ia ada dan MERAH begitu diperbaiki â€” menuntut anotasinya dicabut. Uji
+ * selama ia ada dan MERAH begitu diperbaiki — menuntut anotasinya dicabut. Uji
  * kendali yang wajib lulus ada karena `test.failing()` menelan kegagalan apa
  * pun, termasuk komponen yang tak pernah berhasil dirender.
  *
- * â”€â”€ Satu bukti tak sengaja dari berkas sebelah â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── Satu bukti tak sengaja dari berkas sebelah ──────────────────────────────
  * `Dropdown.test.jsx` mencari pemicunya dengan `screen.getByLabelText('Instansi')`
- * â€” dan itu BERHASIL justru karena cacat ini. Uji yang sudah ada diam-diam
+ * — dan itu BERHASIL justru karena cacat ini. Uji yang sudah ada diam-diam
  * bersandar pada perilaku yang salah; ia tetap lulus sesudah diperbaiki (label
  * masih menjadi bagian namanya), tetapi pantas diketahui.
  */
@@ -47,11 +47,11 @@ const renderDropdown = (props = {}) =>
     />,
   );
 
-/** Pemicunya, dicari lewat labelnya â€” satu-satunya cara yang bekerja hari ini. */
+/** Pemicunya, dicari lewat labelnya — satu-satunya cara yang bekerja hari ini. */
 const pemicu = () => screen.getByLabelText('Instansi');
 
-describe('BUG-017 â€” nama aksesibel Dropdown', () => {
-  it('kendali â€” nilai terpilih memang TAMPAK di layar', () => {
+describe('BUG-017 — nama aksesibel Dropdown', () => {
+  it('kendali — nilai terpilih memang TAMPAK di layar', () => {
     renderDropdown();
 
     // Yang dilihat pemakai awas. Kalau baris ini gagal, ketiga uji di bawah
@@ -65,7 +65,7 @@ describe('BUG-017 â€” nama aksesibel Dropdown', () => {
 
     // Yang seharusnya terdengar: "Instansi, Dinas Kesehatan". Yang terdengar
     // sekarang: "Instansi" saja. `aria-labelledby` yang menunjuk label DAN
-    // nilainya sekaligus memberi keduanya tanpa membuang labelnya â€” dan
+    // nilainya sekaligus memberi keduanya tanpa membuang labelnya — dan
     // labelnya memang harus tinggal: dua dropdown bersebelahan yang sama-sama
     // berisi kata waktu ("Semua waktu", "Terbaru dulu") tak dapat dibedakan
     // tanpa itu (lihat komentar di NotificationFilterBar.jsx).
@@ -76,7 +76,7 @@ describe('BUG-017 â€” nama aksesibel Dropdown', () => {
     renderDropdown();
 
     // Tanpa `aria-haspopup`, tak ada yang memberi tahu bahwa tombol ini
-    // membuka pilihan â€” ia terdengar seperti tombol biasa yang mengerjakan
+    // membuka pilihan — ia terdengar seperti tombol biasa yang mengerjakan
     // sesuatu begitu ditekan. `EksporMenu.jsx` di folder yang sama sudah
     // memasangnya; polanya dikuasai, hanya tak dipakai di sini.
     expect(pemicu()).toHaveAttribute('aria-haspopup');

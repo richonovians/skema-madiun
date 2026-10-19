@@ -5,11 +5,11 @@ import IkmLeaderboard from '../kabupaten/IkmLeaderboard';
 import { calculateDonutSegments } from '../../utils/chartHelpers';
 
 /**
- * TC-FE-012 â€” Grafik dashboard IKM menggambar angka yang sebenarnya.
+ * TC-FE-012 — Grafik dashboard IKM menggambar angka yang sebenarnya.
  *
  * PREMIS ASLI KASUS UJI INI SUDAH USANG. Ia menuntut "tooltip berisi detail
  * nilai NRR dan nama OPD muncul saat kursor diarahkan". Grafiknya tidak memakai
- * pustaka chart apa pun â€” keduanya SVG dan div yang ditulis tangan â€” dan
+ * pustaka chart apa pun — keduanya SVG dan div yang ditulis tangan — dan
  * pilihan desainnya berbeda serta lebih baik: **nilainya selalu terlihat**,
  * bukan disembunyikan di balik hover. Nilai IKM tertulis di samping tiap nama
  * OPD, dan persentase tiap status tertulis di bawah donat. Hover yang tak
@@ -17,18 +17,18 @@ import { calculateDonutSegments } from '../../utils/chartHelpers';
  *
  * Yang diuji sebagai gantinya adalah risiko yang sesungguhnya ada pada grafik
  * gambar-sendiri: **angka yang digambar menyimpang dari angka yang dilaporkan.**
- * Grafik yang salah lebih berbahaya daripada grafik yang tak ada â€” ia terlihat
+ * Grafik yang salah lebih berbahaya daripada grafik yang tak ada — ia terlihat
  * berwibawa, dan tak seorang pun memeriksanya ulang.
  *
  * Kerusakan yang ditangkap:
- *  - `calculateDonutSegments` berhenti menumpuk offset â†’ seluruh irisan mulai
+ *  - `calculateDonutSegments` berhenti menumpuk offset → seluruh irisan mulai
  *    dari jam 12 dan saling menimpa, donatnya terbaca sebagai satu warna;
  *  - panjang irisan tak lagi sebanding persentasenya;
  *  - nilai IKM di papan peringkat tak sebanding lebar batangnya;
  *  - nama OPD panjang terpotong TANPA `title`, sehingga tak ada cara apa pun
  *    mengetahui OPD mana yang dimaksud;
  *  - keadaan kosong menampilkan grafik nol yang terbaca sebagai "nilainya nol"
- *    â€” pada skala IKM, 0 berarti pelayanan terburuk, bukan "belum ada data".
+ *    — pada skala IKM, 0 berarti pelayanan terburuk, bukan "belum ada data".
  */
 
 const STATUS = {
@@ -56,15 +56,15 @@ describe('calculateDonutSegments (TC-FE-012)', () => {
   it('menempatkan tiap irisan tepat sesudah irisan sebelumnya', () => {
     const hasil = calculateDonutSegments(STATUS.status);
 
-    // Lingkarannya ber-r=15.915 sehingga kelilingnya persis 100 â€” jadi
+    // Lingkarannya ber-r=15.915 sehingga kelilingnya persis 100 — jadi
     // "persentase" dan "panjang garis" adalah satuan yang sama.
     expect(hasil.map((s) => s.dashArray)).toEqual(['50 50', '25 75', '15 85', '10 90']);
     // Offset menumpuk: 0, -50, -75, -90. Kalau ia berhenti menumpuk, seluruh
     // irisan mulai dari titik yang sama dan donatnya jadi satu warna.
     //
     // Irisan pertama bernilai `-0` (hasil `-cumulativePercentage` saat
-    // cumulative masih 0), dan `toEqual` membedakan `-0` dari `0`. SVG tidak â€”
-    // keduanya menggambar hal yang persis sama â€” jadi tandanya disamakan di
+    // cumulative masih 0), dan `toEqual` membedakan `-0` dari `0`. SVG tidak —
+    // keduanya menggambar hal yang persis sama — jadi tandanya disamakan di
     // sini alih-alih menuntut kode produksi berubah demi pengujian.
     const offset = hasil.map((s) => (Object.is(s.dashOffset, -0) ? 0 : s.dashOffset));
     expect(offset).toEqual([0, -50, -75, -90]);
@@ -95,7 +95,7 @@ describe('ComplaintStatusDonut (TC-FE-012)', () => {
       expect(irisan[i]).toHaveAttribute('stroke', s.color);
     });
 
-    // Offset baru dipasang sesudah animasi mulai; sebelum itu semuanya 0 â€”
+    // Offset baru dipasang sesudah animasi mulai; sebelum itu semuanya 0 —
     // memeriksanya terlalu cepat berarti memeriksa keadaan sebelum digambar.
     await waitFor(() => expect(irisan[1]).toHaveAttribute('stroke-dashoffset', '-50'));
   });
@@ -130,7 +130,7 @@ describe('IkmLeaderboard (TC-FE-012)', () => {
   it('memberi tiap batang lebar sebanding nilai IKM-nya', async () => {
     const { container } = render(<IkmLeaderboard data={PERINGKAT} periode="2026-Q3" />);
 
-    // Batang mulai dari 0% lalu tumbuh â€” tunggu sampai animasinya jalan,
+    // Batang mulai dari 0% lalu tumbuh — tunggu sampai animasinya jalan,
     // kalau tidak yang diperiksa adalah keadaan sebelum digambar.
     await waitFor(() => {
       const batang = container.querySelectorAll('.h-3 > div');
