@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.3 |
+| **Versi** | 5.4 |
 | **Tanggal** | 19 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -1389,6 +1389,7 @@ uji, eslint kode=0, prettier bersih, nol CRLF. Playwright TIDAK dijalankan —
 dan justru di sanalah pagar `test.fail()` yang akan memerah itu hidup.
 
 ---
+<a id="bug-014"></a>
 
 ### BUG-014 — Hapus permanen meninggalkan notifikasi yang menunjuk survei yang sudah tiada
 
@@ -1459,6 +1460,7 @@ dimusnahkan. Dibuktikan dua arah dengan menambahkan `notification.deleteMany`
 pada transaksi `purge` sementara, lalu mengembalikannya.
 
 ---
+<a id="bug-015"></a>
 
 ### BUG-015 — Dialog konfirmasi tindakan destruktif tak dapat dipakai pembaca layar
 
@@ -2238,6 +2240,7 @@ berikutnya. Seseorang yang melihat `helpdesk.api.js` wajar mengira ada integrasi
 Helpdesk yang belum selesai di sisi pengaduan, padahal tidak ada.
 
 ---
+<a id="cat-007"></a>
 
 ### CAT-007 — Proxy dapat ditembus dengan menyunting cookie sendiri (memang begitu rancangannya)
 
@@ -2494,6 +2497,7 @@ berkas inilah satu-satunya tempat aturan area dijelaskan, dan penguji berikutnya
 yang membacanya akan menyimpulkan matriks A.5.1 sedang jebol — persis kesimpulan
 yang hampir saya tulis. Matriks di TEST_CASES §A.5.1 sudah disesuaikan dengan
 perilaku sebenarnya.
+<a id="cat-014"></a>
 
 ### CAT-014 — `pnpm db:seed` tak dapat dijalankan sejak peran jamak
 
@@ -2603,6 +2607,7 @@ tim backend, bukan penguji, dan mengubahnya diam-diam akan menyelundupkan
 keputusan itu ke dalam perbaikan yang seharusnya mekanis.
 
 ---
+<a id="cat-016"></a>
 
 ### CAT-016 — Sesi memegang dua token berbeda; yang di cookie tak pernah berperan
 
@@ -2646,6 +2651,7 @@ berganti.
    sudah memilih peran.
 
 ---
+<a id="cat-017"></a>
 
 ### CAT-017 — Berpindah peran tidak mencabut token peran sebelumnya
 
@@ -2685,6 +2691,7 @@ sediakan penyegaran, atau simpan nomor versi peran pada akun dan tolak token
 yang versinya tertinggal.
 
 ---
+<a id="bug-016"></a>
 
 ### BUG-016 — Captcha yang gagal mengunci tombol kirim selamanya, tanpa satu pun pesan
 
@@ -2757,6 +2764,7 @@ satu baris peringatan di dalam modal beserta tombol "Muat ulang verifikasi", dan
 bila perlu batas waktu (mis. 15 detik tanpa token dianggap gagal).
 
 ---
+<a id="cat-018"></a>
 
 ### CAT-018 — Jalur pengisian publik tak dapat diuji ujung-ke-ujung di lingkungan pengembangan
 
@@ -2844,6 +2852,7 @@ prop `onError` sementara, lalu mengembalikannya.
 > ditinggalkan pada kontrak yang sudah berubah adalah pagar yang diam-diam mati.
 
 ---
+<a id="bug-017"></a>
 
 ### BUG-017 — Dropdown menyebutkan namanya, tak pernah menyebutkan pilihannya
 
@@ -2922,6 +2931,7 @@ menjadi bagian namanya), jadi bukan penghalang perbaikan — tetapi pantas
 diketahui sebelum seseorang menyimpulkan bahwa nama aksesibelnya sudah teruji.
 
 ---
+<a id="bug-018"></a>
 
 ### BUG-018 — Meneruskan pengaduan menyiarkan ulang "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya
 
@@ -3067,6 +3077,7 @@ ke sana. Dibuktikan dua arah dengan menghapus `query.error_description` dari
 pemanggilan itu sementara, lalu mengembalikannya.
 
 ---
+<a id="cat-019"></a>
 
 ### CAT-019 — Ekspor daftar survei mewarisi batas 100 baris, dan "Excel" sebenarnya CSV
 
@@ -3751,6 +3762,106 @@ Daftarnya: tujuh di atas ditambah
 pula. Pemisahan cabangnya pun tetap tak tersentuh: yang bertambah hari itu hanya
 satu berkas uji dan satu perbaikan setelan uji, keduanya ke arah `main`.
 
+#### Besarnya merge akhirnya terukur, dan satu cacat porting ikut tersingkap (19 Oktober 2026)
+
+Catatan di atas menyebut pemisahan cabang berulang kali tanpa pernah menyebut
+berapa benturan yang sebenarnya menanti. Angkanya sekarang ada, dan ia jauh
+lebih kecil daripada yang diduga siapa pun di dokumen ini.
+
+**Uji-coba merge dijalankan tanpa menyentuh pohon kerja** lewat
+`git merge-tree --write-tree --name-only tester main`. Hasilnya **13 berkas
+berbenturan**, bukan ratusan. Angka 342 berkas hanya-di-`main` dan 349 yang
+berbeda isinya tetap benar, tetapi keduanya BUKAN ukuran kesulitan merge-nya:
+berkas yang hanya ada di satu sisi melebur tanpa benturan sama sekali.
+
+**TUJUH DARI TIGA BELAS BENTURAN ITU SAYA SENDIRI YANG SEBABKAN, dan sebabnya
+cacat, bukan perbedaan isi yang sah.** Ketujuhnya justru berkas uji yang
+dipindahkan ke `main` pagi itu, yang mestinya salinan identik. Mereka
+bertabrakan sebagai `add/add` karena salinan di `main` RUSAK: skrip Python
+penyalinnya membaca isi berkas dengan kodekan bawaan Windows (cp1252) lalu
+menuliskannya sebagai UTF-8, sehingga tiap aksara non-ASCII tersimpan sebagai
+mojibake yang kebetulan UTF-8 yang sah. Byte `e2 80 94` (tanda pisah) menjadi
+`c3 a2 e2 82 ac e2 80 9d`. 58 baris di tujuh berkas.
+
+`AuthCallbackLoader.test.jsx` tidak ikut rusak dan tidak ikut berbenturan, dan
+itu yang menunjuk sebabnya: ia disalin dengan cara lain.
+
+**Yang rusak bukan hanya komentar.** Nama `describe` dan `it` pada tiga berkas
+pagar (BUG-015, BUG-016, BUG-017) ikut rusak, jadi keluaran jest di `main`
+berbunyi `BUG-015 â€” dialog konfirmasi ...` dan penyaringan `-t`
+atas nama itu tak lagi cocok. Nilai pernyataan tidak kena — itu diperiksa,
+bukan diduga: pemeriksaannya melaporkan setiap baris rusak yang TIDAK dibuka
+penanda komentar, dan yang muncul hanya enam baris `describe`/`it`. Karena
+itulah 211 suite di `main` tetap hijau selama cacat ini ada.
+
+**TAK SATU ALAT PUN MEMERAH, dan ini yang pantas diingat.** `.prettierignore`
+mengecualikan `apps/web`, jadi `prettier --check` tak pernah melihat berkas
+itu; eslint tak mempersoalkan aksara di dalam komentar maupun di dalam string
+nama uji; dan mojibake-nya UTF-8 yang sah, jadi tak ada pembacaan yang gagal.
+Satu-satunya cara menemukannya adalah membandingkan isi dengan sumbernya —
+dan yang memaksanya terlihat justru uji-coba merge di atas.
+
+**Sapuan pertama saya menjawab NOL secara salah** karena memakai daftar pola
+tangan, dan hampir menghasilkan laporan "tidak ada apa-apa" yang palsu. Yang
+akhirnya dipakai pembalikan: kodekan teks ke cp1252 lalu baca sebagai UTF-8;
+bila langkah itu berhasil dan hasilnya berbeda, teks itu memang mojibake.
+
+Diperbaiki di `main` (`978fcb2`, merge `900cba6`). Buktinya bertingkat byte,
+bukan pemeriksaan mata: ketujuh berkas kini BYTE-IDENTIK dengan sumbernya di
+cabang ini. Cabang `tester` sendiri disapu penuh lewat objek git tanpa
+checkout — **0 dari 748 berkas rusak** — jadi kerusakannya memang
+terisolasi pada salinan di `main` dan sumber di sini tak pernah tersentuh.
+
+**Benturan merge karena itu turun dari 13 menjadi 6**, dan keenam sisanya
+perbedaan isi sungguhan yang memang menuntut keputusan:
+
+| Berkas                                             | Selisih `tester` — `main` |
+| -------------------------------------------------- | -------------------------- |
+| `apps/api/prisma/seed.ts`                          | 15 tambah / 18 buang       |
+| `apps/api/tsconfig.json`                           | 1 tambah / 1 buang         |
+| `apps/api/tsconfig.build.json`                     | 9 tambah / 1 buang         |
+| `apps/web/jest.setup.js`                           | 49 tambah / 8 buang        |
+| `apps/web/playwright.config.ts`                    | 100 tambah / 56 buang      |
+| `app/admin-opd/complaints/__tests__/page.test.jsx` | 221 tambah / 24 buang      |
+
+Tiga yang pertama berasal dari perbaikan CAT-014 yang dikerjakan di cabang ini
+15 September; dua berikutnya setelan uji yang kedua cabang kembangkan sendiri;
+yang terakhir satu jalur uji yang kedua sisi tulis masing-masing.
+
+#### Keputusan atas pagar `test.fail()` BUG-013 (19 Oktober 2026)
+
+**Pagarnya DIBIARKAN terpasang, dan pencabutannya dilakukan saat merge.**
+Diputuskan pengguna, dan dasarnya terukur.
+
+Hari ini pagar itu masih BENAR di cabang ini: cacatnya memang masih hidup di
+sini. `DashboardService.hitungStatistik` di `tester` masih memanggil
+`prisma.ikmResult.findMany({ select: ... })` tanpa `where` sama sekali, jadi
+`test.fail()` membuat suite hijau sebagaimana mestinya dan tak ada yang perlu
+dicabut. Ia baru memerah ketika `main` dimerge ke sini.
+
+Satu hal yang membuat menunggu tidak meninggalkan celah, dan ini yang paling
+pantas dicatat: **BUG-013 sudah berpagar di `main` lewat sembilan uji e2e
+`apps/api`** di `test/dashboard.e2e-spec.ts`, yang dibuktikan merah oleh
+cacatnya sendiri. Jadi penundaan di sini bukan penundaan penjagaan — pagar
+Playwright di cabang ini penjaga KEDUA atas cacat yang sama, lewat endpoint
+publik.
+
+Dua jalan lain ditimbang dan ditolak, sebabnya dicatat supaya tak ditimbang
+ulang dari nol. Memindahkan pagarnya ke `main` menuntut `e2e/support/api.js`
+(279 baris) dan `support/global-setup.js` ikut pindah, sementara
+`playwright.config.ts` di `main` menunjuk `e2e/global-setup.ts` yang lain dan
+akun ujinya berbeda (`warga@example.go.id` di sini berbanding
+`E2E_IDENTIFIER=seed-admin-kabupaten` di sana) — dan hasilnya hanya
+menduakan sembilan uji e2e yang sudah menjaga BUG-013 di sana. Merge `main` ke
+sini sekarang adalah penyelesaian sesungguhnya, tetapi ia membawa lima berkas
+uji basi yang akan memerah dan 11 spec Playwright yang belum pernah dinilai;
+itu pekerjaan tersendiri, bukan perkara pagar ini.
+
+Ketika merge itu akhirnya terjadi, yang harus dilakukan **penghapusan enam
+baris**: panggilan `test.fail(...)` di dalam uji kedua pada
+`apps/web/e2e/statistik-sampah.spec.js`. **Specnya JANGAN dihapus** — sejak
+saat itu ia menjadi pagar regresi sungguhan.
+
 ---
 
 ## 6. Riwayat revisi
@@ -3792,3 +3903,4 @@ satu berkas uji dan satu perbaikan setelan uji, keduanya ke arah `main`.
 | 5.1 | 19 Oktober 2026 | **BUG-013 DITUTUP** (`f1c132e` di `main`), dan dengan itu tak ada lagi temuan Critical MAUPUN High yang terbuka. Laporan aslinya menyebut SATU sebab; penyisirannya menemukan **tujuh** tempat tanpa penyaring `deletedAt`, dan query `ikmResult` yang disebut laporan itu sendiri menyuapi EMPAT keluaran, bukan dua seperti tertulis di entrinya — kedua pernyataan itu dikoreksi sebagai catatan bertanggal, bukan ditulis ulang. Satu lubang kedelapan disangka ada lalu dibatalkan oleh pengukuran: `remove` menyetel `status: ditutup`, jadi survei di Sampah tak pernah dapat `aktif`. Ujinya merah lebih dulu oleh cacatnya sendiri (`totalRespondents` diharap 1, diterima 2), lalu sembilan uji e2e dipasang; tujuh di antaranya dibuktikan lewat tujuh mutasi, dua sisanya uji prasyarat yang memang tak dapat dibunuh mutasi semacam itu. Satu cacat UJI ikut diperbaiki: `(INT-14) topOpd` terikat singgahan 60 detik dan gagal tiap kali suite dijalankan ulang selagi singgahannya hangat — terukur di Redis, `opdId 755` sementara barisnya sudah dihapus. **Pagar `test.fail()` BUG-013 di cabang ini akan merah pada merge `main` berikutnya; cabut anotasinya, jangan hapus specnya.** Urutan baris 4.9 dan 5.0 di tabel ini juga dibetulkan — 4.9 (15 Okt) sempat tercatat SESUDAH 5.0 (16 Okt). |
 | 5.2 | 19 Oktober 2026 | **CAT-009 ditutup di `main` juga** (`1bd55ec`): `jest.setup.js` berhenti menimpa `global.File` dengan `undefined`, dan penjaga langsung dipasang di `src/__tests__/penyiapan-file-global.test.js` yang dibuktikan merah lebih dulu. Dua angka pada catatan 15 Oktober dikoreksi, bukan ditulis ulang: biayanya bukan empat uji melainkan DUA BERKAS PENUH (22 uji), dan daftar berkas yang dapat dipindahkan naik dari enam berkas / 44 uji menjadi tujuh berkas / 66 uji semata karena perbaikan itu. **CAT-023 jalan pertama diambil sebagian**: ketujuh berkas itu pindah ke `main`, lima berkas basi tetap tinggal dengan sebabnya masing-masing, dan pemisahan cabangnya SENDIRI belum tersentuh — 342 berkas hanya-di-`main`, 349 berbeda isinya, 11 spec Playwright belum dinilai. Satu baris tabel CAT-023 terbukti salah: `AuthCallbackLoader` didaftarkan hijau, padahal ia GOYAH — lulus 7/7 sendiri, gagal pada satu dari dua jalan suite penuh karena tenggat bawaan 1.000 ms pada `findByText`. Dugaan pertama bahwa ia tak layak diangkut TIDAK terbukti; ia layak, tetapi tidak apa adanya. |
 | 5.3 | 19 Oktober 2026 | **Dua kalimat pada catatan CAT-023 pagi ini berhenti benar sebelum hari itu berakhir, dan dikoreksi alih-alih ditulis ulang.** `AuthCallbackLoader.test.jsx` IKUT pindah ke `main` (`6b1a7bc`) sebagai salinan apa adanya, sehingga "Ia TIDAK dipindahkan" salah; dan penawar yang dianjurkan di sana — menaikkan tenggat pada satu `findByText` — ditulis lebih dulu lalu DIBUANG. Sebabnya terukur: porting tujuh berkas itu sendiri yang membuat suite web `main` goyah, bukan cacat lama yang kebetulan terlihat. Tiga jalan suite penuh per keadaan memisahkannya — 202 berkas hijau 3 dari 3, 211 berkas dengan tenggat bawaan hanya 1 dari 3, 211 berkas dengan tenggat dinaikkan kembali 3 dari 3 — dan keempat berkas yang memerah tak satu pun disentuh. Satu kelas kegagalan, sebabnya pertikaian CPU (`inti - 1` pekerja di mesin berinti delapan), dan CI berinti empat mungkin tak pernah melihatnya. Penawarnya dua baris: `testTimeout: 20000` dan `configure({ asyncUtilTimeout: 5000 })`. Hitungan berkas yang pindah menjadi DELAPAN / 73 uji, diturunkan dari selisih dua jalan suite (1.734 − 1.659 = 75, dikurangi 2 uji penjaga `global.File`) alih-alih dijumlahkan dengan tangan. Nomor versi di kepala dokumen juga dibetulkan: ia masih berbunyi 5.0 / 15 Oktober padahal tabel ini sudah mencatat 5.1 dan 5.2 — kelalaian penguji pada dua commit sebelumnya. |
+| 5.4 | 19 Oktober 2026 | **Besarnya merge `main` ke `tester` akhirnya terukur, dan uji-cobanya menyingkap satu cacat porting milik penguji.** `git merge-tree` melaporkan 13 berkas berbenturan, bukan ratusan: angka 342 dan 349 pada CAT-023 tetap benar tetapi BUKAN ukuran kesulitan merge-nya. Tujuh dari 13 benturan itu cacat, bukan perbedaan sah — salinan tujuh berkas uji di `main` RUSAK karena skrip penyalinnya membaca cp1252 lalu menulis UTF-8, sehingga 58 baris menjadi mojibake, termasuk nama `describe`/`it` pada tiga berkas pagar. Tak satu alat pun memerah: prettier mengecualikan `apps/web`, eslint tak mempersoalkan aksara dalam komentar, dan mojibake-nya UTF-8 yang sah. Diperbaiki di `main` (`978fcb2`), ketujuhnya kini byte-identik dengan sumbernya di sini, `tester` sendiri bersih 0 dari 748 berkas, dan benturan merge turun 13 → 6. **Pagar `test.fail()` BUG-013 diputuskan dibiarkan terpasang**, dicabut saat merge; dasarnya BUG-013 sudah berpagar sembilan uji e2e `apps/api` di `main`, jadi menunggu tidak meninggalkan celah. **Tiga puluh dua tautan jangkar putus diperbaiki** dengan memasang 11 jangkar HTML eksplisit; hitungan "tujuh" yang pernah dicatat mengecilkannya karena hanya menyisir tautan internal `BUG_REPORTS.md` dan melewatkan tautan dari `TEST_PLAN.md` dan `TEST_EXPLORATORY.md`. |
