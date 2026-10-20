@@ -227,6 +227,12 @@ export class NotificationsService {
       ? `Survei "${survey.judul}" menerima jawaban pertama`
       : `Survei "${survey.judul}" telah menerima ${jumlah} jawaban`;
 
+    // `survey.id` diteruskan sebagai MEDAN, bukan hanya sebagai bagian teks
+    // `link` (20 Oktober 2026, BUG-014). Selama tautannya cuma teks,
+    // pemusnahan survei tak punya apa pun untuk dihapus, dan notifikasinya
+    // tertinggal menunjuk halaman yang sejak itu menjawab 404. Dengan medan
+    // ini, foreign key `ON DELETE CASCADE` yang menghapusnya — bukan satu baris
+    // `deleteMany` yang dapat dilupakan jalur penghapusan berikutnya.
     await this.notifyRole(
       Role.opd,
       survey.opdId,
@@ -234,6 +240,7 @@ export class NotificationsService {
       title,
       message,
       `/admin-opd/surveys/${survey.id}/responses`,
+      survey.id,
     );
     await this.notifyKabupaten(
       pengisiUserId,
@@ -241,6 +248,7 @@ export class NotificationsService {
       title,
       message,
       `/admin-kab/surveys/${survey.id}/responses`,
+      survey.id,
     );
   }
 
@@ -260,6 +268,7 @@ export class NotificationsService {
     title: string,
     message: string,
     link: string,
+    surveyId?: number,
   ): Promise<void> {
     try {
       const recipients = await this.prisma.user.findMany({
@@ -272,7 +281,15 @@ export class NotificationsService {
       // SATU `createMany`, bukan satu `create` per penerima. Lihat catatan di
       // `siarkan` tentang apa yang berubah dan apa yang ditukar.
       await this.siarkan(
-        recipients.map((r) => ({ userId: r.id, untukPeran: role, type, title, message, link })),
+        recipients.map((r) => ({
+          userId: r.id,
+          untukPeran: role,
+          type,
+          title,
+          message,
+          link,
+          surveyId,
+        })),
       );
     } catch (err) {
       this.logger.warn(`Gagal mencari penerima notifikasi role=${role}: ${String(err)}`);
@@ -293,6 +310,7 @@ export class NotificationsService {
     title: string,
     message: string,
     link: string,
+    surveyId?: number,
   ): Promise<void> {
     try {
       // Penerimanya SELURUH peran berakses penuh (`FULL_ACCESS_ROLES`), bukan
@@ -315,6 +333,7 @@ export class NotificationsService {
           title,
           message,
           link,
+          surveyId,
         })),
       );
     } catch (err) {
@@ -436,6 +455,8 @@ export class NotificationsService {
       title: string;
       message: string;
       link: string;
+      /** Diisi hanya oleh notifikasi yang menunjuk survei (BUG-014). */
+      surveyId?: number;
     }[],
   ): Promise<void> {
     if (baris.length === 0) {

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { ShieldCheck, Send, X } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, RefreshCw, ShieldCheck, Send, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import TurnstileWidget from './TurnstileWidget';
 import { captchaTersedia } from '../utils/captcha';
@@ -21,9 +21,60 @@ import useSurveyStore from '../store/useSurveyStore';
  * `dedupeUserId` bernilai null dan Postgres memperlakukan NULL sebagai selalu
  * berbeda -- tak ada yang membatasi apa pun.
  */
+/**
+ * Tenggat captcha, 20 Oktober 2026 (BUG-016).
+ *
+ * `onError` saja TIDAK menutup kasus yang sesungguhnya dilaporkan. Pada sesi
+ * C-16 tak ada satu pun iframe Cloudflare yang terbit selama 40 detik: bila
+ * skripnya diblokir habis — pemblokir iklan, jaringan instansi yang menyaring
+ * domain luar, CDN yang tak terjangkau — `error-callback` tak pernah dipanggil
+ * sama sekali, jadi tanpa tenggat modal ini tetap diam selamanya.
+ *
+ * 15 detik dipilih supaya jauh di atas waktu wajar sebuah tantangan selesai,
+ * tetapi masih jauh di bawah kesabaran orang yang sudah mengisi survei penuh.
+ */
+const TENGGAT_CAPTCHA_MS = 15_000;
+
 export default function ModalKirimSurvei({ isOpen, onBatal }) {
   const { submitSurvey, isSubmitting, submitError, captchaToken, setCaptchaToken } =
     useSurveyStore();
+
+  const [captchaGagal, setCaptchaGagal] = useState(false);
+  /**
+   * Dipakai sebagai `key` pada widget, jadi menaikkannya MELEPAS lalu MEMASANG
+   * ULANG komponennya. Itu sengaja, dan bukan sekadar cara memaksa render:
+   * pemasangan ulang meminta tantangan baru ke Cloudflare, dan blok pembersih
+   * widget itu sendiri yang mengosongkan token basinya. Tak ada API baru yang
+   * perlu dibuka pada widget untuk ini.
+   */
+  const [kunciWidget, setKunciWidget] = useState(0);
+
+  /** Token sungguhan yang akhirnya datang membatalkan peringatannya sendiri. */
+  const terimaToken = useCallback(
+    (token) => {
+      if (token) setCaptchaGagal(false);
+      setCaptchaToken(token);
+    },
+    [setCaptchaToken],
+  );
+
+  const muatUlangVerifikasi = useCallback(() => {
+    setCaptchaGagal(false);
+    setKunciWidget((n) => n + 1);
+  }, []);
+
+  /**
+   * Penjaga kedua, untuk kegagalan yang tak pernah memanggil callback apa pun.
+   * `captchaTersedia()` menjaganya tidak berjalan di mesin tanpa kunci
+   * Cloudflare: di sana captcha memang tidak dipasang dan tombol kirimnya sudah
+   * hidup, jadi peringatan di sana hanya menakuti tanpa sebab.
+   */
+  useEffect(() => {
+    if (!isOpen || !captchaTersedia() || captchaToken) return undefined;
+
+    const pewaktu = setTimeout(() => setCaptchaGagal(true), TENGGAT_CAPTCHA_MS);
+    return () => clearTimeout(pewaktu);
+  }, [isOpen, captchaToken, kunciWidget]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -87,7 +138,42 @@ export default function ModalKirimSurvei({ isOpen, onBatal }) {
             tidak dapat diubah lagi.
           </p>
 
-          <TurnstileWidget onToken={setCaptchaToken} className="mt-4 flex justify-center" />
+          <TurnstileWidget
+            key={kunciWidget}
+            onToken={terimaToken}
+            onError={() => setCaptchaGagal(true)}
+            className="mt-4 flex justify-center"
+          />
+
+          {/* Tombol kirim SENGAJA tetap terkunci di bawah peringatan ini.
+              Membukanya hanya memindahkan kegagalan ke `403 CAPTCHA_TIDAK_SAH`
+              dari server; yang kurang selama ini adalah pemberitahuan beserta
+              jalan keluarnya, bukan tombol yang menipu. */}
+          {captchaGagal && (
+            <div
+              role="alert"
+              className="mt-4 rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-sm text-error"
+            >
+              <p className="flex items-start gap-2 font-semibold">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                <span>
+                  Verifikasi keamanan gagal dimuat. Jawaban Anda masih tersimpan di halaman ini.
+                </span>
+              </p>
+              <p className="mt-2 pl-[26px] font-normal text-slate-600">
+                Pemblokir iklan atau jaringan yang menyaring dapat menghalanginya. Coba muat ulang
+                verifikasinya.
+              </p>
+              <button
+                type="button"
+                onClick={muatUlangVerifikasi}
+                className="mt-3 ml-[26px] inline-flex items-center gap-2 rounded-lg border border-error/40 px-4 py-2 min-h-[44px] font-semibold text-error hover:bg-error/10 active:scale-95 transition-colors"
+              >
+                <RefreshCw size={16} className="shrink-0" />
+                Muat Ulang Verifikasi
+              </button>
+            </div>
+          )}
 
           {/* Galat pengiriman dirender DI DALAM modal. Di luar, ia tertutup
               overlay dan pengisinya hanya melihat tombol yang seolah tak

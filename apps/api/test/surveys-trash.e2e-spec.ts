@@ -263,6 +263,72 @@ describe('Sampah survei (e2e)', () => {
     expect(await prisma.answer.count({ where: { responseId: respons.id } })).toBe(0);
   });
 
+  /**
+   * Pagar BUG-014 — memusnahkan survei meninggalkan notifikasi tanpa induk.
+   *
+   * `operasiPemusnahanSurvei` menghapus lima tabel (`answers`,
+   * `survey_responses`, `question_options`, `questions`, `ikm_results`) lalu
+   * surveinya sendiri. `notifications` TIDAK termasuk, dan tautannya menunjuk
+   * `/admin-opd/surveys/<id>/responses` (juga `/admin-kab/...`) — halaman yang sejak itu menjawab 404.
+   *
+   * Notifikasinya diterbitkan lewat JALUR APLIKASI (mengirim jawaban), bukan
+   * ditanam langsung dengan `prisma.notification.create`. Itu disengaja: yang
+   * diuji rantai penuhnya, sebab notifikasi yang ditanam tangan bisa saja
+   * hijau karena ia kebetulan membawa medan yang benar, sementara jalur
+   * sungguhan tidak.
+   */
+  it('BUG-014 — memusnahkan survei tidak meninggalkan notifikasi yang menautnya', async () => {
+    const survei = await prisma.survey.create({
+      data: {
+        opdId,
+        judul: 'Pengunci notifikasi tanpa induk',
+        periode: '2026-Q4',
+        status: 'aktif',
+        questions: {
+          create: [
+            { teks: 'Persyaratan', tipe: 'skala', isIkmUnsur: true, kodeUnsur: 'U1', urutan: 1 },
+          ],
+        },
+      },
+      include: { questions: true },
+    });
+
+    // Gerbang persetujuan PDP membaca `users.consent_at`, dan tanpa ini jalur
+    // pengiriman dijawab 403 sebelum satu notifikasi pun terbit -- merah
+    // karena sebab yang salah.
+    await prisma.user.update({
+      where: { id: penggunaId },
+      data: { consentAt: new Date() },
+    });
+
+    const kirim = await request(app.getHttpServer())
+      .post(`/api/v1/surveys/${survei.id}/responses`)
+      .set(devHeaders({ role: Role.responden, userId: penggunaId }))
+      .send({
+        answers: [{ questionId: survei.questions[0].id, nilai: 4 }],
+        tanpaDataDiri: true,
+      });
+    expect(kirim.status).toBe(201);
+
+    const menaut = { link: { contains: `/surveys/${survei.id}/` } };
+
+    // KENDALI. Tanpa baris ini, pernyataan di bawah bisa hijau semata karena
+    // tak ada notifikasi yang pernah terbit.
+    expect(await prisma.notification.count({ where: menaut })).toBeGreaterThan(0);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/surveys/${survei.id}`)
+      .set(devHeaders({ role: Role.kabupaten, userId: penggunaId }))
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/surveys/${survei.id}/purge`)
+      .set(devHeaders({ role: Role.kabupaten, userId: penggunaId }))
+      .expect(200);
+
+    expect(await prisma.survey.findUnique({ where: { id: survei.id } })).toBeNull();
+    expect(await prisma.notification.count({ where: menaut })).toBe(0);
+  });
+
   it('Admin OPD memusnahkan survei OPD-NYA SENDIRI', async () => {
     // 30 September 2026: pemusnahan dibuka untuk Admin OPD atas permintaan
     // pengguna. Sebelumnya uji ini menuntut 403 bagi peran yang sama.

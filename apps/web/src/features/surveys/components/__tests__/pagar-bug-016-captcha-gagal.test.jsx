@@ -36,6 +36,12 @@ import TurnstileWidget from '../TurnstileWidget';
  * ini WAJIB disesuaikan, bukan dibiarkan hijau sebagai gagal-yang-diharapkan.
  * Anotasi `test.failing()` yang ditinggalkan pada kontrak yang sudah berubah
  * adalah pagar yang diam-diam mati.
+ *
+ * ── ANOTASI `test.failing()` DICABUT (20 Oktober 2026) ───────────────────────
+ * Cacatnya diperbaiki pada hari itu lewat jalur yang dituntut uji di bawah
+ * ini, yakni prop `onError`. Jadi anotasinya dicabut, bukan disesuaikan.
+ * Sejak sekarang berkas ini pagar regresi sungguhan: bila `error-callback`
+ * kembali hanya mengosongkan token, uji di bawah memerah.
  */
 
 const SITE_KEY = '1x00000000000000000000AA';
@@ -76,7 +82,7 @@ describe('BUG-016 — kegagalan captcha tak punya jalur pelaporan', () => {
     expect(typeof kotak.opsi['error-callback']).toBe('function');
   });
 
-  test.failing('kegagalan dilaporkan lewat jalurnya sendiri, bukan sekadar token kosong', async () => {
+  it('kegagalan dilaporkan lewat jalurnya sendiri, bukan sekadar token kosong', async () => {
     const kotak = pasangTurnstilePalsu();
     const onToken = jest.fn();
     const onError = jest.fn();
@@ -91,5 +97,33 @@ describe('BUG-016 — kegagalan captcha tak punya jalur pelaporan', () => {
     // sebelum pengisi menyentuh apa pun. Antarmuka yang tak dapat membedakan
     // "gagal" dari "belum" tak dapat mengatakan apa-apa kepada pengisinya.
     expect(onError).toHaveBeenCalled();
+  });
+
+  /**
+   * Pembeda yang paling mudah dirusak oleh perbaikan yang terburu-buru.
+   *
+   * `expired-callback` bukan kegagalan: token Turnstile berumur beberapa menit
+   * sementara mengisi survei bisa lebih lama, dan widgetnya meminta yang baru
+   * sendiri (`'refresh-expired': 'auto'`). Melaporkannya sebagai galat berarti
+   * memunculkan peringatan pada pengisian yang sehat, dan peringatan yang
+   * muncul tanpa sebab mengajari pengisinya mengabaikannya.
+   *
+   * Uji ini HIJAU sebelum perbaikan apa pun, dan itu disebut tersurat alih-alih
+   * dibiarkan terbaca sebagai bukti: ia penjaga arah, bukan pembuktian cacat.
+   * Dibuktikan dapat memerah lewat mutasi yang memanggil `onError` dari
+   * `expired-callback`.
+   */
+  it('token KEDALUWARSA tidak dilaporkan sebagai galat', async () => {
+    const kotak = pasangTurnstilePalsu();
+    const onToken = jest.fn();
+    const onError = jest.fn();
+
+    render(<TurnstileWidget onToken={onToken} onError={onError} />);
+    await waitFor(() => expect(window.turnstile.render).toHaveBeenCalledTimes(1));
+
+    kotak.opsi['expired-callback']();
+
+    expect(onToken).toHaveBeenCalledWith(null);
+    expect(onError).not.toHaveBeenCalled();
   });
 });

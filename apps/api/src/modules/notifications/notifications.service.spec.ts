@@ -437,6 +437,10 @@ describe('NotificationsService', () => {
         title: 'Survei Mulai Menerima Jawaban',
         message: 'Survei "Survei Kepuasan Layanan" menerima jawaban pertama',
         link: '/admin-opd/surveys/7/responses',
+        // MEDAN, bukan hanya bagian teks `link` (20 Oktober 2026, BUG-014).
+        // Tanpa medan ini pemusnahan survei tak punya apa pun untuk dihapus
+        // dan notifikasinya tertinggal menunjuk halaman yang menjawab 404.
+        surveyId: 7,
       });
     });
 
@@ -469,6 +473,7 @@ describe('NotificationsService', () => {
           title: 'Jawaban Survei Bertambah',
           message: `Survei "Survei Kepuasan Layanan" telah menerima ${n} jawaban`,
           link: '/admin-opd/surveys/7/responses',
+          surveyId: 7,
         });
       },
     );
