@@ -38,12 +38,46 @@ const API = `${BASE_URL}/api/v1`;
  *  pengujiannya membandingkan jawaban dengan dirinya sendiri. */
 const KATEGORI = { kode: 'aduan', label: 'Aduan' };
 
-/** Dropdown kustom: klik pemicunya (`button#<id>`), lalu pilihan di panelnya. */
+/**
+ * Dropdown kustom: klik pemicunya (`button#<id>`), lalu pilihan di panelnya.
+ *
+ * KLIK PEMICUNYA DIULANG, dan itu bukan kehati-hatian yang berlebihan
+ * (20 Oktober 2026). Jalan hari itu gagal di sini dengan batas waktu 10 detik
+ * menunggu opsi `Aduan` terlihat, lalu LULUS saat diulang — panelnya tak pernah
+ * terbuka sama sekali pada percobaan pertama.
+ *
+ * Sebabnya sudah terukur di berkas lain repo ini, bukan diduga di sini:
+ * `support/masuk.js` mencatat bahwa tombol yang SUDAH TERLIHAT belum tentu
+ * sudah terhidrasi React, sehingga Playwright menekan elemen yang tampak dapat
+ * ditekan dan TAK ADA YANG TERJADI, tanpa galat apa pun. Gejalanya lalu muncul
+ * sebagai batas waktu pada langkah berikutnya, jauh dari sebabnya. `Dropdown`
+ * memperburuk pembacaannya karena pemicunya tak punya `aria-expanded`, jadi
+ * tak ada satu pun sinyal di DOM yang membedakan "panel tertutup" dari "klik
+ * ditelan".
+ *
+ * Yang dipakai di sini idiom yang sama dengan `masuk.js`, bukan pola baru:
+ * tekan, tunggu sebentar, dan bila panelnya belum muncul tekan lagi.
+ */
 async function pilihDropdown(page, id, label) {
-  await page.locator(`#${id}`).click();
+  const pemicu = page.locator(`#${id}`);
   const opsi = page.locator(`#${id}`).locator('..').getByRole('button', { name: label, exact: true });
-  await opsi.waitFor({ state: 'visible', timeout: 10000 });
-  await opsi.click();
+
+  for (let percobaan = 0; percobaan < 5; percobaan += 1) {
+    await pemicu.click().catch(() => {});
+    try {
+      await opsi.waitFor({ state: 'visible', timeout: 3000 });
+      await opsi.click();
+      return;
+    } catch {
+      // Belum terhidrasi (atau panelnya tertutup lagi) — coba lagi.
+    }
+  }
+
+  throw new Error(
+    `Panel dropdown "#${id}" tak pernah terbuka sesudah lima kali ditekan, ` +
+      `jadi opsi "${label}" tak dapat dipilih. Bila ini berulang, periksa ` +
+      `apakah panelnya memang dirender — bukan sekadar hidrasi yang lambat.`,
+  );
 }
 
 async function ambilPengaduan(token, ticketNo) {
