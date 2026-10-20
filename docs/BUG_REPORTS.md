@@ -37,8 +37,8 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.5 |
-| **Tanggal** | 19 Oktober 2026 |
+| **Versi** | 5.6 |
+| **Tanggal** | 20 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
 | **Dokumen terkait** | [TEST_PLAN.md](TEST_PLAN.md) · [TEST_CASES.md](TEST_CASES.md) · [TEST_EXPLORATORY.md](TEST_EXPLORATORY.md) |
@@ -210,6 +210,56 @@ regresi sungguhan.
 > mesin penguji saat commitnya dibuat. Yang sudah dipastikan hanya bahwa specnya
 > tetap tersusun: `playwright test --list` melaporkan 2 uji tanpa membuka
 > peramban dan tanpa menyentuh basis data.
+
+> ✅ **SUDAH DIJALANKAN (20 Oktober 2026), dan ia MEMERAH DUA KALI lebih dulu.**
+> `apps/api` hidup di mesin penguji hari ini, spec-nya dijalankan, dan hasil
+> akhirnya 2 lulus / 2 uji kode=0 dalam 2,1 menit. Tetapi jalan pertamanya tidak
+> hijau, dan dua sebabnya berlapis — keduanya BUKAN cacat aplikasi, dan bukan
+> pula akibat pencabutan anotasi itu. Diperbaiki di `80e7667`.
+>
+> **Merah pertama: `POST /surveys — HTTP 400: Validation failed`**, dan uji
+> keduanya tak pernah jalan. Spec itu ditulis terhadap kontrak survei sebelum
+> 8 Oktober 2026, lalu merge `fbdf85c` menukar seluruh `apps/api` dengan versi
+> `main`. Kontraknya mengubah TIGA hal sekaligus, jadi menambahkan satu medan
+> saja tidak cukup: `jenis` wajib (`create-survey.dto.ts`, tanpa
+> `@IsOptional()`); survei `skm_permenpanrb` LAHIR dengan sembilan unsur baku
+> (`surveys.service.ts`, `questions: { create: buatUnsurAwal() }`), sehingga
+> langkah `POST /surveys/:id/questions` yang lama bukan cuma tak perlu
+> melainkan DITOLAK `assertBolehBuatPertanyaan`; dan setiap pertanyaan skala
+> WAJIB dijawab (`responses.service.ts`), jadi satu jawaban saja dijawab 400.
+> Kegagalannya hanya menunjuk yang pertama. **Satu kegagalan menutupi kegagalan
+> sesudahnya** — pelajaran yang sama dengan `MENU_UMUM` 19 Oktober, muncul lagi
+> dalam pekan yang sama.
+>
+> **Merah kedua: `Expected: 25, Received: null`.** `GET /statistics`
+> disinggahkan di bawah kunci `statistik-publik` dengan TTL **60 detik**
+> (`dashboard.service.ts:55-56`), dan TAK ADA yang membatalkannya: satu-satunya
+> penyebutan lain kunci itu di seluruh `apps/api/src` adalah sebuah komentar.
+> `ResponsesService` membatalkan singgahan HITUNGAN IKM, bukan singgahan
+> statistik publik. Spec itu membaca `/statistics` tiga kali dalam setengah
+> detik dan menuntut tiap bacaan sudah memuat tulisan yang baru saja terjadi;
+> singgahannya lahir 8-9 Oktober 2026 dan spec-nya lebih tua. Pembacaannya kini
+> `expect.poll` bertenggat 70 detik, sedikit di atas TTL, dan tenggat ujinya
+> dinaikkan tersurat ke 150 detik — sebab tenggat yang sebenarnya berlaku
+> adalah **bawaan Playwright 30 detik**; `timeout: 180_000` di
+> `playwright.config.ts` milik blok `webServer`, bukan uji.
+>
+> Batasnya ikut dicatat alih-alih disembunyikan: lewat endpoint publik, pagar
+> itu hanya dapat membuktikan kebenaran yang AKHIRNYA tercapai, bukan yang
+> seketika. Mengosongkan Redis dari dalam spec ditolak — itu menyentuh
+> infrastruktur bersama, dan membuat pengukurannya tak lagi mewakili apa yang
+> dilihat pengunjung.
+>
+> **YANG MASIH BELUM TERBUKTI, dan tidak diakui terbukti:** hijaunya uji kedua
+> menunjukkan penyaring `deletedAt` masih terpasang, tetapi TIDAK menunjukkan
+> pagarnya mampu memerah. Untuk itu perlu satu mutasi pada `apps/api`, dan itu
+> belum dikerjakan.
+>
+> Jejak BUG-014 ikut terlihat hidup, bukan dibaca dari kode: tiap jalan
+> meninggalkan notifikasi tanpa induk sesudah survei ujinya dimusnahkan, dan
+> `bersihkan-data-uji.mjs --tanpa-induk` menghapus 4 lalu 2 baris. Nol survei
+> dan nol respons tertinggal. `audit_logs` TIDAK disentuh: 528 menjadi 556
+> baris, semata karena `dev-login` tiap jalan.
 
 Tiap pagar didahului **uji kendali yang wajib lulus**, dan tiap-tiap dibuktikan
 **dua arah**: cacatnya diperbaiki sementara di kode produksi, pagarnya diamati
@@ -3985,6 +4035,46 @@ kegagalan menutupi kegagalan sesudahnya.**
 Sesudah kelimanya dibereskan: **216 suite / 1.770 uji hijau pada dua jalan penuh
 berurutan**, eslint kode=0. Jumlah uji turun dari 1.774 dan itu diharapkan —
 satu uji dipensiunkan dan blok lima uji menjadi dua.
+
+#### JALAN PERTAMA AKHIRNYA TUNTAS, dan hitungan spec-nya dikoreksi (20 Oktober 2026)
+
+Judul bagian 19 Oktober di atas berbunyi "Jalan pertama diambil, **sebagian**",
+dan kata terakhirnya kini tidak lagi berlaku. Kelima berkas yang 19 Oktober
+"tetap tinggal karena basi" sudah tidak basi — semuanya diperbaiki di cabang
+ini sesudah `main` ditarik, jadi perbaikannya memang sudah teruji terhadap kode
+yang ada di sana. Kelimanya pindah ke `main` pada 20 Oktober (`ad9e0e9`, merge
+`ce9ffaf`): `SurveyResponses` 10 uji, `RingkasanDashboard` 14,
+`AdminNavbarIdentitas` 6, `NavigasiPeran` 3, `UmpanBalikAksi` 3.
+
+Dengan itu ketiga belas berkas uji milik cabang ini terhitung seluruhnya:
+delapan pindah 19 Oktober, lima menyusul 20 Oktober, **nol tertinggal**.
+Verifikasi di `main` sesudah merge: 84 suite / 1.359 uji api, 216 suite /
+1.770 uji web, eslint kode=0; e2e `apps/api` dan Playwright DILEWATI, bukan
+lulus. Angka web-nya cocok persis dengan bacaan di cabang ini, dan itu memang
+yang diharapkan — `apps/web/src` kedua cabang identik untuk kelima berkas itu.
+
+Disalin dengan `git checkout tester -- <jalur>`, **bukan dengan skrip**, dan itu
+bukan pilihan gaya: skrip penyalin pada `1bd55ec` yang melahirkan cacat mojibake
+di bagian 19 Oktober di atas. Dibuktikan, bukan dipercaya — `git hash-object`
+kelima berkas sama dengan `git rev-parse tester:<jalur>`.
+
+**DUA ANGKA PADA TABEL DI ATAS DIKOREKSI.** Baris "Spec Playwright beserta
+penopangnya" mencatat **11** berkas, dan catatan-catatan 19 Oktober menyebut
+"11 spec Playwright belum dinilai" serta "tujuh spec `.js` milik penguji
+berdampingan dengan 15 spec `.ts` tim dev". Dihitung ulang dari git pada
+20 Oktober, yang benar: **6 spec `.js`** milik penguji dan **14 spec `.ts`**
+milik tim dev. Angka 11 itu benar sebagai jumlah BERKAS — enam spec ditambah
+lima penopang di `e2e/support/` — tetapi dipakai sebagai jumlah SPEC di tiga
+tempat, dan di sana ia salah. Satu dari enam spec itu
+(`statistik-sampah.spec.js`) kini sudah dinilai; lima sisanya belum.
+
+`.gitignore` `apps/web` di `main` juga disamakan dengan cabang ini pada hari
+yang sama (`7a7cd04`, merge `b570baf`): `/blob-report/` dan
+`/playwright/.cache/` tertinggal saat merge 19 Oktober melebur kedua sisi berkas
+itu, sehingga benturan yang sama akan muncul lagi pada tarikan berikutnya. Nol
+berkas terlacak di bawah kedua jalur itu, jadi ini pencegahan, bukan
+pembersihan.
+| 5.6 | 20 Oktober 2026 | **Pagar BUG-013 AKHIRNYA DIJALANKAN, dan ia memerah dua kali lebih dulu** (`80e7667`). Pencabutan anotasinya tercatat sebagai belum terbukti karena `apps/api` tak dapat dinyalakan; hari ini ia hidup, dan hasil akhirnya 2 lulus / 2 uji kode=0 dalam 2,1 menit. Dua sebab kemerahannya berlapis dan keduanya BUKAN cacat aplikasi. Pertama, `POST /surveys — HTTP 400`: spec itu lebih tua dari kontrak survei 8 Oktober, dan kontraknya mengubah TIGA hal sekaligus (`jenis` wajib; sembilan unsur lahir sendiri sehingga menambah unsur justru DITOLAK; semua pertanyaan skala wajib dijawab) — kegagalannya hanya menunjuk yang pertama, jadi satu kegagalan kembali menutupi kegagalan sesudahnya. Kedua, `Expected: 25, Received: null`: `GET /statistics` disinggahkan 60 detik di bawah kunci `statistik-publik` dan TAK ADA yang membatalkannya, jadi pembacaannya kini `expect.poll` bertenggat 70 detik dan tenggat ujinya dinaikkan tersurat ke 150 detik — `timeout: 180_000` di config itu milik `webServer`, bukan uji. Derivasi angka 25 diganti: yang lama `(1/4) × 100` dan menyebut "satu-satunya unsur IKM", angkanya kebetulan benar dan jalannya keliru. **CAT-023 jalan pertama TUNTAS**: kelima berkas uji terakhir pindah ke `main` (`ad9e0e9`, merge `ce9ffaf`), tiga belas dari tiga belas terhitung, nol tertinggal. **Dua angka CAT-023 dikoreksi** — spec `.js` milik penguji 6 bukan 7, spec `.ts` tim dev 14 bukan 15; angka 11 benar sebagai jumlah berkas termasuk lima penopang, tetapi dipakai sebagai jumlah spec di tiga tempat. `.gitignore` `apps/web` di `main` disamakan dengan cabang ini (`7a7cd04`). |
 
 ---
 

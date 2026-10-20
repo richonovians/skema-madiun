@@ -72,8 +72,8 @@
 | ---------------------- | -------------------------------------------------------------------------------------- |
 | **Dokumen Acuan**      | PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md · ERD.png · Routes-List-API-dan-Frontend.md |
 | **Dokumen Pendamping** | TEST_PLAN.md                                                                           |
-| **Versi**              | 3.6                                                                                    |
-| **Tanggal**            | 19 Oktober 2026 (v3.6 — **`main` DITARIK KE `tester`**: suite Jest cabang ini 673 uji / 92 berkas menjadi **1.770 uji / 216 berkas**, dan lapisan E2E-nya kini memuat 15 spec `.ts` milik tim dev di samping 7 spec `.js` milik penguji. Anotasi `test.fail()` BUG-013 DICABUT (§Y.8.2) — specnya tidak dihapus. TC-FE-005 premisnya DIBALIK: dua menu bekas-superuser kini wajib ADA bagi Admin Kabupaten; TC-FE-028 kehilangan satu kasus yang menuntut label `Superuser` yang tak mungkin lagi muncul; v3.5 — peta otomatisasi §Y.1 DIBACA ULANG dari `jest --json` dan ternyata TIDAK basi: 92 suite / 673 uji, 27 baris tabel diperiksa, nol meleset — jadi butir "segarkan §Y.1" ditutup sebagai terukur, bukan dikerjakan; Modul Y ditambahkan ke Daftar Isi setelah sejak lahir tak terdaftar padahal ia modul TERBESAR (48 kasus uji) dan satu-satunya yang pernah dieksekusi; nomor **Versi** dibetulkan dari 3.3 — ia tertinggal di belakang catatan v3.4 di sel ini; v3.4 — §Y.8.1 baru: BUG-013 sudah diperbaiki di `main`, jadi pagar `test.fail()`-nya akan memerah pada merge berikutnya dan anotasinya harus dicabut, BUKAN specnya dihapus; dicatat juga bahwa pembuktian dua arah pagar itu menjamin lebih sedikit daripada kelihatannya — satu klausa sudah cukup menghijaukannya, padahal cacatnya tersebar di tujuh tempat; v3.3 — §Y.3.1: satu jalan lagi (RAM bebas 1,6 GB) gagal 2 dari 19, dan salah satunya menyamar jadi penyimpangan rute — lulus saat diulang per berkas; v3.2 — §Y.3.1 baru: kegoyahan E2E AKHIRNYA TERUKUR — 4 worker 5 gagal/4,0 mnt, 1 worker 0 gagal/2,3 mnt; muat halaman 1,6 dtk berbanding 12 dtk; `playwright.config.ts` kini 1 worker secara bawaan. Kata "yatim" diganti "tanpa induk" di seluruh dokumen pengujian atas permintaan pengguna; v3.1 — C-09 TIDAK LAGI terkunci (kredensial SSO sudah turun), dijalankan sebagian: BUG-019 + pagarnya; E2E 17 → 19 di 7 berkas; v3.0 — §Y.3 dapat sebab BARU untuk dua jalan (CAT-020, nginx menandai upstream API mati dan tak pulih sendiri) — sisanya tetap belum terjelaskan; v2.9 — lima pagar regresi berikutnya (BUG-014 s/d BUG-018) masuk §Y.8; Jest 663 → **673 di 92 berkas**, E2E 13 → **17 di 6 berkas**; v2.8 — §Y.3 dapat pembaruan: satu jalan E2E penuh 4 worker bersih (11 lulus, 2 dilewati, nol gagal), anjuran "per berkas" diturunkan tetapi tak dicabut; v2.7 — §Y.8 baru: pagar regresi `test.fail()` untuk BUG-013, peta E2E 11 → 13 pengujian di 5 berkas; v2.6 — peta otomatisasi §Y.1 dicocokkan ulang dengan `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada; TC-FE-010 tak lagi menyebut sub-kategori; v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
+| **Versi**              | 3.7                                                                                    |
+| **Tanggal**            | 20 Oktober 2026 (v3.7 — **pagar BUG-013 AKHIRNYA DIJALANKAN** (§Y.8.3): 2 lulus / 2 uji kode=0 dalam 2,1 menit, sesudah memerah dua kali pada dua sebab berlapis yang keduanya bukan cacat aplikasi — kontrak survei yang bergerak 8 Oktober, lalu singgahan 60 detik di depan `GET /statistics` yang tak pernah dibatalkan. Hitungan spec dikoreksi: **6 spec `.js`** milik penguji dan **14 spec `.ts`** tim dev, bukan 7 dan 15; v3.6 — **`main` DITARIK KE `tester`**: suite Jest cabang ini 673 uji / 92 berkas menjadi **1.770 uji / 216 berkas**, dan lapisan E2E-nya kini memuat 15 spec `.ts` milik tim dev di samping 7 spec `.js` milik penguji. Anotasi `test.fail()` BUG-013 DICABUT (§Y.8.2) — specnya tidak dihapus. TC-FE-005 premisnya DIBALIK: dua menu bekas-superuser kini wajib ADA bagi Admin Kabupaten; TC-FE-028 kehilangan satu kasus yang menuntut label `Superuser` yang tak mungkin lagi muncul; v3.5 — peta otomatisasi §Y.1 DIBACA ULANG dari `jest --json` dan ternyata TIDAK basi: 92 suite / 673 uji, 27 baris tabel diperiksa, nol meleset — jadi butir "segarkan §Y.1" ditutup sebagai terukur, bukan dikerjakan; Modul Y ditambahkan ke Daftar Isi setelah sejak lahir tak terdaftar padahal ia modul TERBESAR (48 kasus uji) dan satu-satunya yang pernah dieksekusi; nomor **Versi** dibetulkan dari 3.3 — ia tertinggal di belakang catatan v3.4 di sel ini; v3.4 — §Y.8.1 baru: BUG-013 sudah diperbaiki di `main`, jadi pagar `test.fail()`-nya akan memerah pada merge berikutnya dan anotasinya harus dicabut, BUKAN specnya dihapus; dicatat juga bahwa pembuktian dua arah pagar itu menjamin lebih sedikit daripada kelihatannya — satu klausa sudah cukup menghijaukannya, padahal cacatnya tersebar di tujuh tempat; v3.3 — §Y.3.1: satu jalan lagi (RAM bebas 1,6 GB) gagal 2 dari 19, dan salah satunya menyamar jadi penyimpangan rute — lulus saat diulang per berkas; v3.2 — §Y.3.1 baru: kegoyahan E2E AKHIRNYA TERUKUR — 4 worker 5 gagal/4,0 mnt, 1 worker 0 gagal/2,3 mnt; muat halaman 1,6 dtk berbanding 12 dtk; `playwright.config.ts` kini 1 worker secara bawaan. Kata "yatim" diganti "tanpa induk" di seluruh dokumen pengujian atas permintaan pengguna; v3.1 — C-09 TIDAK LAGI terkunci (kredensial SSO sudah turun), dijalankan sebagian: BUG-019 + pagarnya; E2E 17 → 19 di 7 berkas; v3.0 — §Y.3 dapat sebab BARU untuk dua jalan (CAT-020, nginx menandai upstream API mati dan tak pulih sendiri) — sisanya tetap belum terjelaskan; v2.9 — lima pagar regresi berikutnya (BUG-014 s/d BUG-018) masuk §Y.8; Jest 663 → **673 di 92 berkas**, E2E 13 → **17 di 6 berkas**; v2.8 — §Y.3 dapat pembaruan: satu jalan E2E penuh 4 worker bersih (11 lulus, 2 dilewati, nol gagal), anjuran "per berkas" diturunkan tetapi tak dicabut; v2.7 — §Y.8 baru: pagar regresi `test.fail()` untuk BUG-013, peta E2E 11 → 13 pengujian di 5 berkas; v2.6 — peta otomatisasi §Y.1 dicocokkan ulang dengan `jest --json`: **delapan baris meleset**, termasuk satu berkas yang sudah tak ada; TC-FE-010 tak lagi menyebut sub-kategori; v2.5 — `main` ditarik ke `tester` (85 commit, 11 hari); suite Jest 195 → **663 di 89 berkas** karena tim dev kini ikut menulis uji; empat berkas uji penguji disesuaikan dengan kontrak baru dan satu dibuang; perkakas E2E diperbaiki untuk peran jamak, gerbang pengisian, dan taksonomi kategori baru; §Y.7 baru; v2.4 — sisa data uji dihapus paksa dari basis data dev (termasuk survei fixture E2E dan reproduksi BUG-005); §Y.3 ditambah sebab kedua: empat worker berebut satu `next dev`, dibuktikan dengan `--workers=1` yang lulus 9/9; v2.3 — dua belas kasus uji terakhir Modul Y ditutup (TC-FE-005/006/007/010/012/028/032/042/043/045/046/047); tiga premis usang dikoreksi; satu temuan mobile dibatalkan sendiri (§Y.5 butir 4); statistik Modul Y dihitung ulang 40 ✅ / 5 🟡 / 3 ❌ / 0 ⬜; v2.2 — formulir C-13 akhirnya dapat diuji (akun responden tanpa persetujuan tersedia), TC-FE-038 lulus; v2.1 — C-05/06/07/08 dijalankan, TC-FE-044 lulus, TC-FE-048 & 049 ditambahkan, statistik dihitung ulang 260 → 262; v2.0 — C-12 dijalankan, TC-FE-035/036/037 lulus; v1.9 — antarmuka pengaduan beruji (TC-FE-039/040/041), C-13 dijalankan sebagian; v1.8 — audit cakupan: TC-FE-034 s/d 047 ditambahkan, statistik dihitung ulang 246 → 260; v1.7 — lapisan E2E berdiri, TC-FE-009 lulus; v1.6 — hasil sesi C-02/C-03/C-10, tambah TC-FE-032 & 033; v1.5 — ringkasan statistik dihitung ulang: 227 → 246; v1.4 — BUG-005 terkonfirmasi Critical; v1.3 — penyesuaian setelah 81 commit; v1.2 — 11 Agu; v1.1 — 10 Agu; v1.0 — 29 Jul 2026) |
 
 **Konvensi:**
 
@@ -1206,6 +1206,19 @@ Referensi: PRD §6 (Tabel Hak Akses), PRD §10 (NFR Keamanan)
 > hidup di mesin penguji. Jadi angka di bawah tetap bacaan terakhir yang
 > tercatat, dan konsekuensi `globalSetup` di atas masih dugaan berdasar kode —
 > bukan pengamatan.
+>
+> **(20 Oktober 2026) DUA ANGKA DI PARAGRAF DI ATAS SALAH, dan satu kalimatnya
+> sudah tidak berlaku.** Dihitung ulang dari git: spec `.js` milik penguji ada
+> **6**, bukan tujuh, dan spec `.ts` milik tim dev **14**, bukan 15. Angka 11
+> yang dipakai di CAT-023 benar sebagai jumlah BERKAS — enam spec ditambah lima
+> penopang di `e2e/support/` — tetapi dipakai sebagai jumlah SPEC di tiga tempat,
+> dan di sana ia salah.
+>
+> "Belum ada satu pun jalan Playwright sesudah merge" juga berhenti benar hari
+> ini: `apps/api` hidup, dan `statistik-sampah.spec.js` dijalankan sampai hijau
+> (§Y.8.3). Lima spec `.js` sisanya tetap belum dinilai, dan konsekuensi
+> `globalSetup` atas `isi-survei.spec.js` MASIH dugaan berdasar kode — spec itu
+> belum dijalankan.
 
 Sejak 2 September 2026 ada lapisan kedua yang berjalan di peramban sungguhan
 (`pnpm test:e2e`, terpisah dari Jest):
@@ -1849,6 +1862,78 @@ Membiarkan anotasinya terpasang bukan pilihan yang lebih aman: dengan
 perbaikannya sudah masuk, anotasi itu MENJAMIN jalan berikutnya merah.
 Pilihannya bukan antara merah dan hijau, melainkan antara merah yang pasti dan
 hijau yang belum diukur.
+#### Y.8.3 Pagarnya DIJALANKAN, dan ia memerah dua kali lebih dulu (20 Oktober 2026)
+
+Bagian Y.8.2 di atas menutup pencabutan anotasinya dengan satu hal yang diakui
+belum terbukti: ia belum pernah dijalankan lewat Playwright. Hari ini `apps/api`
+hidup di mesin penguji, spec-nya dijalankan, dan hasil akhirnya **2 lulus /
+2 uji, kode=0, 2,1 menit**.
+
+Jalan pertamanya tidak hijau, dan itu bagian yang paling layak dicatat. Ia
+memerah dua kali pada dua sebab BERLAPIS, dan tak satu pun cacat aplikasi
+maupun akibat pencabutan anotasi itu.
+
+**Merah pertama: `POST /surveys — HTTP 400: Validation failed`**, dan uji kedua
+tak pernah jalan. Spec itu ditulis terhadap kontrak survei sebelum 8 Oktober
+2026, lalu merge `fbdf85c` menukar seluruh `apps/api` dengan versi `main`.
+Kontraknya mengubah tiga hal sekaligus:
+
+| Aturan baru | Buktinya |
+| --- | --- |
+| `jenis` wajib pada `POST /surveys` | `create-survey.dto.ts`, tanpa `@IsOptional()` |
+| Survei SKM LAHIR dengan sembilan unsur baku | `surveys.service.ts`, `questions: { create: buatUnsurAwal() }` |
+| Setiap pertanyaan skala WAJIB dijawab | `responses.service.ts` |
+
+Akibatnya langkah `POST /surveys/:id/questions` milik spec itu bukan cuma tak
+perlu — ia DITOLAK `assertBolehBuatPertanyaan`, yang melarang menambah unsur pada
+survei SKM. Dan satu jawaban saja dijawab 400 oleh pemeriksa kelengkapan.
+
+Kegagalannya hanya menunjuk aturan PERTAMA. Dua sisanya baru terlihat sesudah
+kodenya dibaca mundur dari situ, dan itulah pelajarannya: **satu kegagalan
+menutupi kegagalan sesudahnya** — hal yang sama dengan daftar `MENU_UMUM` pada
+19 Oktober, muncul lagi dalam pekan yang sama.
+
+**Merah kedua, sesudah perbaikan pertama: `Expected: 25, Received: null`.**
+`GET /statistics` disinggahkan di bawah kunci `statistik-publik` dengan TTL
+**60 detik** (`dashboard.service.ts:55-56`), dan TAK ADA yang membatalkannya:
+satu-satunya penyebutan lain kunci itu di seluruh `apps/api/src` adalah sebuah
+komentar. `ResponsesService` membatalkan singgahan HITUNGAN IKM, bukan
+singgahan statistik publik. Spec itu membaca `/statistics` tiga kali dalam
+setengah detik dan menuntut tiap bacaan sudah memuat tulisan yang baru saja
+terjadi; singgahannya lahir 8-9 Oktober 2026 dan spec-nya lebih tua.
+
+Penawarnya: setiap pembacaan menjadi `expect.poll` bertenggat **70 detik**,
+sedikit di atas TTL, dan tenggat ujinya dinaikkan tersurat ke **150 detik**.
+Yang terakhir perlu disebut sebab mudah salah dibaca — tenggat yang sebenarnya
+berlaku adalah **bawaan Playwright 30 detik**; `timeout: 180_000` di
+`playwright.config.ts` milik blok `webServer`, bukan uji. Biayanya berkas itu
+kini makan sekitar dua menit per jalan, dan itu harga yang dibayar sadar.
+
+Batas yang ikut lahir dari sini dicatat alih-alih disembunyikan: lewat endpoint
+publik, pagar itu hanya dapat membuktikan kebenaran yang AKHIRNYA tercapai,
+bukan yang seketika. Mengosongkan Redis dari dalam spec DITOLAK — itu menyentuh
+infrastruktur bersama, dan membuat pengukurannya tak lagi mewakili apa yang
+dilihat pengunjung.
+
+**Derivasi angka 25 diganti, bukan dibiarkan.** Komentar lamanya berbunyi
+`(1/4) × 100 = 25` dan menyebut "satu-satunya unsur IKM". Angkanya kebetulan
+tetap benar; jalannya keliru dan premisnya sudah tidak berlaku. Yang benar:
+bobot tiap unsur `1/9`, NRR tiap unsur `1`, jumlah tertimbang `1`, dikali 25.
+Satu pernyataan baru menjaga anggapan itu — kesembilan unsur dihitung dan
+dibandingkan dengan 9, sebab jumlah unsur yang berbeda membuat 25 menjadi angka
+yang salah tanpa ada yang memerah karenanya.
+
+**Yang belum terbukti, dan tidak diakui terbukti:** hijaunya uji kedua
+menunjukkan penyaring `deletedAt` masih terpasang, tetapi TIDAK menunjukkan
+pagarnya mampu memerah. Untuk itu perlu satu mutasi pada `apps/api`, dan itu
+belum dikerjakan.
+
+**Data uji.** Dibersihkan sesudah tiap jalan. `notifTanpaInduk` 4 lalu 2
+terhapus — itu jejak BUG-014 yang memang sudah diramalkan docblock spec-nya,
+bukan kelalaian. Nol survei dan nol respons tertinggal. `audit_logs` TIDAK
+disentuh: 528 → 556 baris, semata karena `dev-login` tiap jalan, dan baris
+audit tidak pernah dihapus.
+
 #### Lima pagar berikutnya — BUG-014 s/d BUG-018, lalu BUG-019 (15 September 2026, sore)
 
 Keenam temuan C-14…C-19 kini berpagar, dan **BUG-019 dari C-09 menyusul pada sore yang sama** — tujuh pagar seluruhnya. Tiga di lapisan E2E, tiga di Jest, dan
