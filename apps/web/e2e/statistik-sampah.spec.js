@@ -39,6 +39,46 @@ import { AKUN, masukApi, panggilApi } from './support/api.js';
  * Itulah pelajaran CAT-004, yang tiga minggu menganggur sebagai catatan lalu
  * menjelma jadi BUG-005 tanpa ada yang menangkapnya.
  *
+ * ── SPEC INI BASI TERHADAP KONTRAK SURVEI, DAN DIPERBAIKI (20 Oktober 2026) ──
+ * Jalan pertama sesudah `main` ditarik ke cabang ini dijawab
+ * `POST /surveys ⇒ HTTP 400: Validation failed`, dan uji kedua tak pernah
+ * jalan sama sekali. Sebabnya bukan cacat aplikasi melainkan kontrak survei
+ * yang bergerak sejak 8 Oktober 2026, dan ia mengubah TIGA hal sekaligus:
+ *
+ *   1. `jenis` wajib pada `POST /surveys` (`create-survey.dto.ts`, tanpa
+ *      `@IsOptional()`); berkas ini dulu hanya mengirim judul dan periode;
+ *   2. survei `skm_permenpanrb` LAHIR dengan sembilan unsur baku
+ *      (`surveys.service.ts`, `questions: { create: buatUnsurAwal() }`),
+ *      sehingga langkah `POST /surveys/:id/questions` yang lama bukan cuma
+ *      tak perlu — ia DITOLAK `assertBolehBuatPertanyaan`, yang melarang
+ *      menambah unsur pada survei SKM;
+ *   3. setiap pertanyaan skala WAJIB dijawab (`responses.service.ts`), jadi
+ *      satu jawaban saja dijawab 400 oleh pemeriksa kelengkapan.
+ *
+ * Pelajarannya bukan "tambahkan satu medan". Ditemukan dengan MENJALANKANNYA,
+ * bukan dengan membacanya: kegagalannya menunjuk medan `jenis` saja, dan dua
+ * aturan sisanya baru terlihat sesudah kodenya dibaca mundur dari situ.
+ *
+ * ── ANGKA PUBLIKNYA DISINGGAHKAN 60 DETIK, DAN ITU DISENGAJA ─────────────────
+ * `GET /statistics` disinggahkan di bawah kunci `statistik-publik` dengan TTL
+ * 60 detik (`dashboard.service.ts`), dan TAK ADA yang membatalkannya: satu-
+ * satunya penyebutan lain kunci itu di seluruh `apps/api/src` adalah sebuah
+ * komentar. `ResponsesService` membatalkan singgahan HITUNGAN IKM, bukan
+ * singgahan statistik publik.
+ *
+ * Akibatnya langsung mengenai berkas ini. Versi lamanya membaca `/statistics`
+ * tiga kali dalam setengah detik dan menuntut tiap bacaan sudah memuat tulisan
+ * yang baru saja terjadi; singgahannya lahir 8-9 Oktober 2026, specnya lebih
+ * tua, dan jalan 20 Oktober 2026 menjawab `Expected: 25, Received: null`.
+ * Bukan cacat aplikasi, dan bukan pula angka 25 yang salah.
+ *
+ * Karena itu setiap pembacaan di bawah memakai `expect.poll` dengan tenggat
+ * sedikit DI ATAS TTL. Konsekuensinya disebut tersurat alih-alih disembunyikan:
+ * lewat endpoint publik, berkas ini hanya dapat membuktikan kebenaran yang
+ * AKHIRNYA tercapai, bukan yang seketika. Mengosongkan Redis dari dalam spec
+ * ditolak: itu menyentuh infrastruktur bersama, dan membuat pengukurannya tak
+ * lagi mewakili apa yang dilihat pengunjung.
+ *
  * ── Data uji ────────────────────────────────────────────────────────────────
  * Survei dimusnahkan permanen di `afterAll`, apa pun hasil ujinya. Judulnya
  * berawalan `[UJI ` supaya sisa yang lolos tetap terjaring
@@ -52,7 +92,17 @@ const PERIODE_UJI = '2027-Q4';
 
 const JUDUL = '[UJI BUG-013] Survei untuk pengunci statistik Sampah';
 
-/** Nilai skala 1 dari satu-satunya unsur IKM ⇒ (1/4) × 100 = 25. */
+/**
+ * Kesembilan unsur dijawab `nilai: 1` semuanya.
+ *
+ * Bobot tiap unsur `1/9` dan NRR tiap unsur `1`, jadi jumlah tertimbangnya `1`
+ * dan nilai IKM-nya `1 × 25 = 25` (`ikm.service.ts`: bobot = 1 ÷ jumlah unsur,
+ * nilai IKM = Σ NRR tertimbang × 25).
+ *
+ * Komentar lama di sini berbunyi `(1/4) × 100 = 25` dan menyebut "satu-satunya
+ * unsur IKM". Angkanya kebetulan sama, jalannya keliru, dan premisnya sudah
+ * tidak berlaku sejak survei SKM selalu membawa sembilan unsur.
+ */
 const IKM_DIHARAPKAN = 25;
 
 /**
@@ -69,6 +119,16 @@ async function titikTren(periode) {
 // Kedua uji di bawah berbagi satu survei: yang pertama menyiapkan dan
 // membuangnya, yang kedua membaca akibatnya. Mereka WAJIB berurutan.
 test.describe.configure({ mode: 'serial' });
+
+/**
+ * Tenggat bawaan Playwright 30 detik, dan dua jendela singgahan 60 detik tak
+ * mungkin tertampung di dalamnya. `timeout: 180_000` di `playwright.config.ts`
+ * BUKAN tenggat uji -- ia milik blok `webServer`.
+ */
+const TENGGAT_UJI_MS = 150_000;
+
+/** Sedikit di atas TTL 60 detik, supaya satu jendela basi tak memerahkannya. */
+const TENGGAT_SINGGAHAN_MS = 70_000;
 
 test.describe('BUG-013 — survei di Sampah dan angka publik', () => {
   let tokenOpd;
@@ -89,8 +149,12 @@ test.describe('BUG-013 — survei di Sampah dan angka publik', () => {
   });
 
   test('prasyarat — jawaban pada survei aktif memunculkan titik tren periodenya', async () => {
+    test.setTimeout(TENGGAT_UJI_MS);
+
     // Bukan basa-basi: kalau periode ini sudah terpakai, seluruh pengukuran di
-    // bawah membandingkan angka milik data lain.
+    // bawah membandingkan angka milik data lain. Sekali baca saja cukup di
+    // sini: yang dicari justru KETIADAAN, dan bacaan basi paling buruk hanya
+    // menunda kegagalannya satu jendela, tidak meluluskannya.
     expect(
       await titikTren(PERIODE_UJI),
       `Periode ${PERIODE_UJI} sudah muncul di tren SEBELUM uji dimulai — ` +
@@ -98,39 +162,51 @@ test.describe('BUG-013 — survei di Sampah dan angka publik', () => {
         `e2e/support/bersihkan-data-uji.mjs lebih dulu.`,
     ).toBeNull();
 
+    // `jenis` WAJIB, dan `skm_permenpanrb` yang dipilih sebab hanya survei SKM
+    // yang menghasilkan nilai IKM — `custom` tak pernah membentuk titik tren,
+    // sehingga seluruh pengukuran di bawah akan mengukur ketiadaan. `tujuan`
+    // dan `metodeNilai` sengaja TIDAK dikirim: keduanya dijawab 400 pada SKM.
     const survei = await panggilApi(tokenOpd, 'POST', '/surveys', {
       judul: JUDUL,
       periode: PERIODE_UJI,
+      jenis: 'skm_permenpanrb',
     });
     surveiId = survei.id;
 
-    await panggilApi(tokenOpd, 'POST', `/surveys/${surveiId}/questions`, {
-      teks: 'Bagaimana kualitas layanan yang Anda terima?',
-      tipe: 'skala',
-      isIkmUnsur: true,
-      kodeUnsur: 'U1',
-    });
-
-    // Pertanyaan hanya boleh ditambah selama draft — aktifkan paling akhir.
+    // Tak ada pertanyaan yang ditambahkan: sembilan unsur baku sudah lahir
+    // bersama surveinya, dan menambah unsur pada survei SKM memang dilarang.
     await panggilApi(tokenOpd, 'PATCH', `/surveys/${surveiId}/status`, { status: 'aktif' });
 
     const tokenWarga = (await masukApi(AKUN.warga, 'responden')).token;
     const isian = await panggilApi(tokenWarga, 'GET', `/surveys/${surveiId}/fill`);
-    const pertanyaan = isian?.questions?.[0];
-    expect(pertanyaan, 'survei uji tak mengembalikan pertanyaan apa pun').toBeTruthy();
+    const skala = (isian?.questions ?? []).filter((q) => q.tipe === 'skala');
 
+    // Bukan basa-basi: bobot IKM-nya `1 ÷ jumlah unsur`, jadi jumlah unsur yang
+    // berbeda membuat angka 25 di bawah menjadi salah tanpa ada yang memerah.
+    expect(skala, 'survei SKM uji tak mengembalikan kesembilan unsur bakunya').toHaveLength(9);
+
+    // SEMUANYA dijawab, bukan satu: pemeriksa kelengkapan menolak jawaban yang
+    // melewatkan satu pertanyaan skala pun.
     await panggilApi(tokenWarga, 'POST', `/surveys/${surveiId}/responses`, {
-      answers: [{ questionId: pertanyaan.id, nilai: 1 }],
+      answers: skala.map((q) => ({ questionId: q.id, nilai: 1 })),
       tanpaDataDiri: true,
     });
 
     // Inilah yang membuktikan alat ukurnya bekerja. Tanpa langkah ini, uji
     // berikutnya bisa hijau semata karena tak ada yang pernah tercatat.
-    expect(
-      await titikTren(PERIODE_UJI),
-      'titik tren tak muncul padahal survei aktif sudah dijawab — ' +
-        'alat ukur uji ini tidak bekerja, jadi hasil uji berikutnya tak berarti',
-    ).toBe(IKM_DIHARAPKAN);
+    //
+    // `poll`, bukan sekali baca: singgahan 60 detik di depan `/statistics`
+    // membuat bacaan pertama hampir pasti masih memuat keadaan sebelum survei
+    // ini dijawab.
+    await expect
+      .poll(() => titikTren(PERIODE_UJI), {
+        timeout: TENGGAT_SINGGAHAN_MS,
+        message:
+          'titik tren tak muncul padahal survei aktif sudah dijawab, bahkan ' +
+          'sesudah menunggu lewat jendela singgahan — alat ukur uji ini tidak ' +
+          'bekerja, jadi hasil uji berikutnya tak berarti',
+      })
+      .toBe(IKM_DIHARAPKAN);
 
     await panggilApi(tokenKabupaten, 'DELETE', `/surveys/${surveiId}`);
 
@@ -150,9 +226,15 @@ test.describe('BUG-013 — survei di Sampah dan angka publik', () => {
     //
     // Pernyataan di bawah kini harapan biasa, dan itulah tujuannya sejak awal.
 
-    expect(
-      await titikTren(PERIODE_UJI),
-      'survei sudah berada di Sampah, tetapi periodenya masih membentuk titik tren publik',
-    ).toBeNull();
+    test.setTimeout(TENGGAT_UJI_MS);
+
+    await expect
+      .poll(() => titikTren(PERIODE_UJI), {
+        timeout: TENGGAT_SINGGAHAN_MS,
+        message:
+          'survei sudah berada di Sampah, tetapi periodenya masih membentuk ' +
+          'titik tren publik bahkan sesudah jendela singgahan terlewati',
+      })
+      .toBeNull();
   });
 });
