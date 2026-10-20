@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.6 |
+| **Versi** | 5.7 |
 | **Tanggal** | 20 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -254,6 +254,26 @@ regresi sungguhan.
 > menunjukkan penyaring `deletedAt` masih terpasang, tetapi TIDAK menunjukkan
 > pagarnya mampu memerah. Untuk itu perlu satu mutasi pada `apps/api`, dan itu
 > belum dikerjakan.
+>
+> ✅ **MUTASINYA DIKERJAKAN pada hari yang sama, dan pagarnya MEMANG memerah.**
+> Penyaring `where: { survey: TIDAK_DIBUANG }` pada
+> `prisma.ikmResult.findMany()` (`dashboard.service.ts:337`) dibuang sementara,
+> spec dijalankan, lalu dipulihkan di blok `finally` — `git status` kosong
+> sesudahnya. Hasilnya tepat seperti yang dituntut dari pagar yang sehat: uji
+> KENDALI tetap hijau, dan uji pagarnya memerah dengan `Received: 25`, yakni
+> snapshot IKM milik survei yang sudah berada di Sampah muncul kembali di tren
+> publik.
+>
+> Sasaran mutasinya dipilih dari kode, bukan dikira. Membuang survei `aktif`
+> MENUTUPNYA lebih dulu lalu menerbitkan snapshot IKM
+> (`surveys.service.ts:302-320`), sehingga sesudah masuk Sampah survei itu
+> keluar dari jalur `activeSurveys` dan masuk lewat `ikmResult` — jadi satu
+> baris itulah penjaga satu-satunya di jalur ini, dan ia persis baris yang
+> disebut laporan BUG-013.
+>
+> Dengan ini pagar BUG-013 terbukti DUA ARAH: hijau saat penyaringnya ada,
+> merah saat dibuang. Itu syarat yang sama yang berlaku bagi kelima pagar lain
+> di dokumen ini.
 >
 > Jejak BUG-014 ikut terlihat hidup, bukan dibaca dari kode: tiap jalan
 > meninggalkan notifikasi tanpa induk sesudah survei ujinya dimusnahkan, dan
@@ -4075,6 +4095,60 @@ itu, sehingga benturan yang sama akan muncul lagi pada tarikan berikutnya. Nol
 berkas terlacak di bawah kedua jalur itu, jadi ini pencegahan, bukan
 pembersihan.
 | 5.6 | 20 Oktober 2026 | **Pagar BUG-013 AKHIRNYA DIJALANKAN, dan ia memerah dua kali lebih dulu** (`80e7667`). Pencabutan anotasinya tercatat sebagai belum terbukti karena `apps/api` tak dapat dinyalakan; hari ini ia hidup, dan hasil akhirnya 2 lulus / 2 uji kode=0 dalam 2,1 menit. Dua sebab kemerahannya berlapis dan keduanya BUKAN cacat aplikasi. Pertama, `POST /surveys — HTTP 400`: spec itu lebih tua dari kontrak survei 8 Oktober, dan kontraknya mengubah TIGA hal sekaligus (`jenis` wajib; sembilan unsur lahir sendiri sehingga menambah unsur justru DITOLAK; semua pertanyaan skala wajib dijawab) — kegagalannya hanya menunjuk yang pertama, jadi satu kegagalan kembali menutupi kegagalan sesudahnya. Kedua, `Expected: 25, Received: null`: `GET /statistics` disinggahkan 60 detik di bawah kunci `statistik-publik` dan TAK ADA yang membatalkannya, jadi pembacaannya kini `expect.poll` bertenggat 70 detik dan tenggat ujinya dinaikkan tersurat ke 150 detik — `timeout: 180_000` di config itu milik `webServer`, bukan uji. Derivasi angka 25 diganti: yang lama `(1/4) × 100` dan menyebut "satu-satunya unsur IKM", angkanya kebetulan benar dan jalannya keliru. **CAT-023 jalan pertama TUNTAS**: kelima berkas uji terakhir pindah ke `main` (`ad9e0e9`, merge `ce9ffaf`), tiga belas dari tiga belas terhitung, nol tertinggal. **Dua angka CAT-023 dikoreksi** — spec `.js` milik penguji 6 bukan 7, spec `.ts` tim dev 14 bukan 15; angka 11 benar sebagai jumlah berkas termasuk lima penopang, tetapi dipakai sebagai jumlah spec di tiga tempat. `.gitignore` `apps/web` di `main` disamakan dengan cabang ini (`7a7cd04`). |
+
+
+#### KEENAM SPEC PLAYWRIGHT AKHIRNYA DINILAI (20 Oktober 2026)
+
+Baris "Spec Playwright beserta penopangnya" pada tabel di atas berbunyi BELUM
+dinilai sejak 15 Oktober. Keenamnya dijalankan hari ini, satu berkas satu jalan
+sebagaimana aturan di `CLAUDE.md`, dan data ujinya dibersihkan sesudah tiap
+jalan.
+
+| Spec | Uji | Hasil |
+| --- | --- | --- |
+| `ajukan-pengaduan.spec.js` | 3 | **3 lulus**, 45,5 detik |
+| `sso-galat.spec.js` | 2 | **2 lulus**, 1,6 detik |
+| `statistik-sampah.spec.js` | 2 | **2 lulus** sesudah diperbaiki hari ini, 2,1 menit |
+| `proteksi-route.spec.js` | 4 | **4 lulus, tetapi GOYAH** — dua di antaranya habis tenggat 150 detik lalu lulus pada percobaan ulang dalam 28,6 dan 21,3 detik |
+| `isi-survei.spec.js` | 2 | **1 gagal, 1 tak jalan** — `E2E_SURVEY_ID belum disetel` |
+| `notifikasi-siklus.spec.js` | 4 | **1 gagal, 1 tak jalan, 2 lulus** — `POST /surveys — HTTP 400` |
+
+**Tiga sehat, satu goyah, dua basi.** Yang basi bukan dua perkara berbeda
+melainkan satu akar yang sama dengan `statistik-sampah` tadi: keduanya ditulis
+terhadap keadaan sebelum merge `fbdf85c`.
+
+`notifikasi-siklus` gagal pada uji KENDALI BUG-014 dengan
+`POST /surveys — HTTP 400`, yakni kontrak survei yang sama (medan `jenis`
+wajib). Pagar BUG-014-nya karena itu TIDAK JALAN sama sekali — keduanya
+berurutan — sehingga BUG-014 tetap tak terukur lewat Playwright. Pasangan
+BUG-018 di berkas yang sama baik-baik saja: kendalinya lulus dan pagarnya
+memerah sebagaimana mestinya, artinya BUG-018 MASIH TERBUKA dan anotasinya
+masih benar.
+
+`isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel`, dan ini **ramalan yang
+menjadi pengamatan**: catatan 19 Oktober menulisnya tersurat sebagai dugaan
+berdasar kode, sebab `playwright.config.ts` yang terpakai adalah versi `main`
+dan `globalSetup`-nya menunjuk `e2e/global-setup.ts`, bukan
+`e2e/support/global-setup.js` yang menyiapkan survei tetap itu. Satu hal
+tambahan yang hanya terlihat dengan menjalankannya: **pesan galatnya sendiri
+kini menyesatkan.** Ia menganjurkan "jalankan lewat `pnpm test:e2e`", padahal
+skrip itu berisi `playwright test` apa adanya dan memakai config yang sama,
+jadi anjuran itu tak lagi menolong siapa pun.
+
+`proteksi-route` lulus keempat ujinya tetapi GOYAH, dan angka tenggatnya perlu
+disebut supaya tak salah dibaca: 150 detik itu milik berkasnya sendiri
+(`proteksi-route.spec.js:109`, `test.describe.configure({ timeout: 150_000 })`),
+bukan dari `playwright.config.ts` — config itu tak menyetel tenggat uji sama
+sekali. Dua uji habis tenggat pada `locator.fill`, lalu lulus pada percobaan
+ulang dalam 28,6 dan 21,3 detik. Pola yang sama dengan §Y.3.1 di
+`TEST_CASES.md`: kegoyahan, bukan kegagalan.
+
+Hitungan ujinya ikut dikoreksi: **17 uji di 6 spec**, bukan 19 di 7 seperti yang
+tercatat sejak v3.1 `TEST_CASES.md`.
+
+Data uji sesudah seluruh jalan: 3 pengaduan dan 5 notifikasi berpenanda `[UJI `
+terhapus, nol survei dan nol respons tertinggal. `audit_logs` TIDAK disentuh.
+| 5.7 | 20 Oktober 2026 | **Pagar BUG-013 terbukti DUA ARAH, dan keenam spec Playwright milik penguji akhirnya dinilai.** Penyaring `where: { survey: TIDAK_DIBUANG }` pada `dashboard.service.ts:337` dibuang sementara dan dipulihkan di `finally`: uji kendali tetap hijau, pagarnya memerah dengan `Received: 25`. Sasarannya dipilih dari kode — membuang survei `aktif` menutupnya lebih dulu lalu menerbitkan snapshot IKM, jadi sesudah masuk Sampah ia masuk lewat `ikmResult`, bukan `activeSurveys`. **Keenam spec: tiga sehat, satu goyah, dua basi.** `ajukan-pengaduan` 3/3, `sso-galat` 2/2, `statistik-sampah` 2/2; `proteksi-route` 4/4 tetapi dua ujinya habis tenggat 150 detik lalu lulus saat diulang (tenggat itu milik berkasnya sendiri, bukan config); `notifikasi-siklus` gagal pada kendali BUG-014 dengan kontrak survei yang sama (`jenis` wajib) sehingga pagar BUG-014 TIDAK JALAN, sementara pasangan BUG-018 sehat dan pagarnya memerah sebagaimana mestinya; `isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel` — ramalan 19 Oktober menjadi pengamatan, dan pesan galatnya sendiri kini menyesatkan sebab `pnpm test:e2e` memakai config yang sama. Hitungan E2E dikoreksi: **17 uji di 6 spec**, bukan 19 di 7. |
 
 ---
 
