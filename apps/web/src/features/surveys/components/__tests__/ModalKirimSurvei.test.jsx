@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import ModalKirimSurvei from '../ModalKirimSurvei';
 import useSurveyStore from '../../store/useSurveyStore';
 
@@ -11,14 +11,33 @@ jest.mock('../../store/useSurveyStore');
  * di mesin yang punya. Yang diuji di sini adalah MODALNYA -- kapan tombol kirim
  * boleh ditekan, dan apakah token benar-benar sampai ke store.
  */
-jest.mock('../TurnstileWidget', () => ({
-  __esModule: true,
-  default: ({ onToken }) => (
-    <button type="button" onClick={() => onToken('token-dari-cloudflare')}>
-      selesaikan captcha
-    </button>
-  ),
-}));
+jest.mock('../TurnstileWidget', () => {
+  const ReactTiruan = require('react');
+  // Dihitung di dalam factory, bukan di luar: `jest.mock` diangkat ke atas
+  // seluruh impor, jadi variabel modul uji belum tentu sudah terisi saat
+  // factory ini dijalankan.
+  let pemasangan = 0;
+
+  return {
+    __esModule: true,
+    default: ({ onToken, onError }) => {
+      // Nomor pemasangan dipakai uji "muat ulang" untuk membuktikan widgetnya
+      // benar-benar DIPASANG ULANG, bukan sekadar peringatannya yang hilang.
+      const nomor = ReactTiruan.useMemo(() => ++pemasangan, []);
+      return (
+        <div>
+          <span data-testid="pemasangan-captcha">{nomor}</span>
+          <button type="button" onClick={() => onToken('token-dari-cloudflare')}>
+            selesaikan captcha
+          </button>
+          <button type="button" onClick={() => onError?.()}>
+            picu galat captcha
+          </button>
+        </div>
+      );
+    },
+  };
+});
 
 const asalEnv = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
@@ -134,5 +153,124 @@ describe('ModalKirimSurvei', () => {
 
     expect(mockBatal).toHaveBeenCalledTimes(1);
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ── BUG-016: kegagalan captcha harus terbaca, dan harus ada jalan keluar ──
+   *
+   * Sebelum 20 Oktober 2026 modal ini mengunci tombol kirimnya dari
+   * `captchaTersedia() && !captchaToken` dan tak punya jalur lain sama sekali.
+   * Token kosong karena GAGAL tak dapat dibedakan dari token kosong karena
+   * BELUM, sehingga pengisi yang tokennya tak pernah terbit melihat survei
+   * penuh dengan tombol mati dan layar diam. Dipantau 40 detik pada sesi C-16.
+   */
+  describe('BUG-016 kegagalan captcha', () => {
+    const peringatan = () => screen.queryByRole('alert');
+
+    /**
+     * KENDALI, dan inilah uji yang membuat pagar di berkas ini mudah berbohong.
+     * Keadaan "token belum ada" juga keadaan dua detik pertama SETIAP pengisian
+     * yang sehat. Peringatan yang muncul di sini berarti perbaikannya salah,
+     * bukan berhasil.
+     */
+    it('kendali — keadaan awal tidak memunculkan peringatan apa pun', () => {
+      pasangStore({ captchaToken: null });
+
+      render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+
+      expect(peringatan()).not.toBeInTheDocument();
+      expect(tombolKirim()).toBeDisabled();
+    });
+
+    it('galat widget memunculkan peringatan beserta tombol muat ulang', () => {
+      pasangStore({ captchaToken: null });
+
+      render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+      fireEvent.click(screen.getByText('picu galat captcha'));
+
+      expect(peringatan()).toHaveTextContent(/verifikasi keamanan gagal/i);
+      expect(screen.getByRole('button', { name: /muat ulang verifikasi/i })).toBeEnabled();
+    });
+
+    /**
+     * Inilah kasus yang SESUNGGUHNYA dilaporkan, dan `onError` saja tak
+     * menutupnya. Pada sesi C-16 tak ada satu pun iframe Cloudflare yang
+     * terbit: bila skripnya diblokir total, `error-callback` tak pernah
+     * dipanggil sama sekali, sehingga tanpa tenggat modal tetap diam selamanya.
+     */
+    it('tanpa token selama 15 detik dianggap gagal, walau tak ada callback galat', () => {
+      jest.useFakeTimers();
+      try {
+        pasangStore({ captchaToken: null });
+
+        render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+        expect(peringatan()).not.toBeInTheDocument();
+
+        act(() => {
+          jest.advanceTimersByTime(15_000);
+        });
+
+        expect(peringatan()).toHaveTextContent(/verifikasi keamanan gagal/i);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    /**
+     * Pewaktunya tak boleh berjalan di mesin tanpa kunci Cloudflare: di sana
+     * captcha memang tidak dipasang, tombol kirimnya sudah hidup, dan
+     * peringatan yang muncul hanya menakuti tanpa sebab.
+     */
+    it('tanpa site key, tenggat 15 detik tidak memunculkan peringatan', () => {
+      jest.useFakeTimers();
+      try {
+        process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = '';
+        pasangStore({ captchaToken: null });
+
+        render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+        act(() => {
+          jest.advanceTimersByTime(15_000);
+        });
+
+        expect(peringatan()).not.toBeInTheDocument();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('muat ulang menghapus peringatannya DAN memasang ulang widgetnya', () => {
+      pasangStore({ captchaToken: null });
+
+      render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+      const pemasanganAwal = screen.getByTestId('pemasangan-captcha').textContent;
+
+      fireEvent.click(screen.getByText('picu galat captcha'));
+      expect(peringatan()).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /muat ulang verifikasi/i }));
+
+      expect(peringatan()).not.toBeInTheDocument();
+      // Bukan sekadar peringatan yang hilang: widgetnya harus benar-benar
+      // dipasang ulang, sebab itulah yang meminta tantangan baru ke Cloudflare
+      // dan yang mengosongkan token basi lewat blok pembersihnya sendiri.
+      expect(screen.getByTestId('pemasangan-captcha').textContent).not.toBe(pemasanganAwal);
+    });
+
+    /**
+     * Tombolnya TETAP terkunci, dan itu keputusan yang disengaja. Membukanya
+     * hanya memindahkan kegagalan ke `403 CAPTCHA_TIDAK_SAH` dari server, dan
+     * yang diminta laporan BUG-016 adalah pemberitahuan beserta jalan keluar,
+     * bukan tombol yang menipu.
+     */
+    it('tombol kirim tetap terkunci sesudah galat captcha', () => {
+      pasangStore({ captchaToken: null });
+
+      render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+      fireEvent.click(screen.getByText('picu galat captcha'));
+
+      expect(tombolKirim()).toBeDisabled();
+      fireEvent.click(tombolKirim());
+      expect(mockSubmit).not.toHaveBeenCalled();
+    });
   });
 });

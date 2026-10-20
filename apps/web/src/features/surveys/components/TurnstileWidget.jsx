@@ -19,7 +19,21 @@ const ALAMAT_SKRIP = 'https://challenges.cloudflare.com/turnstile/v0/api.js?rend
  * membuka halaman dapat membacanya; yang wajib dirahasiakan hanya secret key
  * di sisi server.
  */
-export default function TurnstileWidget({ onToken, className = '' }) {
+/**
+ * `onError` ditambahkan 20 Oktober 2026 (BUG-016).
+ *
+ * Sebelumnya kegagalan Cloudflare hanya memanggil `onToken(null)`, dan nilai
+ * itu TAK DAPAT DIBEDAKAN dari keadaan awal setiap pengisian yang sehat. Akibat
+ * di lapangan: pengisi melihat survei penuh dengan tombol kirim mati dan layar
+ * diam, tanpa satu pun pesan — dipantau 40 detik pada sesi C-16.
+ *
+ * `expired-callback` SENGAJA tidak melaporkannya. Token kedaluwarsa itu normal
+ * (umurnya beberapa menit, mengisi survei bisa lebih lama) dan widget meminta
+ * yang baru sendiri lewat `'refresh-expired': 'auto'`. Memperlakukannya sebagai
+ * galat akan memunculkan peringatan pada pengisian yang tak bermasalah, dan
+ * peringatan tanpa sebab mengajari pengisinya mengabaikannya.
+ */
+export default function TurnstileWidget({ onToken, onError, className = '' }) {
   const wadahRef = useRef(null);
   const idWidgetRef = useRef(null);
   // Disimpan di ref, bukan ikut dependensi efek: pemanggil umumnya menuliskan
@@ -27,11 +41,15 @@ export default function TurnstileWidget({ onToken, className = '' }) {
   // akan memasang ulang widget berkali-kali -- tiap pemasangan meminta
   // penilaian baru ke Cloudflare.
   const onTokenRef = useRef(onToken);
+  const onErrorRef = useRef(onError);
   // Disegarkan lewat efek, bukan saat render: menulis ref di badan komponen
   // membuat nilainya berbeda antara render yang dibuang dan yang dipakai.
   useEffect(() => {
     onTokenRef.current = onToken;
   }, [onToken]);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   const siteKey = siteKeyCaptcha();
 
@@ -52,7 +70,13 @@ export default function TurnstileWidget({ onToken, className = '' }) {
         // token basi yang ditolak server tanpa pengisinya tahu sebabnya;
         // widget meminta yang baru sendiri.
         'expired-callback': () => onTokenRef.current?.(null),
-        'error-callback': () => onTokenRef.current?.(null),
+        // Dua-duanya, dan urutannya tak penting: tokennya dikosongkan supaya
+        // tak ada token basi yang terkirim, lalu kegagalannya DILAPORKAN
+        // supaya antarmuka di atasnya punya sesuatu untuk dikatakan.
+        'error-callback': () => {
+          onTokenRef.current?.(null);
+          onErrorRef.current?.();
+        },
         'refresh-expired': 'auto',
       });
     };
