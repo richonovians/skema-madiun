@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AKUN, BASE_URL, masukApi } from './support/api';
 import { masukSebagai } from './support/masuk';
+import { panaskanRute } from './support/pemanasan';
 
 /**
  * TC-FE-010 — E2E: Pengajuan Pengaduan dari Login sampai Tiket Terbit.
@@ -54,6 +55,15 @@ async function ambilPengaduan(token, ticketNo) {
 }
 
 test.describe('Pengajuan pengaduan oleh warga', () => {
+  /**
+   * Belum pernah terlihat goyah (3 dari 3 lulus pada 20 Oktober 2026), dan
+   * dipanaskan juga justru karena itu: `/complaints/new` tak pernah masuk
+   * daftar pemanasan lama, jadi kelulusannya sejauh ini bergantung pada rute
+   * itu sudah kebetulan terkompilasi oleh pemakaian lain.
+   */
+  test.beforeAll(async () => {
+    await panaskanRute(['/dashboard', '/complaints/new']);
+  });
   test('warga mengirim pengaduan dan menerima nomor tiket yang benar-benar tersimpan', async ({
     page,
   }) => {

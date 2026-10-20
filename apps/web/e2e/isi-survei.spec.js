@@ -7,6 +7,7 @@ import {
   cariResponsDenganTeks,
   musnahkanSurveiUji,
 } from './support/api';
+import { panaskanRute } from './support/pemanasan';
 import { masukSebagai } from './support/masuk';
 
 /**
@@ -87,6 +88,13 @@ test.describe('Pengisian survei oleh responden', () => {
   test.beforeAll(async () => {
     surveyId = await buatSurveiUjiSendiri();
     ({ questions: pertanyaan } = await bacaSurveiUji(surveyId));
+
+    // Rute `/surveys/[id]` dipanaskan DI SINI dan tak mungkin di tempat lain:
+    // idnya baru ada sesudah surveinya dibuat. Daftar pemanasan lama di
+    // `support/rute.js` memuat `/surveys`, yang TIDAK mengompilasi
+    // `/surveys/[id]` -- dan halaman itulah yang gagal pada percobaan pertama
+    // 20 Oktober 2026.
+    await panaskanRute(['/dashboard', `/surveys/${surveyId}`]);
   });
 
   test.afterAll(async () => {

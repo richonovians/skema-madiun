@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { AKUN } from './support/api';
 import { masukSebagai } from './support/masuk';
-import { KOLOM, MATRIKS } from './support/rute';
+import { panaskanRute } from './support/pemanasan';
+import { KOLOM, MATRIKS, RUTE_UNTUK_PEMANASAN } from './support/rute';
 
 /**
  * TC-FE-002 & TC-AUTH-055 — matriks proteksi route `proxy.js` (TEST_CASES A.5.1).
@@ -107,6 +108,17 @@ test.describe('Matriks proteksi route (A.5.1)', () => {
   // bermasalah. Batas yang lebih longgar memberi kelonggaran itu tanpa perlu
   // mengorbankan paralelisme yang membuat suite tetap cepat.
   test.describe.configure({ timeout: 150_000 });
+
+  /**
+   * Berkas inilah yang paling dirugikan hilangnya pemanasan: satu uji menyapu
+   * SELURUH baris matriks, jadi tiap rute yang belum terkompilasi menambah
+   * waktunya pada uji yang sama. Pada 20 Oktober 2026 dua ujinya habis tenggat
+   * 150 detik lalu lulus saat diulang dalam 28,6 dan 21,3 detik -- selisih itu
+   * ukuran biaya kompilasinya, bukan kegoyahan aplikasi.
+   */
+  test.beforeAll(async () => {
+    await panaskanRute(RUTE_UNTUK_PEMANASAN);
+  });
 
   test('tanpa sesi — seluruh halaman terlindungi memantul ke beranda publik', async ({ page }) => {
     await sapuMatriks(page, KOLOM.tanpaToken);
