@@ -23,14 +23,27 @@ export const AKUN = {
 };
 
 /**
- * Survei tetap untuk E2E — DIPAKAI ULANG, tidak dibuat baru tiap kali jalan.
+ * Bentuk survei uji E2E: tiga tipe pertanyaan, dipakai `isi-survei.spec.js`.
  *
- * Alasannya keras: transisi status backend hanya mengenal draft→aktif,
- * draft→ditutup, dan aktif→ditutup (`UpdateSurveyStatusDto`), sedangkan survei
- * hanya boleh dihapus saat berstatus draft (`SurveysService.remove`). Survei
- * yang sudah diaktifkan karena itu TIDAK DAPAT dihapus lagi — kalau tiap
- * jalannya suite membuat survei baru, basis data pengembangan akan menumpuk
- * survei mati yang tak seorang pun bisa bersihkan lewat aplikasi.
+ * ALASAN "DIPAKAI ULANG" SUDAH KEDALUWARSA, DAN BERKAS INI MENYUSUL
+ * (20 Oktober 2026). Naskah lama di sini berbunyi: "survei hanya boleh dihapus
+ * saat berstatus draft, survei yang sudah diaktifkan TIDAK DAPAT dihapus lagi,
+ * jadi suite tak boleh membuat survei baru tiap jalan." Itu benar sampai
+ * 11 September 2026 dan tidak lagi: `SurveysService.remove` kini menerima
+ * SELURUH status — survei `aktif` ditutupnya lebih dulu — dan `purge`
+ * memusnahkannya permanen dari Sampah.
+ *
+ * Karena itu surveinya kini DIBUAT DAN DIMUSNAHKAN per jalan oleh spec-nya
+ * sendiri, pola yang sama dengan `statistik-sampah.spec.js` dan
+ * `notifikasi-siklus.spec.js`. Tiga akibat yang disengaja: tak ada baris
+ * permanen tertinggal di basis data pengembangan, tak ada lagi kebutuhan akan
+ * `globalSetup` milik cabang ini (yang sejak merge `fbdf85c` tak pernah
+ * dipanggil, sebab `playwright.config.ts` memakai `e2e/global-setup.ts` milik
+ * `main`), dan `playwright.config.ts` TIDAK perlu disunting — menyuntingnya
+ * berarti membangun kembali divergensi cabang yang baru saja ditutup.
+ *
+ * Jenisnya `custom`, bukan `skm_permenpanrb`: pertanyaannya bukan unsur IKM,
+ * dan survei SKM lahir dengan sembilan unsur baku yang tak dapat dihapus.
  *
  * `allowMultipleSubmit: true` yang membuat pemakaian ulang ini mungkin: dengan
  * bendera itu `ResponsesService.getFill` selalu mengembalikan
@@ -41,7 +54,7 @@ export const AKUN = {
  * tidak membandingkan jawaban dengan dirinya sendiri.
  */
 export const SURVEI_UJI = {
-  judul: '[UJI E2E] Survei Otomatis — jangan hapus',
+  judul: '[UJI E2E] Survei Otomatis — dibuat & dimusnahkan per jalan',
   periode: '2026-Q3',
   pertanyaan: [
     {
@@ -170,7 +183,7 @@ export async function pastikanSurveiUji() {
     );
   }
 
-  const id = cocok.length === 1 ? cocok[0].id : await buatSurveiUji(token);
+  const id = cocok.length === 1 ? cocok[0].id : await buatSurveiUjiSendiri();
   verifikasiPertanyaan(id, await panggil(token, 'GET', `/surveys/${id}/questions`));
   return id;
 }
@@ -198,10 +211,25 @@ export async function surveiUji() {
 
 export { ENV_ID };
 
-async function buatSurveiUji(token) {
+/**
+ * Buat survei uji baru, aktifkan, dan kembalikan idnya.
+ *
+ * Pemanggilnya WAJIB memusnahkannya kembali (`DELETE /surveys/:id` lalu
+ * `/purge`), sebab judulnya berawalan `[UJI ` hanya sebagai jaring terakhir
+ * bagi `bersihkan-data-uji.mjs`, bukan sebagai rencana utama.
+ *
+ * `jenis`, `tujuan`, dan `metodeNilai` ketiganya wajib bagi survei `custom`
+ * sejak 8 Oktober 2026 (`create-survey.dto.ts` + `assertPengaturanNilaiBuat`).
+ * Nilainya tak diperiksa satu pun pernyataan uji — ia cuma perlu sah.
+ */
+export async function buatSurveiUjiSendiri() {
+  const { token } = await masukApi(AKUN.adminOpd);
   const survei = await panggil(token, 'POST', '/surveys', {
     judul: SURVEI_UJI.judul,
     periode: SURVEI_UJI.periode,
+    jenis: 'custom',
+    tujuan: 'kepuasan',
+    metodeNilai: 'rata_rata',
     allowMultipleSubmit: true,
   });
 
@@ -227,6 +255,33 @@ async function buatSurveiUji(token) {
   return survei.id;
 }
 
+/**
+ * Baca pertanyaan survei uji yang idnya sudah diketahui pemanggil.
+ *
+ * Kembaran `surveiUji()` tanpa pembacaan `process.env`: dipakai spec yang
+ * menyiapkan surveinya sendiri alih-alih menerimanya dari `globalSetup`.
+ *
+ * @returns {Promise<{id: number, questions: object[]}>}
+ */
+export async function bacaSurveiUji(id) {
+  const { token } = await masukApi(AKUN.adminOpd);
+  const questions = await panggil(token, 'GET', `/surveys/${id}/questions`);
+  verifikasiPertanyaan(id, questions);
+  return { id, questions };
+}
+
+/**
+ * Buang survei ke Sampah lalu musnahkan permanen. Aman dipanggil dua kali.
+ *
+ * `purge` hanya menerima survei yang SUDAH berada di Sampah, jadi urutannya
+ * tak dapat ditukar.
+ */
+export async function musnahkanSurveiUji(id) {
+  const { token } = await masukApi(AKUN.adminKabupaten, 'kabupaten');
+  await panggil(token, 'DELETE', `/surveys/${id}`).catch(() => {});
+  await panggil(token, 'DELETE', `/surveys/${id}/purge`).catch(() => {});
+}
+
 function verifikasiPertanyaan(id, questions) {
   const diharapkan = SURVEI_UJI.pertanyaan;
   const sama =
@@ -239,8 +294,9 @@ function verifikasiPertanyaan(id, questions) {
       `Survei uji (id ${id}) berjudul "${SURVEI_UJI.judul}" sudah ada di basis data,\n` +
         `tetapi pertanyaannya tidak sesuai dengan yang diharapkan spec.\n` +
         `Terbaca:\n  ${terbaca || '(tidak ada pertanyaan)'}\n` +
-        `Survei aktif tidak dapat dihapus lewat aplikasi. Ubah judul survei lama itu ` +
-        `lewat basis data, atau tutup periodenya, lalu jalankan ulang.`,
+        `Buang survei lama itu ke Sampah lalu musnahkan permanen (sejak ` +
+        `11 September 2026 survei aktif pun dapat dibuang), atau ubah judulnya, ` +
+        `lalu jalankan ulang.`,
     );
   }
 }

@@ -22,6 +22,21 @@ import { AKUN, masukApi, panggilApi } from './support/api.js';
  * kendali membuktikan notifikasinya memang terbit lebih dulu, sehingga
  * ketiadaannya (atau penggandaannya) sesudah itu benar-benar berarti.
  *
+ * ── KONTRAK SURVEINYA BERGERAK, DAN BERKAS INI MENYUSUL (20 Oktober 2026) ────
+ * Jalan 20 Oktober 2026 dijawab `POST /surveys — HTTP 400: Validation failed`
+ * pada uji KENDALI, sehingga pagar BUG-014 di bawahnya TIDAK JALAN sama sekali
+ * dan BUG-014 tak terukur sama sekali lewat Playwright. Sebabnya bukan cacat
+ * aplikasi melainkan kontrak survei yang bergerak 8 Oktober 2026, lalu merge
+ * `fbdf85c` menukar seluruh `apps/api` dengan versi `main`. Tiga aturan
+ * berubah sekaligus, dan menambahkan satu medan saja tidak cukup:
+ *
+ *   1. `jenis` wajib pada `POST /surveys`;
+ *   2. survei `skm_permenpanrb` lahir dengan sembilan unsur baku, sehingga
+ *      menambah unsur DITOLAK, bukan sekadar tak perlu;
+ *   3. setiap pertanyaan skala wajib dijawab.
+ *
+ * Berkas `statistik-sampah.spec.js` memerah pada akar yang sama hari itu.
+ *
  * ── Data uji ────────────────────────────────────────────────────────────────
  * Seluruh baris berjudul `[UJI ` supaya terjaring
  * `e2e/support/bersihkan-data-uji.mjs`. Survei BUG-014 dimusnahkan oleh ujinya
@@ -66,24 +81,32 @@ test.describe('BUG-014 — hapus permanen meninggalkan notifikasi tanpa induk', 
   });
 
   test('kendali — survei yang dijawab menerbitkan notifikasi yang menautnya', async () => {
+    // `jenis` WAJIB sejak 8 Oktober 2026 (`create-survey.dto.ts`, tanpa
+    // `@IsOptional()`), dan `skm_permenpanrb` dipilih semata karena ia paling
+    // murah di sini: `custom` menuntut `tujuan` + `metodeNilai` sekalian,
+    // sementara pagar ini tak peduli jenis surveinya — yang diukurnya notifikasi.
     const survei = await panggilApi(tokenOpd, 'POST', '/surveys', {
       judul: `[UJI BUG-014] Survei pengunci notifikasi tanpa induk ${PENANDA}`,
       periode: '2027-Q3',
+      jenis: 'skm_permenpanrb',
     });
     surveiId = survei.id;
 
-    await panggilApi(tokenOpd, 'POST', `/surveys/${surveiId}/questions`, {
-      teks: 'Bagaimana kualitas layanan yang Anda terima?',
-      tipe: 'skala',
-      isIkmUnsur: true,
-      kodeUnsur: 'U1',
-    });
+    // Tak ada pertanyaan yang ditambahkan: survei SKM LAHIR dengan sembilan
+    // unsur baku (`surveys.service.ts`, `questions: { create: buatUnsurAwal() }`),
+    // dan menambah unsur pada survei SKM DITOLAK `assertBolehBuatPertanyaan`.
     await panggilApi(tokenOpd, 'PATCH', `/surveys/${surveiId}/status`, { status: 'aktif' });
 
     const tokenWarga = (await masukApi(AKUN.warga, 'responden')).token;
     const isian = await panggilApi(tokenWarga, 'GET', `/surveys/${surveiId}/fill`);
+    const skala = (isian?.questions ?? []).filter((q) => q.tipe === 'skala');
+    expect(skala, 'survei SKM uji tak mengembalikan kesembilan unsur bakunya').toHaveLength(9);
+
+    // SEMUANYA dijawab, bukan satu: pemeriksa kelengkapan menolak jawaban yang
+    // melewatkan satu pertanyaan skala pun (`responses.service.ts`). Nilainya
+    // tak diperiksa pagar ini, jadi 3 dipertahankan apa adanya.
     await panggilApi(tokenWarga, 'POST', `/surveys/${surveiId}/responses`, {
-      answers: [{ questionId: isian.questions[0].id, nilai: 3 }],
+      answers: skala.map((q) => ({ questionId: q.id, nilai: 3 })),
       tanpaDataDiri: true,
     });
 

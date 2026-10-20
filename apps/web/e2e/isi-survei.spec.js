@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { AKUN, SURVEI_UJI, surveiUji, cariResponsDenganTeks } from './support/api';
+import {
+  AKUN,
+  SURVEI_UJI,
+  bacaSurveiUji,
+  buatSurveiUjiSendiri,
+  cariResponsDenganTeks,
+  musnahkanSurveiUji,
+} from './support/api';
 import { masukSebagai } from './support/masuk';
 
 /**
@@ -61,8 +68,30 @@ test.describe('Pengisian survei oleh responden', () => {
    *  sebagai sumber id pertanyaan & id opsi saat memeriksa data tersimpan. */
   let pertanyaan;
 
+  /**
+   * SURVEINYA DISIAPKAN DI SINI, bukan oleh `globalSetup` (20 Oktober 2026).
+   *
+   * Jalan hari ini dijawab `E2E_SURVEY_ID belum disetel`, dan itu ramalan yang
+   * sudah tertulis: sejak merge `fbdf85c`, `playwright.config.ts` memakai
+   * `e2e/global-setup.ts` milik `main`, sehingga `e2e/support/global-setup.js`
+   * milik cabang ini — satu-satunya yang menerbitkan `E2E_SURVEY_ID` — tidak
+   * pernah dipanggil lagi.
+   *
+   * Dua jalan keluar ditimbang. Menyambung ulang `globalSetup` berarti
+   * menyunting `playwright.config.ts`, yaitu berkas milik `main` di cabang ini,
+   * dan itu membangun kembali divergensi yang baru saja ditutup. Menyiapkan
+   * surveinya sendiri tidak menyentuh berkas bersama mana pun, dan alasan asli
+   * fikstur bersama itu sendiri sudah kedaluwarsa — lihat docblock `SURVEI_UJI`
+   * di `support/api.js`.
+   */
   test.beforeAll(async () => {
-    ({ id: surveyId, questions: pertanyaan } = await surveiUji());
+    surveyId = await buatSurveiUjiSendiri();
+    ({ questions: pertanyaan } = await bacaSurveiUji(surveyId));
+  });
+
+  test.afterAll(async () => {
+    if (!surveyId) return;
+    await musnahkanSurveiUji(surveyId);
   });
 
   test('warga menyelesaikan survei tiga tipe pertanyaan dan jawabannya tersimpan', async ({
