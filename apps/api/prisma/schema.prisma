@@ -163,10 +163,10 @@ enum NotificationType {
 // =====================================================================
 
 model User {
-  id          Int       @id @default(autoincrement())
-  ssoSubject  String    @unique @map("sso_subject") // identitas stabil dari Helpdesk (klaim `sub`)
-  nama        String    @db.VarChar(50)
-  email       String    @unique @db.VarChar(100)
+  id            Int            @id @default(autoincrement())
+  ssoSubject    String         @unique @map("sso_subject") // identitas stabil dari Helpdesk (klaim `sub`)
+  nama          String         @db.VarChar(50)
+  email         String         @unique @db.VarChar(100)
   // SATU AKUN, BEBERAPA ROLE (5 September 2026). Array enum, bukan tabel
   // relasi: Admin OPD tetap tertaut SATU OPD (`opdId` di bawah), jadi tak ada
   // metadata per-role yang perlu disimpan -- dan itulah satu-satunya alasan
@@ -180,8 +180,8 @@ model User {
   // Hak akses TIDAK dihitung dari kolom ini, melainkan dari peran yang sedang
   // DIPAKAI pada sesi (klaim `act`, lihat acting-role.util.ts). Kolom ini
   // menyatakan KEPEMILIKAN; sesi menyatakan PILIHAN.
-  roles       Role[]
-  opdId       Int?      @map("opd_id") // wajib bila `roles` memuat `opd`; null selain itu
+  roles         Role[]
+  opdId         Int?           @map("opd_id") // wajib bila `roles` memuat `opd`; null selain itu
   // IDENTITAS PELAPOR DARI HELPDESK (1 Oktober 2026). Ketiganya disalin dari
   // klaim `userinfo` saat login dan disegarkan tiap login; lihat
   // sso-identitas.mapper.ts untuk jalur klaimnya dan alasan tiga medan ini
@@ -197,9 +197,9 @@ model User {
   // ditambah 49 bita header, dan batas panjang di sini berarti login gagal
   // ketika seseorang kebetulan beralamat panjang. Pembatasannya dilakukan
   // SEBELUM enkripsi (BATAS_ALAMAT), tempat panjangnya masih punya arti.
-  nik         String?   @db.Text
-  nomorHp     String?   @map("nomor_hp") @db.Text
-  alamat      String?   @db.Text
+  nik           String?        @db.Text
+  nomorHp       String?        @map("nomor_hp") @db.Text
+  alamat        String?        @db.Text
   // TIDAK TERENKRIPSI, berbeda dari tiga kolom di atasnya (1 Oktober 2026).
   // Nilainya hanya dua, sehingga enkripsi nyaris tak menambah perlindungan,
   // sementara menyimpannya sebagai teks melepas jaminan tipe dari basis data
@@ -209,7 +209,7 @@ model User {
   //
   // Dipetakan dari klaim Helpdesk yang pengkodeannya TIDAK SERAGAM antar
   // endpoint ("Laki-laki" vs "L") -- lihat sso-jenis-kelamin.mapper.ts.
-  jenisKelamin JenisKelamin? @map("jenis_kelamin")
+  jenisKelamin  JenisKelamin?  @map("jenis_kelamin")
   // ASN atau warga, menurut Helpdesk (6 Oktober 2026). SATU-SATUNYA ukuran
   // yang dipakai gerbang "boleh dijadikan Admin OPD" di produksi.
   //
@@ -218,12 +218,12 @@ model User {
   // Gerbangnya karena itu menuntut `asn` secara tersurat dan tidak pernah
   // menyimpulkan apa pun dari `null`.
   jenisPengguna JenisPengguna? @map("jenis_pengguna")
-  isActive    Boolean   @default(true) @map("is_active")
-  consentAt   DateTime? @map("consent_at") // persetujuan PDP saat pertama login
-  lastLoginAt DateTime? @map("last_login_at")
-  deletedAt   DateTime? @map("deleted_at") // soft delete (UU PDP)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  isActive      Boolean        @default(true) @map("is_active")
+  consentAt     DateTime?      @map("consent_at") // persetujuan PDP saat pertama login
+  lastLoginAt   DateTime?      @map("last_login_at")
+  deletedAt     DateTime?      @map("deleted_at") // soft delete (UU PDP)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
   opd               Opd?               @relation(fields: [opdId], references: [id])
   respondentProfile RespondentProfile?
@@ -286,28 +286,28 @@ model Opd {
 // =====================================================================
 
 model Survey {
-  id                  Int          @id @default(autoincrement())
-  opdId               Int          @map("opd_id")
-  judul               String       @db.VarChar(100)
-  periode             String       @db.VarChar(20)
-  status              SurveyStatus @default(draft)
+  id                  Int           @id @default(autoincrement())
+  opdId               Int           @map("opd_id")
+  judul               String        @db.VarChar(100)
+  periode             String        @db.VarChar(20)
+  status              SurveyStatus  @default(draft)
   // Pembuat survei lewat API WAJIB menyatakan jenisnya (CreateSurveyDto);
   // `@default(custom)` hanya jaring pengaman bagi jalur yang membuat baris
   // langsung. Migrasi 20261008090000_jenis_survei mengisi baris lama
   // (berpertanyaan unsur = `skm_permenpanrb`, sisanya `custom`, dulu `umum`).
-  jenis               JenisSurvei  @default(custom)
+  jenis               JenisSurvei   @default(custom)
   // Hanya bermakna untuk survei custom (8 Oktober 2026). CHECK
   // `surveys_nilai_survei_ck` hidup di migrasi 20261008120000_nilai_survei karena
   // Prisma tak dapat menyatakannya: survei SKM tak boleh membawa keduanya. NULL
   // pada custom dibaca bawaan (kepuasan + rata_rata); API mewajibkan keduanya
   // saat membuat.
   tujuan              TujuanSurvei?
-  metodeNilai         MetodeNilai? @map("metode_nilai")
-  allowMultipleSubmit Boolean      @default(false) @map("allow_multiple_submit")
+  metodeNilai         MetodeNilai?  @map("metode_nilai")
+  allowMultipleSubmit Boolean       @default(false) @map("allow_multiple_submit")
   // Pengisian TANPA sesi (4 September 2026). Baku `false`, sehingga seluruh
   // survei yang sudah ada tidak berubah perilakunya sedikit pun. Hanya
   // endpoint /public/surveys/* yang membacanya.
-  izinkanAnonim       Boolean      @default(false) @map("izinkan_anonim")
+  izinkanAnonim       Boolean       @default(false) @map("izinkan_anonim")
   // SURVEI UTAMA per OPD (15 September 2026). Tombol "Lanjut Isi Survei" pada
   // halaman sukses pengaduan mengarah ke survei utama milik OPD yang diadukan.
   //
@@ -316,9 +316,9 @@ model Survey {
   // NULL`) yang hanya hidup di migrasi 20260915090000_survei_utama_per_opd,
   // karena Prisma tak dapat menyatakan indeks parsial. Jangan simpulkan dari
   // sini bahwa kolomnya bebas diisi ganda.
-  isUtama             Boolean      @default(false) @map("is_utama")
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
+  isUtama             Boolean       @default(false) @map("is_utama")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
   // SOFT DELETE (11 September 2026). `deletedAt` terisi = survei ada di Sampah:
   // tak tampil di mana pun kecuali halaman Sampah, dan jalur pengisiannya --
   // termasuk QR publik -- menolaknya 404.
@@ -326,14 +326,15 @@ model Survey {
   // `deletedById` ada supaya halaman Sampah dapat menyebut siapa yang membuang
   // tanpa menelusuri log audit. ON DELETE SET NULL disebut tersurat karena
   // DELETE /users memang ada: menghapus akun tak boleh mengunci baris sampah.
-  deletedAt           DateTime?    @map("deleted_at")
-  deletedById         Int?         @map("deleted_by_id")
+  deletedAt           DateTime?     @map("deleted_at")
+  deletedById         Int?          @map("deleted_by_id")
 
-  opd        Opd              @relation(fields: [opdId], references: [id])
-  deletedBy  User?            @relation("SurveyDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  questions  Question[]
-  responses  SurveyResponse[]
-  ikmResults IkmResult[]
+  opd           Opd              @relation(fields: [opdId], references: [id])
+  deletedBy     User?            @relation("SurveyDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  questions     Question[]
+  responses     SurveyResponse[]
+  ikmResults    IkmResult[]
+  notifications Notification[]
 
   @@index([opdId])
   @@index([status])
@@ -381,17 +382,17 @@ model QuestionOption {
 // =====================================================================
 
 model SurveyResponse {
-  id           Int      @id @default(autoincrement())
-  surveyId     Int      @map("survey_id")
+  id           Int           @id @default(autoincrement())
+  surveyId     Int           @map("survey_id")
   // NULL = respons anonim (tanpa sesi). Ditelusuri sebelum diubah: satu-satunya
   // pembaca kolom ini adalah ResponsesService (submit & findMine); IKM maupun
   // dashboard hanya count(), jadi respons tanpa pemilik tak merusak perhitungan.
-  userId       Int?     @map("user_id")
+  userId       Int?          @map("user_id")
   // Anti-duplikat: diisi = userId bila survei TIDAK mengizinkan multi-submit,
   // null bila boleh berulang. Postgres memperlakukan NULL sebagai distinct,
   // sehingga @@unique di bawah = 1 respons/user saat single-submit, tak dibatasi saat multi.
-  dedupeUserId Int?     @map("dedupe_user_id")
-  submittedAt  DateTime @default(now()) @map("submitted_at")
+  dedupeUserId Int?          @map("dedupe_user_id")
+  submittedAt  DateTime      @default(now()) @map("submitted_at")
   // Persetujuan UU PDP pengirim TANPA sesi, diisi WAKTU SERVER pada setiap
   // pengiriman publik. Berlaku sejak tim mengonfirmasi keharusannya
   // (8 September 2026); sebelum itu kolom ini ada tetapi selalu NULL, menunggu
@@ -400,7 +401,7 @@ model SurveyResponse {
   // punya baris `users`; penjaganya `setuju: true` yang wajib pada
   // SubmitPublicResponseDto. NULL pada baris bersesi adalah keadaan normal:
   // persetujuan mereka tercatat di `users.consentAt`.
-  consentAt    DateTime? @map("consent_at")
+  consentAt    DateTime?     @map("consent_at")
   // Data diri pengisi (8 September 2026). SELURUHNYA opsional, karena pengisi
   // boleh memilih "tanpa data diri" pada gerbang sebelum kuesioner. NULL pada
   // keempatnya berarti ia memilih itu.
@@ -485,24 +486,24 @@ model IkmResult {
 // =====================================================================
 
 model Complaint {
-  id          Int             @id @default(autoincrement())
-  ticketNo    String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
-  userId      Int             @map("user_id")
+  id        Int             @id @default(autoincrement())
+  ticketNo  String          @unique @map("ticket_no") @db.VarChar(20) // identifier publik
+  userId    Int             @map("user_id")
   // Opsional sejak 6 September 2026: pengirim yang tak tahu tujuannya memilih
   // "Lainnya (belum tahu tujuannya)", lalu Admin Kabupaten meneruskannya lewat
   // PATCH /complaints/:id/opd. NULL berarti "belum bertujuan" -- bukan status
   // tersendiri, karena statusnya tetap `diterima` sampai OPD-nya menangani.
-  opdId       Int?            @map("opd_id")
-  kategori    String          @db.VarChar(50) // 'aduan' | 'lapor' | 'lainnya' -- COMPLAINT_CATEGORIES
-  judul       String          @db.VarChar(255)
-  uraian      String          @db.Text
-  status      ComplaintStatus @default(diterima)
+  opdId     Int?            @map("opd_id")
+  kategori  String          @db.VarChar(50) // 'aduan' | 'lapor' | 'lainnya' -- COMPLAINT_CATEGORIES
+  judul     String          @db.VarChar(255)
+  uraian    String          @db.Text
+  status    ComplaintStatus @default(diterima)
   // Pengiriman anonim (4 September 2026). Basis data TETAP menyimpan userId
   // sebenarnya -- penyamaran terjadi di lapisan entity, supaya tautan pelapor
   // tetap ada untuk eskalasi resmi lewat audit_logs.
-  isAnonim    Boolean         @default(false) @map("is_anonim")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
+  isAnonim  Boolean         @default(false) @map("is_anonim")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
 
   user        User                  @relation(fields: [userId], references: [id])
   opd         Opd?                  @relation(fields: [opdId], references: [id])
@@ -587,8 +588,20 @@ model Notification {
   isRead    Boolean          @default(false) @map("is_read")
   createdAt DateTime         @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Survei yang ditunjuk notifikasi ini, bila memang menunjuk survei
+  /// (20 Oktober 2026, BUG-014). Sebelumnya satu-satunya tautannya kolom teks
+  /// `link`, sehingga pemusnahan survei tak punya apa pun untuk dihapus dan
+  /// meninggalkan notifikasi yang halaman tujuannya menjawab 404.
+  ///
+  /// `onDelete: Cascade` disengaja: jalur penghapusan survei mana pun di masa
+  /// depan tak dapat melupakannya. Penghapusan tersurat di dalam transaksi
+  /// pemusnahan hanya menjaga satu jalur yang kebetulan ada hari ini.
+  surveyId Int? @map("survey_id")
 
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  survey Survey? @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId])
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@index([userId, untukPeran, isRead])
