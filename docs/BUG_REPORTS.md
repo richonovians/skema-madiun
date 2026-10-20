@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.7 |
+| **Versi** | 5.8 |
 | **Tanggal** | 20 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -4148,7 +4148,37 @@ tercatat sejak v3.1 `TEST_CASES.md`.
 
 Data uji sesudah seluruh jalan: 3 pengaduan dan 5 notifikasi berpenanda `[UJI `
 terhapus, nol survei dan nol respons tertinggal. `audit_logs` TIDAK disentuh.
+
+#### Kedua spec basi dibereskan, dan pemanasan rute dipulihkan (20 Oktober 2026)
+
+Tabel pada bagian tepat di atas dibiarkan apa adanya — ia bacaan yang benar pada
+saat diukur. Dua spec yang di sana berstatus basi diperbaiki beberapa jam
+kemudian (`d88abb7`), dan pemanasan rute yang ikut mati pada merge dipulihkan
+(`6af266d`). Rinciannya di [TEST_CASES.md §Y.8.5](TEST_CASES.md), dan yang
+pantas berdiri di sini hanya ringkasnya.
+
+| Spec | Hasil sesudah perbaikan |
+| --- | --- |
+| `notifikasi-siklus.spec.js` | **4 lulus**, 4,1 detik — dua di antaranya pagar `test.fail()` yang memerah sebagaimana mestinya |
+| `isi-survei.spec.js` | **2 lulus**, 29,9 detik |
+| `proteksi-route.spec.js` | **4 lulus**, 1,9 menit |
+| `ajukan-pengaduan.spec.js` | **1 goyah + 2 lulus**, 1,3 menit |
+| `sso-galat.spec.js` | 2 lulus — tak disentuh |
+| `statistik-sampah.spec.js` | 2 lulus — tak disentuh |
+
+Keenam spec penguji kini hijau, satu di antaranya goyah. Dua akibat yang
+berarti bagi dokumen ini: **pagar BUG-014 akhirnya benar-benar jalan** — pagi
+ini ia "did not run" karena uji kendalinya gagal lebih dulu — dan BUG-014
+maupun BUG-018 terbukti masih terbuka lewat pagarnya sendiri, bukan lewat
+pembacaan kode.
+
+Yang tidak diakui terverifikasi: pemulihan pemanasan rute itu sendiri. Rute
+sudah panas di server dev yang hidup, jadi angka di atas hanya membuktikan
+kodenya tak merusak apa pun. Dan satu kegoyahan baru pada `ajukan-pengaduan`
+(balapan dropdown, bukan kompilasi rute) BELUM diperbaiki.
+
 | 5.7 | 20 Oktober 2026 | **Pagar BUG-013 terbukti DUA ARAH, dan keenam spec Playwright milik penguji akhirnya dinilai.** Penyaring `where: { survey: TIDAK_DIBUANG }` pada `dashboard.service.ts:337` dibuang sementara dan dipulihkan di `finally`: uji kendali tetap hijau, pagarnya memerah dengan `Received: 25`. Sasarannya dipilih dari kode — membuang survei `aktif` menutupnya lebih dulu lalu menerbitkan snapshot IKM, jadi sesudah masuk Sampah ia masuk lewat `ikmResult`, bukan `activeSurveys`. **Keenam spec: tiga sehat, satu goyah, dua basi.** `ajukan-pengaduan` 3/3, `sso-galat` 2/2, `statistik-sampah` 2/2; `proteksi-route` 4/4 tetapi dua ujinya habis tenggat 150 detik lalu lulus saat diulang (tenggat itu milik berkasnya sendiri, bukan config); `notifikasi-siklus` gagal pada kendali BUG-014 dengan kontrak survei yang sama (`jenis` wajib) sehingga pagar BUG-014 TIDAK JALAN, sementara pasangan BUG-018 sehat dan pagarnya memerah sebagaimana mestinya; `isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel` — ramalan 19 Oktober menjadi pengamatan, dan pesan galatnya sendiri kini menyesatkan sebab `pnpm test:e2e` memakai config yang sama. Hitungan E2E dikoreksi: **17 uji di 6 spec**, bukan 19 di 7. |
+| 5.8 | 20 Oktober 2026 | **Kedua spec basi dibereskan (`d88abb7`), dan pemanasan rute yang ikut mati pada merge dipulihkan (`6af266d`).** Keenam spec penguji kini hijau, satu goyah. `notifikasi-siklus` mengikuti kontrak survei yang sama, dan akibat terpentingnya bukan satu uji berubah hijau melainkan **pagar BUG-014 akhirnya BENAR-BENAR JALAN** — pagi ini ia "did not run"; BUG-014 dan BUG-018 terbukti masih terbuka lewat pagarnya sendiri, bukan lewat pembacaan kode. `isi-survei` ternyata soal **premis fiksturnya yang kedaluwarsa**: "survei aktif tidak dapat dihapus" benar sampai 11 September 2026 dan tidak lagi, jadi spec-nya kini membuat dan memusnahkan surveinya sendiri alih-alih menyambung ulang `globalSetup` — yang terakhir menuntut menyunting `playwright.config.ts`, berkas milik `main` di cabang ini. Nol survei `[UJI ` tertinggal membuktikan pembongkarannya bekerja. **Akibat kedua merge itu tersingkap**: `panaskanRute()` ikut mati bersama `globalSetup` cabang ini, dan gejalanya persis yang docblock-nya sendiri peringatkan. Dipulihkan sebagai `support/pemanasan.js`, dipanggil per spec. Perbaikan itu sendiri BELUM terverifikasi sebab rutenya sudah panas; mengukurnya menuntut `next dev` baru. Satu kegoyahan baru pada `ajukan-pengaduan` (balapan dropdown, bukan kompilasi) belum diperbaiki. |
 
 ---
 
