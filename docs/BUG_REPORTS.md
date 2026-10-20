@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.9 |
+| **Versi** | 6.0 |
 | **Tanggal** | 20 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -105,7 +105,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | **Ditutup** | C-14    |
-| [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | Baru       | C-14    |
+| [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | **Ditutup** | C-16    |
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
@@ -114,7 +114,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 21 temuan: 9 ditutup, **12 terbuka (0 Critical, 0 High, 6 Medium, 6 Low)**
+**Rekap** — 21 temuan: 10 ditutup, **11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)**
 
 > **(15 Oktober 2026) Baris di atas sebelumnya berbunyi "20 temuan ... 14
 > terbuka ... 5 Low", dan itu salah hitung.** Sebabnya kesalahan penguji yang
@@ -147,6 +147,12 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > Medium BUG-008, 009, 014, 015, 017, 019; Low BUG-003, 007, 010, 011, 012,
 > 018. Kalimat 19 Oktober di atas tentang BUG-008 tetap berlaku: dari enam
 > Medium yang tersisa, hanya ia yang akibatnya terlihat pengunjung publik.
+>
+> **(20 Oktober 2026, sore) Dihitung ulang lagi sesudah BUG-014 ditutup**, juga
+> dari baris tabelnya: 21 baris, sepuluh `Ditutup` (BUG-001, 002, 004, 005,
+> 006, 013, **014**, 016, 020, 021), sisanya 11 terbuka — Medium BUG-008, 009,
+> 015, 017, 019; Low BUG-003, 007, 010, 011, 012, 018. Medium tinggal lima, dan
+> BUG-008 tetap satu-satunya yang akibatnya terlihat pengunjung publik.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -1561,6 +1567,59 @@ Uji kendali yang wajib lulus membuktikan notifikasinya memang terbit saat survei
 dijawab; pagar `test.fail()` menuntut tak ada lagi yang menautnya sesudah survei
 dimusnahkan. Dibuktikan dua arah dengan menambahkan `notification.deleteMany`
 pada transaksi `purge` sementara, lalu mengembalikannya.
+
+#### Penutupan BUG-014 (20 Oktober 2026)
+
+Diperbaiki di `main` (`6d9c24a`, merge `fc7877b`). Yang menghalangi perbaikan
+ini selama ini bukan kelalaian melainkan bentuk tabelnya: `notifications` SAMA
+SEKALI TIDAK MENGENAL SURVEI, dan satu-satunya tautannya kolom teks `link`.
+Jadi `operasiPemusnahanSurvei` memang tak punya apa pun untuk dihapus.
+
+Tiga jalan ditimbang dan dua ditolak dengan alasannya:
+
+| Jalan | Keputusan |
+| --- | --- |
+| Kolom `survey_id` + FK `ON DELETE CASCADE` | **DIPAKAI** — jalur penghapusan survei mana pun di masa depan tak dapat melupakannya |
+| Kolom `survey_id`, hapus tersurat di `purge` | ditolak — lebih mudah dibaca, tetapi hanya menjaga satu jalur yang kebetulan ada hari ini |
+| Tanpa migrasi, hapus lewat pola teks `link` | ditolak — mati tanpa suara begitu rute itu berganti nama |
+
+**Migrasinya mengisi mundur tetapi tidak menghapus apa pun.** Baris lama diisi
+dari `link` HANYA bila surveinya masih ada; yang menunjuk survei yang sudah
+dimusnahkan dibiarkan `NULL`. Alasannya ditulis di dalam migrasinya sendiri:
+baris itu sudah tanpa induk sejak sebelum migrasi ini, dan memutuskan nasib
+notifikasi milik pengguna sungguhan bukan wewenang sebuah berkas migrasi.
+Terukur di basis data pengembangan: 384 baris, 12 menaut survei yang masih
+hidup. Foreign key-nya diperiksa langsung, bukan dipercaya:
+`notifications_survey_id_fkey` ada dengan `confdeltype = 'c'`.
+
+**Merahnya dibuktikan lebih dulu, dan DUA KALI merah karena sebab yang SALAH
+sebelum merah karena sebab yang benar.** Keduanya pantas dicatat sebab keduanya
+pelajaran. Pertama `Tests: 0 total` — galat kompilasi, bukan uji yang terbukti
+merah, dan sebabnya komentar yang menutup dirinya sendiri: teks
+`/admin-*` diikuti `/surveys/...` memuat penutup blok komentar, sehingga
+TypeScript membaca prosanya sebagai kode. Kedua `Expected: 201, Received: 403`
+— gerbang persetujuan PDP membaca `users.consent_at`, dan pengiriman jawaban
+ditolak sebelum satu notifikasi pun terbit. Barulah yang ketiga merah pada
+pernyataan yang dimaksud: `Expected: 0, Received: 2`.
+
+Ujinya menerbitkan notifikasi lewat JALUR APLIKASI, bukan menanamnya dengan
+`prisma.notification.create`: notifikasi yang ditanam tangan bisa hijau karena
+ia kebetulan membawa medan yang benar sementara jalur sungguhan tidak.
+
+**Lima uji unit ikut memerah sesudah perbaikan, dan itu benar.** Dua pernyataan
+`toContainEqual` menegaskan BENTUK PENUH muatan `createMany`, dan muatannya
+kini membawa `surveyId`. Keduanya dibetulkan dengan menambahkan medannya, BUKAN
+dilonggarkan menjadi `objectContaining` — bentuk ketat itulah yang menangkap
+medan yang tak sengaja ikut terkirim.
+
+Verifikasi penuh termasuk e2e `apps/api`, sebab perubahan ini menyentuh skema:
+1.359 uji unit api, 456 uji e2e api, 1.777 uji web, eslint kode=0.
+
+**YANG BELUM DIKERJAKAN, dan disebut supaya tak jadi kejutan:** pagar Playwright
+BUG-014 di cabang ini masih beranotasi `test.fail()`. Ia akan MEMERAH pada
+tarikan `main` berikutnya ke sini, dan yang benar adalah MENCABUT anotasinya,
+bukan menghapus specnya — persis seperti yang terjadi pada BUG-013 pada
+19 Oktober.
 
 ---
 <a id="bug-015"></a>
@@ -4252,6 +4311,7 @@ kodenya tak merusak apa pun. Dan satu kegoyahan baru pada `ajukan-pengaduan`
 | 5.7 | 20 Oktober 2026 | **Pagar BUG-013 terbukti DUA ARAH, dan keenam spec Playwright milik penguji akhirnya dinilai.** Penyaring `where: { survey: TIDAK_DIBUANG }` pada `dashboard.service.ts:337` dibuang sementara dan dipulihkan di `finally`: uji kendali tetap hijau, pagarnya memerah dengan `Received: 25`. Sasarannya dipilih dari kode — membuang survei `aktif` menutupnya lebih dulu lalu menerbitkan snapshot IKM, jadi sesudah masuk Sampah ia masuk lewat `ikmResult`, bukan `activeSurveys`. **Keenam spec: tiga sehat, satu goyah, dua basi.** `ajukan-pengaduan` 3/3, `sso-galat` 2/2, `statistik-sampah` 2/2; `proteksi-route` 4/4 tetapi dua ujinya habis tenggat 150 detik lalu lulus saat diulang (tenggat itu milik berkasnya sendiri, bukan config); `notifikasi-siklus` gagal pada kendali BUG-014 dengan kontrak survei yang sama (`jenis` wajib) sehingga pagar BUG-014 TIDAK JALAN, sementara pasangan BUG-018 sehat dan pagarnya memerah sebagaimana mestinya; `isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel` — ramalan 19 Oktober menjadi pengamatan, dan pesan galatnya sendiri kini menyesatkan sebab `pnpm test:e2e` memakai config yang sama. Hitungan E2E dikoreksi: **17 uji di 6 spec**, bukan 19 di 7. |
 | 5.8 | 20 Oktober 2026 | **Kedua spec basi dibereskan (`d88abb7`), dan pemanasan rute yang ikut mati pada merge dipulihkan (`6af266d`).** Keenam spec penguji kini hijau, satu goyah. `notifikasi-siklus` mengikuti kontrak survei yang sama, dan akibat terpentingnya bukan satu uji berubah hijau melainkan **pagar BUG-014 akhirnya BENAR-BENAR JALAN** — pagi ini ia "did not run"; BUG-014 dan BUG-018 terbukti masih terbuka lewat pagarnya sendiri, bukan lewat pembacaan kode. `isi-survei` ternyata soal **premis fiksturnya yang kedaluwarsa**: "survei aktif tidak dapat dihapus" benar sampai 11 September 2026 dan tidak lagi, jadi spec-nya kini membuat dan memusnahkan surveinya sendiri alih-alih menyambung ulang `globalSetup` — yang terakhir menuntut menyunting `playwright.config.ts`, berkas milik `main` di cabang ini. Nol survei `[UJI ` tertinggal membuktikan pembongkarannya bekerja. **Akibat kedua merge itu tersingkap**: `panaskanRute()` ikut mati bersama `globalSetup` cabang ini, dan gejalanya persis yang docblock-nya sendiri peringatkan. Dipulihkan sebagai `support/pemanasan.js`, dipanggil per spec. Perbaikan itu sendiri BELUM terverifikasi sebab rutenya sudah panas; mengukurnya menuntut `next dev` baru. Satu kegoyahan baru pada `ajukan-pengaduan` (balapan dropdown, bukan kompilasi) belum diperbaiki. |
 | 5.9 | 20 Oktober 2026 | **BUG-016 DITUTUP** (`c58e8c5`, merge `0de0285`), dan diverifikasi di peramban sungguhan alih-alih hanya dihijaukan uji. Rekap dihitung ulang dari tabelnya: 9 ditutup, 12 terbuka, Medium tinggal enam. **Temuan yang mengubah penilaian atas perbaikannya sendiri: peringatannya terbit lewat TENGGAT 15 detik, bukan lewat `onError`** — widget Cloudflare terlihat terpasang, tantangannya tak pernah selesai, dan `error-callback` tak pernah dipanggil sama sekali, jadi lapisan yang semula dianggap tambahan justru satu-satunya yang menyelamatkan kasus nyata. **Satu lulus palsu nyaris lolos**: `getByRole('alert')` di peramban ikut mencocokkan pengumum rute Next yang selalu ada dan kosong, sehingga jalan pertama melaporkan "muncul sesudah 0,0 detik" dengan teks hampa; jsdom tak memasang pengumum itu, jadi uji Jest tak kena. Dicatat pula di luar lingkup: tombol Kirim yang terkunci tidak terlihat terkunci. |
+| 6.0 | 20 Oktober 2026 | **BUG-014 DITUTUP** (`6d9c24a`, merge `fc7877b`): kolom `survey_id` pada `notifications` beserta foreign key `ON DELETE CASCADE`, sebab tabel itu sebelumnya sama sekali tidak mengenal survei dan tautannya cuma teks `link`. Dua jalan lain ditolak dengan alasannya. Migrasinya mengisi mundur tetapi TIDAK menghapus baris tanpa induk yang sudah ada — keputusan itu bukan wewenang sebuah migrasi. Merahnya dibuktikan lebih dulu, dan dua kali merah karena sebab yang salah (galat kompilasi dari komentar yang menutup dirinya sendiri, lalu gerbang persetujuan PDP) sebelum merah pada `Expected: 0, Received: 2`. Rekap: 10 ditutup, 11 terbuka, Medium tinggal lima. **Pemanasan rute akhirnya TERUKUR** pada `next dev` yang baru: `isi-survei` 1,5 menit dengan 1 goyah menjadi 22,3 detik, `proteksi-route` 6,5 menit dengan dua percobaan ulang menjadi 1,4 menit tanpa percobaan ulang. **Kegoyahan `pilihDropdown` ditambal** dengan idiom yang sudah ada di `masuk.js` (klik sebelum hidrasi ditelan tanpa galat); buktinya terbatas pada enam eksekusi tanpa pengulangan, bukan jaminan. |
 
 ---
 
