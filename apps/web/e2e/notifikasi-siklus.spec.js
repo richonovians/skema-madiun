@@ -10,6 +10,19 @@ import { AKUN, masukApi, panggilApi } from './support/api.js';
  * mencegahnya diterbitkan dua kali. Pembersihan 15 September 2026 menemukan
  * **7.986** notifikasi tanpa induk di lingkungan dev — sebelas hari tanpa penyapu.
  *
+ * ── PREMIS DI ATAS SEPARUHNYA SUDAH BASI (20 Oktober 2026) ──────────────────
+ * Kalimat "notifikasi menaut induknya lewat TEKS" masih benar untuk BUG-018
+ * (notifikasi pengaduan), tetapi TIDAK LAGI untuk BUG-014. Sejak migrasi
+ * `20261020140000_notifikasi_tertaut_survei`, `notifications` punya kolom
+ * `survey_id` dengan kunci asing `ON DELETE CASCADE`, jadi notifikasi survei
+ * memang ikut cascade sekarang. Anotasi `test.fail()` pada pagar BUG-014 dicabut
+ * hari itu juga; lihat alasannya di tempatnya, di bawah.
+ *
+ * Angka 7.986 notifikasi tanpa induk di atas tetap sebagaimana terukur
+ * 15 September 2026, dan baris-baris itu TETAP tanpa induk: migrasinya sengaja
+ * membiarkannya `NULL` alih-alih menghapusnya, sebab memutuskan nasib notifikasi
+ * milik pengguna sungguhan bukan wewenang sebuah berkas migrasi.
+ *
  * ── Kenapa tanpa peramban ───────────────────────────────────────────────────
  * Yang salah bukan tampilannya melainkan barisnya. Melewati antarmuka hanya
  * menambah halaman yang bisa gagal karena sebab lain. Ia tetap di suite E2E,
@@ -119,13 +132,31 @@ test.describe('BUG-014 — hapus permanen meninggalkan notifikasi tanpa induk', 
   });
 
   test('sesudah dimusnahkan permanen, tak ada notifikasi yang masih menautnya', async () => {
-    test.fail(
-      true,
-      'BUG-014 masih terbuka: `SurveysService.purge` menghapus enam tabel secara ' +
-        'tersurat dan `notifications` tidak termasuk — ia menaut induknya lewat teks ' +
-        '`link`, bukan kunci asing, jadi tak pernah ikut cascade. Cabut anotasi ini ' +
-        'begitu penyapunya dipasang.',
-    );
+    // Anotasi `test.fail()` DICABUT 20 Oktober 2026, bukan specnya yang dihapus.
+    //
+    // Yang dulu tertulis di sini: "BUG-014 masih terbuka — `SurveysService.purge`
+    // menghapus enam tabel secara tersurat dan `notifications` tidak termasuk
+    // — ia menaut induknya lewat teks `link`, bukan kunci asing, jadi tak pernah
+    // ikut cascade."
+    //
+    // Yang dipasang bukan penyapu, melainkan TAUTANNYA SENDIRI: kolom
+    // `notifications.survey_id` dengan kunci asing `ON DELETE CASCADE`
+    // (`20261020140000_notifikasi_tertaut_survei`). Jadi dugaan dalam kalimat di
+    // atas keliru pada satu hal yang penting — "penyapunya" menyiratkan satu baris
+    // `deleteMany` yang kurang, padahal yang kurang adalah bentuk tabelnya. Satu
+    // `deleteMany` hanya menjaga jalur pemusnahan yang kebetulan ada hari ini;
+    // cascade menjaga jalur penghapusan survei mana pun di masa depan.
+    //
+    // Mekanismenya bekerja persis seperti maksudnya. Jalan pertama sesudah `main`
+    // ditarik ke sini berbunyi "Expected to fail, but passed" dua kali (jalan asli
+    // dan satu percobaan ulang), dan itulah yang menuntut anotasi ini dicabut.
+    // Sejak sekarang ia pagar regresi sungguhan: bila kunci asingnya hilang atau
+    // `onDelete` diturunkan dari `Cascade`, uji di bawah memerah.
+    //
+    // Catatan untuk pembaca berikutnya: migrasinya MENGISI MUNDUR tetapi TIDAK
+    // menghapus apa pun. Baris yang sudah tanpa induk sejak sebelum migrasi
+    // dibiarkan NULL, sehingga `bersihkan-data-uji.mjs --tanpa-induk` masih punya
+    // pekerjaan atas sisa lama — bukan atas sisa baru.
 
     await panggilApi(tokenKabupaten, 'DELETE', `/surveys/${surveiId}`);
     await panggilApi(tokenKabupaten, 'DELETE', `/surveys/${surveiId}/purge`);
