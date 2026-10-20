@@ -17,6 +17,8 @@
 # ukurannya besar, jadi tak ada gunanya masuk riwayat.
 /playwright-report/
 /test-results/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 /.next/
