@@ -37,7 +37,7 @@
 
 | Butir               | Isi                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Versi** | 5.8 |
+| **Versi** | 5.9 |
 | **Tanggal** | 20 Oktober 2026 |
 | **Penguji**         | Mohammad Fakhriza Maftukhin (Tester — Frontend)                                                            |
 | **Lingkup**         | `apps/web` saja                                                                                            |
@@ -107,14 +107,14 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | Baru       | C-14    |
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
-| [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | Baru       | C-16    |
+| [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | **Ditutup** | C-16    |
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
 | [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 21 temuan: 8 ditutup, **13 terbuka (0 Critical, 0 High, 7 Medium, 6 Low)**
+**Rekap** — 21 temuan: 9 ditutup, **12 terbuka (0 Critical, 0 High, 6 Medium, 6 Low)**
 
 > **(15 Oktober 2026) Baris di atas sebelumnya berbunyi "20 temuan ... 14
 > terbuka ... 5 Low", dan itu salah hitung.** Sebabnya kesalahan penguji yang
@@ -140,6 +140,13 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > tingkat tertinggi yang terbuka, dan dokumen ini TIDAK memeringkat di antara
 > mereka; yang dapat dikatakan tanpa mengarang: hanya [BUG-008](#bug-008) yang
 > akibatnya terlihat oleh pengunjung publik, sisanya di layar internal.
+>
+> **(20 Oktober 2026) Dihitung ulang sesudah BUG-016 ditutup**, dari baris
+> tabelnya dan bukan dengan mengurangi satu: 21 baris, sembilan `Ditutup`
+> (BUG-001, 002, 004, 005, 006, 013, **016**, 020, 021), sisanya 12 terbuka —
+> Medium BUG-008, 009, 014, 015, 017, 019; Low BUG-003, 007, 010, 011, 012,
+> 018. Kalimat 19 Oktober di atas tentang BUG-008 tetap berlaku: dari enam
+> Medium yang tersisa, hanya ia yang akibatnya terlihat pengunjung publik.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -175,7 +182,7 @@ regresi sungguhan.
 | [BUG-013](#bug-013) | `e2e/statistik-sampah.spec.js` | E2E (API) — **pagar regresi sungguhan sejak 19 Oktober 2026**, `test.fail()` dicabut |
 | [BUG-014](#bug-014) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
 | [BUG-015](#bug-015) | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL |
-| [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL |
+| [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 20 Oktober 2026**, `test.failing()` dicabut |
 | [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL |
 | [BUG-018](#bug-018) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
 | [BUG-019](#bug-019) | `e2e/sso-galat.spec.js` | E2E (API) |
@@ -2859,6 +2866,71 @@ ketinggalan; yang terjadi di sini jalur yang sama, dengan sebab yang berbeda.
 satu baris peringatan di dalam modal beserta tombol "Muat ulang verifikasi", dan
 bila perlu batas waktu (mis. 15 detik tanpa token dianggap gagal).
 
+#### Penutupan BUG-016 (20 Oktober 2026)
+
+Diperbaiki di `main` (`c58e8c5`, merge `0de0285`) dan **dilihat di peramban
+sungguhan**, bukan hanya dihijaukan oleh uji. Saran perbaikan di atas diikuti
+seluruhnya, termasuk klausa "bila perlu batas waktu" — dan klausa itu ternyata
+bukan "bila perlu", melainkan intinya; lihat temuan pertama di bawah.
+
+Perbaikannya dua lapis. `TurnstileWidget` mendapat prop `onError`, sehingga
+`error-callback` tak lagi hanya mengosongkan token. `ModalKirimSurvei` mendapat
+tenggat 15 detik, peringatan `role="alert"`, dan tombol "Muat Ulang
+Verifikasi" yang memasang ulang widgetnya lewat perubahan `key` — pemasangan
+ulang itulah yang meminta tantangan baru, dan blok pembersih widget sendiri
+yang mengosongkan token basinya. `expired-callback` SENGAJA tidak ikut
+melaporkan: token kedaluwarsa itu normal dan widget meminta yang baru sendiri.
+
+**Tombol kirim tetap terkunci, dan itu keputusan.** Membukanya hanya
+memindahkan kegagalan ke `403 CAPTCHA_TIDAK_SAH` dari server. Yang diminta
+laporan ini pemberitahuan beserta jalan keluar, bukan tombol yang menipu.
+
+Pengukuran di Chrome sungguhan, pengunjung tanpa akun, rute `/survei/:id`,
+survei `izinkanAnonim` yang dibuat dan dimusnahkan oleh probenya sendiri:
+
+| Yang diukur | Hasil |
+| --- | --- |
+| Tombol kirim terkunci saat modal baru terbuka | ya |
+| Peringatan muncul sesudah | **15,3 detik** |
+| Tombol kirim sesudah peringatan | masih terkunci |
+| Tombol "Muat Ulang Verifikasi" | ada |
+| Sesudah muat ulang | peringatan hilang |
+| Peringatan muncul LAGI sesudah | 15,2 detik |
+| Galat konsol | seluruhnya milik Cloudflare (pelanggaran CSP `connect-src` saat mencoba `data:,`) |
+
+**TIGA TEMUAN LAHIR DARI MENJALANKANNYA, bukan dari membacanya.**
+
+**Pertama, dan yang paling mengubah penilaian atas perbaikannya sendiri:
+peringatan itu terbit lewat TENGGAT, bukan lewat `onError`.** Widget Cloudflare
+terlihat jelas terpasang di layar ("Verify you are human"), tantangannya tak
+pernah selesai, dan `error-callback` TAK PERNAH dipanggil sama sekali selama
+pemantauan. Artinya lapisan yang semula dianggap penjaga tambahan justru
+SATU-SATUNYA yang menyelamatkan kasus yang sesungguhnya dilaporkan; prop
+`onError` sendirian akan meninggalkan layar itu tetap diam persis seperti
+sebelum perbaikan. Pagar Jest-nya menguji `onError`, dan itu tetap benar —
+tetapi ia menguji jalur yang BUKAN jalur yang menyelamatkan pengisi di sini.
+
+**Kedua, satu lulus palsu pada alat ukurnya sendiri yang nyaris lolos.**
+`getByRole('alert')` di peramban sungguhan ikut mencocokkan pengumum rute milik
+Next (`<div role="alert" aria-live="assertive" id="__next-route-announcer__">`),
+yang SELALU ada dan kosong. Jalan pertama karena itu melaporkan "peringatan
+muncul sesudah 0,0 detik" dengan teks hampa, dan itu terbaca persis seperti
+keberhasilan. Dipersempit ke dalam dialognya, angkanya menjadi 15,3 detik. Uji
+Jest tidak kena sebab jsdom tak memasang pengumum itu — jadi ini kelas cacat
+yang HANYA muncul pada pengukuran di peramban, dan akan terulang pada probe
+berikutnya yang memakai peran `alert`.
+
+**Ketiga, di luar lingkup dan tidak diubah:** tombol **Kirim Survei** yang
+terkunci tidak terlihat terkunci. Gayanya putih-berbingkai dan serupa tombol
+yang hidup. Itu perkara terpisah dari BUG-016 dan dicatat di sini supaya tidak
+hilang, bukan sebagai bagian dari temuan ini.
+
+Uji: merahnya dibuktikan lebih dulu (4 gagal / 13 lulus dari 17 uji sebelum
+satu baris produksi disentuh), dan tiga uji yang hijau sejak awal masing-masing
+dibuktikan dapat memerah lewat mutasi yang dipulihkan di `finally`. Verifikasi
+penuh pascaperbaikan: 1.359 uji api, 1.777 uji web, eslint kode=0 — uji web
+naik dari 1.770 sebab tujuh uji ditambahkan tanpa berkas uji baru.
+
 ---
 <a id="cat-018"></a>
 
@@ -4179,6 +4251,7 @@ kodenya tak merusak apa pun. Dan satu kegoyahan baru pada `ajukan-pengaduan`
 
 | 5.7 | 20 Oktober 2026 | **Pagar BUG-013 terbukti DUA ARAH, dan keenam spec Playwright milik penguji akhirnya dinilai.** Penyaring `where: { survey: TIDAK_DIBUANG }` pada `dashboard.service.ts:337` dibuang sementara dan dipulihkan di `finally`: uji kendali tetap hijau, pagarnya memerah dengan `Received: 25`. Sasarannya dipilih dari kode — membuang survei `aktif` menutupnya lebih dulu lalu menerbitkan snapshot IKM, jadi sesudah masuk Sampah ia masuk lewat `ikmResult`, bukan `activeSurveys`. **Keenam spec: tiga sehat, satu goyah, dua basi.** `ajukan-pengaduan` 3/3, `sso-galat` 2/2, `statistik-sampah` 2/2; `proteksi-route` 4/4 tetapi dua ujinya habis tenggat 150 detik lalu lulus saat diulang (tenggat itu milik berkasnya sendiri, bukan config); `notifikasi-siklus` gagal pada kendali BUG-014 dengan kontrak survei yang sama (`jenis` wajib) sehingga pagar BUG-014 TIDAK JALAN, sementara pasangan BUG-018 sehat dan pagarnya memerah sebagaimana mestinya; `isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel` — ramalan 19 Oktober menjadi pengamatan, dan pesan galatnya sendiri kini menyesatkan sebab `pnpm test:e2e` memakai config yang sama. Hitungan E2E dikoreksi: **17 uji di 6 spec**, bukan 19 di 7. |
 | 5.8 | 20 Oktober 2026 | **Kedua spec basi dibereskan (`d88abb7`), dan pemanasan rute yang ikut mati pada merge dipulihkan (`6af266d`).** Keenam spec penguji kini hijau, satu goyah. `notifikasi-siklus` mengikuti kontrak survei yang sama, dan akibat terpentingnya bukan satu uji berubah hijau melainkan **pagar BUG-014 akhirnya BENAR-BENAR JALAN** — pagi ini ia "did not run"; BUG-014 dan BUG-018 terbukti masih terbuka lewat pagarnya sendiri, bukan lewat pembacaan kode. `isi-survei` ternyata soal **premis fiksturnya yang kedaluwarsa**: "survei aktif tidak dapat dihapus" benar sampai 11 September 2026 dan tidak lagi, jadi spec-nya kini membuat dan memusnahkan surveinya sendiri alih-alih menyambung ulang `globalSetup` — yang terakhir menuntut menyunting `playwright.config.ts`, berkas milik `main` di cabang ini. Nol survei `[UJI ` tertinggal membuktikan pembongkarannya bekerja. **Akibat kedua merge itu tersingkap**: `panaskanRute()` ikut mati bersama `globalSetup` cabang ini, dan gejalanya persis yang docblock-nya sendiri peringatkan. Dipulihkan sebagai `support/pemanasan.js`, dipanggil per spec. Perbaikan itu sendiri BELUM terverifikasi sebab rutenya sudah panas; mengukurnya menuntut `next dev` baru. Satu kegoyahan baru pada `ajukan-pengaduan` (balapan dropdown, bukan kompilasi) belum diperbaiki. |
+| 5.9 | 20 Oktober 2026 | **BUG-016 DITUTUP** (`c58e8c5`, merge `0de0285`), dan diverifikasi di peramban sungguhan alih-alih hanya dihijaukan uji. Rekap dihitung ulang dari tabelnya: 9 ditutup, 12 terbuka, Medium tinggal enam. **Temuan yang mengubah penilaian atas perbaikannya sendiri: peringatannya terbit lewat TENGGAT 15 detik, bukan lewat `onError`** — widget Cloudflare terlihat terpasang, tantangannya tak pernah selesai, dan `error-callback` tak pernah dipanggil sama sekali, jadi lapisan yang semula dianggap tambahan justru satu-satunya yang menyelamatkan kasus nyata. **Satu lulus palsu nyaris lolos**: `getByRole('alert')` di peramban ikut mencocokkan pengumum rute Next yang selalu ada dan kosong, sehingga jalan pertama melaporkan "muncul sesudah 0,0 detik" dengan teks hampa; jsdom tak memasang pengumum itu, jadi uji Jest tak kena. Dicatat pula di luar lingkup: tombol Kirim yang terkunci tidak terlihat terkunci. |
 
 ---
 
