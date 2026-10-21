@@ -106,7 +106,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | **Ditutup** | C-14    |
-| [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru (bagian 1 diperbaiki 21 Okt 2026, bagian 2 belum) | C-14    |
+| [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | **Ditutup** | C-16    |
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | **Ditutup** | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
@@ -180,6 +180,22 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > menguntungkan, bukan alasan menggabungkan temuan lain: BUG-010 (nama tombol
 > paginasi) sekelas dengan keduanya tetapi tinggal di komponen lain dan tetap
 > terbuka.
+>
+> **(21 Oktober 2026, sore) BAGIAN 2 BUG-015 ikut dikerjakan, jadi barisnya kini
+> benar-benar `Ditutup`.** Dihitung ulang dari baris tabelnya: 21 baris, dua
+> belas `Ditutup` (BUG-001, 002, 004, 005, 006, 013, 014, **015**, 016, 017,
+> 020, 021), sisanya 9 terbuka — Medium BUG-008, 009, 019; Low BUG-003, 007,
+> 010, 011, 012, 018. Medium tinggal tiga, dan BUG-008 tetap satu-satunya yang
+> akibatnya terlihat pengunjung publik. Catatan beberapa jam sebelumnya di atas
+> yang menyatakan Medium tetap empat dibiarkan utuh sebagai rekaman saat itu.
+>
+> Cakupannya ternyata LEBIH LUAS daripada yang laporan BUG-015 sebutkan, dan itu
+> terukur sebelum dikerjakan: kelima dialog ber-`role="dialog"` di `apps/web`
+> tak satu pun mengurung fokus — nol `useRef`, nol `.focus()`, nol `inert` di
+> semuanya — sementara keempat yang lain juga memasang `aria-modal="true"`. Jadi
+> bentuk cacatnya sama persis di lima tempat; laporan ini hanya menyebut
+> `ConfirmTypeToDeleteModal` karena di sanalah jejak Tab direkam. Kelimanya
+> diperbaiki sekaligus lewat satu kait bersama, bukan satu berkas saja.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -214,7 +230,8 @@ regresi sungguhan.
 | ------ | ----- | ------- |
 | [BUG-013](#bug-013) | `e2e/statistik-sampah.spec.js` | E2E (API) — **pagar regresi sungguhan sejak 19 Oktober 2026**, `test.fail()` dicabut |
 | [BUG-014](#bug-014) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
-| [BUG-015](#bug-015) | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 21 Oktober 2026**, `test.failing()` dicabut. Menjaga BAGIAN 1 saja (atribut `ConfirmActionModal`); pengurungan fokus `ConfirmTypeToDeleteModal` tak pernah dijaga pagar mana pun |
+| [BUG-015](#bug-015) bagian 1 | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 21 Oktober 2026**, `test.failing()` dicabut. Menjaga atribut `ConfirmActionModal` saja |
+| [BUG-015](#bug-015) bagian 2 | `pagar-bug-015-fokus-dialog.test.jsx` | Jest + RTL — **lahir langsung sebagai pagar regresi** (21 Oktober 2026), harapan biasa yang dibuktikan merah lebih dulu, bukan `test.failing()`. Ditambah dua uji pemasangan di `GantiJenisModal.test.jsx` dan `ModalKirimSurvei.test.jsx` |
 | [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 20 Oktober 2026**, `test.failing()` dicabut |
 | [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 21 Oktober 2026**, `test.failing()` dicabut |
 | [BUG-018](#bug-018) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
@@ -1762,7 +1779,13 @@ sementara, lalu mengembalikannya.
 `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, DAN `aria-label="Tutup"`
 pada tombol silangnya — lengkap. Polanya sudah dikuasai tim di berkas sebelah.
 
-#### Bagian 1 diperbaiki (21 Oktober 2026) — bagian 2 BELUM, dan barisnya tetap terbuka
+#### Bagian 1 diperbaiki (21 Oktober 2026)
+
+> Judul bagian ini semula berbunyi "bagian 2 BELUM, dan barisnya tetap terbuka",
+> dan itu benar selama beberapa jam. Bagian 2 dikerjakan pada hari yang sama;
+> penutupannya ada di bagian berikutnya. Kalimat-kalimat di bawah dibiarkan
+> dalam bentuk aslinya sebagai rekaman bertanggal, termasuk yang menyatakan
+> bagian 2 masih utuh.
 
 `ConfirmActionModal.jsx` di `main` (commit `4d0080b`) kini memasang
 `role="dialog"`, `aria-modal="true"` dan `aria-labelledby` pada panelnya, judulnya
@@ -1795,6 +1818,66 @@ Status barisnya dibiarkan terbuka. Dalam sesi yang sama ia sempat ditandai
 `Ditutup` atas dasar bagian 1 saja, dan itu salah — penandaan itu dibatalkan
 sebelum di-commit. Bila kelak lebih rapi memisahkannya menjadi temuan sendiri,
 itu keputusan pemilik dokumen, bukan diambil diam-diam di sini.
+
+#### Penutupan bagian 2 (21 Oktober 2026, sore) — dan cakupannya lebih luas dari laporan ini
+
+Dikerjakan beberapa jam sesudah bagian 1, di `main` lewat commit `3a64d86`.
+Barisnya karena itu `Ditutup`, dan paragraf di atas tentang "dibiarkan terbuka"
+berlaku untuk tanggal itu saja.
+
+**Cacatnya ada di LIMA dialog, bukan satu.** Diukur sebelum dikerjakan, dengan
+menghitung `useRef`, `.focus()` dan `inert` di tiap berkas ber-`role="dialog"`:
+hasilnya nol pada kelimanya — `ConfirmActionModal`, `ConfirmDialog`,
+`ConfirmTypeToDeleteModal`, `GantiJenisModal`, `ModalKirimSurvei` — dan keempat
+selain `ConfirmTypeToDeleteModal` juga memasang `aria-modal="true"`. Jadi
+kombinasi yang laporan ini sebut merugikan itu berulang di lima tempat. Laporan
+aslinya hanya menyebut satu karena di sanalah jejak Tab direkam, bukan karena
+yang lain bersih.
+
+Perbaikannya satu kait bersama, `apps/web/src/hooks/useFocusTrap.js`, dipanggil
+kelima dialog — bukan lima salinan. Alasannya sama yang melahirkan
+`useBodyScrollLock`: polanya identik di tiap pemakai.
+
+Tiga keputusan rancangan yang pantas diketahui sebelum seseorang mengubahnya:
+
+1. **Mengurung di TEPIAN saja.** Berpindah antar elemen di dalam dialog tetap
+   pekerjaan peramban; yang dicegat hanya Tab yang hendak melewati tepi, lalu
+   dilingkarkan. Mengambil alih setiap Tab akan mengabaikan `tabindex` positif
+   dan urutan baca yang mungkin dipasang kelak.
+2. **Fokus awal mendarat di WADAH dialognya**, bukan elemen interaktif pertama,
+   supaya pembaca layar mengumumkan nama dialognya lebih dulu dan tak ada tombol
+   destruktif yang terkokang. `ConfirmTypeToDeleteModal` menimpanya ke medan
+   ketik — aman justru karena tombol hapusnya mati sampai ketikannya cocok.
+3. **`inert` pada sisa halaman TIDAK dipakai**, walau lebih kuat: jsdom tak
+   mendukungnya sehingga pagarnya takkan membuktikan apa pun, dan tiga dari lima
+   dialog mem-portal dirinya ke `document.body` sehingga "sisa halaman" bukan
+   satu subpohon yang kita miliki. Batasnya dibayar tersurat — pengurungan lewat
+   keydown tidak menahan fokus mencapai kendali peramban.
+
+**Satu harga yang tidak disembunyikan.** `focus:outline-none` dipasang pada
+wadah kelima dialog, sebab tanpa itu peramban menggambar cincin fokus
+mengelilingi seluruh modal saat terbuka. Wadahnya hanya dapat difokus secara
+terprogram (`tabIndex={-1}`), jadi pemakai papan ketik tak pernah men-Tab ke
+sana — tetapi pemakai papan ketik yang AWAS kini tak mendapat petunjuk visual di
+mana fokusnya tepat sesudah dialog terbuka. Bila itu dinilai terlalu mahal, dua
+alternatifnya: biarkan cincinnya, atau daratkan fokus di elemen pertama.
+
+**Pagarnya lahir langsung sebagai pagar regresi**, bukan `test.failing()`.
+Anotasi itu masuk akal hanya ketika perbaikannya ditunda; di sini perbaikannya
+ada di perubahan yang sama, jadi siklus merah→hijau biasa yang benar. Tujuh
+harapan diamati merah lebih dulu — semuanya `toHaveFocus`, termasuk
+`expect(pemicu()).not.toHaveFocus()` yang memerah justru karena fokus memang
+tertinggal di pemicu, yakni cacat yang dilaporkan, terbukti hidup. Ditambah dua
+uji pemasangan terpisah di `GantiJenisModal.test.jsx` dan
+`ModalKirimSurvei.test.jsx`, sebab kait yang ADA tetapi tak pernah dipanggil
+akan membuat pagar kaitnya sendiri tetap hijau.
+
+Suite web sesudahnya 217 suites / 1787 tests, dari 216 / 1777 — nol uji lama
+patah.
+
+**`ConfirmTypeToDeleteModal` masih menaruh `role="dialog"` pada latarnya**, bukan
+panelnya, tak seragam dengan empat lainnya. Pengurungan bekerja di kedua
+penempatan, jadi itu kerapian dan sengaja dibiarkan di luar perbaikan ini.
 
 ---
 
