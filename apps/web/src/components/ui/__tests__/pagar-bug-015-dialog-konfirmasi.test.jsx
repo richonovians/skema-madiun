@@ -10,20 +10,24 @@ import ConfirmActionModal from '../ConfirmActionModal';
  * tak punya `aria-modal`, nama aksesibelnya kosong, dan tombol tutupnya hanya
  * berisi ikon tanpa teks apa pun.
  *
- * ── Kenapa `test.failing()`, bukan harapan biasa ────────────────────────────
- * Cacatnya BELUM diperbaiki. Ditulis sebagai harapan biasa, berkas ini merah
- * setiap hari karena hal yang sudah diketahui — dan merah yang permanen
- * berhenti dibaca orang. `test.failing()` membalik arahnya: selama cacatnya
- * ada, suite hijau; begitu atributnya dipasang, uji itu MERAH dan menuntut
- * anotasinya dicabut. Sejak saat itu ia jadi pagar regresi sungguhan. Yang
- * dikunci bukan perbaikannya, melainkan MOMEN perbaikannya.
+ * ── PAGAR REGRESI SUNGGUHAN SEJAK 21 OKTOBER 2026 ───────────────────────────
+ * Cacatnya sudah diperbaiki dan `test.failing()` DICABUT dari ketiga uji di
+ * bawah. Sampai hari itu ketiganya beranotasi `test.failing()`, karena harapan
+ * biasa membuat berkas ini merah setiap hari atas hal yang sudah diketahui —
+ * dan merah yang permanen berhenti dibaca orang. Anotasi itu membalik arahnya:
+ * selama cacatnya ada suite hijau, dan begitu atributnya dipasang ketiga uji
+ * MERAH dan menuntut anotasinya dicabut. Yang dikunci memang bukan
+ * perbaikannya, melainkan MOMEN perbaikannya — dan momen itu sudah lewat, jadi
+ * sejak sekarang ketiganya harapan biasa yang memerah bila atributnya hilang
+ * lagi.
  *
- * ── Kenapa ada uji kendali yang wajib lulus ─────────────────────────────────
- * `test.failing()` menelan kegagalan apa pun — termasuk komponen yang gagal
- * dirender sama sekali. Uji pertama di bawah karena itu uji biasa: ia
- * membuktikan modalnya memang terbuka dan terbaca, sehingga kegagalan ketiga
- * uji sesudahnya benar-benar berasal dari atribut yang hilang, bukan dari
- * render yang tak pernah terjadi.
+ * ── Kenapa uji kendalinya tetap tinggal ─────────────────────────────────────
+ * Ia lahir karena `test.failing()` menelan kegagalan apa pun — termasuk
+ * komponen yang gagal dirender sama sekali — sehingga perlu ada satu uji biasa
+ * yang membuktikan modalnya memang terbuka. Alasan itu memang hilang bersama
+ * anotasinya, tetapi ujinya tidak dibuang: ia membedakan "atribut hilang" dari
+ * "modal tak pernah terbuka", dan dua sebab itu menuntut perbaikan yang sama
+ * sekali berbeda.
  *
  * ── Kenapa ini kelalaian, bukan gaya rumah ──────────────────────────────────
  * `ModalKirimSurvei.jsx` di berkas sebelah memasang `role="dialog"`,
@@ -52,7 +56,7 @@ describe('BUG-015 — dialog konfirmasi destruktif & pembaca layar', () => {
     expect(screen.getByRole('button', { name: 'Batal' })).toBeInTheDocument();
   });
 
-  test.failing('dialognya dapat ditemukan sebagai dialog, dan menyatakan dirinya modal', () => {
+  it('dialognya dapat ditemukan sebagai dialog, dan menyatakan dirinya modal', () => {
     render(<ConfirmActionModal {...PROPS} />);
 
     // Tanpa `role="dialog"`, pembaca layar tak punya cara mengumumkan bahwa
@@ -62,7 +66,7 @@ describe('BUG-015 — dialog konfirmasi destruktif & pembaca layar', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
   });
 
-  test.failing('nama yang terbaca untuk dialognya adalah judulnya sendiri', () => {
+  it('nama yang terbaca untuk dialognya adalah judulnya sendiri', () => {
     render(<ConfirmActionModal {...PROPS} />);
 
     // Yang diumumkan seharusnya "Hapus Survei, dialog" — bukan "dialog" saja.
@@ -71,13 +75,14 @@ describe('BUG-015 — dialog konfirmasi destruktif & pembaca layar', () => {
     expect(screen.getByRole('dialog', { name: /hapus survei/i })).toBeInTheDocument();
   });
 
-  test.failing('tombol tutup punya nama yang terbaca, bukan hanya ikon silang', () => {
+  it('tombol tutup punya nama yang terbaca, bukan hanya ikon silang', () => {
     render(<ConfirmActionModal {...PROPS} />);
 
-    // Tombol silangnya berisi `<X />` dari lucide-react dan tak lebih. Bagi
-    // pembaca layar ia tombol tanpa nama — satu-satunya jalan keluar yang tak
-    // dapat disebut. `ModalKirimSurvei` memberi tombol yang sama
-    // `aria-label="Tutup"`.
+    // Isi tampaknya hanya `<X />` dari lucide-react, jadi namanya seluruhnya
+    // bergantung pada `aria-label`. Tanpa itu ia tombol tanpa nama bagi pembaca
+    // layar — satu-satunya jalan keluar yang tak dapat disebut. `ModalKirimSurvei`
+    // memberi tombol yang sama `aria-label="Tutup"`, dan sejak 21 Oktober 2026
+    // modal ini juga.
     expect(screen.getByRole('button', { name: /tutup/i })).toBeInTheDocument();
   });
 });

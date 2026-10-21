@@ -16,17 +16,22 @@ import Dropdown from '../Dropdown';
  * akibatnya bukan ketidaknyamanan: pelapor tunanetra tak pernah dapat
  * memastikan instansi mana yang akan menerima laporannya sebelum menekan Kirim.
  *
- * ── Kenapa `test.failing()` dan kenapa ada kendali ──────────────────────────
- * Sama seperti pagar BUG-015: cacatnya belum diperbaiki, jadi suite tetap hijau
- * selama ia ada dan MERAH begitu diperbaiki — menuntut anotasinya dicabut. Uji
- * kendali yang wajib lulus ada karena `test.failing()` menelan kegagalan apa
- * pun, termasuk komponen yang tak pernah berhasil dirender.
+ * ── PAGAR REGRESI SUNGGUHAN SEJAK 21 OKTOBER 2026 ───────────────────────────
+ * Sama seperti pagar BUG-015: cacatnya sudah diperbaiki dan `test.failing()`
+ * DICABUT dari ketiga uji di bawah. Selama anotasi itu ada, suite hijau selagi
+ * cacatnya hidup dan MERAH begitu diperbaiki — menuntut dirinya dicabut. Uji
+ * kendalinya lahir karena `test.failing()` menelan kegagalan apa pun, termasuk
+ * komponen yang tak pernah berhasil dirender, dan tetap tinggal karena ia
+ * membedakan atribut yang hilang dari render yang tak pernah terjadi.
  *
  * ── Satu bukti tak sengaja dari berkas sebelah ──────────────────────────────
  * `Dropdown.test.jsx` mencari pemicunya dengan `screen.getByLabelText('Instansi')`
  * — dan itu BERHASIL justru karena cacat ini. Uji yang sudah ada diam-diam
- * bersandar pada perilaku yang salah; ia tetap lulus sesudah diperbaiki (label
- * masih menjadi bagian namanya), tetapi pantas diketahui.
+ * bersandar pada perilaku yang salah. Ia tetap lulus sesudah diperbaiki, tetapi
+ * lewat jalan yang berbeda: `aria-labelledby` menggantikan tautan
+ * `htmlFor`/`id` sebagai sumber label di mata testing-library, dan pencocokannya
+ * dilakukan per label yang dirujuk — sehingga "Instansi" sendiri tetap cocok
+ * walau nama utuhnya kini "Instansi Dinas Kesehatan".
  */
 
 const OPSI = [
@@ -47,7 +52,14 @@ const renderDropdown = (props = {}) =>
     />,
   );
 
-/** Pemicunya, dicari lewat labelnya — satu-satunya cara yang bekerja hari ini. */
+/**
+ * Pemicunya, dicari lewat labelnya. Sampai 21 Oktober 2026 ini satu-satunya
+ * cara yang bekerja; sejak nilainya ikut masuk nama aksesibel, ia juga dapat
+ * dicari lewat `getByRole('button', { name: /dinas kesehatan/i })` seperti uji
+ * pertama di bawah. Jalan lewat label dipertahankan karena ketiga uji di bawah
+ * memeriksa ATRIBUT pemicunya, dan label adalah penanda yang tak berubah saat
+ * pilihannya berganti.
+ */
 const pemicu = () => screen.getByLabelText('Instansi');
 
 describe('BUG-017 — nama aksesibel Dropdown', () => {
@@ -60,11 +72,11 @@ describe('BUG-017 — nama aksesibel Dropdown', () => {
     expect(pemicu()).toHaveTextContent('Dinas Kesehatan');
   });
 
-  test.failing('nama yang terbaca ikut menyebut nilai yang sedang dipilih', () => {
+  it('nama yang terbaca ikut menyebut nilai yang sedang dipilih', () => {
     renderDropdown();
 
-    // Yang seharusnya terdengar: "Instansi, Dinas Kesehatan". Yang terdengar
-    // sekarang: "Instansi" saja. `aria-labelledby` yang menunjuk label DAN
+    // Yang terdengar: "Instansi, Dinas Kesehatan". Sampai 21 Oktober 2026 yang
+    // terdengar hanya "Instansi". `aria-labelledby` yang menunjuk label DAN
     // nilainya sekaligus memberi keduanya tanpa membuang labelnya — dan
     // labelnya memang harus tinggal: dua dropdown bersebelahan yang sama-sama
     // berisi kata waktu ("Semua waktu", "Terbaru dulu") tak dapat dibedakan
@@ -72,7 +84,7 @@ describe('BUG-017 — nama aksesibel Dropdown', () => {
     expect(screen.getByRole('button', { name: /dinas kesehatan/i })).toBeInTheDocument();
   });
 
-  test.failing('pemicunya mengumumkan bahwa ia membuka sebuah daftar', () => {
+  it('pemicunya mengumumkan bahwa ia membuka sebuah daftar', () => {
     renderDropdown();
 
     // Tanpa `aria-haspopup`, tak ada yang memberi tahu bahwa tombol ini
@@ -82,7 +94,7 @@ describe('BUG-017 — nama aksesibel Dropdown', () => {
     expect(pemicu()).toHaveAttribute('aria-haspopup');
   });
 
-  test.failing('keadaan terbuka/tertutup disampaikan lewat aria-expanded', () => {
+  it('keadaan terbuka/tertutup disampaikan lewat aria-expanded', () => {
     renderDropdown();
 
     expect(pemicu()).toHaveAttribute('aria-expanded', 'false');

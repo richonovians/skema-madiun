@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { ChevronDown, Check, Search } from 'lucide-react';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
 
@@ -59,6 +59,27 @@ export default function Dropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // NAMA AKSESIBEL PEMICU DIRAKIT SENDIRI (21 Oktober 2026, BUG-017).
+  //
+  // `<button id={id}>` di bawah dilabeli `<label htmlFor={id}>`, dan `<button>`
+  // adalah elemen *labelable* menurut HTML -- sehingga label itu menjadi nama
+  // natifnya dan MENANG atas isi subtree tombol. Isi subtree itu justru satu-
+  // satunya tempat nilai terpilih tertulis, jadi nilainya diabaikan seluruhnya:
+  // pemakai awas melihat "Dinas Kesehatan", pembaca layar mengumumkan
+  // "Instansi, tombol" -- sebelum maupun sesudah memilih. Di formulir pengaduan
+  // warga akibatnya bukan ketidaknyamanan: pelapor tunanetra tak pernah dapat
+  // memastikan instansi mana yang akan menerima laporannya sebelum menekan
+  // Kirim.
+  //
+  // `aria-labelledby` yang menunjuk label DAN nilainya sekaligus memberi
+  // keduanya. Labelnya memang harus tinggal: dua dropdown bersebelahan yang
+  // sama-sama berisi kata waktu ("Semua waktu", "Terbaru dulu") tak dapat
+  // dibedakan tanpa itu (lihat NotificationFilterBar.jsx), dan kasus
+  // `labelTersembunyi` di atas bersandar sepenuhnya padanya.
+  const idOtomatis = useId();
+  const idLabel = `${idOtomatis}-label`;
+  const idNilai = `${idOtomatis}-nilai`;
 
   // Kata pencarian DIKOSONGKAN setiap panel ditutup, lewat `tutupPanel()` di
   // bawah. Panel yang dibuka kembali dalam keadaan tersaring terlihat seperti
@@ -133,14 +154,26 @@ export default function Dropdown({
       {label && (
         <label
           htmlFor={id}
+          id={idLabel}
           className={`${labelTersembunyi ? 'sr-only' : 'block'} text-sm font-bold ${error ? 'text-red-600' : 'text-text-primary'}`}
         >
           {label}
         </label>
       )}
-      <button 
+      <button
         type="button"
         id={id}
+        aria-labelledby={label ? `${idLabel} ${idNilai}` : idNilai}
+        // `"listbox"`, bukan `"menu"` seperti EksporMenu.jsx dan
+        // RowActionsMenu.jsx di folder ini: keduanya memang menu AKSI, sedangkan
+        // kontrol ini memilih satu NILAI. Panelnya sendiri masih daftar tombol
+        // biasa, jadi pola combobox/listbox penuh (`role="combobox"` di pemicu,
+        // `role="option"` di tiap item) belum ditegakkan -- dan itu memang di
+        // luar perbaikan ini: pagar BUG-017 menuntut pemicunya tetap terbaca
+        // sebagai `button`, dan 238 kueri `getByRole('button')` di uji web
+        // memilih opsi dropdown sebagai tombol.
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         onClick={() => (isOpen ? tutupPanel() : setIsOpen(true))}
         className={`w-full flex items-center justify-between transition-all focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500' : 'focus:ring-primary'} shadow-sm ${styles.button} ${
           size === 'sm' 
@@ -148,7 +181,9 @@ export default function Dropdown({
             : 'gap-1 sm:gap-3 min-w-0 md:min-w-[140px] min-h-[44px] p-2 md:p-md rounded-lg font-medium text-xs sm:text-body-md'
         }`}
       >
-        <span className="truncate">{selectedOption?.label || 'Pilih...'}</span>
+        <span id={idNilai} className="truncate">
+          {selectedOption?.label || 'Pilih...'}
+        </span>
         <ChevronDown 
           size={20} 
           className={`flex-shrink-0 transition-all duration-300 ${isOpen ? 'rotate-180' : ''} ${styles.icon}`} 
