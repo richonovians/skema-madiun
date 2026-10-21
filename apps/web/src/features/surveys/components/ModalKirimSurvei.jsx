@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck, Send, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import TurnstileWidget from './TurnstileWidget';
 import { captchaTersedia } from '../utils/captcha';
 import useSurveyStore from '../store/useSurveyStore';
@@ -49,6 +50,8 @@ export default function ModalKirimSurvei({ isOpen, onBatal }) {
    */
   const [kunciWidget, setKunciWidget] = useState(0);
 
+  const refDialog = useRef(null);
+
   /** Token sungguhan yang akhirnya datang membatalkan peringatannya sendiri. */
   const terimaToken = useCallback(
     (token) => {
@@ -86,6 +89,8 @@ export default function ModalKirimSurvei({ isOpen, onBatal }) {
 
   useBodyScrollLock(isOpen);
 
+  useFocusTrap(refDialog, isOpen);
+
   if (!isOpen) return null;
 
   /**
@@ -103,10 +108,12 @@ export default function ModalKirimSurvei({ isOpen, onBatal }) {
       onClick={(e) => e.target === e.currentTarget && onBatal?.()}
     >
       <div
+        ref={refDialog}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="judul-kirim-survei"
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 w-full max-w-[420px]"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 w-full max-w-[420px] focus:outline-none"
       >
         <div className="px-6 pt-6 pb-4 bg-primary/5 border-b border-primary/10 rounded-t-2xl relative">
           <button

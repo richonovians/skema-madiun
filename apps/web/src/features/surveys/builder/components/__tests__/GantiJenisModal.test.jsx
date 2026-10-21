@@ -39,6 +39,16 @@ describe('GantiJenisModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('terbuka: fokus dipindahkan ke dalam dialognya (BUG-015 bagian 2)', () => {
+    setup();
+
+    // `useFocusTrap` terpasang. Diperiksa per dialog, sebab kait yang ADA tetapi
+    // tak pernah dipanggil adalah bentuk kegagalan yang paling mudah terjadi --
+    // pagar kaitnya sendiri di `pagar-bug-015-fokus-dialog.test.jsx` akan tetap
+    // hijau walau dialog ini melewatkannya.
+    expect(screen.getByRole('dialog')).toHaveFocus();
+  });
+
   it('terbuka: dialog bernama, peringatan menyebut akibatnya yang tak dapat dikembalikan', () => {
     setup();
 

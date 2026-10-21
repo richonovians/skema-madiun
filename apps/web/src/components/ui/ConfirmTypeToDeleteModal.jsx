@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import Button from './Button';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 /**
  * Konfirmasi bagi tindakan yang TAK DAPAT DIBATALKAN: pengguna harus mengetik
@@ -23,6 +24,17 @@ export default function ConfirmTypeToDeleteModal({
   onCancel,
 }) {
   const [ketikan, setKetikan] = useState('');
+  const refDialog = useRef(null);
+
+  // BUG-015 bagian 2. Dialog INILAH yang jejak Tab-nya direkam pada sesi C-14:
+  // atributnya lengkap, fokusnya tertinggal di luar, dan dua kali Tab membawa
+  // pemakai keluar sama sekali.
+  //
+  // Fokus awalnya DITIMPA ke medan ketik, bukan wadah dialognya. Di sinilah
+  // pekerjaan utama pemakai, dan mendaratkannya di sini aman justru karena
+  // tombol "Hapus Permanen" mati sampai ketikannya cocok -- tak ada tindakan
+  // destruktif yang terkokang.
+  const refMedan = useRef(null);
 
   // Ketikan DIKOSONGKAN pada tiap peralihan buka/tutup. Komponennya tetap
   // ter-mount (induknya merender dengan `isOpen={false}`), jadi tanpa ini dialog
@@ -46,16 +58,20 @@ export default function ConfirmTypeToDeleteModal({
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onCancel]);
 
+  useFocusTrap(refDialog, isOpen, refMedan);
+
   if (!isOpen) return null;
 
   const cocok = ketikan.trim() === String(teksKonfirmasi ?? '').trim();
 
   return (
     <div
+      ref={refDialog}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="judul-hapus-permanen"
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm focus:outline-none"
     >
       <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[480px] overflow-hidden">
         <div className="flex items-start gap-3 px-6 pt-6 pb-4 bg-red-50 border-b border-red-100">
@@ -78,6 +94,7 @@ export default function ConfirmTypeToDeleteModal({
             Ketik <strong className="text-text-primary">{teksKonfirmasi}</strong> untuk melanjutkan.
           </label>
           <input
+            ref={refMedan}
             id="ketik-ulang"
             type="text"
             value={ketikan}
