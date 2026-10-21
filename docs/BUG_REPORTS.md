@@ -99,7 +99,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | **Ditutup** | C-01    |
 | [BUG-006](#bug-006) | Sesi hantu: tampak sudah login, tombol mati, data tetap terisi | High     | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-007](#bug-007) | Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah  | Low      | Terkonfirmasi | Baru       | C-03    |
-| [BUG-008](#bug-008) | Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung | Medium   | Terkonfirmasi | Baru       | C-11    |
+| [BUG-008](#bug-008) | Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung | Medium   | Terkonfirmasi | **Ditutup** | C-11    |
 | [BUG-009](#bug-009) | Akun terlanjur dibuat ketika penetapan statusnya gagal          | Medium   | Terkonfirmasi | **Ditutup** (basi — fiturnya dibuang) | C-05    |
 | [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
@@ -216,7 +216,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 >
 > ⚠️ **BUG-007 menuntut pemeriksaan sendiri, dan BELUM dikerjakan.** Kolom
 > **Halaman**-nya menyebut `/complaints/new`, dan rute itu TIDAK ADA — yang ada
-> `app/(respondent)/complaints`. Sejauh itu ia sebasi BUG-009. Bedanya, cacatnya
+> `app/(respondent)/complaints`. **KALIMAT ITU SALAH; koreksinya di
+> [BUG-007](#bug-007).** `(respondent)` adalah route group Next.js, jadi segmen
+> itu tak muncul di URL dan `/complaints/new` memang berfungsi. Kalimatnya
+> dibiarkan utuh di sini sebagai rekaman kekeliruan, bukan dihapus. Sejauh itu
+> ia sebasi BUG-009. Bedanya, cacatnya
 > tampaknya TIDAK ikut hilang: medan unggahnya hidup di tiga tempat, dan
 > `FileDropzone.jsx` kini membawa `accept="image/*,.pdf"` (baris 10, dipakai di
 > 49) sedangkan `AdminResolutionWorkspace.jsx:245` dan
@@ -242,6 +246,32 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > TUBUH laporannya sudah memuat diagnosis yang tepat untuk ketiga komponen
 > beserta daftar MIME backend yang lengkap. Keraguan yang saya pasang di dokumen
 > sudah dijawab oleh dokumen itu sendiri, satu bagian di bawahnya.
+>
+> **(21 Oktober 2026, malam) BUG-008 ditutup, dan ia pun sebagian besar sudah
+> diperbaiki sejak 8 September 2026.** Dihitung dari baris tabelnya: 21 baris,
+> **empat belas `Ditutup`**, sisanya **7 terbuka** — Medium tinggal **satu**,
+> yaitu [BUG-019](#bug-019); Low BUG-003, 007, 010, 011, 012, 018. Dengan ini
+> tak ada lagi temuan Medium di `apps/web`: satu-satunya yang tersisa berlapis
+> `apps/api`.
+>
+> Kalimat "hanya BUG-008 yang akibatnya terlihat pengunjung publik" yang
+> diulang beberapa catatan di atas berakhir di sini, sebab cacatnya sudah tidak
+> ada. Kalimat-kalimat itu dibiarkan utuh sebagai rekaman bertanggal.
+>
+> **Pola yang muncul tiga kali hari ini pantas dinamai.** BUG-009 basi karena
+> fiturnya dibuang; BUG-008 sebagian besar sudah diperbaiki enam hari sesudah
+> dilaporkan; dan dugaan saya tentang BUG-007 keliru karena hanya membaca
+> kepalanya. Ketiganya satu sebab: **status di tabel ini tidak pernah mengejar
+> kode**, dan hitungan terbukanya dipakai orang untuk memutuskan apa yang
+> dikerjakan berikutnya. Sebelum mengerjakan baris mana pun di dokumen ini,
+> ukur dulu keadaannya di kode — tubuh laporannya, bukan baris tabel dan kolom
+> kepalanya saja.
+>
+> Satu jebakan teknis dari pengukuran itu, yang sempat membuat saya salah:
+> `ls` atas jalur yang ditebak BUKAN cara memeriksa keberadaan rute di Next.js
+> App Router. Direktori ber-tanda-kurung adalah **route group** dan tidak muncul
+> di URL, sehingga `app/(respondent)/complaints/new/page.jsx` melayani
+> `/complaints/new`. Yang menjawabnya `find` atas berkas `page.jsx`-nya.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -1113,7 +1143,7 @@ menghidupkan sesi mati — yaitu cacat yang justru diperbaiki 18 Agustus lalu.
 | **Charter**           | C-03                                                     |
 | **Tanggal**           | 2 September 2026                                         |
 | **Peran**             | Warga (form pengaduan), Admin OPD & Kabupaten (percakapan) |
-| **Halaman**           | `/complaints/new` (**rute ini sudah tidak ada** — lihat pengukuran 21 Oktober 2026 di bawah), panel balasan pengaduan |
+| **Halaman**           | `/complaints/new`, panel balasan pengaduan               |
 | **Severity**          | Low                                                      |
 | **Verifikasi**        | Terkonfirmasi                                            |
 | **Kasus uji terkait** | Usulan TC-FE-033 di bawah                                 |
@@ -1182,11 +1212,19 @@ akurat kata per kata, termasuk daftar MIME backend yang memuat `image/webp`.
 
 Empat hal yang bergeser atau tak pernah tercatat:
 
-**1. Rutenya tiada, formulirnya ada.** `app/complaints/new` tidak ada; yang ada
-`app/(respondent)/complaints`. Formulirnya sendiri hidup di
-`features/complaints/components/CreateComplaintForm.jsx`, dirender antara lain
-oleh `app/page.jsx` (beranda publik — lihat [BUG-008](#bug-008)). Jadi langkah
-reproduksi di atas tetap dapat dijalankan, hanya lewat pintu yang berbeda.
+**1. Rutenya ADA, dan dugaan sebelumnya di baris ini keliru.** Versi pertama
+catatan ini menyatakan `/complaints/new` tidak ada. **Itu salah**, dan
+kekeliruannya instruktif: berkasnya memang bukan `app/complaints/new/page.jsx`
+melainkan `app/(respondent)/complaints/new/page.jsx`, dan `(respondent)` adalah
+**route group** Next.js — tanda kurung berarti segmen itu TIDAK muncul di URL.
+Jadi URL `/complaints/new` berfungsi seperti yang tertulis sejak awal. `ls` atas
+jalur yang ditebak bukan cara memeriksa keberadaan rute di App Router; yang
+menjawabnya `find` atas berkas `page.jsx`-nya.
+
+Formulirnya hidup di `features/complaints/components/CreateComplaintForm.jsx`
+dan dirender di DUA tempat: rute itu, serta `app/page.jsx` (beranda publik,
+lihat [BUG-008](#bug-008)). Langkah reproduksi di atas karena itu dapat
+dijalankan apa adanya.
 
 **2. Nomor barisnya bergeser**, dan sudah dibetulkan di tabel di atas:
 `AdminResolutionWorkspace.jsx` 157 → **245**, `ChatReplyForm.jsx` 87 → **129**.
@@ -1314,6 +1352,51 @@ menggantikan formulir bagi pengunjung yang belum bersesi.
 > **TC-FE-034** — Beranda publik bagi pengunjung yang belum masuk
 > Buka `/` tanpa sesi; pastikan pengunjung diberi tahu apa yang harus
 > dilakukannya, bukan disodori daftar pilihan kosong tanpa keterangan.
+
+#### Ditutup (21 Oktober 2026) — cacat utamanya sudah diperbaiki 8 September 2026
+
+**Barisnya terbuka jauh lebih lama daripada cacatnya.** Diukur di kode, bukan
+dikira: kedua formulir sudah sadar sesi lewat `useSesiAktif` sejak 8 September
+2026, enam hari sesudah laporan ini dibuat.
+
+| Komponen | Keadaan |
+| -------- | ------- |
+| `CreateComplaintForm.jsx` | penampung dropdown berbunyi "Masuk untuk melihat daftar instansi" dan "Masuk untuk melihat kategori"; `handleSubmit` menahan pengiriman sebelum permintaan dikirim bila tanpa sesi |
+| `SurveyForm.jsx` | empat keadaan: tanpa sesi, memuat, gagal muat, siap; juga menahan submit |
+| Deteksi sesinya | `isAuthenticated` menangani KEDUA jalur — token dev-login di `localStorage`, dan SSO lewat `SSO_EXPIRES_KEY` yang dititipkan backend saat callback. Cookie `session` yang HttpOnly tak perlu dibaca |
+
+Jadi kalimat **Hasil sebenarnya** di atas, "tidak ada satu kalimat pun di halaman
+itu yang menyebutkan perlunya masuk", sudah tak benar sejak 8 September 2026.
+Kalimatnya dibiarkan utuh sebagai rekaman bertanggal.
+
+`app/page.jsx` memang masih merender kedua formulir tanpa syarat, dan itu kini
+BENAR: yang menjelaskan keadaannya formulirnya sendiri, di tempat pengguna
+sedang melihat.
+
+**Sisa yang baru ditutup hari ini**, di `main` lewat commit `59cf954`:
+`CreateComplaintForm` mengambil `data` saja dari `useAsync` dan membuang
+`isLoading` serta `error`, sehingga bagi pengguna yang SUDAH masuk kegagalan
+pengambilan terlihat sama persis dengan daftar yang memang kosong. Kini keempat
+keadaannya dibedakan, teksnya disalin dari `SurveyForm` untuk jalur instansi
+supaya kedua formulir terbaca identik. Dikunci empat uji di
+`CreateComplaintForm.test.jsx`, yang memakai galat **500** dan bukan 401 — 401
+berarti "tak ada sesi", cabang yang sudah ditangani dan yang juga memicu
+`clearSession()` di interseptor.
+
+**Usulan perbaikan asli di laporan ini TIDAK dijalankan, dan itu disengaja.** Ia
+berbunyi "tampilkan ajakan masuk menggantikan formulir". Paragraf ajakan beserta
+tautan "Masuk sekarang" di bawah dropdown pernah benar-benar ada, dan pengguna
+meminta keduanya DIHAPUS pada 8 September 2026 karena satu pesan pada penampung
+dropdown sudah cukup (tercatat di docblock `SurveyForm.jsx`). Membangunnya
+kembali berarti memasang ulang persis apa yang sengaja dibuang. Keputusan produk
+yang laporan ini sebut mendahului perbaikan teknisnya juga sudah terjawab oleh
+kode: `POST /complaints` menuntut token, jadi jawabannya "warga harus masuk".
+
+Keadaan "memuat" dan "gagal dimuat" tidak dapat dicapai dengan menekan tombol di
+peramban; keduanya menuntut penyuntikan kegagalan. Keempatnya diuji terhadap
+render komponen sungguhan lewat Jest + MSW. Verifikasi di peramban TIDAK
+dijalankan, sebab `next dev` sedang mati (`http://skema.local` menjawab 502) dan
+server itu milik penguji.
 
 ---
 
