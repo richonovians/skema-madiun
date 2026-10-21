@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -25,6 +25,14 @@ export default function ConfirmActionModal({
   onConfirm,
   onCancel,
 }) {
+  // `useId()`, BUKAN id tetap seperti `judul-konfirmasi` di ConfirmDialog.jsx
+  // atau `judul-hapus-permanen` di ConfirmTypeToDeleteModal.jsx. Modal ini
+  // dipanggil dari empat tempat (SurveyBuilderScreen, AdminSurveyCard,
+  // AdminSurveyCardActions, GantiJenisModal) dan semuanya tetap ter-mount saat
+  // tertutup -- id tetap akan bertabrakan begitu dua di antaranya hidup
+  // bersamaan, dan `aria-labelledby` menunjuk judul instans yang salah.
+  const idJudul = useId();
+
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape' && isOpen) onCancel?.();
@@ -72,11 +80,27 @@ export default function ConfirmActionModal({
     >
       {/* Lihat catatan yang sama di ConfirmStatusModal: gaya inline
           `width:100%` + margin membuat modal terpotong di layar sempit. */}
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]">
+      {/* `role="dialog"` + `aria-modal` + `aria-labelledby` (21 Oktober 2026,
+          BUG-015). Sebelumnya modal ini -- yang justru menjaga tindakan paling
+          destruktif di aplikasi, membuang survei ke Sampah dan memusnahkannya
+          permanen -- hanya sepasang <div> bagi pembaca layar: teks yang muncul
+          entah dari mana, tanpa tanda bahwa halaman di belakangnya sedang tak
+          dapat dipakai, dan tanpa nama. Pemakai yang tak mendengar judulnya
+          menekan tombol konfirmasi tanpa tahu apa yang dihapus. Polanya sudah
+          ada di ConfirmDialog.jsx dan ModalKirimSurvei.jsx; di sini terlewat. */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idJudul}
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]"
+      >
         {/* Header */}
         <div className={`px-6 pt-6 pb-4 ${headerBg} border-b relative`}>
+          {/* `aria-label`, sebab isinya hanya ikon silang: tanpa itu ia tombol
+              tanpa nama, dan satu-satunya jalan keluar yang tak dapat disebut. */}
           <button
             onClick={onCancel}
+            aria-label="Tutup"
             className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-all"
           >
             <X size={18} />
@@ -90,7 +114,9 @@ export default function ConfirmActionModal({
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Konfirmasi Aksi
               </p>
-              <h3 className="font-bold text-slate-800 text-base leading-tight">{title}</h3>
+              <h3 id={idJudul} className="font-bold text-slate-800 text-base leading-tight">
+                {title}
+              </h3>
             </div>
           </div>
         </div>

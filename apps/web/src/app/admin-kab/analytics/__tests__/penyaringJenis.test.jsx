@@ -134,9 +134,16 @@ describe('Statistik Admin Kab — penyaring jenis survei', () => {
     expect(jenis()).toHaveTextContent(/semua jenis/i);
 
     fireEvent.click(pilihanSurvei());
-    expect(await screen.findByRole('button', { name: /SKM Triwulan Dua/ })).toBeInTheDocument();
+    // KETIGA POLA DIJANGKARI `^` (21 Oktober 2026, perbaikan BUG-017). Nama
+    // aksesibel pemicu Dropdown kini "Survei <nilai terpilih>", bukan "Survei"
+    // saja -- nilainya memang baru mulai diumumkan. Akibatnya pemicu itu ikut
+    // cocok dengan pola tak berjangkar, dan `getByRole` memerah dengan "Found
+    // multiple elements" atas dua elemen yang sama-sama benar: pemicunya dan
+    // opsi di panel. Jangkar `^` memilih opsinya saja, sebab nama pemicu selalu
+    // dimulai labelnya. Baris Custom Triwulan Dua sudah berjangkar sejak awal.
+    expect(await screen.findByRole('button', { name: /^SKM Triwulan Dua/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Custom Triwulan Dua/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Custom Tanpa Jenis Lama/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Custom Tanpa Jenis Lama/ })).toBeInTheDocument();
   });
 
   it('memilih Custom: hasil yang diambil beralih ke survei custom, SKM keluar dari pilihan', async () => {
