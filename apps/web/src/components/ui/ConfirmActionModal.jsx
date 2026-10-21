@@ -1,8 +1,9 @@
 'use client';
-import React, { useEffect, useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 /**
  * Modal konfirmasi aksi umum (bukan spesifik status pengaduan).
@@ -32,6 +33,7 @@ export default function ConfirmActionModal({
   // tertutup -- id tetap akan bertabrakan begitu dua di antaranya hidup
   // bersamaan, dan `aria-labelledby` menunjuk judul instans yang salah.
   const idJudul = useId();
+  const refDialog = useRef(null);
 
   useEffect(() => {
     const handler = (e) => {
@@ -43,6 +45,10 @@ export default function ConfirmActionModal({
 
   // Tetap ter-mount saat tertutup -- kunci dikendalikan `isOpen`.
   useBodyScrollLock(isOpen);
+
+  // BUG-015 bagian 2. Dipanggil SEBELUM `return null` di bawah, sama seperti
+  // kunci gulir: kait tak boleh dilewati pada render mana pun.
+  useFocusTrap(refDialog, isOpen);
 
   if (!isOpen) return null;
 
@@ -89,10 +95,12 @@ export default function ConfirmActionModal({
           menekan tombol konfirmasi tanpa tahu apa yang dihapus. Polanya sudah
           ada di ConfirmDialog.jsx dan ModalKirimSurvei.jsx; di sini terlewat. */}
       <div
+        ref={refDialog}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={idJudul}
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px] focus:outline-none"
       >
         {/* Header */}
         <div className={`px-6 pt-6 pb-4 ${headerBg} border-b relative`}>

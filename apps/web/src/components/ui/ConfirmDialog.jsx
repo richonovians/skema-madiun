@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 /**
  * Dialog konfirmasi serbaguna -- pengganti `window.confirm` (dialog bawaan
@@ -31,6 +32,8 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
+  const refDialog = useRef(null);
+
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape' && isOpen && !isProcessing) onCancel?.();
@@ -43,6 +46,11 @@ export default function ConfirmDialog({
   // dipindah ke hooks/useBodyScrollLock.js (2026-08-24) -- ia sudah tersalin
   // identik di empat berkas, dan penghitungnya kini menangani lapisan bertumpuk.
   useBodyScrollLock(isOpen);
+
+  // BUG-015 bagian 2: atributnya sudah lengkap sejak 4 Oktober 2026, tetapi
+  // `aria-modal="true"` tanpa pemindahan fokus justru menyembunyikan jalan
+  // pulang pemakai pembaca layar.
+  useFocusTrap(refDialog, isOpen);
 
   if (!isOpen) return null;
 
@@ -78,10 +86,12 @@ export default function ConfirmDialog({
           belakangnya sedang tak dapat dipakai. `aria-labelledby` menunjuk ke
           judulnya supaya dialognya terbaca bernama, bukan "dialog" kosong. */}
       <div
+        ref={refDialog}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="judul-konfirmasi"
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px]"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[420px] focus:outline-none"
       >
         <div className="p-6 text-center space-y-3">
           <div

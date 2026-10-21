@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShieldAlert, X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import PengaturanNilaiSurvei from './PengaturanNilaiSurvei';
 
 /**
@@ -27,10 +28,15 @@ import PengaturanNilaiSurvei from './PengaturanNilaiSurvei';
  */
 function IsiModal({ unsur, isSubmitting, error, onConfirm, onCancel }) {
   const idJudul = useId();
+  const refDialog = useRef(null);
   const [tujuan, setTujuan] = useState(null);
   const [metodeNilai, setMetodeNilai] = useState(null);
 
   useBodyScrollLock(true);
+
+  // `true`, bukan `isOpen`: komponen ini hanya dirender saat modalnya terbuka
+  // (pembungkusnya `return null` lebih dulu), sama seperti kunci gulir di atas.
+  useFocusTrap(refDialog, true);
 
   useEffect(() => {
     const handler = (e) => {
@@ -49,6 +55,8 @@ function IsiModal({ unsur, isSubmitting, error, onConfirm, onCancel }) {
       onClick={(e) => e.target === e.currentTarget && !isSubmitting && onCancel?.()}
     >
       <div
+        ref={refDialog}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={idJudul}

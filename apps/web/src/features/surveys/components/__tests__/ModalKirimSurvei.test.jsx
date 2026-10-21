@@ -74,6 +74,17 @@ describe('ModalKirimSurvei', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('terbuka: fokus dipindahkan ke dalam dialognya (BUG-015 bagian 2)', () => {
+    pasangStore();
+
+    render(<ModalKirimSurvei isOpen onBatal={mockBatal} />);
+
+    // `useFocusTrap` terpasang. Diperiksa di sini, bukan di pagar kaitnya:
+    // modal ini menuntut store dan widget Turnstile tiruan, dan tiruan itu sudah
+    // ada di berkas ini.
+    expect(screen.getByRole('dialog')).toHaveFocus();
+  });
+
   it('tombol kirim MATI selama captcha belum diselesaikan', () => {
     pasangStore({ captchaToken: null });
 
