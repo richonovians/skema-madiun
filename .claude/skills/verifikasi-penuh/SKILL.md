@@ -58,6 +58,21 @@ menahan seluruh keluaran sampai proses berakhir, sehingga suite yang
 menggantung terlihat seperti suite yang diam. Alihkan ke berkas, lalu baca
 berkasnya.
 
+Ada sebab KEDUA yang lebih berbahaya, ditambahkan 21 Oktober 2026 sesudah
+sebuah perintah yang gagal dengan kode 128 dilaporkan sebagai lulus:
+**pipa MENIMPA kode keluarnya.** `$?` sesudah `perintah | head` adalah status
+`head`, dan `head` hampir selalu 0. Jadi `perintah 2>&1 | head -3; echo $?`
+mencetak `0` bagi perintah yang sesungguhnya gagal total. Gejalanya menyesatkan
+karena galatnya tetap tercetak di layar -- pembaca melihat pesan `fatal` dan
+angka `0` berdampingan, lalu mempercayai angkanya.
+
+Kalau pemendekan tak dapat dihindari, baca `${PIPESTATUS[0]}`:
+
+```bash
+perintah 2>&1 | head -3 > /dev/null
+echo "kode=${PIPESTATUS[0]}"
+```
+
 **4. `prettier --check` untuk `apps/web` selalu hampa.** `.prettierignore`
 mengecualikan direktori itu. Jangan pernah menyebut prettier sebagai bukti
 untuk perubahan di frontend; gaya kode di sana dikelola `eslint-config-next`.
@@ -65,11 +80,19 @@ untuk perubahan di frontend; gaya kode di sana dikelola `eslint-config-next`.
 **5. `lint-staged` mengubah berkas saat commit.** Ia menjalankan
 `eslint --fix` dan `prettier --write`. Hasil uji sebelum commit karena itu
 tidak otomatis berlaku untuk isi yang tercatat. Sesudah commit, verifikasi
-ulang dan bandingkan isi tercatat dengan isi di disk:
+ulang dan bandingkan isi tercatat dengan isi di disk, LEWAT BERKAS SEMENTARA:
 
 ```bash
-git diff <(git show HEAD:path/berkas) path/berkas
+git show HEAD:path/berkas > <scratchpad>/tercatat
+diff <scratchpad>/tercatat path/berkas   # kode=0 identik, kode=1 berbeda
 ```
+
+Baris `git diff <(git show HEAD:berkas) berkas` pernah tertulis di sini DAN di
+skill `commit-dan-merge`, dan **tidak dapat jalan di Windows sama sekali**:
+substitusi proses Bash menyerahkan jalur semu `/proc/self/fd/N` yang tak dikenal
+`git` biner Windows. Jawabannya `fatal: Invalid path '/proc': No such file or
+directory`, kode 128, untuk isi yang sama maupun yang berbeda -- jadi ia tak
+pernah dapat membedakan keduanya. Terukur 21 Oktober 2026.
 
 **6. Jangan menjalankan `pnpm build` selagi `pnpm dev` hidup.** Keduanya
 menulis ke `.next` yang sama, dan akibatnya server pengembangan membalas 404

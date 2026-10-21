@@ -108,9 +108,33 @@ bisa berbeda dari isi yang diuji sebelum commit.**
 Sesudah commit, pastikan dua hal:
 
 ```bash
-git status --porcelain                              # harus kosong
-git diff <(git show HEAD:path/berkas) path/berkas   # harus tanpa selisih
+git status --porcelain                  # harus kosong
+
+# Bandingkan isi TERCATAT dengan isi di disk, lewat berkas sementara di
+# direktori scratchpad sesi (bukan di dalam repo).
+git show HEAD:path/berkas > <scratchpad>/tercatat
+diff <scratchpad>/tercatat path/berkas  # kode=0 identik, kode=1 berbeda
 ```
+
+**Jangan memakai `git diff <(git show HEAD:berkas) berkas`.** Baris itu pernah
+tertulis di sini dan **tidak dapat jalan di Windows sama sekali**: substitusi
+proses Bash menyerahkan jalur semu `/proc/self/fd/N`, dan `git` di sini biner
+Windows asli yang tak mengenalnya. Yang keluar `fatal: Invalid path '/proc': No
+such file or directory` dengan kode 128. Terukur 21 Oktober 2026; perintahnya
+sudah berada di skill ini sejak lahir, jadi setiap "tanpa selisih" yang pernah
+dilaporkan atas dasar baris itu HAMPA.
+
+Kegagalannya nyaring, bukan senyap -- **tetapi mudah dibuat senyap**. Menyalurkannya
+ke `head` atau `tail` untuk memendekkan keluaran membuat `$?` melaporkan status
+`head`, yaitu 0, sehingga galat 128 itu terbaca sebagai lulus. Itu benar-benar
+terjadi pada hari yang sama, dan yang menyelamatkan hanya baris `fatal` ikut
+tercetak. Bila keluaran perintah apa pun perlu dipendekkan, baca kode keluarnya
+dari `${PIPESTATUS[0]}`, bukan dari `$?`.
+
+Penggantinya dibuktikan tiga arah sebelum ditulis di sini: isi identik kode=0,
+isi berbeda kode=1, dan berkas yang tak ada di HEAD kode=128 dengan pesannya
+terlihat. Perintah lama menjawab 128 pada ketiganya, jadi ia tak dapat
+membedakan "sama" dari "berbeda".
 
 Lalu jalankan verifikasi penuh terhadap isi pascacommit. Prosedurnya ada di
 skill `verifikasi-penuh`.
