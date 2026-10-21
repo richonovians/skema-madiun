@@ -226,6 +226,22 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > bukan pengukuran — statusnya sengaja TIDAK diubah sampai ada yang
 > memeriksanya dengan benar, sebab menurunkan severity atas dasar grep adalah
 > cara lain membuat angka yang salah.
+>
+> ✅ **SUDAH DIUKUR pada hari yang sama, dan dugaan di atas KELIRU.** Rinciannya
+> di [BUG-007](#bug-007). Yang ada di `FileDropzone.jsx` adalah atribut `accept`,
+> BUKAN validasi: `handleFileSelect` dan `handleDrop` memasukkan setiap berkas
+> tanpa memeriksa apa pun, dan `maxSizeMB` hanya dipakai di teks. Atributnya pun
+> salah di kedua arah — `image/*` menawarkan GIF dan SVG yang ditolak backend,
+> sementara teks di sebelahnya melewatkan WEBP yang diterima backend. Jadi tak
+> ada bagian yang "sebagian tertutup"; kalimat laporan aslinya, "tidak ada satu
+> pun pemeriksaan di sisi klien", masih akurat kata per kata. Severity tetap Low,
+> statusnya tetap terbuka, dan hitungan 8 terbuka di atas tidak berubah.
+>
+> Peringatan itu sendiri pantas dicatat sebagai kekeliruan proses, bukan dihapus:
+> ia ditulis setelah membaca baris tabel dan kolom kepala BUG-007 saja, padahal
+> TUBUH laporannya sudah memuat diagnosis yang tepat untuk ketiga komponen
+> beserta daftar MIME backend yang lengkap. Keraguan yang saya pasang di dokumen
+> sudah dijawab oleh dokumen itu sendiri, satu bagian di bawahnya.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -1097,7 +1113,7 @@ menghidupkan sesi mati — yaitu cacat yang justru diperbaiki 18 Agustus lalu.
 | **Charter**           | C-03                                                     |
 | **Tanggal**           | 2 September 2026                                         |
 | **Peran**             | Warga (form pengaduan), Admin OPD & Kabupaten (percakapan) |
-| **Halaman**           | `/complaints/new`, panel balasan pengaduan               |
+| **Halaman**           | `/complaints/new` (**rute ini sudah tidak ada** — lihat pengukuran 21 Oktober 2026 di bawah), panel balasan pengaduan |
 | **Severity**          | Low                                                      |
 | **Verifikasi**        | Terkonfirmasi                                            |
 | **Kasus uji terkait** | Usulan TC-FE-033 di bawah                                 |
@@ -1122,8 +1138,8 @@ unggahannya selesai, baru ditolak.
 | Tempat                                                                                       | Keadaan                                                    |
 | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | [FileDropzone.jsx:10](../apps/web/src/components/ui/FileDropzone.jsx#L10)                     | `accept="image/*,.pdf"` — menawarkan GIF, SVG, BMP, TIFF yang semuanya ditolak backend |
-| [AdminResolutionWorkspace.jsx:157](../apps/web/src/features/complaints/components/AdminResolutionWorkspace.jsx#L157) | **tanpa `accept` sama sekali** — menawarkan segala jenis berkas |
-| [ChatReplyForm.jsx:87](../apps/web/src/features/complaints/components/chat/ChatReplyForm.jsx#L87) | **tanpa `accept` sama sekali**                             |
+| [AdminResolutionWorkspace.jsx:245](../apps/web/src/features/complaints/components/AdminResolutionWorkspace.jsx#L245) | **tanpa `accept` sama sekali** — menawarkan segala jenis berkas |
+| [ChatReplyForm.jsx:129](../apps/web/src/features/complaints/components/chat/ChatReplyForm.jsx#L129) | **tanpa `accept` sama sekali**                             |
 | Seluruh komponen                                                                             | ukuran berkas hanya **ditampilkan**, tidak pernah diperiksa terhadap batas 5 MB |
 
 **Bukti**
@@ -1156,6 +1172,63 @@ pada ketiga input, dan tolak berkas >5 MB di `handleFileChange` sebelum dikirim.
 > **TC-FE-033** — Validasi lampiran di sisi klien
 > Pilih berkas 6 MB dan berkas `.gif`; pastikan keduanya ditolak **tanpa**
 > permintaan jaringan terkirim, dan pesannya menyebutkan batas yang dilanggar.
+
+#### Diukur ulang 21 Oktober 2026 — MASIH TERBUKA, dan perbaikan yang diusulkan di atas BELUM CUKUP
+
+Baris ini diperiksa ulang sebab kolom **Halaman**-nya menunjuk rute yang tiada,
+pola yang sama yang membasikan [BUG-009](#bug-009). Hasilnya berbeda: di sini
+cacatnya **tidak** ikut hilang. Diagnosis di tubuh laporan ini terbukti masih
+akurat kata per kata, termasuk daftar MIME backend yang memuat `image/webp`.
+
+Empat hal yang bergeser atau tak pernah tercatat:
+
+**1. Rutenya tiada, formulirnya ada.** `app/complaints/new` tidak ada; yang ada
+`app/(respondent)/complaints`. Formulirnya sendiri hidup di
+`features/complaints/components/CreateComplaintForm.jsx`, dirender antara lain
+oleh `app/page.jsx` (beranda publik — lihat [BUG-008](#bug-008)). Jadi langkah
+reproduksi di atas tetap dapat dijalankan, hanya lewat pintu yang berbeda.
+
+**2. Nomor barisnya bergeser**, dan sudah dibetulkan di tabel di atas:
+`AdminResolutionWorkspace.jsx` 157 → **245**, `ChatReplyForm.jsx` 87 → **129**.
+Rujukan `complaints.service.ts:37-39` untuk batas backend juga basi — baris itu
+kini pernyataan `import`. Sumber yang benar: `complaints.constants.ts:32`
+(`BATAS_UKURAN_LAMPIRAN_BYTES = 5 * 1024 * 1024`), `attachment.util.ts` (daftar
+`ALLOWED` beserta pemeriksaan angka ajaib), dan `complaints.controller.ts:66`
+serta `:168` (`limits: { fileSize, files: 5 }`).
+
+**3. `accept` TIDAK BERLAKU UNTUK SERET-LEPAS, dan inilah yang membuat perbaikan
+yang diusulkan di atas belum cukup.** Usulannya berbunyi "pasang atribut itu pada
+ketiga input, dan tolak berkas >5 MB di `handleFileChange`". `FileDropzone` punya
+JALUR KEDUA yang tak lewat keduanya: `handleDrop` membaca
+`e.dataTransfer.files` dan memasukkan semuanya tanpa syarat. Atribut `accept`
+hanya menyaring kotak dialog pemilih berkas, bukan berkas yang dijatuhkan — jadi
+`.exe` tetap masuk lewat seretan walau ketiga `accept` sudah benar. Pemeriksaannya
+harus duduk di satu fungsi yang dipanggil KEDUA jalur, bukan di `handleFileChange`
+saja. Dropzone-nya memang mengiklankan seret-lepas secara tersurat ("Klik atau
+seret berkas").
+
+**4. Dua pernyataan di layar yang tidak benar**, keduanya di `FileDropzone.jsx`
+dan tak disebut laporan asli:
+
+- Teksnya berbunyi "Format: JPG, PNG, PDF" — **melewatkan WEBP**, padahal backend
+  menerimanya. Jadi pemakai diberi tahu daftar yang lebih sempit daripada yang
+  sebenarnya boleh.
+- Labelnya berbunyi **"File berhasil diunggah"** begitu berkas DIPILIH, padahal
+  belum satu bita pun dikirim: `onFilesChange` hanya menaruhnya di state
+  pemanggil, dan unggahannya baru terjadi saat formulirnya disubmit. Pemakai yang
+  menutup tab di titik itu meyakini lampirannya sudah aman.
+
+Butir terakhir ini bisa dibilang temuan sendiri, bukan bagian BUG-007 — ia soal
+kejujuran pesan, bukan validasi. Dicatat di sini alih-alih dibuatkan baris baru,
+sebab penomoran temuan milik pemilik dokumen; silakan dipecah bila dinilai layak.
+
+**Severity tetap Low.** Backend-nya sungguh-sungguh sehat — daftar izinnya
+diperiksa terhadap angka ajaib isi berkas, bukan header `Content-Type`, sehingga
+`.exe` bernama `.png` pun tertolak. Tak ada risiko data, dan kalimat tentang
+kuota warga di atas tetap alasan terbaik bila tim hendak menaikkannya.
+
+`maxSizeMB` masih hanya dipakai di teks, dan kedua `handleFileChange` di komponen
+percakapan masih berisi `setFile(e.target.files[0])` tanpa satu pun pemeriksaan.
 
 <a id="bug-008"></a>
 
