@@ -106,9 +106,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | **Ditutup** | C-14    |
-| [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru       | C-14    |
+| [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | Baru (bagian 1 diperbaiki 21 Okt 2026, bagian 2 belum) | C-14    |
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | **Ditutup** | C-16    |
-| [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | Baru       | C-17    |
+| [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | **Ditutup** | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
 | [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
@@ -153,6 +153,33 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > 006, 013, **014**, 016, 020, 021), sisanya 11 terbuka — Medium BUG-008, 009,
 > 015, 017, 019; Low BUG-003, 007, 010, 011, 012, 018. Medium tinggal lima, dan
 > BUG-008 tetap satu-satunya yang akibatnya terlihat pengunjung publik.
+>
+> **(21 Oktober 2026) Dihitung ulang sesudah BUG-017 ditutup dan BAGIAN 1
+> BUG-015 diperbaiki**, juga dari baris tabelnya: 21 baris, sebelas `Ditutup`
+> (BUG-001, 002, 004, 005, 006, 013, 014, 016, **017**, 020, 021), sisanya 10
+> terbuka — Medium BUG-008, 009, **015**, 019; Low BUG-003, 007, 010, 011, 012,
+> 018. BUG-008 tetap satu-satunya yang akibatnya terlihat pengunjung publik.
+>
+> **BUG-015 TIDAK ditutup, dan itu koreksi atas penandaan yang sempat salah
+> dalam sesi yang sama.** Ia memuat dua cacat, dan yang diperbaiki hanya yang
+> pertama (atribut `ConfirmActionModal`). Yang kedua — fokus tidak dipindahkan
+> ke dalam `ConfirmTypeToDeleteModal` dan tidak dikurung di sana — masih utuh:
+> berkas itu di `main` tak memuat satu pun `useRef` atau `focus()`. Laporan
+> BUG-015 sendiri menyebut bagian kedua **lebih merugikan daripada yang
+> pertama**, sebab `aria-modal="true"` yang sudah terpasang di sana menyuruh
+> pembaca layar menyembunyikan isi halaman di luar dialog, sementara fokusnya
+> tertinggal di luar — pemakai mendarat di ruang kosong. Pagarnya pun tak pernah
+> menjangkau bagian itu: ketiga harapan di
+> `pagar-bug-015-dialog-konfirmasi.test.jsx` seluruhnya tentang atribut
+> `ConfirmActionModal`. Barisnya karena itu dibiarkan terbuka sampai bagian dua
+> dikerjakan, dan hitungan Medium tetap empat, bukan tiga.
+>
+> BUG-017 dan bagian 1 BUG-015 dikerjakan dalam satu commit karena akar cacatnya
+> satu kelas — kontrol yang terbaca mata dan bisu bagi pembaca layar — dan
+> keduanya tinggal di `components/ui/` yang bersebelahan. Itu kebetulan yang
+> menguntungkan, bukan alasan menggabungkan temuan lain: BUG-010 (nama tombol
+> paginasi) sekelas dengan keduanya tetapi tinggal di komponen lain dan tetap
+> terbuka.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -187,9 +214,9 @@ regresi sungguhan.
 | ------ | ----- | ------- |
 | [BUG-013](#bug-013) | `e2e/statistik-sampah.spec.js` | E2E (API) — **pagar regresi sungguhan sejak 19 Oktober 2026**, `test.fail()` dicabut |
 | [BUG-014](#bug-014) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
-| [BUG-015](#bug-015) | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL |
+| [BUG-015](#bug-015) | `pagar-bug-015-dialog-konfirmasi.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 21 Oktober 2026**, `test.failing()` dicabut. Menjaga BAGIAN 1 saja (atribut `ConfirmActionModal`); pengurungan fokus `ConfirmTypeToDeleteModal` tak pernah dijaga pagar mana pun |
 | [BUG-016](#bug-016) | `pagar-bug-016-captcha-gagal.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 20 Oktober 2026**, `test.failing()` dicabut |
-| [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL |
+| [BUG-017](#bug-017) | `pagar-bug-017-dropdown.test.jsx` | Jest + RTL — **pagar regresi sungguhan sejak 21 Oktober 2026**, `test.failing()` dicabut |
 | [BUG-018](#bug-018) | `e2e/notifikasi-siklus.spec.js` | E2E (API) |
 | [BUG-019](#bug-019) | `e2e/sso-galat.spec.js` | E2E (API) |
 
@@ -293,6 +320,27 @@ regresi sungguhan.
 > `bersihkan-data-uji.mjs --tanpa-induk` menghapus 4 lalu 2 baris. Nol survei
 > dan nol respons tertinggal. `audit_logs` TIDAK disentuh: 528 menjadi 556
 > baris, semata karena `dev-login` tiap jalan.
+
+> ℹ️ **PAGAR BUG-015 DAN BUG-017 TIDAK akan mengejutkan merge berikutnya, dan
+> sebabnya struktural** (21 Oktober 2026). Peringatan panjang tentang pagar
+> BUG-013 di atas berlaku karena spec-nya hidup HANYA di `tester`, sementara
+> perbaikannya mendarat di `main` — dua cabang bergerak terpisah, lalu bertemu.
+> Kedua pagar Jest ini lain: berkasnya hidup di KEDUA cabang
+> (`apps/web/src/components/ui/__tests__/`), jadi perbaikan komponennya dan
+> pencabutan `test.failing()`-nya masuk sebagai SATU commit di `main` (`4d0080b`).
+> Menarik `main` ke cabang ini membawa keduanya sekaligus; tak ada keadaan
+> antara di mana cacatnya sudah hilang tetapi anotasinya masih memalang.
+> Terukur, bukan diandaikan: `git diff tester main` atas empat berkas itu
+> menunjukkan tepat satu himpunan perubahan, 117 insertions / 39 deletions.
+>
+> Pembuktian dua arahnya pun tidak menuntut mutasi sementara seperti BUG-013,
+> sebab arah merahnya sudah terjadi pada kode produksi yang sungguhan: pada
+> garis dasar sebelum perbaikan keenam harapan itu MEMANG gagal — `test.failing()`
+> hanya lulus bila ujinya benar-benar gagal — dan sesudah atributnya dipasang
+> keenamnya memerah dengan `Failing test passed even though it was supposed to
+> fail`, lalu hijau begitu anotasinya dicabut. Hijau-saat-ada dan merah-saat-
+> tiada keduanya teramati, dan tanpa satu pun baris kode produksi dirusak
+> sengaja.
 
 Tiap pagar didahului **uji kendali yang wajib lulus**, dan tiap-tiap dibuktikan
 **dua arah**: cacatnya diperbaiki sementara di kode produksi, pagarnya diamati
@@ -1713,6 +1761,40 @@ sementara, lalu mengembalikannya.
 **Bukti bahwa ini kelalaian, bukan gaya rumah.** `ModalKirimSurvei.jsx` memasang
 `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, DAN `aria-label="Tutup"`
 pada tombol silangnya — lengkap. Polanya sudah dikuasai tim di berkas sebelah.
+
+#### Bagian 1 diperbaiki (21 Oktober 2026) — bagian 2 BELUM, dan barisnya tetap terbuka
+
+`ConfirmActionModal.jsx` di `main` (commit `4d0080b`) kini memasang
+`role="dialog"`, `aria-modal="true"` dan `aria-labelledby` pada panelnya, judulnya
+ber-`id` dari `useId()`, dan tombol silangnya ber-`aria-label="Tutup"`. Dibaca
+dari DOM terender oleh ujinya sendiri, ketiga baris `role=null aria-modal=null
+aria-labelledby=null` di atas sudah tidak berlaku. Ketiga `test.failing()` di
+pagarnya memerah dengan `Failing test passed even though it was supposed to
+fail`, lalu anotasinya dicabut — sejak itu pagar regresi sungguhan.
+
+`useId()` dipilih, BUKAN id tetap seperti `judul-konfirmasi` di
+`ConfirmDialog.jsx` atau `judul-hapus-permanen` di `ConfirmTypeToDeleteModal.jsx`.
+Modal ini dipanggil dari empat tempat yang semuanya tetap ter-mount saat
+tertutup, jadi id tetap akan membuat `aria-labelledby` menunjuk judul instans
+yang salah begitu dua di antaranya hidup bersamaan. Dua berkas yang memakai id
+tetap itu belum dibereskan.
+
+**BAGIAN 2 TIDAK DIKERJAKAN, dan itu disebut di sini supaya tidak terbaca sebagai
+sudah selesai.** Fokus masih tidak dipindahkan ke dalam `ConfirmTypeToDeleteModal`
+dan masih tidak dikurung di sana: berkas itu di `main` tak memuat satu pun
+`useRef` maupun pemanggilan `focus()`. Jejak Tab empat langkah di atas karena itu
+masih berlaku apa adanya. Ini justru bagian yang laporan ini sendiri nilai lebih
+merugikan, sebab `aria-modal="true"` di sana sudah terpasang dan menyembunyikan
+isi halaman di luar dialog sementara fokusnya tertinggal di luar.
+
+Pagarnya tak dapat dipakai sebagai jaminan untuk bagian itu: ketiga harapannya
+seluruhnya tentang atribut `ConfirmActionModal`, dan tak satu pun memeriksa
+fokus. Jadi suite web yang hijau TIDAK berarti bagian 2 sudah benar.
+
+Status barisnya dibiarkan terbuka. Dalam sesi yang sama ia sempat ditandai
+`Ditutup` atas dasar bagian 1 saja, dan itu salah — penandaan itu dibatalkan
+sebelum di-commit. Bila kelak lebih rapi memisahkannya menjadi temuan sendiri,
+itu keputusan pemilik dokumen, bukan diambil diam-diam di sini.
 
 ---
 
@@ -3179,6 +3261,41 @@ berhasil **justru karena cacat ini**. Uji yang sudah ada diam-diam bersandar
 pada perilaku yang salah. Ia tetap lulus sesudah diperbaiki (labelnya masih
 menjadi bagian namanya), jadi bukan penghalang perbaikan — tetapi pantas
 diketahui sebelum seseorang menyimpulkan bahwa nama aksesibelnya sudah teruji.
+
+#### Penutupan BUG-017 (21 Oktober 2026)
+
+`Dropdown.jsx` di `main` (commit `4d0080b`) memasang `aria-labelledby` yang
+menunjuk label DAN span nilai sekaligus, ditambah `aria-haspopup="listbox"` dan
+`aria-expanded={isOpen}` pada pemicunya. Nama terbacanya kini "Instansi, Dinas
+Kesehatan". Ketiga `test.failing()` memerah pada momen perbaikan dan anotasinya
+dicabut.
+
+`"listbox"` dipilih, bukan `"menu"` seperti `EksporMenu.jsx` dan
+`RowActionsMenu.jsx` di folder yang sama: keduanya memang menu AKSI, sedangkan
+kontrol ini memilih satu NILAI.
+
+**Satu batas disengaja, dicatat supaya tidak terbaca sebagai sudah tuntas.** Pola
+combobox/listbox penuh — `role="combobox"` di pemicu, `role="option"` dan
+`aria-selected` di tiap item — TIDAK ditegakkan, sehingga `aria-haspopup` di sini
+menjanjikan listbox yang panelnya masih daftar tombol biasa. Sebabnya bukan
+kemalasan melainkan dua kendala terukur: pagar BUG-017 sendiri menuntut pemicunya
+tetap terbaca sebagai `button`
+(`getByRole('button', { name: /dinas kesehatan/i })`), dan 238 kueri
+`getByRole('button')` di uji web memilih opsi dropdown sebagai tombol. Pekerjaan
+itu menyentuh 19 berkas uji dan pantas berdiri sebagai temuan sendiri.
+
+**Perbaikannya mematahkan satu uji yang diam-diam bersandar pada cacatnya**, dan
+itu bukan kebetulan melainkan akibat langsung dari nilai yang mulai diumumkan.
+`penyaringJenis.test.jsx` mencari opsi dengan
+`getByRole('button', { name: /SKM Triwulan Dua/ })`, dan pola itu unik HANYA
+selama nama pemicu tidak memuat nilai terpilih. Begitu nilainya masuk, dua elemen
+yang sama-sama benar cocok — pemicunya dan opsi di panel — dan jest memerah
+`Found multiple elements`. Polanya dijangkari `^`, idiom yang sudah dipakai
+berkas itu sendiri satu baris di bawahnya. Kausalitasnya diukur, bukan diduga:
+dengan perubahan di-`stash` berkas itu 17/17 lulus, dengan perubahan dipulihkan
+satu merah. Hanya SATU tempat di seluruh 1777 uji web yang menyimpan asumsi itu —
+catatan di atas tentang `Dropdown.test.jsx` memperkirakan ada yang bersandar pada
+cacatnya, dan perkiraan itu benar, hanya berkasnya lain.
 
 ---
 <a id="bug-018"></a>
