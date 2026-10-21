@@ -85,9 +85,13 @@ export default function CreateComplaintForm() {
   }, []);
 
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
-  const { data: opdResponse } = useAsync(fetchOpd);
+  const { data: opdResponse, isLoading: memuatOpd, error: gagalOpd } = useAsync(fetchOpd);
   const fetchCategories = useCallback(() => getComplaintCategories(), []);
-  const { data: categories } = useAsync(fetchCategories);
+  const {
+    data: categories,
+    isLoading: memuatKategori,
+    error: gagalKategori,
+  } = useAsync(fetchCategories);
 
   const departmentOptions = (opdResponse?.data ?? []).map((opd) => ({
     label: opd.name,
@@ -116,12 +120,37 @@ export default function CreateComplaintForm() {
    * '/', yang boleh dibuka siapa saja. Cabang tanpa sesi di berkas ini hanya
    * pernah terlihat di beranda.
    */
-  const penampungOpd = adaSesi ? 'Pilih Instansi' : 'Masuk untuk melihat daftar instansi';
+  /**
+   * EMPAT keadaan sejak 21 Oktober 2026 (sisa BUG-008), bukan dua.
+   *
+   * Dua keadaan pertama sudah ada sejak 8 September 2026. Yang ditambahkan
+   * "memuat" dan "gagal dimuat", dan penambahannya bukan kosmetik: `useAsync`
+   * sudah mengembalikan `isLoading` serta `error`, dan keduanya tadinya dibuang
+   * di sini. Akibatnya menimpa pengguna yang SUDAH masuk -- kegagalan
+   * pengambilan terlihat sama persis dengan daftar yang memang kosong, yaitu
+   * "Pilih Instansi" di atas nol pilihan.
+   *
+   * `SurveyForm.jsx` membedakan keempatnya lebih dulu. Yang dikerjakan di sini
+   * menyamakannya, bukan membuat pola baru: dua formulir bersebelahan yang
+   * mengambil data yang sama harus berkata hal yang sama ketika pengambilannya
+   * gagal.
+   */
+  const penampungOpd = () => {
+    if (!adaSesi) return 'Masuk untuk melihat daftar instansi';
+    if (memuatOpd) return 'Memuat daftar instansi...';
+    if (gagalOpd) return 'Daftar instansi gagal dimuat';
+    return 'Pilih Instansi';
+  };
   // "kategori" saja, tanpa "pengaduan": diukur di peramban, kalimat penuhnya
   // terpotong menjadi "...kategori pen..." karena dropdown ini hanya selebar
   // separuh baris. Kata yang dibuang sudah dikatakan label di atasnya
   // ("Kategori Pengaduan") dan himbauan di atas formulir.
-  const penampungKategori = adaSesi ? 'Pilih Kategori' : 'Masuk untuk melihat kategori';
+  const penampungKategori = () => {
+    if (!adaSesi) return 'Masuk untuk melihat kategori';
+    if (memuatKategori) return 'Memuat kategori...';
+    if (gagalKategori) return 'Kategori gagal dimuat';
+    return 'Pilih Kategori';
+  };
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -252,7 +281,7 @@ export default function CreateComplaintForm() {
             label="OPD / Instansi Tujuan"
             id="department"
             options={[
-              { label: penampungOpd, value: '' },
+              { label: penampungOpd(), value: '' },
               // "Lainnya (belum tahu tujuannya)" — bentuk gabungan, dan itu
               // kompromi yang disadari (8 September 2026). Kata "Lainnya" saja
               // diminta pengguna, tapi dropdown Kategori di sebelahnya SUDAH
@@ -289,7 +318,7 @@ export default function CreateComplaintForm() {
           <Dropdown
             label="Kategori Pengaduan"
             id="category"
-            options={[{ label: penampungKategori, value: '' }, ...categoryOptions]}
+            options={[{ label: penampungKategori(), value: '' }, ...categoryOptions]}
             value={formData.category}
             onChange={handleCategoryChange}
           />

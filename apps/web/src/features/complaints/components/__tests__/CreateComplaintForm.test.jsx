@@ -599,3 +599,61 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     await waitFor(() => expect(sessionStorage.getItem('skema:draf-pengaduan')).toBeNull());
   });
 });
+
+/**
+ * SISA BUG-008 (21 Oktober 2026). Baris itu sendiri sudah diperbaiki
+ * 8 September 2026: kedua penampung dropdown menyebut perlunya masuk, dan
+ * `handleSubmit` menahan pengiriman tanpa sesi. Yang tertinggal menimpa
+ * pengguna yang SUDAH masuk.
+ *
+ * `useAsync` mengembalikan `{data, isLoading, error}`, dan formulir ini
+ * mengambil `data` saja. Akibatnya "sedang dimuat" dan "gagal dimuat" keduanya
+ * terlihat sebagai "Pilih Instansi" di atas daftar kosong, tak dapat dibedakan
+ * dari instansi yang memang tak ada satu pun.
+ *
+ * `SurveyForm.jsx` di sebelah SUDAH membedakan keempat keadaan itu dan
+ * docblock-nya menyebut sebabnya tersurat. Jadi yang dikunci di sini bukan pola
+ * baru melainkan simetri: dua formulir bersebelahan yang mengambil data yang
+ * sama harus berkata hal yang sama ketika pengambilannya gagal.
+ *
+ * Galatnya 500, BUKAN 401. 401 berarti "tak ada sesi", yakni cabang yang sudah
+ * ditangani dan yang juga memicu `clearSession()` di interseptor
+ * `services/api.js` -- memakainya di sini akan menguji cabang yang salah.
+ */
+describe('CreateComplaintForm — keadaan muat dan gagal bagi pengguna yang sudah masuk', () => {
+  it('selagi daftar instansi dimuat, penampungnya menyebut sedang memuat', () => {
+    render(<CreateComplaintForm />);
+
+    // Sinkron, tanpa `await`: `useAsync` menyetel `isLoading` true pada render
+    // pertama, jadi inilah satu-satunya titik di mana keadaan ini terlihat.
+    expect(screen.getByText('Memuat daftar instansi...')).toBeInTheDocument();
+  });
+
+  it('selagi daftar kategori dimuat, penampungnya menyebut sedang memuat', () => {
+    render(<CreateComplaintForm />);
+
+    expect(screen.getByText('Memuat kategori...')).toBeInTheDocument();
+  });
+
+  it('ketika GET /opd gagal, penampungnya mengaku gagal alih-alih menyuruh memilih', async () => {
+    server.use(http.get(`${API_BASE}/opd`, () => failWithCode(500, 'Gangguan server', 'INTERNAL')));
+
+    render(<CreateComplaintForm />);
+
+    expect(await screen.findByText('Daftar instansi gagal dimuat')).toBeInTheDocument();
+    expect(screen.queryByText('Pilih Instansi')).not.toBeInTheDocument();
+  });
+
+  it('ketika daftar kategori gagal dimuat, penampungnya mengaku gagal', async () => {
+    server.use(
+      http.get(`${API_BASE}/ref/complaint-categories`, () =>
+        failWithCode(500, 'Gangguan server', 'INTERNAL'),
+      ),
+    );
+
+    render(<CreateComplaintForm />);
+
+    expect(await screen.findByText('Kategori gagal dimuat')).toBeInTheDocument();
+    expect(screen.queryByText('Pilih Kategori')).not.toBeInTheDocument();
+  });
+});
