@@ -100,7 +100,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-006](#bug-006) | Sesi hantu: tampak sudah login, tombol mati, data tetap terisi | High     | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-007](#bug-007) | Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah  | Low      | Terkonfirmasi | Baru       | C-03    |
 | [BUG-008](#bug-008) | Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung | Medium   | Terkonfirmasi | Baru       | C-11    |
-| [BUG-009](#bug-009) | Akun terlanjur dibuat ketika penetapan statusnya gagal          | Medium   | Terkonfirmasi | Baru       | C-05    |
+| [BUG-009](#bug-009) | Akun terlanjur dibuat ketika penetapan statusnya gagal          | Medium   | Terkonfirmasi | **Ditutup** (basi — fiturnya dibuang) | C-05    |
 | [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
 | [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
@@ -196,6 +196,36 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 > bentuk cacatnya sama persis di lima tempat; laporan ini hanya menyebut
 > `ConfirmTypeToDeleteModal` karena di sanalah jejak Tab direkam. Kelimanya
 > diperbaiki sekaligus lewat satu kait bersama, bukan satu berkas saja.
+>
+> **(21 Oktober 2026, malam) BUG-009 ditutup sebagai BARIS BASI**, dan dua
+> catatan hitung-ulang di atas karena itu TERLALU BESAR satu: keduanya ikut
+> menghitung baris yang kodenya sudah dibuang 30 September 2026. Keduanya
+> dibiarkan utuh sebagai rekaman, dan angka yang benar ada di sini. Dihitung
+> dari baris tabelnya: 21 baris, tiga belas `Ditutup`, sisanya **8 terbuka** —
+> Medium BUG-008 dan BUG-019 saja; Low BUG-003, 007, 010, 011, 012, 018. Medium
+> tinggal **dua**, bukan tiga, dan BUG-008 tetap satu-satunya yang akibatnya
+> terlihat pengunjung publik.
+>
+> Keenam baris Low dan dua Medium itu diperiksa keberadaan kodenya pada hari yang
+> sama supaya angka ini tidak mengulangi kesalahan yang sama: `MapSection.jsx`
+> ada (BUG-003), `Pagination.jsx` ada (BUG-010), komponen OPD ada (BUG-011 dan
+> 012), `complaints.service.ts:493` masih memanggil `notifyComplaintCreated`
+> (BUG-018), `auth.controller.ts:168` masih meneruskan `error_description`
+> (BUG-019), dan beranda publik masih merender formulirnya tanpa syarat
+> (BUG-008).
+>
+> ⚠️ **BUG-007 menuntut pemeriksaan sendiri, dan BELUM dikerjakan.** Kolom
+> **Halaman**-nya menyebut `/complaints/new`, dan rute itu TIDAK ADA — yang ada
+> `app/(respondent)/complaints`. Sejauh itu ia sebasi BUG-009. Bedanya, cacatnya
+> tampaknya TIDAK ikut hilang: medan unggahnya hidup di tiga tempat, dan
+> `FileDropzone.jsx` kini membawa `accept="image/*,.pdf"` (baris 10, dipakai di
+> 49) sedangkan `AdminResolutionWorkspace.jsx:245` dan
+> `chat/ChatReplyForm.jsx:129` tidak menunjukkan `accept` maupun pemeriksaan
+> ukuran sama sekali. Jadi dugaan terbaiknya: sebagian sudah tertutup di satu
+> komponen dan masih terbuka di dua lainnya. Itu DUGAAN dari pembacaan cepat,
+> bukan pengukuran — statusnya sengaja TIDAK diubah sampai ada yang
+> memeriksanya dengan benar, sebab menurunkan severity atas dasar grep adalah
+> cara lain membuat angka yang salah.
 
 > ⚠️ **BUG-005 menuntut perhatian lebih dulu.** Ia satu-satunya temuan Critical,
 > sudah terkonfirmasi, dan akibatnya menimpa warga langsung: survei terbit yang
@@ -1224,8 +1254,8 @@ menggantikan formulir bagi pengunjung yang belum bersesi.
 | -------------- | ------------------------------------------------------- |
 | **Severity**   | Medium                                                  |
 | **Verifikasi** | Terkonfirmasi di peramban, 3 September 2026 (sesi C-05) |
-| **Berkas**     | `src/app/admin-kab/users/create/page.jsx:112-131`       |
-| **Peran**      | Superuser (halaman ini `SUPERUSER_ONLY_PREFIXES`)       |
+| **Berkas**     | `src/app/admin-kab/users/create/page.jsx:112-131` — **jalur ini sudah tidak ada sejak 30 September 2026** |
+| **Peran**      | Superuser (halaman ini `SUPERUSER_ONLY_PREFIXES`) — **keduanya sudah tidak ada**: peran dilebur 15 September 2026, konstantanya dibuang bersamanya |
 
 **Yang terjadi.** Membuat akun dengan sakelar "Aktif" dimatikan menempuh **dua
 panggilan berurutan**, bukan satu:
@@ -1277,6 +1307,42 @@ mengirim ulang formulir ini.
 OPD" menahan pengiriman dengan pesan yang tepat, surel duplikat ditolak dan
 pesannya ditampilkan (tidak ditelan), dan sakelar nonaktif yang berhasil
 benar-benar tersimpan `isActive=false`. Lihat TC-FE-044.
+
+#### Ditutup sebagai BARIS BASI (21 Oktober 2026) — bukan diperbaiki
+
+**Cacatnya tak dapat diperbaiki karena kodenya sudah tidak ada.** Halaman "Buat
+Akun Admin Baru" dibuang **30 September 2026**, tiga minggu sebelum catatan
+hitung-ulang terakhir di dokumen ini ditulis. Diukur, bukan diingat:
+
+| Yang diperiksa | Hasil |
+| -------------- | ----- |
+| `apps/web/src/app/admin-kab/users/create/` | tidak ada |
+| `createUser` di `features/users/services/users.api.js` | tidak ada — docblock berkasnya menyatakan sendiri "TANPA `createUser`. Halaman 'Buat Akun Admin Baru' dibuang 30 September 2026" |
+| pemanggil `updateUserStatus` | satu, `app/admin-kab/users/page.jsx:160` — panggilan TUNGGAL atas pengguna yang sudah ada |
+| `SUPERUSER_ONLY_PREFIXES` | tidak ada |
+
+Urutan dua panggilan yang menjadi akar cacat ini karena itu tidak ada lagi di
+mana pun, dan tidak PINDAH ke tempat lain: akun kini hanya lahir dari SSO
+(`SsoService.createUser` di backend), sehingga tak ada lagi antarmuka yang
+membuat akun lalu menonaktifkannya dalam dua langkah.
+
+Statusnya `Ditutup`, bukan `Ditolak`. Ia memang cacat sungguhan dan terkonfirmasi
+di peramban pada 3 September 2026; yang menutupnya pembuangan fiturnya, bukan
+perbaikan. Dibedakan supaya tak terbaca sebagai temuan yang keliru dilaporkan.
+
+**Yang pantas dipelajari dari baris ini bukan cacatnya, melainkan kebasiannya.**
+Kebasian itu SUDAH TERDETEKSI delapan hari sebelumnya di dokumen sebelah:
+`TEST_CASES.md` baris TC-FE-044 memuat "**bukan** `/admin-kab/users/create` —
+rute itu tak ada; yang ada `users/[id]/edit`, diperiksa 13 Oktober 2026". Catatan
+itu tak pernah menyeberang ke sini, sehingga dokumen ini terus menghitung
+BUG-009 sebagai Medium yang terbuka selama delapan hari sesudah ada orang yang
+membuktikan rutenya tiada. Baris TC-nya sendiri bahkan masih menyebut BUG-009
+hidup di kalimat yang sama yang menyangkal rutenya.
+
+**Akibatnya pada angka, dan itu bukan soal kerapian.** Hitungan terbuka dipakai
+orang untuk memutuskan apa yang dikerjakan berikutnya. Dua catatan hitung-ulang
+yang ditulis 21 Oktober 2026 menyatakan "Medium tinggal empat" lalu "Medium
+tinggal tiga"; keduanya ikut menghitung BUG-009. Yang benar satu kurang.
 
 ---
 
