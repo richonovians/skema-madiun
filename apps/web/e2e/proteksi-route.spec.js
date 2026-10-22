@@ -70,6 +70,7 @@ async function sapuMatriks(page, kolom) {
   await matikanCache(page);
   const kena429 = intaiBatasLaju(page);
   const menyimpang = [];
+  const gagalServer = [];
 
   for (const baris of MATRIKS) {
     const rute = baris[0];
@@ -80,9 +81,18 @@ async function sapuMatriks(page, kolom) {
     // halaman. Menunggu `load` membuat sapuan ini bergantung pada gambar, font,
     // dan kompilasi rute oleh server pengembangan — pernah membuatnya melewati
     // batas waktu di `/dashboard` padahal pantulannya sudah selesai sejak awal.
-    await page.goto(rute, { waitUntil: 'domcontentloaded' });
+    const res = await page.goto(rute, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(JEDA_SETELAH_NAVIGASI);
     const sampai = new URL(page.url()).pathname;
+
+    // Status dibaca, bukan diabaikan. Halaman galat server tinggal di
+    // alamatnya sendiri, jadi tanpa baris ini 5xx menyamar sebagai keputusan
+    // proxy -- terbaca "tidak dipantulkan" bila alamatnya berbeda dari yang
+    // diharapkan, dan terbaca LULUS bila kebetulan sama.
+    const status = res?.status();
+    if (typeof status === 'number' && status >= 500) {
+      gagalServer.push(`  ${rute} → HTTP ${status}`);
+    }
 
     if (sampai !== diharapkan) {
       menyimpang.push(`  ${rute} → ${sampai} (seharusnya ${diharapkan})`);
@@ -95,6 +105,22 @@ async function sapuMatriks(page, kolom) {
       'Hasilnya tak dapat dipercaya: sesi yang ditolak 429 membuat semua rute ' +
       'memantul seolah penjagaan akses bekerja. Jalankan ulang setelah menunggu semenit.',
   ).toEqual([]);
+
+  // DIPERIKSA SEBELUM matriksnya, sealasan dengan pengintai 429 di atas:
+  // bila servernya sendiri tak menjawab, hasil matriks apa pun tak bermakna,
+  // dan melaporkannya sebagai pelanggaran RBAC mengirim pembaca ke arah yang
+  // salah -- itu sungguh terjadi, dan butuh cuplikan halaman untuk dibantah.
+  expect(
+    gagalServer.join('\n'),
+    'Server membalas 5xx di tengah sapuan, jadi hasilnya TIDAK dapat dipercaya. ' +
+      'Halaman galat tinggal di alamatnya sendiri, sehingga tampak seperti rute ' +
+      'yang tidak dipantulkan -- dan bila alamat itu kebetulan sama dengan yang ' +
+      'diharapkan, sapuan ini bahkan LULUS tanpa memeriksa apa pun. Terjadi ' +
+      'sungguhan 22 Oktober 2026: `apps/api` memuat ulang di tengah jalan dan ' +
+      'tiga rute admin terbaca seolah terbuka bagi responden. Pastikan ' +
+      '`http://skema.local/api/v1/health` menjawab 200, lalu jalankan ulang. ' +
+      'Rute yang gagal:',
+  ).toBe('');
 
   expect(menyimpang.join('\n'), 'Rute yang menyimpang dari matriks A.5.1:').toBe('');
 }
@@ -147,5 +173,55 @@ test.describe('Matriks proteksi route (A.5.1)', () => {
     // bukan menembus batas areanya. Lihat matriks di `support/rute.js`.
     await masukSebagai(page, AKUN.adminKabupaten, '/admin-kab/dashboard');
     await sapuMatriks(page, KOLOM.kabupaten);
+  });
+});
+
+/**
+ * KENDALI atas sapuannya sendiri, ditambahkan 22 Oktober 2026 sesudah sebuah
+ * kegagalan yang salah dibaca.
+ *
+ * Malam itu `sapuMatriks` melaporkan sesi responden membuka
+ * `/admin-kab/dashboard`, `/admin-opd/dashboard`, dan `/admin-opd/complaints`.
+ * Dibaca apa adanya itu lubang kontrol akses tingkat Critical. Cuplikan halaman
+ * yang Playwright simpan membantahnya: ketiganya `502 Bad Gateway` dari nginx,
+ * sebab `apps/api` sedang memuat ulang di tengah jalan. Pada 502 alamatnya tidak
+ * berubah, dan sapuan ini menyimpulkan keputusan proxy DARI ALAMAT AKHIR -- jadi
+ * alamat yang tidak berubah terbaca sebagai "tidak dipantulkan".
+ *
+ * Uji di bawah memilih kasus yang LEBIH TAJAM daripada kegagalan itu. Merah
+ * palsu setidaknya berisik dan tertangkap. Yang berbahaya kebalikannya: bila
+ * rute yang dijawab 502 kebetulan SAMA dengan alamat yang diharapkan, matriksnya
+ * cocok dan sapuan ini hijau sambil tak memeriksa apa pun. Baris `/` pada kolom
+ * `tanpaToken` tepat begitu -- diharapkan `/`, dan halaman galat pun tinggal
+ * di `/`.
+ *
+ *
+ * DITARUH DI AKHIR BERKAS dengan sengaja. Uji ini menambah delapan navigasi
+ * pada anggaran permintaan berkas ini, dan backend membatasi 100 permintaan
+ * per 60 detik. Ketika ia berada di AWAL, dua percobaan uji `responden`
+ * sesudahnya kehabisan 150 detik di `masukSebagai` -- bukan di matriksnya.
+ * Sebabnya TIDAK terbukti: artefak `test-results` sudah terhapus oleh jalan
+ * berikutnya sebelum sempat dibaca, jadi 429 hanya dugaan yang paling masuk
+ * akal, bukan hasil pengukuran. Yang pasti hanya ini: uji yang sama lulus
+ * 30,8 detik bila dijalankan sendiri, dan menaruh pagar ini di belakang
+ * membuat uji berlogin memakai anggaran yang masih utuh.
+ * Tak ada sesi yang dibutuhkan dan tak ada baris basis data yang tersentuh.
+ */
+test.describe('KENDALI sapuMatriks: 5xx tidak boleh menyamar sebagai hasil yang sah', () => {
+  test.describe.configure({ timeout: 150_000 });
+
+  test('rute yang dijawab 502 dilaporkan sebagai kegagalan infrastruktur', async ({ page }) => {
+    // Hanya `/` yang dipalsukan, dan justru itu baris yang diharapkan `/`.
+    await page.route(
+      (url) => new URL(url).pathname === '/',
+      (route) =>
+        route.fulfill({
+          status: 502,
+          contentType: 'text/html',
+          body: '<h1>502 Bad Gateway</h1>',
+        }),
+    );
+
+    await expect(sapuMatriks(page, KOLOM.tanpaToken)).rejects.toThrow(/502/);
   });
 });

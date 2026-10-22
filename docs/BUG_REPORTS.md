@@ -121,8 +121,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-027](#bug-027) | Uji KENDALI pengisian anonim lulus tanpa pernah mengisi apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-028](#bug-028) | Penolakan unggahan dijawab 500, bukan 400 — galat klien menyamar sebagai kerusakan server | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-029](#bug-029) | Layar gagal masuk SSO membocorkan URL internal dan nama kunci konfigurasi | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-030](#bug-030) | Sapuan proteksi route membaca 502 sebagai keputusan proxy — bisa LULUS tanpa memeriksa apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 29 temuan: 23 ditutup, **6 terbuka (0 Critical, 0 High, 0 Medium, 6 Low)**
+**Rekap** — 30 temuan: 24 ditutup, **6 terbuka (0 Critical, 0 High, 0 Medium, 6 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5197,6 +5198,66 @@ sederhana.
 
 ---
 
+### BUG-030 — Sapuan proteksi route membaca 502 sebagai keputusan proxy
+
+|              |                                      |
+| ------------ | ------------------------------------ |
+| **Charter**  | —                                    |
+| **Tanggal**  | 22 Oktober 2026                      |
+| **Berkas**   | `apps/web/e2e/proteksi-route.spec.js` |
+| **Severity** | Medium                               |
+| **Jenis**    | Cacat perkakas uji, bukan cacat produk |
+
+`sapuMatriks` menyimpulkan keputusan `proxy.js` **dari alamat akhir** sebuah
+navigasi, dan tidak pernah memeriksa status responsnya. Halaman galat server
+tinggal di alamatnya sendiri, jadi 502 tak terbedakan dari "rute yang tidak
+dipantulkan".
+
+**Terukur dua arah, dan arah keduanya yang lebih berbahaya.**
+
+Arah pertama, merah palsu: pada jalan 22 Oktober 2026 uji `responden` melaporkan
+`/admin-kab/dashboard`, `/admin-opd/dashboard`, dan `/admin-opd/complaints`
+terbuka bagi responden. Dibaca apa adanya itu lubang kontrol akses tingkat
+Critical. Cuplikan halaman yang Playwright simpan membantahnya:
+
+```yaml
+- heading "502 Bad Gateway" [level=1]
+- generic: nginx/1.29.8
+```
+
+`apps/api` sedang memuat ulang di tengah jalan. Penegakan sesungguhnya tetap
+hijau di tingkat API pada jalan yang sama — `peran-matriks-rbac.e2e-spec.ts`
+11 uji lulus.
+
+Arah kedua, **hijau palsu**, dan inilah yang menuntut pagar: bila rute yang
+dijawab 502 kebetulan SAMA dengan alamat yang diharapkan, matriksnya cocok dan
+sapuan ini lulus sambil tak memeriksa apa pun. Baris `/` pada kolom `tanpaToken`
+tepat begitu. Pagar barunya memalsukan 502 pada `/` saja dan menuntut sapuan itu
+menolak; sebelum perbaikan ia dijawab `Received promise resolved instead of
+rejected` — lulus, atas halaman galat.
+
+**Perbaikan.** `page.goto` mengembalikan responsnya, jadi statusnya dibaca; rute
+ber-status ≥ 500 dikumpulkan dan diasersikan kosong **sebelum** matriksnya
+dinilai — sealasan dengan pengintai 429 yang sudah ada di berkas yang sama,
+sebab hasil matriks tak bermakna bila servernya sendiri tak menjawab.
+
+**Perbaikan itu membuktikan dirinya pada pemakaian sungguhan, bukan hanya di
+pagar.** Pada jalan berikutnya dua uji goyah berbunyi
+`/admin-opd/dashboard → HTTP 502` dan `/admin-opd/complaints → HTTP 502`,
+menunjuk `health` alih-alih menuduh RBAC jebol.
+
+**Satu akibat samping yang jujur dicatat:** ketika pagar ini berada di AWAL
+berkas, dua percobaan uji `responden` sesudahnya kehabisan 150 detik di
+`masukSebagai` — bukan di matriksnya — sementara uji yang sama lulus 30,8 detik
+bila dijalankan sendiri. Delapan navigasi tambahan milik pagar diduga menghabiskan
+anggaran batas laju 100 permintaan/60 detik, tetapi **dugaan itu tidak terbukti**:
+artefak `test-results` sudah terhapus oleh jalan berikutnya sebelum sempat dibaca.
+Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
+
+**Ditutup** — bersama perbaikannya pada hari yang sama.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -5247,3 +5308,4 @@ sederhana.
 | 6.2 | 22 Oktober 2026 | **Enam temuan lahir dan ditutup pada hari yang sama (BUG-022 sampai BUG-027), dan hanya SATU di antaranya cacat produk.** Sapuan sepuluh spec Playwright yang belum pernah jalan di mesin ini menghasilkan 13 kegagalan; sesudah ditelusuri, nol cacat produk — enam dari nomor tiket tetap yang sudah tiada (BUG-023), tujuh dari dua cacat detektor yang menuduh markah sehat (BUG-024, BUG-025). **BUG-024 adalah yang paling merugikan, dan korbannya dokumen ini sendiri**: catatan sesi sebelumnya mendaftarkan "luberan tata letak 320px" sebagai utang PRODUK, atas dasar nama uji yang gagal alih-alih atas dasar apa yang dilaporkan asersinya; pengukuran membantahnya (`document.scrollWidth` 320 = `innerWidth` 320, nol piksel meluber). **BUG-022 cacat produk sungguhan dan dinilai High**: `RadioCard` menyembunyikan radionya dengan `hidden`, yang berarti `display: none`, sehingga sembilan unsur SKM wajib tak dapat dijawab sama sekali tanpa tetikus — `getByRole('radio')` mengembalikan nol pada halaman yang menampilkan empat pilihan. Cacat itu MUSTAHIL tertangkap Jest: jsdom tak memuat Tailwind, jadi di sana `hidden` tanpa akibat dan ujinya hijau justru pada keadaan rusak. **BUG-026 dan BUG-027 satu berkas**: `isi-survei-anonim.spec.ts` menyimpan empat harapan basi sekaligus dan tak satu pun pernah terbantah, sebab berkas itu selalu melewati dirinya tanpa `E2E_SURVEY_ANONIM_ID`; uji KENDALI-nya pun hampa — hanya menyatakan satu kalimat tidak ada, sehingga lulus sambil mencatat nol respons. Pengirimannya kini BERCABANG dengan sengaja, sebab Turnstile tak menerbitkan token di mesin ini (nol iframe, kunci situs terikat domain yang tidak memuat `skema.local`): menuntut 201 di sana merah palsu, melewatinya hijau palsu, jadi cabang yang benar-benar terjadi itulah yang diasersi sampai tuntas. Rekap DIHITUNG ULANG dari kolom Status, bukan dikurangi: 27 temuan, 20 ditutup, 7 terbuka (Medium tinggal BUG-019). Angka sebelumnya — "10 ditutup, 11 terbuka" — sudah basi sebelum hari ini dimulai, sebab lima baris Medium yang sudah bertanda `Ditutup` tak pernah ikut dihitung. **Cacat struktur tabel ini sendiri ikut dibereskan**: ENAM baris riwayat (5.6 sampai 6.1) menggantung DI ATAS judul `## 6` tanpa kepala tabel, sehingga tabel di bawah judulnya berhenti di 5.5 dan pembaca yang menggulir ke bawah melihat entri 19 Oktober sebagai yang terbaru; keenamnya dipindahkan apa adanya ke bawah judul dan diurutkan — 6.1 sempat tercatat sebelum 6.0. Dua pernyataan dalam entri ini sendiri sempat salah sebelum dikoreksi di tempat: jumlahnya ditulis lima, dan nomor 5.6 disebut tak pernah ada; keduanya dibantah oleh keluaran skrip pemindahnya, yang menyebut enam baris berikut nomornya satu per satu. Memindahkan baris tabel tidak membuktikan isinya benar — yang diperiksa hanya posisinya. |
 | 6.3 | 22 Oktober 2026 | **BUG-028 lahir dan ditutup pada hari yang sama, dan ia cacat PRODUK — bukan cacat perkakas uji seperti lima dari enam temuan sebelumnya hari ini.** Berkas yang dikirim pada nama medan selain `lampiran` dijawab `500 Unexpected file field` berkode `INTERNAL_SERVER_ERROR`: galat klien yang disajikan sebagai kerusakan server, sehingga pemantauan melaporkan server rusak padahal servernya sehat. **Laporan pertama saya atas temuan ini kurang lengkap dan dikoreksi di sini**: saya mencatatnya sebagai satu kasus, padahal pengukuran menunjukkan LIMA kode multer terkena — `transformException` milik Nest 11.1.28 mencocokkan galat multer pada KALIMATnya memakai tabel yang disalin dari multer 1.x, sementara yang terpasang multer 2.4.0 yang mengganti satu kalimat dan menambah empat kode. Yang paling merugikan diam-diam bukan kasus yang ditemukan lebih dulu, melainkan `STREAM_DESTROYED`: pengunggahan yang terputus di jaringan ponsel goyah tercatat sebagai kerusakan server. Pemetaannya kini dikunci pada `error.code` sesuai perintah docblock multer sendiri, dan `LIMIT_FILE_SIZE` tetap 413 dengan uji tersurat. **Dua dari tiga pembuktian merahnya merah karena sebab yang SALAH** — `Tests: 0 total`, yaitu galat kompilasi, dan sebabnya ikut jadi temuan: `@types/multer@2.2.0` pun ketinggalan dari runtime-nya. Rekap dihitung ulang dari kolom Status: 28 temuan, 21 ditutup, 7 terbuka — angka terbukanya TIDAK berubah, sebab temuan ini ditutup pada hari ia lahir. |
 | 6.4 | 22 Oktober 2026 | **BUG-019 DITUTUP (`3fb335f`, merge `e3ce3f8`), dan dengan itu tak ada lagi temuan Medium yang terbuka — pertama kalinya sejak dokumen ini dibuat.** Tujuh kode galat RFC 6749 §4.1.2.1 dipetakan ke kalimat milik aplikasi sendiri; `error_description` tak lagi menyentuh layar dan tetap tercatat di log. **Saran perbaikan dalam laporan aslinya tidak diikuti sepenuhnya, dan itu disengaja**: saran itu meminta kode galatnya ikut ditampilkan untuk kode tak dikenal, padahal `error` pun medan bebas 256 karakter, jadi memantulkannya hanya memperkecil cacatnya. **BUG-029 lahir dan ditutup pada hari yang sama**, ditemukan selagi BUG-019 dibaca: dua blok `catch` meneruskan `err.message` ke fragment yang sama, sehingga warga dapat melihat URL internal berikut `TypeError: fetch failed`, dan nama kunci seperti `helpdesk.ssoClientSecret`. **Rancangan pertama saya untuk BUG-029 salah dan dibatalkan**: saya menduga kebocorannya `Error` biasa, padahal `helpdesk-sso.client.ts` membungkus setiap kegagalan jaringan menjadi `ServiceUnavailableException` — aturan yang saya usulkan justru akan melewatkan kalimat yang bocor; fungsi beserta ujinya sempat ditulis, hijau, lalu dihapus. Batas yang dipakai STATUS: di bawah 500 lewat, 5xx diganti kalimat umum. **EMPAT uji yang sudah ada ternyata mengunci perilaku lama** dan keempatnya kontraknya diganti alih-alih asersinya dilonggarkan — termasuk `sso-unconfigured.e2e-spec.ts:65`, yang BUKAN uji basi melainkan keputusan sengaja dari tanggal lain beralasan "pesannya harus benar-benar memberi tahu apa yang kurang"; alasan itu dicatat utuh di tempatnya, bukan dihapus. **Dua uji lain memalsukan jenis galat**, melempar `Error` biasa di tempat produksinya melempar `ServiceUnavailableException` dan `ForbiddenException`, dan hijau hanya karena perilaku lama meneruskan apa saja. **Dua kali tersesat di `Tests: 0 total`** — galat kompilasi, bukan uji yang memerah: `expect` Jest tak menerima argumen pesan kedua seperti Playwright, dan fungsi yang belum ada perlu stub kompilabel lebih dulu. Pagar `sso-galat.spec.js` di cabang ini MASIH memakai `test.fail(true, ...)` dan itu benar, sebab `apps/api` di `tester` belum memuat perbaikannya (terukur: `pesanGalatSso` nol kemunculan); `main` karena itu dibekali pagarnya sendiri di `sso.e2e-spec.ts`, dibuktikan lewat mutasi. Rekap dihitung ulang dari kolom Status: 29 temuan, 23 ditutup, 6 terbuka — seluruhnya Low. Satu hal yang TIDAK dikerjakan dan masih terbuka: memagari pesan 5xx dengan `app.nodeEnv === 'production'` seperti `boleh-admin-opd.ts`, agar pengembang tetap melihat kunci yang kosong di peramban sementara warga tidak. |
+| 6.5 | 22 Oktober 2026 | **BUG-030 lahir dan ditutup pada hari yang sama: sapuan proteksi route membaca 502 sebagai keputusan `proxy.js`.** Ia menyimpulkan izin akses dari ALAMAT AKHIR navigasi dan tak pernah memeriksa status respons, sementara halaman galat server tinggal di alamatnya sendiri. Arah merah palsunya sudah terjadi malam itu — tiga rute admin dilaporkan terbuka bagi responden, dan hanya cuplikan halaman `502 Bad Gateway` dari nginx yang membantahnya; penegakan sesungguhnya tetap hijau di `peran-matriks-rbac` 11 uji. **Arah yang lebih berbahaya hijau palsu**: bila rute yang 502 kebetulan sama dengan alamat yang diharapkan, matriksnya cocok dan sapuan itu LULUS tanpa memeriksa apa pun. Pagarnya memilih kasus itu — memalsukan 502 pada `/` di kolom `tanpaToken` — dan sebelum perbaikan dijawab `Received promise resolved instead of rejected`. Status kini diasersikan kosong sebelum matriksnya dinilai, sealasan dengan pengintai 429 yang sudah ada. **Perbaikannya membuktikan diri pada pemakaian sungguhan**: jalan berikutnya berbunyi `/admin-opd/dashboard → HTTP 502` alih-alih menuduh RBAC jebol. **Dua hal yang TIDAK terbukti dan ditulis apa adanya**: (1) ketika pagar ini di awal berkas, dua percobaan uji `responden` kehabisan 150 detik di `masukSebagai` padahal lulus 30,8 detik bila sendiri — batas laju hanya dugaan, sebab artefaknya sudah terhapus; pagarnya dipindah ke akhir. (2) Mengapa pemanasan `/surveys/[id]` tidak mencegah timeout `isi-survei.spec.js` tetap tak terjawab: ketiga rute yang dapat saya ukur sudah terkompilasi (`header` ≈ `tuntas`, 0,04–0,48 detik), dan memaksa keadaan dingin menuntut memuat ulang server dev milik pengguna. Yang terukur hanya bahwa `pemanasan.js:41` tak pernah membaca badan responsnya. Rekap dihitung ulang dari kolom Status: 30 temuan, 24 ditutup, 6 terbuka — seluruhnya Low. |
