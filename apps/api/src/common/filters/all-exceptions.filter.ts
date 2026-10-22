@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiErrorResponse } from '../interfaces/api-response.interface';
 import { BATAS_UKURAN_LAMPIRAN_LABEL } from '../../modules/complaints/complaints.constants';
+import { petakanGalatMulter } from './multer-galat.util';
 
 interface HttpResponseLike {
   status(code: number): { json(body: unknown): void };
@@ -84,6 +85,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (statusCode === HttpStatus.PAYLOAD_TOO_LARGE && message === 'File too large') {
       message = `Ukuran berkas melebihi ${BATAS_UKURAN_LAMPIRAN_LABEL}. Perkecil berkasnya lalu coba lagi.`;
       code = 'LAMPIRAN_TERLALU_BESAR';
+    }
+
+    /**
+     * Penolakan multer yang LOLOS dari pemetaan @nestjs/platform-express
+     * (22 Oktober 2026). Blok di atas menangani galat yang sudah dipetakan
+     * Nest; blok ini menangani yang tidak.
+     *
+     * `transformException` milik Nest mencocokkan galat multer pada
+     * `error.message` terhadap tabel kalimat yang disalin dari multer 1.x.
+     * multer 2.4.0 -- versi yang terpasang -- mengganti satu kalimat dan
+     * menambah empat kode, jadi lima kode luput dari `switch` itu, lewat apa
+     * adanya sebagai Error biasa, lalu dijawab `500 INTERNAL_SERVER_ERROR`.
+     * Terukur: berkas yang dikirim pada medan selain `lampiran` menjawab 500
+     * dengan kalimat Inggris `Unexpected file field`, sehingga permintaan klien
+     * yang salah bentuk membuat pemantauan melaporkan kerusakan server.
+     *
+     * Hanya dijalankan ketika statusnya masih 500, supaya galat multer yang
+     * SUDAH dipetakan Nest tidak diputuskan dua kali.
+     */
+    if (statusCode === HttpStatus.INTERNAL_SERVER_ERROR) {
+      const peta = petakanGalatMulter(exception);
+      if (peta) {
+        statusCode = peta.statusCode;
+        message = peta.message;
+        code = peta.code;
+      }
     }
 
     const body: ApiErrorResponse = {
