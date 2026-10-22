@@ -119,8 +119,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-025](#bug-025) | Detektor teks terpotong menuduh label `sr-only` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-026](#bug-026) | `isi-survei-anonim` menyimpan empat harapan basi dan selalu melewati dirinya | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-027](#bug-027) | Uji KENDALI pengisian anonim lulus tanpa pernah mengisi apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-028](#bug-028) | Penolakan unggahan dijawab 500, bukan 400 — galat klien menyamar sebagai kerusakan server | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 27 temuan: 20 ditutup, **7 terbuka (0 Critical, 0 High, 1 Medium, 6 Low)**
+**Rekap** — 28 temuan: 21 ditutup, **7 terbuka (0 Critical, 0 High, 1 Medium, 6 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5030,6 +5031,78 @@ sedangkan 201 hanya terbit kalau barisnya sungguh masuk basis data.
 
 ---
 
+### BUG-028 — Penolakan unggahan dijawab 500, bukan 400 — galat klien menyamar sebagai kerusakan server
+
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| **Charter**  | —                                                      |
+| **Tanggal**  | 22 Oktober 2026                                        |
+| **Berkas**   | `apps/api/src/common/filters/all-exceptions.filter.ts` |
+| **Severity** | Medium                                                 |
+| **Jenis**    | Cacat produk (respons API)                             |
+
+Berkas yang dikirim pada nama medan selain `lampiran` dijawab:
+
+```
+status=500  {"message":"Unexpected file field","error":{"code":"INTERNAL_SERVER_ERROR"}}
+```
+
+Permintaan kendali yang sama persis, hanya dengan medan `lampiran` yang benar,
+dijawab `201`. Jadi yang membedakan memang nama medannya, bukan bentuk
+permintaannya.
+
+Ini galat **klien** yang disajikan sebagai galat **server**. Akibatnya dua, dan
+keduanya menimpa orang yang tidak membuat kesalahannya: pemantauan melaporkan
+kerusakan server padahal servernya sehat, dan siapa pun yang menyisir log
+mencari sebab yang tak pernah ada. Frontend sendiri tak pernah memicunya —
+`FileDropzone.jsx` selalu memakai nama medan yang benar — jadi yang memicunya
+integrasi pihak lain atau klien lama.
+
+**Akar masalahnya, dan ia mengoreksi laporan saya sendiri.** Temuan ini
+mula-mula saya catat sebagai SATU kasus. Pengukuran menunjukkan cacatnya lebih
+luas: `transformException` milik `@nestjs/platform-express@11.1.28` mencocokkan
+galat multer pada `error.message`, memakai tabel kalimat yang disalin dari
+multer 1.x. Yang terpasang di sini multer 2.4.0, dan versi itu mengganti satu
+kalimat serta menambah empat kode. **Lima** kode karena itu luput dari `switch`
+tersebut, lewat apa adanya sebagai `Error` biasa, lalu jatuh ke cadangan 500:
+
+| kode multer               | kalimat multer 2.4.0               | tabel Nest         |
+| ------------------------- | ---------------------------------- | ------------------ |
+| `LIMIT_UNEXPECTED_FILE`   | `Unexpected file field`            | `Unexpected field` |
+| `LIMIT_FIELD_NESTING`     | `Field name nesting too deep`      | tidak ada          |
+| `LIMIT_FIELD_ARRAY_INDEX` | `Field name array index too large` | tidak ada          |
+| `STREAM_DESTROYED`        | `File stream was destroyed`        | tidak ada          |
+| `INVALID_FIELD_NAME`      | `Invalid field name`               | tidak ada          |
+
+Yang paling merugikan diam-diam justru bukan kasus yang ditemukan lebih dulu,
+melainkan `STREAM_DESTROYED`: pengunggahan yang terputus — warga di jaringan
+ponsel yang goyah — tercatat sebagai kerusakan server.
+
+**Perbaikan.** Pemetaannya dikunci pada `error.code`, bukan pada kalimatnya.
+Itu bukan selera: docblock multer sendiri memerintahkannya (_"Check `err.code`
+rather than the message"_), dan pelanggaran perintah itulah yang melahirkan
+cacat ini. Tabel baru di `multer-galat.util.ts` memuat seluruh dua belas kode,
+termasuk delapan yang hari ini sudah dipetakan Nest dan karena itu tak pernah
+sampai ke filter. Justru itu gunanya: bila multer kelak mengganti kalimat lain,
+kodenya jatuh ke jalur mentah ini dan tetap dijawab 4xx.
+
+`LIMIT_FILE_SIZE` tetap `413`, bukan `400`, dan itu diuji tersurat. Jalur lama
+untuk galat itu TIDAK dilebur ke jalur baru walau menggoda: begitu Nest
+membungkusnya menjadi `PayloadTooLargeException`, `MulterError` aslinya hilang,
+sehingga pemetaan berbasis kode tak dapat menjangkaunya.
+
+**Catatan yang tidak enak tentang pembuktiannya.** Merahnya dibuktikan tiga
+kali, dan dua di antaranya merah karena sebab yang SALAH sehingga harus
+diperbaiki lebih dulu — keduanya `Tests: 0 total`, yaitu galat kompilasi, bukan
+uji yang memerah. Sebabnya pun bagian dari temuan ini: `@types/multer@2.2.0`
+ketinggalan dari runtime-nya, union `ErrorCode` di sana belum memuat empat kode
+baru multer 2.4.0. Jalan ketiga merah dengan alasan yang benar, lewat HTTP
+sungguhan: `Expected: 400, Received: 500`.
+
+**Ditutup** — bersama perbaikannya pada hari yang sama.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -5078,3 +5151,4 @@ sedangkan 201 hanya terbit kalau barisnya sungguh masuk basis data.
 | 6.0 | 20 Oktober 2026 | **BUG-014 DITUTUP** (`6d9c24a`, merge `fc7877b`): kolom `survey_id` pada `notifications` beserta foreign key `ON DELETE CASCADE`, sebab tabel itu sebelumnya sama sekali tidak mengenal survei dan tautannya cuma teks `link`. Dua jalan lain ditolak dengan alasannya. Migrasinya mengisi mundur tetapi TIDAK menghapus baris tanpa induk yang sudah ada — keputusan itu bukan wewenang sebuah migrasi. Merahnya dibuktikan lebih dulu, dan dua kali merah karena sebab yang salah (galat kompilasi dari komentar yang menutup dirinya sendiri, lalu gerbang persetujuan PDP) sebelum merah pada `Expected: 0, Received: 2`. Rekap: 10 ditutup, 11 terbuka, Medium tinggal lima. **Pemanasan rute akhirnya TERUKUR** pada `next dev` yang baru: `isi-survei` 1,5 menit dengan 1 goyah menjadi 22,3 detik, `proteksi-route` 6,5 menit dengan dua percobaan ulang menjadi 1,4 menit tanpa percobaan ulang. **Kegoyahan `pilihDropdown` ditambal** dengan idiom yang sudah ada di `masuk.js` (klik sebelum hidrasi ditelan tanpa galat); buktinya terbatas pada enam eksekusi tanpa pengulangan, bukan jaminan. |
 | 6.1 | 20 Oktober 2026 | **`main` DITARIK KE `tester`** (delapan commit, merge `63aadce`, nol konflik), dan dua pagar berhenti menjadi gagal-yang-diharapkan pada hari yang sama. BUG-016 sembuh sendiri lewat tarikan ini sebab `main` sudah mencabut `test.failing()`-nya; **pagar BUG-014 dicabut di sini**, sebab `notifikasi-siklus.spec.js` hidup hanya di cabang ini. Ramalan yang ditulis sejam sebelumnya terpenuhi persis: pagarnya dijalankan DULU dan menjawab `Expected to fail, but passed` dua kali, baru anotasinya dicabut — specnya tidak dihapus. Jalan kedua 4 lulus / kode=0 / 3,2 detik / nol percobaan ulang. **Bukti terkuatnya datang dari skrip pembersih, bukan dari ujinya:** `notifikasi tanpa induk : 0` sesudah dua pemusnahan survei, padahal tiga jalan sebelum perbaikan menyisakan 4, lalu 2, lalu 2 — uji memeriksa satu akun, skrip memeriksa seluruh tabel. Dicatat pula bahwa kalimat dalam anotasi yang dicabut itu keliru menyebut "penyapu", padahal yang kurang adalah bentuk tabelnya. Dua anotasi lain SENGAJA dibiarkan: BUG-018 dan BUG-019 masih terbuka. |
 | 6.2 | 22 Oktober 2026 | **Enam temuan lahir dan ditutup pada hari yang sama (BUG-022 sampai BUG-027), dan hanya SATU di antaranya cacat produk.** Sapuan sepuluh spec Playwright yang belum pernah jalan di mesin ini menghasilkan 13 kegagalan; sesudah ditelusuri, nol cacat produk — enam dari nomor tiket tetap yang sudah tiada (BUG-023), tujuh dari dua cacat detektor yang menuduh markah sehat (BUG-024, BUG-025). **BUG-024 adalah yang paling merugikan, dan korbannya dokumen ini sendiri**: catatan sesi sebelumnya mendaftarkan "luberan tata letak 320px" sebagai utang PRODUK, atas dasar nama uji yang gagal alih-alih atas dasar apa yang dilaporkan asersinya; pengukuran membantahnya (`document.scrollWidth` 320 = `innerWidth` 320, nol piksel meluber). **BUG-022 cacat produk sungguhan dan dinilai High**: `RadioCard` menyembunyikan radionya dengan `hidden`, yang berarti `display: none`, sehingga sembilan unsur SKM wajib tak dapat dijawab sama sekali tanpa tetikus — `getByRole('radio')` mengembalikan nol pada halaman yang menampilkan empat pilihan. Cacat itu MUSTAHIL tertangkap Jest: jsdom tak memuat Tailwind, jadi di sana `hidden` tanpa akibat dan ujinya hijau justru pada keadaan rusak. **BUG-026 dan BUG-027 satu berkas**: `isi-survei-anonim.spec.ts` menyimpan empat harapan basi sekaligus dan tak satu pun pernah terbantah, sebab berkas itu selalu melewati dirinya tanpa `E2E_SURVEY_ANONIM_ID`; uji KENDALI-nya pun hampa — hanya menyatakan satu kalimat tidak ada, sehingga lulus sambil mencatat nol respons. Pengirimannya kini BERCABANG dengan sengaja, sebab Turnstile tak menerbitkan token di mesin ini (nol iframe, kunci situs terikat domain yang tidak memuat `skema.local`): menuntut 201 di sana merah palsu, melewatinya hijau palsu, jadi cabang yang benar-benar terjadi itulah yang diasersi sampai tuntas. Rekap DIHITUNG ULANG dari kolom Status, bukan dikurangi: 27 temuan, 20 ditutup, 7 terbuka (Medium tinggal BUG-019). Angka sebelumnya — "10 ditutup, 11 terbuka" — sudah basi sebelum hari ini dimulai, sebab lima baris Medium yang sudah bertanda `Ditutup` tak pernah ikut dihitung. **Cacat struktur tabel ini sendiri ikut dibereskan**: ENAM baris riwayat (5.6 sampai 6.1) menggantung DI ATAS judul `## 6` tanpa kepala tabel, sehingga tabel di bawah judulnya berhenti di 5.5 dan pembaca yang menggulir ke bawah melihat entri 19 Oktober sebagai yang terbaru; keenamnya dipindahkan apa adanya ke bawah judul dan diurutkan — 6.1 sempat tercatat sebelum 6.0. Dua pernyataan dalam entri ini sendiri sempat salah sebelum dikoreksi di tempat: jumlahnya ditulis lima, dan nomor 5.6 disebut tak pernah ada; keduanya dibantah oleh keluaran skrip pemindahnya, yang menyebut enam baris berikut nomornya satu per satu. Memindahkan baris tabel tidak membuktikan isinya benar — yang diperiksa hanya posisinya. |
+| 6.3 | 22 Oktober 2026 | **BUG-028 lahir dan ditutup pada hari yang sama, dan ia cacat PRODUK — bukan cacat perkakas uji seperti lima dari enam temuan sebelumnya hari ini.** Berkas yang dikirim pada nama medan selain `lampiran` dijawab `500 Unexpected file field` berkode `INTERNAL_SERVER_ERROR`: galat klien yang disajikan sebagai kerusakan server, sehingga pemantauan melaporkan server rusak padahal servernya sehat. **Laporan pertama saya atas temuan ini kurang lengkap dan dikoreksi di sini**: saya mencatatnya sebagai satu kasus, padahal pengukuran menunjukkan LIMA kode multer terkena — `transformException` milik Nest 11.1.28 mencocokkan galat multer pada KALIMATnya memakai tabel yang disalin dari multer 1.x, sementara yang terpasang multer 2.4.0 yang mengganti satu kalimat dan menambah empat kode. Yang paling merugikan diam-diam bukan kasus yang ditemukan lebih dulu, melainkan `STREAM_DESTROYED`: pengunggahan yang terputus di jaringan ponsel goyah tercatat sebagai kerusakan server. Pemetaannya kini dikunci pada `error.code` sesuai perintah docblock multer sendiri, dan `LIMIT_FILE_SIZE` tetap 413 dengan uji tersurat. **Dua dari tiga pembuktian merahnya merah karena sebab yang SALAH** — `Tests: 0 total`, yaitu galat kompilasi, dan sebabnya ikut jadi temuan: `@types/multer@2.2.0` pun ketinggalan dari runtime-nya. Rekap dihitung ulang dari kolom Status: 28 temuan, 21 ditutup, 7 terbuka — angka terbukanya TIDAK berubah, sebab temuan ini ditutup pada hari ia lahir. |
