@@ -1,4 +1,4 @@
-import { HttpStatus } from '@nestjs/common';
+import { ForbiddenException, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { Request, Response } from 'express';
 import type { AuditService } from '../audit/audit.service';
@@ -75,8 +75,13 @@ describe('AuthController — penyambungan SSO', () => {
 
     it('beginLogin melempar: TETAP redirect ke frontend, bukan galat mentah', async () => {
       const { controller, ssoService, res } = buat();
+      // TIRUAN DIBETULKAN 22 Oktober 2026. Baris ini dahulu melempar `Error`
+      // biasa, padahal `sso.service.ts:789` melempar
+      // `ServiceUnavailableException`. Perbedaannya tak pernah terlihat selama
+      // controller meneruskan pesan apa saja -- jadi uji ini hijau sambil
+      // menguji keadaan yang tak pernah terjadi di produksi.
       ssoService.beginLogin.mockRejectedValue(
-        new Error(
+        new ServiceUnavailableException(
           'SSO Helpdesk belum dikonfigurasi. Kunci yang masih kosong: helpdesk.ssoClientId',
         ),
       );
@@ -88,9 +93,13 @@ describe('AuthController — penyambungan SSO', () => {
       // atas, bukan axios), jadi melempar 503 berarti pengguna menatap JSON
       // mentah di tab kosong. Terjadi sungguhan: sampai 28 Agu 2026 tombol
       // utama aplikasi ini menampilkan `{"success":false,...}` kepada pengguna.
+      // KONTRAK BERUBAH pada hari yang sama. Kalimat itu membocorkan nama kunci
+      // konfigurasi ke layar warga, dan 503 berarti pihak kita yang bermasalah
+      // -- penjelasannya milik log. Pesan aslinya tetap dicatat
+      // `this.logger.error` tepat di atas pengalihan.
       expect(res.redirect).toHaveBeenCalledWith(
         HttpStatus.FOUND,
-        'http://web/sso/callback#error=SSO Helpdesk belum dikonfigurasi. Kunci yang masih kosong: helpdesk.ssoClientId',
+        'http://web/sso/callback#error=Proses masuk gagal. Coba lagi.',
       );
     });
 
@@ -184,15 +193,64 @@ describe('AuthController — penyambungan SSO', () => {
 
       expect(ssoService.completeLogin).not.toHaveBeenCalled();
       expect(sessionCookie.build).not.toHaveBeenCalled();
+      // KONTRAK BERUBAH 22 Oktober 2026 (BUG-019). Uji ini dahulu menuntut
+      // `#error=Pengguna membatalkan` -- yaitu `error_description` dari luar,
+      // apa adanya. Harapan itulah yang mengunci cacatnya, jadi yang diganti
+      // kontraknya, bukan asersinya yang dilonggarkan.
       expect(res.redirect).toHaveBeenCalledWith(
         HttpStatus.FOUND,
-        'http://web/sso/callback#error=Pengguna membatalkan',
+        'http://web/sso/callback#error=Anda membatalkan proses masuk di halaman Helpdesk.',
+      );
+    });
+
+    /**
+     * BUG-019 — keterangan galat dari luar tidak boleh ikut ke layar warga.
+     *
+     * `error_description` medan bebas 1024 karakter yang dikuasai pengarang
+     * tautan, dan layar tujuannya layar masuk di domain pemerintah yang asli.
+     */
+    it('BUG-019: kalimat karangan pada error_description TIDAK sampai ke layar', async () => {
+      const { controller, ssoService, res } = buat();
+
+      await controller.ssoCallback(
+        {
+          error: 'access_denied',
+          error_description: 'Akun Anda diblokir. Hubungi 0812-PENIPU untuk membukanya.',
+        },
+        req(),
+        res,
+      );
+
+      const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
+      expect(alamat).not.toContain('0812-PENIPU');
+      expect(alamat).not.toContain('diblokir');
+      // Bukan sekadar "tak memuat" -- alamat kosong pun lulus asersi itu.
+      // Yang terbit wajib kalimat milik aplikasi sendiri.
+      expect(alamat).toBe(
+        'http://web/sso/callback#error=Anda membatalkan proses masuk di halaman Helpdesk.',
+      );
+      expect(ssoService.completeLogin).not.toHaveBeenCalled();
+    });
+
+    it('BUG-019: kode galat yang tak dikenal pun tidak dipantulkan', async () => {
+      const { controller, res } = buat();
+
+      await controller.ssoCallback({ error: 'kode_karangan_0812_PENIPU' }, req(), res);
+
+      const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
+      expect(alamat).not.toContain('0812');
+      expect(alamat).toBe(
+        'http://web/sso/callback#error=Proses masuk lewat SSO Helpdesk gagal. Coba lagi.',
       );
     });
 
     it('completeLogin melempar: TETAP redirect (bukan galat mentah) & cookie state dibuang', async () => {
       const { controller, ssoService, sessionCookie, res } = buat();
-      ssoService.completeLogin.mockRejectedValue(new Error('Akun tidak aktif'));
+      // TIRUAN DIBETULKAN: `sso.service.ts:656` melempar `ForbiddenException`,
+      // bukan `Error` biasa. 403 berarti kalimatnya kita sendiri yang tulis
+      // untuk warga, jadi ia TETAP lewat -- dan itulah kendali yang membedakan
+      // perbaikan ini dari "ganti semua dengan kalimat umum".
+      ssoService.completeLogin.mockRejectedValue(new ForbiddenException('Akun tidak aktif'));
 
       await controller.ssoCallback({ code: 'kode-1', state: 'nonce-1' }, req(), res);
 
@@ -205,6 +263,40 @@ describe('AuthController — penyambungan SSO', () => {
       expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', 'sso_state=; Max-Age=0');
       // Tak ada sesi yang diterbitkan atas login yang gagal.
       expect(sessionCookie.build).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Cacat berdampingan BUG-019: detail internal tidak boleh sampai ke layar.
+     *
+     * `helpdesk-sso.client.ts` membungkus kegagalan jaringan menjadi
+     * `ServiceUnavailableException` berisi URL internal dan pesan pustaka.
+     * Sebelum 22 Oktober 2026 kalimat itu dirender apa adanya di layar masuk.
+     */
+    it('503 dari penukaran token: URL internal & pesan pustaka TIDAK ke layar', async () => {
+      const { controller, ssoService, res } = buat();
+      ssoService.completeLogin.mockRejectedValue(
+        new ServiceUnavailableException(
+          'Tidak dapat menghubungi Helpdesk (https://api.madiunkab.go.id/api/oauth/token): TypeError: fetch failed',
+        ),
+      );
+
+      await controller.ssoCallback({ code: 'kode-1', state: 'nonce-1' }, req(), res);
+
+      const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
+      expect(alamat).not.toContain('madiunkab.go.id');
+      expect(alamat).not.toContain('fetch failed');
+      expect(alamat).toBe('http://web/sso/callback#error=Proses masuk gagal. Coba lagi.');
+    });
+
+    it('galat bukan HttpException: pesannya tidak dipantulkan', async () => {
+      const { controller, ssoService, res } = buat();
+      ssoService.completeLogin.mockRejectedValue(new Error('ECONNREFUSED 10.0.0.5:443'));
+
+      await controller.ssoCallback({ code: 'kode-1', state: 'nonce-1' }, req(), res);
+
+      const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
+      expect(alamat).not.toContain('10.0.0.5');
+      expect(alamat).toBe('http://web/sso/callback#error=Proses masuk gagal. Coba lagi.');
     });
   });
 

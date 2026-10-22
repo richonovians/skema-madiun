@@ -234,8 +234,39 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
 
       expect(res.status).toBe(302);
       expect(res.headers.location).toContain('#error=');
-      expect(res.headers.location).toContain('Pengguna%20membatalkan');
+      // KONTRAK BERUBAH 22 Oktober 2026 (BUG-019). Baris ini dahulu menuntut
+      // `toContain('Pengguna%20membatalkan')`, yaitu MENGUNCI cacatnya:
+      // `error_description` dari luar wajib muncul di alamat tujuan. Yang
+      // dituntut sekarang kalimat milik aplikasi sendiri.
+      expect(decodeURIComponent(res.headers.location as string)).toContain(
+        'Anda membatalkan proses masuk di halaman Helpdesk.',
+      );
       expect(cookieValue(res, SESSION_COOKIE)).toBeNull();
+    });
+
+    /**
+     * Pagar BUG-019 di tingkat HTTP, dan `main` memerlukannya sendiri: pagar
+     * peramban `sso-galat.spec.js` hidup hanya di cabang `tester`, jadi tanpa
+     * uji ini `main` tak punya penjaga apa pun atas cacat ini.
+     *
+     * Yang diperiksa header `Location`, bukan halaman tujuannya -- keputusannya
+     * milik backend, dan melewati peramban hanya menambah hal yang bisa gagal
+     * karena sebab lain.
+     */
+    it('BUG-019: keterangan galat dari luar TIDAK ikut ke alamat tujuan', async () => {
+      const karangan = 'Akun Anda diblokir. Hubungi 0812-PENIPU untuk membukanya.';
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/auth/sso/callback')
+        .query({ error: 'access_denied', error_description: karangan });
+
+      expect(res.status).toBe(302);
+      const terbaca = decodeURIComponent(res.headers.location as string);
+      // `expect` Jest tak menerima pesan kedua -- itu milik Playwright.
+      expect(terbaca).not.toContain('0812-PENIPU');
+      expect(terbaca).not.toContain('diblokir');
+      // Bukan sekadar "tak memuat": alamat kosong pun lulus asersi itu.
+      expect(terbaca).toContain('Anda membatalkan proses masuk di halaman Helpdesk.');
     });
 
     it('state palsu ditolak & cookie state dibuang', async () => {
