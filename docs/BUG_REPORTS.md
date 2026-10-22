@@ -110,7 +110,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-016](#bug-016) | Captcha gagal → tombol kirim mati selamanya tanpa pesan          | Medium   | Terkonfirmasi | **Ditutup** | C-16    |
 | [BUG-017](#bug-017) | Dropdown menyebut namanya, tak pernah menyebut pilihannya        | Medium   | Terkonfirmasi | **Ditutup** | C-17    |
 | [BUG-018](#bug-018) | Meneruskan pengaduan menyiarkan ulang notifikasi ke admin yang sama | Low   | Terkonfirmasi | Baru       | C-18    |
-| [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
+| [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | **Ditutup** | C-09    |
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-022](#bug-022) | Pilihan jawaban survei tak dapat dicapai papan ketik maupun pembaca layar | **High** | Terkonfirmasi | **Ditutup** | — |
@@ -120,8 +120,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-026](#bug-026) | `isi-survei-anonim` menyimpan empat harapan basi dan selalu melewati dirinya | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-027](#bug-027) | Uji KENDALI pengisian anonim lulus tanpa pernah mengisi apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-028](#bug-028) | Penolakan unggahan dijawab 500, bukan 400 — galat klien menyamar sebagai kerusakan server | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-029](#bug-029) | Layar gagal masuk SSO membocorkan URL internal dan nama kunci konfigurasi | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 28 temuan: 21 ditutup, **7 terbuka (0 Critical, 0 High, 1 Medium, 6 Low)**
+**Rekap** — 29 temuan: 23 ditutup, **6 terbuka (0 Critical, 0 High, 0 Medium, 6 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3766,6 +3767,37 @@ ke `/sso/callback#error=`; pagar `test.fail()` menuntut kalimat karangan tak iku
 ke sana. Dibuktikan dua arah dengan menghapus `query.error_description` dari
 pemanggilan itu sementara, lalu mengembalikannya.
 
+**Ditutup 22 Oktober 2026** — `3fb335f`, merge `e3ce3f8` di `main`.
+
+Tujuh kode galat RFC 6749 §4.1.2.1 dipetakan ke kalimat milik aplikasi sendiri
+di berkas baru `apps/api/src/modules/auth/sso-galat.util.ts`; controller tak
+lagi menyentuh `error_description`, yang tetap tercatat di log.
+
+**Saran perbaikan di atas TIDAK diikuti sepenuhnya, dan itu disengaja.** Saran
+itu berbunyi "untuk yang tak dikenal tampilkan satu kalimat baku beserta kode
+galatnya saja". Kode galatnya tidak ditampilkan: `error` pun medan bebas 256
+karakter, jadi memantulkannya hanya memperkecil cacatnya alih-alih menutupnya.
+Keputusan tersurat pengguna pada hari yang sama.
+
+**Pagar di cabang ini MASIH memakai `test.fail(true, ...)`, dan itu benar.**
+Perbaikannya ada di `main`, sementara `apps/api` di `tester` belum memuatnya —
+terukur, `pesanGalatSso` nol kemunculan pada `tester:apps/api/src/modules/auth/auth.controller.ts`.
+Mencabut anotasinya di sini akan memerahkan suite karena sebab yang bukan cacat.
+Cabut begitu `tester` disegarkan dari `main`.
+
+**`main` kini punya pagarnya sendiri**, sebab `sso-galat.spec.js` hidup hanya di
+cabang ini: `apps/api/test/sso.e2e-spec.ts` menuntut kalimat karangan tak sampai
+ke header `Location`. Kedua asersinya dibuktikan lewat mutasi — controller
+dikembalikan meneruskan `error_description`, keduanya memerah dengan
+`#error=Akun Anda diblokir. Hubungi 0812-PENIPU...`, lalu kode dipulihkan dari
+salinan dan diperiksa `diff` kode=0.
+
+**Tiga uji yang sudah ada ternyata mengunci cacatnya** dan kontraknya diganti,
+bukan asersinya dilonggarkan: `auth.controller.spec.ts` menuntut
+`#error=Pengguna membatalkan`, dan `sso.e2e-spec.ts:237` menuntut
+`toContain('Pengguna%20membatalkan')` — yakni menuntut teks dari luar MUNCUL di
+alamat tujuan.
+
 ---
 <a id="cat-019"></a>
 
@@ -5103,6 +5135,68 @@ sungguhan: `Expected: 400, Received: 500`.
 
 ---
 
+### BUG-029 — Layar gagal masuk SSO membocorkan URL internal dan nama kunci konfigurasi
+
+|              |                                                     |
+| ------------ | --------------------------------------------------- |
+| **Charter**  | —                                                   |
+| **Tanggal**  | 22 Oktober 2026                                     |
+| **Berkas**   | `apps/api/src/modules/auth/auth.controller.ts`      |
+| **Severity** | Medium                                              |
+| **Jenis**    | Cacat produk (kebocoran detail internal)            |
+
+Ditemukan selagi [BUG-019](#bug-019) dibaca, lalu diperbaiki dalam commit yang
+sama atas persetujuan tersurat pengguna.
+
+Dua blok `catch` di `auth.controller.ts` meneruskan `err.message` ke fragment
+`#error=` yang sama dengan BUG-019. Yang sampai ke layar warga:
+
+| Sumber                       | Kalimat yang dibaca warga                                             |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `helpdesk-sso.client.ts:175` | `Tidak dapat menghubungi Helpdesk (https://api.madiunkab.go.id/api/oauth/token): TypeError: fetch failed` |
+| `helpdesk-sso.client.ts:186` | `Helpdesk membalas 403 dengan tipe "text/html", bukan JSON`           |
+| `helpdesk-sso.client.ts:95`  | `Helpdesk tidak mengembalikan access_token: invalid_client`           |
+| `helpdesk-sso.client.ts:200` | `Konfigurasi SSO "helpdesk.ssoClientSecret" belum diisi`              |
+| `sso.service.ts:789`         | `SSO Helpdesk belum dikonfigurasi. Kunci yang masih kosong: ...`      |
+
+Yang pertama memuat URL internal berikut pesan pustaka; dua yang terakhir
+membocorkan nama kunci konfigurasi.
+
+**Rancangan pertama saya untuk ini SALAH dan dibatalkan sebelum ditulis ke
+commit.** Saya menduga kebocorannya datang sebagai `Error` biasa, sehingga cukup
+melewatkan pesan `HttpException` saja. Kode membantahnya: `helpdesk-sso.client.ts`
+membungkus SETIAP kegagalan jaringan menjadi `ServiceUnavailableException`, yang
+juga `HttpException`. Aturan itu justru akan melewatkan kalimat yang bocor dan
+hanya menutup kasus yang tak pernah terjadi di produksi. Fungsi beserta ujinya
+sudah sempat ditulis dan hijau, lalu dihapus.
+
+**Perbaikan.** Batasnya STATUS, bukan jenis galat. Di bawah 500 adalah kalimat
+yang kita sendiri tulis untuk warga (`Akun tidak aktif`) dan tetap lewat; 5xx
+diganti kalimat umum, sebab ia berarti pihak kita atau Helpdesk yang bermasalah
+dan penjelasannya milik log. `logger.error` tetap mencatat pesan aslinya utuh.
+
+**Satu uji yang BUKAN basi ikut diganti kontraknya, dan alasan lamanya dicatat
+di tempatnya.** `sso-unconfigured.e2e-spec.ts:65` menuntut `toMatch(/ssoClientId/)`
+dengan alasan yang sah dari tanggal lain: "pesannya harus benar-benar memberi
+tahu apa yang kurang — bukan sekadar gagal". Yang menjatuhkannya: layar itu
+bukan layar pengembang, melainkan layar masuk warga. Kebutuhan pengembang tidak
+dibuang, hanya dipindahkan ke log.
+
+**Dua uji lain memalsukan jenis galat.** Keduanya melempar `new Error(...)` di
+tempat produksinya melempar `ServiceUnavailableException` dan `ForbiddenException`,
+dan keduanya hijau hanya karena perilaku lama meneruskan apa saja — jadi keduanya
+menguji keadaan yang tak pernah terjadi. Tiruannya dibetulkan.
+
+**Yang belum dikerjakan, dan masih terbuka:** memagari pesan 5xx dengan
+`app.nodeEnv === 'production'` seperti `boleh-admin-opd.ts`, sehingga pengembang
+tetap melihat kunci yang kosong di peramban sementara warga tidak. Itu
+menghormati kedua niat sekaligus; yang diambil malam ini pilihan yang lebih
+sederhana.
+
+**Ditutup** — `3fb335f`, merge `e3ce3f8` di `main`.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -5152,3 +5246,4 @@ sungguhan: `Expected: 400, Received: 500`.
 | 6.1 | 20 Oktober 2026 | **`main` DITARIK KE `tester`** (delapan commit, merge `63aadce`, nol konflik), dan dua pagar berhenti menjadi gagal-yang-diharapkan pada hari yang sama. BUG-016 sembuh sendiri lewat tarikan ini sebab `main` sudah mencabut `test.failing()`-nya; **pagar BUG-014 dicabut di sini**, sebab `notifikasi-siklus.spec.js` hidup hanya di cabang ini. Ramalan yang ditulis sejam sebelumnya terpenuhi persis: pagarnya dijalankan DULU dan menjawab `Expected to fail, but passed` dua kali, baru anotasinya dicabut — specnya tidak dihapus. Jalan kedua 4 lulus / kode=0 / 3,2 detik / nol percobaan ulang. **Bukti terkuatnya datang dari skrip pembersih, bukan dari ujinya:** `notifikasi tanpa induk : 0` sesudah dua pemusnahan survei, padahal tiga jalan sebelum perbaikan menyisakan 4, lalu 2, lalu 2 — uji memeriksa satu akun, skrip memeriksa seluruh tabel. Dicatat pula bahwa kalimat dalam anotasi yang dicabut itu keliru menyebut "penyapu", padahal yang kurang adalah bentuk tabelnya. Dua anotasi lain SENGAJA dibiarkan: BUG-018 dan BUG-019 masih terbuka. |
 | 6.2 | 22 Oktober 2026 | **Enam temuan lahir dan ditutup pada hari yang sama (BUG-022 sampai BUG-027), dan hanya SATU di antaranya cacat produk.** Sapuan sepuluh spec Playwright yang belum pernah jalan di mesin ini menghasilkan 13 kegagalan; sesudah ditelusuri, nol cacat produk — enam dari nomor tiket tetap yang sudah tiada (BUG-023), tujuh dari dua cacat detektor yang menuduh markah sehat (BUG-024, BUG-025). **BUG-024 adalah yang paling merugikan, dan korbannya dokumen ini sendiri**: catatan sesi sebelumnya mendaftarkan "luberan tata letak 320px" sebagai utang PRODUK, atas dasar nama uji yang gagal alih-alih atas dasar apa yang dilaporkan asersinya; pengukuran membantahnya (`document.scrollWidth` 320 = `innerWidth` 320, nol piksel meluber). **BUG-022 cacat produk sungguhan dan dinilai High**: `RadioCard` menyembunyikan radionya dengan `hidden`, yang berarti `display: none`, sehingga sembilan unsur SKM wajib tak dapat dijawab sama sekali tanpa tetikus — `getByRole('radio')` mengembalikan nol pada halaman yang menampilkan empat pilihan. Cacat itu MUSTAHIL tertangkap Jest: jsdom tak memuat Tailwind, jadi di sana `hidden` tanpa akibat dan ujinya hijau justru pada keadaan rusak. **BUG-026 dan BUG-027 satu berkas**: `isi-survei-anonim.spec.ts` menyimpan empat harapan basi sekaligus dan tak satu pun pernah terbantah, sebab berkas itu selalu melewati dirinya tanpa `E2E_SURVEY_ANONIM_ID`; uji KENDALI-nya pun hampa — hanya menyatakan satu kalimat tidak ada, sehingga lulus sambil mencatat nol respons. Pengirimannya kini BERCABANG dengan sengaja, sebab Turnstile tak menerbitkan token di mesin ini (nol iframe, kunci situs terikat domain yang tidak memuat `skema.local`): menuntut 201 di sana merah palsu, melewatinya hijau palsu, jadi cabang yang benar-benar terjadi itulah yang diasersi sampai tuntas. Rekap DIHITUNG ULANG dari kolom Status, bukan dikurangi: 27 temuan, 20 ditutup, 7 terbuka (Medium tinggal BUG-019). Angka sebelumnya — "10 ditutup, 11 terbuka" — sudah basi sebelum hari ini dimulai, sebab lima baris Medium yang sudah bertanda `Ditutup` tak pernah ikut dihitung. **Cacat struktur tabel ini sendiri ikut dibereskan**: ENAM baris riwayat (5.6 sampai 6.1) menggantung DI ATAS judul `## 6` tanpa kepala tabel, sehingga tabel di bawah judulnya berhenti di 5.5 dan pembaca yang menggulir ke bawah melihat entri 19 Oktober sebagai yang terbaru; keenamnya dipindahkan apa adanya ke bawah judul dan diurutkan — 6.1 sempat tercatat sebelum 6.0. Dua pernyataan dalam entri ini sendiri sempat salah sebelum dikoreksi di tempat: jumlahnya ditulis lima, dan nomor 5.6 disebut tak pernah ada; keduanya dibantah oleh keluaran skrip pemindahnya, yang menyebut enam baris berikut nomornya satu per satu. Memindahkan baris tabel tidak membuktikan isinya benar — yang diperiksa hanya posisinya. |
 | 6.3 | 22 Oktober 2026 | **BUG-028 lahir dan ditutup pada hari yang sama, dan ia cacat PRODUK — bukan cacat perkakas uji seperti lima dari enam temuan sebelumnya hari ini.** Berkas yang dikirim pada nama medan selain `lampiran` dijawab `500 Unexpected file field` berkode `INTERNAL_SERVER_ERROR`: galat klien yang disajikan sebagai kerusakan server, sehingga pemantauan melaporkan server rusak padahal servernya sehat. **Laporan pertama saya atas temuan ini kurang lengkap dan dikoreksi di sini**: saya mencatatnya sebagai satu kasus, padahal pengukuran menunjukkan LIMA kode multer terkena — `transformException` milik Nest 11.1.28 mencocokkan galat multer pada KALIMATnya memakai tabel yang disalin dari multer 1.x, sementara yang terpasang multer 2.4.0 yang mengganti satu kalimat dan menambah empat kode. Yang paling merugikan diam-diam bukan kasus yang ditemukan lebih dulu, melainkan `STREAM_DESTROYED`: pengunggahan yang terputus di jaringan ponsel goyah tercatat sebagai kerusakan server. Pemetaannya kini dikunci pada `error.code` sesuai perintah docblock multer sendiri, dan `LIMIT_FILE_SIZE` tetap 413 dengan uji tersurat. **Dua dari tiga pembuktian merahnya merah karena sebab yang SALAH** — `Tests: 0 total`, yaitu galat kompilasi, dan sebabnya ikut jadi temuan: `@types/multer@2.2.0` pun ketinggalan dari runtime-nya. Rekap dihitung ulang dari kolom Status: 28 temuan, 21 ditutup, 7 terbuka — angka terbukanya TIDAK berubah, sebab temuan ini ditutup pada hari ia lahir. |
+| 6.4 | 22 Oktober 2026 | **BUG-019 DITUTUP (`3fb335f`, merge `e3ce3f8`), dan dengan itu tak ada lagi temuan Medium yang terbuka — pertama kalinya sejak dokumen ini dibuat.** Tujuh kode galat RFC 6749 §4.1.2.1 dipetakan ke kalimat milik aplikasi sendiri; `error_description` tak lagi menyentuh layar dan tetap tercatat di log. **Saran perbaikan dalam laporan aslinya tidak diikuti sepenuhnya, dan itu disengaja**: saran itu meminta kode galatnya ikut ditampilkan untuk kode tak dikenal, padahal `error` pun medan bebas 256 karakter, jadi memantulkannya hanya memperkecil cacatnya. **BUG-029 lahir dan ditutup pada hari yang sama**, ditemukan selagi BUG-019 dibaca: dua blok `catch` meneruskan `err.message` ke fragment yang sama, sehingga warga dapat melihat URL internal berikut `TypeError: fetch failed`, dan nama kunci seperti `helpdesk.ssoClientSecret`. **Rancangan pertama saya untuk BUG-029 salah dan dibatalkan**: saya menduga kebocorannya `Error` biasa, padahal `helpdesk-sso.client.ts` membungkus setiap kegagalan jaringan menjadi `ServiceUnavailableException` — aturan yang saya usulkan justru akan melewatkan kalimat yang bocor; fungsi beserta ujinya sempat ditulis, hijau, lalu dihapus. Batas yang dipakai STATUS: di bawah 500 lewat, 5xx diganti kalimat umum. **EMPAT uji yang sudah ada ternyata mengunci perilaku lama** dan keempatnya kontraknya diganti alih-alih asersinya dilonggarkan — termasuk `sso-unconfigured.e2e-spec.ts:65`, yang BUKAN uji basi melainkan keputusan sengaja dari tanggal lain beralasan "pesannya harus benar-benar memberi tahu apa yang kurang"; alasan itu dicatat utuh di tempatnya, bukan dihapus. **Dua uji lain memalsukan jenis galat**, melempar `Error` biasa di tempat produksinya melempar `ServiceUnavailableException` dan `ForbiddenException`, dan hijau hanya karena perilaku lama meneruskan apa saja. **Dua kali tersesat di `Tests: 0 total`** — galat kompilasi, bukan uji yang memerah: `expect` Jest tak menerima argumen pesan kedua seperti Playwright, dan fungsi yang belum ada perlu stub kompilabel lebih dulu. Pagar `sso-galat.spec.js` di cabang ini MASIH memakai `test.fail(true, ...)` dan itu benar, sebab `apps/api` di `tester` belum memuat perbaikannya (terukur: `pesanGalatSso` nol kemunculan); `main` karena itu dibekali pagarnya sendiri di `sso.e2e-spec.ts`, dibuktikan lewat mutasi. Rekap dihitung ulang dari kolom Status: 29 temuan, 23 ditutup, 6 terbuka — seluruhnya Low. Satu hal yang TIDAK dikerjakan dan masih terbuka: memagari pesan 5xx dengan `app.nodeEnv === 'production'` seperti `boleh-admin-opd.ts`, agar pengembang tetap melihat kunci yang kosong di peramban sementara warga tidak. |
