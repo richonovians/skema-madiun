@@ -113,8 +113,25 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-019](#bug-019) | Layar gagal masuk SSO menampilkan kalimat dari luar apa adanya    | Medium   | Terkonfirmasi | Baru       | C-09    |
 | [BUG-020](#bug-020) | Parameter boolean bernilai `false` dibaca sebagai `true` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-021](#bug-021) | Kendali paginasi menampilkan angka salah, dan tiga tempat memotong daftar tanpa suara | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-022](#bug-022) | Pilihan jawaban survei tak dapat dicapai papan ketik maupun pembaca layar | **High** | Terkonfirmasi | **Ditutup** | — |
+| [BUG-023](#bug-023) | Dua spec responsif menunjuk nomor tiket yang sudah tiada | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-024](#bug-024) | Detektor luberan menuduh teks yang sengaja dipotong elipsis | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-025](#bug-025) | Detektor teks terpotong menuduh label `sr-only` | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-026](#bug-026) | `isi-survei-anonim` menyimpan empat harapan basi dan selalu melewati dirinya | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-027](#bug-027) | Uji KENDALI pengisian anonim lulus tanpa pernah mengisi apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 21 temuan: 10 ditutup, **11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)**
+**Rekap** — 27 temuan: 20 ditutup, **7 terbuka (0 Critical, 0 High, 1 Medium, 6 Low)**
+
+> **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
+> ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
+> basi sebelum hari ini dimulai.** Lima baris Medium — BUG-008, 009, 015, 016,
+> 017 — sudah ditandai `Ditutup` di tabelnya sendiri, tetapi angka rekapnya
+> tidak ikut dihitung ulang. Ini persis kesalahan yang dokumen ini sudah
+> catat dua kali sebelumnya, dan tetap terulang. Hitungan hari ini DITURUNKAN
+> DARI KOLOM STATUS, bukan dari angka sebelumnya: 27 baris, 20 di antaranya
+> `Ditutup`, menyisakan tujuh — Medium BUG-019; Low BUG-003, 007, 010, 011,
+> 012, 018. Enam baris baru (BUG-022 sampai BUG-027) seluruhnya lahir dan
+> ditutup pada 22 Oktober 2026.
 
 > **(15 Oktober 2026) Baris di atas sebelumnya berbunyi "20 temuan ... 14
 > terbuka ... 5 Low", dan itu salah hitung.** Sebabnya kesalahan penguji yang
@@ -4670,9 +4687,6 @@ yang sama (`7a7cd04`, merge `b570baf`): `/blob-report/` dan
 itu, sehingga benturan yang sama akan muncul lagi pada tarikan berikutnya. Nol
 berkas terlacak di bawah kedua jalur itu, jadi ini pencegahan, bukan
 pembersihan.
-| 5.6 | 20 Oktober 2026 | **Pagar BUG-013 AKHIRNYA DIJALANKAN, dan ia memerah dua kali lebih dulu** (`80e7667`). Pencabutan anotasinya tercatat sebagai belum terbukti karena `apps/api` tak dapat dinyalakan; hari ini ia hidup, dan hasil akhirnya 2 lulus / 2 uji kode=0 dalam 2,1 menit. Dua sebab kemerahannya berlapis dan keduanya BUKAN cacat aplikasi. Pertama, `POST /surveys — HTTP 400`: spec itu lebih tua dari kontrak survei 8 Oktober, dan kontraknya mengubah TIGA hal sekaligus (`jenis` wajib; sembilan unsur lahir sendiri sehingga menambah unsur justru DITOLAK; semua pertanyaan skala wajib dijawab) — kegagalannya hanya menunjuk yang pertama, jadi satu kegagalan kembali menutupi kegagalan sesudahnya. Kedua, `Expected: 25, Received: null`: `GET /statistics` disinggahkan 60 detik di bawah kunci `statistik-publik` dan TAK ADA yang membatalkannya, jadi pembacaannya kini `expect.poll` bertenggat 70 detik dan tenggat ujinya dinaikkan tersurat ke 150 detik — `timeout: 180_000` di config itu milik `webServer`, bukan uji. Derivasi angka 25 diganti: yang lama `(1/4) × 100` dan menyebut "satu-satunya unsur IKM", angkanya kebetulan benar dan jalannya keliru. **CAT-023 jalan pertama TUNTAS**: kelima berkas uji terakhir pindah ke `main` (`ad9e0e9`, merge `ce9ffaf`), tiga belas dari tiga belas terhitung, nol tertinggal. **Dua angka CAT-023 dikoreksi** — spec `.js` milik penguji 6 bukan 7, spec `.ts` tim dev 14 bukan 15; angka 11 benar sebagai jumlah berkas termasuk lima penopang, tetapi dipakai sebagai jumlah spec di tiga tempat. `.gitignore` `apps/web` di `main` disamakan dengan cabang ini (`7a7cd04`). |
-
-
 #### KEENAM SPEC PLAYWRIGHT AKHIRNYA DINILAI (20 Oktober 2026)
 
 Baris "Spec Playwright beserta penopangnya" pada tabel di atas berbunyi BELUM
@@ -4753,11 +4767,266 @@ sudah panas di server dev yang hidup, jadi angka di atas hanya membuktikan
 kodenya tak merusak apa pun. Dan satu kegoyahan baru pada `ajukan-pengaduan`
 (balapan dropdown, bukan kompilasi rute) BELUM diperbaiki.
 
-| 5.7 | 20 Oktober 2026 | **Pagar BUG-013 terbukti DUA ARAH, dan keenam spec Playwright milik penguji akhirnya dinilai.** Penyaring `where: { survey: TIDAK_DIBUANG }` pada `dashboard.service.ts:337` dibuang sementara dan dipulihkan di `finally`: uji kendali tetap hijau, pagarnya memerah dengan `Received: 25`. Sasarannya dipilih dari kode — membuang survei `aktif` menutupnya lebih dulu lalu menerbitkan snapshot IKM, jadi sesudah masuk Sampah ia masuk lewat `ikmResult`, bukan `activeSurveys`. **Keenam spec: tiga sehat, satu goyah, dua basi.** `ajukan-pengaduan` 3/3, `sso-galat` 2/2, `statistik-sampah` 2/2; `proteksi-route` 4/4 tetapi dua ujinya habis tenggat 150 detik lalu lulus saat diulang (tenggat itu milik berkasnya sendiri, bukan config); `notifikasi-siklus` gagal pada kendali BUG-014 dengan kontrak survei yang sama (`jenis` wajib) sehingga pagar BUG-014 TIDAK JALAN, sementara pasangan BUG-018 sehat dan pagarnya memerah sebagaimana mestinya; `isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel` — ramalan 19 Oktober menjadi pengamatan, dan pesan galatnya sendiri kini menyesatkan sebab `pnpm test:e2e` memakai config yang sama. Hitungan E2E dikoreksi: **17 uji di 6 spec**, bukan 19 di 7. |
-| 5.8 | 20 Oktober 2026 | **Kedua spec basi dibereskan (`d88abb7`), dan pemanasan rute yang ikut mati pada merge dipulihkan (`6af266d`).** Keenam spec penguji kini hijau, satu goyah. `notifikasi-siklus` mengikuti kontrak survei yang sama, dan akibat terpentingnya bukan satu uji berubah hijau melainkan **pagar BUG-014 akhirnya BENAR-BENAR JALAN** — pagi ini ia "did not run"; BUG-014 dan BUG-018 terbukti masih terbuka lewat pagarnya sendiri, bukan lewat pembacaan kode. `isi-survei` ternyata soal **premis fiksturnya yang kedaluwarsa**: "survei aktif tidak dapat dihapus" benar sampai 11 September 2026 dan tidak lagi, jadi spec-nya kini membuat dan memusnahkan surveinya sendiri alih-alih menyambung ulang `globalSetup` — yang terakhir menuntut menyunting `playwright.config.ts`, berkas milik `main` di cabang ini. Nol survei `[UJI ` tertinggal membuktikan pembongkarannya bekerja. **Akibat kedua merge itu tersingkap**: `panaskanRute()` ikut mati bersama `globalSetup` cabang ini, dan gejalanya persis yang docblock-nya sendiri peringatkan. Dipulihkan sebagai `support/pemanasan.js`, dipanggil per spec. Perbaikan itu sendiri BELUM terverifikasi sebab rutenya sudah panas; mengukurnya menuntut `next dev` baru. Satu kegoyahan baru pada `ajukan-pengaduan` (balapan dropdown, bukan kompilasi) belum diperbaiki. |
-| 5.9 | 20 Oktober 2026 | **BUG-016 DITUTUP** (`c58e8c5`, merge `0de0285`), dan diverifikasi di peramban sungguhan alih-alih hanya dihijaukan uji. Rekap dihitung ulang dari tabelnya: 9 ditutup, 12 terbuka, Medium tinggal enam. **Temuan yang mengubah penilaian atas perbaikannya sendiri: peringatannya terbit lewat TENGGAT 15 detik, bukan lewat `onError`** — widget Cloudflare terlihat terpasang, tantangannya tak pernah selesai, dan `error-callback` tak pernah dipanggil sama sekali, jadi lapisan yang semula dianggap tambahan justru satu-satunya yang menyelamatkan kasus nyata. **Satu lulus palsu nyaris lolos**: `getByRole('alert')` di peramban ikut mencocokkan pengumum rute Next yang selalu ada dan kosong, sehingga jalan pertama melaporkan "muncul sesudah 0,0 detik" dengan teks hampa; jsdom tak memasang pengumum itu, jadi uji Jest tak kena. Dicatat pula di luar lingkup: tombol Kirim yang terkunci tidak terlihat terkunci. |
-| 6.1 | 20 Oktober 2026 | **`main` DITARIK KE `tester`** (delapan commit, merge `63aadce`, nol konflik), dan dua pagar berhenti menjadi gagal-yang-diharapkan pada hari yang sama. BUG-016 sembuh sendiri lewat tarikan ini sebab `main` sudah mencabut `test.failing()`-nya; **pagar BUG-014 dicabut di sini**, sebab `notifikasi-siklus.spec.js` hidup hanya di cabang ini. Ramalan yang ditulis sejam sebelumnya terpenuhi persis: pagarnya dijalankan DULU dan menjawab `Expected to fail, but passed` dua kali, baru anotasinya dicabut — specnya tidak dihapus. Jalan kedua 4 lulus / kode=0 / 3,2 detik / nol percobaan ulang. **Bukti terkuatnya datang dari skrip pembersih, bukan dari ujinya:** `notifikasi tanpa induk : 0` sesudah dua pemusnahan survei, padahal tiga jalan sebelum perbaikan menyisakan 4, lalu 2, lalu 2 — uji memeriksa satu akun, skrip memeriksa seluruh tabel. Dicatat pula bahwa kalimat dalam anotasi yang dicabut itu keliru menyebut "penyapu", padahal yang kurang adalah bentuk tabelnya. Dua anotasi lain SENGAJA dibiarkan: BUG-018 dan BUG-019 masih terbuka. |
-| 6.0 | 20 Oktober 2026 | **BUG-014 DITUTUP** (`6d9c24a`, merge `fc7877b`): kolom `survey_id` pada `notifications` beserta foreign key `ON DELETE CASCADE`, sebab tabel itu sebelumnya sama sekali tidak mengenal survei dan tautannya cuma teks `link`. Dua jalan lain ditolak dengan alasannya. Migrasinya mengisi mundur tetapi TIDAK menghapus baris tanpa induk yang sudah ada — keputusan itu bukan wewenang sebuah migrasi. Merahnya dibuktikan lebih dulu, dan dua kali merah karena sebab yang salah (galat kompilasi dari komentar yang menutup dirinya sendiri, lalu gerbang persetujuan PDP) sebelum merah pada `Expected: 0, Received: 2`. Rekap: 10 ditutup, 11 terbuka, Medium tinggal lima. **Pemanasan rute akhirnya TERUKUR** pada `next dev` yang baru: `isi-survei` 1,5 menit dengan 1 goyah menjadi 22,3 detik, `proteksi-route` 6,5 menit dengan dua percobaan ulang menjadi 1,4 menit tanpa percobaan ulang. **Kegoyahan `pilihDropdown` ditambal** dengan idiom yang sudah ada di `masuk.js` (klik sebelum hidrasi ditelan tanpa galat); buktinya terbatas pada enam eksekusi tanpa pengulangan, bukan jaminan. |
+---
+
+<a id="bug-022"></a>
+
+### BUG-022 — Pilihan jawaban survei tak dapat dicapai papan ketik maupun pembaca layar
+
+|                       |                                                                          |
+| --------------------- | ------------------------------------------------------------------------ |
+| **Charter**           | — (ditemukan saat menjalankan alur pengisian anonim di peramban)          |
+| **Tanggal**           | 22 Oktober 2026                                                           |
+| **Peran**             | Responden, dan siapa pun yang mengisi survei tanpa akun                   |
+| **Halaman**           | `/survei/:id` (dan `/isi/:id` yang mengalihkannya)                        |
+| **Severity**          | **High**                                                                  |
+| **Kasus uji terkait** | TC-FE-003 (pengisian survei), bersinggungan dengan TC-FE-016              |
+
+**Gejalanya satu kalimat: survei ini tidak dapat diisi tanpa tetikus.**
+
+`RadioCard.jsx:21` merender `<input type="radio" className="hidden peer">`.
+`hidden` adalah `display: none`, dan elemen ber-`display: none` dibuang dari
+pohon aksesibilitas SEKALIGUS dari urutan Tab. Yang terlihat di layar hanyalah
+`<div>` pembungkusnya, yang tak punya peran, tak punya nama, dan tak dapat
+difokus.
+
+**Langkah reproduksi**
+
+1. Buka `/survei/:id` sebuah survei SKM aktif, lewati gerbang persetujuan.
+2. Letakkan tetikus, lalu tekan Tab berulang kali.
+3. Coba pilih salah satu dari empat skala.
+
+**Hasil sebenarnya.** Fokus melompati keempat pilihan dan mendarat di tombol
+"Pertanyaan Selanjutnya" yang mati. Tak ada jalan maju sama sekali.
+
+**Terukur, bukan disimpulkan.** Pada halaman yang jelas menampilkan empat
+pilihan skala, `getByRole('radio')` mengembalikan **nol**. Sesudah diperbaiki,
+angka yang sama menjadi **4**, dengan `display: block` dan kotak `1x1`.
+
+**Kenapa ini High, bukan Medium.** Sembilan unsur SKM wajib menurut
+PermenPANRB 14/2017; tanpa jawaban, surveinya tak dapat dikirim sama sekali.
+Jadi bagi pemakai papan ketik dan pembaca layar ini bukan ketidaknyamanan,
+melainkan jalur yang tertutup rapat — dan jalur itu justru jalur publik yang
+ditujukan kepada seluruh warga.
+
+**Kenapa tak pernah tertangkap Jest.** jsdom tidak memuat Tailwind sama
+sekali, sehingga di sana `hidden` hanyalah kelas tanpa akibat: radionya tetap
+terbaca `getByRole` dan ujinya HIJAU justru pada keadaan yang rusak. Hanya
+peramban sungguhan yang menghitung `display: none`. Pagarnya karena itu uji
+Playwright yang menekan Tab sungguhan, dan dibuktikan merah lebih dulu dengan
+`element(s) not found`.
+
+**Perbaikan.** `sr-only peer` menggantikan `hidden peer` — penyamaran visual
+yang sama (1x1 piksel, terpotong) tetapi radionya tetap terfokus dan tetap
+terbaca. `peer-checked:` tak terpengaruh sebab pemilih itu bekerja atas
+keadaan input, bukan atas cara ia disembunyikan. Ditambah cincin
+`peer-focus-visible:`; tanpa itu cacatnya hanya ditukar — terjangkau papan
+ketik, tetapi pemakainya tak dapat melihat di mana dirinya berada.
+
+**Ditutup** — `78cb40f`, merge `88137d8` di `main`. Pagar:
+`apps/web/e2e/isi-survei-anonim.spec.ts`, uji "kuesioner dapat dijawab dengan
+papan ketik saja".
+
+---
+
+<a id="bug-023"></a>
+
+### BUG-023 — Dua spec responsif menunjuk nomor tiket yang sudah tiada
+
+|                       |                                                                          |
+| --------------------- | ------------------------------------------------------------------------ |
+| **Charter**           | —                                                                         |
+| **Tanggal**           | 22 Oktober 2026                                                           |
+| **Berkas**            | `apps/web/e2e/percakapan-pengaduan-responsif.spec.ts:36`, `apps/web/e2e/urutan-detail-pengaduan.spec.ts:24` |
+| **Severity**          | Medium                                                                    |
+| **Jenis**             | Cacat perkakas uji, bukan cacat produk                                    |
+
+Kedua spec memegang nomor tiket tetap — `PGD20260916GZQI` dan
+`PGD20260916CGAO` — dan **keduanya tidak ada di basis data mana pun lagi**.
+Basis data pengembangan hanya memuat empat pengaduan: `PGD20260811KT4E`,
+`PGD20261008JD44`, `PGD202610098V5I`, `PGD20261013IJVU`.
+
+**Akibatnya enam uji memerah atas sebab yang bukan tata letak**, dan yang
+paling merugikan: **kedua uji KONTROL ikut memerah**. Kontrol itu dipasang
+justru untuk membedakan "tata letaknya rusak" dari "halamannya tak ada".
+Ketika kontrolnya ikut mati, tak ada lagi yang dapat memberi tahu mana yang
+sedang terjadi, dan pembaca laporannya akan menyangka ada enam kerusakan
+responsif.
+
+Peringatan tentang angka tetap sudah tertulis di `e2e/fixtures/responsif.ts`
+sejak lama, lengkap dengan alasannya ("spec yang memakai angka tetap akan
+gagal di komputer orang lain karena datanya tak ada"). Kedua berkas itu saja
+yang belum mengikutinya.
+
+**Perbaikan.** Keduanya mengambil tiket lewat `ambilContoh()` saat uji
+berjalan. `ambilContoh` sekaligus diubah MENGUTAMAKAN pengaduan yang sudah
+berbalasan: dua dari empat pengaduan tak punya balasan satu pun, dan panel
+percakapan yang kosong membuat `riwayat < 200` memerah tanpa ada yang salah.
+
+**Ditutup** — `0d601ef`, merge `59cc729` di `main`. Sesudahnya keempat spec
+terdampak 74 lulus / 0 gagal.
+
+---
+
+<a id="bug-024"></a>
+
+### BUG-024 — Detektor luberan menuduh teks yang sengaja dipotong elipsis
+
+|                       |                                                                          |
+| --------------------- | ------------------------------------------------------------------------ |
+| **Charter**           | —                                                                         |
+| **Tanggal**           | 22 Oktober 2026 (hidup sejak 7 Oktober 2026)                              |
+| **Berkas**            | `apps/web/e2e/fixtures/responsif.ts`, fungsi `UKUR`                       |
+| **Severity**          | Medium                                                                    |
+| **Jenis**             | Cacat perkakas uji, bukan cacat produk                                    |
+
+`getBoundingClientRect` mengembalikan kotak tata letak yang UTUH: ia tidak
+dipangkas oleh `overflow: hidden` leluhurnya. Sebuah `span` sebaris di dalam
+paragraf ber-`truncate` karena itu terbaca menjorok keluar layar, padahal yang
+terlihat mata hanyalah titik-titik di tepi paragrafnya.
+
+**Terukur di `RecentActivities.jsx:73`.** Paragraf berkotak `165x20` memuat isi
+`236x20`, `span`-nya berakhir di `x=342` pada layar 320px — sementara
+`document.scrollWidth` tetap **320**. Halamannya tidak meluber satu piksel pun.
+
+**Tiga uji "Tata letak di 320px" memerah karenanya selama dua minggu**, dan
+semuanya melaporkan pelanggar yang sama: laci navigasi, panel notifikasi, dan
+menu akun ketiganya bersih (`luber: 0`), yang keluar adalah halaman di
+belakangnya.
+
+**Akibat yang paling merugikan bukan merahnya.** Pada sesi sebelumnya penguji
+mencatat "luberan tata letak 320px" sebagai utang PRODUK, atas dasar nama uji
+yang gagal dan bukan atas dasar apa yang dilaporkan asersinya. Catatan itu
+salah dan sempat mengarahkan pilihan pekerjaan berikutnya.
+
+**Perbaikan.** `dipotongDenganElipsis()` melewati elemen yang dipotong leluhur
+ber-`text-overflow: ellipsis`. HANYA elipsis yang dimaafkan: `overflow: hidden`
+polos tetap dilaporkan, sebab potongan tanpa tanda membuat isinya hilang tanpa
+pembacanya tahu — dan itulah yang hendak ditangkap detektor ini sejak awal.
+Saringan yang sama sudah lama ada di `UKUR_TEKS_TERPOTONG`; ia cuma tak pernah
+ikut dibawa ke atas.
+
+**Ditutup** — `0d601ef`, merge `59cc729`. Pagar:
+`apps/web/e2e/pagar-detektor-responsif.spec.ts`, dengan dua uji KENDALI yang
+membuktikan detektornya masih menangkap potongan tanpa elipsis dan elemen yang
+sungguh keluar layar.
+
+---
+
+<a id="bug-025"></a>
+
+### BUG-025 — Detektor teks terpotong menuduh label `sr-only`
+
+|                       |                                                                          |
+| --------------------- | ------------------------------------------------------------------------ |
+| **Charter**           | —                                                                         |
+| **Tanggal**           | 22 Oktober 2026 (hidup sejak 7 Oktober 2026)                              |
+| **Berkas**            | `apps/web/e2e/fixtures/responsif.ts`, fungsi `UKUR_TEKS_TERPOTONG`        |
+| **Severity**          | Low                                                                       |
+| **Jenis**             | Cacat perkakas uji, bukan cacat produk                                    |
+
+Utilitas `sr-only` Tailwind berukuran satu kali satu piksel dengan
+`overflow: hidden` ATAS KEMAUAN SENDIRI: ia memang menyimpan teks jauh lebih
+besar daripada kotaknya, sebab tujuannya dibacakan pembaca layar dan bukan
+dilihat mata. Detektor ini melaporkannya sebagai teks yang terpotong.
+
+**Terukur.** Pelanggarnya `label.sr-only`, kotak `1x1`, isi `46x20` dan `60x18`.
+Empat uji "tak ada teks yang terpotong" memerah karenanya.
+
+Menghukum `sr-only` berarti menghukum justru markah yang memberi NAMA kepada
+kontrol yang labelnya disembunyikan — markah yang ada karena aksesibilitas,
+dinilai sebagai cacat.
+
+**Perbaikan.** Elemen berkotak satu piksel atau kurang di salah satu sisi
+dilewati. Kendalinya membuktikan teks yang terpotong di kotak berukuran WAJAR
+tetap dilaporkan.
+
+**Ditutup** — `0d601ef`, merge `59cc729`.
+
+---
+
+<a id="bug-026"></a>
+
+### BUG-026 — `isi-survei-anonim` menyimpan empat harapan basi dan selalu melewati dirinya
+
+|                       |                                                                          |
+| --------------------- | ------------------------------------------------------------------------ |
+| **Charter**           | —                                                                         |
+| **Tanggal**           | 22 Oktober 2026                                                           |
+| **Berkas**            | `apps/web/e2e/isi-survei-anonim.spec.ts`                                  |
+| **Severity**          | Medium                                                                    |
+| **Jenis**             | Cacat perkakas uji, bukan cacat produk                                    |
+
+Berkas ini menuntut `E2E_SURVEY_ANONIM_ID` diisi dengan tangan. Karena hampir
+tak pernah diisi, **ia melewati dirinya pada setiap jalan — termasuk pada
+setiap jalan yang dilaporkan hijau.** Di balik lewatan itu menumpuk empat
+harapan yang sudah tidak benar, dan tak satu pun pernah terbantah:
+
+1. Ia menuntut URL TETAP di `/isi/:id`. Rute itu dialihkan permanen (308) ke
+   `/survei/:id` sejak **8 September 2026** demi QR yang sudah tercetak;
+   alasannya tertulis lengkap di `src/app/isi/[id]/page.jsx`. Harapan itu benar
+   sebelum 8 September dan salah sejak saat itu — enam minggu.
+2. Ia tak pernah melewati **gerbang persetujuan PDP** yang kini berdiri di
+   depan kuesioner, sebab gerbang itu lahir sesudah uji ini ditulis.
+3. Ia memilih pilihan skala lewat `getByRole('radio')`, yang mengembalikan nol
+   karena BUG-022.
+4. Ia menunggu tombol "Kirim" di layar pertanyaan terakhir, padahal di sana
+   tombolnya bernama **"Selesaikan"** dan "Kirim Survei" baru muncul di dalam
+   modal captcha.
+
+**Perbaikan.** Pintu masuknya DIPERTAHANKAN di `/isi/:id` — justru pengalihan
+itulah yang menjaga QR cetak tetap berguna — dan yang diasersi kini
+pendaratannya. Gerbang PDP dilewati tersurat. Surveinya disiapkan sendiri
+dengan penanda `[UJI `, bukan menuntut env diisi tangan dan bukan memakai
+survei seed yang kebetulan anonim: respons yang masuk ke survei sungguhan tak
+berpenanda, sehingga pembersih tak dapat mengambilnya kembali dan angka IKM
+survei itu bergeser permanen.
+
+**Pengirimannya BERCABANG, dan itu disengaja.** Di mesin pengembangan Turnstile
+tak menerbitkan token sama sekali — nol iframe Cloudflare — karena kunci situs
+yang terpasang terikat daftar domain yang tidak memuat `skema.local`. Menuntut
+`201` di sana menghasilkan MERAH PALSU atas keadaan yang justru ditangani
+produk dengan benar; memakluminya dengan `test.skip` menghasilkan HIJAU PALSU.
+Keduanya ditolak: bila token terbit, kirim dan tuntut 201; bila tidak, tuntut
+penanganan BUG-016 secara utuh — peringatannya, tombol muat ulangnya, dan
+tombol kirim yang TETAP terkunci.
+
+**Ditutup** — `78cb40f` dan `75f3f0b`, merge `88137d8`.
+
+---
+
+<a id="bug-027"></a>
+
+### BUG-027 — Uji KENDALI pengisian anonim lulus tanpa pernah mengisi apa pun
+
+|                       |                                                                          |
+| --------------------- | ------------------------------------------------------------------------ |
+| **Charter**           | —                                                                         |
+| **Tanggal**           | 22 Oktober 2026                                                           |
+| **Berkas**            | `apps/web/e2e/isi-survei-anonim.spec.ts`, uji "KONTROL: peramban baru"    |
+| **Severity**          | Medium                                                                    |
+| **Jenis**             | Cacat perkakas uji, bukan cacat produk                                    |
+
+Seluruh isi uji kendali itu adalah satu asersi **ketiadaan**: kalimat "Anda
+Sudah Mengisi Survei Ini" tidak ada di halaman. Ketiadaan sebuah kalimat juga
+sifat halaman galat, halaman kosong, dan halaman hasil pengalihan yang salah.
+Jadi ia lulus tanpa pernah mengisi apa pun.
+
+**Terukur, dan inilah buktinya yang paling telak:** pada jalan pertama yang
+benar-benar menjalankannya, ia HIJAU sementara surveinya mencatat **nol
+respons**. Uji yang bertugas membuktikan "peramban baru masih dapat mengisi"
+tidak pernah mengisi.
+
+Ini kelas kegagalan yang sama yang diperingatkan `e2e/global-setup.ts` dengan
+kalimatnya sendiri: *"Kegagalan yang berbunyi seperti keberhasilan jauh lebih
+berbahaya daripada kegagalan yang berisik."*
+
+**Perbaikan.** Kendalinya kini harus membuktikan hal yang POSITIF: mengisi
+sampai jawabannya tersimpan. Yang ditunggu respons `201` dari server, bukan
+layar ucapan terima kasih — layar itu dapat muncul dari keadaan klien mana pun,
+sedangkan 201 hanya terbit kalau barisnya sungguh masuk basis data.
+
+**Ditutup** — `78cb40f`, merge `88137d8`.
 
 ---
 
@@ -4802,3 +5071,10 @@ kodenya tak merusak apa pun. Dan satu kegoyahan baru pada `ajukan-pengaduan`
 | 5.3 | 19 Oktober 2026 | **Dua kalimat pada catatan CAT-023 pagi ini berhenti benar sebelum hari itu berakhir, dan dikoreksi alih-alih ditulis ulang.** `AuthCallbackLoader.test.jsx` IKUT pindah ke `main` (`6b1a7bc`) sebagai salinan apa adanya, sehingga "Ia TIDAK dipindahkan" salah; dan penawar yang dianjurkan di sana — menaikkan tenggat pada satu `findByText` — ditulis lebih dulu lalu DIBUANG. Sebabnya terukur: porting tujuh berkas itu sendiri yang membuat suite web `main` goyah, bukan cacat lama yang kebetulan terlihat. Tiga jalan suite penuh per keadaan memisahkannya — 202 berkas hijau 3 dari 3, 211 berkas dengan tenggat bawaan hanya 1 dari 3, 211 berkas dengan tenggat dinaikkan kembali 3 dari 3 — dan keempat berkas yang memerah tak satu pun disentuh. Satu kelas kegagalan, sebabnya pertikaian CPU (`inti - 1` pekerja di mesin berinti delapan), dan CI berinti empat mungkin tak pernah melihatnya. Penawarnya dua baris: `testTimeout: 20000` dan `configure({ asyncUtilTimeout: 5000 })`. Hitungan berkas yang pindah menjadi DELAPAN / 73 uji, diturunkan dari selisih dua jalan suite (1.734 − 1.659 = 75, dikurangi 2 uji penjaga `global.File`) alih-alih dijumlahkan dengan tangan. Nomor versi di kepala dokumen juga dibetulkan: ia masih berbunyi 5.0 / 15 Oktober padahal tabel ini sudah mencatat 5.1 dan 5.2 — kelalaian penguji pada dua commit sebelumnya. |
 | 5.4 | 19 Oktober 2026 | **Besarnya merge `main` ke `tester` akhirnya terukur, dan uji-cobanya menyingkap satu cacat porting milik penguji.** `git merge-tree` melaporkan 13 berkas berbenturan, bukan ratusan: angka 342 dan 349 pada CAT-023 tetap benar tetapi BUKAN ukuran kesulitan merge-nya. Tujuh dari 13 benturan itu cacat, bukan perbedaan sah — salinan tujuh berkas uji di `main` RUSAK karena skrip penyalinnya membaca cp1252 lalu menulis UTF-8, sehingga 58 baris menjadi mojibake, termasuk nama `describe`/`it` pada tiga berkas pagar. Tak satu alat pun memerah: prettier mengecualikan `apps/web`, eslint tak mempersoalkan aksara dalam komentar, dan mojibake-nya UTF-8 yang sah. Diperbaiki di `main` (`978fcb2`), ketujuhnya kini byte-identik dengan sumbernya di sini, `tester` sendiri bersih 0 dari 748 berkas, dan benturan merge turun 13 → 6. **Pagar `test.fail()` BUG-013 diputuskan dibiarkan terpasang**, dicabut saat merge; dasarnya BUG-013 sudah berpagar sembilan uji e2e `apps/api` di `main`, jadi menunggu tidak meninggalkan celah. **Tiga puluh dua tautan jangkar putus diperbaiki** dengan memasang 11 jangkar HTML eksplisit; hitungan "tujuh" yang pernah dicatat mengecilkannya karena hanya menyisir tautan internal `BUG_REPORTS.md` dan melewatkan tautan dari `TEST_PLAN.md` dan `TEST_EXPLORATORY.md`. |
 | 5.5 | 19 Oktober 2026 | **`main` AKHIRNYA DITARIK KE `tester`** (`fbdf85c`), dan pilihannya habis bukan karena kerapian: `apps/api` di cabang ini terbukti TIDAK DAPAT DIJALANKAN — lima puluhan galat TypeScript dari satu akar, yakni klien Prisma dan `skm_db` yang sudah mengikuti `main` sementara schema di sini masih sebulan lalu (21 migrasi berbanding 33). `prisma generate` diperiksa dan tidak menyelesaikannya; menurunkan `skm_db` DITOLAK sebab satu-satunya jalan `migrate reset`, yang membuang 528 baris `audit_logs`. Enam benturan, semuanya selesai dengan versi `main` karena tiap sisinya terbukti superset atau lebih dalam; `seed.ts` diselesaikan per-hunk. **Merge otomatis menanam satu cacat senyap**: `testPathIgnorePatterns` terdeklarasi dua kali di `apps/web/jest.config.js` dan yang kedua membuang `<rootDir>/.next/` — kunci objek kembar bukan galat, dan tak satu alat pun memerah. Kelima berkas uji basi dibereskan satu per satu, dan tiga di antaranya bukan perkara selektor; `NavigasiPeran` PREMISNYA DIBALIK alih-alih dibuang sebab ia satu-satunya penjaga kedua menu bekas-superuser di navigasi, dengan dua uji baru dibuktikan merah lewat mutasi. Daftar `MENU_UMUM` juga ternyata basi dalam tiga hal, tersembunyi karena satu kegagalan menutupi kegagalan sesudahnya. **Anotasi `test.fail()` BUG-013 dicabut** (`b760088`), specnya tidak dihapus; tiga pagar backend lain diperiksa di kodenya dan masih benar. Suite: 216 suite / 1.770 uji hijau pada dua jalan, eslint kode=0. |
+| 5.6 | 20 Oktober 2026 | **Pagar BUG-013 AKHIRNYA DIJALANKAN, dan ia memerah dua kali lebih dulu** (`80e7667`). Pencabutan anotasinya tercatat sebagai belum terbukti karena `apps/api` tak dapat dinyalakan; hari ini ia hidup, dan hasil akhirnya 2 lulus / 2 uji kode=0 dalam 2,1 menit. Dua sebab kemerahannya berlapis dan keduanya BUKAN cacat aplikasi. Pertama, `POST /surveys — HTTP 400`: spec itu lebih tua dari kontrak survei 8 Oktober, dan kontraknya mengubah TIGA hal sekaligus (`jenis` wajib; sembilan unsur lahir sendiri sehingga menambah unsur justru DITOLAK; semua pertanyaan skala wajib dijawab) — kegagalannya hanya menunjuk yang pertama, jadi satu kegagalan kembali menutupi kegagalan sesudahnya. Kedua, `Expected: 25, Received: null`: `GET /statistics` disinggahkan 60 detik di bawah kunci `statistik-publik` dan TAK ADA yang membatalkannya, jadi pembacaannya kini `expect.poll` bertenggat 70 detik dan tenggat ujinya dinaikkan tersurat ke 150 detik — `timeout: 180_000` di config itu milik `webServer`, bukan uji. Derivasi angka 25 diganti: yang lama `(1/4) × 100` dan menyebut "satu-satunya unsur IKM", angkanya kebetulan benar dan jalannya keliru. **CAT-023 jalan pertama TUNTAS**: kelima berkas uji terakhir pindah ke `main` (`ad9e0e9`, merge `ce9ffaf`), tiga belas dari tiga belas terhitung, nol tertinggal. **Dua angka CAT-023 dikoreksi** — spec `.js` milik penguji 6 bukan 7, spec `.ts` tim dev 14 bukan 15; angka 11 benar sebagai jumlah berkas termasuk lima penopang, tetapi dipakai sebagai jumlah spec di tiga tempat. `.gitignore` `apps/web` di `main` disamakan dengan cabang ini (`7a7cd04`). |
+| 5.7 | 20 Oktober 2026 | **Pagar BUG-013 terbukti DUA ARAH, dan keenam spec Playwright milik penguji akhirnya dinilai.** Penyaring `where: { survey: TIDAK_DIBUANG }` pada `dashboard.service.ts:337` dibuang sementara dan dipulihkan di `finally`: uji kendali tetap hijau, pagarnya memerah dengan `Received: 25`. Sasarannya dipilih dari kode — membuang survei `aktif` menutupnya lebih dulu lalu menerbitkan snapshot IKM, jadi sesudah masuk Sampah ia masuk lewat `ikmResult`, bukan `activeSurveys`. **Keenam spec: tiga sehat, satu goyah, dua basi.** `ajukan-pengaduan` 3/3, `sso-galat` 2/2, `statistik-sampah` 2/2; `proteksi-route` 4/4 tetapi dua ujinya habis tenggat 150 detik lalu lulus saat diulang (tenggat itu milik berkasnya sendiri, bukan config); `notifikasi-siklus` gagal pada kendali BUG-014 dengan kontrak survei yang sama (`jenis` wajib) sehingga pagar BUG-014 TIDAK JALAN, sementara pasangan BUG-018 sehat dan pagarnya memerah sebagaimana mestinya; `isi-survei` gagal dengan `E2E_SURVEY_ID belum disetel` — ramalan 19 Oktober menjadi pengamatan, dan pesan galatnya sendiri kini menyesatkan sebab `pnpm test:e2e` memakai config yang sama. Hitungan E2E dikoreksi: **17 uji di 6 spec**, bukan 19 di 7. |
+| 5.8 | 20 Oktober 2026 | **Kedua spec basi dibereskan (`d88abb7`), dan pemanasan rute yang ikut mati pada merge dipulihkan (`6af266d`).** Keenam spec penguji kini hijau, satu goyah. `notifikasi-siklus` mengikuti kontrak survei yang sama, dan akibat terpentingnya bukan satu uji berubah hijau melainkan **pagar BUG-014 akhirnya BENAR-BENAR JALAN** — pagi ini ia "did not run"; BUG-014 dan BUG-018 terbukti masih terbuka lewat pagarnya sendiri, bukan lewat pembacaan kode. `isi-survei` ternyata soal **premis fiksturnya yang kedaluwarsa**: "survei aktif tidak dapat dihapus" benar sampai 11 September 2026 dan tidak lagi, jadi spec-nya kini membuat dan memusnahkan surveinya sendiri alih-alih menyambung ulang `globalSetup` — yang terakhir menuntut menyunting `playwright.config.ts`, berkas milik `main` di cabang ini. Nol survei `[UJI ` tertinggal membuktikan pembongkarannya bekerja. **Akibat kedua merge itu tersingkap**: `panaskanRute()` ikut mati bersama `globalSetup` cabang ini, dan gejalanya persis yang docblock-nya sendiri peringatkan. Dipulihkan sebagai `support/pemanasan.js`, dipanggil per spec. Perbaikan itu sendiri BELUM terverifikasi sebab rutenya sudah panas; mengukurnya menuntut `next dev` baru. Satu kegoyahan baru pada `ajukan-pengaduan` (balapan dropdown, bukan kompilasi) belum diperbaiki. |
+| 5.9 | 20 Oktober 2026 | **BUG-016 DITUTUP** (`c58e8c5`, merge `0de0285`), dan diverifikasi di peramban sungguhan alih-alih hanya dihijaukan uji. Rekap dihitung ulang dari tabelnya: 9 ditutup, 12 terbuka, Medium tinggal enam. **Temuan yang mengubah penilaian atas perbaikannya sendiri: peringatannya terbit lewat TENGGAT 15 detik, bukan lewat `onError`** — widget Cloudflare terlihat terpasang, tantangannya tak pernah selesai, dan `error-callback` tak pernah dipanggil sama sekali, jadi lapisan yang semula dianggap tambahan justru satu-satunya yang menyelamatkan kasus nyata. **Satu lulus palsu nyaris lolos**: `getByRole('alert')` di peramban ikut mencocokkan pengumum rute Next yang selalu ada dan kosong, sehingga jalan pertama melaporkan "muncul sesudah 0,0 detik" dengan teks hampa; jsdom tak memasang pengumum itu, jadi uji Jest tak kena. Dicatat pula di luar lingkup: tombol Kirim yang terkunci tidak terlihat terkunci. |
+| 6.0 | 20 Oktober 2026 | **BUG-014 DITUTUP** (`6d9c24a`, merge `fc7877b`): kolom `survey_id` pada `notifications` beserta foreign key `ON DELETE CASCADE`, sebab tabel itu sebelumnya sama sekali tidak mengenal survei dan tautannya cuma teks `link`. Dua jalan lain ditolak dengan alasannya. Migrasinya mengisi mundur tetapi TIDAK menghapus baris tanpa induk yang sudah ada — keputusan itu bukan wewenang sebuah migrasi. Merahnya dibuktikan lebih dulu, dan dua kali merah karena sebab yang salah (galat kompilasi dari komentar yang menutup dirinya sendiri, lalu gerbang persetujuan PDP) sebelum merah pada `Expected: 0, Received: 2`. Rekap: 10 ditutup, 11 terbuka, Medium tinggal lima. **Pemanasan rute akhirnya TERUKUR** pada `next dev` yang baru: `isi-survei` 1,5 menit dengan 1 goyah menjadi 22,3 detik, `proteksi-route` 6,5 menit dengan dua percobaan ulang menjadi 1,4 menit tanpa percobaan ulang. **Kegoyahan `pilihDropdown` ditambal** dengan idiom yang sudah ada di `masuk.js` (klik sebelum hidrasi ditelan tanpa galat); buktinya terbatas pada enam eksekusi tanpa pengulangan, bukan jaminan. |
+| 6.1 | 20 Oktober 2026 | **`main` DITARIK KE `tester`** (delapan commit, merge `63aadce`, nol konflik), dan dua pagar berhenti menjadi gagal-yang-diharapkan pada hari yang sama. BUG-016 sembuh sendiri lewat tarikan ini sebab `main` sudah mencabut `test.failing()`-nya; **pagar BUG-014 dicabut di sini**, sebab `notifikasi-siklus.spec.js` hidup hanya di cabang ini. Ramalan yang ditulis sejam sebelumnya terpenuhi persis: pagarnya dijalankan DULU dan menjawab `Expected to fail, but passed` dua kali, baru anotasinya dicabut — specnya tidak dihapus. Jalan kedua 4 lulus / kode=0 / 3,2 detik / nol percobaan ulang. **Bukti terkuatnya datang dari skrip pembersih, bukan dari ujinya:** `notifikasi tanpa induk : 0` sesudah dua pemusnahan survei, padahal tiga jalan sebelum perbaikan menyisakan 4, lalu 2, lalu 2 — uji memeriksa satu akun, skrip memeriksa seluruh tabel. Dicatat pula bahwa kalimat dalam anotasi yang dicabut itu keliru menyebut "penyapu", padahal yang kurang adalah bentuk tabelnya. Dua anotasi lain SENGAJA dibiarkan: BUG-018 dan BUG-019 masih terbuka. |
+| 6.2 | 22 Oktober 2026 | **Enam temuan lahir dan ditutup pada hari yang sama (BUG-022 sampai BUG-027), dan hanya SATU di antaranya cacat produk.** Sapuan sepuluh spec Playwright yang belum pernah jalan di mesin ini menghasilkan 13 kegagalan; sesudah ditelusuri, nol cacat produk — enam dari nomor tiket tetap yang sudah tiada (BUG-023), tujuh dari dua cacat detektor yang menuduh markah sehat (BUG-024, BUG-025). **BUG-024 adalah yang paling merugikan, dan korbannya dokumen ini sendiri**: catatan sesi sebelumnya mendaftarkan "luberan tata letak 320px" sebagai utang PRODUK, atas dasar nama uji yang gagal alih-alih atas dasar apa yang dilaporkan asersinya; pengukuran membantahnya (`document.scrollWidth` 320 = `innerWidth` 320, nol piksel meluber). **BUG-022 cacat produk sungguhan dan dinilai High**: `RadioCard` menyembunyikan radionya dengan `hidden`, yang berarti `display: none`, sehingga sembilan unsur SKM wajib tak dapat dijawab sama sekali tanpa tetikus — `getByRole('radio')` mengembalikan nol pada halaman yang menampilkan empat pilihan. Cacat itu MUSTAHIL tertangkap Jest: jsdom tak memuat Tailwind, jadi di sana `hidden` tanpa akibat dan ujinya hijau justru pada keadaan rusak. **BUG-026 dan BUG-027 satu berkas**: `isi-survei-anonim.spec.ts` menyimpan empat harapan basi sekaligus dan tak satu pun pernah terbantah, sebab berkas itu selalu melewati dirinya tanpa `E2E_SURVEY_ANONIM_ID`; uji KENDALI-nya pun hampa — hanya menyatakan satu kalimat tidak ada, sehingga lulus sambil mencatat nol respons. Pengirimannya kini BERCABANG dengan sengaja, sebab Turnstile tak menerbitkan token di mesin ini (nol iframe, kunci situs terikat domain yang tidak memuat `skema.local`): menuntut 201 di sana merah palsu, melewatinya hijau palsu, jadi cabang yang benar-benar terjadi itulah yang diasersi sampai tuntas. Rekap DIHITUNG ULANG dari kolom Status, bukan dikurangi: 27 temuan, 20 ditutup, 7 terbuka (Medium tinggal BUG-019). Angka sebelumnya — "10 ditutup, 11 terbuka" — sudah basi sebelum hari ini dimulai, sebab lima baris Medium yang sudah bertanda `Ditutup` tak pernah ikut dihitung. **Cacat struktur tabel ini sendiri ikut dibereskan**: ENAM baris riwayat (5.6 sampai 6.1) menggantung DI ATAS judul `## 6` tanpa kepala tabel, sehingga tabel di bawah judulnya berhenti di 5.5 dan pembaca yang menggulir ke bawah melihat entri 19 Oktober sebagai yang terbaru; keenamnya dipindahkan apa adanya ke bawah judul dan diurutkan — 6.1 sempat tercatat sebelum 6.0. Dua pernyataan dalam entri ini sendiri sempat salah sebelum dikoreksi di tempat: jumlahnya ditulis lima, dan nomor 5.6 disebut tak pernah ada; keduanya dibantah oleh keluaran skrip pemindahnya, yang menyebut enam baris berikut nomornya satu per satu. Memindahkan baris tabel tidak membuktikan isinya benar — yang diperiksa hanya posisinya. |
