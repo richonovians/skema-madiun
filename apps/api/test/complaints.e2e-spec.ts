@@ -313,6 +313,37 @@ describe('Complaints (e2e)', () => {
   });
 
   /**
+   * Nama medan berkas yang tidak dikenali -> 400, BUKAN 500 (22 Oktober 2026).
+   *
+   * Sebelum hari ini permintaan ini dijawab `500 Unexpected file field` dengan
+   * `code: INTERNAL_SERVER_ERROR`: galat KLIEN yang disajikan sebagai kerusakan
+   * server, sehingga klien yang salah bentuk membuat pemantauan melaporkan
+   * server rusak dan penyisir log mencari sebab yang tak pernah ada. Sebabnya
+   * `transformException` milik @nestjs/platform-express mencocokkan galat
+   * multer pada KALIMATnya, dan multer 2.4.0 mengganti kalimat kode ini.
+   *
+   * Kendalinya uji TIGA lampiran di atas: permintaan dengan bentuk yang sama
+   * pada medan `lampiran` dijawab 201, jadi yang membedakan di sini memang
+   * nama medannya.
+   */
+  it('POST /complaints dengan nama medan berkas yang salah -> 400 berkode multer', async () => {
+    const judul = 'Medan lampiran salah nama';
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lapor')
+      .field('judul', judul)
+      .field('uraian', 'Berkas dikirim pada medan bernama foto')
+      .attach('foto', PNG_ASLI, 'salah-medan.png');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('LIMIT_UNEXPECTED_FILE');
+    expect(res.body.message).toMatch(/medan/i);
+    expect(await prisma.complaint.count({ where: { judul } })).toBe(0);
+  });
+
+  /**
    * TEMUAN AUDIT T1 (7 September 2026), pendekatan (b).
    *
    * Diuji lewat HTTP karena di situlah persoalannya berada: `/uploads/*` bukan
