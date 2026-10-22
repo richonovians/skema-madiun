@@ -255,9 +255,18 @@ async function isiSampaiTersimpan(page: Page, id: string): Promise<HasilKirim> {
 
     await pilihJawaban();
 
+    /**
+     * DITUNGGU DULU SALAH SATUNYA, baru dipilih. `isVisible()` tidak menunggu
+     * apa pun: dipanggil tepat sesudah pertanyaan berganti, ia menjawab `false`
+     * untuk "Selesaikan" yang belum sempat dirender, lalu loop ini memilih
+     * "Pertanyaan Selanjutnya" yang justru TIDAK ADA di layar terakhir dan
+     * menunggu sampai habis waktu. Terukur 22 Oktober 2026 sebagai uji goyah:
+     * percobaan pertama habis di 2 menit, ulangannya lulus di 38 detik.
+     */
     const lanjut = page.getByRole('button', { name: /^(Pertanyaan Selanjutnya|Selanjutnya)$/ });
     const selesaikan = page.getByRole('button', { name: /^Selesaikan$/ });
-    const tombol = (await selesaikan.isVisible().catch(() => false)) ? selesaikan : lanjut;
+    await expect(lanjut.or(selesaikan).first()).toBeVisible({ timeout: 20_000 });
+    const tombol = (await selesaikan.isVisible()) ? selesaikan : lanjut;
 
     await expect(tombol, 'tombol lanjut tetap mati sesudah jawaban dipilih').toBeEnabled({
       timeout: 15_000,
