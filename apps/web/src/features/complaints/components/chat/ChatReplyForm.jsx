@@ -1,27 +1,51 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Paperclip, Send, CheckCircle, X } from 'lucide-react';
+import { Paperclip, Send, CheckCircle, X, AlertTriangle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import IconButton from '@/components/ui/IconButton';
 import Textarea from '@/components/ui/Textarea';
 import TemplatePesanPicker from './TemplatePesanPicker';
 import { TEMPLATE_WARGA, gabungPesan } from '@/features/complaints/adapters/templatePesan';
+import { JENIS_ACCEPT, formatMb, periksaSatuBerkas } from '@/utils/lampiran';
 
 export default function ChatReplyForm({ onSubmit, nomorTiket }) {
   const [reply, setReply] = useState('');
   const [file, setFile] = useState(null);
+  const [lampiranDitolak, setLampiranDitolak] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef(null);
 
+  /**
+   * BUG-007 (23 Oktober 2026). Baris ini dahulu `setFile(e.target.files[0])`
+   * apa adanya -- nol pemeriksaan, dan inputnya pun tanpa `accept`, jadi
+   * pemilih berkas menawarkan segala jenis. Pengguna menunggu unggahannya
+   * tuntas, baru ditolak backend.
+   *
+   * Aturannya diambil dari `@/utils/lampiran`, satu tempat bersama jalur
+   * warga, bukan disalin ke sini. Ia BUKAN lapisan keamanan: backend memeriksa
+   * angka ajaib isi berkas, jadi yang dihemat waktu dan kuota pengguna.
+   */
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+    const dipilih = e.target.files && e.target.files[0];
+    if (!dipilih) return;
+
+    const tolakan = periksaSatuBerkas(dipilih);
+    setLampiranDitolak(tolakan);
+    if (!tolakan) {
+      setFile(dipilih);
+    }
+    // Nilai input direset supaya berkas yang SAMA dapat dipilih lagi sesudah
+    // pengguna memperkecilnya. Tanpa ini `onChange` tak terbit untuk nilai yang
+    // tidak berubah, dan percobaan kedua terlihat seperti tak melakukan apa-apa.
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   const removeFile = () => {
     setFile(null);
+    setLampiranDitolak(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -85,23 +109,46 @@ export default function ChatReplyForm({ onSubmit, nomorTiket }) {
           onPilih={(teks) => setReply((sekarang) => gabungPesan(sekarang, teks))}
           className="self-start"
         />
+        {/* `role="status"` supaya penolakannya TERDENGAR. Tanpa itu pengguna
+            pembaca layar hanya mengalami berkasnya tak muncul, tanpa satu pun
+            sebab di layar. Sopan, bukan `role="alert"`: di basis kode ini
+            `alert` khusus untuk galat, dan ini akibat tindakan pengguna
+            sendiri. */}
+        {lampiranDitolak && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="p-2.5 mb-1 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2"
+          >
+            <AlertTriangle
+              size={16}
+              className="text-amber-700 shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <p className="text-xs text-amber-800">
+              <span className="font-semibold">{lampiranDitolak.nama}</span> tidak dilampirkan:{' '}
+              {lampiranDitolak.alasan}
+            </p>
+          </div>
+        )}
         {file && (
           <div className="p-2.5 mb-1 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center gap-2 overflow-hidden">
               <div className="bg-emerald-100 p-1.5 rounded-md text-emerald-600 shrink-0">
-                <CheckCircle size={16} />
+                <CheckCircle size={16} aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-emerald-800 truncate">{file.name}</p>
-                <p className="text-[10px] text-emerald-600">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                <p className="text-[10px] text-emerald-600">{formatMb(file.size / 1024 / 1024)}</p>
               </div>
             </div>
             <button 
               type="button" 
               onClick={removeFile}
+              aria-label={`Hapus ${file.name}`}
               className="text-emerald-600 hover:text-emerald-800 p-1 hover:bg-emerald-100 rounded-md transition-colors shrink-0"
             >
-              <X size={14} />
+              <X size={14} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -128,6 +175,7 @@ export default function ChatReplyForm({ onSubmit, nomorTiket }) {
           <input
             type="file"
             className="hidden"
+            accept={JENIS_ACCEPT}
             ref={fileInputRef}
             onChange={handleFileChange}
           />
