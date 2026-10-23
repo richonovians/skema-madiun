@@ -122,8 +122,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-028](#bug-028) | Penolakan unggahan dijawab 500, bukan 400 — galat klien menyamar sebagai kerusakan server | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-029](#bug-029) | Layar gagal masuk SSO membocorkan URL internal dan nama kunci konfigurasi | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-030](#bug-030) | Sapuan proteksi route membaca 502 sebagai keputusan proxy — bisa LULUS tanpa memeriksa apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-031](#bug-031) | Warga pemakai keyboard tak dapat melampirkan bukti ke pengaduan sama sekali | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 30 temuan: 28 ditutup, **2 terbuka (0 Critical, 0 High, 0 Medium, 2 Low)**
+**Rekap** — 31 temuan: 29 ditutup, **2 terbuka (0 Critical, 0 High, 0 Medium, 2 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -1288,6 +1289,46 @@ kuota warga di atas tetap alasan terbaik bila tim hendak menaikkannya.
 `maxSizeMB` masih hanya dipakai di teks, dan kedua `handleFileChange` di komponen
 percakapan masih berisi `setFile(e.target.files[0])` tanpa satu pun pemeriksaan.
 
+#### 23 Oktober 2026 — separuh diperbaiki (`28574df`, merge `33b70d4`), dan statusnya SENGAJA tetap terbuka
+
+Perlu dibaca tersurat supaya tak ada yang menyangkanya beres: yang diperbaiki
+**hanya jalur warga**, yaitu `FileDropzone.jsx`. Kolom **Peran** baris ini
+menyebut tiga peran, dan dua di antaranya — Admin OPD dan Kabupaten di panel
+balasan — belum tersentuh sama sekali.
+
+**Yang sudah dikerjakan**, seluruhnya di `FileDropzone.jsx`:
+
+- Jenis, ukuran, dan **batas 5 berkas** diperiksa di satu fungsi,
+  `saringBerkas`, yang dipanggil **kedua** jalur: pemilih berkas dan
+  seret-lepas. Inilah butir 3 pengukuran 21 Oktober — `accept` tak berlaku bagi
+  berkas yang dijatuhkan, jadi pemeriksaan di `handleFileChange` saja tak akan
+  pernah cukup.
+- Yang sah tetap diterima walau ada yang ditolak dalam kumpulan yang sama, atas
+  persetujuan tersurat pengguna. Menolak seluruhnya berarti warga kehilangan
+  pilihan yang sudah benar.
+- Penolakannya dilaporkan di dalam komponen, ber-`role="status"` — tanpa itu
+  pengguna tunanetra hanya mengalami berkasnya tak muncul, tanpa sebab apa pun
+  di layar.
+- Kedua pernyataan layar pada butir 4 dibetulkan: WEBP ikut disebut, dan "File
+  berhasil diunggah" menjadi "Siap dikirim".
+- Prop `accept` dibuang. Tak seorang pemanggil pun mengirimnya, dan ia menjadi
+  jebakan begitu validasi ada: menimpanya hanya melonggarkan dialog pemilih
+  berkas sementara `saringBerkas` tetap menolak.
+
+**Yang BELUM**, dan karena itu baris ini tetap terbuka: `AdminResolutionWorkspace.jsx`
+dan `ChatReplyForm.jsx` masih `setFile(e.target.files[0])` tanpa satu pun
+pemeriksaan, dan masih **tanpa `accept`** sama sekali. Keduanya menuntut
+penampung pesan penolakan tersendiri di dua layar admin — bukan pekerjaan yang
+dapat diselipkan, jadi ia dipisah atas persetujuan tersurat pengguna.
+
+Derajatnya di sana memang lebih ringan daripada di jalur warga: admin bekerja
+dari jaringan kantor, bukan dari kuota ponsel, dan itulah alasan utama baris ini
+dinilai Low sejak awal. Tetapi "lebih ringan" bukan "tidak ada".
+
+**Satu cacat yang ditemukan saat mengerjakan ini dicatat terpisah, bukan
+digabung ke sini**, sebab ia soal fungsi yang hilang alih-alih validasi:
+[BUG-031](#bug-031).
+
 <a id="bug-008"></a>
 
 ### BUG-008 — Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung
@@ -2201,6 +2242,78 @@ patah.
 **`ConfirmTypeToDeleteModal` masih menaruh `role="dialog"` pada latarnya**, bukan
 panelnya, tak seragam dengan empat lainnya. Pengurungan bekerja di kedua
 penempatan, jadi itu kerapian dan sengaja dibiarkan di luar perbaikan ini.
+
+---
+
+<a id="bug-031"></a>
+
+### BUG-031 — Warga pemakai keyboard tak dapat melampirkan bukti ke pengaduan
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | — (ditemukan saat merancang perbaikan [BUG-007](#bug-007))     |
+| **Tanggal**  | 23 Oktober 2026                                              |
+| **Peran**    | Warga                                                        |
+| **Halaman**  | `/complaints/new` dan beranda publik                          |
+| **Berkas**   | `apps/web/src/components/ui/FileDropzone.jsx:38-51` (sebelum perbaikan) |
+| **Severity** | Medium                                                       |
+
+**Nomor dan derajatnya usulan.** Penomoran temuan milik pemilik dokumen, dan
+"Medium" adalah penilaian penguji, bukan keputusan tim. Alasannya di bawah.
+
+**Yang terjadi.** Zona lampiran sebuah `div` ber-`onClick`, **tanpa `tabIndex`,
+tanpa `role`, tanpa `onKeyDown`**, dengan inputnya `className="hidden"` — yaitu
+`display: none`, sehingga tak dapat difokus dan tak ada di pohon aksesibilitas.
+Seluruh 89 baris berkasnya dibaca; tak ada jalur lain. Jadi warga yang memakai
+keyboard tidak dapat melampirkan bukti ke pengaduannya **sama sekali**.
+
+**Mengapa dinilai Medium, bukan Low.** Komponen itu dirender
+`CreateComplaintForm.jsx:372`, yang hidup di `/complaints/new` **dan** di
+beranda publik — jadi yang kehilangan fungsi itu warga, bukan admin.
+Formulirnya tetap dapat dikirim tanpa lampiran, sehingga yang hilang fungsi
+opsional; tetapi pada layanan pengaduan, foto buktinya itulah isi aduannya.
+
+**Yang membuatnya pantas dicatat tersendiri, bukan sebagai bagian BUG-007.**
+Cacat ini **sudah pernah diperbaiki di tempat lain**, 21 September 2026, pada
+dua komponen percakapan — berikut kalimatnya sendiri yang masih terbaca di
+`AdminResolutionWorkspace.jsx`:
+
+> Label bukan elemen yang dapat difokus, dan inputnya `display: none` —
+> keduanya bersama berarti admin yang memakai keyboard sama sekali tak dapat
+> melampirkan berkas di sini. **Itu fungsi yang hilang, bukan sekadar nama yang
+> kurang.**
+
+`ChatReplyForm.jsx` ikut dibereskan hari itu. Dropzone warga terlewat, dan tak
+ada yang kembali menyisirnya selama sebulan. Kelasnya sudah dikenali tim; yang
+kurang hanya satu sapuan atas pemakai ketiga.
+
+**Satu cacat kelas [BUG-010](#bug-010) berdampingan.** Tombol hapus per berkas
+berisi ikon silang saja, tanpa nama — dan daftarnya dapat memuat lima berkas,
+jadi "tombol" saja tak membedakan mana yang akan dibuang.
+
+**Ditutup 23 Oktober 2026** — `28574df`, merge `33b70d4` di `main`.
+
+Zonanya menjadi `<button type="button">` **sungguhan**, bukan `div`
+ber-`role="button"` ditambah `tabIndex`: fokus serta Enter dan Spasi datang dari
+peramban, dan namanya datang dari tulisan yang memang sudah tampak di layar —
+tak ada ARIA yang perlu dipalsukan. Dua konsekuensi ikut dikerjakan: isinya
+menjadi `<span>`, sebab `<button>` hanya boleh memuat *phrasing content*, dan
+inputnya dipindah keluar menjadi saudara, sebab elemen interaktif bersarang di
+dalam `<button>` bukan HTML yang sah. Keduanya pola yang sama dengan dua
+komponen percakapan. Penangan seret tetap di elemen yang sama; tombol menerima
+peristiwa seret seperti elemen lain.
+
+Tombol hapus diberi `aria-label` yang menyebut nama berkasnya.
+
+**Satu uji lama ikut diganti kontraknya, dan sebabnya instruktif.** "Membuang
+hanya berkas yang ditekan silangnya" memakai `getAllByRole('button')` lalu
+`[1]`. Indeks itu bergeser begitu zonanya sendiri menjadi tombol, jadi ia
+memerah — bukan karena cacat, melainkan karena ia menebak lewat **posisi**.
+Persis cacat uji yang laporan [BUG-010](#bug-010) ramalkan, dan diperbaiki
+dengan cara yang sama: memakai nama.
+
+Tiga dari sembilan uji baru menjaga temuan ini, dan ketiganya merah lebih dulu
+pada "Unable to find an accessible element with the role button and name ...".
 
 ---
 
@@ -5439,3 +5552,4 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 | 6.5 | 22 Oktober 2026 | **BUG-030 lahir dan ditutup pada hari yang sama: sapuan proteksi route membaca 502 sebagai keputusan `proxy.js`.** Ia menyimpulkan izin akses dari ALAMAT AKHIR navigasi dan tak pernah memeriksa status respons, sementara halaman galat server tinggal di alamatnya sendiri. Arah merah palsunya sudah terjadi malam itu — tiga rute admin dilaporkan terbuka bagi responden, dan hanya cuplikan halaman `502 Bad Gateway` dari nginx yang membantahnya; penegakan sesungguhnya tetap hijau di `peran-matriks-rbac` 11 uji. **Arah yang lebih berbahaya hijau palsu**: bila rute yang 502 kebetulan sama dengan alamat yang diharapkan, matriksnya cocok dan sapuan itu LULUS tanpa memeriksa apa pun. Pagarnya memilih kasus itu — memalsukan 502 pada `/` di kolom `tanpaToken` — dan sebelum perbaikan dijawab `Received promise resolved instead of rejected`. Status kini diasersikan kosong sebelum matriksnya dinilai, sealasan dengan pengintai 429 yang sudah ada. **Perbaikannya membuktikan diri pada pemakaian sungguhan**: jalan berikutnya berbunyi `/admin-opd/dashboard → HTTP 502` alih-alih menuduh RBAC jebol. **Dua hal yang TIDAK terbukti dan ditulis apa adanya**: (1) ketika pagar ini di awal berkas, dua percobaan uji `responden` kehabisan 150 detik di `masukSebagai` padahal lulus 30,8 detik bila sendiri — batas laju hanya dugaan, sebab artefaknya sudah terhapus; pagarnya dipindah ke akhir. (2) Mengapa pemanasan `/surveys/[id]` tidak mencegah timeout `isi-survei.spec.js` tetap tak terjawab: ketiga rute yang dapat saya ukur sudah terkompilasi (`header` ≈ `tuntas`, 0,04–0,48 detik), dan memaksa keadaan dingin menuntut memuat ulang server dev milik pengguna. Yang terukur hanya bahwa `pemanasan.js:41` tak pernah membaca badan responsnya. Rekap dihitung ulang dari kolom Status: 30 temuan, 24 ditutup, 6 terbuka — seluruhnya Low. |
 | 6.6 | 23 Oktober 2026 | **BUG-018 DITUTUP (`77da88b`, merge `2c2bb47`), dan temuan terbuka tinggal lima — seluruhnya Low.** Resep dalam laporan aslinya diikuti apa adanya: penerimanya dipersempit, bukan panggilannya dibuang. `notifyOpdTujuan` dipisahkan dan dipakai dua pemanggil, sehingga kalimat untuk OPD tetap satu tempat. **Cacatnya ternyata DUA, bukan satu**: selain penyiaran ganda, `notifyKabupaten(excludeUserId, ...)` dipanggil dengan `complaint.userId` yaitu PELAPOR, padahal pelaku penerusan adalah admin kabupaten — ia mengabari dirinya sendiri. Terukur pada uji merah: dua baris notifikasi identik, tiket sama, pengguna sama, berselang 59 milidetik. Admin Kabupaten LAIN tetap dikabari dengan kalimat yang benar dan pelakunya dikecualikan, atas persetujuan tersurat pengguna. **Satu uji lama yang BUKAN basi ikut diganti kontraknya**: "TIDAK mengabari kabupaten: ia pelaku penerusannya, jadi sudah tahu" — keputusan sengaja 7 Oktober 2026, yang alasannya benar bagi PELAKUNYA saja dan mengasersikan mekanisme alih-alih keputusan; alasan lamanya dicatat utuh. **Satu kelemahan pembuktian ditulis apa adanya**: uji "pelaku tidak dikabari" lulus HAMPA pada jalan merah sebab kabar itu belum ada sama sekali; yang membuktikannya bekerja mutasi, yang memerahkannya dengan `id: {not: 10}` alih-alih `99`. Pengamatan lama "pelapornya sendiri tidak diberi tahu" ternyata sudah terjawab sejak 7 Oktober 2026 lewat `complaint_forwarded` kepada pelapor. Pagar `notifikasi-siklus.spec.js` di cabang ini masih `test.fail(true, ...)` dan itu benar, sebab `apps/api` di `tester` belum memuat perbaikannya (terukur: `notifyOpdTujuan` nol kemunculan). Rekap dihitung ulang dari kolom Status: 30 temuan, 25 ditutup, 5 terbuka. |
 | 6.7 | 23 Oktober 2026 | **BUG-011 dan BUG-012 DITUTUP (`6b8ee7e`, merge `4a39ac4`), BUG-010 ditutup TANPA perubahan kode, dan temuan terbuka tinggal DUA — BUG-003 dan BUG-007, keduanya Low.** BUG-011: `.trim()` ditambahkan di `admin-kab/opd/page.jsx:28`, satu kata, persis yang diharapkan laporannya. BUG-012: kalimat laporan sinkron kini menyebut lima angka, dan bannernya berubah kuning bila yang dilewati lebih dari nol — kontras `amber-700` di atas `amber-50` DIUKUR 4,84:1, lulus WCAG AA, sejajar emerald yang 5,21:1. Nol pun disebut tersurat atas persetujuan tersurat pengguna, sebab kalimat yang menghilangkan angkanya saat nol tak dapat dibedakan dari yang sekadar tidak melaporkannya. **Cacat berdampingan ikut diperbaiki**: banner itu tak punya `role` apa pun, sehingga sinkronisasi menghasilkan KESUNYIAN bagi pembaca layar; diberi `role="status"` yang sopan, bukan `alert` yang di basis kode ini khusus untuk galat. **BUG-010 ternyata sudah diperbaiki enam minggu sebelumnya** oleh `7bc0b83` — sambil lalu, saat halaman riwayat notifikasi ditulis, bukan sebagai penutupan temuan — dan namanya sudah terkunci empat asersi di dua berkas uji. Statusnya tertinggal `Baru` karena tak ada yang memeriksa ulang, jadi rekap dokumen ini menghitungnya terbuka selama itu. Yang benar-benar berubah satu uji: TC-FE-013 berhenti menebak tombol lewat posisi (`querySelectorAll('button')[1]`) dan memakai `getByLabelText('Halaman berikutnya')` — perapian uji, BUKAN bukti perbaikan, sebab ia hijau pada jalan pertama. **Satu kelemahan pembuktian dicatat apa adanya**: kedua uji BUG-012 memerah pada `role` yang belum ada, jadi asersi TEKS-nya tak pernah dijalankan pada jalan merah; yang membuktikannya bekerja mutasi sesudah hijau. **Satu cacat sejenis BUG-010 TIDAK ditutup dan belum dicatat sebagai temuan**: tombol lipat sidebar (`AdminSidebar.jsx:125`, `AdminKabSidebar.jsx:141`) bernama lewat `title`, bukan `aria-label` — sah menurut spesifikasi accname tetapi pilihan terakhir, dan tak pernah muncul di peranti sentuh. Rekap dihitung ulang dari kolom Status: 30 temuan, 28 ditutup, 2 terbuka. |
+| 6.8 | 23 Oktober 2026 | **BUG-031 lahir dan ditutup pada hari yang sama (`28574df`, merge `33b70d4`), sementara BUG-007 SENGAJA tetap terbuka walau separuhnya diperbaiki.** BUG-031: zona lampiran pada formulir pengaduan warga sebuah `div` ber-`onClick` tanpa `tabIndex`, `role`, maupun `onKeyDown`, dengan inputnya `display: none` — jadi warga pemakai keyboard TIDAK DAPAT melampirkan bukti sama sekali. Dinilai Medium (nomor dan derajatnya usulan penguji) sebab komponennya dirender di `/complaints/new` DAN beranda publik. Yang membuatnya pantas jadi temuan sendiri: cacat ini **sudah pernah diperbaiki 21 September 2026** di `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx`, berikut kalimatnya yang masih terbaca di sana — "itu fungsi yang hilang, bukan sekadar nama yang kurang" — dan dropzone warga terlewat sebulan. Diperbaiki menjadi `<button>` sungguhan, bukan `div` ber-`role="button"` + `tabIndex`, berikut dua konsekuensinya: isinya `<span>` sebab `<button>` hanya boleh memuat phrasing content, dan inputnya dipindah keluar sebab elemen interaktif bersarang dalam `<button>` bukan HTML yang sah. Tombol hapus diberi nama yang menyebut berkasnya. **BUG-007 hanya separuh**: jalur warga beres (jenis, ukuran, dan batas 5 berkas diperiksa di satu fungsi yang dipanggil KEDUA jalur — pemilih berkas dan seret-lepas, sesuai butir 3 pengukuran 21 Oktober; yang sah tetap diterima; penolakannya ber-`role="status"`; WEBP disebut; "File berhasil diunggah" menjadi "Siap dikirim"; prop `accept` dibuang sebab ia jebakan), tetapi `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx` MASIH `setFile(e.target.files[0])` tanpa pemeriksaan dan masih tanpa `accept`. Kolom Peran baris itu menyebut tiga peran dan dua di antaranya belum tersentuh, jadi menandainya Ditutup akan tidak benar. **Satu uji lama diganti kontraknya**: "membuang hanya berkas yang ditekan silangnya" memakai `getAllByRole('button')[1]` dan indeksnya bergeser begitu zonanya menjadi tombol — ia menebak lewat POSISI, persis yang diramalkan laporan BUG-010, dan diperbaiki dengan cara yang sama. Sembilan uji baru, seluruhnya merah lebih dulu dengan alasan yang benar. Suite web 217 suite / 1803 uji, dari 1794 — nol uji lama patah. Rekap dihitung ulang dari kolom Status: 31 temuan, 29 ditutup, 2 terbuka (BUG-003 dan BUG-007, keduanya Low). |
