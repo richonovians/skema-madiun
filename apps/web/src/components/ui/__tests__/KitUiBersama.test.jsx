@@ -259,8 +259,11 @@ describe('FileDropzone (TC-FE-046)', () => {
     const c = berkas('c.png');
     render(<FileDropzone files={[a, b, c]} onFilesChange={onFilesChange} />);
 
-    const tombolHapus = screen.getAllByRole('button');
-    fireEvent.click(tombolHapus[1]);
+    // Dahulu `screen.getAllByRole('button')` lalu `[1]`. Indeks itu bergeser
+    // begitu zona lampirannya sendiri menjadi tombol sungguhan (23 Oktober
+    // 2026), dan ia memang menebak lewat POSISI -- cacat uji yang sama dengan
+    // BUG-010. Namanya yang dipakai sekarang.
+    fireEvent.click(screen.getByRole('button', { name: 'Hapus b.png' }));
 
     expect(onFilesChange).toHaveBeenCalledWith([a, c]);
   });
@@ -274,6 +277,160 @@ describe('FileDropzone (TC-FE-046)', () => {
     fireEvent.drop(zona, { dataTransfer: { files: [diseret] } });
 
     expect(onFilesChange).toHaveBeenCalledWith([diseret]);
+  });
+
+  /**
+   * AKSES KEYBOARD (23 Oktober 2026).
+   *
+   * Zonanya sebuah `div` ber-`onClick`, tanpa `tabIndex`, tanpa `role`, tanpa
+   * `onKeyDown`, dan inputnya `display: none` -- jadi tak dapat difokus dan tak
+   * ada di pohon aksesibilitas. Warga yang memakai keyboard karena itu TIDAK
+   * DAPAT melampirkan bukti ke pengaduannya sama sekali.
+   *
+   * Cacat yang sama persis sudah diperbaiki 21 September 2026 di
+   * `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx`, berikut komentar di
+   * sana: "itu fungsi yang hilang, bukan sekadar nama yang kurang". Dropzone
+   * warga terlewat.
+   *
+   * Dibuat `<button>` sungguhan, bukan `div` ber-`role="button"` + `tabIndex`:
+   * fokus, Enter, dan Spasi datang dari peramban, dan namanya datang dari
+   * tulisan yang sudah tampak di layar.
+   */
+  it('zona lampiran adalah tombol sungguhan, jadi dapat dicapai keyboard', () => {
+    render(<FileDropzone files={[]} onFilesChange={jest.fn()} />);
+
+    expect(screen.getByRole('button', { name: /Klik atau seret berkas/i })).toBeInTheDocument();
+  });
+
+  it('tombol hapus menyebut berkas mana yang dibuangnya', () => {
+    render(<FileDropzone files={[berkas('bukti-jalan.png')]} onFilesChange={jest.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Hapus bukti-jalan.png' })).toBeInTheDocument();
+  });
+
+  /**
+   * BUG-007. Batas backend: `image/jpeg`, `image/png`, `image/webp`,
+   * `application/pdf`; 5 MB; 5 berkas (`attachment.util.ts`,
+   * `complaints.constants.ts:32`, `complaints.controller.ts:66`).
+   *
+   * Ini penghemat waktu dan kuota, BUKAN lapisan keamanan: backend memeriksa
+   * angka ajaib isi berkas, bukan `Content-Type` yang dikirim peramban, jadi
+   * `.exe` bernama `.png` tetap tertolak di sana. Jangan pernah mengandalkan
+   * pemeriksaan di sini untuk apa pun yang menyangkut keamanan.
+   */
+  it('BUG-007: menolak jenis yang tak diterima backend lewat pemilih berkas', () => {
+    const onFilesChange = jest.fn();
+    const { container } = render(<FileDropzone files={[]} onFilesChange={onFilesChange} />);
+
+    const sah = berkas('bukti.png');
+    const tidakSah = berkas('animasi.gif', 'image/gif');
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [sah, tidakSah] },
+    });
+
+    // Yang sah tetap diterima: menolak seluruh kumpulan berarti warga
+    // kehilangan pilihan yang sudah benar. Disetujui tersurat pengguna.
+    expect(onFilesChange).toHaveBeenCalledWith([sah]);
+  });
+
+  /**
+   * Jalur kedua yang membuat usulan asli BUG-007 belum cukup: `accept` HANYA
+   * menyaring kotak dialog pemilih berkas, dan tak berlaku sama sekali bagi
+   * berkas yang DIJATUHKAN. Zona ini mengiklankan seret-lepas tersurat ("Klik
+   * atau seret berkas"), jadi `.exe` tetap masuk lewat seretan walau `accept`
+   * sudah benar. Pemeriksaannya duduk di satu fungsi yang dipanggil KEDUA
+   * jalur.
+   */
+  it('BUG-007: menolak jenis yang tak diterima backend lewat SERET-LEPAS', () => {
+    const onFilesChange = jest.fn();
+    const { container } = render(<FileDropzone files={[]} onFilesChange={onFilesChange} />);
+    const zona = container.querySelector('.border-dashed');
+
+    const sah = berkas('bukti.webp', 'image/webp');
+    const tidakSah = berkas('pemasang.exe', 'application/x-msdownload');
+    fireEvent.drop(zona, { dataTransfer: { files: [sah, tidakSah] } });
+
+    expect(onFilesChange).toHaveBeenCalledWith([sah]);
+  });
+
+  it('BUG-007: menolak berkas yang melebihi batas ukuran', () => {
+    const onFilesChange = jest.fn();
+    const { container } = render(
+      <FileDropzone files={[]} onFilesChange={onFilesChange} maxSizeMB={5} />,
+    );
+
+    const besar = new File([new ArrayBuffer(6 * 1024 * 1024)], 'foto-besar.png', {
+      type: 'image/png',
+    });
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [besar] },
+    });
+
+    // Inilah kerugian yang membuat temuan ini ada: warga di ponsel berkuota
+    // terbatas mengunggah 6 MB sampai tuntas, baru ditolak.
+    expect(onFilesChange).not.toHaveBeenCalled();
+  });
+
+  it('BUG-007: menolak berkas keenam, sebab backend hanya menerima lima', () => {
+    const onFilesChange = jest.fn();
+    const sudahAda = ['a', 'b', 'c', 'd'].map((n) => berkas(n + '.png'));
+    const { container } = render(
+      <FileDropzone files={sudahAda} onFilesChange={onFilesChange} />,
+    );
+
+    const kelima = berkas('e.png');
+    const keenam = berkas('f.png');
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [kelima, keenam] },
+    });
+
+    // Tanpa penjaga ini, melampirkan tujuh berkas membuat SELURUH unggahan
+    // gagal di backend sesudah ketujuhnya terkirim.
+    expect(onFilesChange).toHaveBeenCalledWith([...sudahAda, kelima]);
+  });
+
+  /**
+   * `role="status"` supaya penolakannya TERDENGAR. Tanpa itu pengguna tunanetra
+   * hanya mengalami berkasnya tak muncul, tanpa sebab apa pun di layar.
+   */
+  it('BUG-007: melaporkan penolakannya beserta nama berkas dan alasannya', async () => {
+    const { container } = render(<FileDropzone files={[]} onFilesChange={jest.fn()} />);
+
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [berkas('animasi.gif', 'image/gif')] },
+    });
+
+    const kabar = await screen.findByRole('status');
+    expect(kabar).toHaveTextContent('animasi.gif');
+    expect(kabar).toHaveTextContent(/GIF/);
+  });
+
+  it('BUG-007: WEBP diterima, dan teks di layar menyebutnya', () => {
+    const onFilesChange = jest.fn();
+    const { container } = render(<FileDropzone files={[]} onFilesChange={onFilesChange} />);
+
+    // Teks lama berbunyi "Format: JPG, PNG, PDF" -- lebih sempit daripada yang
+    // backend sungguh terima, jadi warga diberi tahu daftar yang salah.
+    expect(screen.getByText(/WEBP/)).toBeInTheDocument();
+
+    const webp = berkas('bukti.webp', 'image/webp');
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [webp] },
+    });
+    expect(onFilesChange).toHaveBeenCalledWith([webp]);
+  });
+
+  /**
+   * Label lama berbunyi "File berhasil diunggah" begitu berkas DIPILIH, padahal
+   * belum satu bita pun dikirim: `onFilesChange` hanya menaruhnya di state
+   * pemanggil, dan unggahannya baru terjadi saat formulirnya disubmit. Warga
+   * yang menutup tab di titik itu meyakini lampirannya sudah aman.
+   */
+  it('tidak mengaku berkasnya sudah terunggah padahal baru dipilih', () => {
+    render(<FileDropzone files={[berkas('bukti.png')]} onFilesChange={jest.fn()} />);
+
+    expect(screen.queryByText(/berhasil diunggah/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Siap dikirim/i)).toBeInTheDocument();
   });
 });
 
