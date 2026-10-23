@@ -123,8 +123,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-029](#bug-029) | Layar gagal masuk SSO membocorkan URL internal dan nama kunci konfigurasi | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-030](#bug-030) | Sapuan proteksi route membaca 502 sebagai keputusan proxy — bisa LULUS tanpa memeriksa apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-031](#bug-031) | Warga pemakai keyboard tak dapat melampirkan bukti ke pengaduan sama sekali | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-032](#bug-032) | Kalimat penolakan ukuran lampiran menyandingkan dua angka yang terbaca sama | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
+| [BUG-033](#bug-033) | Daftar izin jenis lampiran dapat dilewati lewat rantai prototipe | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 
-**Rekap** — 31 temuan: 29 ditutup, **2 terbuka (0 Critical, 0 High, 0 Medium, 2 Low)**
+**Rekap** — 33 temuan: 31 ditutup, **2 terbuka (0 Critical, 0 High, 0 Medium, 2 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2314,6 +2316,122 @@ dengan cara yang sama: memakai nama.
 
 Tiga dari sembilan uji baru menjaga temuan ini, dan ketiganya merah lebih dulu
 pada "Unable to find an accessible element with the role button and name ...".
+
+---
+
+<a id="bug-032"></a>
+
+### BUG-032 — Kalimat penolakan ukuran lampiran menyandingkan dua angka yang terbaca sama
+
+|              |                                                                   |
+| ------------ | ----------------------------------------------------------------- |
+| **Charter**  | QA-H1 — perburuan bug atas perubahan 23 Oktober 2026              |
+| **Tanggal**  | 23 Oktober 2026                                                   |
+| **Peran**    | Warga (formulir pengaduan)                                        |
+| **Halaman**  | `/complaints/new` dan beranda publik                               |
+| **Berkas**   | `apps/web/src/components/ui/FileDropzone.jsx:74-75` (sebelum perbaikan) |
+| **Severity** | Low                                                               |
+
+**Lahir dari perburuan atas perbaikan yang baru berumur beberapa jam.** Kedua
+temuan ini — BUG-032 dan [BUG-033](#bug-033) — ditemukan dengan menyisir
+`FileDropzone.jsx` yang baru ditulis hari itu untuk [BUG-007](#bug-007) dan
+[BUG-031](#bug-031). Laporan perburuannya ada di
+`qa-bug-hunt/bug-report-20261023-032821-lampiran-pengaduan.md`, dan folder itu
+**terabaikan git**, jadi berkas tersebut hidup hanya di mesin tempat perburuan
+dijalankan.
+
+**Yang terjadi.** Ukuran berkas diformat
+`(file.size / 1024 / 1024).toFixed(2)` lalu disandingkan dengan label batas
+`${maxSizeMB}MB`. `toFixed` membulatkan ke yang **terdekat**, jadi berkas
+5 MiB + 5.000 byte tercetak `5.00`:
+
+```
+1 berkas tidak dilampirkanfoto.jpg: ukurannya 5.00 MB, melebihi batas 5MB
+```
+
+Pembaca diberi tahu bahwa 5.00 MB melebihi 5MB.
+
+**Penolakannya sendiri BENAR.** Yang cacat kalimatnya — kelas yang sama dengan
+label "File berhasil diunggah" yang dibetulkan beberapa jam sebelumnya di berkas
+ini juga: pesan yang menyatakan sesuatu yang pembacanya tak dapat
+memercayainya.
+
+**Mengapa Low tetapi perlu dikerjakan.** Dampaknya kosmetik, tetapi
+**jangkauannya luas**: batasnya 5 MiB sementara foto ponsel lazimnya 4–6 MB,
+jadi inilah justru golongan berkas yang paling sering ditolak — dan di situlah
+kalimatnya tak dapat dimengerti.
+
+**Ditutup 23 Oktober 2026** — `ec1bf88`, merge `e45878a` di `main`.
+
+Satu pemformat, `formatMb`, dipakai **kedua** tempat yang menyebut ukuran,
+supaya tak ada lagi dua angka yang mengaku satuan sama tetapi dicetak berbeda.
+Ukuran pada kalimat penolakan dibulatkan ke **atas**, sebab kalimat itu membuat
+PERBANDINGAN dan karena itu tak boleh membulatkan turun ke arah batasnya.
+Hasilnya `ukurannya 5,01 MB, melebihi batas 5,00 MB`.
+
+Pembulatan ke atas dipakai HANYA di sana, tidak di daftar berkas terpilih, dan
+bedanya disengaja: daftar itu sekadar melaporkan, tidak membandingkan.
+
+Pemisah desimalnya koma, kaidah bahasa Indonesia. Akibat kerapiannya ikut
+dikerjakan: daftar berkas terpilih di komponen yang sama berhenti memakai
+titik.
+
+**Satu ketaksamaan LAMA sengaja tidak diubah**, supaya tak terbaca sebagai
+bagian temuan ini: label zona berbunyi "Maksimal ukuran file 5MB" sedangkan
+yang ditegakkan 5 MiB = 5,24 MB desimal, sehingga berkas 5,1 MB menurut ponsel
+tetap **diterima**. Ketaksamaan itu ada juga di backend
+(`BATAS_UKURAN_LAMPIRAN_LABEL = '5MB'`), jadi ia keputusan lama yang konsisten
+di kedua sisi — mengubahnya di satu sisi saja justru membuat keduanya
+bertentangan.
+
+---
+
+<a id="bug-033"></a>
+
+### BUG-033 — Daftar izin jenis lampiran dapat dilewati lewat rantai prototipe
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-H1 — perburuan bug atas perubahan 23 Oktober 2026         |
+| **Tanggal**  | 23 Oktober 2026                                              |
+| **Peran**    | Warga (formulir pengaduan)                                   |
+| **Berkas**   | `apps/web/src/components/ui/FileDropzone.jsx:68` (sebelum perbaikan) |
+| **Severity** | Low                                                          |
+
+**Yang terjadi.** `saringBerkas` memutuskan dengan `JENIS_DITERIMA[file.type]`,
+sebuah pencarian pada objek literal. Objek itu dipakai sebagai **himpunan
+keanggotaan**, dan pada objek literal biasa pencarian kunci bukan uji
+keanggotaan: ia ikut menemukan anggota `Object.prototype`. Terukur, bukan
+disimpulkan — `JENIS_DITERIMA['constructor']` bernilai fungsi `Object` dan
+`JENIS_DITERIMA['__proto__']` bernilai `Object.prototype`, keduanya truthy,
+sehingga berkas ber-`type` demikian **lolos** gerbang jenis yang baru dipasang
+untuk menolaknya.
+
+**Batasnya diukur, bukan diperkirakan.** HANYA dua untai itu yang lolos, sebab
+konstruktor `File` membakukan `type` ke huruf kecil: `'toString'` tersimpan
+sebagai `'tostring'`, bukan anggota prototipe, jadi ia sudah tertolak dengan
+benar bahkan sebelum perbaikan ini. Satu uji **kendali** merekam fakta itu dan
+sengaja hijau sejak awal, supaya laporan ini tak mengaku lebih luas daripada
+yang terbukti.
+
+**Tanpa dampak keamanan, dan itu perlu disebut tersurat.** Backend memeriksa
+**angka ajaib isi berkas**, bukan `Content-Type` dari peramban, sehingga apa pun
+yang lolos gerbang klien tetap tertolak di sana. Yang hilang bila ia terjadi
+hanya kuota pengguna — persis kerugian yang membuat [BUG-007](#bug-007) ada.
+
+**Jalurnya pun tak dapat ditempuh dari pemilih berkas biasa.** `file.type`
+berasal dari pemetaan MIME sistem operasi, dan tak ada akhiran lazim yang
+memetakannya ke `constructor` atau `__proto__`. Satu-satunya jalan teoretis
+adalah seret-lepas dari halaman web lain yang menaruh `File` buatan ke dalam
+`DataTransfer` — dua tab dan satu seretan sengaja. Itulah sebabnya Low, bukan
+lebih.
+
+**Ditutup 23 Oktober 2026** — `ec1bf88`, merge `e45878a` di `main`.
+
+`JENIS_DITERIMA` kini dibangun lewat `Object.create(null)`, jadi ia tak punya
+prototipe untuk ditemukan. Itu dipilih alih-alih menjaga satu tempat
+pemanggilan dengan `Object.hasOwn`, sebab ia membetulkan **setiap** pencarian
+pada objek itu — termasuk yang ditulis pembaca berikutnya.
 
 ---
 
@@ -5553,3 +5671,4 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 | 6.6 | 23 Oktober 2026 | **BUG-018 DITUTUP (`77da88b`, merge `2c2bb47`), dan temuan terbuka tinggal lima — seluruhnya Low.** Resep dalam laporan aslinya diikuti apa adanya: penerimanya dipersempit, bukan panggilannya dibuang. `notifyOpdTujuan` dipisahkan dan dipakai dua pemanggil, sehingga kalimat untuk OPD tetap satu tempat. **Cacatnya ternyata DUA, bukan satu**: selain penyiaran ganda, `notifyKabupaten(excludeUserId, ...)` dipanggil dengan `complaint.userId` yaitu PELAPOR, padahal pelaku penerusan adalah admin kabupaten — ia mengabari dirinya sendiri. Terukur pada uji merah: dua baris notifikasi identik, tiket sama, pengguna sama, berselang 59 milidetik. Admin Kabupaten LAIN tetap dikabari dengan kalimat yang benar dan pelakunya dikecualikan, atas persetujuan tersurat pengguna. **Satu uji lama yang BUKAN basi ikut diganti kontraknya**: "TIDAK mengabari kabupaten: ia pelaku penerusannya, jadi sudah tahu" — keputusan sengaja 7 Oktober 2026, yang alasannya benar bagi PELAKUNYA saja dan mengasersikan mekanisme alih-alih keputusan; alasan lamanya dicatat utuh. **Satu kelemahan pembuktian ditulis apa adanya**: uji "pelaku tidak dikabari" lulus HAMPA pada jalan merah sebab kabar itu belum ada sama sekali; yang membuktikannya bekerja mutasi, yang memerahkannya dengan `id: {not: 10}` alih-alih `99`. Pengamatan lama "pelapornya sendiri tidak diberi tahu" ternyata sudah terjawab sejak 7 Oktober 2026 lewat `complaint_forwarded` kepada pelapor. Pagar `notifikasi-siklus.spec.js` di cabang ini masih `test.fail(true, ...)` dan itu benar, sebab `apps/api` di `tester` belum memuat perbaikannya (terukur: `notifyOpdTujuan` nol kemunculan). Rekap dihitung ulang dari kolom Status: 30 temuan, 25 ditutup, 5 terbuka. |
 | 6.7 | 23 Oktober 2026 | **BUG-011 dan BUG-012 DITUTUP (`6b8ee7e`, merge `4a39ac4`), BUG-010 ditutup TANPA perubahan kode, dan temuan terbuka tinggal DUA — BUG-003 dan BUG-007, keduanya Low.** BUG-011: `.trim()` ditambahkan di `admin-kab/opd/page.jsx:28`, satu kata, persis yang diharapkan laporannya. BUG-012: kalimat laporan sinkron kini menyebut lima angka, dan bannernya berubah kuning bila yang dilewati lebih dari nol — kontras `amber-700` di atas `amber-50` DIUKUR 4,84:1, lulus WCAG AA, sejajar emerald yang 5,21:1. Nol pun disebut tersurat atas persetujuan tersurat pengguna, sebab kalimat yang menghilangkan angkanya saat nol tak dapat dibedakan dari yang sekadar tidak melaporkannya. **Cacat berdampingan ikut diperbaiki**: banner itu tak punya `role` apa pun, sehingga sinkronisasi menghasilkan KESUNYIAN bagi pembaca layar; diberi `role="status"` yang sopan, bukan `alert` yang di basis kode ini khusus untuk galat. **BUG-010 ternyata sudah diperbaiki enam minggu sebelumnya** oleh `7bc0b83` — sambil lalu, saat halaman riwayat notifikasi ditulis, bukan sebagai penutupan temuan — dan namanya sudah terkunci empat asersi di dua berkas uji. Statusnya tertinggal `Baru` karena tak ada yang memeriksa ulang, jadi rekap dokumen ini menghitungnya terbuka selama itu. Yang benar-benar berubah satu uji: TC-FE-013 berhenti menebak tombol lewat posisi (`querySelectorAll('button')[1]`) dan memakai `getByLabelText('Halaman berikutnya')` — perapian uji, BUKAN bukti perbaikan, sebab ia hijau pada jalan pertama. **Satu kelemahan pembuktian dicatat apa adanya**: kedua uji BUG-012 memerah pada `role` yang belum ada, jadi asersi TEKS-nya tak pernah dijalankan pada jalan merah; yang membuktikannya bekerja mutasi sesudah hijau. **Satu cacat sejenis BUG-010 TIDAK ditutup dan belum dicatat sebagai temuan**: tombol lipat sidebar (`AdminSidebar.jsx:125`, `AdminKabSidebar.jsx:141`) bernama lewat `title`, bukan `aria-label` — sah menurut spesifikasi accname tetapi pilihan terakhir, dan tak pernah muncul di peranti sentuh. Rekap dihitung ulang dari kolom Status: 30 temuan, 28 ditutup, 2 terbuka. |
 | 6.8 | 23 Oktober 2026 | **BUG-031 lahir dan ditutup pada hari yang sama (`28574df`, merge `33b70d4`), sementara BUG-007 SENGAJA tetap terbuka walau separuhnya diperbaiki.** BUG-031: zona lampiran pada formulir pengaduan warga sebuah `div` ber-`onClick` tanpa `tabIndex`, `role`, maupun `onKeyDown`, dengan inputnya `display: none` — jadi warga pemakai keyboard TIDAK DAPAT melampirkan bukti sama sekali. Dinilai Medium (nomor dan derajatnya usulan penguji) sebab komponennya dirender di `/complaints/new` DAN beranda publik. Yang membuatnya pantas jadi temuan sendiri: cacat ini **sudah pernah diperbaiki 21 September 2026** di `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx`, berikut kalimatnya yang masih terbaca di sana — "itu fungsi yang hilang, bukan sekadar nama yang kurang" — dan dropzone warga terlewat sebulan. Diperbaiki menjadi `<button>` sungguhan, bukan `div` ber-`role="button"` + `tabIndex`, berikut dua konsekuensinya: isinya `<span>` sebab `<button>` hanya boleh memuat phrasing content, dan inputnya dipindah keluar sebab elemen interaktif bersarang dalam `<button>` bukan HTML yang sah. Tombol hapus diberi nama yang menyebut berkasnya. **BUG-007 hanya separuh**: jalur warga beres (jenis, ukuran, dan batas 5 berkas diperiksa di satu fungsi yang dipanggil KEDUA jalur — pemilih berkas dan seret-lepas, sesuai butir 3 pengukuran 21 Oktober; yang sah tetap diterima; penolakannya ber-`role="status"`; WEBP disebut; "File berhasil diunggah" menjadi "Siap dikirim"; prop `accept` dibuang sebab ia jebakan), tetapi `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx` MASIH `setFile(e.target.files[0])` tanpa pemeriksaan dan masih tanpa `accept`. Kolom Peran baris itu menyebut tiga peran dan dua di antaranya belum tersentuh, jadi menandainya Ditutup akan tidak benar. **Satu uji lama diganti kontraknya**: "membuang hanya berkas yang ditekan silangnya" memakai `getAllByRole('button')[1]` dan indeksnya bergeser begitu zonanya menjadi tombol — ia menebak lewat POSISI, persis yang diramalkan laporan BUG-010, dan diperbaiki dengan cara yang sama. Sembilan uji baru, seluruhnya merah lebih dulu dengan alasan yang benar. Suite web 217 suite / 1803 uji, dari 1794 — nol uji lama patah. Rekap dihitung ulang dari kolom Status: 31 temuan, 29 ditutup, 2 terbuka (BUG-003 dan BUG-007, keduanya Low). |
+| 6.9 | 23 Oktober 2026 | **BUG-032 dan BUG-033 lahir dan ditutup pada hari yang sama (`ec1bf88`, merge `e45878a`), keduanya dari perburuan bug atas perubahan yang baru berumur beberapa jam.** Sasaran perburuannya `FileDropzone.jsx` yang ditulis hari itu untuk BUG-007 dan BUG-031, dan laporannya ada di `qa-bug-hunt/` yang TERABAIKAN git — berkasnya hidup hanya di mesin tempat perburuan dijalankan, jadi isinya diringkas ke sini. **BUG-032**: ukuran diformat `toFixed(2)` yang membulatkan ke TERDEKAT, sehingga berkas 5 MiB + 5.000 byte menghasilkan kalimat "ukurannya 5.00 MB, melebihi batas 5MB" — penolakannya benar, kalimatnya tidak. Low tetapi berjangkauan luas: batasnya 5 MiB sementara foto ponsel lazimnya 4–6 MB, jadi inilah golongan yang paling sering ditolak. Diperbaiki dengan satu pemformat untuk kedua tempat dan pembulatan ke ATAS pada kalimat penolakan saja, sebab kalimat itu membuat perbandingan sementara daftar berkas sekadar melaporkan. **BUG-033**: `JENIS_DITERIMA[file.type]` pencarian pada objek literal, jadi ia ikut menemukan anggota `Object.prototype` — `constructor` dan `__proto__` LOLOS gerbang jenis yang baru dipasang untuk menolaknya. Batasnya diukur: hanya dua untai itu, sebab konstruktor `File` membakukan `type` ke huruf kecil, dan satu uji KENDALI merekam fakta itu. Tanpa dampak keamanan (backend memeriksa angka ajaib isi berkas) dan tak dapat ditempuh dari pemilih berkas biasa. Diperbaiki dengan `Object.create(null)`, bukan menjaga satu tempat pemanggilan, supaya SETIAP pencarian ikut benar. **Pagar regresinya DIPINDAHKAN** dari `qa-bug-hunt/repros/` ke `KitUiBersama.test.jsx`: folder itu mengabaikan dirinya sendiri, jadi satu-satunya uji yang membuktikan kedua cacat ini pernah ada akan hilang dari repo begitu perbaikannya di-commit. Empat dari lima pagar merah lebih dulu; yang kelima kendali. Reproduksi asli perburuan dijalankan ulang sesudah perbaikan sebagai pemeriksaan silang dan menghijau 6/6. Suite web 217 suite / 1808 uji, dari 1803. `.gitignore` akar ikut tercatat atas permintaan pengguna — baris `qa-bug-hunt/` sudah ada di pohon kerja dan bersifat rangkap, dan akhiran berkasnya yang tanpa baris baru dibetulkan. Rekap dihitung ulang dari kolom Status: 33 temuan, 31 ditutup, 2 terbuka (BUG-003 dan BUG-007). |
