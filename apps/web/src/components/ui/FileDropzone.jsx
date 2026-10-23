@@ -18,16 +18,46 @@ import { Paperclip, CheckCircle, X, AlertTriangle } from 'lucide-react';
  * pengguna di ponsel berkuota terbatas mengunggah 6 MB sampai tuntas lalu
  * ditolak (BUG-007).
  */
-const JENIS_DITERIMA = {
+/*
+ * TANPA PROTOTIPE, dan itu bukan kerapian (QA-01, 23 Oktober 2026).
+ *
+ * Objek ini dipakai sebagai HIMPUNAN KEANGGOTAAN, lewat
+ * `JENIS_DITERIMA[file.type]`. Pada objek literal biasa, pencarian kunci bukan
+ * uji keanggotaan: ia ikut menemukan anggota `Object.prototype`. Terukur --
+ * `JENIS_DITERIMA['constructor']` bernilai fungsi `Object` dan
+ * `JENIS_DITERIMA['__proto__']` bernilai `Object.prototype`, keduanya truthy,
+ * jadi berkas ber-`type` demikian LOLOS gerbang jenis.
+ *
+ * Hanya dua untai itu yang lolos, sebab konstruktor `File` membakukan `type`
+ * ke huruf kecil: `'toString'` tersimpan sebagai `'tostring'`, yang bukan
+ * anggota prototipe.
+ *
+ * `Object.create(null)` dipilih alih-alih menjaga satu tempat pemanggilan
+ * dengan `Object.hasOwn`, sebab ia membetulkan SETIAP pencarian pada objek ini
+ * -- termasuk yang ditulis pembaca berikutnya.
+ */
+const JENIS_DITERIMA = Object.assign(Object.create(null), {
   'image/jpeg': 'JPG',
   'image/png': 'PNG',
   'image/webp': 'WEBP',
   'application/pdf': 'PDF',
-};
+});
 
 const JENIS_ACCEPT = Object.keys(JENIS_DITERIMA).join(',');
 const LABEL_JENIS = Object.values(JENIS_DITERIMA).join(', ');
 const MAKS_BERKAS = 5;
+
+/**
+ * Ukuran untuk DIBACA pengguna, berkoma sebagai pemisah desimal -- kaidah
+ * bahasa Indonesia, dan bahasa seluruh antarmuka ini.
+ *
+ * Satu pemformat dipakai kedua tempat yang menyebut ukuran, supaya tak ada
+ * lagi dua angka yang mengaku satuan sama tetapi dicetak berbeda. Itulah akar
+ * QA-02.
+ */
+function formatMb(mb) {
+  return `${mb.toFixed(2).replace('.', ',')} MB`;
+}
 
 /**
  * Nama jenis untuk DIBACA pengguna, diambil dari akhiran namanya sendiri.
@@ -71,8 +101,26 @@ function saringBerkas(kandidat, sudahAda, maxSizeMB) {
       continue;
     }
     if (file.size > batasBytes) {
-      const mb = (file.size / 1024 / 1024).toFixed(2);
-      ditolak.push({ nama: file.name, alasan: `ukurannya ${mb} MB, melebihi batas ${maxSizeMB}MB` });
+      // DIBULATKAN KE ATAS, dan itu bukan kerapian (QA-02, 23 Oktober 2026).
+      //
+      // `toFixed(2)` membulatkan ke yang TERDEKAT, sehingga berkas yang hanya
+      // sedikit melewati batas tercetak "5.00 MB" -- lalu kalimatnya
+      // menyatakan bahwa 5.00 MB melebihi batas 5MB. Penolakannya benar;
+      // kalimatnya tak dapat dipercaya pembacanya.
+      //
+      // Jangkauannya luas, bukan sudut yang jarang: batasnya 5 MiB sementara
+      // foto ponsel lazimnya 4-6 MB, jadi inilah justru golongan berkas yang
+      // paling sering ditolak.
+      //
+      // Pembulatan ke atas dipakai HANYA di sini, bukan di daftar berkas
+      // terpilih, dan bedanya disengaja: kalimat ini membuat PERBANDINGAN,
+      // jadi ia tak boleh membulatkan turun ke arah batasnya; daftar itu
+      // sekadar melaporkan.
+      const mbNaik = Math.ceil((file.size / 1024 / 1024) * 100) / 100;
+      ditolak.push({
+        nama: file.name,
+        alasan: `ukurannya ${formatMb(mbNaik)}, melebihi batas ${formatMb(maxSizeMB)}`,
+      });
       continue;
     }
     if (sudahAda.length + diterima.length >= MAKS_BERKAS) {
@@ -217,7 +265,7 @@ export default function FileDropzone({ files = [], onFilesChange, maxSizeMB = 5 
                       meyakini lampirannya sudah aman. */}
                   <p className="text-sm font-medium text-emerald-800">Siap dikirim</p>
                   <p className="text-xs text-emerald-600 truncate">
-                    {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    {file.name} ({formatMb(file.size / 1024 / 1024)})
                   </p>
                 </div>
               </div>
