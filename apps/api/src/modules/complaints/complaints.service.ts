@@ -487,15 +487,20 @@ export class ComplaintsService {
       ticketNo: complaint.ticketNo,
       opdId: dto.opdId,
     });
-    // Memakai jalur "pengaduan baru masuk" apa adanya: bagi OPD tujuan, inilah
-    // saat tiket itu benar-benar masuk. Tanpa ini ia tak akan pernah tahu ada
-    // tanggung jawab baru -- persis keluhan 6 Agustus 2026 soal tiket baru.
-    await this.notificationsService.notifyComplaintCreated(updated);
+    // Bagi OPD tujuan, inilah saat tiket itu benar-benar masuk. Tanpa ini ia tak
+    // akan pernah tahu ada tanggung jawab baru -- persis keluhan 6 Agustus 2026.
+    //
+    // BUG-018 (23 Oktober 2026): baris ini dahulu memanggil
+    // `notifyComplaintCreated`, yang memegang DUA penerima sekaligus, sehingga
+    // Admin Kabupaten diberi tahu "Pengaduan Baru Masuk" untuk KEDUA kalinya
+    // atas tiket yang sama -- dan pelaku penerusannya ikut mengabari dirinya
+    // sendiri, sebab pengecualiannya menyasar pelapor, bukan pelaku. Yang
+    // dibutuhkan di sini memang hanya bagian OPD-nya.
+    await this.notificationsService.notifyOpdTujuan(updated);
     // DAN beri tahu PELAPOR bahwa pengaduan "Lainnya"-nya sudah mendarat di
-    // instansi yang berwenang (7 Oktober 2026). `complaint_created` di atas
-    // sengaja melewati pelapor; inilah satu-satunya kabar yang ia terima bahwa
-    // penerusannya terjadi.
-    await this.notificationsService.notifyComplaintForwarded(updated, opd.nama);
+    // instansi yang berwenang (7 Oktober 2026), berikut Admin Kabupaten LAIN
+    // sebagai pengawas -- pelakunya dikecualikan lewat `user.userId`.
+    await this.notificationsService.notifyComplaintForwarded(updated, opd.nama, user.userId);
 
     return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }

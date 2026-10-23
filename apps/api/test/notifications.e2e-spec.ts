@@ -17,6 +17,13 @@ describe('Notifications (e2e)', () => {
   let complaintId: number;
   let ticketNo: string;
   let createdTicketNo: string | undefined;
+  // BUG-018: admin kabupaten KEDUA, dan ia bukan kemewahan. Perbaikannya
+  // mengecualikan pelaku penerusan, jadi dengan satu akun kabupaten saja
+  // "pengawas lain tetap diberi tahu" tak dapat dibedakan dari "tak ada
+  // yang diberi tahu".
+  let kabupatenLainId: number;
+  let diteruskanId: number;
+  let diteruskanTicketNo: string | undefined;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -75,6 +82,18 @@ describe('Notifications (e2e)', () => {
     });
     kabupatenUserId = kabupatenUser.id;
 
+    const kabupatenLain = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-notif-kab2' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-notif-kab2',
+        nama: 'Admin Kabupaten Notifikasi Kedua',
+        email: 'e2e-notif-kab2@example.go.id',
+        roles: [Role.kabupaten],
+      },
+    });
+    kabupatenLainId = kabupatenLain.id;
+
     const complaint = await prisma.complaint.create({
       data: {
         ticketNo: 'PGDE2ENOTIF01',
@@ -95,19 +114,28 @@ describe('Notifications (e2e)', () => {
     // test ini), bukan hanya [opdUserId, respondenId, kabupatenUserId]. Bersihkan
     // via `link` (memuat ticketNo) supaya penerima manapun ikut terhapus --
     // pola sama dgn pelajaran opd.e2e-spec.ts (cegah polusi DB dev bersama).
-    const ticketNos = [ticketNo, createdTicketNo].filter((t): t is string => Boolean(t));
+    const ticketNos = [ticketNo, createdTicketNo, diteruskanTicketNo].filter((t): t is string =>
+      Boolean(t),
+    );
     await prisma.notification.deleteMany({
       where: { OR: ticketNos.map((t) => ({ link: { contains: t } })) },
     });
     await prisma.complaintReply.deleteMany({ where: { complaintId } });
     await prisma.complaint.deleteMany({ where: { opdId } });
+    // Pengaduan BUG-018 lahir tanpa OPD; bila ujinya gagal sebelum
+    // diteruskan, `where: { opdId }` di atas tak menjangkaunya.
+    await prisma.complaint.deleteMany({ where: { userId: respondenId } });
     // PATCH status pengaduan memicu AuditInterceptor mencatat audit_logs
     // ber-FK RESTRICT ke users -- harus dihapus dulu sebelum user dihapus.
     await prisma.auditLog.deleteMany({
-      where: { actorId: { in: [opdUserId, respondenId, kabupatenUserId] } },
+      where: { actorId: { in: [opdUserId, respondenId, kabupatenUserId, kabupatenLainId] } },
     });
     await prisma.user.deleteMany({
-      where: { ssoSubject: { in: ['e2e-notif-opd', 'e2e-notif-resp', 'e2e-notif-kab'] } },
+      where: {
+        ssoSubject: {
+          in: ['e2e-notif-opd', 'e2e-notif-resp', 'e2e-notif-kab', 'e2e-notif-kab2'],
+        },
+      },
     });
     await prisma.opd.deleteMany({ where: { kode: 'E2ENOTIF' } });
     await app.close();
@@ -116,6 +144,7 @@ describe('Notifications (e2e)', () => {
   const asOpd = () => devHeaders({ role: Role.opd, userId: opdUserId, opdId });
   const asResponden = () => devHeaders({ role: Role.responden, userId: respondenId });
   const asKabupaten = () => devHeaders({ role: Role.kabupaten, userId: kabupatenUserId });
+  const asKabupatenLain = () => devHeaders({ role: Role.kabupaten, userId: kabupatenLainId });
 
   it('Admin OPD ubah status -> Responden dapat notifikasi complaint_status_changed', async () => {
     const patchRes = await request(app.getHttpServer())
@@ -366,5 +395,93 @@ describe('Notifications (e2e)', () => {
       .get('/api/v1/notifications/unread-count')
       .set(asResponden());
     expect(countRes.body.data.count).toBe(0);
+  });
+
+  /**
+   * BUG-018 — meneruskan pengaduan menyiarkan ulang "Pengaduan Baru Masuk".
+   *
+   * `forward()` memakai `notifyComplaintCreated` apa adanya, dan fungsi itu
+   * memegang DUA penerima sekaligus: Admin OPD tujuan, lalu Admin Kabupaten.
+   * Bagian OPD benar -- bagi OPD tujuan inilah saat tiketnya benar-benar masuk.
+   * Bagian Kabupaten salah dua kali: ia sudah dikabari saat pengaduan lahir
+   * (pengaduan tanpa tujuan mengabari Kabupaten tanpa syarat), dan
+   * `notifyKabupaten(excludeUserId, ...)` dipanggil dengan `complaint.userId`
+   * yaitu PELAPOR -- padahal pelaku penerusan adalah admin kabupaten, sehingga
+   * ia mengabari dirinya sendiri.
+   *
+   * Aturan yang benar sudah ada di tempat lain: `notifyComplaintStatusChanged`
+   * meneruskan `actorUserId`, dan uji di berkas ini sendiri sudah menuntut
+   * "Kabupaten yg JADI PELAKU balasan TIDAK memberi notifikasi ke dirinya".
+   *
+   * URUTAN KEEMPAT UJI DI BAWAH DISENGAJA dan saling bergantung: yang pertama
+   * mengukur keadaan SEBELUM penerusan, yang kedua melakukan penerusannya, dua
+   * sisanya hanya membaca hasilnya. Tanpa pengukuran pertama, angka "satu"
+   * sesudah penerusan tak membuktikan apa pun -- bisa saja memang tak pernah
+   * ada kabar yang terbit.
+   */
+  describe('BUG-018 — penerusan pengaduan tak menyiarkan ulang kabar yang sama', () => {
+    const kabarBaru = (rows: Array<{ type: string; link: string }>, tiket: string) =>
+      rows.filter((n) => n.type === 'complaint_created' && n.link.includes(tiket));
+
+    const notifikasi = async (header: Record<string, string>) => {
+      const res = await request(app.getHttpServer()).get('/api/v1/notifications').set(header);
+      expect(res.status).toBe(200);
+      return res.body.data as Array<{ type: string; link: string; message: string }>;
+    };
+
+    it('ALAT UKUR: pengaduan tanpa OPD -> Kabupaten dapat TEPAT SATU complaint_created', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/complaints')
+        .set(asResponden())
+        .field('kategori', 'lainnya')
+        .field('judul', 'Pengaduan tanpa tujuan utk BUG-018')
+        .field('uraian', 'Pelapor tak tahu harus ditujukan ke mana');
+
+      expect(res.status).toBe(201);
+      diteruskanId = res.body.data.id;
+      diteruskanTicketNo = res.body.data.ticketNo;
+      expect(res.body.data.opdId).toBeNull();
+
+      expect(kabarBaru(await notifikasi(asKabupaten()), diteruskanTicketNo as string)).toHaveLength(
+        1,
+      );
+    });
+
+    it('PATCH /complaints/:id/opd -> Kabupaten TIDAK dapat complaint_created kedua', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${diteruskanId}/opd`)
+        .set(asKabupaten())
+        .send({ opdId });
+
+      expect(res.status).toBe(200);
+      expect(kabarBaru(await notifikasi(asKabupaten()), diteruskanTicketNo as string)).toHaveLength(
+        1,
+      );
+    });
+
+    it('admin yang MENERUSKAN tidak dikabari atas tindakannya sendiri', async () => {
+      const miliknya = (await notifikasi(asKabupaten())).filter(
+        (n) => n.type === 'complaint_forwarded' && n.link.includes(diteruskanTicketNo as string),
+      );
+
+      expect(miliknya).toHaveLength(0);
+    });
+
+    it('Admin Kabupaten LAIN tetap dikabari, dengan kalimat yang benar', async () => {
+      const kabar = (await notifikasi(asKabupatenLain())).filter(
+        (n) => n.type === 'complaint_forwarded' && n.link.includes(diteruskanTicketNo as string),
+      );
+
+      expect(kabar).toHaveLength(1);
+      // Kalimatnya harus menyebut yang BENAR-BENAR terjadi. "Pengaduan Baru
+      // Masuk" itulah separuh cacatnya: yang terjadi bukan tiket baru.
+      expect(kabar[0].message).toContain('diteruskan');
+      expect(kabar[0].message).toContain('OPD E2E Notifikasi');
+      expect(kabar[0].message).not.toContain('baru masuk');
+    });
+
+    it('Admin OPD tujuan dapat TEPAT SATU complaint_created -- jalur itu tak boleh ikut mati', async () => {
+      expect(kabarBaru(await notifikasi(asOpd()), diteruskanTicketNo as string)).toHaveLength(1);
+    });
   });
 });
