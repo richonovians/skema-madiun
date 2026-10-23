@@ -101,9 +101,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-007](#bug-007) | Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah  | Low      | Terkonfirmasi | Baru       | C-03    |
 | [BUG-008](#bug-008) | Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung | Medium   | Terkonfirmasi | **Ditutup** | C-11    |
 | [BUG-009](#bug-009) | Akun terlanjur dibuat ketika penetapan statusnya gagal          | Medium   | Terkonfirmasi | **Ditutup** (basi — fiturnya dibuang) | C-05    |
-| [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | Baru       | C-06    |
-| [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | Baru       | C-06    |
-| [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | Baru       | C-06    |
+| [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | **Ditutup** | C-06    |
+| [BUG-011](#bug-011) | Pencarian daftar OPD tak memangkas spasi                        | Low      | Terkonfirmasi | **Ditutup** | C-06    |
+| [BUG-012](#bug-012) | Angka `skipped` pada laporan sinkronisasi OPD tak ditampilkan   | Low      | Terkonfirmasi | **Ditutup** | C-06    |
 | [BUG-013](#bug-013) | Survei di Sampah tetap terhitung pada statistik publik           | **High** | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-014](#bug-014) | Hapus permanen meninggalkan notifikasi menunjuk survei yang tiada | Medium   | Terkonfirmasi | **Ditutup** | C-14    |
 | [BUG-015](#bug-015) | Dialog konfirmasi destruktif tak dapat dipakai pembaca layar     | Medium   | Terkonfirmasi | **Ditutup** | C-14    |
@@ -123,7 +123,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-029](#bug-029) | Layar gagal masuk SSO membocorkan URL internal dan nama kunci konfigurasi | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-030](#bug-030) | Sapuan proteksi route membaca 502 sebagai keputusan proxy — bisa LULUS tanpa memeriksa apa pun | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 30 temuan: 25 ditutup, **5 terbuka (0 Critical, 0 High, 0 Medium, 5 Low)**
+**Rekap** — 30 temuan: 28 ditutup, **2 terbuka (0 Critical, 0 High, 0 Medium, 2 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -1557,6 +1557,46 @@ sudah dikenali tim, hanya komponen ini yang belum ikut disisir.
 paginasi terpaksa menebak lewat posisi — cara yang diam-diam ikut rusak begitu
 tata letaknya berubah.
 
+**Ditutup 23 Oktober 2026 — TANPA satu baris perubahan kode, dan itu perlu
+dijelaskan.**
+
+`Pagination.jsx` sudah membawa `aria-label="Halaman sebelumnya"` dan
+`aria-label="Halaman berikutnya"` di `main` maupun `tester`. Pelakunya commit
+`7bc0b83`, "feat(web): halaman riwayat notifikasi untuk ketiga peran" —
+diperbaiki **sambil lalu** saat halaman riwayat notifikasi ditulis
+13 September 2026, bukan sebagai penutupan temuan ini. Karena tak ada yang
+kembali memeriksa daftar temuan, statusnya tertinggal `Baru` selama enam
+minggu, dan rekap di dokumen ini menghitungnya terbuka selama itu pula.
+
+Namanya pun sudah terkunci uji, bukan sekadar ada: `getByLabelText('Halaman
+berikutnya')` dipakai di `admin-kab/complaints/__tests__/page.test.jsx:132,142`
+dan `admin-opd/complaints/__tests__/page.test.jsx:278,290`. Nama itu tak dapat
+hilang tanpa empat uji memerah.
+
+**Yang BENAR-BENAR berubah hari ini satu uji**, dan justru butir "menolong
+pengujian" di atas yang menagihnya. `admin-kab/opd/__tests__/page.test.jsx`
+(TC-FE-013) masih menebak tombolnya lewat POSISI —
+`paginationContainer.querySelectorAll('button')[1]` — persis cara yang
+paragraf itu sebut diam-diam ikut rusak begitu tata letaknya berubah. Kini ia
+memakai `getByLabelText('Halaman berikutnya')`. Ini perapian uji, **bukan bukti
+perbaikan**: ia hijau pada jalan pertama, sebab `aria-label`-nya sudah
+terpasang sejak sebulan sebelumnya.
+
+Pelajarannya bukan soal paginasi. Perbaikan yang datang sambil lalu tidak
+menutup temuan dengan sendirinya, dan temuan yang tak pernah diperiksa ulang
+akan terus dilaporkan terbuka walau kodenya sudah benar. Di sini `aria-label`-nya
+hadir di KEDUA cabang, jadi sebabnya bukan ketertinggalan `tester` yang
+diukur [CAT-023](#cat-023) — semata tak ada yang memeriksa ulang.
+
+**Satu cacat sejenis yang TIDAK ditutup di sini, supaya tak terbaca sudah
+beres.** Tombol lipat sidebar — `AdminSidebar.jsx:125` dan
+`AdminKabSidebar.jsx:141` — juga berisi ikon saja, dan namanya datang dari
+`title`, bukan `aria-label`. `title` memang sumber nama yang sah menurut
+spesifikasi accname, tetapi pilihan terakhir, dan di peranti sentuh ia tak
+pernah muncul. Itu temuan tersendiri yang derajatnya lebih ringan daripada
+BUG-010 (nama ADA, hanya lemah), jadi ia tidak digabungkan ke sini dan belum
+dicatat sebagai temuan baru.
+
 ---
 
 <a id="bug-011"></a>
@@ -1597,6 +1637,13 @@ memberi petunjuk apa yang salah.
 
 **Yang diharapkan.** `searchQuery.trim().toLowerCase()`.
 
+**Ditutup 23 Oktober 2026** — `6b8ee7e`, merge `4a39ac4` di `main`.
+
+Perbaikannya persis yang diharapkan di atas, satu kata, pada
+`admin-kab/opd/page.jsx:28`. Uji dibuktikan merah lebih dulu: mencari
+`'  DINAS  '` menjawab "Unable to find an element with the text: Dinas
+Kesehatan", yaitu nol hasil, persis gejala yang dilaporkan.
+
 ---
 
 <a id="bug-012"></a>
@@ -1629,6 +1676,40 @@ suksesnya dengan yang tak melewatkan satu pun.
 
 **Yang diharapkan.** Sebutkan juga jumlah yang dilewati, dan tandai berbeda
 (mis. peringatan kuning, bukan hijau) bila nilainya lebih dari nol.
+
+**Ditutup 23 Oktober 2026** — `6b8ee7e`, merge `4a39ac4` di `main`.
+
+Keduanya dikerjakan: kalimatnya kini menyebut lima angka, dan bannernya
+berubah kuning (`bg-amber-50`) bila yang dilewati lebih dari nol. Kontras
+`amber-700` di atas `amber-50` **diukur, bukan dikira**: 4,84:1 — lulus WCAG AA
+untuk teks biasa, sejajar dengan emerald yang dipakai sekarang (5,21:1).
+
+**Nol pun disebut tersurat**, "0 dilewati", atas persetujuan tersurat pengguna
+di antara tiga pilihan. Alasannya: kalimat yang menghilangkan angkanya saat nol
+tidak dapat dibedakan dari kalimat yang sekadar tidak melaporkannya — tepat
+keadaan yang membuat temuan ini lahir. Nol menjadi bukti positif.
+
+`report.skipped` sengaja tidak dijaga `?? 0`. Backend selalu mengirimnya
+(`opd.service.ts` memulainya dari 0 lalu selalu menyertakannya dalam laporan),
+dan jaga-jaga di sini hanya akan menyembunyikan kontrak yang patah di balik
+angka nol palsu.
+
+**CACAT BERDAMPINGAN IKUT DIPERBAIKI**, atas persetujuan tersurat pengguna.
+Banner hasil sinkron tak punya `role` apa pun, sehingga menekan "Sinkronkan
+dari Helpdesk" lalu menunggu menghasilkan **kesunyian** bagi pembaca layar —
+berhasil maupun melewatkan. Tanpa itu separuh manfaat temuan ini hilang bagi
+pengguna tunanetra: angka yang menuntut tindak lanjut tetap tak terdengar.
+Dipakai `role="status"` yang sopan, bukan `role="alert"`; di basis kode ini
+`alert` khusus untuk galat (`ConsentGate.jsx:140`, `SSOLoginButton.jsx:224`),
+dan hasil yang diminta pengguna sendiri tak perlu menyela.
+
+**Kelemahan pembuktian, dicatat apa adanya.** Kedua uji BUG-012 memerah lebih
+dulu, tetapi pada "Unable to find role=status" — mereka tersandung pada `role`
+yang belum ada sebelum sampai ke asersi TEKS-nya, jadi "3 dilewati" dan
+"0 dilewati" tak pernah dijalankan pada jalan merah itu. Yang membuktikannya
+bekerja MUTASI sesudah hijau: angka `dilewati` dibuang dari kalimat dan
+`adaDilewati` dipaksa `false`, dan kedua uji memerah. Kode dipulihkan dari
+salinan, diperiksa `diff` kode=0.
 
 ---
 
@@ -5357,3 +5438,4 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 | 6.4 | 22 Oktober 2026 | **BUG-019 DITUTUP (`3fb335f`, merge `e3ce3f8`), dan dengan itu tak ada lagi temuan Medium yang terbuka — pertama kalinya sejak dokumen ini dibuat.** Tujuh kode galat RFC 6749 §4.1.2.1 dipetakan ke kalimat milik aplikasi sendiri; `error_description` tak lagi menyentuh layar dan tetap tercatat di log. **Saran perbaikan dalam laporan aslinya tidak diikuti sepenuhnya, dan itu disengaja**: saran itu meminta kode galatnya ikut ditampilkan untuk kode tak dikenal, padahal `error` pun medan bebas 256 karakter, jadi memantulkannya hanya memperkecil cacatnya. **BUG-029 lahir dan ditutup pada hari yang sama**, ditemukan selagi BUG-019 dibaca: dua blok `catch` meneruskan `err.message` ke fragment yang sama, sehingga warga dapat melihat URL internal berikut `TypeError: fetch failed`, dan nama kunci seperti `helpdesk.ssoClientSecret`. **Rancangan pertama saya untuk BUG-029 salah dan dibatalkan**: saya menduga kebocorannya `Error` biasa, padahal `helpdesk-sso.client.ts` membungkus setiap kegagalan jaringan menjadi `ServiceUnavailableException` — aturan yang saya usulkan justru akan melewatkan kalimat yang bocor; fungsi beserta ujinya sempat ditulis, hijau, lalu dihapus. Batas yang dipakai STATUS: di bawah 500 lewat, 5xx diganti kalimat umum. **EMPAT uji yang sudah ada ternyata mengunci perilaku lama** dan keempatnya kontraknya diganti alih-alih asersinya dilonggarkan — termasuk `sso-unconfigured.e2e-spec.ts:65`, yang BUKAN uji basi melainkan keputusan sengaja dari tanggal lain beralasan "pesannya harus benar-benar memberi tahu apa yang kurang"; alasan itu dicatat utuh di tempatnya, bukan dihapus. **Dua uji lain memalsukan jenis galat**, melempar `Error` biasa di tempat produksinya melempar `ServiceUnavailableException` dan `ForbiddenException`, dan hijau hanya karena perilaku lama meneruskan apa saja. **Dua kali tersesat di `Tests: 0 total`** — galat kompilasi, bukan uji yang memerah: `expect` Jest tak menerima argumen pesan kedua seperti Playwright, dan fungsi yang belum ada perlu stub kompilabel lebih dulu. Pagar `sso-galat.spec.js` di cabang ini MASIH memakai `test.fail(true, ...)` dan itu benar, sebab `apps/api` di `tester` belum memuat perbaikannya (terukur: `pesanGalatSso` nol kemunculan); `main` karena itu dibekali pagarnya sendiri di `sso.e2e-spec.ts`, dibuktikan lewat mutasi. Rekap dihitung ulang dari kolom Status: 29 temuan, 23 ditutup, 6 terbuka — seluruhnya Low. Satu hal yang TIDAK dikerjakan dan masih terbuka: memagari pesan 5xx dengan `app.nodeEnv === 'production'` seperti `boleh-admin-opd.ts`, agar pengembang tetap melihat kunci yang kosong di peramban sementara warga tidak. |
 | 6.5 | 22 Oktober 2026 | **BUG-030 lahir dan ditutup pada hari yang sama: sapuan proteksi route membaca 502 sebagai keputusan `proxy.js`.** Ia menyimpulkan izin akses dari ALAMAT AKHIR navigasi dan tak pernah memeriksa status respons, sementara halaman galat server tinggal di alamatnya sendiri. Arah merah palsunya sudah terjadi malam itu — tiga rute admin dilaporkan terbuka bagi responden, dan hanya cuplikan halaman `502 Bad Gateway` dari nginx yang membantahnya; penegakan sesungguhnya tetap hijau di `peran-matriks-rbac` 11 uji. **Arah yang lebih berbahaya hijau palsu**: bila rute yang 502 kebetulan sama dengan alamat yang diharapkan, matriksnya cocok dan sapuan itu LULUS tanpa memeriksa apa pun. Pagarnya memilih kasus itu — memalsukan 502 pada `/` di kolom `tanpaToken` — dan sebelum perbaikan dijawab `Received promise resolved instead of rejected`. Status kini diasersikan kosong sebelum matriksnya dinilai, sealasan dengan pengintai 429 yang sudah ada. **Perbaikannya membuktikan diri pada pemakaian sungguhan**: jalan berikutnya berbunyi `/admin-opd/dashboard → HTTP 502` alih-alih menuduh RBAC jebol. **Dua hal yang TIDAK terbukti dan ditulis apa adanya**: (1) ketika pagar ini di awal berkas, dua percobaan uji `responden` kehabisan 150 detik di `masukSebagai` padahal lulus 30,8 detik bila sendiri — batas laju hanya dugaan, sebab artefaknya sudah terhapus; pagarnya dipindah ke akhir. (2) Mengapa pemanasan `/surveys/[id]` tidak mencegah timeout `isi-survei.spec.js` tetap tak terjawab: ketiga rute yang dapat saya ukur sudah terkompilasi (`header` ≈ `tuntas`, 0,04–0,48 detik), dan memaksa keadaan dingin menuntut memuat ulang server dev milik pengguna. Yang terukur hanya bahwa `pemanasan.js:41` tak pernah membaca badan responsnya. Rekap dihitung ulang dari kolom Status: 30 temuan, 24 ditutup, 6 terbuka — seluruhnya Low. |
 | 6.6 | 23 Oktober 2026 | **BUG-018 DITUTUP (`77da88b`, merge `2c2bb47`), dan temuan terbuka tinggal lima — seluruhnya Low.** Resep dalam laporan aslinya diikuti apa adanya: penerimanya dipersempit, bukan panggilannya dibuang. `notifyOpdTujuan` dipisahkan dan dipakai dua pemanggil, sehingga kalimat untuk OPD tetap satu tempat. **Cacatnya ternyata DUA, bukan satu**: selain penyiaran ganda, `notifyKabupaten(excludeUserId, ...)` dipanggil dengan `complaint.userId` yaitu PELAPOR, padahal pelaku penerusan adalah admin kabupaten — ia mengabari dirinya sendiri. Terukur pada uji merah: dua baris notifikasi identik, tiket sama, pengguna sama, berselang 59 milidetik. Admin Kabupaten LAIN tetap dikabari dengan kalimat yang benar dan pelakunya dikecualikan, atas persetujuan tersurat pengguna. **Satu uji lama yang BUKAN basi ikut diganti kontraknya**: "TIDAK mengabari kabupaten: ia pelaku penerusannya, jadi sudah tahu" — keputusan sengaja 7 Oktober 2026, yang alasannya benar bagi PELAKUNYA saja dan mengasersikan mekanisme alih-alih keputusan; alasan lamanya dicatat utuh. **Satu kelemahan pembuktian ditulis apa adanya**: uji "pelaku tidak dikabari" lulus HAMPA pada jalan merah sebab kabar itu belum ada sama sekali; yang membuktikannya bekerja mutasi, yang memerahkannya dengan `id: {not: 10}` alih-alih `99`. Pengamatan lama "pelapornya sendiri tidak diberi tahu" ternyata sudah terjawab sejak 7 Oktober 2026 lewat `complaint_forwarded` kepada pelapor. Pagar `notifikasi-siklus.spec.js` di cabang ini masih `test.fail(true, ...)` dan itu benar, sebab `apps/api` di `tester` belum memuat perbaikannya (terukur: `notifyOpdTujuan` nol kemunculan). Rekap dihitung ulang dari kolom Status: 30 temuan, 25 ditutup, 5 terbuka. |
+| 6.7 | 23 Oktober 2026 | **BUG-011 dan BUG-012 DITUTUP (`6b8ee7e`, merge `4a39ac4`), BUG-010 ditutup TANPA perubahan kode, dan temuan terbuka tinggal DUA — BUG-003 dan BUG-007, keduanya Low.** BUG-011: `.trim()` ditambahkan di `admin-kab/opd/page.jsx:28`, satu kata, persis yang diharapkan laporannya. BUG-012: kalimat laporan sinkron kini menyebut lima angka, dan bannernya berubah kuning bila yang dilewati lebih dari nol — kontras `amber-700` di atas `amber-50` DIUKUR 4,84:1, lulus WCAG AA, sejajar emerald yang 5,21:1. Nol pun disebut tersurat atas persetujuan tersurat pengguna, sebab kalimat yang menghilangkan angkanya saat nol tak dapat dibedakan dari yang sekadar tidak melaporkannya. **Cacat berdampingan ikut diperbaiki**: banner itu tak punya `role` apa pun, sehingga sinkronisasi menghasilkan KESUNYIAN bagi pembaca layar; diberi `role="status"` yang sopan, bukan `alert` yang di basis kode ini khusus untuk galat. **BUG-010 ternyata sudah diperbaiki enam minggu sebelumnya** oleh `7bc0b83` — sambil lalu, saat halaman riwayat notifikasi ditulis, bukan sebagai penutupan temuan — dan namanya sudah terkunci empat asersi di dua berkas uji. Statusnya tertinggal `Baru` karena tak ada yang memeriksa ulang, jadi rekap dokumen ini menghitungnya terbuka selama itu. Yang benar-benar berubah satu uji: TC-FE-013 berhenti menebak tombol lewat posisi (`querySelectorAll('button')[1]`) dan memakai `getByLabelText('Halaman berikutnya')` — perapian uji, BUKAN bukti perbaikan, sebab ia hijau pada jalan pertama. **Satu kelemahan pembuktian dicatat apa adanya**: kedua uji BUG-012 memerah pada `role` yang belum ada, jadi asersi TEKS-nya tak pernah dijalankan pada jalan merah; yang membuktikannya bekerja mutasi sesudah hijau. **Satu cacat sejenis BUG-010 TIDAK ditutup dan belum dicatat sebagai temuan**: tombol lipat sidebar (`AdminSidebar.jsx:125`, `AdminKabSidebar.jsx:141`) bernama lewat `title`, bukan `aria-label` — sah menurut spesifikasi accname tetapi pilihan terakhir, dan tak pernah muncul di peranti sentuh. Rekap dihitung ulang dari kolom Status: 30 temuan, 28 ditutup, 2 terbuka. |
