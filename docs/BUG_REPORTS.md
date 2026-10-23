@@ -98,7 +98,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | **Ditutup** | C-01    |
 | [BUG-006](#bug-006) | Sesi hantu: tampak sudah login, tombol mati, data tetap terisi | High     | Terkonfirmasi | **Ditutup** | —       |
-| [BUG-007](#bug-007) | Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah  | Low      | Terkonfirmasi | Baru       | C-03    |
+| [BUG-007](#bug-007) | Lampiran tak sah baru ditolak setelah diunggah, bukan dicegah  | Low      | Terkonfirmasi | **Ditutup** | C-03    |
 | [BUG-008](#bug-008) | Beranda publik menawarkan formulir yang tak dapat dipakai pengunjung | Medium   | Terkonfirmasi | **Ditutup** | C-11    |
 | [BUG-009](#bug-009) | Akun terlanjur dibuat ketika penetapan statusnya gagal          | Medium   | Terkonfirmasi | **Ditutup** (basi — fiturnya dibuang) | C-05    |
 | [BUG-010](#bug-010) | Tombol paginasi tak punya nama yang dapat dibacakan             | Low      | Terkonfirmasi | **Ditutup** | C-06    |
@@ -126,7 +126,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-032](#bug-032) | Kalimat penolakan ukuran lampiran menyandingkan dua angka yang terbaca sama | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 | [BUG-033](#bug-033) | Daftar izin jenis lampiran dapat dilewati lewat rantai prototipe | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 
-**Rekap** — 33 temuan: 31 ditutup, **2 terbuka (0 Critical, 0 High, 0 Medium, 2 Low)**
+**Rekap** — 33 temuan: 32 ditutup, **1 terbuka (0 Critical, 0 High, 0 Medium, 1 Low)**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -1330,6 +1330,67 @@ dinilai Low sejak awal. Tetapi "lebih ringan" bukan "tidak ada".
 **Satu cacat yang ditemukan saat mengerjakan ini dicatat terpisah, bukan
 digabung ke sini**, sebab ia soal fungsi yang hilang alih-alih validasi:
 [BUG-031](#bug-031).
+
+#### Ditutup SELURUHNYA 23 Oktober 2026 — `87a8eed`, merge `bede540` di `main`
+
+Separuh yang tersisa dikerjakan pada hari yang sama, beberapa jam sesudah
+catatan di atas ditulis. Baris ini kini benar-benar tertutup: ketiga peran pada
+kolom **Peran** sudah terjaga.
+
+**Aturannya diangkat keluar, bukan disalin.** Berkas baru
+`apps/web/src/utils/lampiran.js` memegang daftar jenis, `BATAS_MB`,
+`MAKS_BERKAS`, `formatMb`, `labelJenis`, `saringBerkas`, dan
+`periksaSatuBerkas`. Sebelumnya aturan itu hidup **di dalam**
+`FileDropzone.jsx`, dan menyalinnya ke dua komponen percakapan akan
+menjadikannya **tiga** salinan batas backend yang tak ada penyinkronnya — cacat
+berikutnya yang menunggu.
+
+`periksaSatuBerkas` pembungkus tipis di atas `saringBerkas`, bukan aturan kedua
+yang mirip: kedua panel percakapan menerima satu berkas, bukan larik, jadi
+batas jumlah tak berlaku di sana sementara sisanya harus menolak hal yang sama
+persis. `BATAS_MB` menjadi sumber tunggal batas ukuran, dan baku prop
+`maxSizeMB` di `FileDropzone` diambil dari sana — tanpa itu klaim "satu sumber"
+tidak benar.
+
+**Bukti bahwa pemindahannya netral terhadap perilaku:** 37 uji `FileDropzone`
+tetap hijau **tanpa satu uji pun disunting**.
+
+**Pada kedua panel:** `accept` dipasang dan disamakan dengan daftar backend,
+`periksaSatuBerkas` dijalankan sebelum berkasnya dipasang, dan penolakannya
+tampil di slot cip lampiran — kuning, ber-`role="status"` yang sopan, seragam
+dengan jalur warga. Nilai input direset sesudah setiap pilihan; tanpa itu
+`onChange` tak terbit untuk nilai yang tidak berubah, sehingga pengguna yang
+memperkecil berkasnya lalu memilih berkas **bernama sama** melihat layar yang
+seolah tak melakukan apa-apa.
+
+**Dua cacat samping di baris yang memang dibuka**, atas persetujuan tersurat
+pengguna. Tombol hapus di kedua cip tak pernah punya nama — isinya hanya ikon
+silang, kelas [BUG-010](#bug-010) — dan kini menyebut berkas mana yang akan
+dibuang. Ukuran berkas masih dicetak `toFixed(2)` bertitik, sementara `formatMb`
+yang lahir bersama [BUG-032](#bug-032) memakai koma; dibiarkan, satu aplikasi
+mencetak ukuran dengan dua gaya.
+
+**Sepuluh pagar baru**, lima per komponen, seluruhnya dibuktikan merah lebih
+dulu.
+
+**Tiga kekeliruan penguji dalam mengerjakan ini dicatat apa adanya**, sebab dua
+di antaranya kelas yang sudah tercatat di `CLAUDE.md` dan yang ketiga uji yang
+hampa:
+
+1. Pola berbaris banyak gagal mencocokkan karena sumbernya memuat **spasi di
+   ujung baris** (`<button `, `type="button" `) yang tak terbawa saat polanya
+   ditulis ke berkas skrip — lewat alat tulis berkas maupun heredoc. Penjaga di
+   skrip memerah dan **nol berkas tersentuh**; jangkarnya lalu dipersempit jadi
+   satu-dua baris yang tak menyentuh ujung baris.
+2. Komentar JSX disisipkan **di dalam** tag `<button>` pembuka, yang tidak sah.
+   Hasilnya `Tests: 0 total` — galat kompilasi, bukan uji merah — dan sebabnya
+   dibaca alih-alih disangka: `Expected '</', got '}'`.
+3. Asersi "berkasnya tidak terpasang" ditulis `queryByText('foto.jpg')`, dan itu
+   **hampa**: kabar penolakan memang menyebut nama berkasnya, jadi asersinya
+   menemukannya di sana alih-alih di cip lampiran. Diganti
+   `queryByRole('button', { name: 'Hapus foto.jpg' })`, dan penggantinya
+   dibuktikan **membedakan** lewat mutasi — `setFile` dipanggil walau ditolak,
+   dan ujinya memerah persis di baris itu.
 
 <a id="bug-008"></a>
 
@@ -5672,3 +5733,4 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 | 6.7 | 23 Oktober 2026 | **BUG-011 dan BUG-012 DITUTUP (`6b8ee7e`, merge `4a39ac4`), BUG-010 ditutup TANPA perubahan kode, dan temuan terbuka tinggal DUA — BUG-003 dan BUG-007, keduanya Low.** BUG-011: `.trim()` ditambahkan di `admin-kab/opd/page.jsx:28`, satu kata, persis yang diharapkan laporannya. BUG-012: kalimat laporan sinkron kini menyebut lima angka, dan bannernya berubah kuning bila yang dilewati lebih dari nol — kontras `amber-700` di atas `amber-50` DIUKUR 4,84:1, lulus WCAG AA, sejajar emerald yang 5,21:1. Nol pun disebut tersurat atas persetujuan tersurat pengguna, sebab kalimat yang menghilangkan angkanya saat nol tak dapat dibedakan dari yang sekadar tidak melaporkannya. **Cacat berdampingan ikut diperbaiki**: banner itu tak punya `role` apa pun, sehingga sinkronisasi menghasilkan KESUNYIAN bagi pembaca layar; diberi `role="status"` yang sopan, bukan `alert` yang di basis kode ini khusus untuk galat. **BUG-010 ternyata sudah diperbaiki enam minggu sebelumnya** oleh `7bc0b83` — sambil lalu, saat halaman riwayat notifikasi ditulis, bukan sebagai penutupan temuan — dan namanya sudah terkunci empat asersi di dua berkas uji. Statusnya tertinggal `Baru` karena tak ada yang memeriksa ulang, jadi rekap dokumen ini menghitungnya terbuka selama itu. Yang benar-benar berubah satu uji: TC-FE-013 berhenti menebak tombol lewat posisi (`querySelectorAll('button')[1]`) dan memakai `getByLabelText('Halaman berikutnya')` — perapian uji, BUKAN bukti perbaikan, sebab ia hijau pada jalan pertama. **Satu kelemahan pembuktian dicatat apa adanya**: kedua uji BUG-012 memerah pada `role` yang belum ada, jadi asersi TEKS-nya tak pernah dijalankan pada jalan merah; yang membuktikannya bekerja mutasi sesudah hijau. **Satu cacat sejenis BUG-010 TIDAK ditutup dan belum dicatat sebagai temuan**: tombol lipat sidebar (`AdminSidebar.jsx:125`, `AdminKabSidebar.jsx:141`) bernama lewat `title`, bukan `aria-label` — sah menurut spesifikasi accname tetapi pilihan terakhir, dan tak pernah muncul di peranti sentuh. Rekap dihitung ulang dari kolom Status: 30 temuan, 28 ditutup, 2 terbuka. |
 | 6.8 | 23 Oktober 2026 | **BUG-031 lahir dan ditutup pada hari yang sama (`28574df`, merge `33b70d4`), sementara BUG-007 SENGAJA tetap terbuka walau separuhnya diperbaiki.** BUG-031: zona lampiran pada formulir pengaduan warga sebuah `div` ber-`onClick` tanpa `tabIndex`, `role`, maupun `onKeyDown`, dengan inputnya `display: none` — jadi warga pemakai keyboard TIDAK DAPAT melampirkan bukti sama sekali. Dinilai Medium (nomor dan derajatnya usulan penguji) sebab komponennya dirender di `/complaints/new` DAN beranda publik. Yang membuatnya pantas jadi temuan sendiri: cacat ini **sudah pernah diperbaiki 21 September 2026** di `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx`, berikut kalimatnya yang masih terbaca di sana — "itu fungsi yang hilang, bukan sekadar nama yang kurang" — dan dropzone warga terlewat sebulan. Diperbaiki menjadi `<button>` sungguhan, bukan `div` ber-`role="button"` + `tabIndex`, berikut dua konsekuensinya: isinya `<span>` sebab `<button>` hanya boleh memuat phrasing content, dan inputnya dipindah keluar sebab elemen interaktif bersarang dalam `<button>` bukan HTML yang sah. Tombol hapus diberi nama yang menyebut berkasnya. **BUG-007 hanya separuh**: jalur warga beres (jenis, ukuran, dan batas 5 berkas diperiksa di satu fungsi yang dipanggil KEDUA jalur — pemilih berkas dan seret-lepas, sesuai butir 3 pengukuran 21 Oktober; yang sah tetap diterima; penolakannya ber-`role="status"`; WEBP disebut; "File berhasil diunggah" menjadi "Siap dikirim"; prop `accept` dibuang sebab ia jebakan), tetapi `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx` MASIH `setFile(e.target.files[0])` tanpa pemeriksaan dan masih tanpa `accept`. Kolom Peran baris itu menyebut tiga peran dan dua di antaranya belum tersentuh, jadi menandainya Ditutup akan tidak benar. **Satu uji lama diganti kontraknya**: "membuang hanya berkas yang ditekan silangnya" memakai `getAllByRole('button')[1]` dan indeksnya bergeser begitu zonanya menjadi tombol — ia menebak lewat POSISI, persis yang diramalkan laporan BUG-010, dan diperbaiki dengan cara yang sama. Sembilan uji baru, seluruhnya merah lebih dulu dengan alasan yang benar. Suite web 217 suite / 1803 uji, dari 1794 — nol uji lama patah. Rekap dihitung ulang dari kolom Status: 31 temuan, 29 ditutup, 2 terbuka (BUG-003 dan BUG-007, keduanya Low). |
 | 6.9 | 23 Oktober 2026 | **BUG-032 dan BUG-033 lahir dan ditutup pada hari yang sama (`ec1bf88`, merge `e45878a`), keduanya dari perburuan bug atas perubahan yang baru berumur beberapa jam.** Sasaran perburuannya `FileDropzone.jsx` yang ditulis hari itu untuk BUG-007 dan BUG-031, dan laporannya ada di `qa-bug-hunt/` yang TERABAIKAN git — berkasnya hidup hanya di mesin tempat perburuan dijalankan, jadi isinya diringkas ke sini. **BUG-032**: ukuran diformat `toFixed(2)` yang membulatkan ke TERDEKAT, sehingga berkas 5 MiB + 5.000 byte menghasilkan kalimat "ukurannya 5.00 MB, melebihi batas 5MB" — penolakannya benar, kalimatnya tidak. Low tetapi berjangkauan luas: batasnya 5 MiB sementara foto ponsel lazimnya 4–6 MB, jadi inilah golongan yang paling sering ditolak. Diperbaiki dengan satu pemformat untuk kedua tempat dan pembulatan ke ATAS pada kalimat penolakan saja, sebab kalimat itu membuat perbandingan sementara daftar berkas sekadar melaporkan. **BUG-033**: `JENIS_DITERIMA[file.type]` pencarian pada objek literal, jadi ia ikut menemukan anggota `Object.prototype` — `constructor` dan `__proto__` LOLOS gerbang jenis yang baru dipasang untuk menolaknya. Batasnya diukur: hanya dua untai itu, sebab konstruktor `File` membakukan `type` ke huruf kecil, dan satu uji KENDALI merekam fakta itu. Tanpa dampak keamanan (backend memeriksa angka ajaib isi berkas) dan tak dapat ditempuh dari pemilih berkas biasa. Diperbaiki dengan `Object.create(null)`, bukan menjaga satu tempat pemanggilan, supaya SETIAP pencarian ikut benar. **Pagar regresinya DIPINDAHKAN** dari `qa-bug-hunt/repros/` ke `KitUiBersama.test.jsx`: folder itu mengabaikan dirinya sendiri, jadi satu-satunya uji yang membuktikan kedua cacat ini pernah ada akan hilang dari repo begitu perbaikannya di-commit. Empat dari lima pagar merah lebih dulu; yang kelima kendali. Reproduksi asli perburuan dijalankan ulang sesudah perbaikan sebagai pemeriksaan silang dan menghijau 6/6. Suite web 217 suite / 1808 uji, dari 1803. `.gitignore` akar ikut tercatat atas permintaan pengguna — baris `qa-bug-hunt/` sudah ada di pohon kerja dan bersifat rangkap, dan akhiran berkasnya yang tanpa baris baru dibetulkan. Rekap dihitung ulang dari kolom Status: 33 temuan, 31 ditutup, 2 terbuka (BUG-003 dan BUG-007). |
+| 7.0 | 23 Oktober 2026 | **BUG-007 DITUTUP SELURUHNYA (`87a8eed`, merge `bede540`), dan temuan terbuka tinggal SATU — BUG-003, Low, kode mati.** Separuh yang tersisa dikerjakan beberapa jam sesudah catatan "sengaja tetap terbuka" ditulis pada hari yang sama. Aturan lampiran DIANGKAT KELUAR menjadi `apps/web/src/utils/lampiran.js`, bukan disalin: sebelumnya ia hidup di dalam `FileDropzone.jsx`, dan menyalinnya ke dua komponen percakapan akan menjadikannya TIGA salinan batas backend yang tak ada penyinkronnya. `periksaSatuBerkas` pembungkus tipis di atas `saringBerkas`, bukan aturan kedua yang mirip, sebab kedua panel menerima satu berkas dan batas jumlah tak berlaku di sana. `BATAS_MB` jadi sumber tunggal, dan baku prop `maxSizeMB` di `FileDropzone` diambil dari sana. **Pemindahannya terbukti netral**: 37 uji `FileDropzone` tetap hijau tanpa satu uji disunting. Pada kedua panel: `accept` dipasang, `periksaSatuBerkas` dijalankan sebelum berkasnya dipasang, penolakannya ber-`role="status"`, dan nilai input direset supaya berkas BERNAMA SAMA dapat dipilih lagi sesudah diperkecil. Dua cacat samping ikut dikerjakan atas persetujuan tersurat pengguna: tombol hapus di kedua cip tak pernah bernama (kelas BUG-010), dan ukuran masih bertitik sementara `formatMb` dari BUG-032 berkoma. Sepuluh pagar baru, seluruhnya merah lebih dulu. **Tiga kekeliruan penguji dicatat apa adanya**: pola berbaris banyak gagal karena SPASI DI UJUNG BARIS yang tak terbawa ke berkas skrip (penjaga memerah, nol berkas tersentuh); komentar JSX disisipkan DI DALAM tag `<button>` sehingga `Tests: 0 total` yang dibaca sebagai galat kompilasi, bukan uji merah; dan satu asersi HAMPA (`queryByText('foto.jpg')` menemukan nama berkas di kabar penolakan, bukan di cip lampiran) yang penggantinya dibuktikan membedakan lewat mutasi. Suite web 217 suite / 1818 uji, dari 1808. Rekap dihitung ulang dari kolom Status: 33 temuan, 32 ditutup, 1 terbuka. |
