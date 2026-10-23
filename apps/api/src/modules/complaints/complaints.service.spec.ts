@@ -121,6 +121,7 @@ describe('ComplaintsService', () => {
   } as unknown as ConfigService;
   const notificationsService = {
     notifyComplaintCreated: jest.fn(),
+    notifyOpdTujuan: jest.fn(),
     notifyComplaintStatusChanged: jest.fn(),
     notifyComplaintReply: jest.fn(),
     notifyComplaintForwarded: jest.fn(),
@@ -894,12 +895,21 @@ describe('ComplaintsService', () => {
       );
       // Tanpa ini OPD tujuan tak akan pernah tahu ada tiket yang menjadi
       // tanggung jawabnya -- persis keluhan 6 Agustus 2026 soal tiket baru.
-      expect(notificationsService.notifyComplaintCreated).toHaveBeenCalled();
+      //
+      // KONTRAK BERUBAH 23 Oktober 2026 (BUG-018). Baris ini dahulu menuntut
+      // `notifyComplaintCreated`, dan justru itu cacatnya: fungsi tersebut
+      // memegang DUA penerima, sehingga Admin Kabupaten dikabari "Pengaduan Baru
+      // Masuk" untuk kedua kalinya atas tiket yang sama. Yang dituntut sekarang
+      // jalur sempitnya.
+      expect(notificationsService.notifyOpdTujuan).toHaveBeenCalledWith(updatedRow);
+      expect(notificationsService.notifyComplaintCreated).not.toHaveBeenCalled();
       // DAN pelapor diberi tahu bahwa pengaduan "Lainnya"-nya sudah mendarat di
       // instansi berwenang (7 Oktober 2026) -- dengan NAMA OPD-nya, bukan id.
+      // Argumen ketiga pelaku penerusannya, supaya ia tak mengabari dirinya.
       expect(notificationsService.notifyComplaintForwarded).toHaveBeenCalledWith(
         updatedRow,
         'Dinas Kesehatan',
+        2,
       );
     });
 
