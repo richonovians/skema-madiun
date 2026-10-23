@@ -93,7 +93,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | ID                  | Judul                                                          | Severity | Verifikasi    | Status     | Charter |
 | ------------------- | -------------------------------------------------------------- | -------- | ------------- | ---------- | ------- |
 | [BUG-005](#bug-005) | Duplikasi survei membuang opsi jawaban — survei jadi buntu total | **Critical** | Terkonfirmasi | **Ditutup** | —       |
-| [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | Baru       | —       |
+| [BUG-003](#bug-003) | `MapSection.jsx` kode mati berisi iframe Google Maps           | Low      | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-001](#bug-001) | Navbar admin menampilkan identitas mati, bukan akun yang login | High     | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-002](#bug-002) | Lencana notifikasi tidak terbaca pembaca layar                 | Low      | Terkonfirmasi | **Ditutup** | —       |
 | [BUG-004](#bug-004) | Tipe "Pilihan Ganda" tampil seolah tersedia padahal ditolak    | Low      | Terkonfirmasi | **Ditutup** | C-01    |
@@ -126,7 +126,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-032](#bug-032) | Kalimat penolakan ukuran lampiran menyandingkan dua angka yang terbaca sama | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 | [BUG-033](#bug-033) | Daftar izin jenis lampiran dapat dilewati lewat rantai prototipe | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 
-**Rekap** — 33 temuan: 32 ditutup, **1 terbuka (0 Critical, 0 High, 0 Medium, 1 Low)**
+**Rekap** — 33 temuan: **33 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -702,6 +702,41 @@ Isinya sebuah `<iframe>` yang menyematkan `maps.google.com` dengan
 
 Dampak ke pengguna saat ini nol, karena komponen tidak dirender. Dilaporkan
 karena dua alasan yang baru menggigit nanti:
+
+**Ditutup 23 Oktober 2026** — `2daf59b`, merge `060a3b9` di `main`.
+**Temuan tertua yang masih terbuka, dan dengan ini daftar ini NOL TERBUKA untuk
+pertama kalinya sejak dibuat 12 Agustus 2026.**
+
+Berkasnya dihapus, bukan dipertahankan dengan catatan — dan alternatif kedua
+yang laporan ini sendiri tawarkan diperiksa lebih dahulu, bukan dilewati.
+"Hasil yang diharapkan" di atas berbunyi *"atau kalau memang direncanakan
+dipakai, ada catatan yang menerangkannya"*. Tak ada catatan semacam itu, dan
+tak ada rencananya: pencarian "peta", "maps", "lokasi kantor", dan "google map"
+di `README.md` maupun PRD menghasilkan **nol sebutan**. Jadi menghapus adalah
+jalan yang benar di sini, bukan sekadar yang lebih singkat.
+
+**Diperiksa ulang sebelum menghapus**, bukan dipercayai dari laporan ini:
+pencarian atas seluruh repo menemukan **satu** kemunculan `MapSection`, yaitu
+barisan definisinya sendiri. Keempat saudaranya di `components/sections/`
+semuanya hidup — `HeroSection` di 5 berkas, `KartuStatistikHero` 4, `HelpBox`
+dan `ServiceSelector` masing-masing 1 — jadi yang mati komponen ini saja, bukan
+foldernya. Riwayatnya satu commit, `7bd05d1`, integrasi frontend Next.js ke
+monorepo: ia datang bersama impor frontend awal dan tak pernah sekali pun
+dipasang.
+
+**Ada alasan kedua di luar soal kode mati**, dan itu sebabnya ini bukan
+kerapian semata: berkas itu **satu-satunya `<iframe>` di seluruh
+`apps/web/src`**. Membuangnya menghapus satu-satunya sematan pihak ketiga di
+frontend — `maps.google.com`, yang memasang cookie dan menerima rujukan lewat
+`referrerPolicy="no-referrer-when-downgrade"`. Pada sistem layanan publik yang
+isi pengaduan dan lampirannya dienkripsi at-rest, sematan yang tak pernah
+diminta siapa pun adalah permukaan yang tak ada gunanya dipertahankan.
+
+Dapat dipulihkan dari `7bd05d1` bila peta sungguh dibutuhkan kelak; itulah
+sebabnya tak ada yang disalin ke tempat lain sebelum menghapus.
+
+Suite web tetap 217 suite / 1818 uji sesudah penghapusan — angka yang sama
+dengan sebelumnya, jadi tak ada satu pun berkas uji yang mengimpornya.
 
 - Kalau suatu saat dipasang tanpa ditinjau ulang, penyematan pihak ketiga itu
   langsung aktif di situs publik pemerintah.
@@ -5734,3 +5769,4 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 | 6.8 | 23 Oktober 2026 | **BUG-031 lahir dan ditutup pada hari yang sama (`28574df`, merge `33b70d4`), sementara BUG-007 SENGAJA tetap terbuka walau separuhnya diperbaiki.** BUG-031: zona lampiran pada formulir pengaduan warga sebuah `div` ber-`onClick` tanpa `tabIndex`, `role`, maupun `onKeyDown`, dengan inputnya `display: none` — jadi warga pemakai keyboard TIDAK DAPAT melampirkan bukti sama sekali. Dinilai Medium (nomor dan derajatnya usulan penguji) sebab komponennya dirender di `/complaints/new` DAN beranda publik. Yang membuatnya pantas jadi temuan sendiri: cacat ini **sudah pernah diperbaiki 21 September 2026** di `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx`, berikut kalimatnya yang masih terbaca di sana — "itu fungsi yang hilang, bukan sekadar nama yang kurang" — dan dropzone warga terlewat sebulan. Diperbaiki menjadi `<button>` sungguhan, bukan `div` ber-`role="button"` + `tabIndex`, berikut dua konsekuensinya: isinya `<span>` sebab `<button>` hanya boleh memuat phrasing content, dan inputnya dipindah keluar sebab elemen interaktif bersarang dalam `<button>` bukan HTML yang sah. Tombol hapus diberi nama yang menyebut berkasnya. **BUG-007 hanya separuh**: jalur warga beres (jenis, ukuran, dan batas 5 berkas diperiksa di satu fungsi yang dipanggil KEDUA jalur — pemilih berkas dan seret-lepas, sesuai butir 3 pengukuran 21 Oktober; yang sah tetap diterima; penolakannya ber-`role="status"`; WEBP disebut; "File berhasil diunggah" menjadi "Siap dikirim"; prop `accept` dibuang sebab ia jebakan), tetapi `AdminResolutionWorkspace.jsx` dan `ChatReplyForm.jsx` MASIH `setFile(e.target.files[0])` tanpa pemeriksaan dan masih tanpa `accept`. Kolom Peran baris itu menyebut tiga peran dan dua di antaranya belum tersentuh, jadi menandainya Ditutup akan tidak benar. **Satu uji lama diganti kontraknya**: "membuang hanya berkas yang ditekan silangnya" memakai `getAllByRole('button')[1]` dan indeksnya bergeser begitu zonanya menjadi tombol — ia menebak lewat POSISI, persis yang diramalkan laporan BUG-010, dan diperbaiki dengan cara yang sama. Sembilan uji baru, seluruhnya merah lebih dulu dengan alasan yang benar. Suite web 217 suite / 1803 uji, dari 1794 — nol uji lama patah. Rekap dihitung ulang dari kolom Status: 31 temuan, 29 ditutup, 2 terbuka (BUG-003 dan BUG-007, keduanya Low). |
 | 6.9 | 23 Oktober 2026 | **BUG-032 dan BUG-033 lahir dan ditutup pada hari yang sama (`ec1bf88`, merge `e45878a`), keduanya dari perburuan bug atas perubahan yang baru berumur beberapa jam.** Sasaran perburuannya `FileDropzone.jsx` yang ditulis hari itu untuk BUG-007 dan BUG-031, dan laporannya ada di `qa-bug-hunt/` yang TERABAIKAN git — berkasnya hidup hanya di mesin tempat perburuan dijalankan, jadi isinya diringkas ke sini. **BUG-032**: ukuran diformat `toFixed(2)` yang membulatkan ke TERDEKAT, sehingga berkas 5 MiB + 5.000 byte menghasilkan kalimat "ukurannya 5.00 MB, melebihi batas 5MB" — penolakannya benar, kalimatnya tidak. Low tetapi berjangkauan luas: batasnya 5 MiB sementara foto ponsel lazimnya 4–6 MB, jadi inilah golongan yang paling sering ditolak. Diperbaiki dengan satu pemformat untuk kedua tempat dan pembulatan ke ATAS pada kalimat penolakan saja, sebab kalimat itu membuat perbandingan sementara daftar berkas sekadar melaporkan. **BUG-033**: `JENIS_DITERIMA[file.type]` pencarian pada objek literal, jadi ia ikut menemukan anggota `Object.prototype` — `constructor` dan `__proto__` LOLOS gerbang jenis yang baru dipasang untuk menolaknya. Batasnya diukur: hanya dua untai itu, sebab konstruktor `File` membakukan `type` ke huruf kecil, dan satu uji KENDALI merekam fakta itu. Tanpa dampak keamanan (backend memeriksa angka ajaib isi berkas) dan tak dapat ditempuh dari pemilih berkas biasa. Diperbaiki dengan `Object.create(null)`, bukan menjaga satu tempat pemanggilan, supaya SETIAP pencarian ikut benar. **Pagar regresinya DIPINDAHKAN** dari `qa-bug-hunt/repros/` ke `KitUiBersama.test.jsx`: folder itu mengabaikan dirinya sendiri, jadi satu-satunya uji yang membuktikan kedua cacat ini pernah ada akan hilang dari repo begitu perbaikannya di-commit. Empat dari lima pagar merah lebih dulu; yang kelima kendali. Reproduksi asli perburuan dijalankan ulang sesudah perbaikan sebagai pemeriksaan silang dan menghijau 6/6. Suite web 217 suite / 1808 uji, dari 1803. `.gitignore` akar ikut tercatat atas permintaan pengguna — baris `qa-bug-hunt/` sudah ada di pohon kerja dan bersifat rangkap, dan akhiran berkasnya yang tanpa baris baru dibetulkan. Rekap dihitung ulang dari kolom Status: 33 temuan, 31 ditutup, 2 terbuka (BUG-003 dan BUG-007). |
 | 7.0 | 23 Oktober 2026 | **BUG-007 DITUTUP SELURUHNYA (`87a8eed`, merge `bede540`), dan temuan terbuka tinggal SATU — BUG-003, Low, kode mati.** Separuh yang tersisa dikerjakan beberapa jam sesudah catatan "sengaja tetap terbuka" ditulis pada hari yang sama. Aturan lampiran DIANGKAT KELUAR menjadi `apps/web/src/utils/lampiran.js`, bukan disalin: sebelumnya ia hidup di dalam `FileDropzone.jsx`, dan menyalinnya ke dua komponen percakapan akan menjadikannya TIGA salinan batas backend yang tak ada penyinkronnya. `periksaSatuBerkas` pembungkus tipis di atas `saringBerkas`, bukan aturan kedua yang mirip, sebab kedua panel menerima satu berkas dan batas jumlah tak berlaku di sana. `BATAS_MB` jadi sumber tunggal, dan baku prop `maxSizeMB` di `FileDropzone` diambil dari sana. **Pemindahannya terbukti netral**: 37 uji `FileDropzone` tetap hijau tanpa satu uji disunting. Pada kedua panel: `accept` dipasang, `periksaSatuBerkas` dijalankan sebelum berkasnya dipasang, penolakannya ber-`role="status"`, dan nilai input direset supaya berkas BERNAMA SAMA dapat dipilih lagi sesudah diperkecil. Dua cacat samping ikut dikerjakan atas persetujuan tersurat pengguna: tombol hapus di kedua cip tak pernah bernama (kelas BUG-010), dan ukuran masih bertitik sementara `formatMb` dari BUG-032 berkoma. Sepuluh pagar baru, seluruhnya merah lebih dulu. **Tiga kekeliruan penguji dicatat apa adanya**: pola berbaris banyak gagal karena SPASI DI UJUNG BARIS yang tak terbawa ke berkas skrip (penjaga memerah, nol berkas tersentuh); komentar JSX disisipkan DI DALAM tag `<button>` sehingga `Tests: 0 total` yang dibaca sebagai galat kompilasi, bukan uji merah; dan satu asersi HAMPA (`queryByText('foto.jpg')` menemukan nama berkas di kabar penolakan, bukan di cip lampiran) yang penggantinya dibuktikan membedakan lewat mutasi. Suite web 217 suite / 1818 uji, dari 1808. Rekap dihitung ulang dari kolom Status: 33 temuan, 32 ditutup, 1 terbuka. |
+| 7.1 | 23 Oktober 2026 | **BUG-003 DITUTUP (`2daf59b`, merge `060a3b9`), dan daftar ini NOL TERBUKA untuk pertama kalinya sejak dibuat 12 Agustus 2026 — 33 temuan, 33 ditutup.** BUG-003 temuan tertua yang masih terbuka, dicatat pada hari dokumen ini lahir, sebelum sesi eksploratori pertama dimulai. `MapSection.jsx` dihapus, bukan dipertahankan dengan catatan, DAN alternatif kedua yang laporan itu sendiri tawarkan diperiksa lebih dahulu: tak ada catatan rencana, dan pencarian "peta", "maps", "lokasi kantor", serta "google map" di README maupun PRD menghasilkan NOL sebutan. Diperiksa ulang sebelum menghapus, bukan dipercayai dari laporannya — satu kemunculan di seluruh repo, yaitu definisinya sendiri — dan keempat saudaranya di `components/sections/` semuanya hidup, jadi yang mati komponennya saja. Riwayatnya satu commit, `7bd05d1`, integrasi frontend awal: ia datang bersama impor itu dan tak pernah dipasang. **Ada alasan kedua di luar kode mati**: berkas itu satu-satunya `<iframe>` di seluruh `apps/web/src`, jadi membuangnya menghapus satu-satunya sematan pihak ketiga di frontend — `maps.google.com`, yang memasang cookie dan menerima rujukan lewat `referrerPolicy="no-referrer-when-downgrade"`. Dapat dipulihkan dari `7bd05d1`. Suite web tetap 217 suite / 1818 uji sesudah penghapusan, angka yang sama dengan sebelumnya, jadi tak ada berkas uji yang mengimpornya. Rekap dihitung ulang dari kolom Status: 33 baris, 33 Ditutup, nol Baru. |
