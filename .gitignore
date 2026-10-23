@@ -56,3 +56,5 @@ docs/keamanan/
 # seluruh basis data yang menunggu satu kunci bocor. Cadangan disimpan DI LUAR
 # repositori, beserta kedua kuncinya.
 cadangan/
+
+qa-bug-hunt/

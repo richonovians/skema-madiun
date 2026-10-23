@@ -432,6 +432,102 @@ describe('FileDropzone (TC-FE-046)', () => {
     expect(screen.queryByText(/berhasil diunggah/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Siap dikirim/i)).toBeInTheDocument();
   });
+
+  /**
+   * QA-01, dari perburuan bug 23 Oktober 2026 atas perubahan hari itu sendiri.
+   *
+   * `saringBerkas` memutuskan dengan `JENIS_DITERIMA[file.type]`, sebuah
+   * pencarian pada objek literal -- dan pencarian itu ikut menemukan anggota
+   * `Object.prototype`. `JENIS_DITERIMA['constructor']` bernilai fungsi
+   * `Object`, `JENIS_DITERIMA['__proto__']` bernilai `Object.prototype`;
+   * keduanya truthy, jadi berkasnya lolos gerbang jenis.
+   *
+   * Pagarnya dipasang DI SINI, bukan dibiarkan di `qa-bug-hunt/repros/`, sebab
+   * folder itu mengabaikan dirinya sendiri lewat `.gitignore` berisi `*` --
+   * satu-satunya uji yang membuktikan cacat ini pernah ada akan hilang dari
+   * repo begitu perbaikannya di-commit.
+   *
+   * Tanpa dampak keamanan: backend memeriksa angka ajaib ISI berkas, bukan
+   * `Content-Type` dari peramban, jadi apa pun yang lolos di sini tetap
+   * tertolak di sana.
+   */
+  it.each(['constructor', '__proto__'])(
+    'QA-01: menolak berkas ber-type %p, yang bukan satu pun jenis yang diizinkan',
+    (type) => {
+      const onFilesChange = jest.fn();
+      const { container } = render(<FileDropzone files={[]} onFilesChange={onFilesChange} />);
+
+      fireEvent.change(container.querySelector('input[type="file"]'), {
+        target: { files: [new File(['isi'], 'jahat.png', { type })] },
+      });
+
+      expect(onFilesChange).not.toHaveBeenCalled();
+    },
+  );
+
+  /**
+   * KENDALI, dan ia merekam MENGAPA cacat di atas hanya menyangkut dua untai.
+   * Konstruktor `File` membakukan `type` ke huruf kecil, jadi `'toString'`
+   * tersimpan sebagai `'tostring'` -- bukan anggota `Object.prototype`, karena
+   * itu tertolak dengan benar bahkan sebelum perbaikannya ada. Terukur:
+   * `new File(['x'], 'a.png', { type: 'toString' }).type === 'tostring'`.
+   */
+  it('QA-01 kendali: anggota prototipe berhuruf campuran memang sudah tertolak', () => {
+    const onFilesChange = jest.fn();
+    const { container } = render(<FileDropzone files={[]} onFilesChange={onFilesChange} />);
+
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: { files: [new File(['isi'], 'jahat.png', { type: 'toString' })] },
+    });
+
+    expect(onFilesChange).not.toHaveBeenCalled();
+  });
+
+  /**
+   * QA-02, dari perburuan yang sama.
+   *
+   * Alasan penolakan dibangun dari `(file.size / 1024 / 1024).toFixed(2)` lalu
+   * disandingkan dengan label batas `${maxSizeMB}MB`. `toFixed` membulatkan ke
+   * yang TERDEKAT, jadi berkas yang hanya sedikit melewati batas tercetak
+   * "5.00 MB" -- dan kalimatnya menyatakan bahwa 5.00 MB melebihi batas 5MB.
+   *
+   * Penolakannya sendiri benar; yang cacat kalimatnya. Jangkauannya luas:
+   * batasnya 5 MiB sementara foto ponsel lazimnya 4-6 MB, jadi inilah golongan
+   * berkas yang paling sering ditolak.
+   */
+  it('QA-02: alasan penolakan ukuran tak pernah menyandingkan dua angka yang sama', async () => {
+    const { container } = render(
+      <FileDropzone files={[]} onFilesChange={jest.fn()} maxSizeMB={5} />,
+    );
+
+    // 5 MiB + 5.000 byte = 5,00476 MiB. Dibulatkan ke terdekat ia "5.00";
+    // dibulatkan ke ATAS ia "5,01" dan klaimnya menjadi benar.
+    fireEvent.change(container.querySelector('input[type="file"]'), {
+      target: {
+        files: [
+          new File([new ArrayBuffer(5 * 1024 * 1024 + 5000)], 'foto.jpg', { type: 'image/jpeg' }),
+        ],
+      },
+    });
+
+    const kabar = await screen.findByRole('status');
+    expect(kabar).toHaveTextContent('foto.jpg: ukurannya 5,01 MB, melebihi batas 5,00 MB');
+  });
+
+  /**
+   * Akibat kerapian dari QA-02, bukan temuan tersendiri: begitu kalimat
+   * penolakan memakai koma sebagai pemisah desimal -- kaidah bahasa Indonesia,
+   * dan bahasa repo ini -- daftar berkas terpilih di komponen yang SAMA tak
+   * boleh tetap memakai titik.
+   */
+  it('menulis ukuran berkas dengan koma, bukan titik', () => {
+    const satuSetengahMib = new File([new ArrayBuffer(1024 * 1024 + 512 * 1024)], 'bukti.png', {
+      type: 'image/png',
+    });
+    render(<FileDropzone files={[satuSetengahMib]} onFilesChange={jest.fn()} />);
+
+    expect(screen.getByText(/bukti\.png \(1,50 MB\)/)).toBeInTheDocument();
+  });
 });
 
 describe('ImageViewer (TC-FE-046)', () => {
