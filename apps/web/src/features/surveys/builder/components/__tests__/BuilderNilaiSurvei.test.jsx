@@ -4,6 +4,18 @@ import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, surveyFixture } from '@/mocks/handlers';
 import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/page';
+import { METODE_NILAI, TUJUAN_SURVEI } from '@/features/surveys/constants/nilaiSurvei';
+
+/**
+ * "Tujuan survei" dan "Metode nilai" memakai `Dropdown` sejak 26 Oktober 2026,
+ * bukan `<select>` bawaan: memilih berarti membuka panel lalu mengklik
+ * pilihannya menurut LABEL, dan yang tampak di tombolnya label, bukan enum.
+ */
+const labelNilai = (nilai) => [...TUJUAN_SURVEI, ...METODE_NILAI].find((p) => p.nilai === nilai).label;
+const pilihNilai = (kontrol, nilai) => {
+  fireEvent.click(kontrol);
+  fireEvent.click(screen.getByRole('button', { name: labelNilai(nilai) }));
+};
 
 /**
  * PANEL NILAI SURVEI DI BUILDER (8 Oktober 2026). Survei custom punya tujuan dan
@@ -66,46 +78,51 @@ describe('Builder — panel Nilai Survei', () => {
     surveiCustom({ tujuan: 'evaluasi', metodeNilai: 'indeks_persen' });
     await renderBuilder();
 
-    await waitFor(() => expect(tujuan()).toHaveValue('evaluasi'));
-    expect(metode()).toHaveValue('indeks_persen');
+    await waitFor(() => expect(tujuan()).toHaveTextContent(labelNilai('evaluasi')));
+    expect(metode()).toHaveTextContent(labelNilai('indeks_persen'));
   });
 
   it('mengganti metode mengirim tujuan dan metodeNilai ke backend', async () => {
     surveiCustom();
     await renderBuilder();
-    await waitFor(() => expect(metode()).toHaveValue('rata_rata'));
+    await waitFor(() => expect(metode()).toHaveTextContent(labelNilai('rata_rata')));
 
-    fireEvent.change(metode(), { target: { value: 'indeks_persen' } });
+    pilihNilai(metode(), 'indeks_persen');
 
     await waitFor(() => expect(patchSurvei).toHaveLength(1));
     expect(patchSurvei[0]).toMatchObject({ tujuan: 'kepuasan', metodeNilai: 'indeks_persen' });
-    expect(metode()).toHaveValue('indeks_persen');
+    expect(metode()).toHaveTextContent(labelNilai('indeks_persen'));
   });
 
   it('mengganti tujuan mengirim tujuan baru dan mempertahankan metode', async () => {
     surveiCustom({ metodeNilai: 'indeks_persen' });
     await renderBuilder();
-    await waitFor(() => expect(tujuan()).toHaveValue('kepuasan'));
+    await waitFor(() => expect(tujuan()).toHaveTextContent(labelNilai('kepuasan')));
 
-    fireEvent.change(tujuan(), { target: { value: 'penilaian' } });
+    pilihNilai(tujuan(), 'penilaian');
 
     await waitFor(() => expect(patchSurvei).toHaveLength(1));
     expect(patchSurvei[0]).toMatchObject({ tujuan: 'penilaian', metodeNilai: 'indeks_persen' });
   });
 
-  it('nilai kosong (placeholder) diabaikan: tak ada PATCH dan pilihan tetap utuh', async () => {
+  // Dulu `<select>` dengan opsi placeholder bernilai ''; ujinya mengirim '' dan
+  // menuntut tak ada PATCH. Sejak dropdown (26 Oktober 2026) placeholder bukan
+  // pilihan sama sekali, jadi yang dijaga: panel tak menawarkannya.
+  it('placeholder tidak ditawarkan sebagai pilihan: tak ada PATCH dan pilihan tetap utuh', async () => {
     surveiCustom();
     await renderBuilder();
-    await waitFor(() => expect(tujuan()).toHaveValue('kepuasan'));
+    await waitFor(() => expect(tujuan()).toHaveTextContent(labelNilai('kepuasan')));
 
-    fireEvent.change(tujuan(), { target: { value: '' } });
+    fireEvent.click(tujuan());
+    expect(screen.queryByRole('button', { name: 'Pilih tujuan' })).not.toBeInTheDocument();
+    fireEvent.click(tujuan());
 
     // Memberi waktu seandainya ada PATCH yang keliru terkirim.
     await act(async () => {
       await new Promise((r) => setTimeout(r, 50));
     });
     expect(patchSurvei).toHaveLength(0);
-    expect(tujuan()).toHaveValue('kepuasan');
+    expect(tujuan()).toHaveTextContent(labelNilai('kepuasan'));
   });
 
   it('galat dari backend mengembalikan pilihan semula dan menampilkan pesannya', async () => {
@@ -121,12 +138,12 @@ describe('Builder — panel Nilai Survei', () => {
       ),
     );
     await renderBuilder();
-    await waitFor(() => expect(metode()).toHaveValue('rata_rata'));
+    await waitFor(() => expect(metode()).toHaveTextContent(labelNilai('rata_rata')));
 
-    fireEvent.change(metode(), { target: { value: 'indeks_persen' } });
+    pilihNilai(metode(), 'indeks_persen');
 
     expect(await screen.findByText(/survei sudah ditutup/i)).toBeInTheDocument();
-    expect(metode()).toHaveValue('rata_rata');
+    expect(metode()).toHaveTextContent(labelNilai('rata_rata'));
   });
 
   it('tetap dapat diubah pada survei terbit yang sudah dijawab (hanya tampilan yang berubah)', async () => {
@@ -175,7 +192,7 @@ describe('Builder — panel Nilai Survei', () => {
     surveiCustom({ tujuan: 'evaluasi', metodeNilai: 'indeks_persen' });
     await renderBuilder();
     const judul = await screen.findByRole('textbox', { name: /judul survei/i });
-    await waitFor(() => expect(tujuan()).toHaveValue('evaluasi'));
+    await waitFor(() => expect(tujuan()).toHaveTextContent(labelNilai('evaluasi')));
 
     await act(async () => {
       fireEvent.change(judul, { target: { value: 'Judul Baru' } });

@@ -15,6 +15,36 @@ const MARGIN = 8;
 const RUANG_LAYAK = 120;
 
 /**
+ * Batas vertikal yang BENAR-BENAR terlihat: layar, dipersempit oleh setiap
+ * leluhur yang memotong isinya (`overflow-y` selain `visible`).
+ *
+ * Ditambahkan 26 Oktober 2026 sesudah diukur di Chrome. Dropdown "Metode
+ * nilai" di modal "Buat Paket Survei" membuka panel di y 658-748 -- masih di
+ * dalam layar 768px, jadi kait ini tak melihat masalah apa pun -- padahal badan
+ * modal yang `overflow-y-auto` berakhir di y 645. Panelnya terbuka tetapi
+ * terpotong habis di belakang footer. Yang tak boleh dilewati panel adalah tepi
+ * wadah itu, bukan tepi layar.
+ *
+ * Semua leluhur dihitung, bukan hanya yang terdekat: modal itu sendiri juga
+ * `overflow-hidden` (untuk sudut membulatnya), dan wadah bertumpuk memotong
+ * menurut irisannya.
+ */
+function batasVertikal(el, tinggiLayar) {
+  let atas = 0;
+  let bawah = tinggiLayar;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    // '' juga berarti tak memotong: jsdom melaporkannya untuk simpul tanpa gaya,
+    // tempat peramban melaporkan 'visible'.
+    const oy = getComputedStyle(p).overflowY;
+    if (!oy || oy === 'visible') continue;
+    const r = p.getBoundingClientRect();
+    atas = Math.max(atas, r.top);
+    bawah = Math.min(bawah, r.bottom);
+  }
+  return { atas, bawah };
+}
+
+/**
  * Menggeser panel melayang (dropdown, menu, popover) secara HORIZONTAL supaya
  * tidak pernah keluar tepi layar.
  *
@@ -177,12 +207,13 @@ export default function useKeepInViewport(ref, isOpen) {
     // tertutup panel adalah ruang di bawahnya (footer), bukan isian yang baru
     // saja dilewati pengguna.
     const viewportHeight = document.documentElement.clientHeight;
+    const batas = batasVertikal(el, viewportHeight);
 
     // `offsetParent` adalah pembungkus ber-`relative` yang memuat pemicunya --
     // itulah acuan yang benar untuk menakar ruang di ATAS panel, sebab panel
     // sendiri sudah berada di bawah pemicu saat diukur.
-    const ruangBawah = viewportHeight - MARGIN - alamiAtas;
-    const ruangAtas = (induk ? kotakInduk.top : alamiAtas) - MARGIN;
+    const ruangBawah = batas.bawah - MARGIN - alamiAtas;
+    const ruangAtas = (induk ? kotakInduk.top : alamiAtas) - batas.atas - MARGIN;
 
     const muatDiBawah = tinggiPanel <= ruangBawah;
 

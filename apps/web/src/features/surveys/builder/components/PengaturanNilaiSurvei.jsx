@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import Dropdown from '@/components/ui/Dropdown';
 import {
   METODE_NILAI,
   TUJUAN_SURVEI,
@@ -12,8 +13,11 @@ import {
  *
  * Dua bentuk dengan isi yang sama:
  *  - penuh   : dua radiogroup berkartu (builder survei baru, ruang lega);
- *  - ringkas : dua <select> berlabel (modal Buat Survei Admin Kabupaten, yang
- *              tingginya tetap dan nyaris penuh -- kartu radio akan meluap).
+ *  - ringkas : dua `Dropdown` berlabel (panel builder, modal Buat Survei Admin
+ *              Kabupaten, modal ganti jenis -- ruangnya sempit, kartu radio akan
+ *              meluap). Sampai 26 Oktober 2026 keduanya `<select>` bawaan
+ *              peramban, satu-satunya di antara dropdown aplikasi ini; diganti
+ *              atas permintaan pengguna supaya tampilannya sama.
  *
  * Nilai yang dikirim adalah enum backend apa adanya (`kepuasan`, `rata_rata`,
  * ...). "Contoh hasil" di bawahnya teks statis penjelas, bukan hasil hitung.
@@ -73,31 +77,19 @@ function KelompokRadio({ judul, pilihan, nilai, onPilih, disabled }) {
 }
 
 function PilihanRingkas({ id, judul, placeholder, pilihan, nilai, onPilih, disabled }) {
+  // `placeholder` tampil selagi kosong tetapi BUKAN pilihan di panel, jadi tak
+  // dapat dipilih ulang: placeholder yang dapat dipilih dulu mengirim '' ke state,
+  // dan pembuatan survei custom lalu ditolak backend (bukan enum).
   return (
-    <div className="space-y-xs">
-      <label htmlFor={id} className="block text-sm font-bold text-text-primary">
-        {judul}
-      </label>
-      <select
-        id={id}
-        value={nilai ?? ''}
-        disabled={disabled}
-        onChange={(e) => onPilih(e.target.value)}
-        className="w-full min-h-[44px] rounded-lg border border-outline-variant bg-white px-md text-body-md text-text-primary disabled:opacity-60"
-      >
-        {/* disabled: tetap tampil sebagai pilihan awal, tetapi tak dapat dipilih ulang.
-            Placeholder yang bisa dipilih mengirim '' ke state, dan pembuatan survei
-            custom lalu ditolak backend (bukan enum). */}
-        <option value="" disabled>
-          {placeholder}
-        </option>
-        {pilihan.map((p) => (
-          <option key={p.nilai} value={p.nilai}>
-            {p.label}
-          </option>
-        ))}
-      </select>
-    </div>
+    <Dropdown
+      id={id}
+      label={judul}
+      placeholder={placeholder}
+      options={pilihan.map((p) => ({ value: p.nilai, label: p.label }))}
+      value={nilai}
+      onChange={onPilih}
+      disabled={disabled}
+    />
   );
 }
 
