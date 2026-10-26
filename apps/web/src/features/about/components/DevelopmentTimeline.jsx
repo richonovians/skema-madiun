@@ -12,7 +12,7 @@ export default function DevelopmentTimeline() {
             Perjalanan Platform
           </h2>
           <div className="w-24 h-1.5 bg-primary mx-auto rounded-full mb-6"></div>
-          <p className="font-body text-body-lg text-text-secondary max-w-2xl mx-auto">
+          <p className="font-body text-body-lg text-text-secondary max-w-[42rem] mx-auto">
             Tahapan pengembangan sistem sejak awal dirancang hingga digunakan oleh masyarakat secara luas.
           </p>
         </div>

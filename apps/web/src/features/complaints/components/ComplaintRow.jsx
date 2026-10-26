@@ -17,7 +17,12 @@ export default function ComplaintRow({ id, date, department, title, status, isAn
       <Td className="font-medium text-primary font-bold">{id}</Td>
       <Td className="text-on-surface">{date}</Td>
       <Td className="text-on-surface">{department}</Td>
-      <Td className="text-on-surface max-w-xs">
+      {/* `max-w-[24rem]`, BUKAN `max-w-xs` (27 Oktober 2026, BUG-040): di apps/web
+          `max-w-xs` bernilai 4px. Terukur: judul 280px terpotong menjadi 154px
+          bahkan pada layar 1920px yang tabelnya masih lega. 24rem, bukan 20rem
+          yang semula dimaksud: batas sel ikut memuat bantalannya, dan pada
+          20rem judul yang sama masih terpotong 8px. */}
+      <Td className="text-on-surface max-w-[24rem]">
         {/* Badge diletakkan DI BAWAH judul, bukan sebaris: sel ini memangkas
             teks (`truncate`), jadi badge sebaris akan ikut terpotong. */}
         <span className="block truncate" title={title}>{title}</span>
