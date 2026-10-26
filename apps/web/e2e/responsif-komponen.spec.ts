@@ -2,6 +2,7 @@ import {
   test,
   expect,
   ambilContoh,
+  cariButirAksi,
   ukurLuberan,
   ukurGulirTersembunyi,
   ukurTargetSentuh,
@@ -194,10 +195,18 @@ for (const { nama, viewport } of LEBAR) {
      */
     test('modal bagikan survei tetap di dalam layar', async ({ page, bukaSebagai }) => {
       await bukaSebagai('kabupaten', '/admin-kab/surveys');
-      const tombol = page.getByRole('button', { name: /^bagikan$/i }).first();
-      test.skip((await tombol.count()) === 0, 'Tak ada survei yang dapat dibagikan.');
+      // Lewat menu aksi baris sejak 30 September 2026 (`22b2d03`); lihat
+      // `cariButirAksi`. Sebelum 26 Oktober uji ini mencari tombol lepas dan
+      // diam-diam melewati dirinya.
+      const butir = await cariButirAksi(page, /^bagikan$/i);
+      test.skip(!butir, 'Tak ada survei AKTIF: butir Bagikan hanya muncul di sana.');
 
-      await tombol.click();
+      await butir!.click();
+      // Modalnya dipastikan TERBUKA lebih dulu: pengukuran luberan atas halaman
+      // tanpa modal pun lulus, jadi tanpa baris ini uji tetap hijau bila
+      // butirnya berhenti membuka apa-apa. Dicari lewat judulnya karena
+      // ShareSurveyModal belum ber-`role="dialog"`.
+      await expect(page.getByText('Bagikan Survei', { exact: true })).toBeVisible();
       await page.waitForTimeout(700);
 
       await harusMuatDiLayar(page, 'modal bagikan survei');
@@ -211,10 +220,12 @@ for (const { nama, viewport } of LEBAR) {
      */
     test('konfirmasi hapus survei tetap di dalam layar', async ({ page, bukaSebagai }) => {
       await bukaSebagai('kabupaten', '/admin-kab/surveys');
-      const tombol = page.getByRole('button', { name: /^hapus$/i }).first();
-      test.skip((await tombol.count()) === 0, 'Tak ada survei yang dapat dihapus.');
+      const butir = await cariButirAksi(page, /^hapus$/i);
+      test.skip(!butir, 'Tak ada survei yang dapat dihapus.');
 
-      await tombol.click();
+      await butir!.click();
+      // Sama seperti di atas: tanpa modal yang terbuka, pengukurannya hampa.
+      await expect(page.getByRole('dialog')).toBeVisible();
       await page.waitForTimeout(700);
 
       await harusMuatDiLayar(page, 'konfirmasi hapus survei');

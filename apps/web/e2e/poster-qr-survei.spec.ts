@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { test, expect } from './fixtures/responsif';
+import { test, expect, cariButirAksi } from './fixtures/responsif';
 
 /**
  * UNDUHAN QR ADALAH POSTER, BUKAN QR POLOS (22 September 2026, permintaan
@@ -44,13 +44,17 @@ test('unduhan QR pada survei aktif berupa poster, bukan QR polos', async ({
 }) => {
   await bukaSebagai('kabupaten', '/admin-kab/surveys');
 
-  const bagikan = page.getByRole('button', { name: /bagikan/i }).first();
+  // "Bagikan" ada di balik menu aksi baris sejak 30 September 2026 (`22b2d03`).
+  // Sampai 26 Oktober uji ini masih mencari tombol lepas, tak menemukannya, dan
+  // melewati dirinya dengan alasan di bawah -- padahal survei aktif ada. KONTROL
+  // di berkas ini sudah dibetulkan untuk menu itu 7 Oktober; uji ini terlewat.
+  const bagikan = await cariButirAksi(page, /^bagikan$/i);
   test.skip(
-    (await bagikan.count()) === 0,
-    'Tak ada survei AKTIF pada basis data mesin ini -- tombol Bagikan memang hanya muncul di sana.',
+    !bagikan,
+    'Tak ada survei AKTIF pada basis data mesin ini -- butir Bagikan memang hanya muncul di sana.',
   );
 
-  await bagikan.click();
+  await bagikan!.click();
 
   // Tombolnya dirender nonaktif sampai QR selesai dibuat di effect asinkron;
   // menunggu keberadaannya saja akan mengklik tombol mati.
