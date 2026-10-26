@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, Link2 } from 'lucide-react';
 import TabSnippet from './TabSnippet';
 import { salinTeks } from '../lib/salin';
+import { pathTerisi } from '../lib/snippet';
 
 const WARNA_METODE = {
   GET: 'bg-blue-500/10 text-blue-700',
@@ -109,14 +110,18 @@ export default function DetailOperasi({ operasi }) {
   const badanWajib = semuaBadan.filter((p) => wajibBadan.includes(p.nama));
   const badanOpsional = semuaBadan.filter((p) => !wajibBadan.includes(p.nama));
 
-  // Hash dikodekan karena id memuat `/` dan `{}`; `DokumentasiApiScreen`
-  // membacanya kembali dengan `decodeURIComponent`.
-  const [tautanTersalin, setTautanTersalin] = useState(false);
-  const salinTautan = async () => {
-    const asal = typeof window === 'undefined' ? '' : window.location.href.split('#')[0];
-    const berhasil = await salinTeks(`${asal}#${encodeURIComponent(operasi.id)}`);
-    setTautanTersalin(berhasil);
-    setTimeout(() => setTautanTersalin(false), 3000);
+  // Menyalin URL ENDPOINT, bukan alamat halaman ini (26 Oktober 2026,
+  // permintaan pengguna). Dulu yang tersalin `.../dokumentasi-api#<id-operasi>`,
+  // padahal yang dibutuhkan pembacanya alamat untuk ditempel ke klien HTTP.
+  // Parameter path menjadi pengisi `<id>` lewat `pathTerisi`, aturan yang sama
+  // dengan snippet curl. Jangkar `id` pada `<li>` tetap ada, jadi tautan hash
+  // yang sudah beredar masih membuka endpoint yang benar.
+  const [urlTersalin, setUrlTersalin] = useState(false);
+  const salinUrl = async () => {
+    const asal = typeof window === 'undefined' ? '' : window.location.origin;
+    const berhasil = await salinTeks(`${asal}${pathTerisi(operasi.path)}`);
+    setUrlTersalin(berhasil);
+    setTimeout(() => setUrlTersalin(false), 3000);
   };
 
   return (
@@ -143,12 +148,12 @@ export default function DetailOperasi({ operasi }) {
         ) : null}
         <button
           type="button"
-          onClick={salinTautan}
-          aria-label={`Salin tautan ke ${operasi.metode} ${operasi.path}`}
+          onClick={salinUrl}
+          aria-label={`Salin URL ${operasi.metode} ${operasi.path}`}
           className="ml-auto flex min-h-[44px] items-center gap-2 rounded-lg px-sm text-label-sm text-on-surface-variant transition-colors hover:bg-surface-variant"
         >
-          {tautanTersalin ? <Check size={14} /> : <Link2 size={14} />}
-          {tautanTersalin ? 'Tersalin' : 'Tautan'}
+          {urlTersalin ? <Check size={14} /> : <Link2 size={14} />}
+          {urlTersalin ? 'Tersalin' : 'Salin URL'}
         </button>
       </div>
 

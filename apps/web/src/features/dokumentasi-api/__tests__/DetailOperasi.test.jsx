@@ -140,20 +140,64 @@ describe('DetailOperasi', () => {
     expect(container.querySelector('li').id).toBe('get-/api/v1/surveys');
   });
 
-  it('menyediakan tombol salin tautan endpoint', async () => {
-    const clipboardAsli = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
-    const writeText = jest.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  /**
+   * SALIN URL, BUKAN TAUTAN HALAMAN (26 Oktober 2026, permintaan pengguna).
+   *
+   * Tombol ini dulu menyalin alamat halaman dokumentasi berikut hash-nya
+   * (`.../dokumentasi-api#get-%2Fapi%2Fv1%2Fsurveys`). Yang dibutuhkan pembacanya
+   * adalah alamat endpoint itu sendiri, untuk ditempel ke klien HTTP. Parameter
+   * path diganti pengisi `<id>` -- aturan yang sama dengan snippet curl -- dan
+   * query tidak ikut, karena URL ini alamat, bukan contoh permintaan.
+   */
+  describe('tombol Salin URL', () => {
+    let clipboardAsli;
+    let writeText;
+    beforeEach(() => {
+      clipboardAsli = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+      writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+    afterEach(() => {
+      if (clipboardAsli) Object.defineProperty(navigator, 'clipboard', clipboardAsli);
+      else delete navigator.clipboard;
+    });
 
-    gambar(operasi('GET', '/api/v1/surveys'));
-    fireEvent.click(screen.getByRole('button', { name: /salin tautan ke GET \/api\/v1\/surveys/i }));
+    const salin = async (metode, path) => {
+      gambar(operasi(metode, path));
+      fireEvent.click(
+        screen.getByRole('button', { name: `Salin URL ${metode} ${path}` }),
+      );
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      return writeText.mock.calls[0][0];
+    };
 
-    await waitFor(() => expect(writeText).toHaveBeenCalled());
-    const tautan = writeText.mock.calls[0][0];
-    // `/` dan `{}` WAJIB dikodekan, kalau tidak hash-nya patah.
-    expect(tautan).toContain(encodeURIComponent('get-/api/v1/surveys'));
-    expect(tautan).not.toContain('#get-/api/v1/surveys');
+    it('menyalin URL endpoint pada origin aplikasi, bukan alamat halaman dokumentasi', async () => {
+      const url = await salin('GET', '/api/v1/surveys');
 
-    if (clipboardAsli) Object.defineProperty(navigator, 'clipboard', clipboardAsli);
+      expect(url).toBe(`${window.location.origin}/api/v1/surveys`);
+      expect(url).not.toContain('#');
+    });
+
+    it('parameter path diganti pengisi, sama seperti snippet curl', async () => {
+      const url = await salin('GET', '/api/v1/surveys/{id}');
+
+      expect(url).toBe(`${window.location.origin}/api/v1/surveys/<id>`);
+    });
+
+    it('label tombolnya "Salin URL", lalu "Tersalin" sesudah diklik', async () => {
+      await salin('GET', '/api/v1/surveys');
+
+      expect(
+        await screen.findByRole('button', { name: 'Salin URL GET /api/v1/surveys' }),
+      ).toHaveTextContent('Tersalin');
+    });
+
+    it('KONTROL: sebelum diklik, labelnya "Salin URL"', () => {
+      gambar(operasi('GET', '/api/v1/surveys'));
+
+      expect(
+        screen.getByRole('button', { name: 'Salin URL GET /api/v1/surveys' }),
+      ).toHaveTextContent('Salin URL');
+    });
   });
 });
