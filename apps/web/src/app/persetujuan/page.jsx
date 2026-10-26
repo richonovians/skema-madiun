@@ -41,7 +41,11 @@ export default function PersetujuanPage() {
     // berpindah -- tanpa ini, cookie basi membuat proxy memantulkan pengguna
     // ke sini lagi dan lagi.
     saveConsentFlag(true);
-    window.location.assign(ROLE_HOME[me.role] ?? '/');
+    // `actingRole`, bukan `role`: `GET /auth/me` tak punya medan `role` sejak
+    // peran jamak (5 September 2026). Sampai 26 Oktober 2026 baris ini membaca
+    // `me.role`, sehingga tujuannya selalu jatuh ke '/' -- beranda publik,
+    // bukan beranda peran yang sedang dipakai.
+    window.location.assign(ROLE_HOME[me.actingRole] ?? '/');
   }, [isLoading, error, me, perluPersetujuan]);
 
   if (isLoading) {
@@ -72,7 +76,7 @@ export default function PersetujuanPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-lg bg-background">
-      <ConsentGate role={me.role} />
+      <ConsentGate role={me.actingRole} />
     </main>
   );
 }
