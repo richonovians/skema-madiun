@@ -11,6 +11,19 @@ jest.mock('next/navigation', () => ({
 }));
 
 /**
+ * Tujuan navigasi dibuat berupa fragmen, karena jsdom hanya menjalankan
+ * navigasi yang mengubah fragmen saja; alasannya lengkap ada di
+ * `RoleLoginPicker.test.jsx`.
+ */
+jest.mock('@/constants/roleHome', () => ({
+  ROLE_HOME: {
+    kabupaten: '#beranda-kabupaten',
+    opd: '#beranda-opd',
+    responden: '#beranda-responden',
+  },
+}));
+
+/**
  * HALAMAN PEMILIH PERAN (/pilih-peran), uji pertamanya (26 Oktober 2026).
  *
  * Halaman pertama bagi akun berperan jamak sesudah masuk, dan sampai hari itu
@@ -34,6 +47,7 @@ afterAll(() => server.close());
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
+  window.location.hash = '';
 });
 
 const jawabPeran = (data) =>
@@ -104,32 +118,39 @@ describe('/pilih-peran', () => {
   });
 
   /**
-   * BATAS YANG DINYATAKAN TERUS TERANG: TUJUAN navigasinya tak dapat diperiksa
-   * dari sini. Halaman ini memakai `window.location.assign()` supaya proxy
-   * menilai ulang cookie peran, dan di jsdom 26 `window.location` beserta
-   * metodenya tak dapat dipalsukan -- `delete window.location` lalu
-   * menugaskannya DIABAIKAN DIAM-DIAM (lihat AuthCallbackLoader.test.jsx).
-   * Versi pertama uji ini mencobanya dan memerah dengan "Number of calls: 0".
+   * Menutup = tetap memakai peran sekarang, lewat navigasi KERAS supaya proxy
+   * menilai ulang cookie peran. `ROLE_HOME` ditiru menjadi fragmen (lihat
+   * tiruan di atas berkas), jadi `location.hash` menyebut beranda yang dituju.
    *
-   * Yang dapat dibuktikan: menutup memicu navigasi KERAS -- jsdom melaporkan
-   * "Not implemented: navigation" -- dan bukan `router.push`, yang tak membuat
-   * proxy membaca ulang cookie. Pemetaan perannya ke beranda ada di ROLE_HOME,
-   * satu sumber yang juga dipakai proxy.js.
+   * Sampai 26 Oktober 2026 uji ini hanya membuktikan "ada navigasi keras" lewat
+   * pesan "Not implemented: navigation" dan menyatakan tujuannya tak dapat
+   * diperiksa. Tujuannya kini diperiksa.
    */
-  it('menutup pemilih memicu navigasi keras, bukan router.push', async () => {
-    const galat = jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('menutup pemilih kembali ke beranda peran yang sedang dipakai, lewat navigasi keras', async () => {
     localStorage.setItem('role', 'opd');
     jawabPeran(AKUN_JAMAK);
     render(<PilihPeranPage />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Tutup' }));
 
-    const navigasiKeras = galat.mock.calls.some((args) =>
-      args.some((a) => String(a?.message ?? a).includes('Not implemented: navigation')),
-    );
-    expect(navigasiKeras).toBe(true);
+    expect(window.location.hash).toBe('#beranda-opd');
     expect(push).not.toHaveBeenCalled();
-    galat.mockRestore();
+  });
+
+  /**
+   * Tanpa peran tersimpan, tujuannya `'/'`. Diperiksa dari arah sebaliknya:
+   * alamat uji dibuat `http://localhost/#awal`, dan `assign('/')` hanya
+   * membuang fragmennya. Tujuan lain mana pun adalah navigasi yang tak
+   * dijalankan jsdom, dan `#awal` tetap di tempatnya.
+   */
+  it('tanpa peran tersimpan, menutup pemilih mengantar ke beranda publik', async () => {
+    window.location.hash = '#awal';
+    jawabPeran(AKUN_JAMAK);
+    render(<PilihPeranPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Tutup' }));
+
+    expect(window.location.hash).toBe('');
   });
 
   it('kegagalan memuat peran menampilkan galat yang dapat dicoba lagi, dan coba lagi memuat ulang', async () => {

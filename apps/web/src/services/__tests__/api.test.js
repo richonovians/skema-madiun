@@ -23,6 +23,14 @@ import api from '../api';
  * uji yang "lulus" untuk itu hanya mungkin dengan membungkus navigasi di
  * lapisan tambahan yang ada semata demi ujinya. Pengalihannya diverifikasi di
  * peramban sungguhan, bukan di sini.
+ *
+ * Sebagian dikoreksi 26 Oktober 2026. KAPAN ia mengalihkan kini diuji: jsdom
+ * mencatat "Not implemented: navigation" untuk setiap navigasi yang tak ia
+ * jalankan, jadi ada-tidaknya pesan itu membuktikan ada-tidaknya pengalihan --
+ * termasuk penjaga yang mencegah /pilih-peran mengalihkan ke dirinya sendiri.
+ * TUJUANNYA tetap tak diuji. Trik fragmen yang dipakai uji komponen (lihat
+ * `RoleLoginPicker.test.jsx`) menuntut uji berdiri di jalur tujuan itu sendiri,
+ * dan di /pilih-peran penjaga tadi justru menahan pengalihannya.
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -71,6 +79,61 @@ describe('interceptor 401', () => {
     await expect(api.get('/auth/me')).rejects.toBeDefined();
 
     expect(localStorage.getItem('token')).toBe('token-sah');
+  });
+
+  describe('pengalihan ke pemilih peran', () => {
+    let galat;
+    beforeEach(() => {
+      galat = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      galat.mockRestore();
+      window.history.pushState({}, '', '/');
+    });
+
+    const adaNavigasi = () =>
+      galat.mock.calls.some((args) =>
+        args.some((a) => String(a?.message ?? a).includes('Not implemented: navigation')),
+      );
+
+    it('dari halaman lain, ROLE_SELECTION_REQUIRED memicu navigasi keras', async () => {
+      window.history.pushState({}, '', '/admin-opd/dashboard');
+      balas401('ROLE_SELECTION_REQUIRED');
+
+      await expect(api.get('/auth/me')).rejects.toBeDefined();
+
+      expect(adaNavigasi()).toBe(true);
+    });
+
+    /**
+     * Halaman pemilih peran sendiri memanggil API yang dapat menjawab
+     * ROLE_SELECTION_REQUIRED. Mengalihkannya ke dirinya sendiri = memuat ulang
+     * tanpa henti.
+     *
+     * Fragmen `#awal` WAJIB. Tanpanya `assign('/pilih-peran')` dari
+     * `/pilih-peran` adalah alamat yang persis sama, dan jsdom mengabaikannya
+     * tanpa pesan apa pun -- uji ini tetap hijau walau penjaganya dibuang
+     * (terukur lewat mutasi, 26 Oktober 2026). Dengan fragmen, pengalihan yang
+     * lolos membuang `#awal`.
+     */
+    it('di /pilih-peran sendiri TIDAK bernavigasi', async () => {
+      window.history.pushState({}, '', '/pilih-peran#awal');
+      balas401('ROLE_SELECTION_REQUIRED');
+
+      await expect(api.get('/auth/me')).rejects.toBeDefined();
+
+      expect(window.location.hash).toBe('#awal');
+      expect(adaNavigasi()).toBe(false);
+    });
+
+    it('KONTROL: 401 biasa tidak mengalihkan ke pemilih peran', async () => {
+      window.history.pushState({}, '', '/admin-opd/dashboard');
+      balas401('UNAUTHORIZED');
+
+      await expect(api.get('/auth/me')).rejects.toBeDefined();
+
+      expect(adaNavigasi()).toBe(false);
+    });
   });
 
   /**
