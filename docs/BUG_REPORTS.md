@@ -130,8 +130,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-036](#bug-036) | Fixture E2E mencocokkan status `draf`, enum-nya `draft` — uji perancang survei selalu terlewat | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-037](#bug-037) | Modal Bagikan Survei bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-038](#bug-038) | `/persetujuan` mengantar pengguna yang sudah menyetujui ke beranda publik, bukan ke berandanya — membaca `me.role` yang tak ada | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-039](#bug-039) | Modal Buat/Ubah Survei bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-040](#bug-040) | Lima sisa `max-w-xs`/`max-w-2xl` yang dibajak token spasi — judul pengaduan diperas ke lebar minimum, judul warga terpotong pada layar lega | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 38 temuan: **38 ditutup, 0 terbuka.**
+**Rekap** — 40 temuan: **40 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2697,6 +2699,70 @@ null, sehingga `!me` menahannya lebih dulu. Di commit yang sama (`c340165`)
 tujuan navigasi keras juga diuji di `ConsentGate` (uji pertamanya),
 `AuthCallbackLoader`, `/pilih-peran`, dan interceptor 401. Ke-21 mutasi atas
 kelima tempat: 20 merah, 1 setara.
+
+---
+
+<a id="bug-039"></a>
+
+### BUG-039 — Modal Buat/Ubah Survei bukan dialog bagi pembaca layar
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 26 Oktober 2026 (ditemukan), 27 Oktober 2026 (ditutup)       |
+| **Peran**    | Admin Kabupaten, pengguna pembaca layar dan papan ketik      |
+| **Berkas**   | `apps/web/src/features/surveys/components/admin-kab/SurveyFormModal.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Probe Playwright atas dropdown Tujuan/Metode: `getByRole('dialog')`
+tak menemukan apa pun pada modal "Buat Paket Survei" yang sedang terbuka.
+
+**Cacatnya.** Kelas yang sama dengan [BUG-037](#bug-037): tanpa `role="dialog"`,
+`aria-modal`, maupun nama; tombol silangnya hanya ikon tanpa nama; fokus
+tertinggal di halaman di belakang modal.
+
+**Ditutup 27 Oktober 2026** — `53d5ab8`, merge `bef537e` di `main`. Pola
+ShareSurveyModal: peran + `aria-modal` + `aria-labelledby` ke judul ("Buat Paket
+Survei" / "Perbarui Detail Survei"), `aria-label="Tutup"`, `useFocusTrap`.
+
+**Pagar.** Lima uji di `SurveyFormModalDialog.test.jsx`, kelimanya merah lebih
+dulu. Mutasi membongkar satu yang hampa: uji Tab versi pertama hanya menuntut
+fokus "tetap di dalam dialog" dan hijau tanpa `useFocusTrap`, karena jsdom tak
+memindahkan fokus pada Tab. Kini ia menuntut fokus berputar ke elemen pertama;
+kedua mutasi merah.
+
+---
+
+<a id="bug-040"></a>
+
+### BUG-040 — Sisa `max-w-*` yang dibajak token spasi
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 26 Oktober 2026 (ditemukan), 27 Oktober 2026 (ditutup)       |
+| **Peran**    | Admin Kabupaten, Admin OPD, warga                            |
+| **Berkas**   | `AdminComplaintTable.jsx`, `admin-kab/ComplaintTable.jsx`, `ComplaintRow.jsx`, `AboutCTA.jsx`, `DevelopmentTimeline.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Perbaikan lencana "Survei Utama" (`9380e9d`): akar cacatnya `max-w-xs`
+pada sel judul Monitoring Survei, dan penyisiran menemukan lima pemakaian lain.
+
+**Cacatnya.** Di apps/web `max-w-xs` = 4px dan `max-w-2xl` = 48px, karena token
+`--spacing-*` membajak skala `max-w-*`. CLAUDE.md melarangnya sejak 8 Oktober,
+tetapi larangan tertulis tak memerah dan jsdom tak memuat CSS. Diukur di Chrome
+(`max-width: 4px` di ketiga tabel): kolom judul pengaduan Admin Kabupaten 149px
+dan Admin OPD 157px pada layar 1366px; di tabel warga judul "Pelayanan pembuatan
+KTP lambat" (280px) terpotong menjadi 154px bahkan pada 1920px.
+
+**Ditutup 27 Oktober 2026** — `9fa2f63`, merge `93d3370` di `main`. Tabel admin
+`min-w-[12rem] max-w-[20rem]`; sel warga `max-w-[24rem]` (pada 20rem judul tadi
+masih terpotong 8px karena batasnya memuat bantalan sel). Sesudahnya: 235px,
+192px, judul warga utuh. Dua komponen Tentang `max-w-[42rem]`; keduanya tak
+dirender halaman mana pun, jadi tak terukur.
+
+**Pagar.** `src/__tests__/tanpaMaxWTokenSpasi.test.js` menyisir seluruh `src`
+(komentar dikosongkan) dan merah lebih dulu dengan tepat kelima baris tadi.
 
 ---
 
@@ -6038,3 +6104,4 @@ hanya dibaca, tidak diubah.
 | 7.3 | 26 Oktober 2026 | **BUG-035 dan BUG-036 lahir dan ditutup pada hari yang sama (`e58b3c3`, merge `c307179`): 36 temuan, 36 ditutup, nol terbuka.** Keduanya cacat perkakas uji, dicatat di bagian 5 seperti BUG-030. Sapuan Playwright penuh pertama sejak perubahan 23–26 Oktober menjawab 131 lulus, 0 gagal, 6 terlewat — dan **keenam lewatan itu tak satu pun karena data**. Lima uji (poster QR; modal bagikan dan konfirmasi hapus di 320px dan 390px) mencari tombol yang sejak `22b2d03`, 30 September, pindah ke menu titik-tiga, lalu melewati diri lewat `count() === 0` dengan alasan "tak ada survei" sementara lima survei aktif ada; hampir empat minggu ketiga perilaku itu tak terukur. Satu uji lagi terlewat karena fixture mencocokkan `draf` padahal enum-nya `draft`. Helper `cariButirAksi` membuka menu baris demi baris; kedua uji modal kini juga mengasersikan modalnya TERBUKA, sebab pengukuran luberan lulus pula atas halaman tanpa modal — dibuktikan lewat mutasi, 4 dari 4 merah. Draf dibuktikan dua arah dengan draf yang ada di basis data. Dua uji goyah sapuan itu (tersangkut di layar "Memuat …", hijau saat diulang) tidak dikejar, sesuai catatan kegoyahan yang sudah ada. Pengamatan samping: `ShareSurveyModal` belum ber-`role="dialog"`, belum bernomor. Tak ada kode produk yang berubah. Rekap dihitung ulang dari kolom Status: 36 baris, 36 Ditutup, nol Baru. |
 | 7.4 | 26 Oktober 2026 | **BUG-037 lahir dan ditutup pada hari yang sama (`c0df858`, merge `7031772`): 37 temuan, 37 ditutup, nol terbuka.** Asalnya pengamatan samping BUG-035, yang kini menunjuk nomor ini. `ShareSurveyModal` tanpa `role="dialog"`/`aria-modal`/nama, tombol silangnya tanpa nama, dan fokusnya tak masuk maupun dikurung — tiga cacat yang sudah dibereskan di dialog lain lewat BUG-015 dan terlewat di sini. Diperbaiki dengan pola `ConfirmActionModal`; empat uji merah lebih dulu, kedua uji fokus dibuktikan lewat mutasi, dan uji E2E-nya kini mencari modal lewat perannya. Pada hari yang sama `/pilih-peran` mendapat uji pertamanya (`330b1e4`, delapan uji, tiga mutasi semuanya merah); itu cakupan uji, bukan temuan, jadi tak bernomor. Rekap dihitung ulang dari kolom Status: 37 baris, 37 Ditutup, nol Baru. |
 | 7.5 | 26 Oktober 2026 | **BUG-038 lahir dan ditutup pada hari yang sama (`0855ee1`, merge `5907832`): 38 temuan, 38 ditutup, nol terbuka.** `/persetujuan` membaca `me.role`, medan yang tak ada di `GET /auth/me` sejak peran jamak, sehingga yang tak perlu menyetujui diantar ke beranda publik. Ditemukan karena uji pertama halaman itu memerah, saat tujuan `window.location.assign` di lima tempat dibuat teruji lewat tujuan berupa fragmen. Sebelumnya `RoleLoginPicker.test.jsx` (`bbd6ab0`) membawa tiruan `window.location` yang tak pernah berlaku di jsdom 26; itu bukan cacat produk dan tak bernomor. |
+| 7.6 | 27 Oktober 2026 | **BUG-039 dan BUG-040 ditutup: 40 temuan, 40 ditutup, nol terbuka.** BUG-039 (`53d5ab8`, merge `bef537e`): modal Buat/Ubah Survei tanpa peran dialog, nama, tombol tutup bernama, dan kurungan fokus — kelas BUG-037, ditemukan probe Playwright. BUG-040 (`9fa2f63`, merge `93d3370`): lima sisa `max-w-*` yang dibajak token spasi, diukur di Chrome sebelum dan sesudah, kini dijaga penyisir `tanpaMaxWTokenSpasi.test.js`. |
