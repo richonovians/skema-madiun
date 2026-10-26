@@ -9,6 +9,8 @@ import {
   Role,
   SurveyStatus,
 } from '@prisma/client';
+import { enkripsiKolom, kolomTerenkripsi } from '../src/common/crypto/kolom';
+import { bacaKunci } from '../src/common/crypto/kunci';
 import { SKM_UNSUR } from '../src/modules/reference/reference.constants';
 
 const prisma = new PrismaClient();
@@ -214,7 +216,25 @@ async function main(): Promise<void> {
   //    antara tiket lain pada daftar pengaduan. Sama seperti judul survei di
   //    atas, konstanta ini merangkap KUNCI IDEMPOTENSI (`findFirst({ ticketNo })`),
   //    jadi ia harus tetap sama persis dengan nilai di basis data.
+  //
+  //    `uraian` DIENKRIPSI seperti yang ditulis aplikasi (26 Oktober 2026).
+  //    Sebelumnya seed menulisnya polos langsung lewat Prisma, sehingga setiap
+  //    basis data yang di-seed lahir dengan satu isi pengaduan polos -- terukur
+  //    saat uji pemulihan cadangan hari itu. Kuncinya dibaca dengan aturan yang
+  //    sama dengan aplikasi (`bacaKunci`): tanpa DATA_ENCRYPTION_KEY seed
+  //    menolak jalan, kecuali pada NODE_ENV=test.
+  //
+  //    Baris yang SUDAH ada tetapi masih polos ikut dibetulkan. Seed melewati
+  //    tiket yang sudah ada, jadi tanpa ini basis data lama tak pernah
+  //    terbetulkan oleh seed; yang sudah terenkripsi tidak disentuh.
   const complaintMarker = 'PGD20260811KT4E';
+  const uraianContoh =
+    'Pengurusan KTP elektronik di Disdukcapil sudah lebih dari dua minggu belum selesai dan belum ada informasi lanjutan.';
+  const kunciData = bacaKunci(
+    process.env.DATA_ENCRYPTION_KEY ?? '',
+    'DATA_ENCRYPTION_KEY',
+    process.env.NODE_ENV ?? 'development',
+  );
   const existingComplaint = await prisma.complaint.findFirst({
     where: { ticketNo: complaintMarker },
   });
@@ -226,10 +246,14 @@ async function main(): Promise<void> {
         opdId: opdByKode.DUKCAPIL.id,
         kategori: 'lainnya',
         judul: 'Pelayanan pembuatan KTP lambat',
-        uraian:
-          'Pengurusan KTP elektronik di Disdukcapil sudah lebih dari dua minggu belum selesai dan belum ada informasi lanjutan.',
+        uraian: enkripsiKolom(uraianContoh, kunciData),
         status: ComplaintStatus.diterima,
       },
+    });
+  } else if (!kolomTerenkripsi(existingComplaint.uraian)) {
+    await prisma.complaint.update({
+      where: { id: existingComplaint.id },
+      data: { uraian: enkripsiKolom(existingComplaint.uraian, kunciData) },
     });
   }
 
