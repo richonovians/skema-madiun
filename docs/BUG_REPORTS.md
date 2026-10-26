@@ -126,8 +126,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-032](#bug-032) | Kalimat penolakan ukuran lampiran menyandingkan dua angka yang terbaca sama | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 | [BUG-033](#bug-033) | Daftar izin jenis lampiran dapat dilewati lewat rantai prototipe | Low | Terkonfirmasi | **Ditutup** | QA-H1 |
 | [BUG-034](#bug-034) | Dua lampiran bernama sama menghasilkan dua tombol hapus bernama identik | Low | Terkonfirmasi | **Ditutup** | QA-H2 |
+| [BUG-035](#bug-035) | Lima uji E2E mencari tombol yang sudah pindah ke menu aksi — terlewat diam-diam empat minggu | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-036](#bug-036) | Fixture E2E mencocokkan status `draf`, enum-nya `draft` — uji perancang survei selalu terlewat | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 34 temuan: **34 ditutup, 0 terbuka.**
+**Rekap** — 36 temuan: **36 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5793,6 +5795,101 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 
 ---
 
+<a id="bug-035"></a>
+
+### BUG-035 — Lima uji E2E mencari tombol yang sudah pindah ke menu aksi
+
+|              |                                                                    |
+| ------------ | ------------------------------------------------------------------ |
+| **Charter**  | —                                                                  |
+| **Tanggal**  | 26 Oktober 2026                                                    |
+| **Berkas**   | `apps/web/e2e/poster-qr-survei.spec.ts`, `apps/web/e2e/responsif-komponen.spec.ts` |
+| **Severity** | Medium (usulan penguji)                                            |
+| **Jenis**    | Cacat perkakas uji, bukan cacat produk                             |
+
+**Ditemukan lewat sapuan Playwright penuh**, yang pertama sejak perubahan
+23–26 Oktober: 131 lulus, 0 gagal, 6 terlewat. Keenam lewatan berbunyi "tak ada
+survei", padahal `skm_db` punya lima survei aktif. Lima di antaranya cacat ini;
+yang keenam [BUG-036](#bug-036).
+
+**Yang terjadi.** Sejak `22b2d03` (30 September 2026) aksi survei Admin
+Kabupaten ada di menu titik-tiga "Aksi untuk …". Butirnya baru masuk DOM
+sesudah menunya dibuka, dan berperan `menuitem`, bukan `button`. Lima uji masih
+mencari `button "Bagikan"` / `button "Hapus"` di halaman, tak menemukannya, lalu
+melewati dirinya lewat `test.skip((await tombol.count()) === 0, …)`:
+
+- `poster-qr-survei.spec.ts:41` — unduhan QR berupa poster 1080×1440
+- `responsif-komponen.spec.ts` — modal bagikan dan konfirmasi hapus, masing-masing di 320px dan 390px
+
+**Mengapa Medium untuk cacat uji.** Sealasan dengan [BUG-030](#bug-030): ini
+hijau palsu, bukan merah palsu. Hampir empat minggu tiga perilaku tak terukur
+sama sekali, dan laporan suite tetap terbaca "0 gagal". Bahayanya sudah
+diperingatkan tertulis di `playwright.config.ts` dekat `workers` — uji yang
+melewati diri lewat `count() === 0` mengubah "tak terukur" menjadi "dilewati".
+
+**Satu ironi yang perlu dicatat:** uji KONTROL di `poster-qr-survei.spec.ts`
+sudah dibetulkan untuk menu itu 7 Oktober 2026, dengan komentar panjang yang
+menjelaskan pemindahannya. Uji utama tiga puluh baris di atasnya terlewat dari
+perbaikan yang sama.
+
+**Perbaikan.** Helper `cariButirAksi` di `e2e/fixtures/responsif.ts` membuka menu
+baris demi baris sampai butirnya ketemu — bukan baris pertama, sebab "Bagikan"
+hanya ada pada survei aktif — dan menunggu pemicunya tampil lebih dulu supaya
+tabel yang belum dirender tak terbaca sebagai tabel kosong.
+
+**Celah kedua yang ikut ditutup.** Kedua uji modal hanya mengukur luberan
+halaman sesudah butirnya diklik, dan pengukuran itu lulus juga atas halaman
+TANPA modal. Begitu dibetulkan, keduanya akan tetap hijau bila butirnya
+berhenti membuka apa pun. Kini modalnya diasersikan terbuka lebih dulu:
+konfirmasi hapus lewat `role="dialog"`, modal bagikan lewat judul "Bagikan
+Survei".
+
+**Bukti.**
+
+- `poster-qr-survei` + `responsif-komponen`: 70 lulus, **0 terlewat**.
+- Mutasi "butir tidak diklik" pada kedua uji modal: 4 dari 4 merah tepat di
+  asersi baru, lalu dipulihkan.
+
+**Pengamatan samping, tidak dikerjakan:** `ShareSurveyModal.jsx` tidak
+ber-`role="dialog"` maupun `aria-modal`, berbeda dengan `ConfirmActionModal`
+sejak BUG-015. Itu sebabnya ujinya terpaksa mencari judul. Ini kode produk dan
+di luar pekerjaan uji ini; belum diberi nomor.
+
+**Ditutup** — `e58b3c3`, merge `c307179` di `main`.
+
+---
+
+<a id="bug-036"></a>
+
+### BUG-036 — Fixture E2E mencocokkan status `draf`, enum-nya `draft`
+
+|              |                                                   |
+| ------------ | ------------------------------------------------- |
+| **Charter**  | —                                                 |
+| **Tanggal**  | 26 Oktober 2026                                   |
+| **Berkas**   | `apps/web/e2e/fixtures/responsif.ts:551` (sebelum perbaikan) |
+| **Severity** | Low (usulan penguji)                              |
+| **Jenis**    | Cacat perkakas uji, bukan cacat produk            |
+
+`ambilContoh` mencari survei draf dengan
+`s.status.toLowerCase() === 'draf'`, sementara API mengirim nilai enum
+`SurveyStatus` apa adanya, `draft`. `contoh.surveiDraf` karena itu tak pernah
+terisi, dan uji "tombol di perancang survei punya nama di 320px"
+(`nama-terakses.spec.ts:142`) selalu melewati dirinya dengan alasan "Tak ada
+contoh data" — juga ketika draf ada.
+
+**Mengapa Low, bukan Medium seperti BUG-035.** Pada sapuan 26 Oktober memang
+tak ada draf hasil seed, jadi lewatan hari itu kebetulan sah. Cacatnya tetap
+nyata: ia menyembunyikan uji itu tepat ketika uji itu dapat berjalan.
+
+**Bukti, dengan draf ADA di basis data:** ejaan lama `'draf'` → terlewat;
+`'draft'` → lulus. Draf yang dipakai (id 580, 581) tidak berpenanda `[UJI ` dan
+hanya dibaca, tidak diubah.
+
+**Ditutup** — `e58b3c3`, merge `c307179` di `main`, bersama BUG-035.
+
+---
+
 ## 6. Riwayat revisi
 
 | Versi | Tanggal            | Perubahan                                                                                                                                                                                       |
@@ -5851,3 +5948,4 @@ Pagarnya dipindah ke akhir berkas, dan alasannya ditulis di tempatnya.
 | 7.0 | 23 Oktober 2026 | **BUG-007 DITUTUP SELURUHNYA (`87a8eed`, merge `bede540`), dan temuan terbuka tinggal SATU — BUG-003, Low, kode mati.** Separuh yang tersisa dikerjakan beberapa jam sesudah catatan "sengaja tetap terbuka" ditulis pada hari yang sama. Aturan lampiran DIANGKAT KELUAR menjadi `apps/web/src/utils/lampiran.js`, bukan disalin: sebelumnya ia hidup di dalam `FileDropzone.jsx`, dan menyalinnya ke dua komponen percakapan akan menjadikannya TIGA salinan batas backend yang tak ada penyinkronnya. `periksaSatuBerkas` pembungkus tipis di atas `saringBerkas`, bukan aturan kedua yang mirip, sebab kedua panel menerima satu berkas dan batas jumlah tak berlaku di sana. `BATAS_MB` jadi sumber tunggal, dan baku prop `maxSizeMB` di `FileDropzone` diambil dari sana. **Pemindahannya terbukti netral**: 37 uji `FileDropzone` tetap hijau tanpa satu uji disunting. Pada kedua panel: `accept` dipasang, `periksaSatuBerkas` dijalankan sebelum berkasnya dipasang, penolakannya ber-`role="status"`, dan nilai input direset supaya berkas BERNAMA SAMA dapat dipilih lagi sesudah diperkecil. Dua cacat samping ikut dikerjakan atas persetujuan tersurat pengguna: tombol hapus di kedua cip tak pernah bernama (kelas BUG-010), dan ukuran masih bertitik sementara `formatMb` dari BUG-032 berkoma. Sepuluh pagar baru, seluruhnya merah lebih dulu. **Tiga kekeliruan penguji dicatat apa adanya**: pola berbaris banyak gagal karena SPASI DI UJUNG BARIS yang tak terbawa ke berkas skrip (penjaga memerah, nol berkas tersentuh); komentar JSX disisipkan DI DALAM tag `<button>` sehingga `Tests: 0 total` yang dibaca sebagai galat kompilasi, bukan uji merah; dan satu asersi HAMPA (`queryByText('foto.jpg')` menemukan nama berkas di kabar penolakan, bukan di cip lampiran) yang penggantinya dibuktikan membedakan lewat mutasi. Suite web 217 suite / 1818 uji, dari 1808. Rekap dihitung ulang dari kolom Status: 33 temuan, 32 ditutup, 1 terbuka. |
 | 7.1 | 23 Oktober 2026 | **BUG-003 DITUTUP (`2daf59b`, merge `060a3b9`), dan daftar ini NOL TERBUKA untuk pertama kalinya sejak dibuat 12 Agustus 2026 — 33 temuan, 33 ditutup.** BUG-003 temuan tertua yang masih terbuka, dicatat pada hari dokumen ini lahir, sebelum sesi eksploratori pertama dimulai. `MapSection.jsx` dihapus, bukan dipertahankan dengan catatan, DAN alternatif kedua yang laporan itu sendiri tawarkan diperiksa lebih dahulu: tak ada catatan rencana, dan pencarian "peta", "maps", "lokasi kantor", serta "google map" di README maupun PRD menghasilkan NOL sebutan. Diperiksa ulang sebelum menghapus, bukan dipercayai dari laporannya — satu kemunculan di seluruh repo, yaitu definisinya sendiri — dan keempat saudaranya di `components/sections/` semuanya hidup, jadi yang mati komponennya saja. Riwayatnya satu commit, `7bd05d1`, integrasi frontend awal: ia datang bersama impor itu dan tak pernah dipasang. **Ada alasan kedua di luar kode mati**: berkas itu satu-satunya `<iframe>` di seluruh `apps/web/src`, jadi membuangnya menghapus satu-satunya sematan pihak ketiga di frontend — `maps.google.com`, yang memasang cookie dan menerima rujukan lewat `referrerPolicy="no-referrer-when-downgrade"`. Dapat dipulihkan dari `7bd05d1`. Suite web tetap 217 suite / 1818 uji sesudah penghapusan, angka yang sama dengan sebelumnya, jadi tak ada berkas uji yang mengimpornya. Rekap dihitung ulang dari kolom Status: 33 baris, 33 Ditutup, nol Baru. |
 | 7.2 | 26 Oktober 2026 | **BUG-034 lahir dan ditutup pada hari yang sama (`ce1e455`, merge `9d2258f`): 34 temuan, 34 ditutup, nol terbuka.** Dari perburuan bug kedua (QA-H2) atas pekerjaan 23 Oktober sore yang belum pernah diburu. Modul baru `utils/lampiran.js` sendiri tak menghasilkan temuan — enam dugaan diperiksa dan gugur — dan yang tertangkap justru akibat perbaikan BUG-031 yang baru berumur tiga hari: `aria-label` tombol hapus dibangun dari `file.name` sementara daftar tak menyaring kembar, sehingga dua lampiran bernama sama menghasilkan dua tombol "Hapus bukti.png" yang tak terbedakan. Daftar berkembar itu perilaku LAMA; nama aksesibelnya yang BARU — sebelumnya kedua tombol sama-sama tak bernama, sesudahnya bernama sama. Diperbaiki dengan nomor urut (`Hapus lampiran 2: bukti.png`), selalu disertakan supaya nama tak berubah saat lampiran lain ditambahkan. **Penolakan kembar sengaja TIDAK dikerjakan**: itu keputusan produk dan tetap terbuka untuk pemilik produk. Kedua panel percakapan tidak diubah sebab menampung satu berkas. Pagarnya dipindah ke `KitUiBersama.test.jsx`. **Pemeriksaan silang dengan repro asli 1/3, bukan 6/6 seperti BUG-032/033**, sebab repro itu mengodekan format nama lama secara harfiah; peralihan sebabnya dari "Found multiple elements" ke "Unable to find" justru bukti perbaikannya, dan repronya sengaja tak disunting. Suite web 217 suite / 1820 uji, dari 1818. Rekap dihitung ulang dari kolom Status: 34 baris, 34 Ditutup, nol Baru. |
+| 7.3 | 26 Oktober 2026 | **BUG-035 dan BUG-036 lahir dan ditutup pada hari yang sama (`e58b3c3`, merge `c307179`): 36 temuan, 36 ditutup, nol terbuka.** Keduanya cacat perkakas uji, dicatat di bagian 5 seperti BUG-030. Sapuan Playwright penuh pertama sejak perubahan 23–26 Oktober menjawab 131 lulus, 0 gagal, 6 terlewat — dan **keenam lewatan itu tak satu pun karena data**. Lima uji (poster QR; modal bagikan dan konfirmasi hapus di 320px dan 390px) mencari tombol yang sejak `22b2d03`, 30 September, pindah ke menu titik-tiga, lalu melewati diri lewat `count() === 0` dengan alasan "tak ada survei" sementara lima survei aktif ada; hampir empat minggu ketiga perilaku itu tak terukur. Satu uji lagi terlewat karena fixture mencocokkan `draf` padahal enum-nya `draft`. Helper `cariButirAksi` membuka menu baris demi baris; kedua uji modal kini juga mengasersikan modalnya TERBUKA, sebab pengukuran luberan lulus pula atas halaman tanpa modal — dibuktikan lewat mutasi, 4 dari 4 merah. Draf dibuktikan dua arah dengan draf yang ada di basis data. Dua uji goyah sapuan itu (tersangkut di layar "Memuat …", hijau saat diulang) tidak dikejar, sesuai catatan kegoyahan yang sudah ada. Pengamatan samping: `ShareSurveyModal` belum ber-`role="dialog"`, belum bernomor. Tak ada kode produk yang berubah. Rekap dihitung ulang dari kolom Status: 36 baris, 36 Ditutup, nol Baru. |
