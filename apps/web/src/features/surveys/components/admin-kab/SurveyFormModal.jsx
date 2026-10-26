@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { X, Building2, Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
@@ -106,6 +107,14 @@ export default function SurveyFormModal({
   // hooks/useBodyScrollLock.js (2026-08-24).
   useBodyScrollLock();
 
+  // DIALOG SUNGGUHAN (27 Oktober 2026, BUG-039): peran, nama, dan kurungan fokus.
+  // Sampai hari itu modal ini sepasang `<div>` bagi pembaca layar -- kelas cacat
+  // yang sama dengan ShareSurveyModal (BUG-037) -- dan fokus tertinggal di
+  // halaman di belakangnya. Komponen ini hanya dipasang selagi modal terbuka.
+  const idJudul = useId();
+  const refDialog = useRef(null);
+  useFocusTrap(refDialog, true);
+
   // Survei lama bisa bertahun di luar rentang wajar (mis. data seed) -- sisipkan
   // supaya dropdown tak jatuh ke opsi yang salah karena tak ketemu match.
   const yearOptions = (YEAR_OPTIONS.includes(tahun) ? YEAR_OPTIONS : [tahun, ...YEAR_OPTIONS].sort((a, b) => a - b)).map(
@@ -192,20 +201,29 @@ export default function SurveyFormModal({
           `max-h-full` yang berarti "seluruh ruang di dalam p-4 itu".
           Sesudahnya isinya ~510px pada ruang 536px -- tak ada lagi luapan,
           sehingga tak ada lagi yang menabrak footer. */}
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[520px] h-[820px] max-h-full sm:max-h-[90vh] flex flex-col">
+      <div
+        ref={refDialog}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idJudul}
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[520px] h-[820px] max-h-full sm:max-h-[90vh] flex flex-col"
+      >
         <div className="px-6 pt-5 pb-3 sm:pt-6 sm:pb-4 border-b border-slate-100 relative shrink-0">
           <button
+            type="button"
             onClick={onCancel}
             disabled={isSubmitting}
+            aria-label="Tutup"
             className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
 
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             {isEdit ? 'Ubah Survei' : 'Survei Baru'}
           </p>
-          <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1">
+          <h3 id={idJudul} className="font-bold text-slate-800 text-lg leading-tight mt-1">
             {isEdit ? 'Perbarui Detail Survei' : 'Buat Paket Survei'}
           </h3>
           <p className="text-sm text-slate-500 mt-1">
