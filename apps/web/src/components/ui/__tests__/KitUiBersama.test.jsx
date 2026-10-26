@@ -263,7 +263,9 @@ describe('FileDropzone (TC-FE-046)', () => {
     // begitu zona lampirannya sendiri menjadi tombol sungguhan (23 Oktober
     // 2026), dan ia memang menebak lewat POSISI -- cacat uji yang sama dengan
     // BUG-010. Namanya yang dipakai sekarang.
-    fireEvent.click(screen.getByRole('button', { name: 'Hapus b.png' }));
+    // Nama tombol berubah 26 Oktober 2026 (BUG-034): kini menyertakan nomor
+    // urut lampirannya, sebab nama berkas saja tak dijamin unik.
+    fireEvent.click(screen.getByRole('button', { name: 'Hapus lampiran 2: b.png' }));
 
     expect(onFilesChange).toHaveBeenCalledWith([a, c]);
   });
@@ -305,7 +307,9 @@ describe('FileDropzone (TC-FE-046)', () => {
   it('tombol hapus menyebut berkas mana yang dibuangnya', () => {
     render(<FileDropzone files={[berkas('bukti-jalan.png')]} onFilesChange={jest.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Hapus bukti-jalan.png' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Hapus lampiran 1: bukti-jalan.png' }),
+    ).toBeInTheDocument();
   });
 
   /**
@@ -527,6 +531,55 @@ describe('FileDropzone (TC-FE-046)', () => {
     render(<FileDropzone files={[satuSetengahMib]} onFilesChange={jest.fn()} />);
 
     expect(screen.getByText(/bukti\.png \(1,50 MB\)/)).toBeInTheDocument();
+  });
+
+  /**
+   * BUG-034 (QA-03), dari perburuan bug 26 Oktober 2026 atas perbaikan BUG-031.
+   *
+   * `aria-label` tombol hapus dibangun dari `file.name`, dan daftar lampiran
+   * tak menyaring kembar -- jadi dua lampiran bernama sama menghasilkan dua
+   * tombol bernama identik, "Hapus bukti.png". Pembaca layar tak dapat
+   * membedakannya, dan `getByRole` melempar "Found multiple elements".
+   *
+   * Terjangkau dua klik: `handleFileSelect` sengaja menyetel ulang nilai
+   * inputnya sesudah tiap pilihan, jadi berkas yang SAMA dapat dipilih dua
+   * kali.
+   *
+   * Pemisahan yang perlu dibaca tepat: daftar yang memuat kembar itu perilaku
+   * LAMA. Yang baru nama aksesibelnya (BUG-031, 23 Oktober) -- sebelumnya
+   * kedua tombol sama-sama tak bernama, sesudahnya keduanya bernama SAMA.
+   *
+   * Pagar ini DIPINDAHKAN dari `qa-bug-hunt/repros/`, folder yang mengabaikan
+   * dirinya sendiri: dibiarkan di sana, satu-satunya uji yang membuktikan
+   * cacat ini pernah ada akan hilang dari repo begitu perbaikannya di-commit.
+   *
+   * Apakah kembar seharusnya DITOLAK adalah pertanyaan produk yang terpisah
+   * dan belum diputuskan; perbaikan ini sengaja hanya membuat namanya unik.
+   */
+  it('BUG-034: dua lampiran bernama sama tetap punya tombol hapus yang dapat dibedakan', () => {
+    const kembar = [berkas('bukti.png'), berkas('bukti.png')];
+    render(<FileDropzone files={kembar} onFilesChange={jest.fn()} />);
+
+    const nama = screen
+      .getAllByRole('button', { name: /^Hapus / })
+      .map((tombol) => tombol.getAttribute('aria-label'));
+
+    expect(nama).toHaveLength(2);
+    expect(new Set(nama).size).toBe(nama.length);
+  });
+
+  it('BUG-034: tombol hapus lampiran kedua dari dua kembar membuang yang kedua', () => {
+    const onFilesChange = jest.fn();
+    const pertama = berkas('bukti.png');
+    const kedua = berkas('bukti.png');
+    render(<FileDropzone files={[pertama, kedua]} onFilesChange={onFilesChange} />);
+
+    // Dahulu mustahil ditulis: nama yang sama membuat `getByRole` melempar
+    // "Found multiple elements", dan uji terpaksa menebak lewat posisi.
+    fireEvent.click(screen.getByRole('button', { name: 'Hapus lampiran 2: bukti.png' }));
+
+    // Yang tersisa objek PERTAMA, bukan sekadar "satu berkas bernama bukti.png".
+    expect(onFilesChange).toHaveBeenCalledWith([pertama]);
   });
 });
 

@@ -157,10 +157,20 @@ export default function FileDropzone({ files = [], onFilesChange, maxSizeMB = BA
                   </p>
                 </div>
               </div>
+              {/* Nama berkas SAJA tak dijamin unik (BUG-034, 26 Oktober 2026).
+                  Daftar ini tak menolak kembar, dan memilih berkas yang sama dua
+                  kali memang terjangkau -- nilai input sengaja disetel ulang
+                  sesudah tiap pilihan. Dengan nama berkas saja, dua lampiran
+                  `bukti.png` menghasilkan dua tombol bernama identik yang tak
+                  dapat dibedakan pembaca layar. Nomor urutnya mengikuti urutan
+                  tampil, jadi "lampiran 2" memang baris kedua yang dilihat mata.
+
+                  Apakah kembar seharusnya DITOLAK adalah keputusan produk yang
+                  terpisah dan belum diambil; yang dibetulkan di sini namanya. */}
               <button
                 type="button"
                 onClick={() => removeFile(idx)}
-                aria-label={`Hapus ${file.name}`}
+                aria-label={`Hapus lampiran ${idx + 1}: ${file.name}`}
                 className="text-emerald-600 hover:text-emerald-800 p-1.5 hover:bg-emerald-100 rounded-md transition-colors shrink-0"
               >
                 <X size={16} aria-hidden="true" />
