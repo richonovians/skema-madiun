@@ -45,17 +45,28 @@ function enkripsi(data, kunciInduk, info) {
   return Buffer.concat([MAGIC, Buffer.from([VERSI]), garam, iv, cipher.getAuthTag(), ciphertext]);
 }
 
+// Deteksi amplop dipisah dari versinya 26 Oktober 2026; alasannya di
+// src/common/crypto/envelope.ts (`versiAmplop`). Di salinan inilah akibatnya
+// paling berat: skrip migrasi dan rotasi yang memakainya akan MELAPIS blob
+// berversi lain bila ia dijawab "bukan amplop".
+function versiAmplop(data) {
+  if (data.length < PANJANG_HEADER || !data.subarray(0, MAGIC.length).equals(MAGIC)) {
+    return null;
+  }
+  return data[MAGIC.length];
+}
+
 function terenkripsi(data) {
-  return (
-    data.length >= PANJANG_HEADER &&
-    data.subarray(0, MAGIC.length).equals(MAGIC) &&
-    data[MAGIC.length] === VERSI
-  );
+  return versiAmplop(data) !== null;
 }
 
 function dekripsi(blob, kunciInduk, info) {
-  if (!terenkripsi(blob)) {
-    throw new Error('Blob bukan format envelope SKM1 v1');
+  const versi = versiAmplop(blob);
+  if (versi === null) {
+    throw new Error('Blob bukan amplop SKM1');
+  }
+  if (versi !== VERSI) {
+    throw new Error(`Amplop SKM1 versi ${versi} belum dikenali kode ini`);
   }
   let p = MAGIC.length + 1;
   const garam = blob.subarray(p, (p += PANJANG_GARAM));
@@ -95,5 +106,6 @@ module.exports = {
   enkripsi,
   dekripsi,
   terenkripsi,
+  versiAmplop,
   kunciDariEnv,
 };
