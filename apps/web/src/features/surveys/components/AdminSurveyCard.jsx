@@ -47,7 +47,7 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
           {isUtama && (
             <Badge
               variant="info"
-              className="px-sm py-[2px] text-[10px] uppercase rounded"
+              className="px-sm py-[2px] text-[10px] uppercase rounded whitespace-nowrap"
             >
               Survei Utama
             </Badge>

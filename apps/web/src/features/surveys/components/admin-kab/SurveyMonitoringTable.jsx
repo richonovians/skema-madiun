@@ -125,7 +125,13 @@ export default function SurveyMonitoringTable({
 
               return (
                 <tr key={survey.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-md py-lg max-w-xs">
+                  {/* `min-w-[12rem] max-w-[20rem]`, BUKAN `max-w-xs` (26 Oktober 2026).
+                      Di apps/web `max-w-xs` bernilai 4px -- token `--spacing-xs`
+                      membajak skala `max-w-*` -- sehingga kolom judul selalu
+                      diperas ke lebar minimum isinya: terukur 86-121px pada lebar
+                      layar 1024-1536px, judul terpotong dan lencana di bawahnya
+                      patah dua baris. 20rem adalah nilai yang semula dimaksud. */}
+                  <td className="px-md py-lg min-w-[12rem] max-w-[20rem]">
                     <p
                       className="font-body-md text-body-md font-bold text-slate-800 line-clamp-2"
                       title={survey.title}
@@ -141,7 +147,7 @@ export default function SurveyMonitoringTable({
                     {survey.isUtama && (
                       <Badge
                         variant="info"
-                        className="mt-xs px-sm py-[2px] text-[10px] uppercase rounded"
+                        className="mt-xs px-sm py-[2px] text-[10px] uppercase rounded whitespace-nowrap"
                       >
                         Survei Utama
                       </Badge>
