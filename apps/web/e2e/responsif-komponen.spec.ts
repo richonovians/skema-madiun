@@ -204,9 +204,10 @@ for (const { nama, viewport } of LEBAR) {
       await butir!.click();
       // Modalnya dipastikan TERBUKA lebih dulu: pengukuran luberan atas halaman
       // tanpa modal pun lulus, jadi tanpa baris ini uji tetap hijau bila
-      // butirnya berhenti membuka apa-apa. Dicari lewat judulnya karena
-      // ShareSurveyModal belum ber-`role="dialog"`.
-      await expect(page.getByText('Bagikan Survei', { exact: true })).toBeVisible();
+      // butirnya berhenti membuka apa-apa. Dicari lewat perannya sejak
+      // ShareSurveyModal ber-`role="dialog"` (26 Oktober 2026); sebelumnya
+      // terpaksa lewat teks judulnya.
+      await expect(page.getByRole('dialog', { name: /bagikan survei/i })).toBeVisible();
       await page.waitForTimeout(700);
 
       await harusMuatDiLayar(page, 'modal bagikan survei');
