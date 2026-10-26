@@ -210,13 +210,16 @@ test.describe('BUG-018 — meneruskan pengaduan menyiarkan ulang "Pengaduan Baru
   });
 
   test('meneruskan ke OPD tidak menyiarkan ulang kabar itu kepada yang sudah menerimanya', async () => {
-    test.fail(
-      true,
-      'BUG-018 masih terbuka: penugasan OPD menempuh jalur penyiaran yang sama ' +
-        'dengan pengaduan baru, sehingga admin yang sudah diberi tahu diberi tahu ' +
-        'lagi — dan kalimatnya pun keliru, sebab yang terjadi bukan pengaduan baru ' +
-        'masuk. Cabut anotasi ini begitu penyiarannya dipersempit ke OPD tujuan.',
-    );
+    // Anotasi `test.fail()` DICABUT 26 Oktober 2026. BUG-018 diperbaiki di `main`
+    // (`77da88b`, 23 Oktober): penerusan pengaduan tak lagi menempuh jalur
+    // penyiaran pengaduan baru.
+    //
+    // Yang menuntut pencabutannya mekanisme yang sama dengan BUG-014 di atas:
+    // jalan pertama spec ini terhadap kode `main`, 26 Oktober 2026, berbunyi
+    // "Expected to fail, but passed" dua kali (jalan asli dan satu percobaan
+    // ulang). Sejak sekarang ia pagar regresi sungguhan -- bila penerusan kembali
+    // menyiarkan "Pengaduan Baru Masuk" kepada admin yang sudah menerimanya, uji
+    // di bawah memerah.
 
     await panggilApi(tokenKabupaten, 'PATCH', `/complaints/${pengaduanId}/opd`, {
       opdId: opdTujuan,

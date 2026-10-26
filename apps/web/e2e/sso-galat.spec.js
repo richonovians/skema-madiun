@@ -22,10 +22,14 @@ import { BASE_URL } from './support/api.js';
  * sebab lain. Pengalihannya sengaja TIDAK diikuti (`maxRedirects: 0`) — yang
  * diuji isi header `Location`-nya, bukan halaman tujuannya.
  *
- * ── Kenapa `test.fail()` ────────────────────────────────────────────────────
- * Cacatnya belum diperbaiki. Selama ia ada suite tetap hijau; begitu pesan dari
- * Helpdesk dipetakan ke kalimat milik aplikasi sendiri, uji ini MERAH dan
- * menuntut anotasinya dicabut.
+ * ── `test.fail()` SUDAH DICABUT (26 Oktober 2026) ───────────────────────────
+ * Sampai hari itu uji kedua dipasangi `test.fail()`, sebab cacatnya belum
+ * diperbaiki: selama ia ada suite tetap hijau, dan begitu pesan dari Helpdesk
+ * dipetakan ke kalimat milik aplikasi sendiri uji itu MERAH dan menuntut
+ * anotasinya dicabut. Itulah yang terjadi. BUG-019 diperbaiki di `main`
+ * (`3fb335f`, 22 Oktober), dan jalan pertama spec ini terhadap kode `main`
+ * berbunyi "Expected to fail, but passed" dua kali. Kini ia pagar regresi
+ * sungguhan.
  *
  * ── Data uji ────────────────────────────────────────────────────────────────
  * Nihil. Tak ada baris basis data yang tersentuh; keduanya hanya membaca
@@ -53,14 +57,6 @@ test.describe('BUG-019 — teks luar pada layar gagal masuk SSO', () => {
   });
 
   test('keterangan galat dari luar tidak ikut apa adanya ke layar warga', async ({ request }) => {
-    test.fail(
-      true,
-      'BUG-019 masih terbuka: `auth.controller.ts` meneruskan `query.error_description` ' +
-        'ke `buildFailureRedirect` tanpa pemetaan, dan DTO-nya mengizinkan 1024 karakter ' +
-        'bebas. Cabut anotasi ini begitu galat dari Helpdesk dipetakan ke kalimat milik ' +
-        'aplikasi sendiri.',
-    );
-
     const res = await request.get(
       alamatCallback(
         `error=access_denied&error_description=${encodeURIComponent(KALIMAT_KARANGAN)}`,
