@@ -8,6 +8,33 @@ jest.mock('../../services/actingRole.api', () => ({
 }));
 
 /**
+ * TUJUAN NAVIGASI DIBUAT BERUPA FRAGMEN (26 Oktober 2026).
+ *
+ * Sampai hari itu berkas ini memalsukan `window.location` dengan
+ * `delete window.location; window.location = { assign: jest.fn() }`. Di jsdom 26
+ * keduanya tak berlaku: `delete` diabaikan diam-diam, dan penugasannya justru
+ * memanggil setter `location` -- sebuah navigasi ke "[object Object]" yang
+ * dilaporkan jsdom sebagai "Not implemented: navigation". Tak satu uji pun
+ * memeriksa tiruannya, jadi semuanya hijau dan tujuan navigasinya tak pernah
+ * diuji. Penjelasan lengkap tentang ketiga cara pemalsuan yang ditolak jsdom ada
+ * di `AuthCallbackLoader.test.jsx`.
+ *
+ * jsdom HANYA menjalankan navigasi yang mengubah fragmen saja. Karena itu
+ * `ROLE_HOME` di sini memetakan setiap peran ke `#beranda-<peran>`: komponennya
+ * tetap memanggil `window.location.assign` sungguhan, dan `location.hash`
+ * sesudahnya menyebut beranda MANA yang dipilih. Yang diuji karena itu
+ * sambungannya -- peran yang dikirim dan beranda yang dituju adalah peran yang
+ * sama -- bukan alamat beranda itu sendiri.
+ */
+jest.mock('@/constants/roleHome', () => ({
+  ROLE_HOME: {
+    kabupaten: '#beranda-kabupaten',
+    opd: '#beranda-opd',
+    responden: '#beranda-responden',
+  },
+}));
+
+/**
  * SAMBUNGAN antara tombol dan peran yang dikirim (8 September 2026).
  *
  * Pemetaannya sendiri diuji terpisah di `utils/__tests__/tombolPeran.test.js`;
@@ -24,14 +51,10 @@ jest.mock('../../services/actingRole.api', () => ({
 const render1 = (props = {}) =>
   render(<RoleLoginPicker roles={props.roles ?? []} onCancel={() => {}} {...props} />);
 
-// `window.location.assign` dipanggil sesudah berpindah peran; jsdom
-// mengimplementasikannya sebagai navigasi sungguhan dan memuntahkan galat.
-beforeAll(() => {
-  delete window.location;
-  window.location = { assign: jest.fn() };
+beforeEach(() => {
+  jest.clearAllMocks();
+  window.location.hash = '';
 });
-
-beforeEach(() => jest.clearAllMocks());
 
 describe('RoleLoginPicker — tiga tombol', () => {
   /**
@@ -88,5 +111,103 @@ describe('RoleLoginPicker — tiga tombol', () => {
     render1({ roles: ['kabupaten'], currentRole: 'kabupaten' });
 
     expect(screen.getByText('sedang dipakai')).toBeInTheDocument();
+  });
+});
+
+describe('RoleLoginPicker — berpindah peran', () => {
+  it('memilih peran berpindah ke beranda peran itu', async () => {
+    render1({ roles: ['kabupaten', 'responden'] });
+
+    fireEvent.click(screen.getByText('Masyarakat'));
+
+    await waitFor(() => expect(window.location.hash).toBe('#beranda-responden'));
+  });
+
+  /**
+   * Urutannya bagian dari kontraknya: `POST /auth/acting-role` menulis cookie
+   * sesi baru, dan proxy.js membaca cookie itu pada permintaan BERIKUTNYA.
+   * Bernavigasi sebelum jawabannya datang membawa sesi lama ke beranda baru.
+   */
+  it('tidak bernavigasi sebelum peran baru selesai disimpan', async () => {
+    let selesai;
+    setActingRole.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          selesai = resolve;
+        }),
+    );
+    render1({ roles: ['kabupaten'] });
+
+    fireEvent.click(screen.getByText('Admin Kabupaten'));
+    await waitFor(() => expect(setActingRole).toHaveBeenCalledWith('kabupaten'));
+
+    expect(window.location.hash).toBe('');
+
+    selesai({});
+    await waitFor(() => expect(window.location.hash).toBe('#beranda-kabupaten'));
+  });
+
+  it('selagi berpindah, semua tombol peran nonaktif dan tombol yang diklik bertanda "berpindah..."', async () => {
+    setActingRole.mockImplementationOnce(() => new Promise(() => {}));
+    render1({ roles: ['kabupaten', 'responden'] });
+
+    fireEvent.click(screen.getByText('Masyarakat'));
+
+    const tombolMasyarakat = screen.getByRole('button', { name: /masyarakat/i });
+    await waitFor(() => expect(tombolMasyarakat).toHaveTextContent('berpindah...'));
+    expect(tombolMasyarakat).toBeDisabled();
+    expect(screen.getByRole('button', { name: /admin kabupaten/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /admin kabupaten/i })).not.toHaveTextContent(
+      'berpindah...',
+    );
+  });
+
+  it('gagal berpindah: pesan galat tampil, tidak bernavigasi, dan tombol dapat dicoba lagi', async () => {
+    setActingRole.mockRejectedValueOnce(new Error('Peran ini tidak dimiliki akun Anda.'));
+    render1({ roles: ['kabupaten', 'responden'] });
+
+    fireEvent.click(screen.getByText('Masyarakat'));
+
+    expect(await screen.findByText('Peran ini tidak dimiliki akun Anda.')).toBeInTheDocument();
+    expect(window.location.hash).toBe('');
+    const tombolMasyarakat = screen.getByRole('button', { name: /masyarakat/i });
+    expect(tombolMasyarakat).toBeEnabled();
+    expect(tombolMasyarakat).not.toHaveTextContent('berpindah...');
+  });
+
+  it('galat tanpa pesan memakai kalimat cadangan', async () => {
+    setActingRole.mockRejectedValueOnce(new Error(''));
+    render1({ roles: ['kabupaten'] });
+
+    fireEvent.click(screen.getByText('Admin Kabupaten'));
+
+    expect(
+      await screen.findByText('Gagal berpindah peran. Silakan coba lagi.'),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * Backend menolak peran `opd` tanpa tautan OPD (400). Tombolnya karena itu
+   * tampil NONAKTIF beserta sebabnya, bukan disembunyikan.
+   */
+  it('Admin OPD tanpa tautan OPD tampil nonaktif beserta sebabnya', () => {
+    render1({ roles: ['opd', 'responden'], opdId: null });
+
+    const tombolOpd = screen.getByRole('button', { name: /admin opd/i });
+    expect(tombolOpd).toBeDisabled();
+    expect(tombolOpd).toHaveTextContent(/belum ditautkan ke OPD mana pun/i);
+  });
+
+  it('KONTROL: Admin OPD yang tertaut ke OPD dapat dipilih dan berpindah ke berandanya', async () => {
+    render1({ roles: ['opd', 'responden'], opdId: 7 });
+
+    const tombolOpd = screen.getByRole('button', { name: /admin opd/i });
+    expect(tombolOpd).toBeEnabled();
+    expect(tombolOpd).not.toHaveTextContent(/belum ditautkan/i);
+
+    fireEvent.click(tombolOpd);
+
+    await waitFor(() => expect(window.location.hash).toBe('#beranda-opd'));
+    expect(setActingRole).toHaveBeenCalledWith('opd');
   });
 });
