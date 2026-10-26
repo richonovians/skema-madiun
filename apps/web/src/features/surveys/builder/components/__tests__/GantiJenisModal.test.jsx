@@ -77,6 +77,22 @@ describe('GantiJenisModal', () => {
     expect(screen.getByText('U2')).toBeInTheDocument();
   });
 
+  /**
+   * TUJUAN & METODE DI ATAS DAFTAR UNSUR (27 Oktober 2026, permintaan pengguna:
+   * dropdown-nya terbuka ke bawah tanpa menabrak tombol). Dulu keduanya di
+   * bawah daftar, tepat di atas footer: tak ada ruang di bawahnya, jadi panel
+   * dibalik ke atas menutupi daftar unsur. Kini panelnya terbuka ke bawah,
+   * menutupi daftar unsur alih-alih tombol. jsdom tak menghitung tata letak,
+   * jadi yang dijaga di sini urutannya; arah bukanya dibuktikan di Chrome.
+   */
+  it('isian tujuan dan metode berada SEBELUM daftar unsur yang akan dihapus', () => {
+    setup();
+
+    const tujuan = screen.getByLabelText(/tujuan survei/i);
+    const daftar = screen.getByRole('list', { name: /unsur yang akan dihapus/i });
+    expect(tujuan.compareDocumentPosition(daftar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('tombol konfirmasi nonaktif sampai tujuan DAN metode dipilih', () => {
     setup();
     expect(tombol()).toBeDisabled();
