@@ -164,7 +164,7 @@ describe('Daftar pengaduan Admin OPD (TC-FE-041)', () => {
 
     // ITEMS_PER_PAGE = 5, jadi dua pengaduan terakhir ada di halaman berikutnya.
     expect(barisTabel()).toHaveLength(5);
-    expect(screen.getByText(/Menampilkan 7 tiket pengaduan/)).toBeInTheDocument();
+    expect(screen.getByText('Menampilkan 7 pengaduan.')).toBeInTheDocument();
   });
 
   it('menyaring menurut status yang dipilih', async () => {
@@ -217,7 +217,60 @@ describe('Daftar pengaduan Admin OPD (TC-FE-041)', () => {
     // Menyetelnya ke '' membuat tombol reset justru mengosongkan tabel.
     expect(barisTabel()).toHaveLength(5);
     expect(kolomCari()).toHaveValue('');
-    expect(screen.getByText(/Menampilkan 7 tiket pengaduan/)).toBeInTheDocument();
+    expect(screen.getByText('Menampilkan 7 pengaduan.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * KALIMAT JUDUL MENGIKUTI PENYARING STATUS (26 Oktober 2026, permintaan
+ * pengguna). Sebelumnya kalimatnya tetap "N tiket pengaduan aktif yang
+ * membutuhkan tindak lanjut segera" walau yang tersaring pengaduan Selesai
+ * atau Ditolak -- dua keadaan yang justru TIDAK membutuhkan tindak lanjut.
+ * Angkanya jumlah sesudah pencarian dan penyaring, sama seperti tabelnya.
+ */
+describe('Daftar pengaduan Admin OPD — kalimat judul mengikuti penyaring status', () => {
+  beforeEach(() => sajikan(DAFTAR));
+
+  it.each([
+    ['Diterima', 'Menampilkan 2 pengaduan baru yang belum ditindaklanjuti.'],
+    ['Diproses', 'Menampilkan 2 pengaduan yang sedang diproses.'],
+    ['Selesai', 'Menampilkan 2 pengaduan yang sudah selesai ditangani.'],
+    ['Ditolak', 'Menampilkan 1 pengaduan yang ditolak.'],
+  ])('penyaring %s', async (status, kalimat) => {
+    render(<AdminOPDComplaintsPage />);
+    await screen.findByRole('table');
+
+    await pilihStatus(status);
+
+    expect(screen.getByText(kalimat)).toBeInTheDocument();
+    expect(screen.queryByText(/tindak lanjut segera/)).not.toBeInTheDocument();
+  });
+
+  it('Semua Status tidak menyebut keadaan apa pun', async () => {
+    render(<AdminOPDComplaintsPage />);
+    await screen.findByRole('table');
+
+    expect(screen.getByText('Menampilkan 7 pengaduan.')).toBeInTheDocument();
+  });
+
+  it('angkanya mengikuti pencarian di dalam penyaring', async () => {
+    render(<AdminOPDComplaintsPage />);
+    await screen.findByRole('table');
+
+    await pilihStatus('Selesai');
+    fireEvent.change(kolomCari(), { target: { value: 'budi' } });
+
+    expect(screen.getByText('Menampilkan 1 pengaduan yang sudah selesai ditangani.')).toBeInTheDocument();
+  });
+
+  it('kembali ke kalimat netral sesudah Reset Filter', async () => {
+    render(<AdminOPDComplaintsPage />);
+    await screen.findByRole('table');
+
+    await pilihStatus('Ditolak');
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Filter' }));
+
+    expect(screen.getByText('Menampilkan 7 pengaduan.')).toBeInTheDocument();
   });
 });
 

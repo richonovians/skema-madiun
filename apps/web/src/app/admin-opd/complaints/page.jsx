@@ -149,7 +149,7 @@ export default function AdminOPDComplaintsPage() {
 
   return (
     <div className="w-full space-y-6">
-      <ComplaintListHeader totalComplaints={totalItems} />
+      <ComplaintListHeader totalComplaints={totalItems} statusFilter={statusFilter} />
 
       {exportError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">
