@@ -19,7 +19,7 @@ export default function AboutCTA() {
           <h2 className="font-h1 text-h1-sm md:text-h2 text-text-primary mb-6">
             {cta.title}
           </h2>
-          <p className="font-body text-body-lg text-text-secondary mb-12 max-w-2xl mx-auto">
+          <p className="font-body text-body-lg text-text-secondary mb-12 max-w-[42rem] mx-auto">
             {cta.description}
           </p>
           
