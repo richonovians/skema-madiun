@@ -644,6 +644,135 @@ describe('Surveys (e2e)', () => {
     });
   });
 
+  // 26 Oktober 2026: arah sebaliknya, Custom -> SKM (permintaan pengguna, pilihan
+  // "a"). U1-U9 ditambahkan di depan, pertanyaan OPD bertahan sebagai tambahan.
+  describe('PATCH /surveys/:id/jenis (ganti jenis Custom -> SKM)', () => {
+    const keSkm = { jenis: 'skm_permenpanrb' };
+
+    const buatCustom = async (teksTambahan: string[] = ['Saran Anda?', 'Seberapa puas Anda?']) => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/surveys')
+        .set(opdHeaders())
+        .send({
+          judul: 'Custom ke SKM E2E',
+          periode: '2026-Q1',
+          jenis: 'custom',
+          tujuan: 'kepuasan',
+          metodeNilai: 'indeks_persen',
+        });
+      expect(res.status).toBe(201);
+      const id = res.body.data.id as number;
+      for (const teks of teksTambahan) {
+        const q = await request(app.getHttpServer())
+          .post(`/api/v1/surveys/${id}/questions`)
+          .set(opdHeaders())
+          .send({ teks, tipe: teks.startsWith('Seberapa') ? 'skala' : 'teks' });
+        expect(q.status).toBe(201);
+      }
+      return id;
+    };
+    const ganti = (id: number, badan: Record<string, unknown> = keSkm) =>
+      request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${id}/jenis`)
+        .set(opdHeaders())
+        .send(badan);
+    const pertanyaan = async (id: number) =>
+      (
+        (
+          await request(app.getHttpServer())
+            .get(`/api/v1/surveys/${id}/questions`)
+            .set(opdHeaders())
+        ).body.data as {
+          kodeUnsur: string | null;
+          isIkmUnsur: boolean;
+          urutan: number;
+          teks: string;
+        }[]
+      ).sort((a, b) => a.urutan - b.urutan);
+
+    it('200: U1-U9 di urutan 1..9, pertanyaan OPD bertahan di 10..11, tujuan & metode kosong', async () => {
+      const id = await buatCustom();
+
+      const res = await ganti(id);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.jenis).toBe('skm_permenpanrb');
+      expect(res.body.data.tujuan).toBeNull();
+      expect(res.body.data.metodeNilai).toBeNull();
+
+      const semua = await pertanyaan(id);
+      expect(semua).toHaveLength(11);
+      expect(semua.slice(0, 9).map((q) => [q.urutan, q.kodeUnsur, q.isIkmUnsur])).toEqual(
+        Array.from({ length: 9 }, (_, i) => [i + 1, `U${i + 1}`, true]),
+      );
+      expect(semua.slice(9).map((q) => [q.urutan, q.teks, q.kodeUnsur, q.isIkmUnsur])).toEqual([
+        [10, 'Saran Anda?', null, false],
+        [11, 'Seberapa puas Anda?', null, false],
+      ]);
+    });
+
+    it('hasilnya SKM yang utuh: kerangkanya lengkap sehingga dapat diterbitkan', async () => {
+      const id = await buatCustom([]);
+      expect((await ganti(id)).status).toBe(200);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${id}/status`)
+        .set(opdHeaders())
+        .send({ status: 'aktif' })
+        .expect(200);
+    });
+
+    it('400: membawa tujuan atau metode, dan pertanyaannya tak berubah', async () => {
+      const id = await buatCustom();
+
+      expect((await ganti(id, { ...keSkm, tujuan: 'kepuasan' })).status).toBe(400);
+      expect((await ganti(id, { ...keSkm, metodeNilai: 'rata_rata' })).status).toBe(400);
+      expect(await pertanyaan(id)).toHaveLength(2);
+    });
+
+    it('400: Custom yang sudah aktif, dan pertanyaannya tak berubah', async () => {
+      const id = await buatCustom();
+      await request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${id}/status`)
+        .set(opdHeaders())
+        .send({ status: 'aktif' })
+        .expect(200);
+
+      const res = await ganti(id);
+
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/berstatus draf/);
+      expect(await pertanyaan(id)).toHaveLength(2);
+    });
+
+    it('400: Custom yang sudah dijawab', async () => {
+      const id = await buatCustom();
+      await prisma.surveyResponse.create({ data: { surveyId: id } });
+
+      const res = await ganti(id);
+
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/sudah menerima 1 jawaban/);
+    });
+
+    it('bolak-balik: Custom -> SKM -> Custom mengembalikan pertanyaan OPD ke 1..n', async () => {
+      const id = await buatCustom();
+      expect((await ganti(id)).status).toBe(200);
+
+      const balik = await ganti(id, {
+        jenis: 'custom',
+        tujuan: 'evaluasi',
+        metodeNilai: 'rata_rata',
+      });
+
+      expect(balik.status).toBe(200);
+      expect((await pertanyaan(id)).map((q) => [q.urutan, q.teks])).toEqual([
+        [1, 'Saran Anda?'],
+        [2, 'Seberapa puas Anda?'],
+      ]);
+    });
+  });
+
   // 8 Oktober 2026: kolom `tujuan` / `metode_nilai` hanya bermakna untuk survei
   // custom. CHECK `surveys_nilai_survei_ck` hidup di migrasi (Prisma tak dapat
   // menyatakannya), jadi hanya SQL langsung yang dapat membuktikannya.

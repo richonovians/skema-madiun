@@ -11,7 +11,10 @@ import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/pa
  *
  * Tombolnya hanya ada pada survei SKM yang masih DRAF dan belum dijawab; begitu
  * survei terbit atau dijawab, aturan backend menolaknya, jadi tombolnya hilang.
- * Survei Custom tak memilikinya (jenis tak pernah kembali ke SKM).
+ *
+ * Sampai 26 Oktober 2026 berkas ini juga menuntut survei Custom TANPA tombol
+ * ("jenis tak pernah kembali ke SKM"). Arah itu kini dibuka atas permintaan
+ * pengguna; ujinya pindah ke `BuilderGantiJenisCustom.test.jsx`.
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -116,19 +119,6 @@ describe('Builder — tombol Ganti jenis pada survei SKM', () => {
     await screen.findAllByPlaceholderText(/tulis pertanyaan di sini/i);
     expect(tombolGanti()).not.toBeInTheDocument();
   });
-
-  it('survei Custom: tombol tidak ada (jenis tak pernah kembali ke SKM)', async () => {
-    muatSurvei({ jenis: 'custom', tujuan: 'kepuasan', metodeNilai: 'rata_rata' });
-    server.use(
-      http.get(`${API_BASE}/surveys/:id/questions`, ({ params }) =>
-        ok([], `/surveys/${params.id}/questions`),
-      ),
-    );
-    await renderBuilder();
-
-    await screen.findByText('Skala Nilai 1-4');
-    expect(tombolGanti()).not.toBeInTheDocument();
-  });
 });
 
 describe('Builder — alur ganti jenis SKM -> Custom', () => {
@@ -167,10 +157,14 @@ describe('Builder — alur ganti jenis SKM -> Custom', () => {
     await waitFor(() => expect(kotakPertanyaan()).toHaveLength(0));
     expect(screen.queryByText(/kerangka 9 unsur/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    // Panel Nilai Survei muncul berisi pilihan tadi, dan tombol Ganti jenis hilang.
+    // Panel Nilai Survei muncul berisi pilihan tadi. Tombol Ganti jenis TETAP ada
+    // sejak 26 Oktober 2026, kini untuk arah sebaliknya (Custom -> SKM).
     expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('evaluasi');
     expect(screen.getByLabelText(/metode nilai/i)).toHaveValue('indeks_persen');
-    expect(tombolGanti()).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(tombolGanti());
+    });
+    expect(screen.getByRole('dialog', { name: /ganti jenis survei ke skm/i })).toBeInTheDocument();
   });
 
   it('pertanyaan tambahan milik OPD tetap tampil sesudah penggantian', async () => {

@@ -230,7 +230,14 @@ describe('Builder survei baru — pemilihan jenis', () => {
     expect(postSurvei).toHaveLength(0);
   });
 
-  it('sesudah survei custom benar-benar dibuat, jenis tidak dapat diganti lagi', async () => {
+  /**
+   * Sampai 26 Oktober 2026 uji ini menuntut tombol "Ganti jenis" HILANG begitu
+   * survei custom benar-benar dibuat. Sejak arah Custom -> SKM dibuka, tombolnya
+   * tetap ada, tetapi bukan lagi membatalkan pilihan: ia membuka modal ganti ke
+   * SKM, karena surveinya sudah tersimpan di backend dan pemilih jenis tak dapat
+   * lagi menggantinya diam-diam.
+   */
+  it('sesudah survei custom benar-benar dibuat, "Ganti jenis" membuka modal ganti ke SKM, bukan pemilih', async () => {
     await renderBuilder('new');
     await pilihCustomLengkap();
     await konfirmasi();
@@ -239,7 +246,13 @@ describe('Builder survei baru — pemilihan jenis', () => {
     });
     await waitFor(() => expect(postSurvei).toHaveLength(1));
 
-    expect(screen.queryByRole('button', { name: /ganti jenis/i })).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^ganti jenis$/i }));
+    });
+
+    expect(screen.getByRole('dialog', { name: /ganti jenis survei ke skm/i })).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: /jenis survei/i })).not.toBeInTheDocument();
+    expect(postSurvei).toHaveLength(1);
   });
 
   it('galat saat membuat survei SKM ditampilkan dan pemilih tetap bisa dicoba lagi', async () => {
