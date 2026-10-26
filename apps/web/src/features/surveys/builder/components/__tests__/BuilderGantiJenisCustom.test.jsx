@@ -4,6 +4,18 @@ import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, surveyFixture, questionFixture } from '@/mocks/handlers';
 import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/page';
+import { METODE_NILAI, TUJUAN_SURVEI } from '@/features/surveys/constants/nilaiSurvei';
+
+/**
+ * "Tujuan survei" dan "Metode nilai" memakai `Dropdown` sejak 26 Oktober 2026,
+ * bukan `<select>` bawaan: memilih berarti membuka panel lalu mengklik
+ * pilihannya menurut LABEL, dan yang tampak di tombolnya label, bukan enum.
+ */
+const labelNilai = (nilai) => [...TUJUAN_SURVEI, ...METODE_NILAI].find((p) => p.nilai === nilai).label;
+const pilihNilai = (kontrol, nilai) => {
+  fireEvent.click(kontrol);
+  fireEvent.click(screen.getByRole('button', { name: labelNilai(nilai) }));
+};
 
 /**
  * GANTI JENIS CUSTOM -> SKM DI BUILDER (26 Oktober 2026, permintaan pengguna:
@@ -188,7 +200,7 @@ describe('Builder — alur ganti jenis Custom -> SKM', () => {
     await renderBuilder();
     await siap();
     expect(kotakPertanyaan()).toHaveLength(2);
-    expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('kepuasan');
+    expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent(labelNilai('kepuasan'));
 
     await bukaModal();
     await act(async () => {
@@ -239,6 +251,6 @@ describe('Builder — alur ganti jenis Custom -> SKM', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/sudah menerima 1 jawaban/);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(kotakPertanyaan()).toHaveLength(2);
-    expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('kepuasan');
+    expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent(labelNilai('kepuasan'));
   });
 });

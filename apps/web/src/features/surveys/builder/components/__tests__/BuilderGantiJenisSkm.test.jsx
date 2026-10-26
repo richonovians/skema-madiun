@@ -4,6 +4,18 @@ import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, created, surveyFixture, questionFixture } from '@/mocks/handlers';
 import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/page';
+import { METODE_NILAI, TUJUAN_SURVEI } from '@/features/surveys/constants/nilaiSurvei';
+
+/**
+ * "Tujuan survei" dan "Metode nilai" memakai `Dropdown` sejak 26 Oktober 2026,
+ * bukan `<select>` bawaan: memilih berarti membuka panel lalu mengklik
+ * pilihannya menurut LABEL, dan yang tampak di tombolnya label, bukan enum.
+ */
+const labelNilai = (nilai) => [...TUJUAN_SURVEI, ...METODE_NILAI].find((p) => p.nilai === nilai).label;
+const pilihNilai = (kontrol, nilai) => {
+  fireEvent.click(kontrol);
+  fireEvent.click(screen.getByRole('button', { name: labelNilai(nilai) }));
+};
 
 /**
  * GANTI JENIS SKM -> CUSTOM DI BUILDER (8 Oktober 2026, permintaan pengguna:
@@ -90,8 +102,8 @@ const gantiKeCustom = async ({ tujuan = 'evaluasi', metode = 'indeks_persen' } =
   await act(async () => {
     fireEvent.click(tombolGanti());
   });
-  fireEvent.change(screen.getByLabelText(/tujuan survei/i), { target: { value: tujuan } });
-  fireEvent.change(screen.getByLabelText(/metode nilai/i), { target: { value: metode } });
+  pilihNilai(screen.getByLabelText(/tujuan survei/i), tujuan);
+  pilihNilai(screen.getByLabelText(/metode nilai/i), metode);
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: /ganti ke custom/i }));
   });
@@ -159,8 +171,8 @@ describe('Builder — alur ganti jenis SKM -> Custom', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     // Panel Nilai Survei muncul berisi pilihan tadi. Tombol Ganti jenis TETAP ada
     // sejak 26 Oktober 2026, kini untuk arah sebaliknya (Custom -> SKM).
-    expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('evaluasi');
-    expect(screen.getByLabelText(/metode nilai/i)).toHaveValue('indeks_persen');
+    expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent(labelNilai('evaluasi'));
+    expect(screen.getByLabelText(/metode nilai/i)).toHaveTextContent(labelNilai('indeks_persen'));
     await act(async () => {
       fireEvent.click(tombolGanti());
     });
