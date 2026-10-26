@@ -1,5 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { dekripsi, enkripsi, INFO_KOLOM, INFO_LAMPIRAN, terenkripsi } from './envelope';
+import {
+  dekripsi,
+  enkripsi,
+  INFO_KOLOM,
+  INFO_LAMPIRAN,
+  terenkripsi,
+  versiAmplop,
+} from './envelope';
 
 const KUNCI = randomBytes(32);
 
@@ -49,5 +56,46 @@ describe('envelope', () => {
 
   it('data polos yang kebetulan berawalan SKM1 tetap ditolak bila terlalu pendek', () => {
     expect(terenkripsi(Buffer.from('SKM1\x01'))).toBe(false);
+  });
+
+  /**
+   * DETEKSI AMPLOP TERPISAH DARI VERSINYA (26 Oktober 2026).
+   *
+   * Sebelumnya `terenkripsi()` menuntut byte versi tepat 0x01, jadi amplop
+   * berversi lain dijawab "bukan amplop" -- dan keempat pemanggilnya salah
+   * dengan cara masing-masing: penyaji lampiran mengirim ciphertext mentah,
+   * migrasi lampiran dan rotasi MELAPIS blob yang sudah terenkripsi, cadangan
+   * melaporkannya polos. Belum pernah terjadi karena baru ada v1; inilah
+   * prasyarat sebelum format kedua mana pun ditambahkan
+   * (docs/keamanan/usulan-enkripsi-asimetris.md, langkah 1).
+   */
+  describe('amplop berversi yang belum dikenal', () => {
+    /** Blob v1 sungguhan dengan byte versinya diganti -- selain itu utuh. */
+    const blobVersi = (versi: number) => {
+      const blob = enkripsi(Buffer.from('isi pengaduan'), KUNCI, INFO_LAMPIRAN);
+      blob[4] = versi;
+      return blob;
+    };
+
+    it('tetap dikenali sebagai amplop, bukan data polos', () => {
+      expect(terenkripsi(blobVersi(0x02))).toBe(true);
+    });
+
+    it('versiAmplop menjawab versinya, dan null untuk yang bukan amplop', () => {
+      expect(versiAmplop(enkripsi(Buffer.from('x'), KUNCI, INFO_LAMPIRAN))).toBe(1);
+      expect(versiAmplop(blobVersi(0x02))).toBe(2);
+      expect(versiAmplop(Buffer.from('\x89PNG\r\n\x1a\n'))).toBeNull();
+      expect(versiAmplop(Buffer.from('SKM1\x01'))).toBeNull();
+    });
+
+    it('dekripsi melempar dengan menyebut versinya, bukan "bukan amplop"', () => {
+      expect(() => dekripsi(blobVersi(0x02), KUNCI, INFO_LAMPIRAN)).toThrow(/versi 2/);
+    });
+
+    it('data polos tetap ditolak dekripsi sebagai bukan amplop', () => {
+      expect(() => dekripsi(Buffer.from('teks polos biasa'), KUNCI, INFO_LAMPIRAN)).toThrow(
+        /bukan amplop SKM1/,
+      );
+    });
   });
 });

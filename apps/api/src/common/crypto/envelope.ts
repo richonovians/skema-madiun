@@ -55,22 +55,48 @@ export function enkripsi(data: Buffer, kunciInduk: Buffer, info: string): Buffer
 }
 
 /**
+ * Versi amplop SKM1, atau `null` bila data ini bukan amplop sama sekali.
+ *
+ * DUA PERTANYAAN, DIJAWAB TERPISAH (26 Oktober 2026). Sampai hari itu
+ * `terenkripsi()` menuntut byte versi tepat 0x01, sehingga amplop berversi lain
+ * dijawab "bukan amplop" -- dan pemanggilnya memperlakukannya sebagai data
+ * POLOS: penyaji lampiran mengirim ciphertext mentah, skrip migrasi dan rotasi
+ * melapisnya sekali lagi, cadangan melaporkannya polos. Tak pernah terjadi
+ * karena baru ada v1, tetapi format kedua mana pun akan memicunya
+ * (docs/keamanan/usulan-enkripsi-asimetris.md, langkah 1).
+ *
+ * Batas panjangnya header v1, header terpendek yang dikenal. Format yang lebih
+ * baru hanya akan lebih panjang, jadi batas ini tak menolak amplop sah, dan ia
+ * tetap menolak berkas polos pendek yang kebetulan berawalan `SKM1`.
+ */
+export function versiAmplop(data: Buffer): number | null {
+  if (data.length < PANJANG_HEADER || !data.subarray(0, MAGIC.length).equals(MAGIC)) {
+    return null;
+  }
+  return data[MAGIC.length];
+}
+
+/**
  * Memeriksa PENANDA saja. Ia tidak, dan tidak dimaksudkan untuk, membuktikan
  * blobnya utuh -- itu tugas tag autentikasi, dan hanya `dekripsi` yang dapat
  * menjawabnya. Gunanya di sini adalah membedakan berkas lama yang masih polos
  * dari berkas yang sudah dienkripsi, tanpa perlu kunci.
+ *
+ * VERSI APA PUN dijawab `true`. Amplop yang versinya tak dikenal tetap amplop,
+ * bukan data polos; menolaknya adalah tugas `dekripsi`, yang melempar dengan
+ * menyebut versinya.
  */
 export function terenkripsi(data: Buffer): boolean {
-  return (
-    data.length >= PANJANG_HEADER &&
-    data.subarray(0, MAGIC.length).equals(MAGIC) &&
-    data[MAGIC.length] === VERSI
-  );
+  return versiAmplop(data) !== null;
 }
 
 export function dekripsi(blob: Buffer, kunciInduk: Buffer, info: string): Buffer {
-  if (!terenkripsi(blob)) {
-    throw new Error('Blob bukan format envelope SKM1 v1');
+  const versi = versiAmplop(blob);
+  if (versi === null) {
+    throw new Error('Blob bukan amplop SKM1');
+  }
+  if (versi !== VERSI) {
+    throw new Error(`Amplop SKM1 versi ${versi} belum dikenali kode ini`);
   }
   let p = MAGIC.length + 1;
   const garam = blob.subarray(p, (p += PANJANG_GARAM));
