@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { test as base, expect, request, type Page } from '@playwright/test';
+import { test as base, expect, request, type Locator, type Page } from '@playwright/test';
 import { BERKAS_TOKEN } from '../global-setup';
 
 export type Peran = 'responden' | 'opd' | 'kabupaten';
@@ -491,6 +491,51 @@ async function tungguNavbarTenang(page: Page): Promise<void> {
   }
 }
 
+/**
+ * Mencari butir menu aksi baris ("Aksi untuk …") bernama `nama`, membuka menu
+ * baris demi baris sampai ketemu. Menu yang memuatnya DIBIARKAN TERBUKA dan
+ * butirnya dipulangkan; `null` berarti tak satu baris pun memuatnya.
+ *
+ * Lahir 26 Oktober 2026 dari sapuan Playwright: sejak 30 September (`22b2d03`,
+ * aksi survei Kabupaten pindah ke menu titik-tiga) lima uji mencari
+ * `button "Bagikan"`/`button "Hapus"` di halaman, tak menemukannya, lalu
+ * melewati diri dengan alasan "tak ada survei" -- padahal ada lima survei
+ * aktif. Butirnya baru masuk DOM sesudah menunya dibuka, dan berperan
+ * `menuitem`, bukan `button`.
+ *
+ * Baris demi baris, bukan baris pertama, sebab butir tertentu bersyarat:
+ * "Bagikan" hanya ada pada survei AKTIF.
+ *
+ * Pemicunya ditunggu tampil lebih dulu supaya tabel yang BELUM SEMPAT
+ * dirender tak terbaca sebagai tabel kosong -- jebakan yang diperingatkan
+ * `playwright.config.ts` di dekat `workers`. Bila setelah itu tetap tak ada
+ * pemicu, halamannya memang tak punya baris.
+ */
+export async function cariButirAksi(page: Page, nama: RegExp): Promise<Locator | null> {
+  const pemicu = page.getByRole('button', { name: /^Aksi untuk / });
+  await pemicu
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .catch(() => undefined);
+
+  const jumlah = await pemicu.count();
+  for (let i = 0; i < jumlah; i += 1) {
+    const tombol = pemicu.nth(i);
+    await tombol.click();
+    await expect(tombol, 'menu aksi baris tak pernah terbuka').toHaveAttribute('aria-expanded', 'true');
+    // Panelnya digambar lewat portal sesudah posisinya terhitung, jadi
+    // ditunggu tersendiri sebelum butirnya dihitung.
+    await expect(page.getByRole('menu')).toBeVisible();
+
+    const butir = page.getByRole('menuitem', { name: nama });
+    if ((await butir.count()) > 0) return butir.first();
+
+    await page.keyboard.press('Escape');
+    await expect(tombol).toHaveAttribute('aria-expanded', 'false');
+  }
+  return null;
+}
+
 export interface Contoh {
   tiketOpd?: string;
   tiketKab?: string;
@@ -548,7 +593,11 @@ export async function ambilContoh(): Promise<Contoh> {
     const survei: Array<{ id: number; status?: string }> =
       (await ambil('/api/v1/surveys?limit=50', token.kabupaten)) ?? [];
     contoh.surveiKab = survei[0]?.id;
-    contoh.surveiDraf = survei.find((s) => (s.status ?? '').toLowerCase() === 'draf')?.id;
+    // `'draft'`, nilai enum `SurveyStatus` yang dikirim API apa adanya. Sampai
+    // 26 Oktober 2026 baris ini mencocokkan `'draf'`, yang tak pernah cocok,
+    // sehingga uji perancang survei di nama-terakses.spec.ts selalu melewati
+    // dirinya dengan alasan "tak ada contoh data" -- juga saat draf ada.
+    contoh.surveiDraf = survei.find((s) => (s.status ?? '').toLowerCase() === 'draft')?.id;
 
     contoh.auditId = (await ambil('/api/v1/audit-logs?limit=1', token.kabupaten))?.[0]?.id;
   } finally {
