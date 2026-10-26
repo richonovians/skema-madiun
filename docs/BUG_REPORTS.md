@@ -128,8 +128,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-034](#bug-034) | Dua lampiran bernama sama menghasilkan dua tombol hapus bernama identik | Low | Terkonfirmasi | **Ditutup** | QA-H2 |
 | [BUG-035](#bug-035) | Lima uji E2E mencari tombol yang sudah pindah ke menu aksi — terlewat diam-diam empat minggu | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-036](#bug-036) | Fixture E2E mencocokkan status `draf`, enum-nya `draft` — uji perancang survei selalu terlewat | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-037](#bug-037) | Modal Bagikan Survei bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 36 temuan: **36 ditutup, 0 terbuka.**
+**Rekap** — 37 temuan: **37 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2610,6 +2611,45 @@ formatnya sengaja diubah. Yang perlu dibaca adalah **peralihan sebabnya**: dari
 bernama sama. Asersi intinya, keunikan nama, hijau. Repronya sengaja tidak
 disunting: ia rekaman perburuan, dan menyuntingnya agar hijau berarti menulis
 ulang bukti.
+
+---
+
+<a id="bug-037"></a>
+
+### BUG-037 — Modal Bagikan Survei bukan dialog bagi pembaca layar
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 26 Oktober 2026                                              |
+| **Peran**    | Admin Kabupaten dan Admin OPD, pengguna pembaca layar dan papan ketik |
+| **Berkas**   | `apps/web/src/features/surveys/components/ShareSurveyModal.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Pengamatan samping [BUG-035](#bug-035): uji E2E modal ini terpaksa
+mencarinya lewat teks judul, sebab ia tak ber-`role`. Diperiksa utuh, tiga
+cacat dari kelas yang sama ditemukan sekaligus — dan ketiganya sudah dibereskan
+di dialog lain lewat [BUG-015](#bug-015). Modal ini terlewat.
+
+1. **Bukan dialog.** Tanpa `role="dialog"`, `aria-modal`, maupun nama. Bagi
+   pembaca layar ia sepasang `<div>`: teks yang muncul entah dari mana, tanpa
+   tanda bahwa halaman di belakangnya sedang tak dapat dipakai.
+2. **Tombol tutup tanpa nama.** Isinya hanya ikon X, jadi satu-satunya jalan
+   keluar terdengar sebagai "tombol" saja — kelas [BUG-010](#bug-010).
+3. **Fokus tertinggal di belakang.** Ia tak pernah masuk ke modal dan tak
+   dikurung di sana; pemakai papan ketik menekan Tab dan berjalan di halaman
+   yang tertutup modal.
+
+**Ditutup 26 Oktober 2026** — `c0df858`, merge `7031772` di `main`. Polanya
+mengikuti `ConfirmActionModal`: `role="dialog"` + `aria-modal` +
+`aria-labelledby` yang menunjuk dua id, label "Bagikan Survei" dan judul
+surveinya, supaya terdengar APA yang dibagikan; `aria-label="Tutup"` pada tombol
+silang; `useFocusTrap`.
+
+**Pagar.** Empat uji di `ShareSurveyModal.test.jsx`, keempatnya merah lebih
+dulu; kedua uji fokus dibuktikan lewat mutasi (`useFocusTrap` dimatikan →
+keduanya merah). `responsif-komponen.spec.ts` kini mencari modal itu lewat
+`role="dialog"`, dan di Chrome lulus 4/4 bersama uji poster QR.
 
 ---
 
@@ -5850,10 +5890,10 @@ Survei".
 - Mutasi "butir tidak diklik" pada kedua uji modal: 4 dari 4 merah tepat di
   asersi baru, lalu dipulihkan.
 
-**Pengamatan samping, tidak dikerjakan:** `ShareSurveyModal.jsx` tidak
+**Pengamatan samping, tidak dikerjakan di sini:** `ShareSurveyModal.jsx` tidak
 ber-`role="dialog"` maupun `aria-modal`, berbeda dengan `ConfirmActionModal`
-sejak BUG-015. Itu sebabnya ujinya terpaksa mencari judul. Ini kode produk dan
-di luar pekerjaan uji ini; belum diberi nomor.
+sejak BUG-015. Itu sebabnya ujinya terpaksa mencari judul. Dicatat dan
+ditutup kemudian sebagai [BUG-037](#bug-037).
 
 **Ditutup** — `e58b3c3`, merge `c307179` di `main`.
 
@@ -5949,3 +5989,4 @@ hanya dibaca, tidak diubah.
 | 7.1 | 23 Oktober 2026 | **BUG-003 DITUTUP (`2daf59b`, merge `060a3b9`), dan daftar ini NOL TERBUKA untuk pertama kalinya sejak dibuat 12 Agustus 2026 — 33 temuan, 33 ditutup.** BUG-003 temuan tertua yang masih terbuka, dicatat pada hari dokumen ini lahir, sebelum sesi eksploratori pertama dimulai. `MapSection.jsx` dihapus, bukan dipertahankan dengan catatan, DAN alternatif kedua yang laporan itu sendiri tawarkan diperiksa lebih dahulu: tak ada catatan rencana, dan pencarian "peta", "maps", "lokasi kantor", serta "google map" di README maupun PRD menghasilkan NOL sebutan. Diperiksa ulang sebelum menghapus, bukan dipercayai dari laporannya — satu kemunculan di seluruh repo, yaitu definisinya sendiri — dan keempat saudaranya di `components/sections/` semuanya hidup, jadi yang mati komponennya saja. Riwayatnya satu commit, `7bd05d1`, integrasi frontend awal: ia datang bersama impor itu dan tak pernah dipasang. **Ada alasan kedua di luar kode mati**: berkas itu satu-satunya `<iframe>` di seluruh `apps/web/src`, jadi membuangnya menghapus satu-satunya sematan pihak ketiga di frontend — `maps.google.com`, yang memasang cookie dan menerima rujukan lewat `referrerPolicy="no-referrer-when-downgrade"`. Dapat dipulihkan dari `7bd05d1`. Suite web tetap 217 suite / 1818 uji sesudah penghapusan, angka yang sama dengan sebelumnya, jadi tak ada berkas uji yang mengimpornya. Rekap dihitung ulang dari kolom Status: 33 baris, 33 Ditutup, nol Baru. |
 | 7.2 | 26 Oktober 2026 | **BUG-034 lahir dan ditutup pada hari yang sama (`ce1e455`, merge `9d2258f`): 34 temuan, 34 ditutup, nol terbuka.** Dari perburuan bug kedua (QA-H2) atas pekerjaan 23 Oktober sore yang belum pernah diburu. Modul baru `utils/lampiran.js` sendiri tak menghasilkan temuan — enam dugaan diperiksa dan gugur — dan yang tertangkap justru akibat perbaikan BUG-031 yang baru berumur tiga hari: `aria-label` tombol hapus dibangun dari `file.name` sementara daftar tak menyaring kembar, sehingga dua lampiran bernama sama menghasilkan dua tombol "Hapus bukti.png" yang tak terbedakan. Daftar berkembar itu perilaku LAMA; nama aksesibelnya yang BARU — sebelumnya kedua tombol sama-sama tak bernama, sesudahnya bernama sama. Diperbaiki dengan nomor urut (`Hapus lampiran 2: bukti.png`), selalu disertakan supaya nama tak berubah saat lampiran lain ditambahkan. **Penolakan kembar sengaja TIDAK dikerjakan**: itu keputusan produk dan tetap terbuka untuk pemilik produk. Kedua panel percakapan tidak diubah sebab menampung satu berkas. Pagarnya dipindah ke `KitUiBersama.test.jsx`. **Pemeriksaan silang dengan repro asli 1/3, bukan 6/6 seperti BUG-032/033**, sebab repro itu mengodekan format nama lama secara harfiah; peralihan sebabnya dari "Found multiple elements" ke "Unable to find" justru bukti perbaikannya, dan repronya sengaja tak disunting. Suite web 217 suite / 1820 uji, dari 1818. Rekap dihitung ulang dari kolom Status: 34 baris, 34 Ditutup, nol Baru. |
 | 7.3 | 26 Oktober 2026 | **BUG-035 dan BUG-036 lahir dan ditutup pada hari yang sama (`e58b3c3`, merge `c307179`): 36 temuan, 36 ditutup, nol terbuka.** Keduanya cacat perkakas uji, dicatat di bagian 5 seperti BUG-030. Sapuan Playwright penuh pertama sejak perubahan 23–26 Oktober menjawab 131 lulus, 0 gagal, 6 terlewat — dan **keenam lewatan itu tak satu pun karena data**. Lima uji (poster QR; modal bagikan dan konfirmasi hapus di 320px dan 390px) mencari tombol yang sejak `22b2d03`, 30 September, pindah ke menu titik-tiga, lalu melewati diri lewat `count() === 0` dengan alasan "tak ada survei" sementara lima survei aktif ada; hampir empat minggu ketiga perilaku itu tak terukur. Satu uji lagi terlewat karena fixture mencocokkan `draf` padahal enum-nya `draft`. Helper `cariButirAksi` membuka menu baris demi baris; kedua uji modal kini juga mengasersikan modalnya TERBUKA, sebab pengukuran luberan lulus pula atas halaman tanpa modal — dibuktikan lewat mutasi, 4 dari 4 merah. Draf dibuktikan dua arah dengan draf yang ada di basis data. Dua uji goyah sapuan itu (tersangkut di layar "Memuat …", hijau saat diulang) tidak dikejar, sesuai catatan kegoyahan yang sudah ada. Pengamatan samping: `ShareSurveyModal` belum ber-`role="dialog"`, belum bernomor. Tak ada kode produk yang berubah. Rekap dihitung ulang dari kolom Status: 36 baris, 36 Ditutup, nol Baru. |
+| 7.4 | 26 Oktober 2026 | **BUG-037 lahir dan ditutup pada hari yang sama (`c0df858`, merge `7031772`): 37 temuan, 37 ditutup, nol terbuka.** Asalnya pengamatan samping BUG-035, yang kini menunjuk nomor ini. `ShareSurveyModal` tanpa `role="dialog"`/`aria-modal`/nama, tombol silangnya tanpa nama, dan fokusnya tak masuk maupun dikurung — tiga cacat yang sudah dibereskan di dialog lain lewat BUG-015 dan terlewat di sini. Diperbaiki dengan pola `ConfirmActionModal`; empat uji merah lebih dulu, kedua uji fokus dibuktikan lewat mutasi, dan uji E2E-nya kini mencari modal lewat perannya. Pada hari yang sama `/pilih-peran` mendapat uji pertamanya (`330b1e4`, delapan uji, tiga mutasi semuanya merah); itu cakupan uji, bukan temuan, jadi tak bernomor. Rekap dihitung ulang dari kolom Status: 37 baris, 37 Ditutup, nol Baru. |
