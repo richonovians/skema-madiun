@@ -191,16 +191,17 @@ export class SurveysController {
   }
 
   /**
-   * Ganti jenis survei SKM menjadi Custom (8 Oktober 2026). Satu-satunya jalan
-   * mengganti jenis; `PATCH /surveys/:id` tetap menolak `jenis`.
+   * Ganti jenis survei, dua arah: SKM -> Custom (8 Oktober 2026) dan Custom ->
+   * SKM (26 Oktober 2026). Satu-satunya jalan mengganti jenis; `PATCH
+   * /surveys/:id` tetap menolak `jenis`.
    */
   @Patch(':id/jenis')
   @Roles(Role.kabupaten, Role.opd)
   @Audit('survey', 'ganti_jenis')
   @ApiOperation({
-    summary: 'Ganti jenis survei SKM menjadi Custom (hanya draf tanpa jawaban).',
+    summary: 'Ganti jenis survei SKM <-> Custom (hanya draf tanpa jawaban).',
     description:
-      'Hanya selagi survei berstatus draf dan belum ada jawaban. Sembilan unsur dihapus, pertanyaan tambahan dipertahankan dan diurut ulang. Tujuan dan metode nilai wajib. PATCH /surveys/:id tetap menolak jenis.',
+      'Hanya selagi survei berstatus draf dan belum ada jawaban. Ke Custom: sembilan unsur dihapus, pertanyaan tambahan dipertahankan dan diurut ulang, tujuan dan metode nilai wajib. Ke SKM: unsur U1-U9 ditambahkan di depan dengan kalimat baku, pertanyaan yang ada dipertahankan sebagai pertanyaan tambahan, tujuan dan metode nilai dikosongkan dan tidak boleh dikirim. PATCH /surveys/:id tetap menolak jenis.',
   })
   @ApiOkResponse({ type: SurveyEntity })
   gantiJenis(

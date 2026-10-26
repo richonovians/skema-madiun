@@ -22,10 +22,18 @@ describe('assertBolehGantiJenis', () => {
     );
   });
 
-  it('hanya boleh diganti MENJADI Custom', () => {
-    expect(() => assertBolehGantiJenis(survei(), 0, skm)).toThrow(
-      /hanya dapat diganti menjadi Custom/,
-    );
+  /**
+   * DUA ARAH sejak 26 Oktober 2026 (permintaan pengguna). Sampai hari itu hanya
+   * SKM -> Custom yang diterima, dan uji di tempat ini menuntut penolakan
+   * "hanya dapat diganti menjadi Custom". Custom -> SKM kini lolos dengan
+   * syarat yang sama persis: draf, belum dijawab, tidak di Sampah.
+   */
+  it('lolos: Custom, draf, tanpa jawaban, tujuan SKM', () => {
+    expect(() => assertBolehGantiJenis(survei({ jenis: custom }), 0, skm)).not.toThrow();
+  });
+
+  it('survei yang sudah SKM ditolak bila tujuannya SKM', () => {
+    expect(() => assertBolehGantiJenis(survei(), 0, skm)).toThrow(/sudah berjenis SKM/);
   });
 
   it('survei yang sudah Custom ditolak', () => {
@@ -48,20 +56,32 @@ describe('assertBolehGantiJenis', () => {
     expect(() => assertBolehGantiJenis(survei(), 3, custom)).toThrow(/sudah menerima 3 jawaban/);
   });
 
-  it('urutan pemeriksaan: Sampah, lalu jenis tujuan, lalu sudah custom, lalu status, lalu jawaban', () => {
+  it('urutan pemeriksaan: Sampah, lalu jenis yang sama, lalu status, lalu jawaban', () => {
     const semua = survei({ jenis: custom, status: SurveyStatus.aktif, deletedAt: new Date() });
-    expect(() => assertBolehGantiJenis(semua, 5, skm)).toThrow(/Sampah/);
-    expect(() => assertBolehGantiJenis({ ...semua, deletedAt: null }, 5, skm)).toThrow(
-      /hanya dapat diganti menjadi Custom/,
-    );
+    expect(() => assertBolehGantiJenis(semua, 5, custom)).toThrow(/Sampah/);
     expect(() => assertBolehGantiJenis({ ...semua, deletedAt: null }, 5, custom)).toThrow(
       /sudah berjenis Custom/,
     );
+    expect(() => assertBolehGantiJenis({ ...semua, deletedAt: null }, 5, skm)).toThrow(
+      /berstatus draf/,
+    );
     expect(() =>
-      assertBolehGantiJenis({ ...semua, deletedAt: null, jenis: skm }, 5, custom),
-    ).toThrow(/berstatus draf/);
-    expect(() => assertBolehGantiJenis(survei({ status: SurveyStatus.draft }), 5, custom)).toThrow(
-      /sudah menerima 5 jawaban/,
+      assertBolehGantiJenis({ ...semua, deletedAt: null, status: SurveyStatus.draft }, 5, skm),
+    ).toThrow(/sudah menerima 5 jawaban/);
+  });
+
+  it.each([SurveyStatus.aktif, SurveyStatus.ditutup])(
+    'arah Custom -> SKM: status %s ditolak dengan pesan yang sama',
+    (status) => {
+      expect(() => assertBolehGantiJenis(survei({ jenis: custom, status }), 0, skm)).toThrow(
+        /berstatus draf/,
+      );
+    },
+  );
+
+  it('arah Custom -> SKM: survei yang sudah dijawab ditolak', () => {
+    expect(() => assertBolehGantiJenis(survei({ jenis: custom }), 2, skm)).toThrow(
+      /sudah menerima 2 jawaban/,
     );
   });
 });

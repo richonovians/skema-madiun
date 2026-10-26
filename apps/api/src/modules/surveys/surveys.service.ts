@@ -198,18 +198,24 @@ export class SurveysService {
   }
 
   /**
-   * GANTI JENIS SKM -> CUSTOM (8 Oktober 2026). Hanya selagi survei DRAF dan belum
-   * menerima jawaban (aturan di `assertBolehGantiJenis`).
+   * GANTI JENIS, DUA ARAH. Hanya selagi survei DRAF dan belum menerima jawaban
+   * (aturan di `assertBolehGantiJenis`), dalam SATU transaksi, dengan pemeriksaan
+   * jawaban di dalamnya supaya tak ada celah antara memeriksa dan menulis.
    *
-   * Sembilan unsur dihapus, pertanyaan tambahan milik OPD dipertahankan dan
-   * diurut ulang 1..n, lalu jenis + tujuan + metode disimpan -- dalam SATU
-   * transaksi, dengan pemeriksaan jawaban di dalamnya supaya tak ada celah antara
-   * memeriksa dan menulis.
-   *
-   * Penjaga kerangka (`kerangka-unsur.util`) SENGAJA tidak dipakai untuk
+   * SKM -> Custom (8 Oktober 2026): sembilan unsur dihapus, pertanyaan tambahan
+   * milik OPD dipertahankan dan diurut ulang 1..n, lalu jenis + tujuan + metode
+   * disimpan. Penjaga kerangka (`kerangka-unsur.util`) SENGAJA tidak dipakai untuk
    * penghapusan ini: ia melarang menghapus unsur, dan di sinilah jenisnya berubah
-   * sehingga kerangka itu berhenti berlaku. Opsi pertanyaan ikut terhapus lewat
-   * ON DELETE CASCADE; tak ada jawaban yang menunjuknya karena survei belum dijawab.
+   * sehingga kerangka itu berhenti berlaku. Opsi pertanyaan ikut terhapus lewat ON
+   * DELETE CASCADE; tak ada jawaban yang menunjuknya karena survei belum dijawab.
+   *
+   * Custom -> SKM (26 Oktober 2026, permintaan pengguna): kebalikannya. Pertanyaan
+   * milik OPD digeser ke 10..n+9 dan dipertahankan sebagai pertanyaan tambahan
+   * (tak dihitung IKM), U1-U9 ditambahkan di 1..9 dengan kalimat baku yang SAMA
+   * dengan survei SKM baru (`buatUnsurAwal`), dan tujuan + metode dikosongkan --
+   * CHECK `surveys_nilai_survei_ck` menolak SKM yang membawanya. Tak ada
+   * pertanyaan Custom yang dijadikan unsur: kalimatnya ditulis untuk tujuan lain,
+   * dan menebak padanannya berarti mengarang data.
    */
   async gantiJenis(
     id: number,
@@ -221,9 +227,27 @@ export class SurveysService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const jumlahJawaban = await tx.surveyResponse.count({ where: { surveyId: id } });
       assertBolehGantiJenis(survey, jumlahJawaban, dto.jenis);
-      // Sesudah pemeriksaan di atas jenis tujuan pasti `custom`, jadi galat di sini
-      // hanya "tujuan dan metode wajib".
+      // Custom wajib tujuan + metode; SKM tak boleh membawa satu pun.
       assertPengaturanNilaiBuat(dto.jenis, dto.tujuan, dto.metodeNilai);
+
+      if (dto.jenis === JenisSurvei.skm_permenpanrb) {
+        const milikOpd = await tx.question.findMany({
+          where: { surveyId: id },
+          orderBy: { urutan: 'asc' },
+          select: { id: true },
+        });
+        const jumlahUnsur = buatUnsurAwal().length;
+        for (const [i, q] of milikOpd.entries()) {
+          await tx.question.update({ where: { id: q.id }, data: { urutan: jumlahUnsur + i + 1 } });
+        }
+        await tx.question.createMany({
+          data: buatUnsurAwal().map((q) => ({ ...q, surveyId: id })),
+        });
+        return tx.survey.update({
+          where: { id },
+          data: { jenis: dto.jenis, tujuan: null, metodeNilai: null },
+        });
+      }
 
       await tx.question.deleteMany({
         where: { surveyId: id, OR: [{ isIkmUnsur: true }, { kodeUnsur: { not: null } }] },
