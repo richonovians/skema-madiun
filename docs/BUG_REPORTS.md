@@ -133,8 +133,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-039](#bug-039) | Modal Buat/Ubah Survei bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-040](#bug-040) | Lima sisa `max-w-xs`/`max-w-2xl` yang dibajak token spasi — judul pengaduan diperas ke lebar minimum, judul warga terpotong pada layar lega | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-041](#bug-041) | `className` pemanggil `Badge` kalah oleh kelas bawaan — enam lencana survei tetap pil walau meminta `rounded`, `font-bold` tampil 600 | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-042](#bug-042) | Tombol ciut sidebar dan tombol menu ponsel tak mengumumkan keadaannya — tanpa `aria-expanded`/`aria-controls`, nama menu tetap "Buka" saat laci terbuka | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 41 temuan: **41 ditutup, 0 terbuka.**
+**Rekap** — 42 temuan: **42 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2805,6 +2806,36 @@ bawaan tak lagi ikut terpasang.
 belum didaftarkan; `BadgeClassName.test.jsx` (4 uji); penyisir
 `tanpaTwMergePolos.test.js` melarang impor `tailwind-merge` di luar `cn.js`.
 Ketiganya merah lebih dulu; mutasi 5/5 merah.
+
+---
+
+<a id="bug-042"></a>
+
+### BUG-042 — Tombol sidebar tak mengumumkan keadaannya
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 26 Oktober 2026 (ditemukan), 27 Oktober 2026 (ditutup)       |
+| **Peran**    | Admin Kabupaten, Admin OPD, pengguna pembaca layar           |
+| **Berkas**   | `AdminSidebar.jsx`, `AdminKabSidebar.jsx`, `AdminNavbar.jsx`, `AdminKabNavbar.jsx`, kedua `*LayoutProvider.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Cacatnya.** Tombol ciut sidebar desktop hanya bernama lewat `title` yang
+berganti "Perbesar Sidebar"/"Perkecil Sidebar"; tombol menu ponsel di kedua
+navbar selalu bernama "Buka menu navigasi", juga ketika lacinya sudah terbuka.
+Tak satu pun membawa `aria-expanded` atau `aria-controls`, dan `<aside>`-nya
+tanpa `id`. Kelas cacat yang sama dengan [BUG-037](#bug-037) dan
+[BUG-039](#bug-039).
+
+**Ditutup 27 Oktober 2026** — `3a2eb56`, merge `7b6412b` di `main`. Tombol ciut
+bernama tetap "Sidebar lebar" dengan `aria-expanded` (true saat lebar); tombol
+menu ponsel membawa `aria-expanded` mengikuti laci. Keduanya `aria-controls` ke
+`<aside>` yang sama, `id`-nya dari `useId` di Provider dan dibagi lewat konteks.
+
+**Pagar.** `TombolSidebarAria.test.jsx`, 3 uji x 2 tata letak, merah lebih dulu
+6/6. Uji keempat (ikon ber-`aria-hidden`) dibuang karena hampa: lucide-react
+1.27 sudah memasangnya sendiri, mutasinya tetap hijau. Mutasi lain 8/8 merah.
 
 ---
 
@@ -6148,3 +6179,4 @@ hanya dibaca, tidak diubah.
 | 7.5 | 26 Oktober 2026 | **BUG-038 lahir dan ditutup pada hari yang sama (`0855ee1`, merge `5907832`): 38 temuan, 38 ditutup, nol terbuka.** `/persetujuan` membaca `me.role`, medan yang tak ada di `GET /auth/me` sejak peran jamak, sehingga yang tak perlu menyetujui diantar ke beranda publik. Ditemukan karena uji pertama halaman itu memerah, saat tujuan `window.location.assign` di lima tempat dibuat teruji lewat tujuan berupa fragmen. Sebelumnya `RoleLoginPicker.test.jsx` (`bbd6ab0`) membawa tiruan `window.location` yang tak pernah berlaku di jsdom 26; itu bukan cacat produk dan tak bernomor. |
 | 7.6 | 27 Oktober 2026 | **BUG-039 dan BUG-040 ditutup: 40 temuan, 40 ditutup, nol terbuka.** BUG-039 (`53d5ab8`, merge `bef537e`): modal Buat/Ubah Survei tanpa peran dialog, nama, tombol tutup bernama, dan kurungan fokus — kelas BUG-037, ditemukan probe Playwright. BUG-040 (`9fa2f63`, merge `93d3370`): lima sisa `max-w-*` yang dibajak token spasi, diukur di Chrome sebelum dan sesudah, kini dijaga penyisir `tanpaMaxWTokenSpasi.test.js`. |
 | 7.7 | 27 Oktober 2026 | **BUG-041 ditutup: 41 temuan, 41 ditutup, nol terbuka.** BUG-041 (`69f5b08`, merge `31c9679`): `className` pemanggil `Badge` kalah oleh kelas bawaan; diperbaiki lewat `utils/cn.js`, penggabung kelas yang mengenal token tema, dan delapan pemakai `twMerge` polos ikut dipindah. |
+| 7.8 | 27 Oktober 2026 | **BUG-042 ditutup: 42 temuan, 42 ditutup, nol terbuka.** BUG-042 (`3a2eb56`, merge `7b6412b`): tombol ciut sidebar dan tombol menu ponsel kini membawa `aria-expanded` + `aria-controls` ke `<aside>` sidebar; kelas cacat BUG-037/039. |
