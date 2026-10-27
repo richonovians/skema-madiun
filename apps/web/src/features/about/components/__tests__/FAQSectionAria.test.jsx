@@ -43,4 +43,19 @@ describe('FAQSection — akordeon', () => {
     expect(tombol(KEDUA)).toHaveAttribute('aria-expanded', 'true');
     expect(panel(PERTAMA)).toHaveAttribute('aria-hidden', 'true');
   });
+
+  /**
+   * Pola akordeon WAI-ARIA: judul membungkus tombol, bukan sebaliknya. Konten
+   * `<button>` hanya boleh phrasing content, jadi `<h3>` di dalamnya tidak sah
+   * dan judulnya tak terjamin terbaca di navigasi per judul (27 Oktober 2026).
+   */
+  it('tiap pertanyaan berupa judul h3 yang membungkus tombolnya', () => {
+    render(<FAQSection />);
+
+    for (const item of aboutContent.faq) {
+      const judul = screen.getByRole('heading', { level: 3, name: item.question });
+      expect(judul).toContainElement(tombol(item));
+      expect(tombol(item).querySelector('h1, h2, h3, h4, h5, h6')).toBeNull();
+    }
+  });
 });
