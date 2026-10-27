@@ -138,8 +138,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-044](#bug-044) | Tujuh tombol buka/tutup tanpa `aria-expanded` — hamburger publik, akordeon FAQ, dua tombol Filter ponsel, tiga menu Ekspor | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-045](#bug-045) | Pertanyaan FAQ berupa `<h3>` di dalam `<button>` — susunan HTML tak sah | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-046](#bug-046) | Tujuh lencana 10px tumbuh 1,67px sejak Badge memakai `cn` — jarak baris `text-xs` ikut terbuang | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-047](#bug-047) | Nilai Survei "4,00 / 4 · Sangat Puas" tak dapat patah — tabel survei Admin Kabupaten meluap 58px di 1366px, kartu Admin OPD keluar kotak | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 46 temuan: **46 ditutup, 0 terbuka.**
+**Rekap** — 47 temuan: **47 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2969,6 +2970,44 @@ huruf sesudahnya.
 **Pagar.** `BadgeJarakBaris.test.js` menuntut setiap `<Badge` berukuran huruf
 arbitrer menyebut jarak barisnya, merah lebih dulu tepat di tujuh lencana
 itu; mutasi 4/4 merah.
+
+---
+
+<a id="bug-047"></a>
+
+### BUG-047 — Nilai Survei satu potong tak dapat patah, dua tempat meluap
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 27 Oktober 2026 (ditemukan dan ditutup)                      |
+| **Peran**    | Admin Kabupaten, Admin OPD                                   |
+| **Berkas**   | `apps/web/src/features/surveys/components/NilaiSurvei.jsx`   |
+| **Severity** | Medium (usulan penguji)                                      |
+
+**Asal.** Putaran penuh Playwright 27 Oktober 2026: `ganti-jenis-tata-letak`
+merah, "tabel menggulir mendatar di 1366px", 58px. Hanya merah bila ada survei
+custom bernilai panjang; hari itu survei uji `ganti-jenis-alur` yang
+menyediakannya, dan urutan kedua spec itu memicunya ulang dengan tepat.
+
+**Cacatnya.** Mode `ukuran="sel"` menulis "angka · kategori" sebagai satu
+potong `whitespace-nowrap`. Survei custom metode rata-rata berkategori
+tertinggi menghasilkan "4,00 / 4 · Sangat Puas", 176px:
+
+- tabel survei Admin Kabupaten, 1366px: kolom NILAI SURVEI 208px, tabel 1118px
+  di wadah 1060px, kolom AKSI terdorong keluar;
+- kartu survei Admin OPD: "Puas" keluar dari tepi kanan kotak NILAI SURVEI.
+
+Medium karena terjadi pada data sungguhan, bukan hanya data uji.
+
+**Ditutup 27 Oktober 2026** — `af243aa`, merge `7868221` di `main`. Dua potong
+nowrap ("4,00 / 4" dan "· Sangat Puas"), baris hanya patah di antaranya.
+Sesudahnya: tabel meluap 0 (kolom NILAI SURVEI 145px), kartu dua baris di dalam
+kotaknya (140x54, sebelumnya 221x28 dan keluar kotak), "75% · Puas" tetap satu
+baris. `ganti-jenis-tata-letak` sesudah `ganti-jenis-alur`: 7/7.
+
+**Pagar.** Satu uji baru di `NilaiSurvei.test.jsx`, merah lebih dulu; mutasi
+3/3 merah.
 
 ---
 
@@ -6316,3 +6355,4 @@ hanya dibaca, tidak diubah.
 | 7.9 | 27 Oktober 2026 | **BUG-043 dan BUG-044 ditutup: 44 temuan, 44 ditutup, nol terbuka.** Sapuan tombol buka/tutup sesudah BUG-042 (21 tombol, delapan cacat), `5f259da`, merge `eaf3587`: hamburger dashboard warga tanpa nama (BUG-043, Medium) dan tujuh tombol tanpa `aria-expanded` (BUG-044). |
 | 7.10 | 27 Oktober 2026 | **BUG-045 ditutup: 45 temuan, 45 ditutup, nol terbuka.** Pertanyaan FAQ berupa `<h3>` di dalam `<button>` (catatan BUG-044), `4e2217a`, merge `e91aaeb`: judul kini membungkus tombol, tampilan identik di Chrome. |
 | 7.11 | 27 Oktober 2026 | **BUG-046 ditutup: 46 temuan, 46 ditutup, nol terbuka.** Tujuh lencana 10px tumbuh 1,67px sejak BUG-041 karena jarak baris `text-xs` ikut terbuang, `edd6823`, merge `2278c31`: kembali ke 17,33 / 21,33 / 25,33px, terukur di Chrome. |
+| 7.12 | 27 Oktober 2026 | **BUG-047 ditutup: 47 temuan, 47 ditutup, nol terbuka.** Nilai Survei "4,00 / 4 · Sangat Puas" satu potong nowrap meluapkan tabel survei Admin Kabupaten 58px di 1366px dan keluar dari kotak kartu Admin OPD, `af243aa`, merge `7868221`: dua potong yang patah di antaranya. |
