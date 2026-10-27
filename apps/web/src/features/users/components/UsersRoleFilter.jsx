@@ -1,6 +1,5 @@
 import React from 'react';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 
 const ROLES = [
   { label: 'Semua Pengguna', value: 'ALL' },
@@ -34,13 +33,11 @@ export default function UsersRoleFilter({ activeRoleFilter, setActiveRoleFilter 
           <button
             key={role.value}
             onClick={() => setActiveRoleFilter(role.value)}
-            className={twMerge(
-              clsx(
-                "px-lg py-2 rounded-lg font-label-md text-sm transition-all whitespace-nowrap",
-                isActive
-                  ? "bg-text-primary text-white shadow-sm"
-                  : "bg-transparent text-text-secondary hover:bg-surface-container-highest hover:text-text-primary border border-transparent"
-              )
+            className={cn(
+              "px-lg py-2 rounded-lg font-label-md text-sm transition-all whitespace-nowrap",
+              isActive
+                ? "bg-text-primary text-white shadow-sm"
+                : "bg-transparent text-text-secondary hover:bg-surface-container-highest hover:text-text-primary border border-transparent"
             )}
           >
             {role.label}

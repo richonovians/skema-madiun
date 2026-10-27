@@ -1,6 +1,5 @@
 import React from 'react';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 import { WifiOff, ShieldAlert } from 'lucide-react';
 
 /**
@@ -51,13 +50,11 @@ export default function ProfileErrorAvatar({ reason = 'offline', size = 'md', cl
       role="img"
       aria-label={label}
       title={label}
-      className={twMerge(
-        clsx(
-          'rounded-full flex items-center justify-center shrink-0 border-2',
-          'bg-error-container text-on-error-container border-error/40',
-          box,
-          className,
-        ),
+      className={cn(
+        'rounded-full flex items-center justify-center shrink-0 border-2',
+        'bg-error-container text-on-error-container border-error/40',
+        box,
+        className,
       )}
     >
       <Icon size={icon} aria-hidden="true" />

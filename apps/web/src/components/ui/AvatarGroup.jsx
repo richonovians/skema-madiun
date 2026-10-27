@@ -1,10 +1,9 @@
 import React from 'react';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 
 export default function AvatarGroup({ children, className }) {
   return (
-    <div className={twMerge(clsx('flex -space-x-2', className))}>
+    <div className={cn('flex -space-x-2', className)}>
       {children}
     </div>
   );
