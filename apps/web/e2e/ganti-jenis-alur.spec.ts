@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, request, test, type APIRequestContext, type Page } from '@playwright/test';
 import { BERKAS_TOKEN } from './global-setup';
+import { pilihDropdown } from './support/dropdown';
 
 /**
  * ALUR GANTI JENIS SKM -> CUSTOM DAN PENYARING JENIS, dari UI sampai basis data
@@ -199,8 +200,8 @@ test.describe('ganti jenis SKM -> Custom dan penyaring jenis', () => {
 
     await page.getByRole('button', { name: /^ganti jenis$/i }).click();
     const dialog = page.getByRole('dialog', { name: /ganti jenis survei/i });
-    await dialog.getByLabel(/tujuan survei/i).selectOption('evaluasi');
-    await dialog.getByLabel(/metode nilai/i).selectOption('indeks_persen');
+    await pilihDropdown(dialog.getByLabel(/tujuan survei/i), 'Evaluasi');
+    await pilihDropdown(dialog.getByLabel(/metode nilai/i), 'Indeks persen');
 
     const simpan = page.waitForResponse(
       (r) => /\/api\/v1\/surveys\/\d+\/jenis$/.test(r.url()) && r.request().method() === 'PATCH',
@@ -219,19 +220,22 @@ test.describe('ganti jenis SKM -> Custom dan penyaring jenis', () => {
     expect(sisa[0].teks).toBe('Saran Anda untuk kami?');
     expect(sisa[0].urutan).toBe(1);
 
-    // UI: kanvas hanya memuat pertanyaan tambahan, panel Nilai Survei terisi, tombol hilang.
+    // UI: kanvas hanya memuat pertanyaan tambahan, panel Nilai Survei terisi.
+    // Tombol "Ganti jenis" TETAP ada: sejak 26 Oktober 2026 (`451aa23`) draf
+    // custom yang belum dijawab boleh kembali ke SKM. Sampai 27 Oktober baris
+    // ini masih menuntut tombolnya hilang -- aturan sebelum jalur itu dibuka.
     await expect(dialog).toHaveCount(0);
     await expect(page.getByPlaceholder(/tulis pertanyaan di sini/i)).toHaveCount(1);
-    await expect(page.getByLabel(/tujuan survei/i)).toHaveValue('evaluasi');
-    await expect(page.getByLabel(/metode nilai/i)).toHaveValue('indeks_persen');
-    await expect(page.getByRole('button', { name: /^ganti jenis$/i })).toHaveCount(0);
+    await expect(page.getByLabel(/tujuan survei/i)).toHaveText('Evaluasi');
+    await expect(page.getByLabel(/metode nilai/i)).toHaveText('Indeks persen');
+    await expect(page.getByRole('button', { name: /^ganti jenis$/i })).toHaveCount(1);
 
-    // Muat ulang: keadaannya bertahan, dan tak ada jalan kembali ke SKM.
+    // Muat ulang: keadaannya bertahan, termasuk jalan kembali ke SKM.
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByLabel(/metode nilai/i)).toHaveValue('indeks_persen', {
+    await expect(page.getByLabel(/metode nilai/i)).toHaveText('Indeks persen', {
       timeout: 20_000,
     });
-    await expect(page.getByRole('button', { name: /^ganti jenis$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^ganti jenis$/i })).toHaveCount(1);
   });
 
   test('survei SKM yang sudah terbit tidak menawarkan tombol, dan API menolak dengan sebab tertulis', async ({
