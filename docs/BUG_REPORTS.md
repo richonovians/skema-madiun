@@ -132,8 +132,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-038](#bug-038) | `/persetujuan` mengantar pengguna yang sudah menyetujui ke beranda publik, bukan ke berandanya — membaca `me.role` yang tak ada | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-039](#bug-039) | Modal Buat/Ubah Survei bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-040](#bug-040) | Lima sisa `max-w-xs`/`max-w-2xl` yang dibajak token spasi — judul pengaduan diperas ke lebar minimum, judul warga terpotong pada layar lega | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-041](#bug-041) | `className` pemanggil `Badge` kalah oleh kelas bawaan — enam lencana survei tetap pil walau meminta `rounded`, `font-bold` tampil 600 | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 40 temuan: **40 ditutup, 0 terbuka.**
+**Rekap** — 41 temuan: **41 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2763,6 +2764,47 @@ dirender halaman mana pun, jadi tak terukur.
 
 **Pagar.** `src/__tests__/tanpaMaxWTokenSpasi.test.js` menyisir seluruh `src`
 (komentar dikosongkan) dan merah lebih dulu dengan tepat kelima baris tadi.
+
+---
+
+<a id="bug-041"></a>
+
+### BUG-041 — `className` pemanggil `Badge` kalah oleh kelas bawaan
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 26 Oktober 2026 (ditemukan), 27 Oktober 2026 (ditutup)       |
+| **Peran**    | Admin Kabupaten, Admin OPD, warga                            |
+| **Berkas**   | `apps/web/src/components/ui/Badge.jsx`                       |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Perbaikan lencana "Survei Utama" (`9380e9d`): rancangannya meminta
+sudut kecil, tetapi `rounded` yang sudah tertulis di pemanggil tidak berpengaruh.
+
+**Cacatnya.** `Badge` merangkai kelas sebagai string biasa, jadi `className`
+pemanggil hanya menang bila urutan CSS kebetulan memihaknya. Diukur di Chrome:
+enam lencana di Monitoring Survei dan kartu Admin OPD (SKM/Custom, status,
+Survei Utama) meminta `rounded` tetapi tampil pil (`rounded-full`), dan lencana
+OPD di kartu survei warga meminta `font-bold` tetapi tampil 600.
+
+Perbaikan dengan `twMerge` polos ternyata membawa cacat kedua: ia tak mengenal
+token tema `globals.css`. `px-sm` tidak menimpa `px-3`, dan `text-label-md`
+dikira kelas warna sehingga warna teksnya ikut dibuang. Delapan komponen lain
+sudah memakai `twMerge` polos; tak satu pun pemanggilnya hari ini memicu jebakan
+itu (keluaran lama dan baru dibandingkan per komposisi nyata, semuanya sama).
+
+**Ditutup 27 Oktober 2026** — `69f5b08`, merge `31c9679` di `main`.
+`utils/cn.js` = clsx + `extendTailwindMerge` dengan daftar token `--spacing-*`
+dan `--text-*`. `Badge` dan kedelapan komponen tadi memakainya. Sesudahnya:
+lencana `rounded` bersudut 4px, lencana OPD warga 700. Efek yang tak diminta:
+lencana `text-[10px]` naik 2px (17 → 19px) karena `line-height` dari `text-xs`
+bawaan tak lagi ikut terpasang.
+
+**Pagar.** `cn.test.js` membaca `globals.css` dan merah bila ada token baru yang
+belum didaftarkan; `BadgeClassName.test.jsx` (4 uji); penyisir
+`tanpaTwMergePolos.test.js` melarang impor `tailwind-merge` di luar `cn.js`.
+Ketiganya merah lebih dulu; mutasi 5/5 merah.
 
 ---
 
@@ -6105,3 +6147,4 @@ hanya dibaca, tidak diubah.
 | 7.4 | 26 Oktober 2026 | **BUG-037 lahir dan ditutup pada hari yang sama (`c0df858`, merge `7031772`): 37 temuan, 37 ditutup, nol terbuka.** Asalnya pengamatan samping BUG-035, yang kini menunjuk nomor ini. `ShareSurveyModal` tanpa `role="dialog"`/`aria-modal`/nama, tombol silangnya tanpa nama, dan fokusnya tak masuk maupun dikurung — tiga cacat yang sudah dibereskan di dialog lain lewat BUG-015 dan terlewat di sini. Diperbaiki dengan pola `ConfirmActionModal`; empat uji merah lebih dulu, kedua uji fokus dibuktikan lewat mutasi, dan uji E2E-nya kini mencari modal lewat perannya. Pada hari yang sama `/pilih-peran` mendapat uji pertamanya (`330b1e4`, delapan uji, tiga mutasi semuanya merah); itu cakupan uji, bukan temuan, jadi tak bernomor. Rekap dihitung ulang dari kolom Status: 37 baris, 37 Ditutup, nol Baru. |
 | 7.5 | 26 Oktober 2026 | **BUG-038 lahir dan ditutup pada hari yang sama (`0855ee1`, merge `5907832`): 38 temuan, 38 ditutup, nol terbuka.** `/persetujuan` membaca `me.role`, medan yang tak ada di `GET /auth/me` sejak peran jamak, sehingga yang tak perlu menyetujui diantar ke beranda publik. Ditemukan karena uji pertama halaman itu memerah, saat tujuan `window.location.assign` di lima tempat dibuat teruji lewat tujuan berupa fragmen. Sebelumnya `RoleLoginPicker.test.jsx` (`bbd6ab0`) membawa tiruan `window.location` yang tak pernah berlaku di jsdom 26; itu bukan cacat produk dan tak bernomor. |
 | 7.6 | 27 Oktober 2026 | **BUG-039 dan BUG-040 ditutup: 40 temuan, 40 ditutup, nol terbuka.** BUG-039 (`53d5ab8`, merge `bef537e`): modal Buat/Ubah Survei tanpa peran dialog, nama, tombol tutup bernama, dan kurungan fokus — kelas BUG-037, ditemukan probe Playwright. BUG-040 (`9fa2f63`, merge `93d3370`): lima sisa `max-w-*` yang dibajak token spasi, diukur di Chrome sebelum dan sesudah, kini dijaga penyisir `tanpaMaxWTokenSpasi.test.js`. |
+| 7.7 | 27 Oktober 2026 | **BUG-041 ditutup: 41 temuan, 41 ditutup, nol terbuka.** BUG-041 (`69f5b08`, merge `31c9679`): `className` pemanggil `Badge` kalah oleh kelas bawaan; diperbaiki lewat `utils/cn.js`, penggabung kelas yang mengenal token tema, dan delapan pemakai `twMerge` polos ikut dipindah. |
