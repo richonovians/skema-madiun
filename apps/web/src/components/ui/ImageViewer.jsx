@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 import ImageLightbox from './ImageLightbox';
 
 /**
@@ -19,10 +18,10 @@ export default function ImageViewer({ src, alt, className }) {
   return (
     <>
       <div 
-        className={twMerge(clsx(
+        className={cn(
           'aspect-square rounded-lg overflow-hidden border border-border hover:opacity-90 cursor-pointer transition-opacity group relative', 
           className
-        ))}
+        )}
         onClick={() => setIsOpen(true)}
       >
         <img className="w-full h-full object-cover" alt={alt} src={src} />

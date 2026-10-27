@@ -1,6 +1,5 @@
 import React from 'react';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 
 export default function Avatar({
   initials,
@@ -25,7 +24,7 @@ export default function Avatar({
   const baseClasses = 'rounded-full flex items-center justify-center font-bold overflow-hidden border-2 border-surface shrink-0';
 
   return (
-    <div className={twMerge(clsx(baseClasses, sizes[size], variants[variant], className))}>
+    <div className={cn(baseClasses, sizes[size], variants[variant], className)}>
       {src ? (
         <img src={src} alt={alt} className="w-full h-full object-cover" />
       ) : (

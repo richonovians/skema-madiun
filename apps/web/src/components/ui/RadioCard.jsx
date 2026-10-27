@@ -1,6 +1,5 @@
 import React from 'react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 
 export default function RadioCard({
   name,
@@ -37,7 +36,7 @@ export default function RadioCard({
 
 
       <div 
-        className={twMerge(
+        className={cn(
           "flex items-center min-h-[64px] px-6 py-4 rounded-lg border-2 transition-all shadow-sm",
           // Default unselected state
           "border-outline-variant/50 text-text-secondary bg-surface",

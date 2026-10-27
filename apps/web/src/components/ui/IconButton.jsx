@@ -1,6 +1,5 @@
 import React from 'react';
-import clsx from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '@/utils/cn';
 
 export default function IconButton({
   children,
@@ -18,7 +17,7 @@ export default function IconButton({
 
   return (
     <button
-      className={twMerge(clsx(baseClasses, variants[variant], className))}
+      className={cn(baseClasses, variants[variant], className)}
       {...props}
     >
       {children}

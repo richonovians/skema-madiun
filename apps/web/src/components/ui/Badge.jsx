@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '@/utils/cn';
 
 export default function Badge({ children, variant = 'default', className = '', ...props }) {
   const variants = {
@@ -11,9 +12,16 @@ export default function Badge({ children, variant = 'default', className = '', .
     danger: 'bg-error-container text-on-error-container',
   };
 
+  // `cn`, bukan rangkaian string (27 Oktober 2026): `className` pemanggil harus
+  // MENANG. Dengan string biasa, `rounded` yang diminta enam lencana survei
+  // kalah oleh `rounded-full` di bawah ini, terukur di Chrome.
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${variants[variant] || variants.default} ${className}`}
+      className={cn(
+        'inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold',
+        variants[variant] || variants.default,
+        className,
+      )}
       {...props}
     >
       {children}
