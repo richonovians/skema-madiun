@@ -45,6 +45,8 @@ export default function SurveyResultExportMenu({ onExport, exportingFormat = nul
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={isExporting}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
         className={`flex items-center justify-between gap-2 min-w-[150px] min-h-[44px] px-md rounded-lg font-medium text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm ${isExporting ? 'opacity-70 cursor-not-allowed' : ''}`}
       >
         <div className="flex items-center gap-2">
