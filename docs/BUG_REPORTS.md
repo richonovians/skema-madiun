@@ -137,8 +137,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-043](#bug-043) | Tombol hamburger dashboard warga tanpa nama sama sekali — pembaca layar hanya mendengar "tombol" | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-044](#bug-044) | Tujuh tombol buka/tutup tanpa `aria-expanded` — hamburger publik, akordeon FAQ, dua tombol Filter ponsel, tiga menu Ekspor | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-045](#bug-045) | Pertanyaan FAQ berupa `<h3>` di dalam `<button>` — susunan HTML tak sah | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-046](#bug-046) | Tujuh lencana 10px tumbuh 1,67px sejak Badge memakai `cn` — jarak baris `text-xs` ikut terbuang | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 45 temuan: **45 ditutup, 0 terbuka.**
+**Rekap** — 46 temuan: **46 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2927,6 +2928,47 @@ akordeon WAI-ARIA: `<h3>` membungkus `<button>`, teks dan ikon menjadi
 
 **Pagar.** Satu uji baru di `FAQSectionAria.test.jsx`, merah lebih dulu;
 mutasi 3/3 merah.
+
+---
+
+<a id="bug-046"></a>
+
+### BUG-046 — Tujuh lencana 10px tumbuh 1,67px
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 27 Oktober 2026 (ditemukan dan ditutup)                      |
+| **Peran**    | Warga, Admin OPD, Admin Kabupaten                            |
+| **Berkas**   | `AdminSurveyCard.jsx`, `SurveyMonitoringTable.jsx`, `SurveyCard.jsx`, `ComplaintInfoCard.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Efek samping perbaikan [BUG-041](#bug-041), tercatat saat
+pengukurannya di Chrome.
+
+**Cacatnya.** `text-xs` milik Badge memasang ukuran huruf sekaligus jarak
+baris (`--text-xs--line-height`, 1,333). Sejak Badge memakai `cn`,
+`text-[10px]` dari pemanggil membuang `text-xs` utuh, sehingga jarak baris
+jatuh ke warisan 1,5 (15px, sebelumnya 13,33px). Tujuh lencana tumbuh:
+
+| Lencana                                         | Sebelum BUG-041 | Sesudah BUG-041 | Kini  |
+| ----------------------------------------------- | --------------- | --------------- | ----- |
+| Kartu survei Admin OPD (status, periode, utama) | 17,33           | 19              | 17,33 |
+| Tabel survei Admin Kabupaten (utama, jenis)     | 17,33           | 19              | 17,33 |
+| OPD di kartu survei warga                       | 21,33           | 23              | 21,33 |
+| Status di detail pengaduan                      | 25,33           | 27              | 25,33 |
+
+Lebar tidak berubah. Kolom "Sebelum BUG-041" dihitung (13,33 + bantalan),
+bukan diukur; dua kolom lainnya diukur di Chrome.
+
+**Ditutup 27 Oktober 2026** — `edd6823`, merge `2278c31` di `main`.
+`leading-(--text-xs--line-height)` di ketujuh pemanggil. Tidak di Badge,
+karena tailwind-merge membuang `leading-*` bawaan begitu ada kelas ukuran
+huruf sesudahnya.
+
+**Pagar.** `BadgeJarakBaris.test.js` menuntut setiap `<Badge` berukuran huruf
+arbitrer menyebut jarak barisnya, merah lebih dulu tepat di tujuh lencana
+itu; mutasi 4/4 merah.
 
 ---
 
@@ -6273,3 +6315,4 @@ hanya dibaca, tidak diubah.
 | 7.8 | 27 Oktober 2026 | **BUG-042 ditutup: 42 temuan, 42 ditutup, nol terbuka.** BUG-042 (`3a2eb56`, merge `7b6412b`): tombol ciut sidebar dan tombol menu ponsel kini membawa `aria-expanded` + `aria-controls` ke `<aside>` sidebar; kelas cacat BUG-037/039. |
 | 7.9 | 27 Oktober 2026 | **BUG-043 dan BUG-044 ditutup: 44 temuan, 44 ditutup, nol terbuka.** Sapuan tombol buka/tutup sesudah BUG-042 (21 tombol, delapan cacat), `5f259da`, merge `eaf3587`: hamburger dashboard warga tanpa nama (BUG-043, Medium) dan tujuh tombol tanpa `aria-expanded` (BUG-044). |
 | 7.10 | 27 Oktober 2026 | **BUG-045 ditutup: 45 temuan, 45 ditutup, nol terbuka.** Pertanyaan FAQ berupa `<h3>` di dalam `<button>` (catatan BUG-044), `4e2217a`, merge `e91aaeb`: judul kini membungkus tombol, tampilan identik di Chrome. |
+| 7.11 | 27 Oktober 2026 | **BUG-046 ditutup: 46 temuan, 46 ditutup, nol terbuka.** Tujuh lencana 10px tumbuh 1,67px sejak BUG-041 karena jarak baris `text-xs` ikut terbuang, `edd6823`, merge `2278c31`: kembali ke 17,33 / 21,33 / 25,33px, terukur di Chrome. |
