@@ -12,8 +12,8 @@ import React from 'react';
  * sebagai hasil terburuk.
  *
  * ukuran="besar": judul kecil, angka besar, kategori sebagai lencana (kartu).
- * ukuran="sel"   : satu baris "angka · kategori" dengan judul sebagai `title`
- *                  (sel tabel).
+ * ukuran="sel"   : "angka · kategori" dengan judul sebagai `title`; bila sempit,
+ *                  patah baris hanya di antara angka dan kategori (sel tabel).
  */
 export default function NilaiSurvei({
   nilaiSurvei = null,
@@ -22,9 +22,13 @@ export default function NilaiSurvei({
 }) {
   if (ukuran === 'sel') {
     if (!nilaiSurvei) return <span>-</span>;
+    // Dua potong utuh, bukan satu baris nowrap (27 Oktober 2026): "4,00 / 4 ·
+    // Sangat Puas" sebagai satu potong (176px) membuat tabel survei Admin
+    // Kabupaten meluap 58px di 1366px. Patah baris kini hanya di antaranya.
     return (
-      <span title={nilaiSurvei.judul} className="whitespace-nowrap">
-        {nilaiSurvei.tampilan} · {nilaiSurvei.kategori}
+      <span title={nilaiSurvei.judul}>
+        <span className="whitespace-nowrap">{nilaiSurvei.tampilan}</span>{' '}
+        <span className="whitespace-nowrap">· {nilaiSurvei.kategori}</span>
       </span>
     );
   }
