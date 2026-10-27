@@ -87,8 +87,14 @@ export async function masukSebagai(page, identifier, tujuan, peran) {
   // muncul sebagai batas waktu `waitForURL` yang tak menyebut pemilih peran
   // sama sekali.
   //
-  // Akun ber-peran satu tak melihat pemilih ini; karena itu ia ditunggu
-  // sebentar saja lalu dilewati, bukan diharuskan muncul.
+  // Akun ber-peran satu tak melihat pemilih ini dan langsung diantar ke
+  // tujuannya. Karena itu yang ditunggu adalah PERLOMBAAN: pemilih tampil atau
+  // URL tujuan tercapai, mana yang lebih dulu (27 Oktober 2026). Sebelumnya
+  // pemilih ditunggu dalam jendela TETAP 5 detik, dan terukur dua akibatnya:
+  // akun ber-peran satu selalu membuang 5 detik (masuk warga 7,5-8,7 detik
+  // alih-alih 2,6-3,4), dan pemilih yang muncul sesudah jendela itu -- jawaban
+  // `dev-login` yang lambat sudah cukup -- tak pernah ditekan, sehingga uji
+  // menggantung sampai batas waktunya. Pagarnya `e2e/masuk-pembantu.spec.js`.
   // `waitFor`, BUKAN `isVisible()`: `isVisible()` menjawab SEKETIKA berdasarkan
   // keadaan saat itu juga dan tak menerima batas waktu. Dipakai di sini ia
   // selalu menjawab `false` — pemilih peran belum sempat dirender — sehingga
@@ -107,10 +113,13 @@ export async function masukSebagai(page, identifier, tujuan, peran) {
   const tombolPeran = page
     .getByRole('button', { name: new RegExp(`^${peran ?? peranDariTujuan(tujuan)}\\b`) })
     .first();
-  const adaPemilih = await tombolPeran
-    .waitFor({ state: 'visible', timeout: 5000 })
-    .then(() => true)
-    .catch(() => false);
+  const adaPemilih = await Promise.race([
+    tombolPeran.waitFor({ state: 'visible' }).then(() => true),
+    page.waitForURL(`**${tujuan}`, { waitUntil: 'commit' }).then(() => false),
+  ]).catch((err) => {
+    pastikanBukan429();
+    throw err;
+  });
   if (adaPemilih) await tombolPeran.click();
 
   // `window.location.href` (navigasi keras) — perlu ditunggu, bukan router.push.
