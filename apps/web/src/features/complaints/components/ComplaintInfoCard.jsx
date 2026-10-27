@@ -35,7 +35,7 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
             </div>
             <span className="font-bold text-text-primary text-sm uppercase tracking-widest opacity-80">Tiket Laporan</span>
           </div>
-          <Badge variant={getStatusVariant(status)} className="px-3 py-1.5 font-bold tracking-widest uppercase text-[10px] shadow-sm ring-1 ring-black/5">
+          <Badge variant={getStatusVariant(status)} className="px-3 py-1.5 font-bold tracking-widest uppercase text-[10px] leading-(--text-xs--line-height) shadow-sm ring-1 ring-black/5">
             {status?.toUpperCase() || 'UNKNOWN'}
           </Badge>
         </div>

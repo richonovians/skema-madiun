@@ -34,6 +34,15 @@ describe('Badge className', () => {
     expect(k).not.toContain('text-green-800');
   });
 
+  // Ukuran arbitrer membuang `text-xs` beserta jarak barisnya, jadi tujuh
+  // pemanggil menyebut jarak barisnya sendiri (BadgeJarakBaris.test.js). Kelas
+  // itu tak boleh ikut dibuang tailwind-merge.
+  it('jarak baris dari pemanggil bertahan di samping ukuran huruf arbitrer', () => {
+    const k = kelas({ className: 'text-[10px] leading-(--text-xs--line-height)' });
+    expect(k).toEqual(expect.arrayContaining(['text-[10px]', 'leading-(--text-xs--line-height)']));
+    expect(k).not.toContain('text-xs');
+  });
+
   it('KONTROL: tanpa className, kelas bawaan utuh', () => {
     const k = kelas({ variant: 'success' });
     expect(k).toEqual(

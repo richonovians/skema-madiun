@@ -147,7 +147,7 @@ export default function SurveyMonitoringTable({
                     {survey.isUtama && (
                       <Badge
                         variant="info"
-                        className="mt-xs px-sm py-[2px] text-[10px] uppercase rounded whitespace-nowrap"
+                        className="mt-xs px-sm py-[2px] text-[10px] leading-(--text-xs--line-height) uppercase rounded whitespace-nowrap"
                       >
                         Survei Utama
                       </Badge>
@@ -164,7 +164,7 @@ export default function SurveyMonitoringTable({
                     {labelJenis(survey.jenis) ? (
                       <Badge
                         variant={survey.jenis === 'custom' ? 'default' : 'info'}
-                        className="px-sm py-[2px] text-[10px] uppercase rounded"
+                        className="px-sm py-[2px] text-[10px] leading-(--text-xs--line-height) uppercase rounded"
                       >
                         {labelJenis(survey.jenis)}
                       </Badge>
