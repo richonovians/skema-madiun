@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, request, test, type APIRequestContext, type Page } from '@playwright/test';
 import { BERKAS_TOKEN } from './global-setup';
+import { pilihDropdown } from './support/dropdown';
 
 /**
  * ALUR NILAI SURVEI survei custom, dari UI sampai basis data (8 Oktober 2026).
@@ -179,15 +180,15 @@ test.describe('Nilai Survei survei custom', () => {
 
     const tujuan = page.getByLabel(/tujuan survei/i);
     const metode = page.getByLabel(/metode nilai/i);
-    await expect(tujuan).toHaveValue('kepuasan', { timeout: 20_000 });
-    await expect(metode).toHaveValue('indeks_persen');
+    await expect(tujuan).toHaveText('Kepuasan', { timeout: 20_000 });
+    await expect(metode).toHaveText('Indeks persen');
     // Survei sudah menerima jawaban: pengaturan ini tetap dapat diubah (hanya tampilan).
     await expect(metode).toBeEnabled();
 
     const simpan = page.waitForResponse(
       (r) => /\/api\/v1\/surveys\/\d+$/.test(r.url()) && r.request().method() === 'PATCH',
     );
-    await metode.selectOption('rata_rata');
+    await pilihDropdown(metode, 'Nilai rata-rata');
     expect((await simpan).status()).toBe(200);
 
     // Tersimpan di basis data, dan jawaban lama utuh (rata-rata 4,00 tak berubah).
@@ -202,7 +203,7 @@ test.describe('Nilai Survei survei custom', () => {
     });
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByLabel(/metode nilai/i)).toHaveValue('rata_rata', { timeout: 20_000 });
+    await expect(page.getByLabel(/metode nilai/i)).toHaveText('Nilai rata-rata', { timeout: 20_000 });
 
     await page.goto('/admin-opd/surveys', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: judul })).toBeVisible({ timeout: 20_000 });
