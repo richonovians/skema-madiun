@@ -85,6 +85,7 @@ export default function AdminKabNavbar() {
     isDesktopSidebarCollapsed,
     periode,
     setPeriode,
+    idSidebar,
   } = useAdminKabLayout();
   const pathname = usePathname();
 
@@ -186,10 +187,13 @@ export default function AdminKabNavbar() {
     >
       <button
         className="md:hidden -ml-1 flex items-center justify-center min-w-[44px] min-h-[44px] text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+        type="button"
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         aria-label="Buka menu navigasi"
+        aria-expanded={isMobileSidebarOpen}
+        aria-controls={idSidebar}
       >
-        <Menu size={24} />
+        <Menu size={24} aria-hidden="true" />
       </button>
 
       {/* `flex-1` DI SEMUA LEBAR -- dan justru itulah yang menahan lonceng &
