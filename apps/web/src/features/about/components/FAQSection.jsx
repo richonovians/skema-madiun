@@ -33,20 +33,25 @@ export default function FAQSection() {
                 className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm animate-fade-in-up"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <button
-                  type="button"
-                  onClick={() => toggleAccordion(item.id)}
-                  aria-expanded={isOpen}
-                  aria-controls={idJawaban}
-                  className="w-full flex items-center justify-between p-4 sm:p-6 min-h-[64px] text-left hover:bg-surface-hover transition-colors"
-                >
-                  <h3 className="font-h4 text-h4 text-text-primary pr-8">
-                    {item.question}
-                  </h3>
-                  <div className={`flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-                    <ChevronDown className="w-6 h-6 text-text-secondary" />
-                  </div>
-                </button>
+                {/* Judul membungkus tombol (pola akordeon WAI-ARIA): `<h3>` di
+                    dalam `<button>` tidak sah, karena isi tombol hanya boleh
+                    phrasing content. */}
+                <h3>
+                  <button
+                    type="button"
+                    onClick={() => toggleAccordion(item.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={idJawaban}
+                    className="w-full flex items-center justify-between p-4 sm:p-6 min-h-[64px] text-left hover:bg-surface-hover transition-colors"
+                  >
+                    <span className="font-h4 text-h4 text-text-primary pr-8">
+                      {item.question}
+                    </span>
+                    <span className={`flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDown className="w-6 h-6 text-text-secondary" />
+                    </span>
+                  </button>
+                </h3>
                 {/* Panel tertutup hanya dikecilkan (teksnya tetap di DOM demi
                     animasi), jadi disembunyikan dari pembaca layar selagi
                     tertutup (27 Oktober 2026, BUG-044). */}
