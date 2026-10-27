@@ -46,6 +46,7 @@ export default function AdminKabSidebar() {
     setIsMobileSidebarOpen,
     isDesktopSidebarCollapsed,
     setIsDesktopSidebarCollapsed,
+    idSidebar,
   } = useAdminKabLayout();
 
   /**
@@ -135,13 +136,25 @@ export default function AdminKabSidebar() {
         className={`hidden md:flex fixed top-8 h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:text-blue-600 hover:bg-slate-50 shadow-sm z-[60] transition-all duration-300 hover:scale-110 ${
           isDesktopSidebarCollapsed ? 'left-[66px]' : 'left-[242px]'
         }`}
+        type="button"
         onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+        // Nama TETAP + `aria-expanded` (27 Oktober 2026, BUG-042). `title` yang
+        // berganti hanya untuk tetikus; pembaca layar membaca keadaannya dari
+        // `aria-expanded`, bukan dari nama yang berubah-ubah.
+        aria-label="Sidebar lebar"
+        aria-expanded={!isDesktopSidebarCollapsed}
+        aria-controls={idSidebar}
         title={isDesktopSidebarCollapsed ? 'Perbesar Sidebar' : 'Perkecil Sidebar'}
       >
-        {isDesktopSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        {isDesktopSidebarCollapsed ? (
+          <ChevronRight size={16} aria-hidden="true" />
+        ) : (
+          <ChevronLeft size={16} aria-hidden="true" />
+        )}
       </button>
 
       <aside
+        id={idSidebar}
         className={`bg-white border-r border-slate-200 text-slate-700 font-body-md text-body-md h-screen w-64 ${isDesktopSidebarCollapsed ? 'md:w-20' : 'md:w-64'} fixed left-0 top-0 shadow-xl flex flex-col pb-md z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-in-out ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}

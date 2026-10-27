@@ -35,7 +35,7 @@ const TAHUN_OPTIONS = buildTahunOptions();
  * menghapus satu permintaan gambar ke host eksternal dari tiap halaman admin.
  */
 export default function AdminNavbar() {
-  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, periode, setPeriode } = useAdminLayout();
+  const { isMobileSidebarOpen, setIsMobileSidebarOpen, isDesktopSidebarCollapsed, periode, setPeriode, idSidebar } = useAdminLayout();
   const pathname = usePathname();
 
   // Penyaring triwulan HANYA ditampilkan di halaman yang membacanya (lihat
@@ -140,10 +140,13 @@ export default function AdminNavbar() {
     >
       <button
         className="md:hidden -ml-1 flex items-center justify-center min-w-[44px] min-h-[44px] text-on-surface hover:bg-surface-container rounded-lg shrink-0"
+        type="button"
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         aria-label="Buka menu navigasi"
+        aria-expanded={isMobileSidebarOpen}
+        aria-controls={idSidebar}
       >
-        <Menu size={24} />
+        <Menu size={24} aria-hidden="true" />
       </button>
 
       {isLoading ? (
