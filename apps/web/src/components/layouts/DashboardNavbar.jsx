@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Menu, X } from 'lucide-react';
@@ -17,6 +17,7 @@ export default function DashboardNavbar() {
   const [showExitModal, setShowExitModal] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const idLaci = useId();
 
   const getLinkClass = (path) => {
     // Basic exact match for now
@@ -104,6 +105,11 @@ export default function DashboardNavbar() {
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none"
+              // Sebelum 27 Oktober 2026 tombol ini hanya berisi ikon dan TANPA
+              // nama: pembaca layar mengumumkannya sebagai "tombol" saja (BUG-043).
+              aria-label="Buka menu navigasi"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls={idLaci}
             >
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -113,7 +119,7 @@ export default function DashboardNavbar() {
 
       {/* Mobile Navigation Drawer */}
       {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-x-0 top-16 bg-surface border-b border-border shadow-xl z-50 animate-in slide-in-from-top-5 duration-300">
+        <div id={idLaci} className="md:hidden fixed inset-x-0 top-16 bg-surface border-b border-border shadow-xl z-50 animate-in slide-in-from-top-5 duration-300">
           <div className="flex flex-col px-6 py-4 space-y-2">
             <Link 
               href="/" 

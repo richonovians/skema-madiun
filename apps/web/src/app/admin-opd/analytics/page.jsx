@@ -305,6 +305,8 @@ function AnalyticsPageContent() {
         <button
           onClick={() => setIsExportOpen(!isExportOpen)}
           disabled={!!exportingFormat}
+          aria-haspopup="menu"
+          aria-expanded={isExportOpen}
           className={`flex items-center justify-between gap-2 min-w-[140px] min-h-[44px] px-md py-sm rounded-lg font-medium text-body-md transition-all bg-surface border border-border text-text-primary hover:bg-surface-container shadow-sm group ${exportingFormat ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
           <div className="flex items-center gap-2">
