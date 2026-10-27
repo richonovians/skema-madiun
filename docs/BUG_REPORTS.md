@@ -134,8 +134,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-040](#bug-040) | Lima sisa `max-w-xs`/`max-w-2xl` yang dibajak token spasi — judul pengaduan diperas ke lebar minimum, judul warga terpotong pada layar lega | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-041](#bug-041) | `className` pemanggil `Badge` kalah oleh kelas bawaan — enam lencana survei tetap pil walau meminta `rounded`, `font-bold` tampil 600 | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-042](#bug-042) | Tombol ciut sidebar dan tombol menu ponsel tak mengumumkan keadaannya — tanpa `aria-expanded`/`aria-controls`, nama menu tetap "Buka" saat laci terbuka | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-043](#bug-043) | Tombol hamburger dashboard warga tanpa nama sama sekali — pembaca layar hanya mendengar "tombol" | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-044](#bug-044) | Tujuh tombol buka/tutup tanpa `aria-expanded` — hamburger publik, akordeon FAQ, dua tombol Filter ponsel, tiga menu Ekspor | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 42 temuan: **42 ditutup, 0 terbuka.**
+**Rekap** — 44 temuan: **44 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2836,6 +2838,64 @@ menu ponsel membawa `aria-expanded` mengikuti laci. Keduanya `aria-controls` ke
 **Pagar.** `TombolSidebarAria.test.jsx`, 3 uji x 2 tata letak, merah lebih dulu
 6/6. Uji keempat (ikon ber-`aria-hidden`) dibuang karena hampa: lucide-react
 1.27 sudah memasangnya sendiri, mutasinya tetap hijau. Mutasi lain 8/8 merah.
+
+---
+
+<a id="bug-043"></a>
+
+### BUG-043 — Tombol hamburger dashboard warga tanpa nama
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 27 Oktober 2026 (ditemukan dan ditutup)                      |
+| **Peran**    | Warga, pengguna pembaca layar                                |
+| **Berkas**   | `apps/web/src/components/layouts/DashboardNavbar.jsx`        |
+| **Severity** | Medium (usulan penguji)                                      |
+
+**Asal.** Sapuan tombol buka/tutup sesudah [BUG-042](#bug-042): 21 tombol,
+13 benar, delapan cacat.
+
+**Cacatnya.** Tombol hamburger di dashboard warga hanya berisi ikon `Menu`/`X`
+tanpa `aria-label`, `title`, maupun teks. Nama aksesibelnya kosong: pembaca
+layar mengumumkannya sebagai "tombol" saja, dan di ponsel itulah satu-satunya
+jalan ke menu navigasi. Medium karena pengguna pembaca layar tak dapat tahu
+tombol apa itu, bukan sekadar keadaannya.
+
+**Ditutup 27 Oktober 2026** — `5f259da`, merge `eaf3587` di `main`. Nama
+"Buka menu navigasi", `aria-expanded` mengikuti laci, `aria-controls` ke laci.
+
+**Pagar.** `HamburgerAria.test.jsx` (bersama Navbar publik), merah lebih dulu.
+
+---
+
+<a id="bug-044"></a>
+
+### BUG-044 — Tujuh tombol buka/tutup tanpa `aria-expanded`
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 27 Oktober 2026 (ditemukan dan ditutup)                      |
+| **Peran**    | Pengunjung, Admin OPD, Admin Kabupaten, pengguna pembaca layar |
+| **Berkas**   | `Navbar.jsx`, `FAQSection.jsx`, `SurveyFilterBar.jsx`, `ComplaintFilterBar.jsx`, `admin-opd/analytics/page.jsx`, `KabDashboardHeader.jsx`, `SurveyResultExportMenu.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Cacatnya.** Kelas yang sama dengan [BUG-037](#bug-037), [BUG-039](#bug-039),
+dan [BUG-042](#bug-042): tombol membuka dan menutup sesuatu tanpa mengumumkan
+keadaannya. Hamburger publik (nama berganti, tanpa `aria-expanded`), akordeon
+FAQ (panel tertutup tetap terbaca karena hanya dikecilkan), tombol Filter ponsel
+di dua bilah penyaring Admin Kabupaten, dan tiga menu Ekspor yang tak memakai
+`aria-haspopup`/`aria-expanded` padahal empat menu ekspor lain sudah.
+
+**Ditutup 27 Oktober 2026** — `5f259da`, merge `eaf3587` di `main`, dengan pola
+yang sudah ada di repo. Panel FAQ yang tertutup kini juga `aria-hidden`.
+
+**Pagar.** Lima berkas uji baru (15 uji termasuk BUG-043), semuanya merah lebih
+dulu; mutasi 12/12 merah.
+
+**Catatan, tidak diubah.** Pertanyaan FAQ adalah `<h3>` di dalam `<button>`,
+susunan yang tak sah menurut HTML.
 
 ---
 
@@ -6180,3 +6240,4 @@ hanya dibaca, tidak diubah.
 | 7.6 | 27 Oktober 2026 | **BUG-039 dan BUG-040 ditutup: 40 temuan, 40 ditutup, nol terbuka.** BUG-039 (`53d5ab8`, merge `bef537e`): modal Buat/Ubah Survei tanpa peran dialog, nama, tombol tutup bernama, dan kurungan fokus — kelas BUG-037, ditemukan probe Playwright. BUG-040 (`9fa2f63`, merge `93d3370`): lima sisa `max-w-*` yang dibajak token spasi, diukur di Chrome sebelum dan sesudah, kini dijaga penyisir `tanpaMaxWTokenSpasi.test.js`. |
 | 7.7 | 27 Oktober 2026 | **BUG-041 ditutup: 41 temuan, 41 ditutup, nol terbuka.** BUG-041 (`69f5b08`, merge `31c9679`): `className` pemanggil `Badge` kalah oleh kelas bawaan; diperbaiki lewat `utils/cn.js`, penggabung kelas yang mengenal token tema, dan delapan pemakai `twMerge` polos ikut dipindah. |
 | 7.8 | 27 Oktober 2026 | **BUG-042 ditutup: 42 temuan, 42 ditutup, nol terbuka.** BUG-042 (`3a2eb56`, merge `7b6412b`): tombol ciut sidebar dan tombol menu ponsel kini membawa `aria-expanded` + `aria-controls` ke `<aside>` sidebar; kelas cacat BUG-037/039. |
+| 7.9 | 27 Oktober 2026 | **BUG-043 dan BUG-044 ditutup: 44 temuan, 44 ditutup, nol terbuka.** Sapuan tombol buka/tutup sesudah BUG-042 (21 tombol, delapan cacat), `5f259da`, merge `eaf3587`: hamburger dashboard warga tanpa nama (BUG-043, Medium) dan tujuh tombol tanpa `aria-expanded` (BUG-044). |
