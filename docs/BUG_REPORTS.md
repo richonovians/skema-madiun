@@ -136,8 +136,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-042](#bug-042) | Tombol ciut sidebar dan tombol menu ponsel tak mengumumkan keadaannya — tanpa `aria-expanded`/`aria-controls`, nama menu tetap "Buka" saat laci terbuka | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-043](#bug-043) | Tombol hamburger dashboard warga tanpa nama sama sekali — pembaca layar hanya mendengar "tombol" | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-044](#bug-044) | Tujuh tombol buka/tutup tanpa `aria-expanded` — hamburger publik, akordeon FAQ, dua tombol Filter ponsel, tiga menu Ekspor | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-045](#bug-045) | Pertanyaan FAQ berupa `<h3>` di dalam `<button>` — susunan HTML tak sah | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 44 temuan: **44 ditutup, 0 terbuka.**
+**Rekap** — 45 temuan: **45 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -2895,7 +2896,37 @@ yang sudah ada di repo. Panel FAQ yang tertutup kini juga `aria-hidden`.
 dulu; mutasi 12/12 merah.
 
 **Catatan, tidak diubah.** Pertanyaan FAQ adalah `<h3>` di dalam `<button>`,
-susunan yang tak sah menurut HTML.
+susunan yang tak sah menurut HTML. Ditutup terpisah sebagai [BUG-045](#bug-045).
+
+---
+
+<a id="bug-045"></a>
+
+### BUG-045 — Pertanyaan FAQ berupa `<h3>` di dalam `<button>`
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 27 Oktober 2026 (ditemukan dan ditutup)                      |
+| **Peran**    | Pengunjung, pengguna pembaca layar                           |
+| **Berkas**   | `apps/web/src/features/about/components/FAQSection.jsx`      |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Dicatat saat menutup [BUG-044](#bug-044), sengaja tidak diubah waktu
+itu.
+
+**Cacatnya.** Tiap pertanyaan akordeon FAQ adalah `<h3>` di dalam `<button>`.
+Isi tombol hanya boleh phrasing content, jadi susunannya tidak sah. Peran
+`button` juga meratakan isinya, sehingga judulnya tak terjamin muncul di
+navigasi per judul pembaca layar.
+
+**Ditutup 27 Oktober 2026** — `4e2217a`, merge `e91aaeb` di `main`. Pola
+akordeon WAI-ARIA: `<h3>` membungkus `<button>`, teks dan ikon menjadi
+`<span>`. Tampilan diukur di Chrome sebelum dan sesudah (desktop 1280, ponsel
+375, tertutup dan terbuka): identik.
+
+**Pagar.** Satu uji baru di `FAQSectionAria.test.jsx`, merah lebih dulu;
+mutasi 3/3 merah.
 
 ---
 
@@ -6241,3 +6272,4 @@ hanya dibaca, tidak diubah.
 | 7.7 | 27 Oktober 2026 | **BUG-041 ditutup: 41 temuan, 41 ditutup, nol terbuka.** BUG-041 (`69f5b08`, merge `31c9679`): `className` pemanggil `Badge` kalah oleh kelas bawaan; diperbaiki lewat `utils/cn.js`, penggabung kelas yang mengenal token tema, dan delapan pemakai `twMerge` polos ikut dipindah. |
 | 7.8 | 27 Oktober 2026 | **BUG-042 ditutup: 42 temuan, 42 ditutup, nol terbuka.** BUG-042 (`3a2eb56`, merge `7b6412b`): tombol ciut sidebar dan tombol menu ponsel kini membawa `aria-expanded` + `aria-controls` ke `<aside>` sidebar; kelas cacat BUG-037/039. |
 | 7.9 | 27 Oktober 2026 | **BUG-043 dan BUG-044 ditutup: 44 temuan, 44 ditutup, nol terbuka.** Sapuan tombol buka/tutup sesudah BUG-042 (21 tombol, delapan cacat), `5f259da`, merge `eaf3587`: hamburger dashboard warga tanpa nama (BUG-043, Medium) dan tujuh tombol tanpa `aria-expanded` (BUG-044). |
+| 7.10 | 27 Oktober 2026 | **BUG-045 ditutup: 45 temuan, 45 ditutup, nol terbuka.** Pertanyaan FAQ berupa `<h3>` di dalam `<button>` (catatan BUG-044), `4e2217a`, merge `e91aaeb`: judul kini membungkus tombol, tampilan identik di Chrome. |
