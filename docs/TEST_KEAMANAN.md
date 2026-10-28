@@ -58,7 +58,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | - | --------------------- | ---------- | ---- | ------ |
 | 1 | A01 Broken Access Control | 17 endpoint "semua yang masuk": akses silang pengguna dan OPD (IDOR) — tiket pengaduan orang lain, balasannya, notifikasi orang lain, OPD lain | permintaan HTTP langsung dengan sesi peran berbeda | **selesai 28 Okt — nol celah**, lihat §8 |
 | 2 | A01 | 44 endpoint berperan: tanpa sesi 401, peran salah 403, OPD lain 403/404, sumber daya tanpa tujuan | matriks seluruh endpoint di suite baru (semula hanya 16 yang tersentuh `peran-matriks-rbac.e2e-spec.ts`) | **selesai 28 Okt — nol celah**, lihat §9 |
-| 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat jawaban/judul uji, unduh ekspor, buka bentuk mentahnya | belum diuji |
+| 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat berkas dengan kode aplikasi, buka di Excel | **selesai 28 Okt — TERBUKTI, BUG-049 ditutup**, lihat §10 |
 | 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | belum diuji |
 | 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | belum diuji |
 | 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | belum diuji |
@@ -285,3 +285,34 @@ kompilabel sebelum hasilnya dicatat.
 Gerbang penuh sesudahnya: API unit 1413/1413, API e2e 622/622 (44 suite),
 web komponen 1941/1941, eslint dan prettier kode 0. Playwright tidak
 dijalankan; perubahannya hanya berkas uji `apps/api`.
+
+## 10. Hasil #3 — injeksi rumus pada ekspor
+
+**Dijalankan:** 28 Oktober 2026. **Hasil: kandidat TERBUKTI, dicatat sebagai
+BUG-049 (Medium) dan ditutup hari yang sama** — `74646df`, merge `68733cf`
+di `main`. Rincian lengkap di `BUG_REPORTS.md`.
+
+**Cara membuktikan.** Berkas disusun dengan kode aplikasi sendiri (salinan
+`unduh.js` untuk sisi web; spec jest sementara yang memanggil
+`IkmExportService` untuk sisi api, dihapus sesudahnya), berisi `=1+1`,
+`@SUM(1+1)`, `+2+3`, dan `HYPERLINK` ke `contoh.invalid`. Lalu dibuka lewat
+Excel di mesin pengembang melalui COM, tanpa jendela dan tanpa disimpan.
+Tidak ada data uji yang ditulis ke basis data mana pun.
+
+| Ekspor | Sebelum | Sesudah |
+| ------ | ------- | ------- |
+| CSV web (`susunCsv` + tiga halaman daftar) | `=1+1`, `@SUM`, `+2+3` dihitung | nol sel berumus |
+| CSV api (`toCsv`) | `=1+1`, `@SUM` dihitung | nol sel berumus |
+| XLSX api (`toExcel`) | teks, aman | tidak diubah |
+| PDF | tidak berlaku | tidak diubah |
+
+**Batas yang dicatat apa adanya.** Excel di mesin ini berpemisah `;`; CSV
+yang dibuka dengan klik ganda masuk utuh ke kolom A dan bentuk yang diuji
+tidak terhitung. Rumus terhitung bila berkas dipecah per koma. `HYPERLINK`
+berargumen koma tidak terhitung pada impor itu, sebab pemisah argumen rumus
+di lokal ini juga `;` — penyerang yang tahu lokalnya tinggal menyesuaikan.
+
+**Gerbang penuh sesudahnya:** API unit 1419/1419, API e2e 622/622, web
+komponen 1957/1957, eslint dan prettier kode 0. Playwright penuh tidak
+dijalankan; ekspor ketiga halaman yang berubah dicoba lewat probe Playwright
+sementara (3/3, hanya membaca).

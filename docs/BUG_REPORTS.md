@@ -140,8 +140,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-046](#bug-046) | Tujuh lencana 10px tumbuh 1,67px sejak Badge memakai `cn` — jarak baris `text-xs` ikut terbuang | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-047](#bug-047) | Nilai Survei "4,00 / 4 · Sangat Puas" tak dapat patah — tabel survei Admin Kabupaten meluap 58px di 1366px, kartu Admin OPD keluar kotak | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-048](#bug-048) | Aksi Teruskan dan Monitor Tiket di daftar pengaduan Admin Kabupaten di bawah 44px; Monitor Tiket `<button>` di dalam `<Link>` | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-049](#bug-049) | Ekspor CSV meneruskan teks berawalan `=`, `+`, `-`, `@` mentah — Excel menghitungnya sebagai rumus bila dipecah per koma | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 48 temuan: **48 ditutup, 0 terbuka.**
+**Rekap** — 49 temuan: **49 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3047,6 +3048,67 @@ Teruskan 95x44 di kedua lebar, Monitor Tiket 95x48 dan 122x44.
 
 **Pagar.** `AksiTabelPengaduan.test.jsx`, tiga uji, merah lebih dulu; mutasi
 4/4 merah.
+
+---
+
+<a id="bug-049"></a>
+
+### BUG-049 — Ekspor CSV meneruskan teks berawalan rumus mentah
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #3 (`docs/TEST_KEAMANAN.md` §10)             |
+| **Tanggal**  | 28 Oktober 2026 (ditemukan dan ditutup hari yang sama)       |
+| **Peran**    | Warga dan Admin OPD sebagai penyisip; Admin OPD dan Admin Kabupaten sebagai pengunduh |
+| **Berkas**   | `apps/api/src/modules/ikm/ikm-export.service.ts`, `apps/web/src/utils/unduh.js`, tiga halaman daftar |
+| **Severity** | Medium (usulan penguji)                                      |
+
+**Asal.** Rencana uji keamanan mencatat "tak ditemukan penetralan sel
+berawalan `= + - @`" sebagai kandidat. Bagian ini membuktikan atau
+menggugurkannya.
+
+**Cacatnya.** Berkas disusun dengan kode aplikasi sendiri, berisi muatan
+tak berbahaya, lalu dibuka lewat Excel di mesin pengembang (tanpa jendela,
+tanpa disimpan):
+
+| Penyusun | Isi | Bila dipecah per koma |
+| -------- | --- | --------------------- |
+| `susunCsv` (web) | `"=1+1"`, `"@SUM(1+1)"`, `"+2+3"` | rumus, bernilai 2, 2, 5 |
+| `toCsv` (api) | `Survei,=1+1`, `OPD,@SUM(1+1)` | rumus, bernilai 2 dan 2 |
+| `toExcel` (api, exceljs) | `=1+1` | teks, BUKAN rumus |
+
+Kutip ganda tidak menolong. Tiga halaman daftar (`admin-kab/complaints`,
+`admin-opd/complaints`, `admin-kab/surveys`) menyusun CSV sendiri dengan
+salinan `escape` + `downloadBlob`, sehingga perbaikan di `unduh.js` saja tak
+akan sampai ke sana.
+
+Yang dapat menyisipkan: warga (judul pengaduan, pesan percakapan, nama
+profil lewat `PATCH /auth/profile`) dan Admin OPD (judul survei). Yang
+terkena: admin yang mengunduh, lewat tombol berlabel "Excel" yang isinya CSV.
+
+**Batas pembuktiannya.** Excel di mesin ini berpemisah `;`. CSV yang dibuka
+dengan klik ganda masuk utuh ke kolom A, dan bentuk yang diuji (sel
+berlabel, rumus di kolom pertama) TIDAK terhitung. Rumus terbukti terhitung
+bila berkas dipecah per koma: Excel berlokal koma, atau impor teks
+berpemisah koma. Karena itu Medium, bukan High.
+
+**Ditutup 28 Oktober 2026** — `74646df`, merge `68733cf` di `main`. Sel
+teks berawalan `=`, `+`, `-`, `@`, TAB, atau CR diberi awalan petik tunggal;
+angka, teks yang memang angka (`-5`, `85%`), dan `-` pengisi kosong
+dibiarkan. Satu aturan di tiap sisi: `csvEscape` (api) dan `kutip` (web).
+Ketiga halaman dipindah ke `unduhCsv`. XLSX dan PDF tidak diubah. Harganya:
+judul yang memang berawalan karakter itu tampil dengan petik di Excel.
+
+Sesudahnya berkas yang sama dibuka ulang di Excel berpemisah koma: nol sel
+berumus, `'=1+1` tampil sebagai teks. Ekspor ketiga halaman dicoba di Chrome
+lewat probe Playwright sementara yang hanya membaca: nama berkas tetap,
+kepala kini berkutip, isi utuh.
+
+**Pagar.** `unduh.test.js` (14 uji baru) dan `ikm-export.service.spec.ts`
+(6 uji baru), merah lebih dulu (web 8, api 5). `CsvSatuPintu.test.js`
+menolak penyusun `text/csv` di luar `unduh.js`, merah dengan ketiga halaman
+sebelum pemindahan. Pengecualian angka dimutasi di kedua sisi: web 4 merah,
+api 1 merah.
 
 ---
 
@@ -6396,3 +6458,4 @@ hanya dibaca, tidak diubah.
 | 7.11 | 27 Oktober 2026 | **BUG-046 ditutup: 46 temuan, 46 ditutup, nol terbuka.** Tujuh lencana 10px tumbuh 1,67px sejak BUG-041 karena jarak baris `text-xs` ikut terbuang, `edd6823`, merge `2278c31`: kembali ke 17,33 / 21,33 / 25,33px, terukur di Chrome. |
 | 7.12 | 27 Oktober 2026 | **BUG-047 ditutup: 47 temuan, 47 ditutup, nol terbuka.** Nilai Survei "4,00 / 4 · Sangat Puas" satu potong nowrap meluapkan tabel survei Admin Kabupaten 58px di 1366px dan keluar dari kotak kartu Admin OPD, `af243aa`, merge `7868221`: dua potong yang patah di antaranya. |
 | 7.13 | 28 Oktober 2026 | **BUG-048 ditutup: 48 temuan, 48 ditutup, nol terbuka.** Aksi Teruskan (95x29) dan Monitor Tiket (122x31 di desktop) di daftar pengaduan Admin Kabupaten di bawah 44px, Monitor Tiket `<button>` di dalam `<Link>`, `e078f29`, merge `9000688`. |
+| 7.14 | 28 Oktober 2026 | **BUG-049 lahir dan ditutup pada hari yang sama: 49 temuan, 49 ditutup, nol terbuka.** Kandidat injeksi rumus dari rencana uji keamanan (QA-SECURITY-UAT #3) terbukti lewat Excel di mesin pengembang: CSV dari `susunCsv` dan `toCsv` menghitung `=1+1` sebagai rumus bila dipecah per koma, sedangkan XLSX dari exceljs aman. Dinilai Medium, bukan High, karena Excel berpemisah `;` di mesin ini tidak menghitung bentuk yang diuji pada klik ganda. Diperbaiki dengan awalan petik tunggal di `csvEscape` dan `kutip`, dan tiga halaman daftar yang menyusun CSV sendiri dipindah ke `unduhCsv`, `74646df`, merge `68733cf`. |
