@@ -57,7 +57,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | # | Kategori (OWASP 2021) | Yang diuji | Cara | Status |
 | - | --------------------- | ---------- | ---- | ------ |
 | 1 | A01 Broken Access Control | 17 endpoint "semua yang masuk": akses silang pengguna dan OPD (IDOR) — tiket pengaduan orang lain, balasannya, notifikasi orang lain, OPD lain | permintaan HTTP langsung dengan sesi peran berbeda | **selesai 28 Okt — nol celah**, lihat §8 |
-| 2 | A01 | 44 endpoint berperan: tanpa sesi 401, peran salah 403, OPD lain 403/404, sumber daya tanpa tujuan | lengkapi `peran-matriks-rbac.e2e-spec.ts`, yang kini menyentuh 16 endpoint | belum diuji |
+| 2 | A01 | 44 endpoint berperan: tanpa sesi 401, peran salah 403, OPD lain 403/404, sumber daya tanpa tujuan | matriks seluruh endpoint di suite baru (semula hanya 16 yang tersentuh `peran-matriks-rbac.e2e-spec.ts`) | **selesai 28 Okt — nol celah**, lihat §9 |
 | 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat jawaban/judul uji, unduh ekspor, buka bentuk mentahnya | belum diuji |
 | 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | belum diuji |
 | 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | belum diuji |
@@ -238,3 +238,50 @@ Playwright tidak dijalankan; perubahannya hanya berkas uji `apps/api`.
   karakter base36 per hari (sekitar 1,68 juta kemungkinan). Tidak menjadi
   celah selama nomor tiket bukan kredensial — dan memang bukan, karena setiap
   pembacaan tetap diperiksa `assertAccess`.
+
+## 9. Hasil #2 — matriks otorisasi seluruh endpoint
+
+**Dijalankan:** 28 Oktober 2026, terhadap `main` di `7efa51c`
+(`be3825f` menambah suitenya). **Hasil: nol celah.**
+
+Suite: `apps/api/test/rbac-seluruh-endpoint.e2e-spec.ts`, 125 uji, lewat
+SessionAuthProvider sungguhan. StubAuthProvider tak dapat dipakai di sini:
+ia menjadikan permintaan tanpa header sebagai `kabupaten`, sehingga 401 tak
+pernah terjadi.
+
+Ketiga uji di bawah membaca satu tabel, `MATRIKS`, berisi 68 baris
+`metode, jalur, akses` dengan akses `publik`, `semua`, atau daftar peran.
+Isinya sama dengan §5.
+
+| Uji | Jumlah | Yang dibuktikan |
+| --- | ------ | --------------- |
+| Tabel = kode | 1 | rute dan dekorator dibaca dari metadata Nest yang hidup lalu dicocokkan persis dengan tabel; endpoint baru tanpa baris, atau `@Roles` yang dicabut, dipersempit, atau dilebarkan, memerah |
+| Tanpa token | 61 | setiap rute non-publik menjawab 401 |
+| Peran salah | 63 | setiap pasangan rute dan peran yang tak tercantum menjawab 403 dengan pesan `RolesGuard` yang menyebut daftar peran PERSIS |
+
+Pesan 403 diperiksa, bukan hanya statusnya, karena lapis service sering
+menjawab 403 juga. Daftar perannya dibandingkan supaya rute yang tertutup
+tetangganya (`/surveys/active` lawan `/surveys/:id`) tak menguji gerbang
+yang salah.
+
+Peran yang TERCANTUM sengaja tidak dipanggil. Rute tulis dengan id karangan
+dan `POST /opd/sync` (yang memanggil Helpdesk) bukan urusan uji gerbang, dan
+rute "semua yang masuk" sudah diuji isolasi datanya di §8.
+
+**Bukti suitenya tidak hampa.** Seluruh 125 uji hijau pada jalan pertama,
+jadi empat mutasi dijalankan lalu dipulihkan:
+
+| Mutasi | Uji yang memerah |
+| ------ | ---------------- |
+| `@Roles(Role.kabupaten)` di kelas `UsersController` dicabut | 15 (tabel + 14 peran salah) |
+| `GET /surveys/active` dilebarkan ke `opd` | 3 (tabel + 2 peran salah) |
+| `RolesGuard` berhenti memeriksa peran | 63 (seluruh peran salah; tabel tetap hijau, memang benar) |
+| `RolesGuard` meloloskan permintaan tanpa sesi | 61 (seluruh tanpa token) |
+
+Percobaan pertama mutasi ketiga hampa: `if (false)` gagal kompilasi dan
+jest mencetak `Tests: 0 total`. Mutasinya diulang dalam bentuk yang
+kompilabel sebelum hasilnya dicatat.
+
+Gerbang penuh sesudahnya: API unit 1413/1413, API e2e 622/622 (44 suite),
+web komponen 1941/1941, eslint dan prettier kode 0. Playwright tidak
+dijalankan; perubahannya hanya berkas uji `apps/api`.
