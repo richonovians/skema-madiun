@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ComplaintStatus, Prisma, Role, SurveyStatus } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
+import { lolosPolaLike } from '../../prisma/pola-like';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
 import { OpdEntity } from './entities/opd.entity';
@@ -30,9 +31,11 @@ export class OpdService {
 
     const where: Prisma.OpdWhereInput = {};
     if (search) {
+      // Harfiah, bukan pola LIKE (BUG-051) -- lihat lolosPolaLike.
+      const cari = lolosPolaLike(search);
       where.OR = [
-        { nama: { contains: search, mode: 'insensitive' } },
-        { kode: { contains: search, mode: 'insensitive' } },
+        { nama: { contains: cari, mode: 'insensitive' } },
+        { kode: { contains: cari, mode: 'insensitive' } },
       ];
     }
     if (isActive !== undefined) {
