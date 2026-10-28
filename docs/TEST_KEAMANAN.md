@@ -63,7 +63,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | **selesai 28 Okt — SQLi nihil; BUG-050, BUG-051 ditutup**, lihat §12 |
 | 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | belum diuji |
 | 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | **selesai 28 Okt — nol celah**, lihat §13 |
-| 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | belum diuji |
+| 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | belum diuji |
 | 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | belum diuji |
 | 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | belum dijadwalkan |
@@ -454,4 +454,54 @@ itu benar: klaim `act` untuk peran yang tak dimiliki akun ditolak lagi oleh
   dan peran yang sama-sama ia miliki, jadi tidak ada kenaikan hak.
 
 **Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 714/714 (46
+suite), web komponen 1957/1957, eslint dan prettier kode 0.
+
+## 14. Hasil #8 — batas laju
+
+**Dijalankan:** 28 Oktober 2026, terhadap `main` di `bfb0fea` (`1de768e`
+menambah suitenya). **Hasil: nol celah.**
+
+**Sudah diuji di tempat lain, diperiksa ada lalu tidak diulang:**
+
+| Batas | Uji yang menjaganya |
+| ----- | ------------------- |
+| dev-login 30/menit, SSO login dan callback 60/menit, IP lain tetap dilayani, ember per endpoint | `auth-throttle.e2e-spec.ts` |
+| Penghitung per pengguna bila bersesi, per IP bila tidak | `throttle-per-pengguna.e2e-spec.ts` |
+| Penghitung per survei (`@BatasPerSurvei`) | `throttle-per-survei.e2e-spec.ts` |
+| Pengaduan per hari (dari basis data, bukan throttle) | `pengaduan-batas-harian.e2e-spec.ts` |
+
+**Yang baru:** `apps/api/test/batas-laju-sisa.e2e-spec.ts`, 6 uji.
+
+| Uji | Hasil |
+| --- | ----- |
+| `GET /public/surveys/:id/fill` | 20 dilayani, ke-21 429 |
+| `POST /public/surveys/:id/responses` | 20 dilayani, ke-21 429 |
+| `POST /surveys/:id/responses` (responden) | 10 dilayani, ke-11 429 |
+| Batas global (`GET /opd`) | 100 dilayani, ke-101 429 |
+| `X-Forwarded-For: <karangan>, <klien>` dengan karangan berganti tiap permintaan | tetap satu ember, ke-21 429 |
+| Jawaban 429 | membawa `Retry-After` |
+
+Uji `X-Forwarded-For` meniru apa yang tiba di aplikasi bila klien
+mengarang header itu: nginx MENAMBAHKAN alamat klien di ujung kanan
+(`$proxy_add_x_forwarded_for`, `infra/nginx/prod.conf`), dan `trust proxy`
+= 1 hop (`TRUST_PROXY_HOPS`) membuat Express hanya mempercayai entri paling
+kanan.
+
+**Bukti suitenya tidak hampa.** Tiga mutasi, masing-masing dipulihkan:
+
+| Mutasi | Uji yang memerah |
+| ------ | ---------------- |
+| `trust proxy` disetel `true` (entri paling kiri dipercaya) | 1 (X-Forwarded-For) |
+| batas isi survei publik 20 dinaikkan ke 40 | 3 |
+| `@Throttle` kirim jawaban responden dibuang (jatuh ke global 100) | 1 |
+
+**Syarat penggelaran yang harus dijaga:** `TRUST_PROXY_HOPS` WAJIB sama
+dengan jumlah proxy tepercaya di depan aplikasi. Bila kelak ada lapisan
+kedua (CDN atau penyeimbang beban) di depan nginx dan angkanya tetap 1,
+semua pengunjung terhitung sebagai IP lapisan itu; bila angkanya dinaikkan
+melebihi jumlah lapisan sungguhan, alamat karangan klien kembali dipercaya.
+Ini bukan cacat hari ini — kontainerisasi dan target penggelaran belum
+ditentukan — tetapi harus diperiksa saat QA-FINAL-UAT.
+
+**Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 720/720 (47
 suite), web komponen 1957/1957, eslint dan prettier kode 0.
