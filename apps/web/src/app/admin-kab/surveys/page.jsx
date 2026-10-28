@@ -12,6 +12,7 @@ import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { downloadTablePdf } from '@/utils/pdf';
+import { unduhCsv } from '@/utils/unduh';
 import { KOLOM_MONITORING_SURVEI } from '@/utils/pdfKolom';
 import { SURVEY_STATUS_LABEL } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
@@ -107,18 +108,6 @@ function pesanHapus(survey) {
     );
   }
   return bagian.join(' ');
-}
-
-function downloadBlob(content, mimeType, filename) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export default function AdminKabSurveysPage() {
@@ -374,22 +363,21 @@ export default function AdminKabSurveysPage() {
     return filteredSurveys.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredSurveys, currentPage]);
 
+  // Lewat `unduhCsv`, bukan susunan sendiri: penetralan sel berawalan rumus
+  // (BUG-049) hanya ada di sana, dan judul survei diketik Admin OPD.
   const handleExportExcel = () => {
-    const headers = ['JUDUL SURVEI', 'OPD', 'PERIODE', 'STATUS', 'RESPONDEN', 'NILAI IKM'];
-    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = filteredSurveys.map((survey) =>
-      [
+    unduhCsv({
+      namaBerkas: 'monitoring_survei.csv',
+      headers: ['JUDUL SURVEI', 'OPD', 'PERIODE', 'STATUS', 'RESPONDEN', 'NILAI IKM'],
+      rows: filteredSurveys.map((survey) => [
         survey.title,
         survey.opdName,
         formatPeriodeLabel(survey.period),
         survey.status,
         survey.status === 'DRAF' ? '-' : survey.respondentsCount,
         survey.ikmScore != null ? survey.ikmScore.toFixed(2) : '-',
-      ]
-        .map(escape)
-        .join(','),
-    );
-    downloadBlob([headers.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;', 'monitoring_survei.csv');
+      ]),
+    });
   };
 
   /**

@@ -239,8 +239,23 @@ export function gambarTabelUnsur(
   tutupPotongan(doc.y);
 }
 
-function csvEscape(value: string | number): string {
+/**
+ * Sel teks berawalan `=`, `+`, `-`, `@`, TAB, atau CR dibaca spreadsheet
+ * sebagai rumus (BUG-049, 28 Oktober 2026): judul survei `=1+1` terhitung 2
+ * di Excel. Awalan petik tunggal membuatnya teks. Angka, teks yang memang
+ * angka, dan `-` pengisi kosong dibiarkan. Aturan yang sama ada di
+ * `apps/web/src/utils/unduh.js` untuk CSV yang disusun di peramban.
+ */
+function netralkanRumus(value: string | number): string {
   const str = String(value);
+  if (typeof value === 'number' || str === '-' || /^[-+]?\d+([.,]\d+)?%?$/.test(str)) {
+    return str;
+  }
+  return /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+}
+
+function csvEscape(value: string | number): string {
+  const str = netralkanRumus(value);
   return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 }
 
