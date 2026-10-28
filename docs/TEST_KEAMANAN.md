@@ -62,7 +62,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | **selesai 28 Okt — nol XSS**, lihat §11 |
 | 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | **selesai 28 Okt — SQLi nihil; BUG-050, BUG-051 ditutup**, lihat §12 |
 | 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | belum diuji |
-| 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | belum diuji |
+| 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | **selesai 28 Okt — nol celah**, lihat §13 |
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | belum diuji |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | belum diuji |
 | 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | belum diuji |
@@ -398,3 +398,60 @@ cocok dengan kode OPD lain. Diperbaiki sekaligus; rinciannya di
 suite), web komponen 1948 lulus dengan satu suite gagal dijalankan karena
 EPERM pada cache jest (kunci berkas Windows; hijau 9/9 saat diulang,
 `apps/web` tak disentuh), eslint kode 0, prettier dirapikan lalu bersih.
+
+## 13. Hasil #7 — autentikasi dan sesi
+
+**Dijalankan:** 28 Oktober 2026, terhadap `main` di `a172cf6` (`8731744`
+menambah suitenya). **Hasil: nol celah.**
+
+**Yang sudah diuji di tempat lain, diperiksa ada lalu tidak diulang:**
+
+| Hal | Uji yang menjaganya |
+| --- | ------------------- |
+| Cookie `HttpOnly`, `SameSite=Lax`, `Secure` hanya di produksi, `Path=/`, `Max-Age` dari `exp` | `session-cookie.service.spec.ts` |
+| Cookie dikosongkan saat logout; jendela dan pagu mutlak sesi | `sesi-perpanjangan.e2e-spec.ts` |
+| Token acak, header `x-dev-*` diabaikan, akun dinonaktifkan | `session-auth.e2e-spec.ts` |
+| Peran dicabut, ganti peran, peran yang tak dimiliki | `multi-role.e2e-spec.ts`, `sso.e2e-spec.ts` |
+| Token tak pernah di URL; cookie `state` SSO | `sso.e2e-spec.ts` |
+| `logout-semua` tak menyeberang akun | `idor-semua-yang-masuk.e2e-spec.ts` (§8) |
+
+**Yang baru:** `apps/api/test/sesi-keamanan.e2e-spec.ts`, 11 uji lewat
+SessionAuthProvider sungguhan.
+
+| Serangan | Hasil |
+| -------- | ----- |
+| Muatan token diubah, tanda tangan asli dipertahankan (peran, `sub`, `exp`/`abs`) | 401 |
+| `alg: none` tanpa tanda tangan | 401 |
+| Ditandatangani kunci lain | 401 |
+| Kedaluwarsa, bertanda tangan sah | 401 |
+| Salinan token yang sama dipakai sesudah logout | 401 — dicabut di server, bukan hanya cookie |
+| Logout satu perangkat | perangkat lain akun yang sama tetap 200 |
+| `logout-semua` | setiap sesi akun itu 401 |
+| Akun dihapus lunak sesudah token terbit | 401 |
+
+**Bukti suitenya tidak hampa.** Empat mutasi, masing-masing dipulihkan:
+
+| Mutasi | Uji yang memerah |
+| ------ | ---------------- |
+| `jwtService.verify` diganti `decode` | 5 |
+| logout tak mencabut `sid` | 2 |
+| `logout-semua` tak mencabut sesi | 1 |
+| pemeriksaan `deletedAt` dibuang | 1 |
+
+Pada mutasi pertama, uji "peran dinaikkan ke kabupaten" TETAP hijau, dan
+itu benar: klaim `act` untuk peran yang tak dimiliki akun ditolak lagi oleh
+`resolveActingRole`, lapis kedua yang tak bergantung pada tanda tangan.
+
+**Pengamatan, bukan celah:**
+
+- Token TANPA `sid` masih diterima (`sesi-perpanjangan.e2e-spec.ts` membuat
+  token semacam itu dan dijawab 200). Token begitu tak dapat dicabut lewat
+  logout. Semua token terbitan sekarang membawa `sid`, jadi celahnya hanya
+  terbuka bagi pemegang `SESSION_JWT_SECRET` — yang sudah bisa menandatangani
+  apa saja. Menolak token tanpa `sid` adalah pengerasan, bukan perbaikan.
+- Ganti peran menerbitkan sesi baru dan membiarkan sesi lama habis sendiri
+  (keputusan tersurat di `auth.service.ts`). Kedua token milik akun yang sama
+  dan peran yang sama-sama ia miliki, jadi tidak ada kenaikan hak.
+
+**Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 714/714 (46
+suite), web komponen 1957/1957, eslint dan prettier kode 0.
