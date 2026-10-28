@@ -139,8 +139,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-045](#bug-045) | Pertanyaan FAQ berupa `<h3>` di dalam `<button>` — susunan HTML tak sah | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-046](#bug-046) | Tujuh lencana 10px tumbuh 1,67px sejak Badge memakai `cn` — jarak baris `text-xs` ikut terbuang | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-047](#bug-047) | Nilai Survei "4,00 / 4 · Sangat Puas" tak dapat patah — tabel survei Admin Kabupaten meluap 58px di 1366px, kartu Admin OPD keluar kotak | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-048](#bug-048) | Aksi Teruskan dan Monitor Tiket di daftar pengaduan Admin Kabupaten di bawah 44px; Monitor Tiket `<button>` di dalam `<Link>` | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 47 temuan: **47 ditutup, 0 terbuka.**
+**Rekap** — 48 temuan: **48 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3008,6 +3009,44 @@ baris. `ganti-jenis-tata-letak` sesudah `ganti-jenis-alur`: 7/7.
 
 **Pagar.** Satu uji baru di `NilaiSurvei.test.jsx`, merah lebih dulu; mutasi
 3/3 merah.
+
+---
+
+<a id="bug-048"></a>
+
+### BUG-048 — Aksi daftar pengaduan Admin Kabupaten di bawah 44px
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | —                                                            |
+| **Tanggal**  | 28 Oktober 2026 (ditemukan 27 Oktober, ditutup 28 Oktober)    |
+| **Peran**    | Admin Kabupaten, pengguna layar sentuh                       |
+| **Berkas**   | `apps/web/src/features/complaints/components/admin-kab/ComplaintTable.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Putaran penuh Playwright 27 Oktober 2026: `responsif-komponen`
+"daftar pengaduan Admin Kabupaten: tak ada sasaran di bawah 44px" merah di
+390px. Tombol Teruskan hanya tampil pada pengaduan yang belum bertujuan, jadi
+pagar itu hanya merah bila data seperti itu ada.
+
+**Cacatnya.** Diukur di Chrome dengan pengaduan uji tanpa tujuan:
+
+| Aksi          | 390px  | 1366px |
+| ------------- | ------ | ------ |
+| Teruskan      | 95x29  | 95x29  |
+| Monitor Tiket | 95x48  | 122x31 |
+
+Monitor Tiket lolos di 390 hanya karena teksnya patah dua baris. Ia juga
+`<button>` di dalam `<Link>` (kendali interaktif di dalam kendali interaktif),
+dan Teruskan tanpa `type="button"`.
+
+**Ditutup 28 Oktober 2026** — `e078f29`, merge `9000688` di `main`. Keduanya
+`min-h-[44px]`; tautan Monitor Tiket sendiri yang bergaya tombol. Sesudahnya:
+Teruskan 95x44 di kedua lebar, Monitor Tiket 95x48 dan 122x44.
+`responsif-komponen` untuk halaman itu 6/6 dengan data pemicunya ada.
+
+**Pagar.** `AksiTabelPengaduan.test.jsx`, tiga uji, merah lebih dulu; mutasi
+4/4 merah.
 
 ---
 
@@ -6356,3 +6395,4 @@ hanya dibaca, tidak diubah.
 | 7.10 | 27 Oktober 2026 | **BUG-045 ditutup: 45 temuan, 45 ditutup, nol terbuka.** Pertanyaan FAQ berupa `<h3>` di dalam `<button>` (catatan BUG-044), `4e2217a`, merge `e91aaeb`: judul kini membungkus tombol, tampilan identik di Chrome. |
 | 7.11 | 27 Oktober 2026 | **BUG-046 ditutup: 46 temuan, 46 ditutup, nol terbuka.** Tujuh lencana 10px tumbuh 1,67px sejak BUG-041 karena jarak baris `text-xs` ikut terbuang, `edd6823`, merge `2278c31`: kembali ke 17,33 / 21,33 / 25,33px, terukur di Chrome. |
 | 7.12 | 27 Oktober 2026 | **BUG-047 ditutup: 47 temuan, 47 ditutup, nol terbuka.** Nilai Survei "4,00 / 4 · Sangat Puas" satu potong nowrap meluapkan tabel survei Admin Kabupaten 58px di 1366px dan keluar dari kotak kartu Admin OPD, `af243aa`, merge `7868221`: dua potong yang patah di antaranya. |
+| 7.13 | 28 Oktober 2026 | **BUG-048 ditutup: 48 temuan, 48 ditutup, nol terbuka.** Aksi Teruskan (95x29) dan Monitor Tiket (122x31 di desktop) di daftar pengaduan Admin Kabupaten di bawah 44px, Monitor Tiket `<button>` di dalam `<Link>`, `e078f29`, merge `9000688`. |
