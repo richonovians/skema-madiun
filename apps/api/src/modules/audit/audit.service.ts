@@ -3,6 +3,7 @@ import { Prisma, Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { redactAuditBody } from '../../common/interceptors/audit-redact.util';
+import { lolosPolaLike } from '../../prisma/pola-like';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
@@ -98,10 +99,11 @@ export class AuditService {
       where.actorId = actorId;
     }
     if (aksi) {
-      where.aksi = { equals: aksi, mode: 'insensitive' };
+      // Harfiah, bukan pola LIKE (BUG-051): `equals` + `insensitive` pun ILIKE.
+      where.aksi = { equals: lolosPolaLike(aksi), mode: 'insensitive' };
     }
     if (search && search.trim()) {
-      const q = search.trim();
+      const q = lolosPolaLike(search.trim());
       where.OR = [
         { actor: { nama: { contains: q, mode: 'insensitive' } } },
         { aksi: { contains: q, mode: 'insensitive' } },

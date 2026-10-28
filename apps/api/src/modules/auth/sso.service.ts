@@ -12,6 +12,7 @@ import { enkripsiKolom } from '../../common/crypto/kolom';
 import { kunciData } from '../../common/crypto/kunci';
 import { PENYIMPAN_CABUT_LAMPIRAN } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
 import type { PenyimpanCabutLampiran } from '../../common/uploads/penyimpan-cabut-lampiran.interface';
+import { lolosPolaLike } from '../../prisma/pola-like';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SSO_SOURCE } from './auth.constants';
@@ -476,9 +477,11 @@ export class SsoService {
     const tepat = await this.prisma.opd.findFirst({
       where: {
         isActive: true,
+        // `equals` + `insensitive` adalah ILIKE di Postgres, jadi klaim
+        // `dinke_` tanpa peloloskan cocok dengan kode `DINKES` (BUG-051).
         OR: values.flatMap((value) => [
-          { externalId: { equals: value, mode: 'insensitive' as const } },
-          { kode: { equals: value, mode: 'insensitive' as const } },
+          { externalId: { equals: lolosPolaLike(value), mode: 'insensitive' as const } },
+          { kode: { equals: lolosPolaLike(value), mode: 'insensitive' as const } },
         ]),
       },
       select: { id: true },

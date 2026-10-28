@@ -670,6 +670,29 @@ describe('SsoService', () => {
       expect(JSON.stringify(where)).toMatch(/externalId/);
       expect(JSON.stringify(where)).toMatch(/kode/);
     });
+
+    /**
+     * BUG-051 (28 Oktober 2026): `equals` + `insensitive` menjadi ILIKE di
+     * Postgres, dan Prisma TIDAK meloloskan `%` maupun `_`. Klaim `dinke_`
+     * tanpa peloloskan cocok dengan kode `DINKES`, dan pemiliknya tertaut ke
+     * OPD yang bukan miliknya tanpa satu pun galat.
+     */
+    it('klaim berkarakter pengganti LIKE dicari harfiah, bukan sebagai pola', async () => {
+      const m = baru();
+      m.source.exchangeCodeForProfile.mockResolvedValue(
+        profil({ groups: ['admin-opd', 'dinke_', '50%'] }),
+      );
+      m.prisma.opd.findFirst.mockResolvedValue({ id: 3 });
+
+      await m.service.completeLogin('kode-1', 'nonce-1', 'c');
+
+      const nilai = (
+        m.prisma.opd.findFirst.mock.calls[0][0].where.OR as Record<string, { equals: string }>[]
+      ).map((syarat) => Object.values(syarat)[0].equals);
+      expect(nilai).toContain('dinke\\_');
+      expect(nilai).toContain('50\\%');
+      expect(nilai).not.toContain('dinke_');
+    });
   });
 
   describe('peran akun LAMA tak pernah diubah SSO', () => {
