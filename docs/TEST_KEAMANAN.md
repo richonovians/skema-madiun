@@ -60,7 +60,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 2 | A01 | 44 endpoint berperan: tanpa sesi 401, peran salah 403, OPD lain 403/404, sumber daya tanpa tujuan | matriks seluruh endpoint di suite baru (semula hanya 16 yang tersentuh `peran-matriks-rbac.e2e-spec.ts`) | **selesai 28 Okt — nol celah**, lihat §9 |
 | 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat berkas dengan kode aplikasi, buka di Excel | **selesai 28 Okt — TERBUKTI, BUG-049 ditutup**, lihat §10 |
 | 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | **selesai 28 Okt — nol XSS**, lihat §11 |
-| 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | belum diuji |
+| 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | **selesai 28 Okt — SQLi nihil; BUG-050, BUG-051 ditutup**, lihat §12 |
 | 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | belum diuji |
 | 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | belum diuji |
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | belum diuji |
@@ -362,3 +362,39 @@ Data uji: satu pengaduan berbalasan dan satu survei berpenanda `[UJI `.
 Survei dimusnahkan di `afterAll`; pengaduan dibersihkan
 `bersihkan-data-uji.mjs` sesudah setiap jalan (lima jalan, masing-masing
 `pengaduan: 1, notif: 4`).
+
+## 12. Hasil #5 — uji asap injeksi SQL
+
+**Dijalankan:** 28 Oktober 2026. **Hasil: injeksi SQL nihil; dua cacat
+lain ditemukan dan ditutup hari yang sama** — BUG-050 dan BUG-051, `bd247e2`,
+merge `7fc1f50` di `main`.
+
+**Statis.** Nol `$queryRaw`, `$executeRaw`, `$queryRawUnsafe`,
+`Prisma.sql`, atau `Prisma.raw` di `apps/api/src`. Masukan teks bebas yang
+sampai ke `where`: `search` di `/opd` dan `/audit-logs`; `aksi`, `entitas`,
+`startDate`, `endDate` di `/audit-logs`; `periode`, `jenisLayanan` di
+`/dashboard/ikm`; `:ticketNo`. Selebihnya angka, enum, atau tanggal yang
+divalidasi pipa.
+
+**Dinamis.** `apps/api/test/sqli-asap.e2e-spec.ts`, 81 uji di `skm_uji`,
+delapan muatan: `' OR 1=1--`, `' OR 'a'='a`, `" OR ""="`,
+`'; DROP TABLE users;--`, `1 UNION SELECT NULL,NULL--`, `admin'--`, `%`, `_`.
+
+| Sasaran | Harapan | Hasil sebelum perbaikan |
+| ------- | ------- | ----------------------- |
+| `search` `/opd`, `search`/`aksi`/`entitas` `/audit-logs` | jumlah = jumlah harfiah (dihitung di JavaScript) | muatan SQL lulus; `%`/`_` melebar — **BUG-051** |
+| `startDate`/`endDate` `/audit-logs` | 400 | **500** untuk semua muatan — **BUG-050** |
+| `periode`/`jenisLayanan` `/dashboard/ikm` | di bawah 500 | lulus |
+| `:ticketNo` | 404 | lulus |
+| `:id` angka, `opdId`, `status` enum | 400 | lulus |
+| tabel `users` sesudah `DROP TABLE` | masih ada | lulus |
+
+BUG-051 menyentuh juga pencocokan OPD dari klaim SSO (`findOpdFromClaims`),
+yang memakai `equals` + `insensitive` sehingga klaim berkarakter `_` dapat
+cocok dengan kode OPD lain. Diperbaiki sekaligus; rinciannya di
+`BUG_REPORTS.md`.
+
+**Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 703/703 (45
+suite), web komponen 1948 lulus dengan satu suite gagal dijalankan karena
+EPERM pada cache jest (kunci berkas Windows; hijau 9/9 saat diulang,
+`apps/web` tak disentuh), eslint kode 0, prettier dirapikan lalu bersih.

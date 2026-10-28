@@ -141,8 +141,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-047](#bug-047) | Nilai Survei "4,00 / 4 · Sangat Puas" tak dapat patah — tabel survei Admin Kabupaten meluap 58px di 1366px, kartu Admin OPD keluar kotak | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-048](#bug-048) | Aksi Teruskan dan Monitor Tiket di daftar pengaduan Admin Kabupaten di bawah 44px; Monitor Tiket `<button>` di dalam `<Link>` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-049](#bug-049) | Ekspor CSV meneruskan teks berawalan `=`, `+`, `-`, `@` mentah — Excel menghitungnya sebagai rumus bila dipecah per koma | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-050](#bug-050) | Tanggal tak sah di penyaring log audit (`startDate`/`endDate`) dijawab 500, bukan 400 | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-051](#bug-051) | Karakter pola LIKE `%`/`_` tak diloloskan: pencarian OPD dan log audit melebar, pencocokan OPD dari klaim SSO rawan salah tautan | Low | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 49 temuan: **49 ditutup, 0 terbuka.**
+**Rekap** — 51 temuan: **51 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3109,6 +3111,82 @@ kepala kini berkutip, isi utuh.
 menolak penyusun `text/csv` di luar `unduh.js`, merah dengan ketiga halaman
 sebelum pemindahan. Pengecualian angka dimutasi di kedua sisi: web 4 merah,
 api 1 merah.
+
+---
+
+<a id="bug-050"></a>
+
+### BUG-050 — Tanggal tak sah di penyaring log audit dijawab 500
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #5 (`docs/TEST_KEAMANAN.md` §12)             |
+| **Tanggal**  | 28 Oktober 2026 (ditemukan dan ditutup hari yang sama)       |
+| **Peran**    | Admin Kabupaten                                              |
+| **Berkas**   | `apps/api/src/modules/audit/dto/list-audit-log-query.dto.ts` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Cacatnya.** `GET /audit-logs?startDate=` dan `endDate=` ber-`@IsString()`.
+Teks apa pun yang bukan tanggal -- muatan SQL di uji asap, tetapi juga
+sekadar `abc` -- sampai ke `new Date(...)` di service, menjadi `Invalid
+Date`, lalu ditolak Prisma sebagai **500** (`PrismaClientValidationError:
+Provided Date object is invalid`). Galat masukan disajikan sebagai kerusakan
+server. Halaman log audit sendiri mengirim `YYYY-MM-DD` dari `<input
+type="date">`, jadi jalurnya hanya terpicu lewat permintaan langsung.
+
+**Ditutup 28 Oktober 2026** — `bd247e2`, merge `7fc1f50` di `main`.
+`@IsDateString()`, sama dengan `from`/`to` di notifikasi; kini 400.
+
+**Pagar.** `sqli-asap.e2e-spec.ts`: 16 uji tanggal (8 muatan x 2 medan),
+merah 500 sebelum perbaikan.
+
+---
+
+<a id="bug-051"></a>
+
+### BUG-051 — Karakter pola LIKE tak diloloskan: pencarian melebar, pencocokan OPD SSO rawan salah tautan
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #5 (`docs/TEST_KEAMANAN.md` §12)             |
+| **Tanggal**  | 28 Oktober 2026 (ditemukan dan ditutup hari yang sama)       |
+| **Peran**    | Admin Kabupaten, semua yang masuk (`/opd`), login SSO        |
+| **Berkas**   | `opd.service.ts`, `audit.service.ts`, `sso.service.ts`       |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Cacatnya.** Prisma menerjemahkan `contains` dan `equals` + `mode:
+'insensitive'` menjadi `ILIKE` di Postgres tanpa meloloskan `%` dan `_`.
+Terukur:
+
+| Permintaan | Seharusnya (dihitung harfiah) | Dijawab |
+| ---------- | ----------------------------- | ------- |
+| `/opd?search=%` | 0 | 65 (semua) |
+| `/audit-logs?search=_` | 597 | 3518 (semua) |
+| `/audit-logs?aksi=%` | 0 | 3518 |
+
+Bukan tembus otorisasi: hasilnya hanya melebar di dalam data yang boleh
+dilihat pemanggil. Tempat ketiga yang seakar lebih berat:
+`findOpdFromClaims` di `sso.service.ts` mencocokkan klaim Helpdesk dengan
+`externalId`/`kode` OPD memakai `equals` + `insensitive`, sehingga klaim
+`dinke_` cocok dengan kode `DINKES` dan pemiliknya tertaut ke OPD yang bukan
+miliknya tanpa galat. Itu RISIKO, bukan kejadian: nol dari 62 kode OPD di
+`skm_db` lokal memuat `%`/`_`, dan belum ada klaim yang terbukti berbentuk
+begitu.
+
+Catatan pengujinya: pembanding pertama dihitung lewat Prisma `contains` dan
+ikut melebar (65 = 65); pembandingnya dipindah ke JavaScript sebelum
+hasilnya dipercaya.
+
+**Ditutup 28 Oktober 2026** — `bd247e2`, merge `7fc1f50` di `main`.
+`lolosPolaLike()` di `apps/api/src/prisma/pola-like.ts` meloloskan `\`, `%`,
+`_` dengan garis miring terbalik (escape bawaan `ILIKE`) dan dipakai di
+ketiga tempat.
+
+**Pagar.** `sqli-asap.e2e-spec.ts` (5 uji pola, merah sebelum perbaikan),
+`pola-like.spec.ts` (merah 5 dengan stub kompilabel), dan satu uji
+`sso.service.spec.ts` bahwa klaim `dinke_` dicari sebagai `dinke\_`. Mutasi
+yang membuang peloloskan garis miring terbalik memerahkan 2 uji unit;
+percobaan mutasi pertama lewat `sed` hampa (polanya tak cocok) dan diulang.
 
 ---
 
@@ -6459,3 +6537,4 @@ hanya dibaca, tidak diubah.
 | 7.12 | 27 Oktober 2026 | **BUG-047 ditutup: 47 temuan, 47 ditutup, nol terbuka.** Nilai Survei "4,00 / 4 · Sangat Puas" satu potong nowrap meluapkan tabel survei Admin Kabupaten 58px di 1366px dan keluar dari kotak kartu Admin OPD, `af243aa`, merge `7868221`: dua potong yang patah di antaranya. |
 | 7.13 | 28 Oktober 2026 | **BUG-048 ditutup: 48 temuan, 48 ditutup, nol terbuka.** Aksi Teruskan (95x29) dan Monitor Tiket (122x31 di desktop) di daftar pengaduan Admin Kabupaten di bawah 44px, Monitor Tiket `<button>` di dalam `<Link>`, `e078f29`, merge `9000688`. |
 | 7.14 | 28 Oktober 2026 | **BUG-049 lahir dan ditutup pada hari yang sama: 49 temuan, 49 ditutup, nol terbuka.** Kandidat injeksi rumus dari rencana uji keamanan (QA-SECURITY-UAT #3) terbukti lewat Excel di mesin pengembang: CSV dari `susunCsv` dan `toCsv` menghitung `=1+1` sebagai rumus bila dipecah per koma, sedangkan XLSX dari exceljs aman. Dinilai Medium, bukan High, karena Excel berpemisah `;` di mesin ini tidak menghitung bentuk yang diuji pada klik ganda. Diperbaiki dengan awalan petik tunggal di `csvEscape` dan `kutip`, dan tiga halaman daftar yang menyusun CSV sendiri dipindah ke `unduhCsv`, `74646df`, merge `68733cf`. |
+| 7.15 | 28 Oktober 2026 | **BUG-050 dan BUG-051 lahir dan ditutup pada hari yang sama: 51 temuan, 51 ditutup, nol terbuka.** Uji asap injeksi SQL (QA-SECURITY-UAT #5) tak menemukan injeksi, tetapi menemukan `startDate`/`endDate` log audit yang menjawab 500 untuk teks bukan tanggal (BUG-050) dan `contains`/`equals` + `insensitive` Prisma yang menjadi ILIKE tanpa meloloskan `%` dan `_` (BUG-051), termasuk di pencocokan OPD dari klaim SSO. `bd247e2`, merge `7fc1f50`. |
