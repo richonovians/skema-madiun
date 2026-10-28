@@ -59,7 +59,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 1 | A01 Broken Access Control | 17 endpoint "semua yang masuk": akses silang pengguna dan OPD (IDOR) — tiket pengaduan orang lain, balasannya, notifikasi orang lain, OPD lain | permintaan HTTP langsung dengan sesi peran berbeda | **selesai 28 Okt — nol celah**, lihat §8 |
 | 2 | A01 | 44 endpoint berperan: tanpa sesi 401, peran salah 403, OPD lain 403/404, sumber daya tanpa tujuan | matriks seluruh endpoint di suite baru (semula hanya 16 yang tersentuh `peran-matriks-rbac.e2e-spec.ts`) | **selesai 28 Okt — nol celah**, lihat §9 |
 | 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat berkas dengan kode aplikasi, buka di Excel | **selesai 28 Okt — TERBUKTI, BUG-049 ditutup**, lihat §10 |
-| 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | belum diuji |
+| 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | **selesai 28 Okt — nol XSS**, lihat §11 |
 | 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | belum diuji |
 | 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | belum diuji |
 | 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | belum diuji |
@@ -316,3 +316,49 @@ di lokal ini juga `;` — penyerang yang tahu lokalnya tinggal menyesuaikan.
 komponen 1957/1957, eslint dan prettier kode 0. Playwright penuh tidak
 dijalankan; ekspor ketiga halaman yang berubah dicoba lewat probe Playwright
 sementara (3/3, hanya membaca).
+
+## 11. Hasil #4 — XSS tersimpan
+
+**Dijalankan:** 28 Oktober 2026, terhadap `main` di `1c68edc` (`6b3518a`
+menambah spec-nya). **Hasil: nol XSS.**
+
+**Pemeriksaan statis** atas `apps/web/src`: satu-satunya
+`dangerouslySetInnerHTML` berisi `<style>` statis (`FloatingStatus.jsx`);
+`innerHTML` hanya di `mocks/hidrasi.js` (perkakas uji); tidak ada
+`document.write`, `eval`, `new Function`, atau `srcdoc`. Seluruh `href` dan
+`window.open` yang dinamis berasal dari nilai buatan server (nomor tiket,
+id survei, URL lampiran bertanda tangan, `notification.link`), bukan dari
+teks yang diketik pengguna. Karena itu vektor `javascript:` tidak memiliki
+medan untuk disisipi dan tidak diuji dinamis.
+
+**Pemeriksaan dinamis**: `apps/web/e2e/xss-tersimpan.spec.js`, 3 uji, di
+Chrome terhadap server dev. Warga mengirim pengaduan dan balasan, Admin OPD
+membuat survei; setiap medan berisi `<img src=x onerror="window.__xss=...">`
+(uraian juga `<script>`).
+
+| Penonton | Halaman | Muatan yang tayang |
+| -------- | ------- | ------------------ |
+| Warga | `/complaints`, `/complaints/:tiket`, `/surveys`, `/surveys/:id` (sesudah "Mulai Isi Survei") | judul, uraian, balasan; judul survei; pertanyaan dan opsi |
+| Admin OPD | `/admin-opd/complaints`, detailnya, `/admin-opd/surveys`, `/admin-opd/surveys/:id` | judul, uraian, balasan; judul survei |
+| Admin Kabupaten | `/admin-kab/complaints`, detailnya, `/admin-kab/surveys`, `/admin-kab/surveys/:id` | judul, uraian, balasan; judul survei |
+
+Tiap halaman: perangkap `window.__xss` (dipasang `addInitScript` sebelum
+skrip halaman) tak pernah disetel, nol `img[src="x"]` di DOM, dan KENDALI —
+muatannya terlihat sebagai teks harfiah.
+
+**Bukti spec-nya tidak hampa.** Uraian di `ComplaintContentCard.jsx` sempat
+dirender lewat `dangerouslySetInnerHTML` lalu dipulihkan: perangkap
+menangkap tiga eksekusi di `/complaints/:tiket` dan ujinya merah pada
+"muatan dijalankan". Versi pertama spec memeriksa teks harfiah LEBIH DULU,
+sehingga mutasi itu akan memerah di kendali teks — merah karena sebab yang
+salah; urutannya dibalik sebelum mutasi dijalankan.
+
+**Tidak diuji:** nama profil warga sebagai nama pelapor (mengubahnya berarti
+menyunting akun seed; jalur penayangannya teks React yang sama dengan judul),
+PDF unduhan (jsPDF dan pdfkit menulis teks, bukan HTML), dan halaman publik
+`/isi/:id` serta `/survei/:id`.
+
+Data uji: satu pengaduan berbalasan dan satu survei berpenanda `[UJI `.
+Survei dimusnahkan di `afterAll`; pengaduan dibersihkan
+`bersihkan-data-uji.mjs` sesudah setiap jalan (lima jalan, masing-masing
+`pengaduan: 1, notif: 4`).
