@@ -5,8 +5,8 @@ otorisasi tiap endpoint, UAT stakeholder awal", 27 Oktober - 2 November 2026.
 **Disusun:** 28 Oktober 2026, terhadap `main` di `9000688`.
 **Cabang:** catatan ini hanya ada di `tester`.
 
-Dokumen ini PETA KERJA, bukan hasil. Belum ada satu uji keamanan pun yang
-dijalankan untuknya; setiap baris "belum diuji" berarti persis itu. Hasil
+Dokumen ini PETA KERJA sekaligus catatan hasilnya. Setiap baris "belum
+diuji" berarti persis itu; hasil yang sudah ada dicatat di §8 dan seterusnya. Hasil
 ditulis ke dokumen ini begitu tiap bagian dikerjakan, dan temuan dicatat ke
 `BUG_REPORTS.md` seperti biasa.
 
@@ -56,7 +56,7 @@ Urutan di bawah adalah urutan pengerjaan.
 
 | # | Kategori (OWASP 2021) | Yang diuji | Cara | Status |
 | - | --------------------- | ---------- | ---- | ------ |
-| 1 | A01 Broken Access Control | 17 endpoint "semua yang masuk": akses silang pengguna dan OPD (IDOR) — tiket pengaduan orang lain, balasannya, notifikasi orang lain, OPD lain | permintaan HTTP langsung dengan sesi peran berbeda | belum diuji |
+| 1 | A01 Broken Access Control | 17 endpoint "semua yang masuk": akses silang pengguna dan OPD (IDOR) — tiket pengaduan orang lain, balasannya, notifikasi orang lain, OPD lain | permintaan HTTP langsung dengan sesi peran berbeda | **selesai 28 Okt — nol celah**, lihat §8 |
 | 2 | A01 | 44 endpoint berperan: tanpa sesi 401, peran salah 403, OPD lain 403/404, sumber daya tanpa tujuan | lengkapi `peran-matriks-rbac.e2e-spec.ts`, yang kini menyentuh 16 endpoint | belum diuji |
 | 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat jawaban/judul uji, unduh ekspor, buka bentuk mentahnya | belum diuji |
 | 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | belum diuji |
@@ -172,3 +172,69 @@ waktu yang dibutuhkan.
 | 31 Okt | #6, #7, #8 |
 | 1 Nov | #9, #10, rangkum temuan |
 | 2 Nov | UAT awal bila stakeholder tersedia; tutup laporan |
+
+## 8. Hasil #1 — IDOR pada endpoint "semua yang masuk"
+
+**Dijalankan:** 28 Oktober 2026, terhadap `main` di `46dae74`
+(`ba4632c` menambah suitenya). **Hasil: nol celah.**
+
+Suite: `apps/api/test/idor-semua-yang-masuk.e2e-spec.ts`, 24 uji, berjalan di
+`skm_uji` lewat `pnpm --filter @skm-spm/api test:e2e`. Masuk lewat
+SessionAuthProvider SUNGGUHAN (dev-login -> Bearer), bukan header `x-dev-*`:
+di bawah StubAuthProvider identitas ditentukan header milik pemanggil
+sendiri, sehingga menyamar adalah fitur uji, bukan serangan. Penyerang di sini
+hanya memegang tokennya dan mengutak-atik jalur, kueri, dan badan permintaan.
+
+Fixture: OPD A dan B; warga A dan B; Admin OPD A dan B; pengaduan warga A ke
+OPD A, warga B ke OPD B, dan warga A tanpa tujuan, masing-masing berbalasan;
+satu notifikasi warga A.
+
+| Endpoint | Serangan | Hasil |
+| -------- | -------- | ----- |
+| `GET /complaints` | warga B dan Admin OPD B dengan `?opdId=<OPD A>` dan `?tanpaOpd=true` | tak satu pun pengaduan orang lain muncul; penyaring hanya mempersempit |
+| `GET /complaints/:ticketNo` | warga B ke tiket warga A, warga A ke tiket warga B, Admin OPD B ke tiket OPD A, Admin OPD A ke tiket tanpa tujuan | 403, badan tanpa isi pengaduan |
+| `GET /complaints/:id/replies` | ketiga silang yang sama lewat id angka | 403, badan tanpa isi balasan |
+| `GET /notifications`, `/unread-count` | warga B | notifikasi warga A tak terlihat dan tak terhitung |
+| `PATCH /notifications/:id/read` | warga B dengan id notifikasi warga A | 404, barisnya tetap belum dibaca |
+| `PATCH /notifications/read-all` | warga B | notifikasi warga A tak tersentuh |
+| `PATCH /auth/profile` | badan berisi `roles`, `opdId`, `email`, `id` | 400, akun tak berubah |
+| `POST /auth/acting-role` | warga ke `kabupaten` | 403 |
+| `GET /auth/me` | token warga B + header `x-dev-user-id` warga A + `x-dev-role: kabupaten` | header diabaikan, identitas tetap warga B |
+| `GET /auth/sesi` | warga B | tak memuat sid warga A |
+| `POST /auth/logout-semua` | warga B | sesi warga B putus, sesi warga A tetap hidup |
+
+Sisa dari 17 endpoint tak berparameter sasaran sama sekali:
+`POST /auth/logout`, `POST /auth/consent`, dan `GET /auth/roles` memakai
+identitas dari token saja; `GET /opd` dan `GET /ref/complaint-categories`
+adalah data rujukan yang sama bagi semua orang.
+
+**Bukti suitenya tidak hampa.** Enam mutasi di service, satu per satu, lalu
+dipulihkan:
+
+| Mutasi | Uji yang memerah |
+| ------ | ---------------- |
+| `ownershipWhere` responden mengembalikan `{}` | 1 (daftar pengaduan) |
+| `assertAccess` responden selalu lolos | 3 (tiket dan balasan) |
+| `assertAccess` OPD selalu lolos | 4 (tiket dan balasan) |
+| `markAsRead` tanpa saring `userId` | 2 |
+| `markAllAsRead` tanpa saring `userId` | 1 |
+| `findMine` tanpa saring `userId` | 1 |
+
+Blok profil, peran, dan sesi bersandar pada `ValidationPipe` global
+(`forbidNonWhitelisted`) dan penyimpan sesi; keduanya TIDAK dimutasi.
+
+Gerbang penuh sesudahnya: API unit 1413/1413, API e2e 497/497 (43 suite,
+termasuk suite ini), web komponen 1941/1941, eslint dan prettier kode 0.
+Playwright tidak dijalankan; perubahannya hanya berkas uji `apps/api`.
+
+**Pengamatan, bukan celah (rendah):**
+
+- `GET /complaints/:ticketNo` menjawab **403** untuk tiket orang lain dan
+  **404** untuk tiket yang tak ada, jadi keberadaan sebuah nomor tiket dapat
+  ditebak. Notifikasi sengaja memakai 404 untuk keduanya. Isi tak bocor, dan
+  `complaints.e2e-spec.ts` menetapkan 403 itu tersurat, jadi ini keputusan
+  rancangan yang perlu dikonfirmasi pemilik produk, bukan cacat.
+- Bagian acak nomor tiket (`generateTicketNo`) memakai `Math.random`, empat
+  karakter base36 per hari (sekitar 1,68 juta kemungkinan). Tidak menjadi
+  celah selama nomor tiket bukan kredensial — dan memang bukan, karena setiap
+  pembacaan tetap diperiksa `assertAccess`.
