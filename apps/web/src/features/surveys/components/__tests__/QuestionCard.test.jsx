@@ -44,6 +44,22 @@ describe('QuestionCard', () => {
     expect(screen.getByText('1. Bagaimana pelayanan kami?')).toBeInTheDocument();
   });
 
+  it('menampilkan judul survei di atas pertanyaan bila tersedia', () => {
+    const setAnswer = jest.fn();
+    useSurveyStore.mockReturnValue({
+      currentStepIndex: 0,
+      surveyData: {
+        title: 'Survei Kepuasan Masyarakat Diskominfo',
+        questions: [{ id: 'q1', text: 'Bagaimana pelayanan kami?', type: 'scale_1_to_4' }],
+      },
+      answers: {},
+      setAnswer,
+    });
+    render(<QuestionCard />);
+
+    expect(screen.getByText('Survei Kepuasan Masyarakat Diskominfo')).toBeInTheDocument();
+  });
+
   describe('Tipe skala 1-4 (TC-FE-003)', () => {
     it('merender tepat 4 opsi bernilai 1-4, sehingga nilai lain tak bisa dipilih lewat UI', () => {
       givenQuestion({ id: 'q1', text: 'Bagaimana pelayanan kami?', type: 'scale_1_to_4' });

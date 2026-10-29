@@ -8,9 +8,10 @@ export default function RadioCard({
   checked,
   onChange,
   numberIcon, // Optional: e.g., '1', '2', '3', '4'
+  icon,       // Optional: ReactNode (e.g. Frown, Meh, Smile, Laugh)
 }) {
   return (
-    <label className="group cursor-pointer">
+    <label className="group cursor-pointer block">
       {/* `sr-only`, BUKAN `hidden` (22 Oktober 2026).
 
           `hidden` adalah `display: none`, dan elemen ber-`display: none`
@@ -34,16 +35,15 @@ export default function RadioCard({
         className="sr-only peer"
       />
 
-
       <div 
         className={cn(
-          "flex items-center min-h-[64px] px-6 py-4 rounded-lg border-2 transition-all shadow-sm",
+          "flex items-center min-h-[44px] px-4 py-2.5 rounded-xl border transition-all shadow-xs",
           // Default unselected state
-          "border-outline-variant/50 text-text-secondary bg-surface",
+          "border-outline-variant/40 text-text-secondary bg-surface",
           // Hover state for unselected
-          "group-hover:border-primary/30 group-hover:bg-surface-container-low",
+          "group-hover:border-primary/40 group-hover:bg-surface-container-low group-hover:shadow-sm",
           // Checked state (using peer-checked)
-          "peer-checked:border-primary peer-checked:bg-blue-50 peer-checked:text-primary",
+          "peer-checked:border-primary peer-checked:bg-blue-50/70 peer-checked:text-primary peer-checked:shadow-sm",
           // Fokus papan ketik HARUS terlihat. Radionya kini terfokus tetapi
           // berukuran 1x1 piksel, jadi tanpa cincin ini orang yang ber-Tab
           // tidak dapat melihat di mana dirinya berada -- menukar satu cacat
@@ -51,12 +51,22 @@ export default function RadioCard({
           "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary"
         )}
       >
-        {numberIcon && (
-          <span className="w-8 h-8 flex shrink-0 items-center justify-center rounded-full border-2 border-current mr-4 font-bold">
-            {numberIcon}
+        {icon ? (
+          <span className="w-6 h-6 flex shrink-0 items-center justify-center mr-3">
+            {icon}
           </span>
-        )}
-        <span className="font-medium">{label}</span>
+        ) : numberIcon ? (
+          React.isValidElement(numberIcon) ? (
+            <span className="w-6 h-6 flex shrink-0 items-center justify-center mr-3">
+              {numberIcon}
+            </span>
+          ) : (
+            <span className="w-5 h-5 flex shrink-0 items-center justify-center rounded-full border border-current mr-3 font-bold text-xs">
+              {numberIcon}
+            </span>
+          )
+        ) : null}
+        <span className="font-medium text-sm text-text-primary group-hover:text-primary transition-colors leading-snug">{label}</span>
       </div>
     </label>
   );

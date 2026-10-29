@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { CheckCircle2 } from 'lucide-react';
 import SurveyProgress from '@/features/surveys/components/SurveyProgress';
 import GerbangPengisianBersesi from '@/features/surveys/components/GerbangPengisianBersesi';
@@ -13,7 +14,6 @@ import GerbangPengisianPublik from '@/features/surveys/components/GerbangPengisi
 import useSurveyStore from '@/features/surveys/store/useSurveyStore';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
-import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import { usePetikanPerambanSekali } from '@/features/authentication/hooks/useSesiAktif';
@@ -123,121 +123,167 @@ export default function IsiSurveiPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fillData, perluGerbang]);
 
-  const wadah = 'max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6';
+  // Layout: background biru gelap penuh, card terpusat (seperti Sukma-e).
+  // Layar galat & loading ikut memakai latar yang sama supaya transisi tidak
+  // mengubah warna halaman secara kasar.
+  const bgLatar = 'min-h-screen bg-[#0d2240] flex flex-col items-center justify-center px-4 py-6';
 
   if (ditandaiPeramban || fillData?.sudahMengisi) {
     return (
-      <main className={wadah}>
-        <EmptyState
-          icon={<CheckCircle2 size={64} />}
-          title="Anda Sudah Mengisi Survei Ini"
-          description="Terima kasih atas partisipasi Anda. Survei ini hanya menerima satu jawaban dari perangkat ini."
-          action={
-            <Link href="/">
-              <button className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors">
+      <main className={bgLatar}>
+        <div className="w-full max-w-[440px] px-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100/90 overflow-hidden">
+            {/* Header kartu: logo SKEMA Madiun */}
+            <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center">
+              <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
+                <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
+                  <Image
+                    src="/images/navbar/skema-logo-2.png"
+                    alt="Logo SKEMA"
+                    width={76}
+                    height={48}
+                    className="object-contain h-7 w-auto"
+                    priority
+                  />
+                </div>
+                <span className="text-sm font-bold text-primary tracking-tight">
+                  SKEMA Madiun
+                </span>
+              </Link>
+            </div>
+
+            <div className="p-6 sm:p-8 flex flex-col items-center gap-0">
+              {/* Ikon Sukses dengan Animasi */}
+              <div className="relative mb-5 group inline-flex items-center justify-center">
+                <div className="absolute inset-0 bg-emerald-400/25 rounded-full animate-ping pointer-events-none" />
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border-2 border-emerald-100 ring-4 ring-emerald-50 transition-all duration-500 ease-out group-hover:scale-105 animate-in zoom-in-50 duration-500">
+                  <CheckCircle2 size={36} strokeWidth={2.5} className="sm:w-10 sm:h-10" />
+                </div>
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 text-center">
+                Anda Sudah Mengisi Survei Ini
+              </h2>
+              <p className="text-sm text-text-secondary leading-relaxed mb-6 text-center px-2">
+                Terima kasih atas partisipasi Anda. Survei ini hanya menerima satu jawaban dari perangkat ini.
+              </p>
+
+              <Link
+                href="/"
+                className="w-full inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover shadow-sm transition-all active:scale-95"
+              >
                 Kembali ke Layanan
-              </button>
-            </Link>
-          }
-        />
+              </Link>
+            </div>
+          </div>
+          <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
+            © 2026 · SKEMA Madiun · Pemerintah Kabupaten Madiun
+          </p>
+        </div>
       </main>
     );
   }
 
   if (isLoading) {
     return (
-      <main className={wadah}>
-        <LoadingState label="Memuat survei..." />
+      <main className={bgLatar}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+          <LoadingState label="Memuat survei..." />
+        </div>
       </main>
     );
   }
 
   /**
    * LAYAR GALAT, ditulis ulang 11 September 2026 atas permintaan pengguna.
-   *
-   * Kalimat dari backend TIDAK lagi ditampilkan. Bunyinya "Survei anonim dengan
-   * id 28 tidak ditemukan": ia menyebut id internal dan istilah "survei anonim"
-   * yang hanya dikenal di dalam kode, sehingga tak memberi pembacanya satu pun
-   * langkah yang dapat ia ambil.
-   *
-   * Tombol "Coba Lagi" ikut dihapus. Hampir seluruh galat di sini berarti
-   * surveinya tidak ada atau tidak mengizinkan pengisian tanpa sesi, dan
-   * keduanya tak berubah pada percobaan kedua.
-   *
-   * Tautan beranda menggantikannya, dan itu bukan tambahan kosmetik: rute ini
-   * berada di luar `config.matcher` proxy.js dan halamannya tak memuat navbar
-   * sama sekali, jadi layar tanpa satu pun tautan benar-benar menjadi jalan
-   * buntu bagi pengunjung yang datang dari QR. Polanya sama persis dengan layar
-   * "Anda Sudah Mengisi Survei Ini" di atas -- kecuali satu hal: tautannya di
-   * sini TIDAK membungkus `<button>`. Tampilannya sama persis (kelas yang sama),
-   * tetapi tombol di dalam tautan adalah dua kontrol bersarang, yang dibaca
-   * ganda oleh pembaca layar dan tak sah menurut HTML.
    */
   if (error) {
     return (
-      <main className={wadah}>
-        <ErrorState
-          title="Survei tidak dapat ditemukan"
-          description={null}
-          action={
-            <Link
-              href="/"
-              className="inline-block px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors"
-            >
-              Kembali ke Layanan
-            </Link>
-          }
-        />
+      <main className={bgLatar}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
+          <ErrorState
+            title="Survei tidak dapat ditemukan"
+            description={null}
+            action={
+              <Link
+                href="/"
+                className="inline-block px-6 py-2.5 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-primary-hover transition-colors"
+              >
+                Kembali ke Layanan
+              </Link>
+            }
+          />
+        </div>
       </main>
     );
   }
 
   /**
    * Gerbang sebelum kuesioner, SESUDAH penjaga "sudah mengisi", "memuat", dan
-   * "galat". Urutannya penting: pengunjung yang penandanya sudah ada atau yang
-   * surveinya tak dapat diisi tidak boleh dimintai persetujuan maupun pilihan
-   * untuk sesuatu yang tak akan pernah ia kirim.
-   *
-   * DUA gerbang, satu rute, dan pilihannya ditentukan ada-tidaknya sesi. Tanpa
-   * sesi: persetujuan PDP beserta data diri yang diketik sendiri. Bersesi:
-   * cukup pilihan anonim, sebab persetujuannya sudah tercatat di
-   * `users.consentAt` dan data dirinya disalin backend dari akun.
+   * "galat".
    */
   if (perluGerbang) {
     return (
-      <main className={wadah}>
-        {adaSesi ? (
-          <GerbangPengisianBersesi onMulai={setPilihanBersesi} />
-        ) : (
-          <GerbangPengisianPublik onSetuju={setDataPublik} />
-        )}
+      <main className={bgLatar}>
+        <div className="w-full max-w-[620px]">
+          {adaSesi ? (
+            <GerbangPengisianBersesi onMulai={setPilihanBersesi} />
+          ) : (
+            <GerbangPengisianPublik onSetuju={setDataPublik} />
+          )}
+          {/* Footer copyright */}
+          <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
+            © 2026 · SKEMA Madiun · Pemerintah Kabupaten Madiun
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className={`${wadah} min-h-[calc(100vh-64px)] relative`}>
-      {isCompleted ? (
-        // Tautan "Daftar Survei"/"Dashboard" pada tampilan selesai menuju rute
-        // khusus `responden`; pengunjung tanpa sesi akan dipantulkan proxy ke
-        // '/'. Karena itu bagi mereka keduanya diganti satu tautan beranda —
-        // jalan buntu adalah cacat, bukan detail kosmetik.
-        <SurveyCompletion tampilkanTautanWarga={adaSesi} />
-      ) : (
-        <div className="w-full max-w-[800px] mx-auto">
-          <SurveyProgress />
+    <main className={bgLatar}>
+      <div className="w-full max-w-[500px]">
+        {isCompleted ? (
+          <SurveyCompletion tampilkanTautanWarga={adaSesi} />
+        ) : (
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100/80 overflow-hidden">
+            {/* Header: logo SKEMA Madiun */}
+            <div className="border-b border-slate-100 px-5 pt-4 pb-3 flex items-center justify-between">
+              <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
+                <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
+                  <Image
+                    src="/images/navbar/skema-logo-2.png"
+                    alt="Logo SKEMA"
+                    width={76}
+                    height={48}
+                    className="object-contain h-7 w-auto"
+                    priority
+                  />
+                </div>
+                <span className="text-sm font-bold text-primary tracking-tight">
+                  SKEMA Madiun
+                </span>
+              </Link>
+            </div>
 
-          <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-5 sm:p-8 md:p-10 border border-outline-variant/20">
-            <QuestionCard />
+            {/* Progres ringkas */}
+            <div className="px-5 pt-3 pb-1 border-b border-slate-50">
+              <SurveyProgress />
+            </div>
 
-            {/* Captcha tidak di sini, melainkan di dalam ModalKirimSurvei yang
-                dibuka SurveyNavigation pada pertanyaan terakhir jalur tanpa
-                akun. Token Turnstile berumur sekitar lima menit; diminta sejak
-                pertanyaan pertama, ia sudah basi saat tombol kirim ditekan. */}
-            <SurveyNavigation />
+            {/* Pertanyaan dan tombol navigasi */}
+            <div className="px-5 pt-3 pb-4">
+              <QuestionCard />
+              <SurveyNavigation />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Footer copyright */}
+        <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
+          © 2026 · SKEMA Madiun · Pemerintah Kabupaten Madiun
+        </p>
+      </div>
     </main>
   );
 }
