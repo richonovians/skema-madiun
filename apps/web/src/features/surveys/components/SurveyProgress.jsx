@@ -24,14 +24,17 @@ export default function SurveyProgress() {
           <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
             <ListTodo size={14} />
           </div>
-          <div>
-            <p className="text-primary/70 text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5">
+          {/* Tetap <h2> (BUG-056): pembaca layar memakainya sebagai penanda
+              posisi. Spasi tersurat di antara dua blok menjaga namanya
+              "Pertanyaan X dari Y", bukan "PertanyaanX dari Y". */}
+          <h2>
+            <span className="block text-primary/70 text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5">
               Pertanyaan
-            </p>
-            <p className="text-sm font-bold text-text-primary leading-none">
+            </span>{' '}
+            <span className="block text-sm font-bold text-text-primary leading-none">
               {currentNumber} <span className="text-text-secondary font-medium">dari {totalQuestions}</span>
-            </p>
-          </div>
+            </span>
+          </h2>
         </div>
         <span className="px-3 py-1 bg-primary text-white rounded-full text-xs font-bold shadow shadow-primary/20">
           {progressPercentage}%

@@ -149,13 +149,14 @@ describe('/survei/:id', () => {
  */
 describe('/survei/:id - gerbang persetujuan', () => {
   /**
-   * Melewati gerbang PDP dengan memilih "tanpa data diri". Sejak 8 September
+   * Melewati gerbang PDP dengan memilih opsi tanpa data diri (berlabel "Isi
+   * survei sebagai Anonim" sejak PR #5, 29 Oktober 2026). Sejak 8 September
    * 2026 nama & nomor HP WAJIB kecuali opsi itu dipilih, jadi jalan tercepat
    * melewati gerbang di sini adalah memilihnya. Kelengkapan medannya sendiri
    * sudah diuji di GerbangPengisianPublik.test.jsx, bukan urusan berkas ini.
    */
   const setuju = () => {
-    fireEvent.click(screen.getByRole('checkbox', { name: /tanpa data diri/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /isi survei sebagai anonim/i }));
     fireEvent.click(screen.getByRole('checkbox', { name: /menyetujui/i }));
     fireEvent.click(screen.getByRole('button', { name: /setuju & mulai isi/i }));
   };

@@ -50,7 +50,7 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
           {labelJenis(jenis) && (
             <Badge
               variant={jenis === 'custom' ? 'secondary' : 'info'}
-              className="px-sm py-[2px] text-[10px] uppercase rounded"
+              className="px-sm py-[2px] text-[10px] leading-(--text-xs--line-height) uppercase rounded"
             >
               {labelJenis(jenis)}
             </Badge>

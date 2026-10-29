@@ -41,12 +41,8 @@ describe('AdminSurveyCardStats', () => {
     );
 
     expect(screen.getByText('Indeks Kepuasan')).toBeInTheDocument();
-<<<<<<< HEAD
     expect(screen.getByText('85%')).toBeInTheDocument();
     expect(screen.getByText('(Sangat Puas)')).toBeInTheDocument();
-=======
-    expect(screen.getByTitle('Indeks Kepuasan')).toHaveTextContent('85% · Sangat Puas');
->>>>>>> origin/main
     expect(screen.queryByText('Nilai Sementara IKM')).not.toBeInTheDocument();
   });
 
@@ -62,12 +58,8 @@ describe('AdminSurveyCardStats', () => {
     );
 
     expect(screen.getByText('Nilai Survei')).toBeInTheDocument();
-<<<<<<< HEAD
     expect(screen.getByText('3,40 / 4')).toBeInTheDocument();
     expect(screen.getByText('(Sangat Puas)')).toBeInTheDocument();
-=======
-    expect(screen.getByTitle('Nilai Survei')).toHaveTextContent('3,40 / 4 · Sangat Puas');
->>>>>>> origin/main
   });
 
   it('custom belum punya jawaban skala: "Nilai Survei" dan "-", bukan nol', () => {
