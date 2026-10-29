@@ -32,6 +32,13 @@ interface UploadResponseLike {
   /** Dipakai penyaji lampiran; badannya Buffer, bukan JSON. */
   end: (body: Buffer) => void;
 }
+interface MutasiRequestLike {
+  method: string;
+  headers: { origin?: string; 'sec-fetch-site'?: string };
+}
+interface MutasiResponseLike {
+  status: (code: number) => { json: (body: unknown) => void };
+}
 
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
@@ -93,6 +100,30 @@ export function configureApp(app: INestApplication): void {
     // ini antarmuka tak pernah melihat perpanjangannya dan menyatakan sesi habis
     // padahal cookienya baru saja disegarkan.
     exposedHeaders: ['Content-Disposition', HEADER_SESI_BERAKHIR],
+  });
+
+  // BUG-052: tolak mutasi bercookie dari origin asing. SameSite=Lax tidak
+  // menahan subdomain saudara, dan CORS hanya menyembunyikan jawaban, bukan
+  // mencegah permintaannya sampai.
+  const originSah = new Set(config.get<string[]>('cors.origin'));
+  const metodeMengubah = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+  app.use((req: MutasiRequestLike, res: MutasiResponseLike, next: () => void) => {
+    if (!metodeMengubah.has(req.method)) {
+      next();
+      return;
+    }
+    const origin = req.headers.origin;
+    const situs = req.headers['sec-fetch-site'];
+    const asing = origin ? !originSah.has(origin) : situs === 'cross-site' || situs === 'same-site';
+    if (!asing) {
+      next();
+      return;
+    }
+    res.status(403).json({
+      success: false,
+      statusCode: 403,
+      message: 'Origin permintaan tidak diizinkan',
+    });
   });
 
   // ---------------------------------------------------------------- LAMPIRAN
