@@ -87,3 +87,19 @@ describe('NilaiSurvei — ukuran sel', () => {
     expect(screen.getByText('-')).toBeInTheDocument();
   });
 });
+
+describe('NilaiSurvei — ukuran kartu', () => {
+  it('menampilkan angka dan kategori dalam kurung seperti Nilai Sementara IKM', () => {
+    render(<NilaiSurvei nilaiSurvei={nilai} ukuran="kartu" />);
+
+    expect(screen.getByText('3,40 / 4')).toBeInTheDocument();
+    expect(screen.getByText('(Sangat Puas)')).toBeInTheDocument();
+  });
+
+  it('null: "-"', () => {
+    render(<NilaiSurvei nilaiSurvei={null} ukuran="kartu" />);
+
+    expect(screen.getByText('-')).toBeInTheDocument();
+  });
+});
+

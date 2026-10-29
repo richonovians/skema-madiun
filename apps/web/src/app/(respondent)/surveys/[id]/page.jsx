@@ -20,7 +20,7 @@ import { getSurveyFill } from '@/features/surveys/services/surveys.api';
 export default function SurveyWizardPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { isCompleted, initSurvey, resetSurvey } = useSurveyStore();
+  const { isCompleted, initSurvey, resetSurvey, surveyData } = useSurveyStore();
 
   const fetchFill = useCallback(() => getSurveyFill(id), [id]);
   const { data: fillData, isLoading, error, refetch } = useAsync(fetchFill);

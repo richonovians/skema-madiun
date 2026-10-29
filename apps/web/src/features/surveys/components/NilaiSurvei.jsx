@@ -12,6 +12,8 @@ import React from 'react';
  * sebagai hasil terburuk.
  *
  * ukuran="besar": judul kecil, angka besar, kategori sebagai lencana (kartu).
+ * ukuran="kartu": angka dan kategori dalam kurung (mis. "3,80 / 4 (Sangat Puas)")
+ *                 menyesuaikan bentuk Nilai Sementara IKM di kartu Admin OPD.
  * ukuran="sel"   : "angka · kategori" dengan judul sebagai `title`; bila sempit,
  *                  patah baris hanya di antara angka dan kategori (sel tabel).
  */
@@ -20,6 +22,21 @@ export default function NilaiSurvei({
   ukuran = 'besar',
   judulBawaan = 'Nilai Survei',
 }) {
+  if (ukuran === 'kartu') {
+    if (!nilaiSurvei) return <span>-</span>;
+    return (
+      <span className="whitespace-nowrap">
+        {nilaiSurvei.tampilan}
+        {nilaiSurvei.kategori && (
+          <>
+            {' '}
+            <span className="text-label-md font-medium">({nilaiSurvei.kategori})</span>
+          </>
+        )}
+      </span>
+    );
+  }
+
   if (ukuran === 'sel') {
     if (!nilaiSurvei) return <span>-</span>;
     // Dua potong utuh, bukan satu baris nowrap (27 Oktober 2026): "4,00 / 4 ·

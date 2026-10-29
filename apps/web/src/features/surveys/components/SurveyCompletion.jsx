@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { CheckCircle2, Home, FileText } from 'lucide-react';
 import useSurveyStore from '../store/useSurveyStore';
 
@@ -13,71 +14,89 @@ import useSurveyStore from '../store/useSurveyStore';
  * "Kembali ke Layanan" — jalan buntu adalah cacat, bukan detail kosmetik. Baku
  * `true` supaya pemakaian yang sudah ada tak berubah.
  */
-export default function SurveyCompletion({ tampilkanTautanWarga = true }) {
+export default function SurveyCompletion({ tampilkanTautanWarga = true, surveyTitle }) {
   const { surveyData } = useSurveyStore();
+  const judulSurvei = surveyTitle || surveyData?.title || 'Evaluasi Mutu Pelayanan';
 
   return (
-    <div className="bg-white/80 backdrop-blur-lg rounded-[2rem] shadow-2xl shadow-primary/5 p-lg md:p-xl border border-white text-center w-full max-w-[672px] mx-auto mt-lg relative overflow-hidden">
-      
-      {/* Decorative Background Blob */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[400px] h-64 bg-gradient-to-b from-green-400/20 to-transparent blur-3xl -z-10 rounded-full pointer-events-none"></div>
+    <div className="w-full bg-white rounded-2xl shadow-2xl border border-slate-100/90 text-center overflow-hidden">
+      {/* Header kartu: logo SKEMA Madiun */}
+      <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center justify-between">
+        <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
+          <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
+            <Image
+              src="/images/navbar/skema-logo-2.png"
+              alt="Logo SKEMA"
+              width={76}
+              height={48}
+              className="object-contain h-7 w-auto"
+              priority
+            />
+          </div>
+          <span className="text-sm font-bold text-primary tracking-tight">
+            SKEMA Madiun
+          </span>
+        </Link>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          Terkirim
+        </span>
+      </div>
 
-      <div className="relative z-10 flex flex-col items-center">
-        {/* Animated Success Icon */}
-        <div className="relative mb-lg mt-md group">
-          <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20"></div>
-          <div className="w-[96px] h-[96px] bg-gradient-to-tr from-green-500 to-emerald-400 text-white rounded-full flex items-center justify-center shadow-lg shadow-green-500/30 transform transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3">
-            <CheckCircle2 size={48} strokeWidth={2.5} />
+      <div className="px-5 py-7 sm:px-8 sm:py-9 flex flex-col items-center">
+        {/* Ikon Sukses dengan Animasi */}
+        <div className="relative mb-4 group inline-flex items-center justify-center">
+          {/* Efek denyut ripple di belakang */}
+          <div className="absolute inset-0 bg-emerald-400/20 rounded-full animate-ping pointer-events-none duration-1000" />
+
+          {/* Lingkaran Ikon Utama */}
+          <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border-2 border-emerald-100 shadow-xs ring-4 ring-emerald-50 transition-all duration-500 ease-out group-hover:scale-105 group-hover:rotate-6 animate-in zoom-in-50 duration-500">
+            <CheckCircle2 size={36} strokeWidth={2.5} className="sm:w-10 sm:h-10 transition-transform duration-300 group-hover:scale-110" />
           </div>
         </div>
-        
-        <h2 className="font-h1 text-h1 text-text-primary mb-md tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-text-primary to-text-secondary">
+
+        <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 tracking-tight">
           Terima Kasih!
         </h2>
-        
-        {/* Modern Info Card */}
-        <div className="bg-white/60 border border-border rounded-2xl p-md md:p-lg mb-xl w-full shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-body-md text-text-secondary mb-xs">Tanggapan Anda untuk survei:</p>
-          <p className="font-h3 text-h3 text-text-primary leading-snug mb-sm">
-            &quot;{surveyData?.title || 'Evaluasi Mutu Pelayanan'}&quot;
-          </p>
-          <div className="w-16 h-1 bg-gradient-to-r from-primary to-emerald-400 mx-auto rounded-full mb-md"></div>
-          <p className="text-body-md text-text-secondary">
+
+        {/* Kotak Informasi Survei */}
+        <div className="w-full max-w-[380px] mx-auto mb-6 sm:mb-7 space-y-3">
+          <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+            <p className="text-xs text-text-secondary mb-1">Tanggapan Anda untuk survei:</p>
+            <p className="text-sm sm:text-base font-semibold text-text-primary leading-snug">
+              &quot;{judulSurvei}&quot;
+            </p>
+          </div>
+          <p className="text-xs sm:text-sm text-text-secondary leading-relaxed px-2">
             Telah berhasil dikirim. Penilaian Anda sangat berarti bagi peningkatan kualitas layanan publik kami.
           </p>
         </div>
-        
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row justify-center w-full gap-md">
+
+        {/* Tombol Aksi Responsif */}
+        <div className="w-full max-w-[380px] mx-auto flex flex-col-reverse sm:flex-row items-center gap-3">
           {!tampilkanTautanWarga && (
-            <Link href="/" className="w-full sm:w-1/2 mx-auto block">
-              <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
-                <Home size={20} />
+            <Link href="/" className="w-full block">
+              <button className="w-full min-h-[44px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs sm:text-sm font-semibold hover:bg-primary-hover shadow-xs hover:shadow-primary/20 transition-all active:scale-95">
+                <Home size={16} className="shrink-0" />
                 <span>Kembali ke Layanan</span>
               </button>
             </Link>
           )}
           {tampilkanTautanWarga && (
-          <Link href="/surveys" className="w-full sm:w-1/2 block">
-            <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl border border-outline text-text-secondary font-bold hover:bg-surface-container-low hover:border-outline-variant hover:text-primary transition-all active:scale-95 group/btn">
-              <FileText size={20} className="group-hover/btn:scale-110 transition-transform" />
-              <span>Daftar Survei</span>
-            </button>
-          </Link>
-          )}
-          {tampilkanTautanWarga && (
-          <Link href="/dashboard" className="w-full sm:w-1/2 block">
-            <button className="w-full flex items-center justify-center gap-sm px-lg py-md rounded-xl bg-primary text-white font-bold hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95 group/btn">
-              <Home size={20} className="group-hover/btn:-translate-y-1 transition-transform" />
-              {/* "Dashboard", bukan label halaman depan (4 Oktober 2026,
-                  laporan pengguna). Tujuannya `/dashboard`, yaitu dasbor warga,
-                  sementara halaman depan publik ada di `/`. Tombol anonim di
-                  atas MEMANG menuju `/` dan karena itu labelnya memakai kata
-                  halaman depan -- "Layanan" sejak 15 Oktober 2026, sebelumnya
-                  "Beranda". Pembedaannya dijaga SurveyCompletion.test.jsx. */}
-              <span>Dashboard</span>
-            </button>
-          </Link>
+            <>
+              <Link href="/surveys" className="w-full sm:w-1/2 block">
+                <button className="w-full min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-text-secondary text-xs sm:text-sm font-semibold hover:bg-slate-50 hover:text-text-primary transition-all active:scale-95">
+                  <FileText size={16} className="shrink-0" />
+                  <span>Daftar Survei</span>
+                </button>
+              </Link>
+              <Link href="/dashboard" className="w-full sm:w-1/2 block">
+                <button className="w-full min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-xs sm:text-sm font-semibold hover:bg-primary-hover shadow-xs hover:shadow-primary/20 transition-all active:scale-95">
+                  <Home size={16} className="shrink-0" />
+                  <span>Dashboard</span>
+                </button>
+              </Link>
+            </>
           )}
         </div>
       </div>
