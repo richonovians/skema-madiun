@@ -64,7 +64,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | **selesai 29 Okt — TERBUKTI, BUG-052 ditutup**, lihat §15 |
 | 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | **selesai 28 Okt — nol celah**, lihat §13 |
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
-| 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | belum diuji |
+| 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | **selesai 29 Okt — TERBUKTI, BUG-058 s.d. BUG-060 ditutup**, lihat §16 |
 | 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | belum diuji |
 | 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | belum dijadwalkan |
 
@@ -558,3 +558,39 @@ memuat origin frontend. Diperiksa saat QA-FINAL-UAT bersama
 **Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 731/731 (48
 suite), web komponen 1957/1957, eslint kode 0, prettier dirapikan lalu
 bersih (spec baru tersimpan CRLF dan berindentasi 4 spasi dari editor).
+
+## 16. Hasil #9 — misconfiguration
+
+**Dijalankan:** 29 Oktober 2026. **Hasil: tiga celah, ketiganya ditutup** —
+`938a4b0`, merge `fe833bd` di `main`.
+
+| Diperiksa | Hasil |
+| --------- | ----- |
+| Header API (`/api/v1/*`) | lengkap dari helmet: CSP, `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy`, COOP/CORP, tanpa `X-Powered-By`; dijaga `app.e2e-spec.ts` dan `csp-upgrade-insecure.e2e-spec.ts` |
+| CORS origin asing | tanpa `Access-Control-Allow-Origin`; origin sah dijaga `app.e2e-spec.ts` |
+| `/api/docs` di produksi | mati; gerbangnya `configuration.ts`, dijaga 5 uji `configuration.spec.ts` |
+| Header halaman web (Next.js) | **tak ada satu pun**, plus `X-Powered-By: Next.js` — **BUG-058** |
+| Pesan galat 5xx | **pesan asli galat tak terduga sampai ke klien**, termasuk jalur berkas dan kueri Prisma — **BUG-059** |
+| Header `Server` nginx | **`nginx/1.29.8`** — **BUG-060** |
+
+**Perbaikan.** `next.config.js` memasang `X-Frame-Options`, CSP
+`frame-ancestors 'self'`, `nosniff`, dan `Referrer-Policy` di semua rute
+serta mematikan `X-Powered-By`; CSP skrip penuh ditunda karena menuntut
+nonce. `AllExceptionsFilter` menjawab galat tak terduga dengan pesan umum
+dan menyimpan aslinya di log. `server_tokens off` di kedua konfigurasi
+nginx.
+
+**Bukti.** Uji `headerKeamananWeb` (merah 2 lalu hijau, mutasi memerahkan
+1) dan tiga uji baru di `all-exceptions.filter.spec.ts` (dua merah lebih
+dulu, satu KONTROL log). Header halaman web terukur di server dev hidup.
+`server_tokens` hanya terbukti lewat `nginx -t`; header hidupnya menunggu
+kontainer proxy dimuat ulang oleh pengguna.
+
+**Playwright penuh** sesudah perbaikan: 156 lulus, 2 goyah, 1 gagal.
+`proteksi-route` membaca 504 dari nginx (batas waktu hulu) pada rute yang
+berbeda di tiap percobaan, dan health API menjawab 502 sesaat sesudahnya;
+dijalankan ulang sendiri: 4 lulus, 1 goyah. 504 adalah batas waktu
+sambungan, bukan akibat header jawaban, jadi tidak dicatat sebagai temuan.
+
+**Gerbang penuh sesudahnya:** API unit 1428/1428, API e2e 731/731 (48
+suite), web komponen 1963/1963, eslint dan prettier kode 0.

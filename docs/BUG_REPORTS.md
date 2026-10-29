@@ -150,7 +150,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-056](#bug-056) | "Pertanyaan X dari Y" bukan judul lagi — pembaca layar kehilangan penanda langkah kuesioner | Low | Terkonfirmasi | **Ditutup** | PR #5 |
 | [BUG-057](#bug-057) | Lencana jenis survei 10px di `AdminSurveyCard` tanpa jarak baris sendiri (pola BUG-046) | Low | Terkonfirmasi | **Ditutup** | PR #5 |
 
-**Rekap** — 57 temuan: **57 ditutup, 0 terbuka.**
+| [BUG-058](#bug-058) | Halaman web tanpa header keamanan — dapat dibingkai situs lain, `X-Powered-By: Next.js` | Medium | Terkonfirmasi | **Ditutup** | — |
+| [BUG-059](#bug-059) | Galat 500 tak terduga mengirim pesan aslinya — jalur berkas server dan potongan kueri Prisma sampai ke klien | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-060](#bug-060) | nginx menyebut versinya di header `Server` | Low | Terkonfirmasi | **Ditutup** | — |
+
+**Rekap** — 60 temuan: **60 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3380,6 +3384,77 @@ Chrome.
 
 **Ditutup** -- `leading-(--text-xs--line-height)`, sama dengan enam lencana
 10px lain hasil BUG-046. Pagarnya hijau. Ukuran di Chrome tetap tak diukur.
+
+### BUG-058 — Halaman web tanpa header keamanan
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #9 (`docs/TEST_KEAMANAN.md` §16)             |
+| **Tanggal**  | 29 Oktober 2026 (ditemukan dan ditutup hari yang sama)       |
+| **Berkas**   | `apps/web/next.config.js`                                    |
+| **Severity** | Medium (usulan penguji)                                      |
+
+**Cacatnya.** Helmet di `apps/api` hanya menjaga `/api/v1/*`. Halaman HTML
+dilayani Next.js dan tidak membawa satu pun header keamanan: tanpa
+`X-Frame-Options` maupun CSP `frame-ancestors`, tanpa `nosniff`, tanpa
+`Referrer-Policy`, dan dengan `X-Powered-By: Next.js`. Terukur lewat
+`curl -D - http://skema.local/`. Halaman mana pun, termasuk halaman admin
+bertombol destruktif, dapat dibingkai situs lain.
+
+**Ditutup** -- `938a4b0`, merge `fe833bd` di `main`. `poweredByHeader:
+false` dan `headers()` untuk `/:path*`: `X-Frame-Options: SAMEORIGIN`,
+`Content-Security-Policy: frame-ancestors 'self'`, `X-Content-Type-Options:
+nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`. CSP skrip
+penuh sengaja tidak dipasang: Next menyisipkan skrip inline, sehingga
+menuntut nonce -- perubahan tersendiri yang perlu diuji di seluruh halaman.
+Di server dev hidup keempat header hadir dan `X-Powered-By` hilang; header
+API tak berubah.
+
+**Pagar.** `apps/web/src/__tests__/headerKeamananWeb.test.js`, merah 2
+sebelum perbaikan; mutasi yang membuang `X-Frame-Options` memerahkan 1.
+
+### BUG-059 — Galat 500 tak terduga mengirim pesan aslinya
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #9 (`docs/TEST_KEAMANAN.md` §16)             |
+| **Tanggal**  | 29 Oktober 2026 (ditemukan dan ditutup hari yang sama)       |
+| **Berkas**   | `apps/api/src/common/filters/all-exceptions.filter.ts`       |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Cacatnya.** Untuk galat yang bukan `HttpException`, `AllExceptionsFilter`
+mengirim `exception.message` apa adanya. Pesan Prisma memuat jalur berkas
+absolut di server, potongan kode sumber dengan nomor baris, dan bentuk
+kuerinya -- terukur dari `PrismaClientValidationError` sungguhan.
+BUG-050 adalah contoh jalur yang pernah sampai ke sana.
+
+**Ditutup** -- `938a4b0`, merge `fe833bd`. Pesan klien kini "Terjadi
+kesalahan pada server."; pesan dan stack aslinya tetap ke log.
+`HttpException` (pesan yang memang untuk klien) dan pemetaan multer tidak
+berubah.
+
+**Pagar.** `all-exceptions.filter.spec.ts`: dua uji merah lebih dulu
+(galat biasa dan galat Prisma berjalur berkas), satu uji KONTROL bahwa pesan
+dan stack tetap dicatat.
+
+### BUG-060 — nginx menyebut versinya
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #9 (`docs/TEST_KEAMANAN.md` §16)             |
+| **Tanggal**  | 29 Oktober 2026                                              |
+| **Berkas**   | `infra/nginx/dev.conf`, `infra/nginx/prod.conf`              |
+| **Severity** | Low (usulan penguji)                                         |
+
+Setiap jawaban membawa `Server: nginx/1.29.8`, memudahkan pencocokan dengan
+daftar kerentanan versi.
+
+**Ditutup di konfigurasi** -- `938a4b0`, merge `fe833bd`. `server_tokens
+off;` di kedua berkas; `nginx -t` di kontainer dev lulus. **Belum
+dibuktikan di server hidup**: berlaku sesudah kontainer `skm-proxy` dimuat
+ulang (`docker compose restart proxy`), dan kontainer itu milik pengguna.
+`prod.conf` tak dapat diuji `nginx -t` di sini karena sertifikatnya tak
+ada. Tanpa uji otomatis; buktinya header jawaban.
 
 ---
 
@@ -6734,3 +6809,4 @@ hanya dibaca, tidak diubah.
 | 7.16 | 29 Oktober 2026 | **BUG-052 ditutup: 52 temuan, 52 ditutup, nol terbuka.** Uji CSRF (QA-SECURITY-UAT #6) menemukan bahwa mutasi bercookie dari origin lain diterima, dengan SameSite=Lax sebagai satu-satunya penahan. Penjaga origin di `configureApp`, `c830db4`, merge `5cd1770`. Kodenya ditulis pengguna; dua upaya sebelumnya di sesi asisten terhenti sebelum berkas apa pun tersimpan. |
 | 7.17 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 dibuka: 57 temuan, 52 ditutup, 5 terbuka.** CI `main` merah sesudah push `b73d9fd`, yang ikut menggabungkan PR #5 `feat/survey-admin-ui` (`ab1d341`). Bukan dari BUG-052: job E2E API lulus. Diuji ulang lokal: penanda konflik di berkas uji (BUG-053), kartu `/survei/:id` 64px karena `max-w-md` (BUG-054, terukur di Chrome), naskah PDP yang menyempit (BUG-055), judul progres hilang (BUG-056), lencana 10px (BUG-057). Penggantian label "tanpa data diri" menjadi "Anonim" dicatat sebagai pertanyaan untuk tim, bukan cacat. Kode tim tidak diubah. |
 | 7.18 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 ditutup atas permintaan pengguna: 57 temuan, 57 ditutup, nol terbuka.** `f3d5659`, merge `104862a`. Pengguna mengonfirmasi label "Isi survei sebagai Anonim" disengaja, jadi tiga pemilih uji diperbarui, bukan labelnya. BUG-054 diukur ulang di Chrome (448px); BUG-056 berpagar uji baru yang merah lebih dulu; BUG-057 tetap tak diukur di Chrome. |
+| 7.19 | 29 Oktober 2026 | **BUG-058 s.d. BUG-060 lahir dan ditutup: 60 temuan, 60 ditutup, nol terbuka.** Uji misconfiguration (QA-SECURITY-UAT #9): halaman web tanpa header keamanan (BUG-058), pesan galat 500 mentah ke klien (BUG-059), versi nginx di header `Server` (BUG-060). `938a4b0`, merge `fe833bd`. BUG-060 belum dibuktikan di server hidup sampai proxy dimuat ulang. |
