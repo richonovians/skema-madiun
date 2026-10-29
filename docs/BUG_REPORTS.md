@@ -144,13 +144,13 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-050](#bug-050) | Tanggal tak sah di penyaring log audit (`startDate`/`endDate`) dijawab 500, bukan 400 | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-051](#bug-051) | Karakter pola LIKE `%`/`_` tak diloloskan: pencarian OPD dan log audit melebar, pencocokan OPD dari klaim SSO rawan salah tautan | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-052](#bug-052) | Mutasi bercookie dari origin lain diterima — tak ada penahan CSRF selain SameSite=Lax | Medium | Terkonfirmasi | **Ditutup** | — |
-| [BUG-053](#bug-053) | Penanda konflik merge tercatat di `NilaiSurveiDiKartuDanRingkasan.test.jsx` — suite tak dapat dijalankan, CI `main` merah | Medium | Terkonfirmasi | Terbuka | PR #5 |
-| [BUG-054](#bug-054) | Kartu muat dan galat `/survei/:id` menyempit ke 64px karena `max-w-md` — "Survei tidak dapat ditemukan" meluber keluar kartu | Medium | Terkonfirmasi | Terbuka | PR #5 |
-| [BUG-055](#bug-055) | Naskah persetujuan PDP pengisian publik tak lagi menyebut data diri yang dikumpulkan | Medium | Terkonfirmasi | Terbuka | PR #5 |
-| [BUG-056](#bug-056) | "Pertanyaan X dari Y" bukan judul lagi — pembaca layar kehilangan penanda langkah kuesioner | Low | Terkonfirmasi | Terbuka | PR #5 |
-| [BUG-057](#bug-057) | Lencana jenis survei 10px di `AdminSurveyCard` tanpa jarak baris sendiri (pola BUG-046) | Low | Terkonfirmasi | Terbuka | PR #5 |
+| [BUG-053](#bug-053) | Penanda konflik merge tercatat di `NilaiSurveiDiKartuDanRingkasan.test.jsx` — suite tak dapat dijalankan, CI `main` merah | Medium | Terkonfirmasi | **Ditutup** | PR #5 |
+| [BUG-054](#bug-054) | Kartu muat dan galat `/survei/:id` menyempit ke 64px karena `max-w-md` — "Survei tidak dapat ditemukan" meluber keluar kartu | Medium | Terkonfirmasi | **Ditutup** | PR #5 |
+| [BUG-055](#bug-055) | Naskah persetujuan PDP pengisian publik tak lagi menyebut data diri yang dikumpulkan | Medium | Terkonfirmasi | **Ditutup** | PR #5 |
+| [BUG-056](#bug-056) | "Pertanyaan X dari Y" bukan judul lagi — pembaca layar kehilangan penanda langkah kuesioner | Low | Terkonfirmasi | **Ditutup** | PR #5 |
+| [BUG-057](#bug-057) | Lencana jenis survei 10px di `AdminSurveyCard` tanpa jarak baris sendiri (pola BUG-046) | Low | Terkonfirmasi | **Ditutup** | PR #5 |
 
-**Rekap** — 57 temuan: **52 ditutup, 5 terbuka (0 Critical, 0 High, 3 Medium, 2 Low).**
+**Rekap** — 57 temuan: **57 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3252,7 +3252,7 @@ unit, build" gagal. Diuji ulang lokal pada `b73d9fd`, 29 Oktober 2026:
 `next build` tidak dijalankan karena server dev hidup; job CI-nya ikut
 gagal di langkah uji sebelum build sempat dinilai.
 
-**Bukan cacat, tetapi perlu dijawab tim:** label kotak centang di gerbang
+**Bukan cacat -- sudah dijawab:** label kotak centang di gerbang
 pengisian publik berganti dari "Isi survei tanpa data diri" menjadi "Isi
 survei sebagai Anonim". Fungsinya utuh -- keempat data diri tetap dikirim
 `null` -- tetapi empat uji komponen dan tiga uji Playwright
@@ -3260,8 +3260,15 @@ survei sebagai Anonim". Fungsinya utuh -- keempat data diri tetap dikirim
 dihapus di PR yang sama menjelaskan mengapa kata "anonim" sengaja dihindari:
 di sistem ini sudah ada `Survey.izinkanAnonim` (boleh diisi tanpa login) dan
 `isAnonimMode` (pengisian tanpa sesi), dan opsi ini hal ketiga yang
-berbeda. Bila penggantian label disengaja, ujinya yang diperbarui; bila
-tidak, labelnya yang dikembalikan.
+berbeda. **Dikonfirmasi pengguna 29 Oktober 2026: penggantiannya
+disengaja.** Tiga pemilih uji diperbarui ke `/isi survei sebagai anonim/i`
+(dua komponen, satu Playwright) dalam `f3d5659`; nama variabel internal
+`tanpaDataDiri` tetap.
+
+**Kelima temuan ditutup 29 Oktober 2026** -- `f3d5659`, merge `104862a` di
+`main`, atas permintaan pengguna. Sesudahnya: web komponen 239 suite / 1961
+uji lulus, API unit 1426/1426, eslint dan prettier bersih, dan lima uji
+Playwright `isi-survei-anonim` + `isi-survei` lulus.
 
 ### BUG-053 — Penanda konflik merge tercatat di berkas uji
 
@@ -3282,6 +3289,10 @@ cakupan yang hilang. Perbaikannya memilih satu dari dua sisi tiap konflik
 Puas')`, sisi `HEAD` memakai dua `getByText` terpisah) sesuai tampilan
 `NilaiSurvei.jsx` sesudah PR #5.
 
+**Ditutup** -- sisi `HEAD` dipertahankan, karena cocok dengan `NilaiSurvei`
+ukuran "kartu" ("85%" dan "(Sangat Puas)"). Suitenya jalan lagi, 8/8 lulus;
+mutasi yang membuang kurung kategori memerahkan 2 uji.
+
 ### BUG-054 — Kartu muat dan galat `/survei/:id` menyempit ke 64px
 
 |              |                                                              |
@@ -3300,6 +3311,10 @@ terpecah per kata dan meluber keluar kartu, begitu pula tombol "Kembali ke
 Layanan". Layar ini yang dilihat pengunjung dari QR bila surveinya sudah
 ditutup. Ditangkap `tanpaMaxWTokenSpasi.test.js`. Perbaikannya nilai
 eksplisit, mis. `max-w-[28rem]`.
+
+**Ditutup** -- `max-w-[28rem]` di kedua kartu. Diukur ulang di Chrome pada
+alamat yang sama: `max-width` 448px, kartu 448px, isi tidak meluber, judul
+satu baris.
 
 ### BUG-055 — Naskah persetujuan PDP tak lagi menyebut data yang dikumpulkan
 
@@ -3322,6 +3337,12 @@ siapa yang dihubungi ("menghubungi Admin Kabupaten"). Ditangkap
 seluruh data yang benar-benar diminta"). Dinilai Medium karena menyentuh
 kepatuhan, bukan tampilan; keputusan akhirnya milik pemilik produk.
 
+**Ditutup** -- rincian kembali menyebut "nama, nomor HP, jenis kelamin, dan
+kelompok umur jika Anda isi" dan memakai kata "anonim" yang kini menjadi
+label opsinya; "Hak Anda" kembali menyebut Admin Kabupaten. Alasannya
+ditulis ulang sebagai komentar di atas `RINCIAN`. Uji naskahnya yang merah
+kini hijau.
+
 ### BUG-056 — "Pertanyaan X dari Y" bukan judul lagi
 
 |              |                                                              |
@@ -3338,6 +3359,11 @@ dipakai untuk melompat antar-bagian dan mengetahui posisinya. Ditangkap
 yang mencari judul itu dan gagal pada ketiga percobaan. Ukuran visualnya
 boleh tetap kecil; yang perlu kembali adalah peran judulnya.
 
+**Ditutup** -- `<h2>` berisi dua `<span>` blok dengan tampilan PR #5 yang
+sama; spasi tersurat di antaranya menjaga nama "Pertanyaan X dari Y". Pagar
+baru `SurveyProgressJudul.test.jsx`, merah lebih dulu ("Unable to find …
+heading"), dan `isi-survei.spec.js` lulus kembali.
+
 ### BUG-057 — Lencana jenis survei 10px tanpa jarak baris sendiri
 
 |              |                                                              |
@@ -3351,6 +3377,9 @@ Lencana SKM/Custom baru memakai `text-[10px]` tanpa `leading-*`, sehingga
 jarak barisnya ikut kelas bawaan `Badge` dan lencananya tumbuh -- cacat yang
 sama dengan BUG-046. Ditangkap `BadgeJarakBaris.test.js`. Belum diukur di
 Chrome.
+
+**Ditutup** -- `leading-(--text-xs--line-height)`, sama dengan enam lencana
+10px lain hasil BUG-046. Pagarnya hijau. Ukuran di Chrome tetap tak diukur.
 
 ---
 
@@ -6704,3 +6733,4 @@ hanya dibaca, tidak diubah.
 | 7.15 | 28 Oktober 2026 | **BUG-050 dan BUG-051 lahir dan ditutup pada hari yang sama: 51 temuan, 51 ditutup, nol terbuka.** Uji asap injeksi SQL (QA-SECURITY-UAT #5) tak menemukan injeksi, tetapi menemukan `startDate`/`endDate` log audit yang menjawab 500 untuk teks bukan tanggal (BUG-050) dan `contains`/`equals` + `insensitive` Prisma yang menjadi ILIKE tanpa meloloskan `%` dan `_` (BUG-051), termasuk di pencocokan OPD dari klaim SSO. `bd247e2`, merge `7fc1f50`. |
 | 7.16 | 29 Oktober 2026 | **BUG-052 ditutup: 52 temuan, 52 ditutup, nol terbuka.** Uji CSRF (QA-SECURITY-UAT #6) menemukan bahwa mutasi bercookie dari origin lain diterima, dengan SameSite=Lax sebagai satu-satunya penahan. Penjaga origin di `configureApp`, `c830db4`, merge `5cd1770`. Kodenya ditulis pengguna; dua upaya sebelumnya di sesi asisten terhenti sebelum berkas apa pun tersimpan. |
 | 7.17 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 dibuka: 57 temuan, 52 ditutup, 5 terbuka.** CI `main` merah sesudah push `b73d9fd`, yang ikut menggabungkan PR #5 `feat/survey-admin-ui` (`ab1d341`). Bukan dari BUG-052: job E2E API lulus. Diuji ulang lokal: penanda konflik di berkas uji (BUG-053), kartu `/survei/:id` 64px karena `max-w-md` (BUG-054, terukur di Chrome), naskah PDP yang menyempit (BUG-055), judul progres hilang (BUG-056), lencana 10px (BUG-057). Penggantian label "tanpa data diri" menjadi "Anonim" dicatat sebagai pertanyaan untuk tim, bukan cacat. Kode tim tidak diubah. |
+| 7.18 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 ditutup atas permintaan pengguna: 57 temuan, 57 ditutup, nol terbuka.** `f3d5659`, merge `104862a`. Pengguna mengonfirmasi label "Isi survei sebagai Anonim" disengaja, jadi tiga pemilih uji diperbarui, bukan labelnya. BUG-054 diukur ulang di Chrome (448px); BUG-056 berpagar uji baru yang merah lebih dulu; BUG-057 tetap tak diukur di Chrome. |
