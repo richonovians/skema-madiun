@@ -65,7 +65,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | **selesai 28 Okt — nol celah**, lihat §13 |
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | **selesai 29 Okt — TERBUKTI, BUG-058 s.d. BUG-060 ditutup**, lihat §16 |
-| 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | belum diuji |
+| 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | **selesai 29 Okt — nol celah**, lihat §17 |
 | 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | belum dijadwalkan |
 
 ## 5. Matriks endpoint
@@ -593,4 +593,61 @@ dijalankan ulang sendiri: 4 lulus, 1 goyah. 504 adalah batas waktu
 sambungan, bukan akibat header jawaban, jadi tidak dicatat sebagai temuan.
 
 **Gerbang penuh sesudahnya:** API unit 1428/1428, API e2e 731/731 (48
+suite), web komponen 1963/1963, eslint dan prettier kode 0.
+
+## 17. Hasil #10 — unggahan
+
+**Dijalankan:** 29 Oktober 2026, terhadap `main` di `fe833bd` (`7d552fa`,
+merge `086bee8`, menambah suitenya). **Hasil: nol celah.**
+
+**Sudah diuji di tempat lain, diperiksa ada lalu tidak diulang:**
+
+| Hal | Uji yang menjaganya |
+| --- | ------------------- |
+| Daftar izin, isi lawan tipe yang dinyatakan (SVG/HTML/PDF menyamar), berkas kosong | `attachment.util.spec.ts` |
+| Nama berkas aman: ekstensi ganda, traversal di nama, panjang | `attachment.util.spec.ts` |
+| Tanda tangan URL: jalur/`exp`/`sub` ditukar, rahasia lain, kunci per domain | `attachment-url.util.spec.ts` |
+| Traversal, persen-tersandi, byte nol di `resolveLampiran` | `jalur-lampiran.spec.ts` |
+| Batas ukuran 5MB ditolak multer, bukan sesudah dibaca | `lampiran-batas-ukuran.e2e-spec.ts` |
+| Jalur polos, `sig`/`exp` diutak-atik, tanda tangan lintas berkas, enam lampiran, `.exe`, SVG-mengaku-PNG pada POST /complaints, berkas di disk terenkripsi | `complaints.e2e-spec.ts` |
+
+**Yang baru:** `apps/api/test/unggahan-keamanan.e2e-spec.ts`, 9 uji.
+
+| Uji | Hasil |
+| --- | ----- |
+| Tautan terbitan membuka berkasnya (KONTROL) | 200, bita persis |
+| Berkas yang disajikan | `image/png` dan `nosniff` |
+| Balasan: SVG mengaku `image/png` | 400, tak ada balasan tercipta |
+| Pengaduan: HTML mengaku `image/jpeg` | 400, tak ada pengaduan tercipta |
+| Tanda tangan sah, masa berlaku lewat | 403 "kedaluwarsa" |
+| Traversal bertanda tangan sah, dikirim mentah (3 bentuk) | tidak disajikan |
+| `logout-semua` | tautan lama 403 "dicabut", tautan sesudahnya 200 |
+
+**Bukti suitenya tidak hampa.** Empat mutasi, masing-masing dipulihkan:
+
+| Mutasi | Uji yang memerah |
+| ------ | ---------------- |
+| `assertAllowedContent` tak dipanggil | 2 |
+| penolakan traversal di `resolveLampiran` dibuang | 3 |
+| `exp` diabaikan | 1 |
+| pencabutan diabaikan | 1 |
+
+Dua kekeliruan pengujian tercatat apa adanya. Jalan mutasi pertama hampa
+sama sekali: skripnya hanya menangkap stdout, sedangkan jest menulis ke
+stderr. Lalu mutasi traversal semula hanya memerahkan 1 dari 3 uji, karena
+supertest menormalkan segmen `..` sebelum permintaan berangkat -- dua
+bentuk traversal tak pernah sampai ke penyaji. Ketiganya kini dikirim
+mentah lewat `node:http`, seperti `curl --path-as-is` milik penyerang.
+
+Mutasi traversal juga memperlihatkan bahwa traversal yang ditandatangani
+sah HANYA ditahan `resolveLampiran`: tanpanya berkas di luar direktori
+unggahan tersaji. Lapis pertamanya tanda tangan, yang menuntut
+`SESSION_JWT_SECRET`.
+
+**Pengamatan, bukan celah:** pencabutan dibandingkan per detik dengan waktu
+terbit tautan, sehingga tautan yang terbit pada detik yang sama dengan
+`logout-semua` tetap sah. Jendelanya sekitar satu detik dan pemegangnya
+pemilik akun itu sendiri.
+
+**Gerbang penuh sesudahnya:** API unit 1428/1428, API e2e 740/740 (49
 suite), web komponen 1963/1963, eslint dan prettier kode 0.
