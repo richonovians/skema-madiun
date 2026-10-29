@@ -68,8 +68,43 @@ diperiksa (`CLAUDE.md`, "Keadaan yang belum tuntas").
 pembersih dapat menghapusnya sesudah sesi (bagian 5.2). Judul tanpa
 penanda tertinggal di basis data dan harus dihapus manual.
 
-Siapkan **satu survei aktif berpenanda `[UJI UAT]`** yang mengizinkan
-pengisian tanpa akun, untuk skenario W2 dan P1, sebelum sesi dimulai.
+Siapkan **satu survei aktif berpenanda `[UJI UAT]` PER PESERTA** yang
+mengizinkan pengisian tanpa akun, untuk skenario W2 dan P1, sebelum sesi
+dimulai. Satu akun hanya dapat mengisi satu survei satu kali, dan akun warga
+seed hanya ada satu (`warga@example.go.id`): peserta kedua yang menjalankan
+W2 pada survei yang sama akan ditolak "sudah diisi", dan itu bukan cacat.
+Bagikan satu survei kepada tiap peserta. P1 (tanpa akun) tidak terkena
+batasan ini.
+
+### 2.4 Bila pesertanya internal
+
+Ditambahkan 29 Oktober 2026, untuk sesi bersama rekan magang yang **sudah
+pernah melihat SKEMA**. Sesi seperti itu sah dan berguna, tetapi namanya
+**UAT awal internal** (uji rintis), bukan penerimaan oleh pemangku
+kepentingan.
+
+| Yang tetap sahih | Yang melemah |
+| ---------------- | ------------ |
+| Langkah buntu, pesan galat yang membingungkan, alur yang patah | Skor kemudahan cenderung tinggi karena letak tombol sudah dikenal |
+| Waktu penyelesaian dan status lulus/gagal | Hasilnya tidak dapat dipakai sebagai "diterima pemakai"; penerimaan sungguhan tetap di QA-FINAL-UAT bersama Diskominfo |
+
+Cara mengurangi biasnya:
+
+1. Beri tiap peserta **peran yang paling jarang ia buka**. Yang biasa
+   mengerjakan halaman admin memerankan warga, dan sebaliknya.
+2. Fasilitator **tidak memberi petunjuk** sama sekali; bantuan apa pun
+   membuat skenarionya tercatat `Lulus dengan bantuan`.
+3. Isi kolom **Jenis peserta** di lembar isian (bagian 4) dengan `internal`.
+
+Akses dari laptop lain. `skema.local` hanya terbaca di laptop yang berkas
+hosts-nya memuat baris itu. Dua cara, urut dari yang paling mudah:
+
+1. Peserta **bergantian memakai laptop fasilitator**.
+2. Di laptop peserta (Wi-Fi yang sama), tambahkan baris hosts yang menunjuk
+   ke **IP laptop fasilitator**, bukan `127.0.0.1` -- alamat itu menunjuk ke
+   laptop peserta sendiri. Porta 80 laptop fasilitator harus diizinkan
+   Windows Firewall untuk jaringan itu. Masuk tetap lewat dev-login; jalur
+   SSO tidak dipakai dari laptop lain (`CLAUDE.md`).
 
 ---
 
@@ -139,25 +174,28 @@ Satu baris per skenario per peserta. **Status** salah satu dari:
 **Kemudahan** memakai skala yang sama dengan SKM: 1 = Sulit, 2 = Kurang
 mudah, 3 = Mudah, 4 = Sangat mudah. Diisi oleh **peserta**, bukan fasilitator.
 
-| Kode | Peserta | Status | Waktu (menit) | Kemudahan (1-4) | Langkah yang membingungkan | Catatan fasilitator |
-| ---- | ------- | ------ | ------------- | --------------- | -------------------------- | ------------------- |
-| W1 | | | | | | |
-| W2 | | | | | | |
-| W3 | | | | | | |
-| W4 | | | | | | |
-| W5 | | | | | | |
-| P1 | | | | | | |
-| P2 | | | | | | |
-| O1 | | | | | | |
-| O2 | | | | | | |
-| O3 | | | | | | |
-| O4 | | | | | | |
-| O5 | | | | | | |
-| K1 | | | | | | |
-| K2 | | | | | | |
-| K3 | | | | | | |
-| K4 | | | | | | |
-| K5 | | | | | | |
+**Jenis peserta**: `stakeholder` (Diskominfo, Admin OPD, warga sungguhan)
+atau `internal` (sudah pernah melihat SKEMA, lihat 2.4).
+
+| Kode | Peserta | Jenis peserta | Status | Waktu (menit) | Kemudahan (1-4) | Langkah yang membingungkan | Catatan fasilitator |
+| ---- | ------- | ------------- | ------ | ------------- | --------------- | -------------------------- | ------------------- |
+| W1 | | | | | | | |
+| W2 | | | | | | | |
+| W3 | | | | | | | |
+| W4 | | | | | | | |
+| W5 | | | | | | | |
+| P1 | | | | | | | |
+| P2 | | | | | | | |
+| O1 | | | | | | | |
+| O2 | | | | | | | |
+| O3 | | | | | | | |
+| O4 | | | | | | | |
+| O5 | | | | | | | |
+| K1 | | | | | | | |
+| K2 | | | | | | | |
+| K3 | | | | | | | |
+| K4 | | | | | | | |
+| K5 | | | | | | | |
 
 Pertanyaan penutup untuk setiap peserta, dicatat apa adanya:
 
@@ -179,6 +217,10 @@ Pertanyaan penutup untuk setiap peserta, dicatat apa adanya:
 
 `Gagal` karena lingkungan (server mati, jaringan ponsel) tidak dihitung
 sebagai cacat aplikasi, tetapi skenarionya diulang.
+
+Sesi yang seluruh pesertanya `internal` dinyatakan **"UAT awal internal:
+lulus/tidak lulus"**, tidak pernah "UAT awal: lulus". Syarat kemudahannya
+tetap dicatat, tetapi tidak dipakai sebagai bukti penerimaan pemakai.
 
 ### 5.2 Membereskan data
 
