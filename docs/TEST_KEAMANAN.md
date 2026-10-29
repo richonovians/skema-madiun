@@ -587,8 +587,8 @@ nginx.
 **Bukti.** Uji `headerKeamananWeb` (merah 2 lalu hijau, mutasi memerahkan
 1) dan tiga uji baru di `all-exceptions.filter.spec.ts` (dua merah lebih
 dulu, satu KONTROL log). Header halaman web terukur di server dev hidup.
-`server_tokens` hanya terbukti lewat `nginx -t`; header hidupnya menunggu
-kontainer proxy dimuat ulang oleh pengguna.
+`server_tokens` terbukti di server hidup sesudah proxy dimuat ulang dari
+`main`: `Server: nginx` tanpa versi.
 
 **Playwright penuh** sesudah perbaikan: 156 lulus, 2 goyah, 1 gagal.
 `proteksi-route` membaca 504 dari nginx (batas waktu hulu) pada rute yang

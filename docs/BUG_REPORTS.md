@@ -3450,9 +3450,14 @@ Setiap jawaban membawa `Server: nginx/1.29.8`, memudahkan pencocokan dengan
 daftar kerentanan versi.
 
 **Ditutup di konfigurasi** -- `938a4b0`, merge `fe833bd`. `server_tokens
-off;` di kedua berkas; `nginx -t` di kontainer dev lulus. **Belum
-dibuktikan di server hidup**: berlaku sesudah kontainer `skm-proxy` dimuat
-ulang (`docker compose restart proxy`), dan kontainer itu milik pengguna.
+off;` di kedua berkas; `nginx -t` di kontainer dev lulus. **Dibuktikan
+di server hidup 29 Oktober 2026** sesudah pengguna memuat ulang `skm-proxy`:
+`/` dan `/api/v1/health` kini menjawab `Server: nginx` tanpa versi.
+
+Restart pertama tidak membawa perubahan, dan sebabnya bukan perbaikannya:
+saat itu pohon kerja sedang di cabang `tester`, yang `dev.conf`-nya belum
+memuat `server_tokens off`, dan berkas itu terpasang langsung ke kontainer.
+Restart kedua dari `main` berhasil.
 `prod.conf` tak dapat diuji `nginx -t` di sini karena sertifikatnya tak
 ada. Tanpa uji otomatis; buktinya header jawaban.
 
