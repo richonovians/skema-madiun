@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/responsif';
+import { test, expect, ambilContoh, type Contoh } from './fixtures/responsif';
 
 /**
  * PANEL PERCAKAPAN PENGADUAN PADA LAYAR SEMPIT (22 September 2026, laporan
@@ -33,7 +33,31 @@ import { test, expect } from './fixtures/responsif';
  */
 test.describe.configure({ timeout: 120_000 });
 
-const TIKET = 'PGD20260916GZQI';
+/**
+ * Nomor tiketnya DIAMBIL SAAT UJI BERJALAN (22 Oktober 2026).
+ *
+ * Sampai hari ini berkas ini memegang `const TIKET = 'PGD20260916GZQI'`, dan
+ * tiket itu sudah tidak ada. Ketiga uji di bawah karena itu memerah pada
+ * `waitFor` kolom tulis -- bukan karena panelnya salah ukuran, melainkan karena
+ * halamannya tak pernah ada. Uji KONTROL yang dipasang justru untuk membedakan
+ * kedua sebab itu ikut memerah bersamanya, jadi tak ada yang tersisa untuk
+ * memberi tahu mana yang sedang terjadi.
+ *
+ * `ambilContoh` mengutamakan pengaduan yang sudah berbalasan, sebab panel yang
+ * kosong membuat `riwayat < 200` memerah tanpa ada yang salah.
+ */
+let contoh: Contoh = {};
+
+test.beforeAll(async () => {
+  contoh = await ambilContoh();
+});
+
+/** Melewati diri sendiri dengan sebab yang tersurat, bukan memerah palsu. */
+const tiket = (peran: 'opd' | 'responden') => {
+  const nomor = peran === 'opd' ? contoh.tiketOpd : contoh.tiketResponden;
+  test.skip(!nomor, `Tak ada pengaduan yang terlihat oleh peran ${peran} di basis data ini.`);
+  return nomor as string;
+};
 
 const LAYAR = [
   { nama: 'ponsel 320x720', width: 320, height: 720 },
@@ -112,7 +136,7 @@ const periksa = (nama: string, u: Ukuran, tinggiJendela: number): string[] => {
 };
 
 test('panel percakapan Admin OPD muat di layar sempit', async ({ page, bukaSebagai }) => {
-  await bukaSebagai('opd', `/admin-opd/complaints/${TIKET}`);
+  await bukaSebagai('opd', `/admin-opd/complaints/${tiket('opd')}`);
   await page.getByPlaceholder(/tulis jawaban solusi/i).waitFor({ timeout: 30_000 });
 
   // Pelanggarannya dikumpulkan lalu dibandingkan dengan larik kosong: saat
@@ -128,7 +152,7 @@ test('panel percakapan Admin OPD muat di layar sempit', async ({ page, bukaSebag
 });
 
 test('panel percakapan warga muat di layar sempit', async ({ page, bukaSebagai }) => {
-  await bukaSebagai('responden', `/complaints/${TIKET}`);
+  await bukaSebagai('responden', `/complaints/${tiket('responden')}`);
   await page.locator('textarea').first().waitFor({ timeout: 30_000 });
 
   const salah: string[] = [];
@@ -150,7 +174,7 @@ test('KONTROL: percakapannya memang ada isinya pada kedua halaman', async ({
   page,
   bukaSebagai,
 }) => {
-  await bukaSebagai('opd', `/admin-opd/complaints/${TIKET}`);
+  await bukaSebagai('opd', `/admin-opd/complaints/${tiket('opd')}`);
   await expect(page.getByPlaceholder(/tulis jawaban solusi/i)).toBeVisible();
   await expect(page.locator('p.leading-relaxed').first()).toBeVisible();
 });

@@ -89,33 +89,6 @@ export const aboutContent = {
   // AboutStatistics.jsx & AboutHeroShowcase.jsx kini mengambil GET /statistics.
   // Berkas ini SENGAJA hanya menyimpan naskah editorial (visi, misi, nilai, FAQ):
   // teks itu memang ditulis manusia, sedangkan ANGKA tak boleh lahir dari sini.
-  timeline: [
-    {
-      id: 1,
-      title: "Perencanaan Sistem",
-      description: "Tahap awal analisis kebutuhan dan perancangan arsitektur platform."
-    },
-    {
-      id: 2,
-      title: "Pengembangan Platform",
-      description: "Proses pengkodean dan pembuatan fitur utama."
-    },
-    {
-      id: 3,
-      title: "Implementasi OPD",
-      description: "Sosialisasi dan pelatihan penggunaan sistem bagi admin instansi."
-    },
-    {
-      id: 4,
-      title: "Digunakan Masyarakat",
-      description: "Peluncuran resmi platform untuk diakses secara publik."
-    },
-    {
-      id: 5,
-      title: "Evaluasi Berkelanjutan",
-      description: "Pengembangan fitur lanjutan berdasarkan masukan dari pengguna."
-    }
-  ],
   features: [
     {
       id: 1,
@@ -185,9 +158,5 @@ export const aboutContent = {
       question: "Apakah survei wajib diisi?",
       answer: "Survei sangat direkomendasikan untuk diisi setelah pengaduan Anda diselesaikan, atau setelah Anda menerima layanan di instansi, untuk membantu kami mengevaluasi kinerja layanan."
     }
-  ],
-  cta: {
-    title: "Suara Anda Membantu Kami Memberikan Pelayanan yang Lebih Baik",
-    description: "Mari berpartisipasi aktif dalam membangun platform yang lebih baik."
-  }
+  ]
 };

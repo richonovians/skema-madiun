@@ -62,6 +62,32 @@ describe('IkmExportService', () => {
       });
       expect(buffer.toString('utf-8')).toContain('"Survei, dengan koma"');
     });
+
+    /**
+     * Injeksi rumus (BUG-049, 28 Oktober 2026). Judul survei diketik Admin
+     * OPD dan sampai mentah ke CSV; Excel menghitung `Survei,=1+1` sebagai
+     * rumus bernilai 2 begitu berkasnya dipecah per koma (terukur lewat Excel
+     * di mesin pengembang). XLSX tidak terkena: exceljs menyimpan string
+     * sebagai teks, juga terukur.
+     */
+    it.each(['=1+1', '+2+3', '-2+3', '@SUM(1+1)', '\t=1+1'])(
+      'judul %j dinetralkan dengan awalan petik tunggal',
+      (judul) => {
+        const csv = service
+          .toCsv({ surveyJudul: judul, opdNama: 'Dinas X', result: result() as never })
+          .toString('utf-8');
+        expect(csv).toContain(`Survei,'${judul}`);
+      },
+    );
+
+    it('angka dan teks berangka dibiarkan', () => {
+      const csv = service
+        .toCsv({ surveyJudul: '-', opdNama: '-5', result: result() as never })
+        .toString('utf-8');
+      expect(csv).toContain('Survei,-\r\n');
+      expect(csv).toContain('OPD,-5\r\n');
+      expect(csv).toContain('Nilai IKM,100');
+    });
   });
 
   describe('toExcel', () => {

@@ -1,6 +1,18 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import GantiJenisModal from '../GantiJenisModal';
+import { METODE_NILAI, TUJUAN_SURVEI } from '@/features/surveys/constants/nilaiSurvei';
+
+/**
+ * "Tujuan survei" dan "Metode nilai" memakai `Dropdown` sejak 26 Oktober 2026,
+ * bukan `<select>` bawaan: memilih berarti membuka panel lalu mengklik
+ * pilihannya menurut LABEL, dan yang tampak di tombolnya label, bukan enum.
+ */
+const labelNilai = (nilai) => [...TUJUAN_SURVEI, ...METODE_NILAI].find((p) => p.nilai === nilai).label;
+const pilihNilai = (kontrol, nilai) => {
+  fireEvent.click(kontrol);
+  fireEvent.click(screen.getByRole('button', { name: labelNilai(nilai) }));
+};
 
 /**
  * MODAL GANTI JENIS SKM -> CUSTOM (8 Oktober 2026). Penggantian menghapus
@@ -28,8 +40,7 @@ const setup = (props = {}) => {
   return { onConfirm, onCancel };
 };
 
-const isi = (label, nilai) =>
-  fireEvent.change(screen.getByLabelText(label), { target: { value: nilai } });
+const isi = (label, nilai) => pilihNilai(screen.getByLabelText(label), nilai);
 const tombol = () => screen.getByRole('button', { name: /ganti ke custom/i });
 
 describe('GantiJenisModal', () => {
@@ -64,6 +75,22 @@ describe('GantiJenisModal', () => {
     expect(screen.getByText('U1')).toBeInTheDocument();
     expect(screen.getByText('Seberapa mudah persyaratan layanan kami?')).toBeInTheDocument();
     expect(screen.getByText('U2')).toBeInTheDocument();
+  });
+
+  /**
+   * TUJUAN & METODE DI ATAS DAFTAR UNSUR (27 Oktober 2026, permintaan pengguna:
+   * dropdown-nya terbuka ke bawah tanpa menabrak tombol). Dulu keduanya di
+   * bawah daftar, tepat di atas footer: tak ada ruang di bawahnya, jadi panel
+   * dibalik ke atas menutupi daftar unsur. Kini panelnya terbuka ke bawah,
+   * menutupi daftar unsur alih-alih tombol. jsdom tak menghitung tata letak,
+   * jadi yang dijaga di sini urutannya; arah bukanya dibuktikan di Chrome.
+   */
+  it('isian tujuan dan metode berada SEBELUM daftar unsur yang akan dihapus', () => {
+    setup();
+
+    const tujuan = screen.getByLabelText(/tujuan survei/i);
+    const daftar = screen.getByRole('list', { name: /unsur yang akan dihapus/i });
+    expect(tujuan.compareDocumentPosition(daftar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('tombol konfirmasi nonaktif sampai tujuan DAN metode dipilih', () => {
@@ -127,7 +154,7 @@ describe('GantiJenisModal', () => {
       <GantiJenisModal isOpen unsur={UNSUR} onConfirm={jest.fn()} onCancel={jest.fn()} />,
     );
 
-    expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('');
-    expect(screen.getByLabelText(/metode nilai/i)).toHaveValue('');
+    expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent('Pilih tujuan');
+    expect(screen.getByLabelText(/metode nilai/i)).toHaveTextContent('Pilih metode');
   });
 });

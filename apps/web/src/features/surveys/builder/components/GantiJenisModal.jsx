@@ -94,6 +94,20 @@ function IsiModal({ unsur, isSubmitting, error, onConfirm, onCancel }) {
             menjadi Custom tanpa Nilai IKM; pertanyaan tambahan Anda tetap dipertahankan.
           </p>
 
+          {/* Tujuan & metode DI ATAS daftar unsur (27 Oktober 2026, permintaan
+              pengguna). Di bawah daftar, tepat di atas footer, tak ada ruang
+              untuk panel dropdown-nya, sehingga ia dibalik ke atas menutupi
+              daftar. Di sini panelnya terbuka ke bawah dan yang tertutup adalah
+              daftar unsur, bukan tombol. */}
+          <PengaturanNilaiSurvei
+            tujuan={tujuan}
+            metode={metodeNilai}
+            onTujuan={setTujuan}
+            onMetode={setMetodeNilai}
+            disabled={isSubmitting}
+            ringkas
+          />
+
           {unsur.length > 0 && (
             <ul
               aria-label="Unsur yang akan dihapus"
@@ -107,15 +121,6 @@ function IsiModal({ unsur, isSubmitting, error, onConfirm, onCancel }) {
               ))}
             </ul>
           )}
-
-          <PengaturanNilaiSurvei
-            tujuan={tujuan}
-            metode={metodeNilai}
-            onTujuan={setTujuan}
-            onMetode={setMetodeNilai}
-            disabled={isSubmitting}
-            ringkas
-          />
 
           {error && (
             <div

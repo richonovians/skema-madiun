@@ -11,6 +11,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
 import { downloadTablePdf } from '@/utils/pdf';
+import { unduhCsv } from '@/utils/unduh';
 import { KOLOM_DAFTAR_PENGADUAN } from '@/utils/pdfKolom';
 
 const ITEMS_PER_PAGE = 5;
@@ -20,18 +21,6 @@ const ITEMS_PER_PAGE = 5;
 // aman untuk skala data OPD saat ini -- kalau volume tumbuh jauh lebih besar,
 // ini kandidat kuat utk endpoint search sungguhan di backend.
 const FETCH_LIMIT = 100;
-
-function downloadBlob(content, mimeType, filename) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
 
 export default function AdminOPDComplaintsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,13 +86,14 @@ export default function AdminOPDComplaintsPage() {
     setCurrentPage(1);
   };
 
+  // Lewat `unduhCsv`, bukan susunan sendiri: penetralan sel berawalan rumus
+  // (BUG-049) hanya ada di sana, dan judul serta nama pelapor diketik warga.
   const handleExportExcel = () => {
-    const header = 'ID Pengaduan,Judul,Pelapor,Status,Tanggal';
-    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = filteredComplaints.map((c) =>
-      [c.id, c.title, c.reporter.name, c.status, c.dateStr].map(escape).join(','),
-    );
-    downloadBlob([header, ...rows].join('\n'), 'text/csv;charset=utf-8;', 'Data_Pengaduan.csv');
+    unduhCsv({
+      namaBerkas: 'Data_Pengaduan.csv',
+      headers: ['ID Pengaduan', 'Judul', 'Pelapor', 'Status', 'Tanggal'],
+      rows: filteredComplaints.map((c) => [c.id, c.title, c.reporter.name, c.status, c.dateStr]),
+    });
   };
 
   /**
@@ -149,7 +139,7 @@ export default function AdminOPDComplaintsPage() {
 
   return (
     <div className="w-full space-y-6">
-      <ComplaintListHeader totalComplaints={totalItems} />
+      <ComplaintListHeader totalComplaints={totalItems} statusFilter={statusFilter} />
 
       {exportError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium">

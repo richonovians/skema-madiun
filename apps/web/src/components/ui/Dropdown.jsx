@@ -56,6 +56,16 @@ export default function Dropdown({
   // aksi di bawahnya supaya daftar tak menimpa tombol itu (lihat
   // SurveyFormModal.jsx). Default sama seperti sebelumnya.
   menuMaxHeight = 'max-h-60',
+  /**
+   * Teks saat `value` tak cocok dengan pilihan mana pun (26 Oktober 2026).
+   * Tanpanya tombol jatuh ke `options[0]` seperti dulu -- dan pemakai yang
+   * menaruh "Pilih ..." sebagai pilihan pertama bergantung pada itu. Dengan
+   * placeholder, teks awal TIDAK menjadi pilihan di panel, sehingga tak dapat
+   * dipilih ulang dan tak pernah mengirim nilai kosong.
+   */
+  placeholder,
+  /** Nonaktif: tombol `disabled` dan panelnya tak dapat dibuka. */
+  disabled = false,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -117,7 +127,8 @@ export default function Dropdown({
   // Label pemicu dibaca dari `options` yang UTUH, bukan dari daftar tersaring:
   // pilihan yang sedang aktif harus tetap terbaca di pemicu walau kata
   // pencarian kebetulan tak mencocokinya.
-  const selectedOption = options.find(opt => opt.value === value) || options[0];
+  const cocok = options.find((opt) => opt.value === value);
+  const selectedOption = cocok ?? (placeholder === undefined ? options[0] : null);
 
   const kataBersih = kataCari.trim().toLowerCase();
   const opsiTampil =
@@ -174,6 +185,7 @@ export default function Dropdown({
         // memilih opsi dropdown sebagai tombol.
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        disabled={disabled}
         onClick={() => (isOpen ? tutupPanel() : setIsOpen(true))}
         className={`w-full flex items-center justify-between transition-all focus:outline-none focus:ring-2 ${error ? 'focus:ring-red-500' : 'focus:ring-primary'} shadow-sm ${styles.button} ${
           size === 'sm' 
@@ -182,7 +194,7 @@ export default function Dropdown({
         }`}
       >
         <span id={idNilai} className="truncate">
-          {selectedOption?.label || 'Pilih...'}
+          {selectedOption?.label || placeholder || 'Pilih...'}
         </span>
         <ChevronDown 
           size={20} 

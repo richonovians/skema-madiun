@@ -65,6 +65,16 @@ describe('putarBlob', () => {
     expect(dekripsi(hasil.blob, BARU, INFO_LAMPIRAN).equals(polos)).toBe(true);
   });
 
+  it('amplop berversi yang belum dikenal MELEMPAR, bukan dibungkus ulang sebagai polos', () => {
+    // 26 Oktober 2026. Sebelumnya `terenkripsi()` menjawab "bukan amplop" untuk
+    // versi selain 0x01, sehingga baris ini berstatus 'polos' dan blob yang
+    // SUDAH terenkripsi dilapis sekali lagi dengan kunci baru.
+    const blob = enkripsi(DATA, LAMA, INFO_LAMPIRAN);
+    blob[4] = 0x02;
+
+    expect(() => rotasi.putarBlob(blob, LAMA, BARU, INFO_LAMPIRAN)).toThrow(/versi 2/);
+  });
+
   it('blob yang bukan milik kunci mana pun MELEMPAR, bukan dilewati diam-diam', () => {
     const asing = enkripsi(DATA, randomBytes(32), INFO_LAMPIRAN);
 

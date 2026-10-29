@@ -1,9 +1,22 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok } from '@/mocks/handlers';
 import AuthCallbackLoader from '../AuthCallbackLoader';
+
+jest.mock('@/constants/roleHome', () => ({
+  ROLE_HOME: {
+    kabupaten: '#beranda-kabupaten',
+    opd: '#beranda-opd',
+    responden: '#beranda-responden',
+  },
+}));
+
+jest.mock('../../services/sso.api', () => ({
+  ...jest.requireActual('../../services/sso.api'),
+  getSsoLoginUrl: () => '#masuk-sso',
+}));
 
 /**
  * TC-FE-043 — Callback SSO Helpdesk.
@@ -45,6 +58,18 @@ import AuthCallbackLoader from '../AuthCallbackLoader';
  * Yang diperiksa karena itu adalah **keadaan yang ditulis SEBELUM navigasi** —
  * dan justru di situlah risikonya: cookie yang ditulis sesudah `assign()` takkan
  * ikut pada permintaan berikutnya.
+ *
+ * **Dikoreksi 26 Oktober 2026: tujuannya KINI diperiksa.** Ketiga penolakan di
+ * atas tetap benar, tetapi kesimpulannya tidak. jsdom MENJALANKAN navigasi yang
+ * hanya mengubah fragmen, jadi tujuan dibuat berupa fragmen:
+ *   - `ROLE_HOME` ditiru menjadi `#beranda-<peran>`, dan `getSsoLoginUrl`
+ *     menjadi `#masuk-sso`;
+ *   - tujuan `'/'` diperiksa dari arah sebaliknya. Uji ini berjalan di
+ *     `http://localhost/` dan `replaceState` ditiru, sehingga fragmen callback
+ *     (`#expires=` / `#error=`) tetap di alamat. `assign('/')` lalu hanya
+ *     MEMBUANG fragmen itu -- `location.hash` menjadi kosong -- sedangkan tujuan
+ *     lain mana pun adalah navigasi yang tak dijalankan jsdom dan meninggalkan
+ *     fragmennya utuh.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -187,5 +212,46 @@ describe('AuthCallbackLoader — peran tunggal vs peran banyak (TC-FE-043)', () 
     // Tanpa pasangan ini, uji di atas tetap hijau seandainya pemilih peran
     // muncul untuk semua orang.
     expect(screen.queryByText(/Masuk sebagai/)).not.toBeInTheDocument();
+  });
+});
+
+describe('AuthCallbackLoader — ke mana ia mengantar', () => {
+  it('akun berperan tunggal diantar ke beranda perannya', async () => {
+    denganFragment(`#expires=${detikDepan()}`);
+    perankan(['opd'], { opdId: 2 });
+
+    render(<AuthCallbackLoader />);
+
+    await waitFor(() => expect(window.location.hash).toBe('#beranda-opd'));
+  });
+
+  it('menutup pemilih peran membatalkan masuk: sesi dibuang dan pengguna diantar ke beranda publik', async () => {
+    denganFragment(`#expires=${detikDepan()}`);
+    perankan(['kabupaten', 'responden'], { nama: 'Rahmat Hidayat' });
+    localStorage.setItem('role', 'kabupaten');
+
+    render(<AuthCallbackLoader />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Batalkan login' }));
+
+    expect(window.location.hash).toBe('');
+    expect(localStorage.getItem('role')).toBeNull();
+  });
+
+  it('dari halaman galat, "Coba masuk lagi" kembali ke SSO Helpdesk', async () => {
+    denganFragment('#error=akses%20ditolak');
+
+    render(<AuthCallbackLoader />);
+    fireEvent.click(await screen.findByRole('button', { name: /coba masuk lagi/i }));
+
+    expect(window.location.hash).toBe('#masuk-sso');
+  });
+
+  it('dari halaman galat, "Kembali ke layanan" mengantar ke beranda publik', async () => {
+    denganFragment('#error=akses%20ditolak');
+
+    render(<AuthCallbackLoader />);
+    fireEvent.click(await screen.findByRole('button', { name: /kembali ke layanan/i }));
+
+    expect(window.location.hash).toBe('');
   });
 });

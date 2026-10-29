@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import Input from '@/components/ui/Input';
 import PenyaringPeriode from '@/features/surveys/components/PenyaringPeriode';
 import Dropdown from '@/components/ui/Dropdown';
@@ -31,6 +31,7 @@ export default function SurveyFilterBar({
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const idPanelFilter = useId();
   const exportRef = useRef(null);
 
   // Sama seperti ComplaintFilterBar: menu 192px bertambat ke tombolnya, bukan
@@ -96,6 +97,8 @@ export default function SurveyFilterBar({
             variant="secondary"
             className="md:hidden flex items-center gap-2 min-h-[44px]"
             onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+            aria-expanded={isMobileFilterOpen}
+            aria-controls={idPanelFilter}
           >
             <Filter size={18} />
             <span>Filter</span>
@@ -195,6 +198,7 @@ export default function SurveyFilterBar({
 
       {/* Baris filter lanjutan */}
       <div
+        id={idPanelFilter}
         className={`grid grid-cols-1 sm:grid-cols-3 gap-md ${isMobileFilterOpen ? 'block' : 'hidden md:grid'}`}
       >
         {/* Opsi pertama tiap dropdown ("Semua ...") sekaligus jadi label saat

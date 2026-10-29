@@ -2,12 +2,24 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import PengaturanNilaiSurvei from '../PengaturanNilaiSurvei';
 import { contohHasil } from '@/features/surveys/constants/nilaiSurvei';
+import { METODE_NILAI, TUJUAN_SURVEI } from '@/features/surveys/constants/nilaiSurvei';
+
+/**
+ * "Tujuan survei" dan "Metode nilai" memakai `Dropdown` sejak 26 Oktober 2026,
+ * bukan `<select>` bawaan: memilih berarti membuka panel lalu mengklik
+ * pilihannya menurut LABEL, dan yang tampak di tombolnya label, bukan enum.
+ */
+const labelNilai = (nilai) => [...TUJUAN_SURVEI, ...METODE_NILAI].find((p) => p.nilai === nilai).label;
+const pilihNilai = (kontrol, nilai) => {
+  fireEvent.click(kontrol);
+  fireEvent.click(screen.getByRole('button', { name: labelNilai(nilai) }));
+};
 
 /**
  * TUJUAN dan METODE NILAI survei custom (8 Oktober 2026). Dua isian wajib yang
  * muncul setelah jenis Custom dipilih. Mode penuh (builder) memakai radiogroup
  * berkartu; mode ringkas (modal Admin Kab, tinggi modal tetap) memakai dua
- * <select> berlabel.
+ * Dropdown berlabel (dulu `<select>`, diganti 26 Oktober 2026).
  */
 const setup = (props = {}) => {
   const onTujuan = jest.fn();
@@ -81,32 +93,48 @@ describe('PengaturanNilaiSurvei — mode penuh', () => {
 });
 
 describe('PengaturanNilaiSurvei — mode ringkas', () => {
-  it('memakai dua <select> berlabel dengan pilihan awal kosong', () => {
+  /**
+   * DROPDOWN, BUKAN `<select>` (26 Oktober 2026, permintaan pengguna: "ubah juga
+   * desain dropdown tujuan survei dan metode nilai seperti dropdown yang lain").
+   * Sampai hari itu uji ini menuntut `tagName === 'SELECT'`.
+   */
+  it('memakai dua Dropdown berlabel yang menampilkan placeholder selagi kosong', () => {
     setup({ ringkas: true });
 
     const tujuan = screen.getByLabelText(/tujuan survei/i);
     const metode = screen.getByLabelText(/metode nilai/i);
-    expect(tujuan.tagName).toBe('SELECT');
-    expect(metode.tagName).toBe('SELECT');
-    expect(tujuan).toHaveValue('');
-    expect(metode).toHaveValue('');
+    expect(tujuan.tagName).toBe('BUTTON');
+    expect(tujuan).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(metode).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(tujuan).toHaveTextContent('Pilih tujuan');
+    expect(metode).toHaveTextContent('Pilih metode');
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
-  // Temuan peninjauan: placeholder yang dapat dipilih ulang mengirim '' ke state,
-  // dan pembuatan survei custom lalu ditolak backend (400, bukan enum).
-  it('opsi placeholder tidak dapat dipilih: pilihan yang sudah terisi tak bisa dikosongkan', () => {
-    setup({ ringkas: true, tujuan: 'kepuasan', metode: 'rata_rata' });
+  // Temuan peninjauan lama: placeholder yang dapat dipilih ulang mengirim '' ke
+  // state, dan pembuatan survei custom lalu ditolak backend (400, bukan enum).
+  it('placeholder tidak menjadi pilihan: yang sudah terisi tak bisa dikosongkan', () => {
+    const { onTujuan } = setup({ ringkas: true, tujuan: 'kepuasan', metode: 'rata_rata' });
 
-    expect(screen.getByRole('option', { name: 'Pilih tujuan' })).toBeDisabled();
-    expect(screen.getByRole('option', { name: 'Pilih metode' })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/tujuan survei/i));
+
+    expect(screen.queryByRole('button', { name: 'Pilih tujuan' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Evaluasi' })).toBeInTheDocument();
+    expect(onTujuan).not.toHaveBeenCalled();
+  });
+
+  it('disabled mematikan kedua dropdown', () => {
+    setup({ ringkas: true, tujuan: 'kepuasan', metode: 'rata_rata', disabled: true });
+
+    expect(screen.getByLabelText(/tujuan survei/i)).toBeDisabled();
+    expect(screen.getByLabelText(/metode nilai/i)).toBeDisabled();
   });
 
   it('memilih meneruskan nilai enum backend', () => {
     const { onTujuan, onMetode } = setup({ ringkas: true });
 
-    fireEvent.change(screen.getByLabelText(/tujuan survei/i), { target: { value: 'penilaian' } });
-    fireEvent.change(screen.getByLabelText(/metode nilai/i), { target: { value: 'rata_rata' } });
+    pilihNilai(screen.getByLabelText(/tujuan survei/i), 'penilaian');
+    pilihNilai(screen.getByLabelText(/metode nilai/i), 'rata_rata');
 
     expect(onTujuan).toHaveBeenCalledWith('penilaian');
     expect(onMetode).toHaveBeenCalledWith('rata_rata');
@@ -115,8 +143,8 @@ describe('PengaturanNilaiSurvei — mode ringkas', () => {
   it('mencerminkan pilihan dan menampilkan satu baris contoh hasil', () => {
     setup({ ringkas: true, tujuan: 'kepuasan', metode: 'rata_rata' });
 
-    expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('kepuasan');
-    expect(screen.getByLabelText(/metode nilai/i)).toHaveValue('rata_rata');
+    expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent(labelNilai('kepuasan'));
+    expect(screen.getByLabelText(/metode nilai/i)).toHaveTextContent(labelNilai('rata_rata'));
     expect(screen.getByText(/contoh hasil/i)).toHaveTextContent('Nilai Survei 3,40 / 4');
   });
 });

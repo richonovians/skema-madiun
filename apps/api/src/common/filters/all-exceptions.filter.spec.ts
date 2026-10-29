@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
+import { MulterError } from 'multer';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
 /**
@@ -83,6 +84,26 @@ describe('AllExceptionsFilter', () => {
     expect(hasil.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(hasil.body.error.code).toBe('INTERNAL_SERVER_ERROR');
     expect(hasil.body.message).toBe('sesuatu pecah');
+  });
+
+  /**
+   * Penolakan multer MENTAH -- yang lolos dari `transformException` milik
+   * @nestjs/platform-express karena kalimatnya tak ada di tabel Nest -- sampai
+   * ke sini sebagai Error biasa dan karena itu dijawab 500. Itu galat KLIEN
+   * yang disajikan sebagai kerusakan server. Aturannya ada di
+   * multer-galat.util.ts; di sini yang diuji hanya penyambungannya.
+   */
+  it('penolakan multer mentah -> 400 berkode kode multer, bukan 500', () => {
+    const hasil = tangkap(
+      new MulterError(
+        'LIMIT_UNEXPECTED_FILE' as ConstructorParameters<typeof MulterError>[0],
+        'foto',
+      ),
+    );
+
+    expect(hasil.status).toBe(HttpStatus.BAD_REQUEST);
+    expect(hasil.body.error.code).toBe('LIMIT_UNEXPECTED_FILE');
+    expect(hasil.body.message).toContain('foto');
   });
 
   it('`code` bukan string diabaikan, bukan diteruskan mentah', () => {

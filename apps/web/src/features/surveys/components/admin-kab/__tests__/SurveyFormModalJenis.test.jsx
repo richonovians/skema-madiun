@@ -1,6 +1,18 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import SurveyFormModal from '../SurveyFormModal';
+import { METODE_NILAI, TUJUAN_SURVEI } from '@/features/surveys/constants/nilaiSurvei';
+
+/**
+ * "Tujuan survei" dan "Metode nilai" memakai `Dropdown` sejak 26 Oktober 2026,
+ * bukan `<select>` bawaan: memilih berarti membuka panel lalu mengklik
+ * pilihannya menurut LABEL, dan yang tampak di tombolnya label, bukan enum.
+ */
+const labelNilai = (nilai) => [...TUJUAN_SURVEI, ...METODE_NILAI].find((p) => p.nilai === nilai).label;
+const pilihNilai = (kontrol, nilai) => {
+  fireEvent.click(kontrol);
+  fireEvent.click(screen.getByRole('button', { name: labelNilai(nilai) }));
+};
 
 /**
  * JENIS SURVEI di modal Admin Kabupaten (8 Oktober 2026). Dipilih saat survei
@@ -115,14 +127,13 @@ describe('SurveyFormModal — jenis survei', () => {
 
 /**
  * TUJUAN dan METODE NILAI survei custom di modal (8 Oktober 2026). Dua isian
- * wajib yang muncul HANYA bila jenis Custom; bentuknya <select> ringkas karena
+ * wajib yang muncul HANYA bila jenis Custom; bentuknya dropdown ringkas karena
  * tinggi modal tetap. Mode ubah boleh menggantinya (hanya tampilan yang
  * berubah), SKM tidak pernah memakainya.
  */
 describe('SurveyFormModal — tujuan dan metode nilai', () => {
   const pilihJenis = (nama) => fireEvent.click(screen.getByRole('radio', { name: nama }));
-  const isi = (label, nilai) =>
-    fireEvent.change(screen.getByLabelText(label), { target: { value: nilai } });
+  const isi = (label, nilai) => pilihNilai(screen.getByLabelText(label), nilai);
 
   describe('mode buat', () => {
     it('Custom menampilkan dua isian kosong; SKM dan belum memilih tidak', () => {
@@ -133,8 +144,8 @@ describe('SurveyFormModal — tujuan dan metode nilai', () => {
       expect(screen.queryByLabelText(/tujuan survei/i)).not.toBeInTheDocument();
 
       pilihJenis(/survei custom/i);
-      expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('');
-      expect(screen.getByLabelText(/metode nilai/i)).toHaveValue('');
+      expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent('Pilih tujuan');
+      expect(screen.getByLabelText(/metode nilai/i)).toHaveTextContent('Pilih metode');
     });
 
     it('menolak Custom tanpa tujuan', () => {
@@ -217,8 +228,8 @@ describe('SurveyFormModal — tujuan dan metode nilai', () => {
       const onSubmit = jest.fn();
       renderUbah({ jenis: 'custom', tujuan: 'kepuasan', metodeNilai: 'rata_rata' }, { onSubmit });
 
-      expect(screen.getByLabelText(/tujuan survei/i)).toHaveValue('kepuasan');
-      expect(screen.getByLabelText(/metode nilai/i)).toHaveValue('rata_rata');
+      expect(screen.getByLabelText(/tujuan survei/i)).toHaveTextContent(labelNilai('kepuasan'));
+      expect(screen.getByLabelText(/metode nilai/i)).toHaveTextContent(labelNilai('rata_rata'));
 
       isi(/metode nilai/i, 'indeks_persen');
       fireEvent.click(screen.getByRole('button', { name: 'Simpan Perubahan' }));

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { aboutContent } from '../constants/aboutContent';
 
 export default function FAQSection() {
   const { faq } = aboutContent;
   const [openId, setOpenId] = useState(null);
+  const awalanId = useId();
 
   const toggleAccordion = (id) => {
     setOpenId(openId === id ? null : id);
@@ -25,25 +26,38 @@ export default function FAQSection() {
         <div className="space-y-4">
           {faq.map((item, index) => {
             const isOpen = openId === item.id;
+            const idJawaban = `${awalanId}-jawaban-${item.id}`;
             return (
               <div 
                 key={item.id} 
                 className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm animate-fade-in-up"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <button
-                  type="button"
-                  onClick={() => toggleAccordion(item.id)}
-                  className="w-full flex items-center justify-between p-4 sm:p-6 min-h-[64px] text-left hover:bg-surface-hover transition-colors"
-                >
-                  <h3 className="font-h4 text-h4 text-text-primary pr-8">
-                    {item.question}
-                  </h3>
-                  <div className={`flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-                    <ChevronDown className="w-6 h-6 text-text-secondary" />
-                  </div>
-                </button>
-                <div 
+                {/* Judul membungkus tombol (pola akordeon WAI-ARIA): `<h3>` di
+                    dalam `<button>` tidak sah, karena isi tombol hanya boleh
+                    phrasing content. */}
+                <h3>
+                  <button
+                    type="button"
+                    onClick={() => toggleAccordion(item.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={idJawaban}
+                    className="w-full flex items-center justify-between p-4 sm:p-6 min-h-[64px] text-left hover:bg-surface-hover transition-colors"
+                  >
+                    <span className="font-h4 text-h4 text-text-primary pr-8">
+                      {item.question}
+                    </span>
+                    <span className={`flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDown className="w-6 h-6 text-text-secondary" />
+                    </span>
+                  </button>
+                </h3>
+                {/* Panel tertutup hanya dikecilkan (teksnya tetap di DOM demi
+                    animasi), jadi disembunyikan dari pembaca layar selagi
+                    tertutup (27 Oktober 2026, BUG-044). */}
+                <div
+                  id={idJawaban}
+                  aria-hidden={!isOpen}
                   className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
                 >
                   <p className="p-6 pt-0 font-body text-body text-text-secondary">

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import Button from '@/components/ui/Button';
@@ -24,6 +24,7 @@ export default function ComplaintFilterBar({
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const idPanelFilter = useId();
   const exportRef = useRef(null);
 
   // Menu ekspor 192px bertambat `right-0` ke tombolnya, bukan ke tepi layar.
@@ -86,6 +87,8 @@ export default function ComplaintFilterBar({
             variant="secondary"
             className="md:hidden flex items-center gap-2 min-h-[44px]"
             onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+            aria-expanded={isMobileFilterOpen}
+            aria-controls={idPanelFilter}
           >
             <Filter size={18} />
             <span>Filter</span>
@@ -152,6 +155,7 @@ export default function ComplaintFilterBar({
 
       {/* Advanced Filters Row */}
       <div
+        id={idPanelFilter}
         className={`grid grid-cols-1 sm:grid-cols-3 gap-md ${isMobileFilterOpen ? 'block' : 'hidden md:grid'}`}
       >
         {/* Medan cari, 11 September 2026 -- kembar dengan SurveyFilterBar.jsx,

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListAuditLogQueryDto extends PaginationQueryDto {
@@ -26,13 +26,18 @@ export class ListAuditLogQueryDto extends PaginationQueryDto {
   @IsString()
   search?: string;
 
+  /**
+   * `@IsDateString()`, bukan `@IsString()` (BUG-050, 28 Oktober 2026): teks
+   * apa pun yang bukan tanggal sampai ke `new Date(...)` di service, menjadi
+   * `Invalid Date`, lalu ditolak Prisma sebagai 500. Kini 400.
+   */
   @ApiPropertyOptional({ description: 'Filter tanggal mulai (YYYY-MM-DD)' })
   @IsOptional()
-  @IsString()
+  @IsDateString()
   startDate?: string;
 
   @ApiPropertyOptional({ description: 'Filter tanggal selesai (YYYY-MM-DD)' })
   @IsOptional()
-  @IsString()
+  @IsDateString()
   endDate?: string;
 }

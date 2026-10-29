@@ -209,7 +209,7 @@ describe('NotificationsService', () => {
 
   describe('notifyComplaintForwarded', () => {
     it('memberi tahu PELAPOR bahwa pengaduannya diteruskan, dgn NAMA OPD & link responden', async () => {
-      await service.notifyComplaintForwarded(complaint(), 'Dinas Kesehatan');
+      await service.notifyComplaintForwarded(complaint(), 'Dinas Kesehatan', 99);
 
       expect(semuaNotifikasi()).toContainEqual({
         userId: 10,
@@ -222,18 +222,61 @@ describe('NotificationsService', () => {
       });
     });
 
-    it('TIDAK mengabari kabupaten: ia pelaku penerusannya, jadi sudah tahu', async () => {
-      // notifyKabupaten memakai prisma.user.findMany; jalur forwarded sengaja
-      // tak memanggilnya sama sekali.
-      await service.notifyComplaintForwarded(complaint(), 'Dinas X');
+    /**
+     * KONTRAK BERUBAH 23 Oktober 2026 (BUG-018), dan ia membatalkan keputusan
+     * sengaja dari 7 Oktober 2026 -- jadi alasan lamanya dicatat, bukan dihapus.
+     *
+     * Uji ini dahulu berjudul "TIDAK mengabari kabupaten: ia pelaku
+     * penerusannya, jadi sudah tahu", dan mengasersikan
+     * `prisma.user.findMany` tak pernah dipanggil.
+     *
+     * Alasan itu tidak salah, hanya TAK LENGKAP: ia benar bagi PELAKUNYA, dan
+     * admin kabupaten bisa lebih dari satu. Yang tahu hanya yang menekan
+     * tombolnya; sisanya kehilangan kabar bahwa tiket tanpa tujuan akhirnya
+     * mendarat di suatu OPD. Yang diasersikan uji lama pun MEKANISMEnya
+     * (`findMany` tak dipanggil), lebih ketat daripada keputusan yang hendak
+     * dijaganya.
+     *
+     * Aturan sekarang: dikabari, dengan pelakunya dikecualikan -- pola yang
+     * sama dengan `notifyComplaintStatusChanged`.
+     */
+    it('mengabari kabupaten LAIN sebagai pengawas, dengan pelakunya dikecualikan', async () => {
+      await service.notifyComplaintForwarded(complaint(), 'Dinas X', 99);
 
-      expect(prisma.user.findMany).not.toHaveBeenCalled();
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { not: 99 } }),
+        }),
+      );
+    });
+
+    /**
+     * Kalimatnya ikut diasersikan, bukan hanya penerimanya. "Pengaduan Baru
+     * Masuk" itulah separuh BUG-018: yang terjadi bukan tiket baru, dan
+     * Kabupaten sudah menerima kalimat itu saat pengaduannya lahir.
+     */
+    it('kabar pengawas menyebut PENERUSAN, dengan nama OPD dan link admin-kab', async () => {
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
+        return Promise.resolve([]);
+      });
+
+      await service.notifyComplaintForwarded(complaint(), 'Dinas X', 99);
+
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 300,
+        untukPeran: Role.kabupaten,
+        type: NotificationType.complaint_forwarded,
+        title: 'Pengaduan Diteruskan ke OPD',
+        message: 'Pengaduan PGD20260805ABCD diteruskan ke Dinas X',
+        link: '/admin-kab/complaints/PGD20260805ABCD',
+      });
     });
 
     it('gagal membuat notifikasi TIDAK melempar error (efek samping)', async () => {
       (prisma.notification.create as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
       await expect(
-        service.notifyComplaintForwarded(complaint(), 'Dinas X'),
+        service.notifyComplaintForwarded(complaint(), 'Dinas X', 99),
       ).resolves.toBeUndefined();
     });
   });

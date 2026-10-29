@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -18,6 +18,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const idLaci = useId();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -211,6 +212,8 @@ export default function Navbar() {
                 'text-slate-600 hover:text-primary hover:bg-primary/8 focus:outline-none focus:ring-2 focus:ring-primary/20',
               )}
               aria-label={isMobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls={idLaci}
             >
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -220,6 +223,7 @@ export default function Navbar() {
         {/* Mobile Navigation Drawer — muncul tepat di bawah pill navbar */}
         {isMobileMenuOpen && (
           <div
+            id={idLaci}
             ref={laciRef}
             className={clsx(
               'absolute top-[72px] left-4 right-4 lg:hidden',

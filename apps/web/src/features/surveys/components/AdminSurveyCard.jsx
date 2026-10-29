@@ -31,12 +31,12 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
 
       <div className="flex justify-between items-start mb-md">
         <div className="flex flex-wrap gap-sm">
-          <Badge variant={statusBadgeProps.variant} className="px-sm py-[2px] text-[10px] uppercase rounded">
+          <Badge variant={statusBadgeProps.variant} className="px-sm py-[2px] text-[10px] leading-(--text-xs--line-height) uppercase rounded">
             {statusBadgeProps.label}
           </Badge>
           <Badge
             variant="default"
-            className={`px-sm py-[2px] text-[10px] uppercase rounded ${isDraft ? 'bg-surface-container-low text-on-surface-variant/40 italic' : ''}`}
+            className={`px-sm py-[2px] text-[10px] leading-(--text-xs--line-height) uppercase rounded ${isDraft ? 'bg-surface-container-low text-on-surface-variant/40 italic' : ''}`}
           >
             PERIODE: {formatPeriodeLabel(period)}
           </Badge>
@@ -58,7 +58,7 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
           {isUtama && (
             <Badge
               variant="info"
-              className="px-sm py-[2px] text-[10px] uppercase rounded"
+              className="px-sm py-[2px] text-[10px] leading-(--text-xs--line-height) uppercase rounded whitespace-nowrap"
             >
               Survei Utama
             </Badge>

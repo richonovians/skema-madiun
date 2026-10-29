@@ -63,16 +63,40 @@ describe('SSO tanpa kredensial: gagal yang tetap terbaca manusia (e2e)', () => {
       expect(res.text).not.toContain('"success":false');
     });
 
-    it('alasannya ikut terbawa ke frontend, bukan hilang jadi "terjadi kesalahan"', async () => {
+    /**
+     * KONTRAK BERUBAH 22 Oktober 2026, dan ia MEMBATALKAN keputusan sengaja
+     * dari tanggal lain -- jadi alasan lamanya dicatat di sini, bukan dihapus.
+     *
+     * Uji ini dahulu menuntut `toMatch(/ssoClientId/)` dengan alasan yang sah:
+     * "pesannya harus benar-benar memberi tahu apa yang kurang -- bukan sekadar
+     * gagal", supaya pengembang yang melihat SSO mati tahu kunci mana yang
+     * kosong tanpa menebak.
+     *
+     * Yang menjatuhkannya: layar itu bukan layar pengembang. Ia layar masuk
+     * warga di domain pemerintah, dan `Kunci yang masih kosong:
+     * helpdesk.ssoClientId` membocorkan nama kunci konfigurasi kepada siapa pun
+     * yang membukanya. Status 503 berarti pihak kita yang bermasalah, dan
+     * penjelasannya milik log.
+     *
+     * Kebutuhan pengembang TIDAK dibuang, hanya dipindahkan: `auth.controller.ts`
+     * mencatat pesan aslinya utuh lewat `logger.error` sebelum mengalihkan, jadi
+     * kunci yang kosong tetap terbaca di log server.
+     *
+     * Alternatif yang DIPERTIMBANGKAN dan tidak diambil malam ini: memagari
+     * dengan `app.nodeEnv === 'production'` seperti `boleh-admin-opd.ts`,
+     * sehingga pesan 5xx tetap lewat di luar produksi. Itu menghormati kedua
+     * niat sekaligus dan masih terbuka untuk dikerjakan.
+     */
+    it('alasan teknisnya TIDAK ikut ke layar warga, cukup ke log', async () => {
       const res = await request(app.getHttpServer()).get('/api/v1/auth/sso/login');
       const pesan = decodeURIComponent(
         new URL(res.headers.location as string).hash.replace('#error=', ''),
       );
 
-      // Halaman /sso/callback menampilkan pesan ini apa adanya, jadi pesannya
-      // harus benar-benar memberi tahu apa yang kurang -- bukan sekadar gagal.
-      expect(pesan).toMatch(/belum dikonfigurasi/i);
-      expect(pesan).toMatch(/ssoClientId/);
+      expect(pesan).not.toMatch(/ssoClientId/);
+      expect(pesan).not.toMatch(/belum dikonfigurasi/i);
+      // Bukan sekadar "tak memuat": pesan kosong pun lulus asersi itu.
+      expect(pesan).toBe('Proses masuk gagal. Coba lagi.');
     });
 
     it('tak ada cookie state yang dipasang pada percobaan yang gagal', async () => {

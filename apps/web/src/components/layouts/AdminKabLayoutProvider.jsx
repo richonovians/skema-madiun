@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useId, useState } from 'react';
 
 const AdminKabLayoutContext = createContext({
   isMobileSidebarOpen: false,
@@ -47,6 +47,10 @@ export function AdminKabLayoutProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [periode, setPeriode] = useState(() => String(new Date().getFullYear()));
+  // `id` <aside> sidebar, dibagi lewat konteks supaya tombol ciut di sidebar
+  // dan tombol menu ponsel di navbar dapat menunjuknya lewat `aria-controls`
+  // (27 Oktober 2026, BUG-042).
+  const idSidebar = useId();
 
   return (
     <AdminKabLayoutContext.Provider
@@ -57,6 +61,7 @@ export function AdminKabLayoutProvider({ children }) {
         setIsDesktopSidebarCollapsed,
         periode,
         setPeriode,
+        idSidebar,
       }}
     >
       {children}

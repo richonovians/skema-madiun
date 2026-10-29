@@ -52,8 +52,8 @@ describe('SurveyMonitoringTable — Nilai Survei', () => {
       />,
     );
 
-    const sel = within(baris('Survei Custom')).getByText('85% · Sangat Baik');
-    expect(sel).toHaveAttribute('title', 'Indeks Penilaian');
+    const sel = within(baris('Survei Custom')).getByTitle('Indeks Penilaian');
+    expect(sel).toHaveTextContent('85% · Sangat Baik');
     // Bukan rata-rata polos "3.40" lagi.
     expect(within(baris('Survei Custom')).queryByText('3.40')).not.toBeInTheDocument();
   });

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/responsif';
+import { test, expect, ambilContoh, type Contoh } from './fixtures/responsif';
 
 /**
  * URUTAN KARTU PADA DETAIL PENGADUAN ADMIN KABUPATEN (22 September 2026,
@@ -21,7 +21,30 @@ import { test, expect } from './fixtures/responsif';
  */
 test.describe.configure({ timeout: 120_000 });
 
-const TIKET = 'PGD20260916CGAO';
+/**
+ * Nomor tiketnya DIAMBIL SAAT UJI BERJALAN (22 Oktober 2026).
+ *
+ * Sampai hari ini berkas ini memegang `const TIKET = 'PGD20260916CGAO'`, dan
+ * tiket itu tidak ada di basis data mana pun lagi. Akibatnya ketiga uji di
+ * bawah memerah dengan sebab yang sama sekali bukan urutan kartu -- halamannya
+ * tak pernah termuat, termasuk uji KONTROL yang justru dipasang untuk
+ * membedakan kedua hal itu. Peringatan tentang angka tetap sudah tertulis di
+ * `fixtures/responsif.ts` sejak lama; berkas ini saja yang belum mengikutinya.
+ */
+let contoh: Contoh = {};
+
+test.beforeAll(async () => {
+  contoh = await ambilContoh();
+});
+
+/** Melewati diri sendiri dengan sebab yang tersurat, bukan memerah palsu. */
+const tiketKab = () => {
+  test.skip(
+    !contoh.tiketKab,
+    'Tak ada satu pun pengaduan yang terlihat oleh peran kabupaten di basis data ini.',
+  );
+  return contoh.tiketKab as string;
+};
 
 /** Ordinat atas tiap kartu, dibaca dari tajuknya. */
 async function letak(page: import('@playwright/test').Page, nama: string) {
@@ -42,7 +65,7 @@ test('di layar sempit, tiga kartu kerja berada di atas ringkasan', async ({
   page,
   bukaSebagai,
 }) => {
-  await bukaSebagai('kabupaten', `/admin-kab/complaints/${TIKET}`);
+  await bukaSebagai('kabupaten', `/admin-kab/complaints/${tiketKab()}`);
   await page.getByRole('heading', { name: 'Ringkasan Pengaduan' }).waitFor({ timeout: 30_000 });
 
   // Pelanggarannya dikumpulkan lalu dibandingkan dengan larik kosong: saat
@@ -74,7 +97,7 @@ test('di layar sempit, tiga kartu kerja berada di atas ringkasan', async ({
  * sambil merusak tampilan yang selama ini sudah benar.
  */
 test('di layar lebar, susunan dua kolomnya tidak berubah', async ({ page, bukaSebagai }) => {
-  await bukaSebagai('kabupaten', `/admin-kab/complaints/${TIKET}`);
+  await bukaSebagai('kabupaten', `/admin-kab/complaints/${tiketKab()}`);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole('heading', { name: 'Ringkasan Pengaduan' }).waitFor({ timeout: 30_000 });
   await page.waitForTimeout(300);
@@ -95,8 +118,9 @@ test('di layar lebar, susunan dua kolomnya tidak berubah', async ({ page, bukaSe
  * bahwa halamannya memang berisi tiket yang dimaksud.
  */
 test('KONTROL: halaman detailnya memang termuat', async ({ page, bukaSebagai }) => {
-  await bukaSebagai('kabupaten', `/admin-kab/complaints/${TIKET}`);
+  const tiket = tiketKab();
+  await bukaSebagai('kabupaten', `/admin-kab/complaints/${tiket}`);
 
-  await expect(page.getByText(`#${TIKET}`)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(`#${tiket}`)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('heading', { name: 'Isi Pengaduan' })).toBeVisible();
 });

@@ -131,10 +131,10 @@ export default function IsiSurveiPage() {
   if (ditandaiPeramban || fillData?.sudahMengisi) {
     return (
       <main className={bgLatar}>
-        <div className="w-full max-w-[480px]">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100/90 text-center overflow-hidden">
+        <div className="w-full max-w-[440px] px-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100/90 overflow-hidden">
             {/* Header kartu: logo SKEMA Madiun */}
-            <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center justify-between">
+            <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center">
               <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
                 <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
                   <Image
@@ -152,25 +152,25 @@ export default function IsiSurveiPage() {
               </Link>
             </div>
 
-            <div className="p-6 sm:p-8 flex flex-col items-center">
+            <div className="p-6 sm:p-8 flex flex-col items-center gap-0">
               {/* Ikon Sukses dengan Animasi */}
-              <div className="relative mb-4 group inline-flex items-center justify-center">
-                <div className="absolute inset-0 bg-emerald-400/25 rounded-full animate-ping pointer-events-none duration-1000" />
-                <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border-2 border-emerald-100 shadow-xs ring-4 ring-emerald-50 transition-all duration-500 ease-out group-hover:scale-105 group-hover:rotate-6 animate-in zoom-in-50 duration-500">
-                  <CheckCircle2 size={36} strokeWidth={2.5} className="sm:w-10 sm:h-10 transition-transform duration-300 group-hover:scale-110" />
+              <div className="relative mb-5 group inline-flex items-center justify-center">
+                <div className="absolute inset-0 bg-emerald-400/25 rounded-full animate-ping pointer-events-none" />
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border-2 border-emerald-100 ring-4 ring-emerald-50 transition-all duration-500 ease-out group-hover:scale-105 animate-in zoom-in-50 duration-500">
+                  <CheckCircle2 size={36} strokeWidth={2.5} className="sm:w-10 sm:h-10" />
                 </div>
               </div>
 
-              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 text-center">
                 Anda Sudah Mengisi Survei Ini
               </h2>
-              <p className="text-xs sm:text-sm text-text-secondary leading-relaxed mb-6 max-w-[360px] mx-auto px-2">
+              <p className="text-sm text-text-secondary leading-relaxed mb-6 text-center px-2">
                 Terima kasih atas partisipasi Anda. Survei ini hanya menerima satu jawaban dari perangkat ini.
               </p>
 
               <Link
                 href="/"
-                className="w-full max-w-[260px] inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-xs sm:text-sm hover:bg-primary-hover shadow-xs hover:shadow-primary/20 transition-all active:scale-95"
+                className="w-full inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover shadow-sm transition-all active:scale-95"
               >
                 Kembali ke Layanan
               </Link>

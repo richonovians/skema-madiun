@@ -188,3 +188,63 @@ describe('ShareSurveyModal — unduhan poster QR', () => {
     await waitFor(() => expect(gambarPosterQr).toHaveBeenCalledTimes(2));
   });
 });
+
+/**
+ * MODAL BAGIKAN SEBAGAI DIALOG (26 Oktober 2026).
+ *
+ * Ditemukan sebagai pengamatan samping BUG-035: ketika uji E2E-nya dibetulkan,
+ * modal ini terpaksa dicari lewat teks judulnya, sebab ia tak punya
+ * `role="dialog"`. Bagi pembaca layar ia hanya sepasang <div> -- tanpa tanda
+ * bahwa halaman di belakangnya sedang tak dapat dipakai, dan tanpa nama.
+ * Tombol silangnya juga tak bernama (isinya hanya ikon), dan fokus tak pernah
+ * masuk ke dalam modal maupun dikurung di sana. Ketiganya sudah dibereskan di
+ * dialog lain lewat BUG-015; modal ini terlewat.
+ */
+describe('ShareSurveyModal sebagai dialog', () => {
+  const survei = { id: 42, title: 'SKM Loket', status: 'AKTIF' };
+  // QR dibuat asinkron; menunggunya mencegah pembaruan state sesudah uji usai.
+  const qrSelesai = () => screen.findByAltText(/QR code tautan pengisian survei/);
+
+  it('ber-role dialog modal, dinamai judul surveinya', async () => {
+    render(<ShareSurveyModal survey={survei} onClose={() => {}} />);
+
+    const dialog = screen.getByRole('dialog', { name: /bagikan survei.*skm loket/i });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await qrSelesai();
+  });
+
+  it('tombol silang bernama "Tutup" dan menutup modal', async () => {
+    const onClose = jest.fn();
+    render(<ShareSurveyModal survey={survei} onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tutup' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await qrSelesai();
+  });
+
+  it('fokus berpindah ke dalam dialog begitu ia terbuka', async () => {
+    render(<ShareSurveyModal survey={survei} onClose={() => {}} />);
+
+    expect(screen.getByRole('dialog')).toHaveFocus();
+    await qrSelesai();
+  });
+
+  it('Tab dari elemen terfokus terakhir melingkar kembali ke yang pertama', async () => {
+    render(<ShareSurveyModal survey={survei} onClose={() => {}} />);
+    // Ditunggu LEBIH DULU: tombol unduh baru aktif sesudah QR jadi, dan ia
+    // anggota terakhir lingkaran fokus.
+    await qrSelesai();
+
+    const dialog = screen.getByRole('dialog');
+    const terfokus = Array.from(
+      dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled])'),
+    );
+    const pertama = terfokus[0];
+    const terakhir = terfokus[terfokus.length - 1];
+
+    terakhir.focus();
+    fireEvent.keyDown(terakhir, { key: 'Tab' });
+
+    expect(pertama).toHaveFocus();
+  });
+});

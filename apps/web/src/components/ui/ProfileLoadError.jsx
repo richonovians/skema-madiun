@@ -1,7 +1,6 @@
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '@/utils/cn';
 import Link from 'next/link';
-import { twMerge } from 'tailwind-merge';
 import ProfileErrorAvatar from './ProfileErrorAvatar';
 
 /**
@@ -36,7 +35,7 @@ export default function ProfileLoadError({ reason = 'offline', onRetry, textClas
 
   return (
     <>
-      <div className={twMerge(clsx('text-right', textClassName))}>
+      <div className={cn('text-right', textClassName)}>
         <p className="text-label-md font-bold text-error truncate max-w-[180px]">
           {isExpired ? 'Sesi berakhir' : 'Profil gagal dimuat'}
         </p>

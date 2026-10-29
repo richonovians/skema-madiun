@@ -10,6 +10,7 @@ import CatatanPemotongan from '@/components/ui/CatatanPemotongan';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import { downloadTablePdf } from '@/utils/pdf';
+import { unduhCsv } from '@/utils/unduh';
 import { KOLOM_MONITORING_PENGADUAN } from '@/utils/pdfKolom';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
@@ -28,18 +29,6 @@ const FETCH_LIMIT = 100;
  * terpisah untuk satu pertanyaan hanya membuat keduanya bisa saling bertentangan.
  */
 const TANPA_TUJUAN = 'tanpa-tujuan';
-
-function downloadBlob(content, mimeType, filename) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
 
 export default function AdminKabComplaintsPage() {
   const [filters, setFilters] = useState({ search: '', opd: '', status: '', kategori: '' });
@@ -131,11 +120,13 @@ export default function AdminKabComplaintsPage() {
     return filteredComplaints.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredComplaints, currentPage]);
 
+  // Lewat `unduhCsv`, bukan susunan sendiri: penetralan sel berawalan rumus
+  // (BUG-049) hanya ada di sana, dan judul serta nama pelapor diketik warga.
   const handleExportExcel = () => {
-    const headers = ['NO TIKET', 'OPD', 'KATEGORI', 'JUDUL', 'PELAPOR', 'STATUS', 'TANGGAL'];
-    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = filteredComplaints.map((c) =>
-      [
+    unduhCsv({
+      namaBerkas: 'data_pengaduan.csv',
+      headers: ['NO TIKET', 'OPD', 'KATEGORI', 'JUDUL', 'PELAPOR', 'STATUS', 'TANGGAL'],
+      rows: filteredComplaints.map((c) => [
         `#${c.id}`,
         c.target ?? '',
         categoryMap[c.kategori] ?? c.kategori ?? '',
@@ -143,11 +134,8 @@ export default function AdminKabComplaintsPage() {
         c.reporter?.name ?? '',
         c.status,
         c.dateStr,
-      ]
-        .map(escape)
-        .join(','),
-    );
-    downloadBlob([headers.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8;', 'data_pengaduan.csv');
+      ]),
+    });
   };
 
   /**

@@ -245,3 +245,92 @@ describe('AdminResolutionWorkspace — template pesan', () => {
     expect(screen.getByText("balasan hari ini")).toBeInTheDocument();
   });
 });
+
+/**
+ * BUG-007 separuh yang tersisa, dikerjakan 23 Oktober 2026.
+ *
+ * Jalur warga (`FileDropzone`) sudah memeriksa lampiran sejak pagi hari itu,
+ * sementara kedua panel percakapan masih `setFile(e.target.files[0])` tanpa
+ * satu pun pemeriksaan DAN tanpa `accept` sama sekali -- yaitu menawarkan
+ * segala jenis berkas. Kolom Peran pada laporan BUG-007 menyebut tiga peran,
+ * dan dua di antaranya inilah.
+ *
+ * Aturannya satu, di `@/utils/lampiran`, bukan disalin ke sini: tiga salinan
+ * batas backend yang tak ada penyinkronnya adalah cacat berikutnya yang
+ * menunggu.
+ *
+ * Perlu diingat saat membaca uji ini: pemeriksaan di klien BUKAN lapisan
+ * keamanan. Backend memeriksa angka ajaib isi berkas, jadi yang dihemat di
+ * sini waktu dan kuota pengguna.
+ */
+describe('AdminResolutionWorkspace — validasi lampiran (BUG-007)', () => {
+  const berkas = (nama, tipe, bytes = 3) =>
+    new File([new ArrayBuffer(bytes)], nama, { type: tipe });
+
+  const inputBerkas = (container) => container.querySelector('input[type="file"]');
+
+  it('input lampiran membawa accept yang sama dengan daftar izin backend', () => {
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    expect(inputBerkas(container)).toHaveAttribute(
+      'accept',
+      'image/jpeg,image/png,image/webp,application/pdf',
+    );
+  });
+
+  it('menolak jenis yang tak diterima backend, dan menyebut alasannya', async () => {
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    fireEvent.change(inputBerkas(container), {
+      target: { files: [berkas('animasi.gif', 'image/gif')] },
+    });
+
+    // `role="status"` supaya penolakannya TERDENGAR. Tanpa itu pengguna
+    // pembaca layar hanya mengalami berkasnya tak muncul, tanpa sebab apa pun.
+    const kabar = await screen.findByRole('status');
+    expect(kabar).toHaveTextContent('animasi.gif');
+    expect(kabar).toHaveTextContent(/GIF/);
+  });
+
+  it('menolak berkas yang melebihi batas ukuran', async () => {
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    fireEvent.change(inputBerkas(container), {
+      target: { files: [berkas('foto.jpg', 'image/jpeg', 5 * 1024 * 1024 + 5000)] },
+    });
+
+    const kabar = await screen.findByRole('status');
+    expect(kabar).toHaveTextContent('ukurannya 5,01 MB, melebihi batas 5,00 MB');
+    // Dan berkasnya TIDAK terpasang. Penandanya tombol HAPUS, bukan nama
+    // berkasnya: kabar penolakan di atas memang menyebut namanya juga, jadi
+    // `queryByText('foto.jpg')` akan menemukannya di sana dan asersinya hampa.
+    expect(screen.queryByRole('button', { name: 'Hapus foto.jpg' })).not.toBeInTheDocument();
+  });
+
+  it('menerima WEBP dan menulis ukurannya dengan koma', () => {
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    fireEvent.change(inputBerkas(container), {
+      target: {
+        files: [berkas('bukti.webp', 'image/webp', 1024 * 1024 + 512 * 1024)],
+      },
+    });
+
+    // Kendali: backend menerima WEBP, jadi menolaknya di sini akan menjadi
+    // cacat yang berlawanan arah.
+    expect(screen.getByText('bukti.webp')).toBeInTheDocument();
+    expect(screen.getByText('1,50 MB')).toBeInTheDocument();
+  });
+
+  it('tombol hapus menyebut berkas mana yang dibuangnya', () => {
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+
+    fireEvent.change(inputBerkas(container), {
+      target: { files: [berkas('bukti.png', 'image/png')] },
+    });
+
+    // Kelas BUG-010: isinya hanya ikon silang, jadi tanpa nama ia tak
+    // terbedakan dari tombol lain di baris yang sama.
+    expect(screen.getByRole('button', { name: 'Hapus bukti.png' })).toBeInTheDocument();
+  });
+});

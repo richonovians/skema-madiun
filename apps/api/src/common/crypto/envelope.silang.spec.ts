@@ -5,6 +5,7 @@ import {
   INFO_CADANGAN,
   INFO_LAMPIRAN,
   PANJANG_HEADER as HEADER_TS,
+  versiAmplop as versiAmplopTs,
 } from './envelope';
 
 /**
@@ -25,6 +26,7 @@ interface AmplopSkrip {
   enkripsi: (data: Buffer, kunci: Buffer, info: string) => Buffer;
   dekripsi: (blob: Buffer, kunci: Buffer, info: string) => Buffer;
   terenkripsi: (data: Buffer) => boolean;
+  versiAmplop: (data: Buffer) => number | null;
   PANJANG_HEADER: number;
 }
 
@@ -61,5 +63,18 @@ describe('amplop TypeScript dan amplop skrip sepakat', () => {
   it('pengenalan blob terenkripsi sepakat di kedua arah', () => {
     expect(skrip.terenkripsi(enkripsiTs(DATA, KUNCI, INFO_LAMPIRAN))).toBe(true);
     expect(skrip.terenkripsi(Buffer.from('\x89PNG\r\n\x1a\n'))).toBe(false);
+  });
+
+  // 26 Oktober 2026: deteksi amplop dipisah dari versinya. Skrip migrasi dan
+  // rotasi memakai salinan CJS, jadi dialah yang akan melapis blob berversi
+  // lain bila hanya TS yang dibetulkan.
+  it('amplop berversi lain dikenali sama oleh kedua implementasi', () => {
+    const blob = enkripsiTs(DATA, KUNCI, INFO_LAMPIRAN);
+    blob[4] = 0x02;
+
+    expect(skrip.terenkripsi(blob)).toBe(true);
+    expect(skrip.versiAmplop(blob)).toBe(versiAmplopTs(blob));
+    expect(skrip.versiAmplop(blob)).toBe(2);
+    expect(() => skrip.dekripsi(blob, KUNCI, INFO_LAMPIRAN)).toThrow(/versi 2/);
   });
 });

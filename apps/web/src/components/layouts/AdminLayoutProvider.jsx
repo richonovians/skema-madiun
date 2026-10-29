@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useId, useState } from 'react';
 import { periodeFromDate } from '@/features/surveys/adapters/survey.adapter';
 
 const AdminLayoutContext = createContext();
@@ -21,13 +21,18 @@ export function AdminLayoutProvider({ children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [periode, setPeriode] = useState(() => periodeFromDate(new Date()));
+  // `id` <aside> sidebar, dibagi lewat konteks supaya tombol ciut di sidebar
+  // dan tombol menu ponsel di navbar dapat menunjuknya lewat `aria-controls`
+  // (27 Oktober 2026, BUG-042).
+  const idSidebar = useId();
 
   return (
     <AdminLayoutContext.Provider
       value={{ 
         isMobileSidebarOpen, setIsMobileSidebarOpen, 
         isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed,
-        periode, setPeriode 
+        periode, setPeriode,
+        idSidebar,
       }}
     >
       {children}

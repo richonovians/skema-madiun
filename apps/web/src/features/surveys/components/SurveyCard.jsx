@@ -10,7 +10,7 @@ export default function SurveyCard({ id, title, opd, deadline, questionsCount, s
   return (
     <Card className="p-6 flex flex-col h-full hover:shadow-md transition-shadow border-slate-200">
       <div className="flex justify-between items-start mb-4 gap-2">
-        <Badge variant="secondary" className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-secondary-container text-on-secondary-container border-none shadow-none">
+        <Badge variant="secondary" className="px-3 py-1 rounded-full text-[10px] leading-(--text-xs--line-height) font-bold uppercase tracking-wider bg-secondary-container text-on-secondary-container border-none shadow-none">
           {opd}
         </Badge>
         <div className="flex items-center text-error text-[12px] font-medium shrink-0">

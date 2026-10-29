@@ -58,21 +58,39 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Pengaduan baru masuk -> beri tahu Admin OPD tujuan + kabupaten (oversight). Pelapor TIDAK diberi tahu (dia sendiri pelakunya). */
-  async notifyComplaintCreated(complaint: Complaint): Promise<void> {
-    // Pengaduan "belum bertujuan" (6 September 2026) tak punya OPD untuk
-    // diberi tahu. Meneruskan `null` ke notifyRole bukan sekadar sia-sia: ia
-    // akan mencari akun ber-`opdId: null` -- yaitu Admin Kabupaten & warga --
-    // dan mengabari mereka bahwa ada tiket "masuk ke OPD Anda".
-    if (complaint.opdId != null) {
-      await this.notifyRole(
-        Role.opd,
-        complaint.opdId,
-        NotificationType.complaint_created,
-        'Pengaduan Baru Masuk',
-        `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
-        `/admin-opd/complaints/${complaint.ticketNo}`,
-      );
+  /**
+   * HANYA Admin OPD tujuan, dipisahkan 23 Oktober 2026 bersama BUG-018.
+   *
+   * Dipakai dua pemanggil dengan alasan berbeda: saat pengaduan LAHIR, dan saat
+   * pengaduan tanpa tujuan DITERUSKAN. Bagi OPD tujuan keduanya peristiwa yang
+   * sama -- tiketnya baru saja menjadi tanggung jawabnya -- jadi kalimatnya
+   * tetap satu dan tinggal di satu tempat.
+   *
+   * `forward()` dahulu memanggil `notifyComplaintCreated` apa adanya untuk
+   * memperoleh bagian ini, dan ikut terbawa bagian Kabupaten di bawahnya: itulah
+   * BUG-018. Yang dibutuhkannya memang hanya bagian ini.
+   *
+   * Pengaduan "belum bertujuan" (6 September 2026) tak punya OPD untuk diberi
+   * tahu. Meneruskan `null` ke notifyRole bukan sekadar sia-sia: ia akan mencari
+   * akun ber-`opdId: null` -- yaitu Admin Kabupaten & warga -- dan mengabari
+   * mereka bahwa ada tiket "masuk ke OPD Anda".
+   */
+  async notifyOpdTujuan(complaint: Complaint): Promise<void> {
+    if (complaint.opdId == null) {
+      return;
     }
+    await this.notifyRole(
+      Role.opd,
+      complaint.opdId,
+      NotificationType.complaint_created,
+      'Pengaduan Baru Masuk',
+      `Pengaduan baru ${complaint.ticketNo} masuk ke OPD Anda`,
+      `/admin-opd/complaints/${complaint.ticketNo}`,
+    );
+  }
+
+  async notifyComplaintCreated(complaint: Complaint): Promise<void> {
+    await this.notifyOpdTujuan(complaint);
     await this.notifyKabupaten(
       complaint.userId,
       NotificationType.complaint_created,
@@ -91,14 +109,22 @@ export class NotificationsService {
    * KEDUANYA -- instansi penerima perlu tahu ada tiket, dan warga yang memilih
    * "Lainnya" perlu tahu pengaduannya sudah mendarat di instansi yang benar.
    *
-   * Kabupaten TIDAK dikabari lagi di sini: ia pelaku penerusannya (satu-satunya
-   * peran yang boleh, `@Roles(kabupaten)` di controller), jadi sudah tahu.
+   * BERUBAH 23 Oktober 2026 (BUG-018). Docblock ini dahulu berbunyi "Kabupaten
+   * TIDAK dikabari lagi di sini: ia pelaku penerusannya, jadi sudah tahu".
+   * Alasan itu tidak salah, hanya tak lengkap -- ia benar bagi PELAKUNYA, dan
+   * admin kabupaten bisa lebih dari satu. Yang tahu hanya yang menekan
+   * tombolnya. Karena itu Kabupaten kini dikabari dengan `actorUserId`
+   * dikecualikan, pola yang sama dengan `notifyComplaintStatusChanged`.
    *
    * `namaOpd` disalurkan dari pemanggil, bukan dibaca ulang: `forward()` sudah
    * memuat OPD-nya untuk memvalidasi keberadaannya, jadi query kedua di sini
    * hanya mengulang kerja yang baru saja dilakukan.
    */
-  async notifyComplaintForwarded(complaint: Complaint, namaOpd: string): Promise<void> {
+  async notifyComplaintForwarded(
+    complaint: Complaint,
+    namaOpd: string,
+    actorUserId: number,
+  ): Promise<void> {
     await this.safeCreate({
       userId: complaint.userId,
       untukPeran: Role.responden,
@@ -107,6 +133,17 @@ export class NotificationsService {
       message: `Pengaduan ${complaint.ticketNo} Anda telah diteruskan ke ${namaOpd} yang berwenang menanganinya`,
       link: `/complaints/${complaint.ticketNo}`,
     });
+    // Pengawasan, dengan pelakunya dikecualikan. Kalimatnya menyebut yang
+    // BENAR-BENAR terjadi: sampai BUG-018 ditutup, yang terbit di sini
+    // "Pengaduan Baru Masuk" -- padahal tiketnya sudah lama masuk, dan
+    // Kabupaten sudah dikabari saat ia lahir.
+    await this.notifyKabupaten(
+      actorUserId,
+      NotificationType.complaint_forwarded,
+      'Pengaduan Diteruskan ke OPD',
+      `Pengaduan ${complaint.ticketNo} diteruskan ke ${namaOpd}`,
+      `/admin-kab/complaints/${complaint.ticketNo}`,
+    );
   }
 
   /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik) + kabupaten (oversight). */

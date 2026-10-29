@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { copyToClipboard } from '@/utils/clipboard';
 import { simpanBlob } from '@/utils/unduhBerkas';
 import { gambarPosterQr } from '@/features/surveys/utils/posterQrSurvei';
@@ -98,6 +99,17 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
   // Pola inline lama dipindah ke hooks/useBodyScrollLock.js (2026-08-24).
   useBodyScrollLock();
 
+  // Dialog yang sesungguhnya bagi pembaca layar dan papan ketik (26 Oktober
+  // 2026). Sebelumnya modal ini hanya sepasang <div>: tanpa nama, tanpa tanda
+  // bahwa halaman di belakangnya sedang tak dapat dipakai, dan fokus tetap
+  // tertinggal di tombol "Bagikan" di belakangnya. Polanya sama dengan
+  // ConfirmActionModal (BUG-015); modal ini terlewat. Namanya gabungan "Bagikan
+  // Survei" dan judul surveinya, supaya terdengar APA yang dibagikan.
+  const idLabel = useId();
+  const idJudul = useId();
+  const refDialog = useRef(null);
+  useFocusTrap(refDialog, true);
+
   /**
    * Penanganan secure-context DIPINDAH ke utils/clipboard.js (2 September
    * 2026). Pengetahuan itu tadinya hanya hidup di sini, dan akibatnya
@@ -158,16 +170,33 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[460px]">
+      <div
+        ref={refDialog}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${idLabel} ${idJudul}`}
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[460px] focus:outline-none"
+      >
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 relative">
+          {/* `aria-label`, sebab isinya hanya ikon silang: tanpa itu ia tombol
+              tanpa nama, dan satu-satunya jalan keluar yang tak dapat disebut. */}
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Tutup"
             className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bagikan Survei</p>
-          <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1 pr-8" title={survey.title}>
+          <p id={idLabel} className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Bagikan Survei
+          </p>
+          <h3
+            id={idJudul}
+            className="font-bold text-slate-800 text-lg leading-tight mt-1 pr-8"
+            title={survey.title}
+          >
             {survey.title}
           </h3>
         </div>

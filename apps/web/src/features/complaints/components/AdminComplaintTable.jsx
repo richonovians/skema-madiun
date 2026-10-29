@@ -56,7 +56,11 @@ export default function AdminComplaintTable({ complaints }) {
                     <span className="font-body-md text-body-md font-medium">{complaint.reporter.name}</span>
                   </div>
                 </td>
-                <td className="px-lg py-lg max-w-xs">
+                {/* `min-w-[12rem] max-w-[20rem]`, BUKAN `max-w-xs` (27 Oktober 2026, BUG-040):
+                    di apps/web `max-w-xs` bernilai 4px karena token spasi membajak
+                    skala `max-w-*`, jadi kolom judul selalu diperas ke lebar
+                    minimumnya. Terukur 101-109px pada layar 1366px. */}
+                <td className="px-lg py-lg min-w-[12rem] max-w-[20rem]">
                   <p className="font-body-md text-body-md text-on-surface line-clamp-1">{complaint.title}</p>
                 </td>
                 <td className="px-lg py-lg font-body-md text-body-md text-on-surface-variant">{complaint.dateStr}</td>

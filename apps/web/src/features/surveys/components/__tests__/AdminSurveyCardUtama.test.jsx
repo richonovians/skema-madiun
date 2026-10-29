@@ -39,6 +39,14 @@ describe('AdminSurveyCard — lencana survei utama', () => {
     expect(screen.getByText(/survei utama/i)).toBeInTheDocument();
   });
 
+  // Pasangan uji yang sama di SurveyMonitoringTable.test.jsx (26 Oktober 2026):
+  // lencana dua baris berubah menjadi gumpalan yang bersaing dengan judul.
+  it('lencananya tidak patah baris', () => {
+    render_({ isUtama: true });
+
+    expect(screen.getByText(/survei utama/i)).toHaveClass('whitespace-nowrap');
+  });
+
   /**
    * PASANGAN kontrol. Lencana yang muncul di setiap kartu tak menandai apa pun;
    * justru itu bentuk kegagalan yang paling mudah lolos dari pembacaan sekilas,

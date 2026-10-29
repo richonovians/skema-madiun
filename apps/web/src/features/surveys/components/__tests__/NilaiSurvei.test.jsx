@@ -59,12 +59,26 @@ describe('NilaiSurvei — ukuran besar', () => {
 });
 
 describe('NilaiSurvei — ukuran sel', () => {
-  it('satu baris "angka · kategori" dengan judul sebagai title', () => {
+  it('"angka · kategori" dengan judul sebagai title', () => {
     render(<NilaiSurvei nilaiSurvei={persen} ukuran="sel" />);
 
-    const sel = screen.getByText(/85%/);
+    const sel = screen.getByTitle('Indeks Kepuasan');
     expect(sel).toHaveTextContent('85% · Sangat Puas');
-    expect(sel).toHaveAttribute('title', 'Indeks Kepuasan');
+  });
+
+  /**
+   * Dua potong utuh, bukan satu baris nowrap (27 Oktober 2026). "4,00 / 4 ·
+   * Sangat Puas" sebagai satu potong selebar 176px melebarkan kolom NILAI
+   * SURVEI tabel Admin Kabupaten sampai tabelnya meluap 58px di 1366px. Kini
+   * baris boleh patah di ANTARA angka dan kategori, tak pernah di dalamnya.
+   */
+  it('angka dan kategori dua potong nowrap: patah hanya di antaranya', () => {
+    render(<NilaiSurvei nilaiSurvei={nilai} ukuran="sel" />);
+
+    const sel = screen.getByTitle('Nilai Survei');
+    expect(sel).not.toHaveClass('whitespace-nowrap');
+    const potong = [...sel.querySelectorAll('.whitespace-nowrap')].map((el) => el.textContent);
+    expect(potong).toEqual(['3,40 / 4', '· Sangat Puas']);
   });
 
   it('null: "-"', () => {

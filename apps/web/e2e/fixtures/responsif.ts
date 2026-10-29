@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { test as base, expect, request, type Page } from '@playwright/test';
+import { test as base, expect, request, type Locator, type Page } from '@playwright/test';
 import { BERKAS_TOKEN } from '../global-setup';
 
 export type Peran = 'responden' | 'opd' | 'kabupaten';
@@ -65,6 +65,38 @@ const UKUR = (): Ukuran => {
     return false;
   };
 
+  /**
+   * Dipotong DENGAN SENGAJA oleh induk ber-`text-overflow: ellipsis`
+   * (22 Oktober 2026).
+   *
+   * `getBoundingClientRect` mengembalikan kotak tata letak yang UTUH: ia tidak
+   * dipangkas oleh `overflow: hidden` leluhurnya. Jadi sebuah `span` sebaris di
+   * dalam paragraf ber-`truncate` terbaca menjorok keluar layar padahal yang
+   * terlihat mata hanyalah titik-titik di tepi paragrafnya. Terukur di
+   * `RecentActivities.jsx:73`: paragraf berkotak 165x20 memuat isi 236x20,
+   * `span`-nya berakhir di x=342 pada layar 320px, sementara
+   * `document.scrollWidth` tetap 320 -- halamannya tidak meluber sama sekali.
+   * Tiga uji 320px memerah karenanya selama dua minggu tanpa ada satu piksel
+   * pun yang sungguh salah tempat.
+   *
+   * HANYA elipsis yang dimaafkan, bukan `overflow: hidden` polos. Potongan
+   * tanpa elipsis tak meninggalkan tanda apa pun -- tak ada titik-titik, tak
+   * ada batang gulir -- sehingga isinya hilang tanpa pembacanya tahu, dan
+   * itulah justru yang hendak ditangkap detektor ini sejak awal. Saringan yang
+   * sama sudah lama ada di `UKUR_TEKS_TERPOTONG` di bawah; yang terjadi di sini
+   * cuma ia tak pernah ikut dibawa ke atas.
+   */
+  const dipotongDenganElipsis = (el: Element) => {
+    let p = el.parentElement;
+    while (p && p !== doc) {
+      const s = getComputedStyle(p);
+      if (['hidden', 'clip'].includes(s.overflowX)) return s.textOverflow === 'ellipsis';
+      if (['auto', 'scroll'].includes(s.overflowX)) return false;
+      p = p.parentElement;
+    }
+    return false;
+  };
+
   const pelanggar: Pelanggar[] = [];
   for (const el of Array.from(document.querySelectorAll('body *'))) {
     const r = el.getBoundingClientRect();
@@ -73,6 +105,7 @@ const UKUR = (): Ukuran => {
     const keluar = Math.round(Math.max(r.right - vw, -r.left));
     if (keluar <= 1) continue;
     if (leluhurDapatDigulir(el)) continue;
+    if (dipotongDenganElipsis(el)) continue;
 
     const s = getComputedStyle(el);
     const teks = (el.textContent || '').trim();
@@ -245,6 +278,16 @@ const UKUR_TEKS_TERPOTONG = (): TeksTerpotong[] => {
       );
       if (adaHiasanMelayang) continue;
     }
+    // Kotak setipis satu piksel BUKAN teks yang terpotong (22 Oktober 2026).
+    // Itu tanda tangan `sr-only` Tailwind -- `width: 1px; height: 1px;
+    // overflow: hidden; clip: rect(0,0,0,0)` -- yang memang menyimpan teks jauh
+    // lebih besar daripada kotaknya, sebab ia ditujukan kepada pembaca layar
+    // dan tidak kepada mata. Empat uji "tak ada teks yang terpotong" memerah
+    // karenanya, dengan pelanggar `label.sr-only` berkotak 1x1 berisi 46x20;
+    // melaporkannya berarti menghukum justru markah yang memberi nama pada
+    // kontrol yang labelnya disembunyikan.
+    if (el.clientWidth <= 1 || el.clientHeight <= 1) continue;
+
     const s = getComputedStyle(el);
     const terkunci = (v: string) => ['hidden', 'clip'].includes(v);
     if (!terkunci(s.overflowX) && !terkunci(s.overflowY)) continue;
@@ -448,6 +491,51 @@ async function tungguNavbarTenang(page: Page): Promise<void> {
   }
 }
 
+/**
+ * Mencari butir menu aksi baris ("Aksi untuk …") bernama `nama`, membuka menu
+ * baris demi baris sampai ketemu. Menu yang memuatnya DIBIARKAN TERBUKA dan
+ * butirnya dipulangkan; `null` berarti tak satu baris pun memuatnya.
+ *
+ * Lahir 26 Oktober 2026 dari sapuan Playwright: sejak 30 September (`22b2d03`,
+ * aksi survei Kabupaten pindah ke menu titik-tiga) lima uji mencari
+ * `button "Bagikan"`/`button "Hapus"` di halaman, tak menemukannya, lalu
+ * melewati diri dengan alasan "tak ada survei" -- padahal ada lima survei
+ * aktif. Butirnya baru masuk DOM sesudah menunya dibuka, dan berperan
+ * `menuitem`, bukan `button`.
+ *
+ * Baris demi baris, bukan baris pertama, sebab butir tertentu bersyarat:
+ * "Bagikan" hanya ada pada survei AKTIF.
+ *
+ * Pemicunya ditunggu tampil lebih dulu supaya tabel yang BELUM SEMPAT
+ * dirender tak terbaca sebagai tabel kosong -- jebakan yang diperingatkan
+ * `playwright.config.ts` di dekat `workers`. Bila setelah itu tetap tak ada
+ * pemicu, halamannya memang tak punya baris.
+ */
+export async function cariButirAksi(page: Page, nama: RegExp): Promise<Locator | null> {
+  const pemicu = page.getByRole('button', { name: /^Aksi untuk / });
+  await pemicu
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .catch(() => undefined);
+
+  const jumlah = await pemicu.count();
+  for (let i = 0; i < jumlah; i += 1) {
+    const tombol = pemicu.nth(i);
+    await tombol.click();
+    await expect(tombol, 'menu aksi baris tak pernah terbuka').toHaveAttribute('aria-expanded', 'true');
+    // Panelnya digambar lewat portal sesudah posisinya terhitung, jadi
+    // ditunggu tersendiri sebelum butirnya dihitung.
+    await expect(page.getByRole('menu')).toBeVisible();
+
+    const butir = page.getByRole('menuitem', { name: nama });
+    if ((await butir.count()) > 0) return butir.first();
+
+    await page.keyboard.press('Escape');
+    await expect(tombol).toHaveAttribute('aria-expanded', 'false');
+  }
+  return null;
+}
+
 export interface Contoh {
   tiketOpd?: string;
   tiketKab?: string;
@@ -469,10 +557,34 @@ export async function ambilContoh(): Promise<Contoh> {
     return res.ok() ? (await res.json()).data : undefined;
   };
   try {
-    contoh.tiketOpd = (await ambil('/api/v1/complaints?limit=1', token.opd))?.[0]?.ticketNo;
-    contoh.tiketKab = (await ambil('/api/v1/complaints?limit=1', token.kabupaten))?.[0]?.ticketNo;
-    contoh.tiketResponden = (await ambil('/api/v1/complaints?limit=1', token.responden))?.[0]
-      ?.ticketNo;
+    /**
+     * Mengutamakan pengaduan yang SUDAH BERBALASAN (22 Oktober 2026).
+     *
+     * Dulu baris ini mengambil `?limit=1` begitu saja. Itu cukup bagi spec yang
+     * hanya mengukur lebar, tetapi tidak bagi spec percakapan: panel yang
+     * dibukanya kosong bila tiketnya belum pernah dibalas, dan uji KONTROL yang
+     * menuntut gelembung percakapan akan memerah dengan sebab yang sama sekali
+     * tak ada hubungannya dengan tata letak. Pada basis data mesin ini, dua
+     * dari empat pengaduan memang tak punya balasan satu pun.
+     *
+     * Kandidatnya dibatasi lima supaya ongkosnya tetap lima permintaan, dan
+     * bila tak ada yang berbalasan ia jatuh kembali ke yang pertama -- spec
+     * yang menuntut percakapan akan melewati dirinya dengan pesan yang jelas,
+     * bukan memerah.
+     */
+    const tiketTerbaik = async (tok?: string) => {
+      const daftar: Array<{ id: number; ticketNo?: string }> =
+        (await ambil('/api/v1/complaints?limit=50', tok)) ?? [];
+      for (const kandidat of daftar.slice(0, 5)) {
+        const balasan = await ambil(`/api/v1/complaints/${kandidat.id}/replies`, tok);
+        if (Array.isArray(balasan) && balasan.length > 0) return kandidat.ticketNo;
+      }
+      return daftar[0]?.ticketNo;
+    };
+
+    contoh.tiketOpd = await tiketTerbaik(token.opd);
+    contoh.tiketKab = await tiketTerbaik(token.kabupaten);
+    contoh.tiketResponden = await tiketTerbaik(token.responden);
 
     // Satu permintaan untuk dua kebutuhan. Survei DRAF dicari di antaranya,
     // bukan lewat `?status=draf`: pada basis data yang sama sekali tak punya
@@ -481,7 +593,11 @@ export async function ambilContoh(): Promise<Contoh> {
     const survei: Array<{ id: number; status?: string }> =
       (await ambil('/api/v1/surveys?limit=50', token.kabupaten)) ?? [];
     contoh.surveiKab = survei[0]?.id;
-    contoh.surveiDraf = survei.find((s) => (s.status ?? '').toLowerCase() === 'draf')?.id;
+    // `'draft'`, nilai enum `SurveyStatus` yang dikirim API apa adanya. Sampai
+    // 26 Oktober 2026 baris ini mencocokkan `'draf'`, yang tak pernah cocok,
+    // sehingga uji perancang survei di nama-terakses.spec.ts selalu melewati
+    // dirinya dengan alasan "tak ada contoh data" -- juga saat draf ada.
+    contoh.surveiDraf = survei.find((s) => (s.status ?? '').toLowerCase() === 'draft')?.id;
 
     contoh.auditId = (await ambil('/api/v1/audit-logs?limit=1', token.kabupaten))?.[0]?.id;
   } finally {

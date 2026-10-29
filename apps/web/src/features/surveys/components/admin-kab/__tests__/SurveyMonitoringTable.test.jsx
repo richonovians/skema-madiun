@@ -276,6 +276,32 @@ describe('SurveyMonitoringTable — survei utama (7 Oktober 2026)', () => {
     expect(within(baris('Survei Biasa')).queryByText(/survei utama/i)).not.toBeInTheDocument();
   });
 
+  /**
+   * LENCANA PATAH DUA BARIS (26 Oktober 2026, laporan pengguna dengan tangkapan
+   * layar). Diukur di Chrome: pada lebar 1536px ke bawah lencana setinggi 31px
+   * ("SURVEI / UTAMA") dan judulnya terpotong, karena sel judulnya hanya 86-121px.
+   *
+   * Sebabnya `max-w-xs` pada sel judul. Di apps/web kelas itu bernilai 4px, bukan
+   * 20rem: token `--spacing-xs` membajak skala `max-w-*` (lihat CLAUDE.md). Kolom
+   * judul karena itu selalu diperas ke lebar minimum isinya. jsdom tak memuat CSS,
+   * jadi yang dapat dijaga di sini hanya kelasnya; ukurannya dibuktikan di Chrome.
+   */
+  it('sel judul tidak memakai max-w-xs (4px di repo ini) dan punya lebar minimum', () => {
+    render1([survei(1, 'Survei Andalan', 'AKTIF', { isUtama: true })]);
+
+    const sel = within(baris('Survei Andalan')).getAllByRole('cell')[0];
+    expect(sel).not.toHaveClass('max-w-xs');
+    expect(sel).toHaveClass('min-w-[12rem]');
+  });
+
+  it('lencana "Survei Utama" tidak patah baris', () => {
+    render1([survei(1, 'Survei Andalan', 'AKTIF', { isUtama: true })]);
+
+    expect(within(baris('Survei Andalan')).getByText(/survei utama/i)).toHaveClass(
+      'whitespace-nowrap',
+    );
+  });
+
   it('"Jadikan Utama" ditawarkan pada DRAF & AKTIF yang belum utama', () => {
     for (const status of ['DRAF', 'AKTIF']) {
       const { unmount } = render1([survei(1, `Survei ${status}`, status)]);

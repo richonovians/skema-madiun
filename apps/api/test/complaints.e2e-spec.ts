@@ -247,6 +247,103 @@ describe('Complaints (e2e)', () => {
   });
 
   /**
+   * LAMPIRAN LEBIH DARI SATU (22 Oktober 2026).
+   *
+   * Endpoint ini menerima sampai LIMA berkas — `FilesInterceptor('lampiran', 5)`
+   * di `complaints.controller.ts:64` — dan `FileDropzone.jsx:48` memang memasang
+   * `multiple`, jadi jalur multi-berkas hidup dari ujung ke ujung. Meski
+   * begitu, sampai hari ini setiap uji di berkas ini hanya pernah mengirim
+   * SATU berkas. Jadi angka lima itu tak pernah dibuktikan, dan begitu pula
+   * hal yang lebih mendasar: bahwa berkas kedua dan ketiga benar-benar
+   * tersimpan sebagai baris tersendiri alih-alih saling menimpa.
+   */
+  it('POST /complaints dengan TIGA lampiran -> 201, ketiganya tersimpan terpisah', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lapor')
+      .field('judul', 'Jalan berlubang di tiga titik')
+      .field('uraian', 'Tiga foto dari tiga titik yang berbeda')
+      .attach('lampiran', PNG_ASLI, 'titik-1.png')
+      .attach('lampiran', PNG_ASLI, 'titik-2.png')
+      .attach('lampiran', PNG_ASLI, 'titik-3.png');
+
+    expect(res.status).toBe(201);
+
+    const lampiran = res.body.data.attachments as Array<{ fileUrl: string }>;
+    expect(lampiran).toHaveLength(3);
+
+    // Jalur penyimpanannya HARUS berbeda satu sama lain. Ketiga berkas di sini
+    // bytenya identik dan nama aslinya cuma berbeda angka, jadi penamaan yang
+    // diturunkan dari isi atau yang lupa membedakan akan membuat ketiganya
+    // menunjuk satu berkas yang sama — dan hitungan di atas tetap tiga.
+    const jalur = lampiran.map((l) => l.fileUrl);
+    expect(new Set(jalur).size).toBe(3);
+    for (const url of jalur) {
+      expect(url).toContain('/uploads/complaints/');
+    }
+  });
+
+  /**
+   * Batas lima itu sendiri. Yang diasersi bukan sekadar "ditolak", melainkan
+   * bahwa penolakannya TIDAK meninggalkan pengaduan separuh jadi: multer
+   * membaca berkasnya sebelum controller dipanggil, jadi kegagalan di sini
+   * harus terjadi sebelum satu baris pun ditulis.
+   */
+  it('POST /complaints dengan ENAM lampiran -> ditolak, dan tak ada pengaduan tercipta', async () => {
+    const judul = 'Enam lampiran sekaligus';
+    const permintaan = request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lapor')
+      .field('judul', judul)
+      .field('uraian', 'Batas lampiran adalah lima berkas');
+
+    for (let i = 1; i <= 6; i += 1) {
+      permintaan.attach('lampiran', PNG_ASLI, `berkas-${i}.png`);
+    }
+
+    const res = await permintaan;
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    expect(await prisma.complaint.count({ where: { judul } })).toBe(0);
+  });
+
+  /**
+   * Nama medan berkas yang tidak dikenali -> 400, BUKAN 500 (22 Oktober 2026).
+   *
+   * Sebelum hari ini permintaan ini dijawab `500 Unexpected file field` dengan
+   * `code: INTERNAL_SERVER_ERROR`: galat KLIEN yang disajikan sebagai kerusakan
+   * server, sehingga klien yang salah bentuk membuat pemantauan melaporkan
+   * server rusak dan penyisir log mencari sebab yang tak pernah ada. Sebabnya
+   * `transformException` milik @nestjs/platform-express mencocokkan galat
+   * multer pada KALIMATnya, dan multer 2.4.0 mengganti kalimat kode ini.
+   *
+   * Kendalinya uji TIGA lampiran di atas: permintaan dengan bentuk yang sama
+   * pada medan `lampiran` dijawab 201, jadi yang membedakan di sini memang
+   * nama medannya.
+   */
+  it('POST /complaints dengan nama medan berkas yang salah -> 400 berkode multer', async () => {
+    const judul = 'Medan lampiran salah nama';
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'lapor')
+      .field('judul', judul)
+      .field('uraian', 'Berkas dikirim pada medan bernama foto')
+      .attach('foto', PNG_ASLI, 'salah-medan.png');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('LIMIT_UNEXPECTED_FILE');
+    expect(res.body.message).toMatch(/medan/i);
+    expect(await prisma.complaint.count({ where: { judul } })).toBe(0);
+  });
+
+  /**
    * TEMUAN AUDIT T1 (7 September 2026), pendekatan (b).
    *
    * Diuji lewat HTTP karena di situlah persoalannya berada: `/uploads/*` bukan

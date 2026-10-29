@@ -69,7 +69,11 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                   </div>
                 </td>
 
-                <td className="px-lg py-lg max-w-xs">
+                {/* `min-w-[12rem] max-w-[20rem]`, BUKAN `max-w-xs` (27 Oktober 2026, BUG-040):
+                    di apps/web `max-w-xs` bernilai 4px karena token spasi membajak
+                    skala `max-w-*`, jadi kolom judul selalu diperas ke lebar
+                    minimumnya. Terukur 101-109px pada layar 1366px. */}
+                <td className="px-lg py-lg min-w-[12rem] max-w-[20rem]">
                   <p className="font-body-md text-body-md text-on-surface line-clamp-2" title={complaint.title}>
                     {complaint.title}
                   </p>
@@ -88,18 +92,23 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                 </td>
 
                 <td className="px-lg py-lg text-left">
+                  {/* Sasaran sentuh 44px (28 Oktober 2026): keduanya dulu ~29px.
+                      "Monitor Tiket" dulu `<button>` di dalam `<Link>` --
+                      kendali di dalam kendali; kini tautannya yang bergaya tombol. */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/admin-kab/complaints/${complaint.id}`}>
-                      <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all">
-                        Monitor Tiket
-                      </button>
+                    <Link
+                      href={`/admin-kab/complaints/${complaint.id}`}
+                      className="inline-flex items-center min-h-[44px] px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all"
+                    >
+                      Monitor Tiket
                     </Link>
                     {/* Hanya pada baris yang BELUM bertujuan: backend menolak
                         400 bila tiketnya sudah menjadi tanggung jawab OPD. */}
                     {complaint.opdId == null && onForward && (
                       <button
+                        type="button"
                         onClick={() => onForward(complaint)}
-                        className="px-md py-1.5 text-white bg-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all"
+                        className="inline-flex items-center min-h-[44px] px-md py-1.5 text-white bg-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all"
                       >
                         Teruskan
                       </button>
