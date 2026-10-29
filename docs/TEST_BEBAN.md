@@ -413,3 +413,67 @@ Empat cacat, seluruhnya pada alat ukurnya, tak satu pun pada aplikasinya. Itu
 pola yang pantas diingat: pada pekerjaan pengukuran, alat ukurnya yang paling
 sering salah lebih dulu, dan satu-satunya yang menangkapnya adalah pemeriksaan
 yang dipasang justru untuk tidak dipercaya.
+
+## 11. Rancangan jalur tulis (29 Oktober 2026) — BELUM DIJALANKAN
+
+Disusun sebagai lanjutan §8 lalu **ditunda atas permintaan pengguna**
+sebelum satu baris kode pun ditulis. Disimpan di sini supaya dapat dipakai
+lagi; tak ada cabang, berkas pelari, maupun data yang dibuat.
+
+### 11.1 Koreksi atas §8
+
+§8 menyatakan "pelonggaran penahan laju sudah terpasang di pelarinya, jadi
+yang kurang hanya bentuk DTO-nya". **Untuk kirim jawaban survei, itu tidak
+benar.** `THROTTLE_LIMIT` hanya melonggarkan batas GLOBAL. `POST
+/surveys/:id/responses` membawa `@Throttle` sendiri (10/menit per pengguna,
+`responses.controller.ts`) yang tidak ikut dilonggarkan, sehingga satu sesi
+yang dipukul autocannon akan mengukur 429, bukan aplikasinya. Ditambah
+`@@unique([surveyId, dedupeUserId])`: satu akun hanya sekali per survei
+kecuali survei itu `allowMultipleSubmit`.
+
+### 11.2 Tiga fakta yang menentukan bentuknya
+
+1. Kirim jawaban: `@Throttle` per pengguna dan satu jawaban per akun (11.1).
+2. Kirim pengaduan: tanpa `@Throttle` per rute. Batas hariannya
+   (`BATAS_HARIAN_PENGADUAN_BAKU` = 10) dihitung dari basis data lalu
+   ditulis -- pola hitung-lalu-tulis yang dapat jebol pada kiriman serentak.
+   Nomor tiket dibangkitkan acak dengan lima kali coba ulang bila P2002
+   (`insertWithUniqueTicket`); di bawah beban, coba ulang yang habis menjadi
+   409.
+3. Lampiran: dienkripsi AES-256-GCM lalu ditulis ke `UPLOAD_DIR`; biayanya
+   belum pernah diukur.
+
+### 11.3 Skenario
+
+Semuanya lewat pelari yang sama: `skm_beban`, Redis logis 1, porta 3002.
+`skm_db` dan server dev tak tersentuh.
+
+| Skenario | Yang diukur | Cara |
+| -------- | ----------- | ---- |
+| `kirim-pengaduan` | `POST /complaints` tanpa lampiran | satu akun; batas harian dilonggarkan seperti skenario baca |
+| `kirim-pengaduan-lampiran` | sama, dengan satu PNG 1 MB | `UPLOAD_DIR=uploads-beban` khusus, dihapus sesudah jalan supaya `apps/api/uploads` milik dev tak tercemar |
+| `kirim-jawaban` | `POST /surveys/:id/responses` | survei `allowMultipleSubmit`; permintaan diputar di antara banyak akun responden beban (sesi diterbitkan sekali per akun) supaya yang terukur aplikasinya, bukan 429 |
+| `batas-harian-serentak` | **ketepatan, bukan kecepatan** | 50 pengaduan serentak dari satu akun dengan batas harian ASLI 10; yang dihitung jumlah yang diterima. Lebih dari 10 berarti temuan |
+
+Jalur publik tanpa akun sengaja tidak diukur: `@BatasPerSurvei` menahannya
+per survei, sehingga yang terukur hanya penahan itu.
+
+### 11.4 Pemeriksaan ketepatan
+
+Skenario baca menuntut selisih baris nol. Untuk skenario tulis,
+**selisih baris harus sama dengan jumlah jawaban 2xx** -- tak ada tulisan
+yang hilang maupun berganda (mis. tabrakan nomor tiket yang lolos).
+Untuk lampiran: jumlah berkas di `uploads-beban` sama dengan jumlah baris
+`complaint_attachments` baru, dan setiap berkas berupa amplop terenkripsi.
+
+### 11.5 Yang akan berubah bila dijalankan
+
+- Kode pelari di `main`: `scripts/beban/skenario.ts` (empat skenario dan
+  dukungan tubuh multipart), `jalankan.ts` (pemutaran sesi, `UPLOAD_DIR`
+  khusus, pemeriksaan 11.4), `siapkan-data.ts` (akun responden beban dan
+  survei multi-submit), dengan unit spec di `scripts/beban/lib/`.
+- **Tanpa** perubahan kode aplikasi.
+- Hasilnya menjadi bagian baru dokumen ini; bila `batas-harian-serentak`
+  jebol, temuannya masuk `BUG_REPORTS.md` dan perbaikannya dirancang
+  terpisah.
+
