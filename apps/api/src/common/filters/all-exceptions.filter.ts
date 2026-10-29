@@ -34,7 +34,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<HttpResponseLike>();
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
+    let message = 'Terjadi kesalahan pada server.';
+    /**
+     * Pesan asli galat tak terduga HANYA untuk log (BUG-059, 29 Oktober 2026).
+     * Sebelumnya `exception.message` dikirim ke klien, dan pesan Prisma memuat
+     * jalur berkas absolut di server, potongan kode sumber, dan bentuk
+     * kuerinya. Galat yang memang ditujukan ke klien sudah berupa
+     * HttpException dan tetap membawa pesannya sendiri.
+     */
+    let pesanLog: string | null = null;
     let details: unknown = null;
     /**
      * Kode galat KHAS yang disebutkan exception-nya sendiri (5 September 2026).
@@ -66,7 +74,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      pesanLog = exception.message;
     }
 
     /**
@@ -127,7 +135,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       },
     };
 
-    const logLine = `${request.method} ${request.url} -> ${statusCode}: ${message}`;
+    const logLine = `${request.method} ${request.url} -> ${statusCode}: ${pesanLog ?? message}`;
     if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(logLine, exception instanceof Error ? exception.stack : undefined);
     } else {

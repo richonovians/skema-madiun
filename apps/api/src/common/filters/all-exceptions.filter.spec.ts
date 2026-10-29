@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   HttpStatus,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { MulterError } from 'multer';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
@@ -78,12 +80,47 @@ describe('AllExceptionsFilter', () => {
     expect(hasil.body.error.details).toEqual(['nama wajib', 'email tidak valid']);
   });
 
-  it('galat tak terduga (bukan HttpException) -> 500 tanpa membocorkan apa pun selain pesannya', () => {
+  /**
+   * BUG-059 (29 Oktober 2026): pesan galat tak terduga TIDAK sampai ke klien.
+   * Sebelumnya `exception.message` dikirim apa adanya, dan pesan Prisma memuat
+   * jalur berkas absolut di server, potongan kode sumber, dan bentuk kuerinya.
+   * Pesan di bawah disalin dari PrismaClientValidationError sungguhan.
+   */
+  it('galat tak terduga (bukan HttpException) -> 500 berpesan umum, pesan aslinya tidak dikirim', () => {
     const hasil = tangkap(new Error('sesuatu pecah'));
 
     expect(hasil.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
     expect(hasil.body.error.code).toBe('INTERNAL_SERVER_ERROR');
-    expect(hasil.body.message).toBe('sesuatu pecah');
+    expect(hasil.body.message).toBe('Terjadi kesalahan pada server.');
+  });
+
+  it('galat Prisma tak membocorkan jalur berkas, kode sumber, maupun kueri', () => {
+    const galat = new Prisma.PrismaClientValidationError(
+      [
+        'Invalid `this.prisma.auditLog.findMany()` invocation in',
+        'E:\\server\\apps\\api\\src\\modules\\audit\\audit.service.ts:57:12',
+        '',
+        '→ 57 this.prisma.auditLog.findMany({ where: { createdAt: { gte: new Date("Invalid Date") } } })',
+        'Invalid value for argument `gte`: Provided Date object is invalid. Expected Date.',
+      ].join('\n'),
+      { clientVersion: '6.19.3' },
+    );
+
+    const hasil = tangkap(galat);
+    const teks = JSON.stringify(hasil.body);
+
+    expect(hasil.status).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(teks).not.toMatch(/audit\.service\.ts|invocation|findMany|createdAt|E:\\\\server/);
+  });
+
+  it('KONTROL: pesan dan stack aslinya tetap dicatat ke log server', () => {
+    const catat = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const galat = new Error('sesuatu pecah');
+
+    tangkap(galat);
+
+    expect(catat).toHaveBeenCalledWith(expect.stringContaining('sesuatu pecah'), galat.stack);
+    catat.mockRestore();
   });
 
   /**
