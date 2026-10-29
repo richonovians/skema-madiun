@@ -135,7 +135,7 @@ async function lewatiGerbangPersetujuan(page: Page): Promise<void> {
 
   // Data diri dilewati dengan sengaja: yang diuji di sini jalur ANONIM, dan
   // mengisinya justru menjauhkan uji ini dari keadaan yang hendak diwakilinya.
-  await page.getByRole('checkbox', { name: /Isi survei tanpa data diri/i }).check();
+  await page.getByRole('checkbox', { name: /isi survei sebagai anonim/i }).check();
   await page.getByRole('checkbox', { name: /menyetujui pemrosesan data saya/i }).check();
 
   await expect(mulai, 'tombol mulai tetap mati sesudah persetujuan dicentang').toBeEnabled();

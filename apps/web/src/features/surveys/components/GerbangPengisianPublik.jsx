@@ -23,12 +23,18 @@ import {
  * pengisian tanpa sesi pada survei lain dengan 404
  * (`findAnonimSurveyOrThrow`). Letaknya SEBELUM kuesioner supaya tak ada
  * pengisi yang menjawab seluruh pertanyaan lalu ditolak di langkah terakhir.
+ *
+ * "Data yang diproses" WAJIB menyebut keempat medan data diri satu per satu
+ * (BUG-055, 29 Oktober 2026). Naskah persetujuan yang menyebut lebih sedikit
+ * daripada yang sungguh dikumpulkan dapat membatalkan sahnya persetujuan itu
+ * sendiri menurut UU 27/2022; "data diri" saja tidak memberi tahu apa yang
+ * disetujui.
  */
 const RINCIAN = [
   {
     icon: FileText,
     judul: 'Data yang diproses',
-    isi: 'Jawaban survei yang Anda kirim, beserta data diri jika Anda isi. Anda dapat memilih mengisi survei tanpa data diri. Email tidak diminta.',
+    isi: 'Jawaban survei yang Anda kirim, beserta nama, nomor HP, jenis kelamin, dan kelompok umur jika Anda isi. Anda dapat memilih mengisi survei sebagai anonim tanpa data diri. Email tidak diminta.',
   },
   {
     icon: Eye,
@@ -43,7 +49,7 @@ const RINCIAN = [
   {
     icon: Trash2,
     judul: 'Hak Anda',
-    isi: 'Anda berhak menarik persetujuan atau meminta penghapusan data melalui kanal resmi Diskominfo.',
+    isi: 'Anda berhak menarik persetujuan atau meminta penghapusan data dengan menghubungi Admin Kabupaten melalui kanal resmi Diskominfo.',
   },
 ];
 

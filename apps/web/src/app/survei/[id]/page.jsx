@@ -187,7 +187,7 @@ export default function IsiSurveiPage() {
   if (isLoading) {
     return (
       <main className={bgLatar}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[28rem] p-8">
           <LoadingState label="Memuat survei..." />
         </div>
       </main>
@@ -200,7 +200,7 @@ export default function IsiSurveiPage() {
   if (error) {
     return (
       <main className={bgLatar}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[28rem] p-8 text-center">
           <ErrorState
             title="Survei tidak dapat ditemukan"
             description={null}

@@ -15,7 +15,7 @@ import GerbangPengisianPublik from '../GerbangPengisianPublik';
 const render1 = (props = {}) => render(<GerbangPengisianPublik onSetuju={jest.fn()} {...props} />);
 
 const kotakSetuju = () => screen.getByRole('checkbox', { name: /menyetujui/i });
-const kotakTanpaDataDiri = () => screen.getByRole('checkbox', { name: /tanpa data diri/i });
+const kotakTanpaDataDiri = () => screen.getByRole('checkbox', { name: /isi survei sebagai anonim/i });
 const tombolLanjut = () => screen.getByRole('button', { name: /setuju & mulai isi/i });
 
 /**
