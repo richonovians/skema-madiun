@@ -73,6 +73,31 @@ const nextConfig = {
       },
     ],
   },
+
+  // Header keamanan halaman web (BUG-058, 29 Oktober 2026).
+  //
+  // Helmet di apps/api hanya menjaga `/api/v1/*`; halaman HTML dilayani dari
+  // sini dan sebelumnya tak membawa satu pun. Tanpa `frame-ancestors` dan
+  // `X-Frame-Options`, halaman mana pun -- termasuk halaman admin -- dapat
+  // dibingkai situs lain.
+  //
+  // CSP sengaja HANYA `frame-ancestors`. CSP skrip penuh menuntut nonce karena
+  // Next menyisipkan skrip inline, dan itu perubahan tersendiri yang perlu
+  // diuji di seluruh halaman; memasangnya setengah jadi mematikan hidrasi.
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
