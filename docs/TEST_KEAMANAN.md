@@ -66,7 +66,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | **selesai 29 Okt — TERBUKTI, BUG-058 s.d. BUG-060 ditutup**, lihat §16 |
 | 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | **selesai 29 Okt — nol celah**, lihat §17 |
-| 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | belum dijadwalkan |
+| 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | **bahan siap 29 Okt** (`docs/UAT_AWAL.md`); pelaksanaan belum dijadwalkan |
 
 ## 5. Matriks endpoint
 
@@ -161,6 +161,10 @@ peran, dijalankan di lingkungan lokal yang sama:
 
 Yang dicatat per skenario: berhasil/tidak, langkah yang membingungkan, dan
 waktu yang dibutuhkan.
+
+**Bahannya siap (29 Oktober 2026):** `docs/UAT_AWAL.md` memuat persiapan
+fasilitator, 17 skenario berkode (W1-W5, P1-P2, O1-O5, K1-K5) dengan hasil
+yang diharapkan, lembar isian, kriteria lulus, dan cara membereskan data.
 
 ## 7. Jadwal
 
