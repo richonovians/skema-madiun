@@ -16,39 +16,41 @@ export default function AdminSurveyCardStats({
 }) {
   const custom = jenis === 'custom';
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-xl mb-xl ${isDraft ? 'opacity-60' : ''}`}>
-      <div className={`flex items-center gap-md p-md rounded-lg ${isDraft ? 'border border-dashed border-outline-variant' : 'bg-surface-container-low'}`}>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDraft ? 'bg-surface-container-high text-outline' : 'bg-primary-fixed text-primary'}`}>
+    <div className={`flex flex-col sm:flex-row flex-wrap items-stretch gap-md mb-xl ${isDraft ? 'opacity-60' : ''}`}>
+      {/* Kartu Total Pengisi */}
+      <div className={`flex items-center gap-md p-md rounded-lg min-w-[180px] sm:min-w-[200px] ${isDraft ? 'border border-dashed border-outline-variant' : 'bg-surface-container-low'}`}>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isDraft ? 'bg-surface-container-high text-outline' : 'bg-primary-fixed text-primary'}`}>
           <Users size={20} />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider">Total Pengisi</p>
           {isDraft ? (
             <p className="text-h3 font-bold text-text-secondary">-</p>
           ) : (
-            <p className="text-h3 font-bold text-text-primary">
+            <p className="text-h3 font-bold text-text-primary whitespace-nowrap">
               {respondentsCount} <span className="text-label-md font-medium text-text-secondary">Responden</span>
             </p>
           )}
         </div>
       </div>
 
-      <div className={`flex items-center gap-md p-md rounded-lg ${isDraft ? 'border border-dashed border-outline-variant' : 'bg-surface-container-low'}`}>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDraft ? 'bg-surface-container-high text-outline' : 'bg-emerald-100 text-emerald-600'}`}>
+      {/* Kartu Nilai Survei / Nilai Sementara IKM -- dibuat lebih panjang agar teks kategori tidak patah ke bawah */}
+      <div className={`flex items-center gap-md p-md rounded-lg min-w-[260px] sm:min-w-[340px] md:min-w-[380px] pr-lg ${isDraft ? 'border border-dashed border-outline-variant' : 'bg-surface-container-low'}`}>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isDraft ? 'bg-surface-container-high text-outline' : 'bg-emerald-100 text-emerald-600'}`}>
           {isDraft ? <BarChart3 size={20} /> : <TrendingUp size={20} />}
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] text-text-secondary uppercase font-bold tracking-wider">
             {custom ? (nilaiSurvei?.judul ?? 'Nilai Survei') : 'Nilai Sementara IKM'}
           </p>
           {isDraft ? (
             <p className="text-h3 font-bold text-text-secondary">-</p>
           ) : custom ? (
-            <p className="text-h3 font-bold text-emerald-600">
-              <NilaiSurvei nilaiSurvei={nilaiSurvei} ukuran="sel" />
+            <p className="text-h3 font-bold text-emerald-600 whitespace-nowrap">
+              <NilaiSurvei nilaiSurvei={nilaiSurvei} ukuran="kartu" />
             </p>
           ) : (
-            <p className="text-h3 font-bold text-emerald-600">
+            <p className="text-h3 font-bold text-emerald-600 whitespace-nowrap">
               {ikmScore ? ikmScore.toFixed(2) : '-'} <span className="text-label-md font-medium">{ikmScore && ikmScore >= 80 ? '(Baik)' : ''}</span>
             </p>
           )}

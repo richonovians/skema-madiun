@@ -6,6 +6,7 @@ import AdminSurveyCardStats from './AdminSurveyCardStats';
 import AdminSurveyCardActions from './AdminSurveyCardActions';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import { labelJenis } from '@/features/surveys/constants/jenisSurvei';
 
 export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, onDelete }) {
   const { id, title, status, period, respondentsCount, ikmScore, isUtama, jenis, nilaiSurvei } =
@@ -44,6 +45,16 @@ export default function AdminSurveyCard({ survey, onChangeStatus, onDuplicate, o
               membuka survei satu per satu -- dan karena menyalakan yang baru
               MELEPAS yang lama, ia juga tak punya cara memastikan
               penunjukannya berpindah ke tempat yang ia kira. */}
+          {/* Jenis survei (SKM / Custom) -- 22 Oktober 2026. Konsisten dengan
+              lencana pada kolom JENIS SURVEI di SurveyMonitoringTable Admin Kab. */}
+          {labelJenis(jenis) && (
+            <Badge
+              variant={jenis === 'custom' ? 'secondary' : 'info'}
+              className="px-sm py-[2px] text-[10px] uppercase rounded"
+            >
+              {labelJenis(jenis)}
+            </Badge>
+          )}
           {isUtama && (
             <Badge
               variant="info"

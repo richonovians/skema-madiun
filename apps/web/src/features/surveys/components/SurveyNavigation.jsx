@@ -80,26 +80,26 @@ export default function SurveyNavigation() {
   const Ikon = lewatModal ? ClipboardCheck : isLastStep ? Send : ArrowRight;
 
   return (
-    <div className="pt-8 border-t border-outline-variant/30 mt-12">
+    <div className="pt-4 border-t border-slate-100 mt-4">
       <div className="flex flex-row items-center justify-between gap-3 w-full">
         <button 
-          className={`flex-1 sm:flex-none flex items-center justify-center px-3 sm:px-8 py-3 min-h-[48px] rounded-lg border border-outline-variant font-semibold transition-colors text-sm sm:text-base
+          className={`flex-1 sm:flex-none flex items-center justify-center px-4 py-2 min-h-[38px] rounded-lg border border-outline-variant/60 font-semibold transition-colors text-xs sm:text-sm
             ${isFirstStep 
-              ? 'opacity-50 cursor-not-allowed text-outline' 
+              ? 'opacity-40 cursor-not-allowed text-outline' 
               : 'text-secondary hover:bg-surface-container-low active:scale-95'
             }
           `}
           onClick={prevStep}
           disabled={isFirstStep}
         >
-          <ArrowLeft className="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+          <ArrowLeft className="mr-1.5 w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
           <span>Kembali</span>
         </button>
         
         <button 
-          className={`flex-1 sm:flex-none flex items-center justify-center px-3 sm:px-8 py-3 min-h-[48px] rounded-lg font-semibold shadow-sm transition-all text-sm sm:text-base
+          className={`flex-1 sm:flex-none flex items-center justify-center px-5 py-2 min-h-[38px] rounded-lg font-semibold shadow-xs transition-all text-xs sm:text-sm
             ${isNextDisabled 
-              ? 'bg-surface-dim text-secondary cursor-not-allowed border border-outline-variant' 
+              ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' 
               : 'bg-primary text-white hover:bg-primary-hover shadow-primary/20 active:scale-95 border border-transparent'
             }
           `}
@@ -108,25 +108,21 @@ export default function SurveyNavigation() {
         >
           <span className="hidden sm:inline">{labelPanjang}</span>
           <span className="sm:hidden">{labelPendek}</span>
-          <Ikon className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+          <Ikon className="ml-1.5 w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
         </button>
       </div>
 
       {submitError && !modalTerbuka && (
-        <div className="mt-4 text-center text-error text-sm font-semibold">
+        <div className="mt-3 text-center text-error text-xs font-semibold">
           <p>{submitError}</p>
-          {/* Jalan keluarnya, bukan sekadar keterangan bahwa ada jalan keluar.
-              Sebelumnya pesannya sendiri yang menyuruh "Buka halaman
-              Persetujuan terlebih dahulu" -- menyebut tujuan tanpa memberi
-              jalan ke sana, tepat saat pengirimannya baru saja gagal. */}
           {submitErrorCode === KODE_PERSETUJUAN_DIBUTUHKAN && (
-            <ConsentRequiredAction className="mt-3" />
+            <ConsentRequiredAction className="mt-2" />
           )}
         </div>
       )}
 
-      <p className="mt-8 text-center text-text-secondary text-sm">
-        Jawaban Anda disimpan secara otomatis. Anda dapat kembali ke pertanyaan sebelumnya jika diperlukan.
+      <p className="mt-3 text-center text-text-secondary text-[11px] leading-tight">
+        Jawaban disimpan otomatis. Anda dapat kembali ke pertanyaan sebelumnya.
       </p>
 
       <ModalKirimSurvei isOpen={modalTerbuka} onBatal={() => setModalTerbuka(false)} />

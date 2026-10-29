@@ -142,7 +142,7 @@ test.describe('Nilai Survei survei custom', () => {
     await expect(page.getByText(/\b0 · /)).toHaveCount(0);
   });
 
-  test('sesudah dijawab skala 4: kartu menampilkan Indeks Kepuasan 100% · Sangat Puas', async ({
+  test('sesudah dijawab skala 4: kartu menampilkan Indeks Kepuasan 100% (Sangat Puas)', async ({
     page,
   }) => {
     const fill = await responden.get(`/api/v1/surveys/${surveiId}/fill`);
@@ -165,7 +165,7 @@ test.describe('Nilai Survei survei custom', () => {
     await page.goto('/admin-opd/surveys', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: judul })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('Indeks Kepuasan').first()).toBeVisible();
-    await expect(page.getByText('100% · Sangat Puas').first()).toBeVisible();
+    await expect(page.getByText('100% (Sangat Puas)').first()).toBeVisible();
     // Bukan lagi "Nilai Sementara IKM" untuk survei custom.
     const kartu = page.locator('div.relative', { has: page.getByRole('heading', { name: judul }) });
     await expect(kartu.getByText('Nilai Sementara IKM')).toHaveCount(0);
@@ -206,7 +206,7 @@ test.describe('Nilai Survei survei custom', () => {
 
     await page.goto('/admin-opd/surveys', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: judul })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('4,00 / 4 · Sangat Puas').first()).toBeVisible();
+    await expect(page.getByText('4,00 / 4 (Sangat Puas)').first()).toBeVisible();
   });
 
   test('ekspor CSV survei custom memuat Nilai Survei dan kategori, bukan Nilai IKM', async () => {
