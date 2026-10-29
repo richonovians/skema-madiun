@@ -143,8 +143,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-049](#bug-049) | Ekspor CSV meneruskan teks berawalan `=`, `+`, `-`, `@` mentah — Excel menghitungnya sebagai rumus bila dipecah per koma | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-050](#bug-050) | Tanggal tak sah di penyaring log audit (`startDate`/`endDate`) dijawab 500, bukan 400 | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-051](#bug-051) | Karakter pola LIKE `%`/`_` tak diloloskan: pencarian OPD dan log audit melebar, pencocokan OPD dari klaim SSO rawan salah tautan | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-052](#bug-052) | Mutasi bercookie dari origin lain diterima — tak ada penahan CSRF selain SameSite=Lax | Medium | Terkonfirmasi | **Ditutup** | — |
 
-**Rekap** — 51 temuan: **51 ditutup, 0 terbuka.**
+**Rekap** — 52 temuan: **52 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3187,6 +3188,48 @@ ketiga tempat.
 `sso.service.spec.ts` bahwa klaim `dinke_` dicari sebagai `dinke\_`. Mutasi
 yang membuang peloloskan garis miring terbalik memerahkan 2 uji unit;
 percobaan mutasi pertama lewat `sed` hampa (polanya tak cocok) dan diulang.
+
+### BUG-052 — Mutasi bercookie dari origin lain diterima: tak ada penahan CSRF selain SameSite=Lax
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | QA-SECURITY-UAT #6 (`docs/TEST_KEAMANAN.md` §15)             |
+| **Tanggal**  | ditemukan 28 Oktober 2026, ditutup 29 Oktober 2026           |
+| **Peran**    | semua peran bersesi cookie                                   |
+| **Berkas**   | `apps/api/src/app.setup.ts`                                  |
+| **Severity** | Medium (usulan penguji)                                      |
+
+**Cacatnya.** Backend menjalankan POST/PUT/PATCH/DELETE yang membawa
+cookie sesi tanpa memeriksa dari origin mana permintaan itu datang. CORS
+tidak menahannya: CORS hanya menyembunyikan JAWABAN dari JavaScript origin
+lain, sedangkan permintaannya tetap sampai dan dijalankan. Penahan yang
+tersisa hanya `SameSite=Lax` pada cookie sesi, dan atribut itu tidak
+berlaku antar-subdomain di bawah domain yang sama, karena bagi peramban
+keduanya masih satu situs. Terukur di `skm_uji`: mutasi bercookie dengan
+`Origin` asing dijawab sukses dan perubahannya tersimpan.
+
+Dinilai Medium, bukan High: dari situs yang benar-benar lain `SameSite=Lax`
+sudah menahan cookie pada POST, jadi jalurnya menuntut penyerang menguasai
+halaman di subdomain saudara.
+
+**Ditutup 29 Oktober 2026** — `c830db4`, merge `5cd1770` di `main`. Penjaga
+di `configureApp`, sesudah `enableCors`, untuk POST/PUT/PATCH/DELETE: bila
+`Origin` ada, ia harus termasuk `cors.origin` (dari `CORS_ORIGIN`); bila
+`Origin` tak ada, `Sec-Fetch-Site` `cross-site` atau `same-site` ditolak.
+Jawabannya 403 "Origin permintaan tidak diizinkan". Permintaan tanpa kedua
+header (curl, antarserver) dan semua GET tetap lolos. Kodenya ditulis
+pengguna sendiri; dua upaya sebelumnya di sesi asisten terhenti sebelum
+berkas apa pun tersimpan.
+
+**Syarat penggelaran.** `CORS_ORIGIN` produksi WAJIB memuat origin
+frontend. Tanpa itu setiap formulir di antarmuka dijawab 403.
+
+**Pagar.** `apps/api/test/csrf-origin.e2e-spec.ts`, 11 uji terhadap rute
+yang tidak ada (403 = ditolak penjaga, 404 = lolos penjaga), tanpa sesi
+maupun baris yang ditulis. Dengan `app.use` penjaganya dikomentari, enam
+uji penolakan merah (403 menjadi 404) dan lima uji jalur sah tetap hijau.
+Playwright penuh lewat `http://skema.local`: 155 lulus, 0 gagal, nol
+jawaban 403 dari penjaga.
 
 ---
 
@@ -6538,3 +6581,4 @@ hanya dibaca, tidak diubah.
 | 7.13 | 28 Oktober 2026 | **BUG-048 ditutup: 48 temuan, 48 ditutup, nol terbuka.** Aksi Teruskan (95x29) dan Monitor Tiket (122x31 di desktop) di daftar pengaduan Admin Kabupaten di bawah 44px, Monitor Tiket `<button>` di dalam `<Link>`, `e078f29`, merge `9000688`. |
 | 7.14 | 28 Oktober 2026 | **BUG-049 lahir dan ditutup pada hari yang sama: 49 temuan, 49 ditutup, nol terbuka.** Kandidat injeksi rumus dari rencana uji keamanan (QA-SECURITY-UAT #3) terbukti lewat Excel di mesin pengembang: CSV dari `susunCsv` dan `toCsv` menghitung `=1+1` sebagai rumus bila dipecah per koma, sedangkan XLSX dari exceljs aman. Dinilai Medium, bukan High, karena Excel berpemisah `;` di mesin ini tidak menghitung bentuk yang diuji pada klik ganda. Diperbaiki dengan awalan petik tunggal di `csvEscape` dan `kutip`, dan tiga halaman daftar yang menyusun CSV sendiri dipindah ke `unduhCsv`, `74646df`, merge `68733cf`. |
 | 7.15 | 28 Oktober 2026 | **BUG-050 dan BUG-051 lahir dan ditutup pada hari yang sama: 51 temuan, 51 ditutup, nol terbuka.** Uji asap injeksi SQL (QA-SECURITY-UAT #5) tak menemukan injeksi, tetapi menemukan `startDate`/`endDate` log audit yang menjawab 500 untuk teks bukan tanggal (BUG-050) dan `contains`/`equals` + `insensitive` Prisma yang menjadi ILIKE tanpa meloloskan `%` dan `_` (BUG-051), termasuk di pencocokan OPD dari klaim SSO. `bd247e2`, merge `7fc1f50`. |
+| 7.16 | 29 Oktober 2026 | **BUG-052 ditutup: 52 temuan, 52 ditutup, nol terbuka.** Uji CSRF (QA-SECURITY-UAT #6) menemukan bahwa mutasi bercookie dari origin lain diterima, dengan SameSite=Lax sebagai satu-satunya penahan. Penjaga origin di `configureApp`, `c830db4`, merge `5cd1770`. Kodenya ditulis pengguna; dua upaya sebelumnya di sesi asisten terhenti sebelum berkas apa pun tersimpan. |

@@ -61,7 +61,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 3 | A03 Injection — rumus | ekspor CSV/Excel hasil survei dan laporan berisi sel `=HYPERLINK(...)`, `+cmd`, `@SUM` | buat berkas dengan kode aplikasi, buka di Excel | **selesai 28 Okt — TERBUKTI, BUG-049 ditutup**, lihat §10 |
 | 4 | A03 XSS tersimpan | `<script>`, `<img onerror>`, `javascript:` pada judul/uraian pengaduan, balasan, judul survei, teks pertanyaan, nama | kirim lewat API, buka setiap halaman yang menayangkannya di Chrome | **selesai 28 Okt — nol XSS**, lihat §11 |
 | 5 | A03 SQLi | `' OR 1=1--` dan sejenisnya pada `search`, `q`, penyaring, `:id` | permintaan langsung; harapan 400/hasil kosong, bukan 500 | **selesai 28 Okt — SQLi nihil; BUG-050, BUG-051 ditutup**, lihat §12 |
-| 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | belum diuji |
+| 6 | CSRF | semua mutasi bercookie dari origin asing; GET yang mengubah keadaan | halaman uji lokal di origin lain | **selesai 29 Okt — TERBUKTI, BUG-052 ditutup**, lihat §15 |
 | 7 | A07 Auth & sesi | atribut cookie, logout dan `logout-semua` benar-benar mencabut, token kedaluwarsa, ganti peran | permintaan langsung + Chrome | **selesai 28 Okt — nol celah**, lihat §13 |
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | belum diuji |
@@ -505,3 +505,56 @@ ditentukan — tetapi harus diperiksa saat QA-FINAL-UAT.
 
 **Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 720/720 (47
 suite), web komponen 1957/1957, eslint dan prettier kode 0.
+
+## 15. Hasil #6 — CSRF
+
+**Dijalankan:** 28-29 Oktober 2026. **Hasil: TERBUKTI, BUG-052 ditutup**
+— `c830db4`, merge `5cd1770` di `main`.
+
+**Mutasi.** Sebelum perbaikan, penahan satu-satunya adalah `SameSite=Lax`
+pada cookie sesi. Tidak ada token CSRF, tidak ada pemeriksaan `Origin`, dan
+CORS hanya menyembunyikan jawaban, bukan mencegah permintaannya dijalankan.
+`SameSite=Lax` tidak berlaku antar-subdomain di bawah domain yang sama.
+Rinciannya di `BUG_REPORTS.md`.
+
+**Perbaikan.** Penjaga origin di `configureApp` untuk POST/PUT/PATCH/DELETE:
+`Origin` harus termasuk `cors.origin`; tanpa `Origin`, `Sec-Fetch-Site`
+`cross-site`/`same-site` ditolak 403. Tanpa kedua header tetap lolos.
+
+**GET yang mengubah keadaan.** Diperiksa statis: tak ada handler `@Get`
+yang memanggil metode pengubah data. Yang menulis sesuatu hanya dua rute
+OAuth: `/auth/sso/login` menerbitkan cookie `state`, dan
+`/auth/sso/callback` menerbitkan sesi hanya bila `state`-nya cocok (diuji di
+`sso.e2e-spec.ts`). Penandaan notifikasi dibaca memakai PATCH, bukan GET.
+
+**Suite.** `apps/api/test/csrf-origin.e2e-spec.ts`, 11 uji terhadap rute
+yang tidak ada, sehingga 403 berarti ditolak penjaga dan 404 berarti lolos.
+Tanpa sesi, akun, atau baris yang ditulis.
+
+| Permintaan | Harapan |
+| ---------- | ------- |
+| POST/PUT/PATCH/DELETE dengan `Origin` asing | 403 |
+| POST dengan `Origin` dari `cors.origin` | lolos |
+| GET dengan `Origin` asing | lolos |
+| POST tanpa `Origin`, `Sec-Fetch-Site` `cross-site` / `same-site` | 403 |
+| POST tanpa `Origin`, `Sec-Fetch-Site` `same-origin` / `none` | lolos |
+| POST tanpa kedua header | lolos |
+
+**Bukti suitenya tidak hampa.** Dengan `app.use` penjaganya dikomentari:
+enam uji penolakan merah (403 menjadi 404), lima uji jalur sah tetap hijau.
+
+**Frontend tidak ikut tertolak.** Playwright penuh lewat
+`http://skema.local` terhadap server dev yang sudah memuat penjaganya
+(diperiksa lebih dulu: origin asing 403, `http://skema.local` lolos): 155
+lulus, 2 dilewati, 4 goyah lulus pada percobaan ulang, 0 gagal. Nol jawaban
+403 dari penjaga di log; keempat kegoyahan berupa batas waktu dan
+`ERR_ABORTED` yang sudah dikenal, dan penjaga yang deterministik tak
+mungkin lulus pada percobaan ulang bila ia penyebabnya.
+
+**Syarat penggelaran yang harus dijaga:** `CORS_ORIGIN` produksi WAJIB
+memuat origin frontend. Diperiksa saat QA-FINAL-UAT bersama
+`TRUST_PROXY_HOPS` (§14).
+
+**Gerbang penuh sesudahnya:** API unit 1426/1426, API e2e 731/731 (48
+suite), web komponen 1957/1957, eslint kode 0, prettier dirapikan lalu
+bersih (spec baru tersimpan CRLF dan berindentasi 4 spasi dari editor).
