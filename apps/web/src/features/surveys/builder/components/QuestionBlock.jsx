@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Lock, GripVertical, Trash2, ArrowUp, ArrowDown, ListChecks, Gauge } from 'lucide-react';
 import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels';
 
@@ -9,6 +9,49 @@ import { scaleStepsFromOptions } from '@/features/surveys/constants/scaleLabels'
  */
 const INTERACTIVE_SELECTOR =
   'input, textarea, button, a, select, label, [contenteditable="true"]';
+
+/**
+ * Kotak kalimat pertanyaan (30 Oktober 2026, permintaan pengguna).
+ *
+ * TEXTAREA, bukan `<input>`: kalimat unsur SKM yang panjang dulu terpotong ke
+ * samping dan tak pernah terbaca utuh. Tingginya mengikuti isi, jadi kalimat
+ * pendek tetap satu baris.
+ *
+ * Pertanyaan tetap SATU paragraf -- layar pengisian warga tak dirancang untuk
+ * pertanyaan bergaris-garis. Enter menyelesaikan suntingan (blur, yang
+ * menyimpan) alih-alih membuat baris baru, dan baris baru yang ditempel
+ * disatukan menjadi spasi.
+ */
+function KalimatPertanyaan({ value, readOnly, onChange, onCommit, className, ...sisa }) {
+  const ref = useRef(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    // scrollHeight tak memuat garis pinggir, sedangkan `height` (border-box)
+    // memuatnya; tanpa selisih ini dua piksel terbawah terpotong.
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      readOnly={readOnly}
+      className={`resize-none overflow-hidden ${className}`}
+      onChange={(e) => onChange(e.target.value.replace(/[\r\n]+/g, ' '))}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+        e.preventDefault();
+        e.currentTarget.blur();
+      }}
+      onBlur={(e) => !readOnly && onCommit?.(e.target.value)}
+      {...sisa}
+    />
+  );
+}
 
 /**
  * Pratinjau bentuk jawaban sesuai tipe pertanyaan -- read-only, sekadar
@@ -255,15 +298,14 @@ export default function QuestionBlock({
           {/* Kalimat pertanyaan unsur DAPAT disunting OPD. Bergaris seperti kotak
               pertanyaan kustom supaya jelas bahwa ini isian, bukan judul. Nama
               resmi unsurnya ada di badge di atas dan tidak ikut berubah. */}
-          <input
+          <KalimatPertanyaan
             className="w-full text-body-md font-body-md bg-white rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-md py-sm text-text-primary cursor-text read-only:bg-surface-container-low read-only:cursor-default"
             placeholder="Tulis pertanyaan di sini..."
-            type="text"
             aria-label={`Kalimat pertanyaan ${question.title}`}
             value={question.text}
             readOnly={!canEditText}
-            onChange={(e) => onUpdate?.(question.id, { text: e.target.value })}
-            onBlur={(e) => canEditText && onTextCommit && onTextCommit(question.id, e.target.value)}
+            onChange={(text) => onUpdate?.(question.id, { text })}
+            onCommit={(text) => onTextCommit?.(question.id, text)}
           />
         </div>
         {/* LABEL skala tiap unsur juga boleh disesuaikan -- yang berubah cuma
@@ -311,14 +353,13 @@ export default function QuestionBlock({
               pertanyaan yang sudah terisi terbaca sebagai judul mati. Kotak
               teks unsur baku di atas SUDAH bergaris sejak awal; ini
               menyamakannya, bukan memperkenalkan gaya baru. */}
-          <input
+          <KalimatPertanyaan
             className="w-full text-headline-md font-headline-md bg-white rounded-lg border border-border hover:border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors px-md py-sm text-text-primary cursor-text"
             placeholder="Tulis pertanyaan di sini..."
-            type="text"
             value={question.text}
             readOnly={!canEditText}
-            onChange={(e) => onUpdate(question.id, { text: e.target.value })}
-            onBlur={(e) => canEditText && onTextCommit && onTextCommit(question.id, e.target.value)}
+            onChange={(text) => onUpdate(question.id, { text })}
+            onCommit={(text) => onTextCommit?.(question.id, text)}
           />
         </div>
         <div className="flex items-center gap-sm shrink-0">
