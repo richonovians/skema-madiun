@@ -13,35 +13,48 @@ import useSurveyStore from '../store/useSurveyStore';
  * karena itu diberi satu tautan ke halaman depan publik `/`, berlabel
  * "Kembali ke Layanan" — jalan buntu adalah cacat, bukan detail kosmetik. Baku
  * `true` supaya pemakaian yang sudah ada tak berubah.
+ *
+ * @param {boolean} [tampilkanKepala] Logo, nama "SKEMA Madiun", dan lencana
+ * "Terkirim". Dimatikan di `/surveys/[id]` (30 Oktober 2026, permintaan
+ * pengguna): di sana navbar aplikasi sudah membawa mereknya. Halaman publik
+ * `/survei/[id]` tak punya navbar, jadi bawaannya tetap `true`.
  */
-export default function SurveyCompletion({ tampilkanTautanWarga = true, surveyTitle }) {
+export default function SurveyCompletion({
+  tampilkanTautanWarga = true,
+  tampilkanKepala = true,
+  surveyTitle,
+}) {
   const { surveyData } = useSurveyStore();
   const judulSurvei = surveyTitle || surveyData?.title || 'Evaluasi Mutu Pelayanan';
 
   return (
-    <div className="w-full bg-white rounded-2xl shadow-2xl border border-slate-100/90 text-center overflow-hidden">
+    // `max-w-[500px]` sama dengan pembungkus halaman publik; tanpa itu kartunya
+    // melebar selebar kontainer halaman `/surveys/[id]`.
+    <div className="w-full max-w-[500px] mx-auto bg-white rounded-2xl shadow-2xl border border-slate-100/90 text-center overflow-hidden">
       {/* Header kartu: logo SKEMA Madiun */}
-      <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
-          <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
-            <Image
-              src="/images/navbar/skema-logo-2.png"
-              alt="Logo SKEMA"
-              width={76}
-              height={48}
-              className="object-contain h-7 w-auto"
-              priority
-            />
-          </div>
-          <span className="text-sm font-bold text-primary tracking-tight">
-            SKEMA Madiun
+      {tampilkanKepala && (
+        <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
+            <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
+              <Image
+                src="/images/navbar/skema-logo-2.png"
+                alt="Logo SKEMA"
+                width={76}
+                height={48}
+                className="object-contain h-7 w-auto"
+                priority
+              />
+            </div>
+            <span className="text-sm font-bold text-primary tracking-tight">
+              SKEMA Madiun
+            </span>
+          </Link>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Terkirim
           </span>
-        </Link>
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Terkirim
-        </span>
-      </div>
+        </div>
+      )}
 
       <div className="px-5 py-7 sm:px-8 sm:py-9 flex flex-col items-center">
         {/* Ikon Sukses dengan Animasi */}

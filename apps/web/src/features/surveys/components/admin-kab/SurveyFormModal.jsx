@@ -7,7 +7,6 @@ import { X, Building2, Loader2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import { buildPeriode, parsePeriode } from '@/features/surveys/adapters/survey.adapter';
-import PemilihJenisSurvei from '@/features/surveys/builder/components/PemilihJenisSurvei';
 import PengaturanNilaiSurvei from '@/features/surveys/builder/components/PengaturanNilaiSurvei';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -62,6 +61,11 @@ const MENU_MAX_HEIGHT_PERIODE = 'max-h-[120px]';
  * perlu tampil, sehingga isian selalu dimulai dari `initialValues` yang segar
  * lewat inisialisasi useState (bukan disetel ulang dari dalam useEffect --
  * pola itu memicu cascading render, lihat aturan react-hooks/set-state-in-effect).
+ *
+ * Mode buat TIDAK memilih jenis (30 Oktober 2026, permintaan pengguna). Tombolnya
+ * "Pilih Jenis Survei": isian modal diteruskan ke pemanggil, yang membawanya ke
+ * halaman jenis survei builder -- halaman yang sama dengan milik Admin OPD.
+ * Surveinya baru dibuat di sana, sesudah jenisnya dikonfirmasi.
  */
 export default function SurveyFormModal({
   mode = 'create',
@@ -84,11 +88,11 @@ export default function SurveyFormModal({
   const [tahun, setTahun] = useState(initialPeriode.tahun);
   const [triwulan, setTriwulan] = useState(initialPeriode.triwulan);
   const [izinkanAnonim, setIzinkanAnonim] = useState(initialValues?.izinkanAnonim ?? false);
-  // Jenis survei (8 Oktober 2026): dipilih eksplisit saat membuat, tanpa pilihan
-  // bawaan, dan tak dapat diganti sesudahnya -- mode ubah hanya menampilkannya.
-  const [jenis, setJenis] = useState(initialValues?.jenis ?? null);
-  // Tujuan + metode nilai (8 Oktober 2026): hanya survei custom. Wajib dipilih saat
-  // membuat; saat mengubah boleh diganti (hanya tampilan nilai yang berubah).
+  // Jenis survei: mode ubah hanya menampilkannya. Mode buat memilihnya di halaman
+  // jenis survei builder (30 Oktober 2026), jadi di sini selalu null.
+  const jenis = initialValues?.jenis ?? null;
+  // Tujuan + metode nilai (8 Oktober 2026): hanya survei custom, dan di modal ini
+  // hanya mode ubah yang menyuntingnya (hanya tampilan nilai yang berubah).
   const [tujuan, setTujuan] = useState(initialValues?.tujuan ?? null);
   const [metodeNilai, setMetodeNilai] = useState(initialValues?.metodeNilai ?? null);
   const [validationError, setValidationError] = useState(null);
@@ -136,34 +140,18 @@ export default function SurveyFormModal({
       return;
     }
 
-    if (!isEdit && !jenis) {
-      setValidationError('Jenis survei wajib dipilih.');
-      return;
-    }
-
-    if (!isEdit && jenis === 'custom') {
-      if (!tujuan) {
-        setValidationError('Tujuan survei wajib dipilih.');
-        return;
-      }
-      if (!metodeNilai) {
-        setValidationError('Metode nilai wajib dipilih.');
-        return;
-      }
-    }
-
     setValidationError(null);
     onSubmit({
       title: trimmedTitle,
       period: buildPeriode(tahun, triwulan),
       izinkanAnonim,
       // Hanya survei custom, dan hanya yang terisi: backend menolak keduanya pada
-      // SKM (400), jadi pilihan yang tersisa dari Custom yang dibatalkan tak boleh ikut.
+      // SKM (400).
       ...(jenis === 'custom'
         ? { ...(tujuan ? { tujuan } : {}), ...(metodeNilai ? { metodeNilai } : {}) }
         : {}),
-      // Jenis hanya dikirim saat membuat: UpdateSurveyDto menolaknya (400).
-      ...(isEdit ? {} : { opdId: Number(opdId), jenis }),
+      // OPD hanya saat membuat: UpdateSurveyDto tak punya field itu.
+      ...(isEdit ? {} : { opdId: Number(opdId) }),
     });
   };
 
@@ -229,7 +217,7 @@ export default function SurveyFormModal({
           <p className="text-sm text-slate-500 mt-1">
             {isEdit
               ? 'Judul dan periode hanya dapat diubah selama survei masih berstatus draf.'
-              : 'Survei dibuat sebagai draf, lalu builder pertanyaan langsung terbuka.'}
+              : 'Sesudah ini Anda memilih jenis survei, lalu builder pertanyaan terbuka.'}
           </p>
         </div>
 
@@ -308,9 +296,10 @@ export default function SurveyFormModal({
             />
           </div>
 
-          {/* JENIS SURVEI. Mode buat: pilihan eksplisit. Mode ubah: hanya keterangan,
-              karena jenis menentukan kerangka pertanyaan dan tak dapat diganti. */}
-          {isEdit ? (
+          {/* JENIS SURVEI, hanya mode ubah dan hanya keterangan: gantinya lewat
+              tombol "Ganti jenis" di builder. Mode buat memilihnya di halaman jenis
+              survei sesudah modal ini (30 Oktober 2026). */}
+          {isEdit && (
             <div className="space-y-xs">
               <span className="block text-sm font-bold text-text-primary">Jenis Survei</span>
               <div className="min-h-[44px] flex items-center px-md rounded-lg bg-surface-container-low border border-outline-variant text-body-md text-text-secondary">
@@ -321,13 +310,9 @@ export default function SurveyFormModal({
                     : 'Tidak diketahui'}
               </div>
               <p className="text-xs text-slate-500">
-                Jenis survei tidak dapat diganti setelah survei dibuat.
+                Jenis survei dapat diganti lewat builder selama survei masih draf dan belum
+                dijawab.
               </p>
-            </div>
-          ) : (
-            <div className="space-y-xs">
-              <span className="block text-sm font-bold text-text-primary">Jenis Survei</span>
-              <PemilihJenisSurvei nilai={jenis} onPilih={setJenis} disabled={isSubmitting} ringkas />
             </div>
           )}
 
@@ -393,7 +378,7 @@ export default function SurveyFormModal({
             className="flex-1 py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-            {isSubmitting ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Buat Survei'}
+            {isSubmitting ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Pilih Jenis Survei'}
           </button>
         </div>
       </div>

@@ -137,6 +137,17 @@ test.describe('Pengisian survei oleh responden', () => {
 
     await expect(page.getByRole('heading', { name: 'Terima Kasih!' })).toBeVisible();
 
+    // Kartu terima kasih pengguna login (30 Oktober 2026, permintaan pengguna):
+    // tanpa logo, nama "SKEMA Madiun", dan lencana "Terkirim" -- navbar aplikasi
+    // sudah membawa mereknya -- dan tak melebar selebar kontainer halaman.
+    const kartu = page
+      .getByRole('heading', { name: 'Terima Kasih!' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]');
+    await expect(kartu.getByText('Terkirim', { exact: true })).toHaveCount(0);
+    await expect(kartu.getByText('SKEMA Madiun', { exact: true })).toHaveCount(0);
+    await expect(kartu.getByRole('img', { name: 'Logo SKEMA' })).toHaveCount(0);
+    expect((await kartu.boundingBox()).width, 'kartu terima kasih melebar').toBeLessThanOrEqual(500);
+
     // Layar boleh saja mengaku berhasil; yang menentukan adalah apa yang
     // tersimpan. Nilai yang diharapkan ditulis harfiah, bukan dihitung ulang
     // dengan kode yang sedang diuji.

@@ -26,6 +26,12 @@ const opdUser = (opdId: number | null): CurrentUser => ({
  * Peran `superuser` dilebur 15 September 2026 dan nilai enumnya dibuang, jadi
  * namanya menyebut peran yang tak mungkin dibangun (dibereskan 14 Oktober 2026).
  */
+const respondenUser = (): CurrentUser => ({
+  userId: 42,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+});
 const kabupatenUser = (): CurrentUser => ({
   userId: 9,
   roles: [Role.kabupaten],
@@ -171,7 +177,7 @@ describe('SurveysService', () => {
       1,
     ]);
 
-    const result = await service.findActive({ page: 1, limit: 20 });
+    const result = await service.findActive({ page: 1, limit: 20 }, respondenUser());
 
     expect(result.items[0].opdNama).toBe('Dinas Kesehatan');
     expect(result.items[0].questionsCount).toBe(9);
@@ -179,7 +185,11 @@ describe('SurveysService', () => {
     expect((result.items[0] as unknown as { _count?: unknown })._count).toBeUndefined();
     expect(prisma.survey.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: SurveyStatus.aktif, deletedAt: null },
+        where: {
+          status: SurveyStatus.aktif,
+          deletedAt: null,
+          responses: { none: { dedupeUserId: 42 } },
+        },
         include: { opd: { select: { nama: true } }, _count: { select: { questions: true } } },
       }),
     );
@@ -197,10 +207,17 @@ describe('SurveysService', () => {
       1,
     ]);
 
-    await service.findActive({ page: 1, limit: 20, opdId: 5 });
+    await service.findActive({ page: 1, limit: 20, opdId: 5 }, respondenUser());
 
     expect(prisma.survey.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: SurveyStatus.aktif, deletedAt: null, opdId: 5 } }),
+      expect.objectContaining({
+        where: {
+          status: SurveyStatus.aktif,
+          deletedAt: null,
+          responses: { none: { dedupeUserId: 42 } },
+          opdId: 5,
+        },
+      }),
     );
   });
 

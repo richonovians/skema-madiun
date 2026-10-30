@@ -7,7 +7,8 @@ import { expect, LEBAR_PONSEL_UMUM, test, ukurLuberan } from './fixtures/respons
  * menambah tinggi pada dua layar yang sebelumnya sudah ketat:
  *  - pemilih jenis di `/admin-opd/surveys/builder/new` (kartu radio + tombol
  *    "Lanjutkan");
- *  - modal "Buat Survei" Admin Kabupaten, yang tingginya tetap dan nyaris penuh.
+ *  - modal "Buat Survei" Admin Kabupaten, yang tingginya tetap dan nyaris penuh
+ *    (sejak 30 Oktober 2026 isian itu tak lagi ada di modal; lihat blok terakhir).
  *
  * jsdom tidak memuat CSS, jadi luapan semacam ini hanya tertangkap di peramban.
  *
@@ -91,13 +92,20 @@ test.describe('pemilih jenis survei baru — isian Nilai Survei (Admin OPD)', ()
   });
 });
 
-test.describe('modal Buat Survei — isian Nilai Survei (Admin Kabupaten)', () => {
+/**
+ * Sampai 30 Oktober 2026 modal "Buat Survei" Admin Kabupaten memuat jenis,
+ * tujuan, dan metode nilai, dan blok ini mengukur bahwa kedua isian itu terjangkau
+ * di dalam modal bertinggi tetap. Atas permintaan pengguna ketiganya pindah ke
+ * halaman jenis survei (yang sama dengan milik Admin OPD dan diukur di atas), jadi
+ * yang dijaga di sini tinggal bahwa modal tidak lagi memuatnya -- di lebar mana
+ * pun. Batas footer dan galat validasinya diukur kerangka-unsur-tata-letak.spec.
+ */
+test.describe('modal Buat Survei — tanpa isian Nilai Survei (Admin Kabupaten)', () => {
   for (const [nama, lebar, tinggi] of [
     ['laptop 1366x768', 1366, 768],
-    ['laptop 1280x720', 1280, 720],
     ['ponsel 320x568', 320, 568],
   ] as const) {
-    test(`${nama}: dua isian terjangkau, footer tetap di layar, galat wajib terbaca`, async ({
+    test(`${nama}: modal tidak memuat jenis, tujuan, maupun metode nilai`, async ({
       page,
       bukaSebagai,
     }) => {
@@ -110,55 +118,11 @@ test.describe('modal Buat Survei — isian Nilai Survei (Admin Kabupaten)', () =
       await expect(page.getByText('Buat Paket Survei')).toBeVisible();
       await page.setViewportSize({ width: lebar, height: tinggi });
 
-      // Dibatasi ke KARTU modal: pemicu di halaman punya nama yang sama.
-      const kartuModal = page
-        .getByText('Buat Paket Survei')
-        .locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]');
-      const footerTombol = kartuModal.getByRole('button', { name: /^buat survei$/i });
-
-      await page.getByRole('radio', { name: /survei custom/i }).check();
-      const tujuan = kartuModal.getByLabel(/tujuan survei/i);
-      const metode = kartuModal.getByLabel(/metode nilai/i);
-      await tujuan.scrollIntoViewIfNeeded();
-      await expect(tujuan).toBeInViewport();
-      await metode.scrollIntoViewIfNeeded();
-      await expect(metode).toBeInViewport();
-
-      // Dipoll: kartu modal beranimasi masuk dan menyesuaikan tingginya.
-      await expect
-        .poll(
-          async () => {
-            const k = await footerTombol.boundingBox();
-            return k ? k.y + k.height : Number.POSITIVE_INFINITY;
-          },
-          { message: 'tombol Buat Survei di luar layar', timeout: 5000 },
-        )
-        .toBeLessThanOrEqual(tinggi + 1);
-
-      // Isian bukan kolom sempit: bisa dibaca dan disentuh.
-      for (const isian of [tujuan, metode]) {
-        const k = (await isian.boundingBox())!;
-        expect(k.height, 'isian terlalu pendek').toBeGreaterThanOrEqual(40);
-        expect(k.width, 'isian terlalu sempit').toBeGreaterThanOrEqual(120);
-        expect(k.x + k.width, 'isian keluar tepi kanan').toBeLessThanOrEqual(lebar + 1);
-      }
-
-      // Judul dan OPD dikosongkan, jadi galat pertama yang muncul menyangkut judul;
-      // yang dijaga di sini hanya bahwa galatnya tidak tertutup footer.
-      await footerTombol.click();
-      const galat = kartuModal.getByText(/wajib/i).first();
-      await galat.scrollIntoViewIfNeeded();
-      await expect(galat, 'galat validasi tak terlihat').toBeInViewport();
-      await expect
-        .poll(
-          async () => {
-            const g = await galat.boundingBox();
-            const f = await footerTombol.boundingBox();
-            return g && f ? g.y + g.height - f.y : Number.POSITIVE_INFINITY;
-          },
-          { message: 'galat validasi tertutup footer', timeout: 5000 },
-        )
-        .toBeLessThanOrEqual(1);
+      const modal = page.getByRole('dialog');
+      await expect(modal.getByRole('button', { name: /^pilih jenis survei$/i })).toBeVisible();
+      await expect(modal.getByRole('radiogroup', { name: /jenis survei/i })).toHaveCount(0);
+      await expect(modal.getByLabel(/tujuan survei/i)).toHaveCount(0);
+      await expect(modal.getByLabel(/metode nilai/i)).toHaveCount(0);
     });
   }
 });

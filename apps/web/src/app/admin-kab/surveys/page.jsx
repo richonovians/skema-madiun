@@ -18,7 +18,6 @@ import { SURVEY_STATUS_LABEL } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getSurveys,
-  createSurvey,
   updateSurvey,
   updateSurveyStatus,
   deleteSurvey,
@@ -241,12 +240,19 @@ export default function AdminKabSurveysPage() {
         return;
       }
 
-      // Survei baru selalu lahir sebagai draf TANPA pertanyaan -- tak ada
-      // gunanya kembali ke daftar dulu, jadi langsung ke builder milik area
-      // /admin-kab (bukan builder /admin-opd, biar tak berpindah area peran).
-      const created = await createSurvey(values);
+      // Survei baru TIDAK dibuat di sini (30 Oktober 2026, permintaan pengguna):
+      // isian modal dibawa ke halaman jenis survei builder milik area /admin-kab
+      // (bukan /admin-opd, biar tak berpindah area peran), dan survei dibuat di
+      // sana sesudah jenisnya dikonfirmasi. Isiannya di URL supaya memuat ulang
+      // halaman jenis tak menghapusnya.
+      const isian = new URLSearchParams({
+        opd: String(values.opdId),
+        judul: values.title,
+        periode: values.period,
+        anonim: values.izinkanAnonim ? '1' : '0',
+      });
       closeForm();
-      router.push(`/admin-kab/surveys/builder/${created.id}`);
+      router.push(`/admin-kab/surveys/builder/new?${isian}`);
     } catch (err) {
       // Galat aturan backend (mis. survei bukan draf lagi, judul >100 karakter,
       // OPD tak ditemukan) ditampilkan DI DALAM modal supaya isian tak hilang.

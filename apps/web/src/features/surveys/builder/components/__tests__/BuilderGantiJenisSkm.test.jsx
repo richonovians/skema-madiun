@@ -243,6 +243,10 @@ describe('Builder — alur ganti jenis SKM -> Custom', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('radio', { name: /skm permenpanrb/i }));
     });
+    // Sejak 30 Oktober 2026 klik kartu hanya menandai; dialog dibuka "Lanjutkan".
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^lanjutkan$/i }));
+    });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /ya, pilih jenis ini/i }));
     });
