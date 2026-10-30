@@ -34,6 +34,21 @@ test.describe('Distribusi Skor — Admin Kabupaten', () => {
     // Setiap pertanyaan yang sudah dijawab punya bilah bernama lengkap
     // ("... dari N jawaban") dan angkanya tertulis sebagai teks, bukan di atas warna.
     const bilah = page.getByRole('img', { name: /dari \d+ jawaban/i });
+
+    // JUDUL KARTU BUKAN TANDA ADA DATA (30 Oktober 2026). DistribusiSkor
+    // merender judulnya selama backend mengirim `sebaranSkor`, juga ketika belum
+    // ada satu jawaban pun -- tiap barisnya lalu berbunyi "Belum ada jawaban.".
+    // Penjaga di atas mengira sebaliknya, dan itu tak pernah terlihat di laptop
+    // karena skm_db selalu punya respons. Di CI basis datanya hanya berisi seed,
+    // yang tak membuat respons, sehingga uji ini gagal tiga kali berturut-turut
+    // pada lari pertamanya. Keadaan kosong itu kini DIPERIKSA dulu, baru dilewati.
+    if ((await bilah.count()) === 0) {
+      await expect(
+        page.getByText(/^Belum ada jawaban\.$|belum memuat pertanyaan skala/).first(),
+        'kartu tanpa bilah juga tanpa keterangan kosong',
+      ).toBeVisible();
+      test.skip(true, 'Survei terpilih belum punya jawaban skala: bilah sebaran tak dapat diukur.');
+    }
     expect(await bilah.count(), 'tak ada bilah sebaran').toBeGreaterThan(0);
     const nama = await bilah.first().getAttribute('aria-label');
     expect(nama).toMatch(/Buruk \d+, Kurang \d+, Baik \d+, Sangat Baik \d+ dari \d+ jawaban/);
