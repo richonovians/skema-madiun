@@ -225,6 +225,11 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
       # Akun seed yang diberi tiga peran pada langkah "Siapkan akun uji".
       E2E_IDENTIFIER: seed-admin-kabupaten
+      # global-setup membuat pengaduan berbalasan, satu jawaban survei, dan isi
+      # Sampah lewat API (e2e/support/data-contoh-ci.ts). Tanpanya 14 uji
+      # melewati dirinya karena basis data seed tak memuat ketiganya. HANYA di
+      # sini: di laptop suite ini tak boleh menulis data ke skm_db.
+      E2E_DATA_CONTOH: '1'
       # TURNSTILE_SECRET_KEY & NEXT_PUBLIC_TURNSTILE_SITE_KEY SENGAJA tidak
       # diisi: kosong berarti captcha mati di kedua sisi (lihat
       # features/surveys/utils/captcha.js), sehingga uji tak bergantung pada
