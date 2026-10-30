@@ -66,6 +66,14 @@ function SurveysPageContent() {
   // Menghapus penyaring = kembali ke /surveys tanpa query. `router.push` (bukan
   // <Link>) supaya tombol "Semua" dan tombol silang memakai jalan yang sama.
   const clearOpdFilter = () => router.push('/surveys');
+  // "Semua Survei" juga mengosongkan pencarian (30 Oktober 2026, permintaan
+  // pengguna): sebelumnya kata kunci tetap tinggal, sehingga daftar tetap
+  // tersaring walau tombolnya berbunyi "Semua". Tombol silang pada chip instansi
+  // tetap hanya melepas instansinya.
+  const tampilkanSemua = () => {
+    setSearchTerm('');
+    if (opdId) clearOpdFilter();
+  };
 
   // Kategori (INT-17 GAP): backend tak punya taksonomi kategori survei sama
   // sekali -- filter kategori dihapus dari halaman ini (bukan disembunyikan
@@ -79,14 +87,14 @@ function SurveysPageContent() {
     <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6">
       <SurveyListHeader />
 
-      {/* `activeCategory` mencerminkan ADA-TIDAKNYA penyaring instansi: selama
-          satu instansi dipilih, "Semua" tampil non-aktif supaya terlihat bahwa
-          menekannya akan mengubah sesuatu. */}
+      {/* `activeCategory` mencerminkan ADA-TIDAKNYA penyaring: selama satu
+          instansi dipilih atau kata kunci terisi, "Semua" tampil non-aktif
+          supaya terlihat bahwa menekannya akan mengubah sesuatu. */}
       <SurveyFilter
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        activeCategory={opdId ? '' : 'Semua'}
-        onCategoryChange={clearOpdFilter}
+        activeCategory={opdId || searchTerm ? '' : 'Semua'}
+        onCategoryChange={tampilkanSemua}
         opdFilterName={filterOpdName}
         onClearOpdFilter={clearOpdFilter}
       />

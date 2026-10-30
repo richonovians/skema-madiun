@@ -7,6 +7,11 @@ jest.mock('next/link', () => ({
   default: ({ children, href }) => <a href={href}>{children}</a>,
 }));
 
+jest.mock('next/image', () => ({
+  __esModule: true,
+  default: ({ alt }) => <span role="img" aria-label={alt} />,
+}));
+
 jest.mock('../../store/useSurveyStore', () => ({
   __esModule: true,
   default: () => ({ surveyData: { title: 'Survei Kepuasan Masyarakat Layanan Pendidikan Dasar' } }),
@@ -87,5 +92,37 @@ describe('SurveyCompletion — label tombol', () => {
       expect(screen.queryByRole('link', { name: /daftar survei/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * KARTU UNTUK PENGISI BERSESI (30 Oktober 2026, permintaan pengguna). Di
+ * `/surveys/[id]` kartu ini tampil di bawah navbar aplikasi, jadi logo + nama
+ * "SKEMA Madiun" di kepalanya hanya mengulang merek, dan lencana "Terkirim"
+ * mengulang judul "Terima Kasih!". Kartunya juga melebar selebar kontainer
+ * halaman. Halaman publik `/survei/[id]` tak punya navbar, jadi kepalanya tetap.
+ */
+describe('SurveyCompletion — kepala kartu', () => {
+  it('tanpa kepala: logo, nama SKEMA Madiun, dan lencana Terkirim tak tampil', () => {
+    render(<SurveyCompletion tampilkanKepala={false} />);
+
+    expect(screen.queryByRole('img', { name: 'Logo SKEMA' })).not.toBeInTheDocument();
+    expect(screen.queryByText('SKEMA Madiun')).not.toBeInTheDocument();
+    expect(screen.queryByText('Terkirim')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Terima Kasih!' })).toBeInTheDocument();
+  });
+
+  it('lebarnya dibatasi 500px, sama seperti halaman publik', () => {
+    const { container } = render(<SurveyCompletion tampilkanKepala={false} />);
+
+    expect(container.firstChild).toHaveClass('max-w-[500px]', 'mx-auto');
+  });
+
+  it('KONTROL: bawaannya tetap berkepala, untuk halaman publik', () => {
+    render(<SurveyCompletion tampilkanTautanWarga={false} />);
+
+    expect(screen.getByRole('img', { name: 'Logo SKEMA' })).toBeInTheDocument();
+    expect(screen.getByText('SKEMA Madiun')).toBeInTheDocument();
+    expect(screen.getByText('Terkirim')).toBeInTheDocument();
   });
 });

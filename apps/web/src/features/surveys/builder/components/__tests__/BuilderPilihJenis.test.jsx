@@ -15,6 +15,13 @@ import SurveyBuilderPage from '@/app/admin-opd/(builder)/surveys/builder/[id]/pa
  *    builder yang sudah ada), dan kanvasnya kosong.
  *
  * Survei yang SUDAH ADA tidak melewati pemilih: jenisnya sudah tertentu.
+ *
+ * SATU PINTU KONFIRMASI (30 Oktober 2026, permintaan pengguna). Dulu klik kartu
+ * SKM langsung membuka dialog, sementara Custom lewat "Lanjutkan". Kini kedua
+ * jenis sama: klik kartu hanya MENANDAI pilihan, dan dialog konfirmasi baru
+ * terbuka dari tombol "Lanjutkan". Teks "jenis tidak dapat diganti setelah
+ * dibuat" ikut dikoreksi: sejak 26 Oktober 2026 jenis dapat diganti dua arah
+ * selama survei masih draf dan belum dijawab.
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -89,6 +96,16 @@ const pilihCustomLengkap = async ({ tujuan = 'Kepuasan', metode = 'Nilai rata-ra
   });
 };
 
+// SKM: tandai kartunya, lalu "Lanjutkan" yang membuka dialog.
+const pilihSkmLengkap = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('radio', { name: /skm permenpanrb/i }));
+  });
+  await act(async () => {
+    fireEvent.click(lanjutkan());
+  });
+};
+
 const pilihSkm = () => screen.getByRole('radio', { name: /skm permenpanrb/i });
 const pilihCustom = () => screen.getByRole('radio', { name: /survei custom/i });
 
@@ -105,16 +122,40 @@ describe('Builder survei baru — pemilihan jenis', () => {
   });
 
   describe('konfirmasi pemilihan jenis', () => {
-    it('memilih SKM membuka dialog yang menjelaskan akibatnya, belum ada survei dibuat', async () => {
+    it('mengeklik kartu SKM hanya menandainya: belum ada dialog, belum ada survei dibuat', async () => {
       await renderBuilder('new');
 
       await klikJenis(pilihSkm());
 
-      const dialog = screen.getByRole('dialog', { name: /pilih survei skm permenpanrb/i });
-      expect(dialog).toBeInTheDocument();
-      expect(dialog).toHaveTextContent(/tidak dapat diganti/i);
-      expect(dialog).toHaveTextContent(/sembilan unsur baku/i);
+      expect(pilihSkm()).toBeChecked();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(lanjutkan()).toBeEnabled();
       expect(postSurvei).toHaveLength(0);
+    });
+
+    it('"Lanjutkan" pada SKM membuka dialog yang menjelaskan akibatnya, belum ada survei dibuat', async () => {
+      await renderBuilder('new');
+
+      await pilihSkmLengkap();
+
+      const dialog = screen.getByRole('dialog', { name: /pilih survei skm permenpanrb/i });
+      expect(dialog).toHaveTextContent(/sembilan unsur baku/i);
+      expect(dialog).toHaveTextContent(/tidak dapat diganti setelah survei terbit atau dijawab/i);
+      expect(postSurvei).toHaveLength(0);
+    });
+
+    it('teks jenis tidak lagi menyatakan jenis terkunci sejak dibuat', async () => {
+      await renderBuilder('new');
+
+      expect(screen.queryByText(/tidak dapat diganti setelah survei dibuat/i)).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/jenis tidak dapat diganti setelah survei terbit atau dijawab/i),
+      ).toBeInTheDocument();
+
+      await pilihCustomLengkap();
+      const dialog = screen.getByRole('dialog', { name: /pilih survei custom/i });
+      expect(dialog).not.toHaveTextContent(/setelah pertanyaan pertama ditambahkan/i);
+      expect(dialog).toHaveTextContent(/tidak dapat diganti setelah survei terbit atau dijawab/i);
     });
 
     it('Survei Custom: dialog terbuka sesudah tujuan dan metode dipilih, dengan penjelasan yang sesuai', async () => {
@@ -128,22 +169,22 @@ describe('Builder survei baru — pemilihan jenis', () => {
       expect(screen.queryByText('Skala Nilai 1-4')).not.toBeInTheDocument();
     });
 
-    it('Batal menutup dialog: tidak ada survei dibuat dan tak ada jenis yang tampak terpilih', async () => {
+    it('Batal menutup dialog tanpa membuat survei; pilihan SKM tetap tertanda', async () => {
       await renderBuilder('new');
-      await klikJenis(pilihSkm());
+      await pilihSkmLengkap();
 
       await batalkan();
 
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(screen.getByRole('radiogroup', { name: /jenis survei/i })).toBeInTheDocument();
-      expect(pilihSkm()).not.toBeChecked();
+      expect(pilihSkm()).toBeChecked();
       expect(pilihCustom()).not.toBeChecked();
       expect(postSurvei).toHaveLength(0);
     });
 
     it('Escape menutup dialog tanpa membuat apa pun', async () => {
       await renderBuilder('new');
-      await klikJenis(pilihSkm());
+      await pilihSkmLengkap();
 
       await act(async () => {
         fireEvent.keyDown(window, { key: 'Escape' });
@@ -155,7 +196,7 @@ describe('Builder survei baru — pemilihan jenis', () => {
 
     it('sesudah batal, jenis lain tetap dapat dipilih dan dikonfirmasi', async () => {
       await renderBuilder('new');
-      await klikJenis(pilihSkm());
+      await pilihSkmLengkap();
       await batalkan();
 
       await pilihCustomLengkap();
@@ -167,7 +208,7 @@ describe('Builder survei baru — pemilihan jenis', () => {
 
     it('Ya, Pilih Jenis Ini pada SKM membuat survei berjenis itu', async () => {
       await renderBuilder('new');
-      await klikJenis(pilihSkm());
+      await pilihSkmLengkap();
 
       await konfirmasi();
 
@@ -179,7 +220,7 @@ describe('Builder survei baru — pemilihan jenis', () => {
   it('memilih SKM PermenPANRB langsung membuat survei berjenis itu dan memunculkan 9 unsur', async () => {
     await renderBuilder('new');
 
-    await klikJenis(pilihSkm());
+    await pilihSkmLengkap();
     await konfirmasi();
 
     await waitFor(() => expect(postSurvei).toHaveLength(1));
@@ -266,12 +307,14 @@ describe('Builder survei baru — pemilihan jenis', () => {
     );
     await renderBuilder('new');
 
-    await klikJenis(pilihSkm());
+    await pilihSkmLengkap();
     await konfirmasi();
 
     expect(await screen.findByText(/opd tidak ditemukan/i)).toBeInTheDocument();
     expect(screen.getByRole('radiogroup', { name: /jenis survei/i })).toBeInTheDocument();
-    expect(pilihSkm()).not.toBeChecked();
+    // Pilihannya tetap tertanda dan "Lanjutkan" tersedia untuk mencoba lagi.
+    expect(pilihSkm()).toBeChecked();
+    expect(lanjutkan()).toBeEnabled();
   });
 
   it('survei yang sudah ada tidak melewati pemilih jenis', async () => {
@@ -307,13 +350,18 @@ describe('Builder survei baru — pemilihan jenis', () => {
       expect(lanjutkan()).toBeEnabled();
     });
 
-    it('isian tidak muncul untuk SKM', async () => {
+    it('isian tidak muncul untuk SKM, dan "Lanjutkan" langsung aktif', async () => {
       await renderBuilder('new');
 
       await klikJenis(pilihSkm());
-      await batalkan();
 
       expect(screen.queryByRole('radiogroup', { name: /tujuan survei/i })).not.toBeInTheDocument();
+      expect(lanjutkan()).toBeEnabled();
+    });
+
+    it('KONTROL: sebelum ada kartu yang diklik, "Lanjutkan" belum ada', async () => {
+      await renderBuilder('new');
+
       expect(screen.queryByRole('button', { name: /^lanjutkan$/i })).not.toBeInTheDocument();
     });
 
@@ -358,7 +406,10 @@ describe('Builder survei baru — pemilihan jenis', () => {
 
     it('survei SKM dibuat TANPA kunci tujuan dan metodeNilai', async () => {
       await renderBuilder('new');
-      await klikJenis(pilihSkm());
+      // Isian custom yang sempat terisi lalu ditinggalkan tak boleh ikut terkirim.
+      await klikJenis(pilihCustom());
+      await klikRadio('Evaluasi');
+      await pilihSkmLengkap();
       await konfirmasi();
 
       await waitFor(() => expect(postSurvei).toHaveLength(1));

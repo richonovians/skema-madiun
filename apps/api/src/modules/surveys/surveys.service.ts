@@ -71,10 +71,23 @@ export class SurveysService {
    * Daftar survei berstatus `aktif` (semua OPD) — untuk dipilih responden (BE-21).
    * Sertakan `opdNama` & `questionsCount` (INT-17) — kartu survei responden butuh
    * keduanya untuk ditampilkan (dari OPD mana, berapa pertanyaan).
+   *
+   * Survei sekali isi yang SUDAH dijawab pengguna ini tidak ikut (30 Oktober
+   * 2026, permintaan pengguna). Disaring di sini, bukan di klien, supaya `limit`
+   * dan `total` menghitung survei yang benar-benar masih bisa ia isi. Penandanya
+   * `dedupeUserId`, kolom yang sama yang dipakai ResponsesService untuk menolak
+   * pengisian kedua; survei boleh-berulang menyimpannya null, jadi tetap tampil.
    */
-  async findActive(query: ListActiveSurveyQueryDto): Promise<PaginatedResult<SurveyEntity>> {
+  async findActive(
+    query: ListActiveSurveyQueryDto,
+    user: CurrentUser,
+  ): Promise<PaginatedResult<SurveyEntity>> {
     const { page, limit, opdId } = query;
-    const where: Prisma.SurveyWhereInput = { status: SurveyStatus.aktif, ...TIDAK_DIBUANG };
+    const where: Prisma.SurveyWhereInput = {
+      status: SurveyStatus.aktif,
+      ...TIDAK_DIBUANG,
+      responses: { none: { dedupeUserId: user.userId } },
+    };
     if (opdId) {
       where.opdId = opdId;
     }

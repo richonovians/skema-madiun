@@ -66,8 +66,11 @@ export class SurveysController {
   @ApiOperation({ summary: 'Daftar survei aktif yang dapat dipilih responden.' })
   @Roles(Role.responden)
   @ApiOkResponse({ type: SurveyEntity, isArray: true })
-  findActive(@Query() query: ListActiveSurveyQueryDto): Promise<PaginatedResult<SurveyEntity>> {
-    return this.surveysService.findActive(query);
+  findActive(
+    @Query() query: ListActiveSurveyQueryDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<PaginatedResult<SurveyEntity>> {
+    return this.surveysService.findActive(query, user);
   }
 
   /**

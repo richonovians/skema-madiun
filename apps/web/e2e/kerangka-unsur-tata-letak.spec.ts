@@ -16,7 +16,9 @@ import { expect, LEBAR_PONSEL_UMUM, test, ukurLuberan } from './fixtures/respons
  *     `max-w-<xs..3xl>` TIDAK dapat dipercaya di repo ini.
  *  2. Modal "Buat Survei" Admin Kabupaten bertinggi tetap dan nyaris penuh,
  *     sehingga pilihan jenis yang menambah tinggi isi berisiko meluap ke
- *     footer.
+ *     footer. Sejak 30 Oktober 2026 pilihan jenis pindah ke halaman jenis
+ *     survei dan tombol footernya berbunyi "Pilih Jenis Survei"; batas footer
+ *     dan galat validasinya tetap diukur.
  *
  * Suite ini hanya MEMBACA: fixture `responsif` membatalkan setiap permintaan
  * non-GET di tingkat jaringan. Menjalankannya (butuh akun ber-tiga-peran):
@@ -149,12 +151,15 @@ test.describe('konfirmasi jenis survei — Admin OPD', () => {
       await page.setViewportSize(ukuran);
       await bukaSebagai('opd', '/admin-opd/surveys/builder/new');
 
-      // Klik kartunya, BUKAN `radio.check()` (lihat catatan di tes lain).
+      // Klik kartunya, BUKAN `radio.check()` (lihat catatan di tes lain). Sejak
+      // 30 Oktober 2026 klik kartu hanya menandai; dialog dibuka "Lanjutkan".
       await page.getByRole('radiogroup', { name: /jenis survei/i }).locator('label').nth(0).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await page.getByRole('button', { name: /^lanjutkan$/i }).click();
 
       const dialog = page.getByRole('dialog', { name: /pilih survei skm permenpanrb/i });
       await expect(dialog, 'dialog konfirmasi tak muncul').toBeVisible();
-      await expect(dialog).toContainText(/tidak dapat diganti/i);
+      await expect(dialog).toContainText(/tidak dapat diganti setelah survei terbit atau dijawab/i);
 
       // Kotak dialog dan kedua tombolnya seluruhnya berada di dalam layar.
       const kotak = (await dialog.boundingBox())!;
@@ -172,11 +177,11 @@ test.describe('konfirmasi jenis survei — Admin OPD', () => {
           .toBeGreaterThanOrEqual(40);
       }
 
-      // Batal menutup dialog; pemilih tetap tampil tanpa pilihan tersisa.
+      // Batal menutup dialog tanpa membuat apa pun; pilihan SKM tetap tertanda.
       await dialog.getByRole('button', { name: /^batal$/i }).click();
       await expect(dialog).toHaveCount(0);
       await expect(page.getByRole('radiogroup', { name: /jenis survei/i })).toBeVisible();
-      await expect(page.getByRole('radio', { name: /skm permenpanrb/i })).not.toBeChecked();
+      await expect(page.getByRole('radio', { name: /skm permenpanrb/i })).toBeChecked();
       await expect(page.getByRole('radio', { name: /survei custom/i })).not.toBeChecked();
     });
   }
@@ -224,7 +229,7 @@ test.describe('modal Buat Survei — Admin Kabupaten', () => {
       const kartuModal = page
         .getByText('Buat Paket Survei')
         .locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]');
-      const footerTombol = kartuModal.getByRole('button', { name: /^buat survei$/i });
+      const footerTombol = kartuModal.getByRole('button', { name: /^pilih jenis survei$/i });
       await expect(footerTombol).toBeVisible();
       // Dipoll, bukan diukur sekali: kartu modal beranimasi masuk dan menyesuaikan
       // tingginya sesudah ukuran layar diubah. Yang diuji keadaan AKHIRNYA.
@@ -238,10 +243,8 @@ test.describe('modal Buat Survei — Admin Kabupaten', () => {
         )
         .toBeLessThanOrEqual(tinggi + 1);
 
-      // Pilihan jenis ada dan terjangkau (boleh digulir ke dalam pandangan).
-      const radio = page.getByRole('radio', { name: /skm permenpanrb/i });
-      await radio.scrollIntoViewIfNeeded();
-      await expect(radio).toBeInViewport();
+      // Pilihan jenis TIDAK ada di modal lagi: ia di halaman jenis survei.
+      await expect(kartuModal.getByRole('radiogroup', { name: /jenis survei/i })).toHaveCount(0);
 
       // Simpan tanpa mengisi: galat validasi dibuat di sisi klien, tanpa POST.
       await footerTombol.click();
@@ -260,6 +263,44 @@ test.describe('modal Buat Survei — Admin Kabupaten', () => {
         .toBeLessThanOrEqual(1);
     });
   }
+});
+
+/**
+ * ALUR BARU ADMIN KABUPATEN (30 Oktober 2026, permintaan pengguna): modal Buat
+ * Paket Survei tak lagi memilih jenis. "Pilih Jenis Survei" membuka halaman
+ * jenis survei yang sama dengan milik Admin OPD, dan belum ada yang dibuat --
+ * pembuatannya menunggu konfirmasi jenis (dan fixture ini membatalkan setiap
+ * non-GET, jadi uji ini tetap hanya membaca).
+ */
+test('Admin Kabupaten: "Pilih Jenis Survei" membuka halaman jenis survei dengan isian modal', async ({
+  page,
+  bukaSebagai,
+}) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await bukaSebagai('kabupaten', '/admin-kab/surveys');
+  await page.getByRole('button', { name: /buat survei/i }).first().click();
+  await expect(page.getByText('Buat Paket Survei')).toBeVisible();
+
+  await page.getByLabel(/judul survei/i).fill('[UJI alur-kab] tidak tersimpan');
+  await page.getByLabel(/opd penyelenggara/i).click();
+  // Pilihan pertama sesudah placeholder: OPD mana pun cukup, yang diuji URL-nya.
+  const opsiOpd = page.getByRole('dialog').locator('li > button').nth(1);
+  const namaOpd = (await opsiOpd.textContent())?.trim();
+  await opsiOpd.click();
+
+  const postSurvei: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && /\/api\/v1\/surveys$/.test(r.url())) postSurvei.push(r.url());
+  });
+  await page.getByRole('button', { name: /^pilih jenis survei$/i }).click();
+
+  // Batas 30 detik: rute builder baru dapat dikompilasi dulu oleh server dev.
+  await expect(page).toHaveURL(/\/admin-kab\/surveys\/builder\/new\?opd=\d+&judul=/, {
+    timeout: 30000,
+  });
+  await expect(page.getByRole('radiogroup', { name: /jenis survei/i })).toBeVisible();
+  await expect(page.getByText(/setelah survei terbit atau dijawab/i)).toBeVisible();
+  expect(postSurvei, `survei untuk ${namaOpd} dibuat sebelum jenisnya dipilih`).toHaveLength(0);
 });
 
 test.describe('builder survei SKM — kartu unsur', () => {

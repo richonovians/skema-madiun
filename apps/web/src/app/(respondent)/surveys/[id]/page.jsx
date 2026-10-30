@@ -154,7 +154,7 @@ export default function SurveyWizardPage() {
   return (
     <main className="max-w-container-max mx-auto py-8 sm:py-12 px-4 sm:px-6 min-h-[calc(100vh-64px)] relative">
       {isCompleted ? (
-        <SurveyCompletion />
+        <SurveyCompletion tampilkanKepala={false} />
       ) : (
         <div className="w-full max-w-[800px] mx-auto">
           <SurveyProgress />
