@@ -175,11 +175,142 @@ jobs:
 
       - name: Uji e2e API
         run: pnpm --filter @skm-spm/api run test:e2e --reporters=default --reporters=github-actions
-# E2E PLAYWRIGHT (apps/web) SENGAJA BELUM DIGERBANGI DI SINI.
-#
-# Suite itu diukur masih goyah 1 sampai 3 dari sekitar 85 berkas, dan
-# penyebabnya sudah ditelusuri bukan kompilasi (lihat catatan di repo). Gerbang
-# yang merah tanpa ada yang rusak adalah cara tercepat membuat orang berhenti
-# memercayai CI, lalu terbiasa menggabungkan sambil mengabaikan lampu merah.
-#
-# Dimasukkan begitu kegoyahannya diselesaikan, bukan sebelum itu.
+
+  # E2E PLAYWRIGHT (apps/web) -- DIJALANKAN, TETAPI BELUM MENJADI GERBANG
+  # (30 Oktober 2026).
+  #
+  # Sampai hari itu job ini tidak ada sama sekali, dengan alasan yang masih
+  # berlaku: suite itu goyah 1 sampai 3 uji per lari penuh, penyebabnya sudah
+  # ditelusuri bukan kompilasi, dan gerbang yang merah tanpa ada yang rusak
+  # adalah cara tercepat membuat orang berhenti memercayai CI. Akibat sampingnya
+  # lebih buruk: Playwright hanya berjalan bila ada yang ingat menjalankannya di
+  # laptop, jadi kegoyahannya pun tak pernah terhitung di luar mesin itu.
+  #
+  # `continue-on-error` menengahi keduanya. Job ini berjalan di setiap dorongan
+  # dan hasilnya terbaca (anotasi + artefak trace), tetapi kegagalannya tidak
+  # memerahkan run. Menjadikannya gerbang = menghapus satu baris itu, SESUDAH
+  # beberapa minggu catatan menunjukkan ia stabil -- bukan sebelum itu.
+  e2e-web:
+    name: E2E web (Playwright, belum gerbang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: skm
+          POSTGRES_PASSWORD: skm
+          POSTGRES_DB: skm_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://skm:skm@localhost:5432/skm_e2e?schema=public
+      # PALSU dan hanya untuk runner ini, sama seperti job e2e-api di atas.
+      SESSION_JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      DATA_ENCRYPTION_KEY: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
+      # Satu origin, sama dengan laptop. CORS_ORIGIN juga dibaca penjaga origin
+      # BUG-052 di app.setup.ts: tanpa nilai ini setiap POST dari halaman
+      # ditolak 403, karena bawaannya http://localhost:3000.
+      CORS_ORIGIN: http://skema.local
+      WEB_APP_URL: http://skema.local
+      NEXT_PUBLIC_API_URL: /api/v1
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Akun seed yang diberi tiga peran pada langkah "Siapkan akun uji".
+      E2E_IDENTIFIER: seed-admin-kabupaten
+      # TURNSTILE_SECRET_KEY & NEXT_PUBLIC_TURNSTILE_SITE_KEY SENGAJA tidak
+      # diisi: kosong berarti captcha mati di kedua sisi (lihat
+      # features/surveys/utils/captcha.js), sehingga uji tak bergantung pada
+      # jaringan Cloudflare. isi-survei-anonim.spec sudah menangani kedua cabang.
+      # REDIS_URL juga kosong: penghitung batas laju lalu berada di memori.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Pasang dependensi
+        run: pnpm install --frozen-lockfile
+
+      - name: Generasi klien Prisma
+        run: pnpm --filter @skm-spm/api exec prisma generate
+
+      - name: Terapkan migrasi
+        run: pnpm --filter @skm-spm/api prisma:deploy
+
+      - name: Isi data awal
+        run: pnpm --filter @skm-spm/api db:seed
+
+      # Seed membuat seed-admin-kabupaten dengan [kabupaten] saja dan tanpa OPD;
+      # di laptop sisanya diberikan SEKALI lewat Admin Kabupaten (CLAUDE.md).
+      # Tanpa langkah ini spec tiga-peran MELEWATI dirinya, bukan lulus -- dan
+      # lewatan terbaca hijau. Gagal berisik bila akunnya tak ditemukan.
+      - name: Siapkan akun uji tiga peran
+        env:
+          PGPASSWORD: skm
+        run: |
+          psql -h localhost -U skm -d skm_e2e -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE n integer;
+          BEGIN
+            UPDATE users
+               SET roles = ARRAY['kabupaten', 'opd', 'responden']::user_role[],
+                   opd_id = (SELECT id FROM opd WHERE kode = 'DINKES')
+             WHERE sso_subject = 'seed-admin-kabupaten';
+            GET DIAGNOSTICS n = ROW_COUNT;
+            IF n <> 1 THEN
+              RAISE EXCEPTION 'seed-admin-kabupaten tidak ditemukan (% baris)', n;
+            END IF;
+          END $$;
+          SQL
+
+      # skema.local -> 127.0.0.1, lalu nginx dengan berkas yang SAMA seperti
+      # pengembangan. Hanya alamat upstream-nya yang ditukar: di laptop nginx
+      # berada di dalam Docker Desktop dan menjangkau host lewat
+      # host.docker.internal, di sini ia berjalan dengan --network host.
+      - name: Nyalakan origin skema.local (nginx)
+        run: |
+          echo '127.0.0.1 skema.local' | sudo tee -a /etc/hosts
+          sed 's/host\.docker\.internal/127.0.0.1/g' infra/nginx/dev.conf > "$RUNNER_TEMP/skema.conf"
+          docker run -d --name skm-proxy --network host \
+            -v "$RUNNER_TEMP/skema.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:1.29-alpine
+          sleep 2
+          docker logs skm-proxy
+
+      # Server dinyalakan `webServer` milik playwright.config.ts (`pnpm dev` dari
+      # akar) -- bukan build produksi: tombol "akun dev" yang dipakai
+      # e2e/support/masuk.js hanya dirender selama NODE_ENV bukan production.
+      # Chrome sudah terpasang di runner ubuntu-latest, jadi `channel: 'chrome'`
+      # tak perlu `playwright install`.
+      - name: Uji e2e web
+        working-directory: apps/web
+        run: pnpm exec playwright test --reporter=github,html
+
+      - name: Log nginx
+        if: ${{ !cancelled() }}
+        run: docker logs skm-proxy 2>&1 | tail -n 50
+
+      # Trace percobaan ulang ada di test-results/. Itulah bahan menjelaskan
+      # kegoyahan berikutnya, jadi ikut diunggah walau job lulus.
+      - name: Unggah laporan Playwright
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: laporan-playwright
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 14
