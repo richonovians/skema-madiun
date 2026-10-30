@@ -177,7 +177,7 @@ export default function IsiSurveiPage() {
             </div>
           </div>
           <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
-            © 2026 · SKEMA Madiun · Pemerintah Kabupaten Madiun
+            © {new Date().getFullYear()} · SKEMA Madiun · Pemerintah Kabupaten Madiun
           </p>
         </div>
       </main>
@@ -233,7 +233,7 @@ export default function IsiSurveiPage() {
           )}
           {/* Footer copyright */}
           <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
-            © 2026 · SKEMA Madiun · Pemerintah Kabupaten Madiun
+            © {new Date().getFullYear()} · SKEMA Madiun · Pemerintah Kabupaten Madiun
           </p>
         </div>
       </main>
@@ -281,7 +281,7 @@ export default function IsiSurveiPage() {
 
         {/* Footer copyright */}
         <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
-          © 2026 · SKEMA Madiun · Pemerintah Kabupaten Madiun
+          © {new Date().getFullYear()} · SKEMA Madiun · Pemerintah Kabupaten Madiun
         </p>
       </div>
     </main>

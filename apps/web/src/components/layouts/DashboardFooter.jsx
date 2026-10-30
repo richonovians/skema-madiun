@@ -15,7 +15,7 @@ export default function DashboardFooter() {
           </div>
         </div>
         <div className="border-t border-outline-variant/20 pt-6 text-center">
-          <p className="text-outline-variant text-sm font-body text-white">© 2026 Pemerintah Kabupaten Madiun. Seluruh Hak Cipta Dilindungi.</p>
+          <p className="text-outline-variant text-sm font-body text-white">© {new Date().getFullYear()} Pemerintah Kabupaten Madiun. Seluruh Hak Cipta Dilindungi.</p>
         </div>
       </div>
     </footer>
