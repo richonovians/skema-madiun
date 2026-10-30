@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { request } from '@playwright/test';
+import { siapkanDataContohCi } from './support/data-contoh-ci';
 
 /**
  * Menerbitkan sesi SEKALI untuk seluruh jalannya uji (21 September 2026).
@@ -12,8 +13,12 @@ import { request } from '@playwright/test';
  * baris yang tak dapat dihapus lagi (penghapusan baris audit ditolak, dan
  * memang seharusnya begitu). Tiga login per jalannya uji sudah cukup.
  *
- * Inilah SATU-SATUNYA tulisan yang dilakukan suite ini. Seluruh permintaan
+ * Di laptop, login inilah SATU-SATUNYA tulisan global-setup. Seluruh permintaan
  * non-GET dari halaman diblokir di tingkat jaringan oleh fixture `responsif`.
+ *
+ * Di CI ada satu tulisan lagi (30 Oktober 2026): `E2E_DATA_CONTOH=1`, yang
+ * hanya diset ci.yml, membuat pengaduan, jawaban survei, dan isi Sampah pada
+ * basis data sekali pakai milik runner (lihat support/data-contoh-ci.ts).
  */
 const ORIGIN = process.env.E2E_ORIGIN ?? 'http://skema.local';
 
@@ -58,6 +63,9 @@ export default async function globalSetup(): Promise<void> {
         );
       }
       token[peran] = (await res.json()).data.token;
+    }
+    if (process.env.E2E_DATA_CONTOH === '1') {
+      await siapkanDataContohCi(api, token as Parameters<typeof siapkanDataContohCi>[1]);
     }
   } finally {
     await api.dispose();
