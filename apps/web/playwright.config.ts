@@ -110,11 +110,29 @@ export default defineConfig({
    * menunggu `url` sampai batas waktu lalu berhenti dengan jelas, bukan
    * menjalankan uji terhadap alamat yang tak melayani apa-apa.
    */
-  webServer: {
-    command: 'pnpm dev',
-    cwd: resolve(__dirname, '../..'),
-    url: ORIGIN,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  /**
+   * DUA ENTRI, bukan satu `pnpm dev` (30 Oktober 2026, saat suite ini masuk
+   * CI). Satu entri hanya dapat menunggu satu `url`, dan `ORIGIN` dijawab oleh
+   * WEB: Playwright akan mulai begitu Next siap, sementara Nest bisa masih
+   * mengompilasi -- lalu dev-login pertama di global-setup dijawab 502 oleh
+   * nginx. Di laptop celah itu tak terasa karena servernya sudah hidup sejak
+   * lama; di runner yang dingin ia pasti terasa. Kini masing-masing ditunggu
+   * lewat alamatnya sendiri, keduanya tetap melalui nginx.
+   */
+  webServer: [
+    {
+      command: 'pnpm --filter @skm-spm/api dev',
+      cwd: resolve(__dirname, '../..'),
+      url: `${ORIGIN}/api/v1/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    {
+      command: 'pnpm --filter @skm-spm/web dev',
+      cwd: resolve(__dirname, '../..'),
+      url: ORIGIN,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+  ],
 });
