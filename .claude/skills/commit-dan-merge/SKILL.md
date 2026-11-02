@@ -1,6 +1,6 @@
 ---
 name: commit-dan-merge
-description: This skill should be used when the user asks to "commit", "commit dan push", "simpan perubahan ini", "merge ke main", "buat commit", or "siapkan pesan commit" in this repository. It holds the branch-commit-merge sequence this repo requires, the commit-message rules (always `git commit -F`, Indonesian, with the Co-Authored-By footer), the files that must never be committed, and the post-commit re-verification that lint-staged makes necessary.
+description: This skill should be used when the user asks to "commit", "commit dan push", "simpan perubahan ini", "merge ke main", "buat commit", "buka PR", or "siapkan pesan commit" in this repository. It holds the branch-commit-PR-merge sequence this repo requires, the commit-message rules (always `git commit -F`, Indonesian, with the Co-Authored-By footer), the files that must never be committed, and the post-commit re-verification that lint-staged makes necessary.
 ---
 
 # Ritual commit dan merge
@@ -9,27 +9,56 @@ description: This skill should be used when the user asks to "commit", "commit d
 
 Periksa cabang lebih dulu: `git branch --show-current`.
 
-**Di `main`:** cabangkan, commit, lalu merge kembali.
+**Di `main`:** cabangkan, commit, lalu lewat PULL REQUEST sebelum merge.
 
-```bash
-git checkout -b <jenis>/<nama-ringkas>
-git add <berkas tersebut saja>
-git commit -F <berkas-pesan>
-git checkout main
-git merge --no-ff <jenis>/<nama-ringkas> -m "merge: <ringkasan>
+Sejak 2 November 2026 setiap cabang `fix/`, `feat/`, `ci/`, `chore/`, `test/`,
+dan `docs/` melewati pull request, atas keputusan pengguna. Alasannya: orang
+lain membaca hasil pekerjaan dari halaman PR -- deskripsi, diff, hasil CI,
+komentar -- bukan dari cabang. Sebelumnya repo ini merge langsung ke `main`
+tanpa PR (keputusan 18 Agustus 2026); aturan itu sudah tidak berlaku.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
-```
+1. Cabangkan, kerjakan, verifikasi, commit:
 
-Jangan berhenti di cabang. Repo ini tidak memakai alur pull request; merge
-langsung ke `main` adalah penyelesaiannya. `--no-ff` wajib supaya simpul merge
-tetap ada dan satu pekerjaan tetap terbaca sebagai satu kesatuan.
+   ```bash
+   git checkout -b <jenis>/<nama-ringkas>
+   git add <berkas tersebut saja>
+   git commit -F <berkas-pesan>
+   ```
 
-**Di cabang `tester`:** cukup commit. **Jangan** merge ke `main`. Ini
-pengecualian tersurat dari aturan di atas.
+2. **Berhenti di sini, belum merge.** Siapkan judul dan isi PR di direktori
+   scratchpad sesi. Isinya untuk PEMBACA LAIN, bukan untuk pengguna: apa yang
+   berubah dan mengapa, bukti ujinya, dan yang belum beres. Akhiri dengan
+   baris atribusi PR. `gh` tidak terpasang, jadi PR dibuka pengguna sendiri:
+   minta ia push cabangnya (`git push -u origin <cabang>`) lalu membuka
+   `https://github.com/richonovians/skema-madiun/compare/main...<cabang>?expand=1`.
 
-**Di cabang lain:** commit, lalu merge ke `main` dengan `--no-ff` seperti pola
-pertama.
+3. Sesudah pengguna mengabarkan PR terbuka, periksa CI pada SHA cabang itu
+   (bagian "Push belum selesai sampai CI hijau" di bawah).
+
+4. **Merge hanya bila pengguna memintanya.** Bawaannya merge lokal, pola yang
+   dipakai pada PR Playwright di CI (30 Oktober 2026):
+
+   ```bash
+   git checkout main
+   git merge --no-ff <jenis>/<nama-ringkas> -F <berkas-pesan-merge>
+   ```
+
+   Pengguna lalu push `main`; GitHub menandai PR-nya "Merged" sendiri begitu
+   commit cabangnya masuk `main`. Bila pengguna memilih tombol merge di
+   GitHub, tarik `main` sesudahnya alih-alih merge lokal. `--no-ff` tetap
+   wajib supaya simpul merge ada dan satu pekerjaan terbaca sebagai satu
+   kesatuan.
+
+5. Sesudah merge: `git branch -d <cabang>` di lokal; cabang remote dihapus
+   pengguna di halaman PR.
+
+**Pengecualian -- merge langsung tanpa PR:** perubahan sangat kecil yang tak
+menyentuh perilaku, misalnya salah ketik atau dokumen. Bila ragu, pakai PR.
+
+**Di cabang `tester`:** cukup commit. **Jangan** merge ke `main`, dan tanpa
+PR. Ini pengecualian tersurat dari aturan di atas.
+
+**Di cabang lain:** commit, lalu ikuti langkah 2-5 di atas.
 
 `develop` sudah mati meski `origin/HEAD` masih menunjuk ke sana. Jangan
 memakainya.
