@@ -166,7 +166,8 @@ selesai, sehingga `QA-SECURITY-UAT` dilaporkan dengan #11 tertunda, bukan
 terbuka tanpa keterangan.
 
 Yang harus beres sebelum sesi itu, dari gladi bersih §18: kunci Turnstile
-memuat `skema.local` (tanpa itu P1 pasti gagal), BUG-061 dan BUG-062, dan
+memuat `skema.local` (tanpa itu P1 pasti gagal), BUG-061 dan BUG-062
+(keduanya ditutup 2 November, merge `f11eb47`), dan
 sebaiknya usulan K4 (nomor tiket di Log Audit) serta O5 (letak ekspor
 hasil). Survei `[UJI UAT]` untuk W2/P1 dibuat ulang saat jadwalnya pasti
 (`docs/UAT_AWAL.md` §2.3).

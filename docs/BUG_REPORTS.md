@@ -153,10 +153,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-058](#bug-058) | Halaman web tanpa header keamanan — dapat dibingkai situs lain, `X-Powered-By: Next.js` | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-059](#bug-059) | Galat 500 tak terduga mengirim pesan aslinya — jalur berkas server dan potongan kueri Prisma sampai ke klien | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-060](#bug-060) | nginx menyebut versinya di header `Server` | Low | Terkonfirmasi | **Ditutup** | — |
-| [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | Terbuka | UAT-O4 (gladi) |
-| [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | Terbuka | UAT-K2 (gladi) |
+| [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-O4 (gladi) |
+| [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
 
-**Rekap** — 62 temuan: **60 ditutup, 2 terbuka** (BUG-061, BUG-062; keduanya Low).
+**Rekap** — 62 temuan: **62 ditutup, 0 terbuka.**
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3493,9 +3493,24 @@ Dipakai di dua halaman: `admin-opd/complaints/[id]` dan `admin-kab/complaints/[i
 `Ya, Ubah ke "Diproses"` mengubah status, dan statusnya bertahan sesudah
 halaman dimuat ulang.
 
-**Belum diperbaiki.** Pola perbaikannya sudah ada di ShareSurveyModal dan
-SurveyFormModal (peran + `aria-modal` + `aria-labelledby` ke judul,
-`aria-label="Tutup"`, `useFocusTrap`). Belum ada uji yang memagarinya.
+**Ditutup 2 November 2026** -- `020aee2`, merge `f11eb47` di `main`. Pola
+ShareSurveyModal/SurveyFormModal: peran + `aria-modal` + `aria-labelledby` ke
+judul, `aria-label="Tutup"`, dan `useFocusTrap` yang mengikuti `isOpen` (modal
+ini tetap ter-mount saat tertutup). Untuk penolakan, fokus awal langsung ke
+kotak alasan lewat parameter fokus-awal `useFocusTrap`; `setTimeout` 150 ms
+yang dulu memindahkannya dibuang supaya dua mekanisme tak berebut.
+
+**Pagar.** Enam uji di `ConfirmStatusModalDialog.test.jsx`, lima merah lebih
+dulu (yang keenam, "tertutup: tak ada dialog", memagari keadaan yang sudah
+benar). Mutasi membuang `useFocusTrap` memerahkan tiga. Di Chrome: dialog
+bernama "Ubah Status Pengaduan", fokus masuk (kotak alasan untuk Ditolak),
+enam kali Tab tetap di dalam, Escape menutup.
+
+**Sisa yang belum.** Sesudah modal ditutup, fokus jatuh ke `body`, bukan
+kembali ke dropdown status: pemicunya butir daftar dropdown yang ikut lenyap
+saat dropdown menutup, sehingga `useFocusTrap` tak punya tujuan pulang. Bukan
+kemunduran -- sebelum perbaikan fokus memang tak pernah dikelola -- tetapi
+pengguna papan ketik harus mencari tempatnya lagi.
 
 ---
 
@@ -3524,7 +3539,17 @@ diperbaiki.
 **Yang TIDAK terganggu.** Meneruskan pengaduan berhasil: Admin OPD Dinas
 Kesehatan melihat tiketnya lewat `GET /complaints` sesudahnya.
 
-**Belum diperbaiki.** Pola perbaikannya sama dengan BUG-061.
+**Ditutup 2 November 2026** -- `020aee2`, merge `f11eb47` di `main`, bersama
+BUG-061 dan dengan pola yang sama. Ditambah Escape untuk menutup, kecuali
+selagi pengiriman berjalan -- di luar laporan, atas persetujuan pengguna.
+
+**Pagar.** Lima uji di `ForwardComplaintModalDialog.test.jsx`, empat merah
+lebih dulu. Yang kelima, "Escape diabaikan selagi pengiriman berjalan",
+hijau sejak awal karena Escape memang belum menutup apa pun; mutasi yang
+membuang penjaga `sedangKirim` memerahkannya. Mutasi membuang
+`useFocusTrap` memerahkan dua. Di Chrome: dialog bernama "Teruskan ke OPD
+berwenang", fokus masuk, delapan kali Tab tetap di dalam, Escape menutup dan
+fokus kembali ke tombol Teruskan.
 
 ---
 
@@ -6881,3 +6906,4 @@ hanya dibaca, tidak diubah.
 | 7.18 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 ditutup atas permintaan pengguna: 57 temuan, 57 ditutup, nol terbuka.** `f3d5659`, merge `104862a`. Pengguna mengonfirmasi label "Isi survei sebagai Anonim" disengaja, jadi tiga pemilih uji diperbarui, bukan labelnya. BUG-054 diukur ulang di Chrome (448px); BUG-056 berpagar uji baru yang merah lebih dulu; BUG-057 tetap tak diukur di Chrome. |
 | 7.19 | 29 Oktober 2026 | **BUG-058 s.d. BUG-060 lahir dan ditutup: 60 temuan, 60 ditutup, nol terbuka.** Uji misconfiguration (QA-SECURITY-UAT #9): halaman web tanpa header keamanan (BUG-058), pesan galat 500 mentah ke klien (BUG-059), versi nginx di header `Server` (BUG-060). `938a4b0`, merge `fe833bd`. BUG-060 belum dibuktikan di server hidup sampai proxy dimuat ulang. |
 | 7.20 | 2 November 2026 | **BUG-061 dan BUG-062 dibuka: 62 temuan, 60 ditutup, 2 terbuka.** Ditemukan pada gladi bersih skenario UAT oleh asisten (`TEST_KEAMANAN.md` §18), bukan pada UAT: modal Ubah Status Pengaduan dan modal Teruskan Pengaduan bukan dialog bagi pembaca layar, kelas yang sama dengan BUG-037/039. Keduanya Low dan tak menghalangi alur bagi pengguna tetikus. Belum diperbaiki. |
+| 7.21 | 2 November 2026 | **BUG-061 dan BUG-062 ditutup: 62 temuan, 62 ditutup, nol terbuka.** `020aee2`, merge `f11eb47`. Pola BUG-037/039 pada kedua modal pengaduan, ditambah Escape pada modal Teruskan atas persetujuan pengguna. 11 uji baru, 9 merah lebih dulu; dua sisanya dibuktikan lewat mutasi. Sisa tercatat di BUG-061: fokus tak kembali ke dropdown status sesudah modal Ubah Status ditutup. |
