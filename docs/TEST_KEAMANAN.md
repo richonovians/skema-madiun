@@ -66,7 +66,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | **selesai 29 Okt — TERBUKTI, BUG-058 s.d. BUG-060 ditutup**, lihat §16 |
 | 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | **selesai 29 Okt — nol celah**, lihat §17 |
-| 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | **bahan siap 29 Okt** (`docs/UAT_AWAL.md`); **gladi bersih 2 Nov oleh asisten (§18) -- bukan UAT**; sesi bersama manusia belum dijalankan |
+| 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | **TERTUNDA 2 Nov — menunggu stakeholder Diskominfo**, dipindah ke `QA-FINAL-UAT`. Bahan siap 29 Okt (`docs/UAT_AWAL.md`); gladi bersih 2 Nov oleh asisten (§18) -- bukan UAT |
 
 ## 5. Matriks endpoint
 
@@ -149,7 +149,29 @@ Prioritas: **P1** = terbuka bagi semua yang masuk (isolasi di service),
 
 ## 6. UAT awal
 
-Belum dijadwalkan; menuntut pemangku kepentingan. Usulan skenario, satu per
+**TERTUNDA (2 November 2026): stakeholder Diskominfo belum tersedia.**
+Bukan gagal dan bukan selesai. UAT menuntut orang yang akan memakai
+SKEMA; tanpa mereka, hasilnya tidak dapat disebut penerimaan pemakai.
+Dua pengganti ditimbang dan ditolak sebagai UAT:
+
+- **dikerjakan asisten** -- sudah dijalankan sebagai gladi bersih (§18),
+  tetapi asisten mengenal kodenya, jadi kemudahan dan waktu tempuhnya tak
+  bermakna;
+- **dikerjakan penguji sendiri** -- penguji menulis dan menguji SKEMA, jadi
+  bias yang sama berlaku. Boleh dijalankan sebagai uji penerimaan mandiri,
+  dengan label itu, bukan sebagai UAT.
+
+Pelaksanaannya dipindah ke `QA-FINAL-UAT` bersama Diskominfo. #1-#10
+selesai, sehingga `QA-SECURITY-UAT` dilaporkan dengan #11 tertunda, bukan
+terbuka tanpa keterangan.
+
+Yang harus beres sebelum sesi itu, dari gladi bersih §18: kunci Turnstile
+memuat `skema.local` (tanpa itu P1 pasti gagal), BUG-061 dan BUG-062, dan
+sebaiknya usulan K4 (nomor tiket di Log Audit) serta O5 (letak ekspor
+hasil). Survei `[UJI UAT]` untuk W2/P1 dibuat ulang saat jadwalnya pasti
+(`docs/UAT_AWAL.md` §2.3).
+
+Semula (sebelum 2 November): belum dijadwalkan; menuntut pemangku kepentingan. Usulan skenario, satu per
 peran, dijalankan di lingkungan lokal yang sama:
 
 | Peran | Skenario |
@@ -180,7 +202,7 @@ datang. Itu BUKAN UAT dan tidak menutup #11 -- lihat §18 untuk alasannya.
 | 30 Okt | #3, #4, #5 |
 | 31 Okt | #6, #7, #8 |
 | 1 Nov | #9, #10, rangkum temuan |
-| 2 Nov | UAT awal bila stakeholder tersedia; tutup laporan |
+| 2 Nov | UAT awal bila stakeholder tersedia; tutup laporan. **Stakeholder tidak tersedia: #11 tertunda ke `QA-FINAL-UAT`** (§6); gladi bersih dijalankan sebagai gantinya (§18) |
 
 ## 8. Hasil #1 — IDOR pada endpoint "semua yang masuk"
 
