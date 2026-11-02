@@ -153,8 +153,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-058](#bug-058) | Halaman web tanpa header keamanan — dapat dibingkai situs lain, `X-Powered-By: Next.js` | Medium | Terkonfirmasi | **Ditutup** | — |
 | [BUG-059](#bug-059) | Galat 500 tak terduga mengirim pesan aslinya — jalur berkas server dan potongan kueri Prisma sampai ke klien | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-060](#bug-060) | nginx menyebut versinya di header `Server` | Low | Terkonfirmasi | **Ditutup** | — |
+| [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | Terbuka | UAT-O4 (gladi) |
+| [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | Terbuka | UAT-K2 (gladi) |
 
-**Rekap** — 60 temuan: **60 ditutup, 0 terbuka.**
+**Rekap** — 62 temuan: **60 ditutup, 2 terbuka** (BUG-061, BUG-062; keduanya Low).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3460,6 +3462,69 @@ memuat `server_tokens off`, dan berkas itu terpasang langsung ke kontainer.
 Restart kedua dari `main` berhasil.
 `prod.conf` tak dapat diuji `nginx -t` di sini karena sertifikatnya tak
 ada. Tanpa uji otomatis; buktinya header jawaban.
+
+---
+
+### BUG-061 — Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | UAT-O4, gladi bersih skenario UAT (`docs/TEST_KEAMANAN.md` §18) |
+| **Tanggal**  | 2 November 2026                                              |
+| **Peran**    | Admin OPD dan Admin Kabupaten, pengguna pembaca layar dan papan ketik |
+| **Berkas**   | `apps/web/src/components/ui/ConfirmStatusModal.jsx`          |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Gladi bersih O4 di Chrome: sesudah "Diproses" dipilih dari Kontrol
+Status, `getByRole('dialog')` tak menemukan apa pun, padahal modal "Ubah Status
+Pengaduan" sedang tampil. Pohon aksesibilitasnya menaruh judul, kedua tombol, dan
+sebuah `button` TANPA NAMA sejajar dengan isi halaman di belakangnya.
+
+**Cacatnya.** Kelas yang sama dengan [BUG-037](#bug-037) dan [BUG-039](#bug-039):
+wadahnya `div` biasa tanpa `role="dialog"`, `aria-modal`, maupun nama; tombol
+silang di pojoknya hanya ikon `X` tanpa `aria-label`; tak ada `useFocusTrap`,
+jadi fokus tertinggal di halaman. Pembaca layar mendengar "tombol" tanpa nama
+dan tak diberi tahu bahwa ada modal yang menunggu keputusan.
+
+Modal ini di luar lima dialog BUG-015 dan tak tersentuh perbaikan BUG-037/039.
+Dipakai di dua halaman: `admin-opd/complaints/[id]` dan `admin-kab/complaints/[id]`.
+
+**Yang TIDAK terganggu.** Bagi pengguna tetikus alurnya utuh: konfirmasi
+`Ya, Ubah ke "Diproses"` mengubah status, dan statusnya bertahan sesudah
+halaman dimuat ulang.
+
+**Belum diperbaiki.** Pola perbaikannya sudah ada di ShareSurveyModal dan
+SurveyFormModal (peran + `aria-modal` + `aria-labelledby` ke judul,
+`aria-label="Tutup"`, `useFocusTrap`). Belum ada uji yang memagarinya.
+
+---
+
+### BUG-062 — Modal Teruskan Pengaduan bukan dialog bagi pembaca layar
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Charter**  | UAT-K2, gladi bersih skenario UAT (`docs/TEST_KEAMANAN.md` §18) |
+| **Tanggal**  | 2 November 2026                                              |
+| **Peran**    | Admin Kabupaten, pengguna pembaca layar dan papan ketik      |
+| **Berkas**   | `apps/web/src/features/complaints/components/admin-kab/ForwardComplaintModal.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Asal.** Gladi bersih K2: modal "Teruskan ke OPD berwenang" tampil di pohon
+aksesibilitas tanpa wadah dialog, sama seperti BUG-061.
+
+**Cacatnya.** Tanpa `role="dialog"`, `aria-modal`, maupun nama, dan tanpa
+`useFocusTrap`. Bedanya dengan BUG-061: tombol tutupnya SUDAH bernama
+(`aria-label="Tutup"`), jadi yang hilang hanya peran, nama dialog, dan kurungan
+fokus.
+
+Dicatat terpisah dari BUG-061 karena berkasnya lain dan cacatnya tidak identik;
+satu baris untuk dua cacat pernah membuat salah satunya ditutup tanpa
+diperbaiki.
+
+**Yang TIDAK terganggu.** Meneruskan pengaduan berhasil: Admin OPD Dinas
+Kesehatan melihat tiketnya lewat `GET /complaints` sesudahnya.
+
+**Belum diperbaiki.** Pola perbaikannya sama dengan BUG-061.
 
 ---
 
@@ -6815,3 +6880,4 @@ hanya dibaca, tidak diubah.
 | 7.17 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 dibuka: 57 temuan, 52 ditutup, 5 terbuka.** CI `main` merah sesudah push `b73d9fd`, yang ikut menggabungkan PR #5 `feat/survey-admin-ui` (`ab1d341`). Bukan dari BUG-052: job E2E API lulus. Diuji ulang lokal: penanda konflik di berkas uji (BUG-053), kartu `/survei/:id` 64px karena `max-w-md` (BUG-054, terukur di Chrome), naskah PDP yang menyempit (BUG-055), judul progres hilang (BUG-056), lencana 10px (BUG-057). Penggantian label "tanpa data diri" menjadi "Anonim" dicatat sebagai pertanyaan untuk tim, bukan cacat. Kode tim tidak diubah. |
 | 7.18 | 29 Oktober 2026 | **BUG-053 s.d. BUG-057 ditutup atas permintaan pengguna: 57 temuan, 57 ditutup, nol terbuka.** `f3d5659`, merge `104862a`. Pengguna mengonfirmasi label "Isi survei sebagai Anonim" disengaja, jadi tiga pemilih uji diperbarui, bukan labelnya. BUG-054 diukur ulang di Chrome (448px); BUG-056 berpagar uji baru yang merah lebih dulu; BUG-057 tetap tak diukur di Chrome. |
 | 7.19 | 29 Oktober 2026 | **BUG-058 s.d. BUG-060 lahir dan ditutup: 60 temuan, 60 ditutup, nol terbuka.** Uji misconfiguration (QA-SECURITY-UAT #9): halaman web tanpa header keamanan (BUG-058), pesan galat 500 mentah ke klien (BUG-059), versi nginx di header `Server` (BUG-060). `938a4b0`, merge `fe833bd`. BUG-060 belum dibuktikan di server hidup sampai proxy dimuat ulang. |
+| 7.20 | 2 November 2026 | **BUG-061 dan BUG-062 dibuka: 62 temuan, 60 ditutup, 2 terbuka.** Ditemukan pada gladi bersih skenario UAT oleh asisten (`TEST_KEAMANAN.md` §18), bukan pada UAT: modal Ubah Status Pengaduan dan modal Teruskan Pengaduan bukan dialog bagi pembaca layar, kelas yang sama dengan BUG-037/039. Keduanya Low dan tak menghalangi alur bagi pengguna tetikus. Belum diperbaiki. |

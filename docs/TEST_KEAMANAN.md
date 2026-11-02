@@ -66,7 +66,7 @@ Urutan di bawah adalah urutan pengerjaan.
 | 8 | Batas laju | tiap `@Throttle` dan batas global benar-benar memukul 429 di angkanya | rentetan permintaan lokal | **selesai 28 Okt — nol celah**, lihat §14 |
 | 9 | A05 Misconfiguration | header keamanan, CORS origin asing, `/api/docs` dan `x-powered-by`, pesan galat 5xx | permintaan langsung | **selesai 29 Okt — TERBUKTI, BUG-058 s.d. BUG-060 ditutup**, lihat §16 |
 | 10 | Unggahan | jenis berkas palsu, ukuran, URL `/uploads` bertanda tangan palsu atau kedaluwarsa | permintaan langsung | **selesai 29 Okt — nol celah**, lihat §17 |
-| 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | **bahan siap 29 Okt** (`docs/UAT_AWAL.md`); pelaksanaan belum dijadwalkan |
+| 11 | UAT awal | skenario stakeholder, lihat §6 | dengan pemangku kepentingan | **bahan siap 29 Okt** (`docs/UAT_AWAL.md`); **gladi bersih 2 Nov oleh asisten (§18) -- bukan UAT**; sesi bersama manusia belum dijalankan |
 
 ## 5. Matriks endpoint
 
@@ -165,6 +165,11 @@ waktu yang dibutuhkan.
 **Bahannya siap (29 Oktober 2026):** `docs/UAT_AWAL.md` memuat persiapan
 fasilitator, 17 skenario berkode (W1-W5, P1-P2, O1-O5, K1-K5) dengan hasil
 yang diharapkan, lembar isian, kriteria lulus, dan cara membereskan data.
+K6 ditambahkan 2 November 2026.
+
+**Gladi bersih 2 November 2026** (§18): asisten menjalankan kedelapan belas
+skenario lewat Chrome untuk menangkap alur yang patah sebelum peserta
+datang. Itu BUKAN UAT dan tidak menutup #11 -- lihat §18 untuk alasannya.
 
 ## 7. Jadwal
 
@@ -655,3 +660,83 @@ pemilik akun itu sendiri.
 
 **Gerbang penuh sesudahnya:** API unit 1428/1428, API e2e 740/740 (49
 suite), web komponen 1963/1963, eslint dan prettier kode 0.
+
+## 18. Gladi bersih skenario UAT (bukan UAT)
+
+**Dijalankan:** 2 November 2026, terhadap `main` di `84fd30b`, oleh asisten,
+atas permintaan pengguna. Chrome terpasang dikemudikan Playwright (headless) di
+`http://skema.local`, masuk lewat dev-login dengan akun seed, mengikuti urutan
+§3.5 `docs/UAT_AWAL.md`.
+
+**Mengapa ini tidak dihitung sebagai UAT.** UAT mengukur apakah ORANG dapat
+menyelesaikan tugasnya tanpa dibantu, langkah mana yang membingungkan, dan
+seberapa mudah menurut peserta sendiri. Asisten mengenal kode dan letak setiap
+tombol, waktu tempuh skrip tak mewakili manusia, dan skor kemudahan darinya
+tak bermakna. Karena itu kolom kemudahan dan waktu tidak diisi, dan #11 tetap
+terbuka sampai sesi bersama manusia. Yang dapat dijawab gladi ini hanya:
+apakah setiap skenario DAPAT diselesaikan, dan apa yang akan membuat peserta
+buntu karena aplikasi atau lingkungan.
+
+| Kode | Hasil | Catatan |
+| ---- | ----- | ------- |
+| W1 | Lulus | Warga seed sudah pernah menyetujui PDP, jadi layar persetujuannya tak teruji. |
+| W2 | Lulus | "Pertanyaan X dari Y", kartu Terima Kasih; survei hilang dari daftar; alamat langsung menampilkan "Anda Sudah Mengisi Survei Ini". |
+| W3 | Lulus | Dua tiket (ke Dinas Kesehatan, dan "Lainnya (belum tahu tujuannya)"), foto tampil di sisi admin. |
+| W4 | Lulus | Daftar lewat menu avatar "Pengaduan Saya"; status Diproses dan balasan petugas tampil. |
+| W5 | Lulus | Lonceng "Notifikasi, 2 belum dibaca": balasan dan perubahan status. |
+| P1 | **Gagal (lingkungan)** | Persetujuan, "Isi survei sebagai Anonim", dan 9 pertanyaan berjalan di 390px tanpa guliran mendatar. Modal kirim: "Verifikasi keamanan gagal dimuat", Kirim Survei mati. Kunci situs Turnstile tak memuat `skema.local` (dicatat sejak 22 Oktober di `isi-survei-anonim.spec.ts`). Penanganannya sendiri benar (BUG-016). |
+| P2 | Lulus | Peringkat IKM per OPD tampil tanpa masuk; tak ada satu angka IKM kabupaten. |
+| O1 | Lulus | Kartu SKM ditandai, Lanjutkan, konfirmasi, U1-U9; kotak kalimat U1 42 -> 90px untuk kalimat panjang; nol tombol hapus; Publikasikan -> aktif. |
+| O2 | Lulus | Lanjutkan mati sampai tujuan dan metode dipilih; dua pertanyaan tersimpan (diperiksa lewat API); draf. |
+| O3 | Lulus | Tautan `/survei/<id>` dan QR terunduh (PNG). |
+| O4 | Lulus | Balasan terkirim, status Diterima -> Diproses bertahan sesudah muat ulang. Modal konfirmasinya bukan dialog bagi pembaca layar: BUG-061. |
+| O5 | Lulus | Excel "Hasil IKM" memuat NRR per unsur yang cocok dengan jawaban W2. Ditemukan pada percobaan ketiga, lihat di bawah. |
+| K1 | Lulus | Beranda dan Statistik & Laporan; penyaring SKM/Custom mengganti daftar survei. |
+| K2 | Lulus | Teruskan ke Dinas Kesehatan; Admin OPD melihatnya. Modalnya bukan dialog: BUG-062. |
+| K3 | **Tidak dapat dijalankan** | Peran Admin OPD menuntut instansi yang ditautkan Helpdesk; warga seed tak punya, Simpan tertahan "Lengkapi semua data wajib". Rancangannya memang begitu; patokan dokumen yang basi, dikoreksi di `UAT_AWAL.md`. Tak ada perubahan tersimpan. |
+| K4 | Lulus | Baris "UBAH STATUS Pengaduan" ditemukan lewat nama pelaku. Lihat di bawah. |
+| K5 | Sebagian | Halaman OPD baca saja (nol tombol ubah/hapus/tambah). "Sinkronkan dari Helpdesk" sengaja TIDAK ditekan: memanggil Helpdesk sungguhan dan menulis tabel OPD. |
+| K6 | Lulus | Modal tanpa pilihan jenis -> Pilih Jenis Survei -> SKM -> survei tercipta atas nama Dinas Kesehatan dengan judul dari modal. |
+
+**Harus dibereskan sebelum sesi bersama manusia:**
+
+1. **P1** pasti gagal selama kunci Turnstile tak memuat `skema.local`, juga di
+   ponsel peserta. Tambahkan `skema.local` ke hostname widget di dasbor
+   Cloudflare, atau pakai sementara kunci uji resmi Cloudflare di
+   `apps/web/.env.local` dan `apps/api/.env`.
+2. **K3** butuh akun yang instansinya sudah ditautkan Helpdesk, atau dinilai
+   dengan patokan baru di `UAT_AWAL.md`.
+
+**Usulan perbaikan (berhasil, tetapi kemungkinan membingungkan peserta):**
+
+- **K4.** Mencari nomor tiket `PGD...` di Log Audit menjawab "Tidak ada log
+  aktivitas -- Coba sesuaikan filter modul Anda", padahal yang dipakai pencarian
+  teks. Rinciannya menampilkan id internal (`{"id": "286"}`), bukan nomor tiket,
+  sehingga baris O4 tak dapat dikaitkan dengan tiketnya tanpa tahu id itu.
+- **O5.** "Daftar Respons Survei" tak punya Ekspor; "Ekspor" di daftar survei
+  hanya mengunduh ringkasan (`daftar-survei.csv`). Ekspor hasil ada di "Lihat
+  Hasil", dan isinya rekap per unsur, bukan jawaban per responden.
+- **Warga.** Dasbor tak punya tombol "Ajukan Pengaduan"; formulirnya dicapai
+  lewat "Layanan", dan "Pengaduan Saya" hanya ada di menu avatar.
+- **Nama status.** Halaman sukses pengaduan berbunyi "Menunggu Verifikasi",
+  daftar dan admin berbunyi "Diterima"; kartu dasbor warga menyandingkan
+  "Diterima" dengan "Memproses pengaduan Anda".
+- **Builder.** Begitu jenis dikonfirmasi, draf "Survei Tanpa Judul" langsung
+  tercipta. Peserta yang berhenti di situ meninggalkan draf TANPA penanda
+  `[UJI`, yang tak disapu skrip pembersih. Gladi ini sendiri kena sekali (draf
+  738, dinamai ulang lewat API sebelum dilanjutkan).
+- Dasbor kabupaten menampilkan "Mutu: -" di samping IKM 74.72 (celah yang
+  sudah tercatat di `dashboard.api.js`); kartu survei custom berlabel
+  "Pertanyaan Baku"; detail pengaduan admin menamai lampiran pelapor
+  "Lampiran Anda".
+
+**Kekeliruan skrip yang tercatat.** Beberapa kegagalan pertama milik skrip,
+bukan aplikasi, dan tak dihitung: tombol akhir wizard publik bernama
+"Selesaikan" (bukan "Kirim"), tombol tabel adalah tautan, dan baris yang
+diteruskan sempat dicari sebelum tabel selesai dimuat ulang.
+
+**Data.** Seluruhnya berpenanda `[UJI UAT]` dan disapu
+`bersihkan-data-uji.mjs --tanpa-induk`: 5 survei, 2 pengaduan, 1 respons,
+11 notifikasi, 2 berkas unggahan; `audit_logs` tak disentuh. Peran warga seed
+tetap `["responden"]`. Karena survei 736 sudah terisi oleh gladi, dua survei
+sesi dibuat ulang (741 dan 742).

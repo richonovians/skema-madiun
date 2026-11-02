@@ -5,7 +5,9 @@
 **Diperbarui:** 2 November 2026, terhadap `main` di `84fd30b` -- hasil yang
 diharapkan W2, O1, dan O2 mengikuti perubahan 30 Oktober (survei yang sudah
 diisi hilang dari daftar; jenis survei dikonfirmasi lewat "Lanjutkan"), dan
-skenario K6 ditambahkan untuk alur Buat Paket Survei yang baru.
+skenario K6 ditambahkan untuk alur Buat Paket Survei yang baru. Pada hari
+yang sama asisten menjalankan gladi bersih (`TEST_KEAMANAN.md` §18):
+patokan K3 dikoreksi, dan P1 serta K5 diberi prasyarat.
 **Pelaksanaan:** UAT awal internal (2.4) dijadwalkan 2 November 2026;
 UAT bersama pemangku kepentingan tetap menunggu.
 **Cabang:** dokumen ini hanya ada di `tester`.
@@ -48,6 +50,7 @@ menit, fasilitator boleh memberi petunjuk, dan skenario itu dicatat
 | Ponsel | `skema.local` harus terjemah ke IP laptop lewat DNS lokal (lihat `CLAUDE.md`); bila tidak bisa, skenario P1 dijalankan di laptop dan dicatat |
 | Basis data | lokal (`skm_db`), **bukan** produksi |
 | Sebelum mulai | `docker compose ps` tiga kontainer hidup; `pnpm dev` jalan; `http://skema.local/api/v1/health` menjawab 200 |
+| Captcha | Kunci situs Turnstile harus memuat `skema.local`, atau pakai kunci uji resmi Cloudflare. Tanpa itu P1 **pasti gagal** di modal kirim ("Verifikasi keamanan gagal dimuat"), terukur pada gladi 2 November 2026 |
 
 ### 2.2 Akun
 
@@ -152,9 +155,9 @@ kepada peserta.
 | ---- | ----- | --------------------- |
 | K1 | "Lihat ringkasan kepuasan seluruh OPD." | Beranda dan Statistik & Laporan menampilkan survei semua OPD; penyaring jenis SKM/Custom bekerja. |
 | K2 | "Temukan pengaduan yang belum jelas OPD tujuannya dan teruskan ke OPD yang tepat." | Aksi **Teruskan** memindahkan pengaduan ke OPD terpilih; OPD itu melihatnya. Butuh satu pengaduan W3 tanpa OPD tujuan. |
-| K3 | "Beri seorang pegawai akses sebagai Admin OPD untuk dinasnya." | Halaman Pengguna dapat memberi peran `opd` dan menautkan OPD; perubahan tercatat di log. |
+| K3 | "Beri seorang pegawai akses sebagai Admin OPD untuk dinasnya." | Halaman Pengguna dapat mencentang peran **Admin OPD**. Instansinya berasal dari Helpdesk dan **tidak dapat ditautkan dari SKEMA**: untuk akun yang instansinya sudah tertaut, perubahan tersimpan dan tercatat di log; untuk akun tanpa tautan (misalnya `warga@example.go.id`), halaman menyebut "Belum ditautkan Helpdesk" dan Simpan tertahan. Lulus bila peserta memahami sebabnya. Patokan lama ("menautkan OPD") dikoreksi 2 November 2026. |
 | K4 | "Periksa siapa yang mengubah status pengaduan O4 dan kapan." | Log Audit menampilkan baris O4 dengan nama pelaku dan waktunya; pencarian menemukannya. |
-| K5 | "Pastikan daftar OPD sesuai data Helpdesk." | Halaman OPD baca saja; **Sinkronkan** menarik daftar dari Helpdesk dan melaporkan hasilnya. |
+| K5 | "Pastikan daftar OPD sesuai data Helpdesk." | Halaman OPD baca saja; **Sinkronkan** menarik daftar dari Helpdesk dan melaporkan hasilnya. Tombol itu memanggil Helpdesk sungguhan dan menulis tabel OPD; fasilitator memutuskan sebelum sesi apakah ia boleh ditekan. |
 | K6 | "Buatkan survei untuk salah satu dinas atas nama Kabupaten." | Modal **Buat Paket Survei** meminta judul, OPD, periode, dan izin tanpa login, tanpa pilihan jenis; **Pilih Jenis Survei** membuka halaman Jenis Survei yang sama dengan Admin OPD. Survei baru tercipta sesudah jenisnya dikonfirmasi, atas nama OPD terpilih. Judul diawali `[UJI UAT]`. |
 
 ### 3.5 Urutan yang disarankan
