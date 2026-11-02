@@ -113,7 +113,7 @@ di direktori scratchpad sesi, bukan di dalam repo.
 Tulis dalam bahasa Indonesia. Akhiri dengan footer:
 
 ```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ```
 
 Isinya menjelaskan **mengapa**, bukan mengulang daftar berkas yang sudah
