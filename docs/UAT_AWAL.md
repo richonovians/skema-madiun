@@ -2,7 +2,12 @@
 
 **Item roadmap:** `QA-SECURITY-UAT`, bagian #11 (`docs/TEST_KEAMANAN.md` §6).
 **Disusun:** 29 Oktober 2026, terhadap `main` di `086bee8`.
-**Pelaksanaan:** belum dijadwalkan; menunggu pemangku kepentingan.
+**Diperbarui:** 2 November 2026, terhadap `main` di `84fd30b` -- hasil yang
+diharapkan W2, O1, dan O2 mengikuti perubahan 30 Oktober (survei yang sudah
+diisi hilang dari daftar; jenis survei dikonfirmasi lewat "Lanjutkan"), dan
+skenario K6 ditambahkan untuk alur Buat Paket Survei yang baru.
+**Pelaksanaan:** UAT awal internal (2.4) dijadwalkan 2 November 2026;
+UAT bersama pemangku kepentingan tetap menunggu.
 **Cabang:** dokumen ini hanya ada di `tester`.
 
 Dokumen ini dipakai dua pihak:
@@ -119,7 +124,7 @@ kepada peserta.
 | Kode | Tugas yang dibacakan kepada peserta | Hasil yang diharapkan |
 | ---- | ----------------------------------- | --------------------- |
 | W1 | "Masuk ke SKEMA sebagai warga." | Sampai di halaman persetujuan data pribadi bila belum pernah menyetujui, lalu ke beranda warga. |
-| W2 | "Isi survei kepuasan untuk salah satu layanan sampai terkirim." | Survei tampil satu pertanyaan per langkah dengan penunjuk "Pertanyaan X dari Y"; sesudah dikirim muncul halaman selesai. Membuka survei yang sama lagi ditolak karena sudah diisi. |
+| W2 | "Isi survei kepuasan untuk salah satu layanan sampai terkirim." | Survei tampil satu pertanyaan per langkah dengan penunjuk "Pertanyaan X dari Y"; sesudah dikirim muncul kartu "Terima Kasih!". Survei itu tidak lagi tampil di Daftar Survei warga; membuka alamatnya langsung menampilkan "Anda Sudah Mengisi Survei Ini". |
 | W3 | "Laporkan keluhan tentang sebuah layanan, sertakan satu foto." | Formulir **Ajukan Pengaduan** menerima foto (JPG, PNG, WebP, atau PDF, maks. 5MB); sesudah dikirim muncul nomor tiket. |
 | W4 | "Temukan pengaduan yang tadi Anda kirim dan baca tanggapannya." | Pengaduan ada di daftar pengaduan dengan status yang terbaca (diterima / diproses / selesai / ditolak); balasan petugas tampil di detailnya. Dijalankan **sesudah** O4. |
 | W5 | "Periksa apakah ada pemberitahuan baru untuk Anda." | Lonceng pemberitahuan menunjukkan balasan dari O4. |
@@ -135,8 +140,8 @@ kepada peserta.
 
 | Kode | Tugas | Hasil yang diharapkan |
 | ---- | ----- | --------------------- |
-| O1 | "Buat survei kepuasan standar (SKM) untuk layanan Anda dan aktifkan." | **Buat Survei** jenis SKM langsung memuat sembilan unsur U1-U9; kalimat pertanyaan boleh diubah, unsurnya tidak dapat dihapus. Survei berstatus aktif. |
-| O2 | "Buat survei biasa (Custom) dengan dua pertanyaan Anda sendiri." | Jenis Custom wajib memilih tujuan dan metode nilai; tersimpan sebagai draf. |
+| O1 | "Buat survei kepuasan standar (SKM) untuk layanan Anda dan aktifkan." | **Buat Survei** membuka halaman Jenis Survei; kartu SKM ditandai, **Lanjutkan** membuka konfirmasi, dan sesudah dikonfirmasi survei memuat sembilan unsur U1-U9. Kalimat pertanyaan boleh diubah (kotaknya turun baris untuk kalimat panjang), unsurnya tidak dapat dihapus. Survei berstatus aktif. |
+| O2 | "Buat survei biasa (Custom) dengan dua pertanyaan Anda sendiri." | Kartu Custom menampilkan pilihan tujuan dan metode nilai; **Lanjutkan** baru aktif sesudah keduanya dipilih, lalu konfirmasi. Tersimpan sebagai draf. |
 | O3 | "Bagikan survei O1 kepada warga lewat QR." | **Bagikan** menampilkan tautan `/survei/...` dan QR yang dapat diunduh. |
 | O4 | "Tanggapi pengaduan yang masuk dari W3, lalu ubah statusnya." | Pengaduan W3 ada di daftar OPD; balasan terkirim; status berubah dan terlihat oleh warga di W4. |
 | O5 | "Unduh hasil survei O1 untuk dilaporkan." | **Ekspor** menghasilkan berkas Excel atau CSV yang terbuka dan berisi jawaban W2/P1. |
@@ -150,6 +155,7 @@ kepada peserta.
 | K3 | "Beri seorang pegawai akses sebagai Admin OPD untuk dinasnya." | Halaman Pengguna dapat memberi peran `opd` dan menautkan OPD; perubahan tercatat di log. |
 | K4 | "Periksa siapa yang mengubah status pengaduan O4 dan kapan." | Log Audit menampilkan baris O4 dengan nama pelaku dan waktunya; pencarian menemukannya. |
 | K5 | "Pastikan daftar OPD sesuai data Helpdesk." | Halaman OPD baca saja; **Sinkronkan** menarik daftar dari Helpdesk dan melaporkan hasilnya. |
+| K6 | "Buatkan survei untuk salah satu dinas atas nama Kabupaten." | Modal **Buat Paket Survei** meminta judul, OPD, periode, dan izin tanpa login, tanpa pilihan jenis; **Pilih Jenis Survei** membuka halaman Jenis Survei yang sama dengan Admin OPD. Survei baru tercipta sesudah jenisnya dikonfirmasi, atas nama OPD terpilih. Judul diawali `[UJI UAT]`. |
 
 ### 3.5 Urutan yang disarankan
 
@@ -196,6 +202,7 @@ atau `internal` (sudah pernah melihat SKEMA, lihat 2.4).
 | K3 | | | | | | | |
 | K4 | | | | | | | |
 | K5 | | | | | | | |
+| K6 | | | | | | | |
 
 Pertanyaan penutup untuk setiap peserta, dicatat apa adanya:
 
