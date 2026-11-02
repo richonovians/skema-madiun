@@ -107,6 +107,14 @@ export default function Dropdown({
   const panelRef = useRef(null);
   useKeepInViewport(panelRef, isOpen);
 
+  // Tujuan fokus sesudah memilih (2 November 2026, sisa BUG-061). Tombol
+  // pilihan yang diklik lenyap bersama panelnya, dan fokus yang ada di sana
+  // jatuh ke `body`: pengguna papan ketik kehilangan tempatnya, dan modal yang
+  // dibuka oleh pilihan itu (Ubah Status Pengaduan) mencatat elemen yang sudah
+  // tiada sebagai tujuan pulang. Seperti `<select>` bawaan, fokus kembali ke
+  // pemicunya.
+  const pemicuRef = useRef(null);
+
   const tutupPanel = () => {
     setIsOpen(false);
     setKataCari('');
@@ -172,6 +180,7 @@ export default function Dropdown({
         </label>
       )}
       <button
+        ref={pemicuRef}
         type="button"
         id={id}
         aria-labelledby={label ? `${idLabel} ${idNilai}` : idNilai}
@@ -258,6 +267,11 @@ export default function Dropdown({
                 <button
                   type="button"
                   onClick={() => {
+                    // Fokus dipindah SEBELUM onChange, supaya pemakai yang sengaja
+                    // memindahkan fokus di dalam onChange-nya sendiri tidak
+                    // ditimpa. Modal yang terbuka karena pilihan ini mencatat
+                    // tujuan pulangnya di effect, sesudah handler ini selesai.
+                    pemicuRef.current?.focus();
                     onChange(option.value);
                     tutupPanel();
                   }}
