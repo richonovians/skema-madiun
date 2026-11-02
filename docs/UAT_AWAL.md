@@ -8,8 +8,11 @@ diisi hilang dari daftar; jenis survei dikonfirmasi lewat "Lanjutkan"), dan
 skenario K6 ditambahkan untuk alur Buat Paket Survei yang baru. Pada hari
 yang sama asisten menjalankan gladi bersih (`TEST_KEAMANAN.md` §18):
 patokan K3 dikoreksi, dan P1 serta K5 diberi prasyarat.
-**Pelaksanaan:** UAT awal internal (2.4) dijadwalkan 2 November 2026;
-UAT bersama pemangku kepentingan tetap menunggu.
+**Pelaksanaan:** **tertunda** (2 November 2026) -- stakeholder Diskominfo
+belum tersedia, dan pelaksanaannya dipindah ke `QA-FINAL-UAT`
+(`TEST_KEAMANAN.md` §6). UAT awal internal (2.4) yang semula dijadwalkan
+2 November tidak dijalankan; sebagai gantinya asisten menjalankan gladi
+bersih (`TEST_KEAMANAN.md` §18), yang BUKAN UAT.
 **Cabang:** dokumen ini hanya ada di `tester`.
 
 Dokumen ini dipakai dua pihak:
