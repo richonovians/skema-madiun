@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Building2, Send, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
 import { useAsync } from '@/hooks/useAsync';
 import useBodyScrollLock from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { forwardComplaint } from '../../services/complaints.api';
 
@@ -28,6 +29,23 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
   const [sedangKirim, setSedangKirim] = useState(false);
 
   useBodyScrollLock();
+
+  // DIALOG BAGI PEMBACA LAYAR (2 November 2026, BUG-062) -- pola BUG-037/039.
+  // Komponen ini hanya ter-mount selagi modal terbuka, jadi pengurungnya
+  // selalu aktif.
+  const idJudul = useId();
+  const refDialog = useRef(null);
+  useFocusTrap(refDialog, true);
+
+  // Escape menutup, kecuali selagi pengiriman berjalan -- tombol Batal pun
+  // dimatikan saat itu (ditambahkan bersama BUG-062 atas persetujuan pengguna).
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape' && !sedangKirim) onClose?.();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [sedangKirim, onClose]);
 
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
   const { data: opdResponse } = useAsync(fetchOpd);
@@ -64,7 +82,14 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
 
           640px, bukan 480px: nama instansi terpanjang 97 karakter dan terpotong
           pada lebar lama. */}
-      <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px]">
+      <div
+        ref={refDialog}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idJudul}
+        className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px] focus:outline-none"
+      >
         <div className="px-6 pt-6 pb-4 border-b border-border relative">
           <button
             onClick={onClose}
@@ -73,7 +98,10 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
           >
             <X size={18} />
           </button>
-          <h3 className="font-bold text-text-primary text-lg leading-tight flex items-center gap-2">
+          <h3
+            id={idJudul}
+            className="font-bold text-text-primary text-lg leading-tight flex items-center gap-2"
+          >
             <Building2 size={18} className="shrink-0" />
             Teruskan ke OPD berwenang
           </h3>

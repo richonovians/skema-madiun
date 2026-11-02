@@ -1,7 +1,8 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { ArrowRight, AlertTriangle, CheckCircle2, XCircle, Clock, X, ShieldAlert } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 const STATUS_CONFIG = {
@@ -71,7 +72,6 @@ export default function ConfirmStatusModal({
     if (isOpen) {
       setReason('');
       setShake(false);
-      setTimeout(() => textareaRef.current?.focus(), 150);
     }
   }, [isOpen]);
 
@@ -88,6 +88,15 @@ export default function ConfirmStatusModal({
   // `<ConfirmStatusModal isOpen={...}/>` terus-menerus), jadi penguncinya
   // dikendalikan `isOpen` -- bukan dipanggil tanpa syarat.
   useBodyScrollLock(isOpen);
+
+  // DIALOG BAGI PEMBACA LAYAR (2 November 2026, BUG-061) -- pola BUG-037/039.
+  // Fokus awalnya kotak alasan bila penolakan menuntutnya; selain itu wadah
+  // dialog, supaya namanya diumumkan lebih dulu dan Enter nyasar tak mengubah
+  // status. Fokus ke kotak alasan dulu dikerjakan `setTimeout` 150 ms; kini
+  // pengurung fokus yang memegangnya, supaya tak ada dua mekanisme berebut.
+  const idJudul = useId();
+  const refDialog = useRef(null);
+  useFocusTrap(refDialog, isOpen, requireReason ? textareaRef : null);
 
   if (!isOpen) return null;
 
@@ -112,13 +121,22 @@ export default function ConfirmStatusModal({
           100% + 32px pada flex item -- di layar lebih sempit dari maxWidth (yaitu
           hampir semua ponsel) sisi kanan modal terpotong. Jarak tepi kini dari
           `p-4` induk, sehingga `w-full` benar-benar pas di dalamnya. */}
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[440px]">
+      <div
+        ref={refDialog}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idJudul}
+        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[440px] focus:outline-none"
+      >
         {/* Header berwarna sesuai jenis aksi */}
         <div
           className={`px-6 pt-6 pb-4 ${isDangerous ? 'bg-red-50' : 'bg-amber-50'} border-b ${isDangerous ? 'border-red-100' : 'border-amber-100'} relative`}
         >
           <button
+            type="button"
             onClick={onCancel}
+            aria-label="Tutup"
             className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-all"
           >
             <X size={18} />
@@ -138,7 +156,7 @@ export default function ConfirmStatusModal({
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Konfirmasi Perubahan
               </p>
-              <h3 className="font-bold text-slate-800 text-base leading-tight">
+              <h3 id={idJudul} className="font-bold text-slate-800 text-base leading-tight">
                 Ubah Status Pengaduan
               </h3>
             </div>
