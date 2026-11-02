@@ -3512,6 +3512,14 @@ saat dropdown menutup, sehingga `useFocusTrap` tak punya tujuan pulang. Bukan
 kemunduran -- sebelum perbaikan fokus memang tak pernah dikelola -- tetapi
 pengguna papan ketik harus mencari tempatnya lagi.
 
+**Sisa itu ditutup 2 November 2026** -- `0fa8825`, merge `4177022`. Akarnya di
+`Dropdown.jsx`, bukan di modal: sesudah memilih, fokus kini kembali ke tombol
+pemicu dropdown, seperti `<select>` bawaan, sehingga modal mencatat tombol itu
+sebagai tujuan pulang. Berlaku di semua pemakai Dropdown. Tiga uji baru merah
+lebih dulu (`DropdownFokusSesudahMemilih.test.jsx`, `StatusFokusKembali.test.jsx`);
+di Chrome, Escape pada modal Ubah Status mengembalikan fokus ke dropdown
+"Diterima".
+
 ---
 
 ### BUG-062 — Modal Teruskan Pengaduan bukan dialog bagi pembaca layar
@@ -6907,3 +6915,4 @@ hanya dibaca, tidak diubah.
 | 7.19 | 29 Oktober 2026 | **BUG-058 s.d. BUG-060 lahir dan ditutup: 60 temuan, 60 ditutup, nol terbuka.** Uji misconfiguration (QA-SECURITY-UAT #9): halaman web tanpa header keamanan (BUG-058), pesan galat 500 mentah ke klien (BUG-059), versi nginx di header `Server` (BUG-060). `938a4b0`, merge `fe833bd`. BUG-060 belum dibuktikan di server hidup sampai proxy dimuat ulang. |
 | 7.20 | 2 November 2026 | **BUG-061 dan BUG-062 dibuka: 62 temuan, 60 ditutup, 2 terbuka.** Ditemukan pada gladi bersih skenario UAT oleh asisten (`TEST_KEAMANAN.md` §18), bukan pada UAT: modal Ubah Status Pengaduan dan modal Teruskan Pengaduan bukan dialog bagi pembaca layar, kelas yang sama dengan BUG-037/039. Keduanya Low dan tak menghalangi alur bagi pengguna tetikus. Belum diperbaiki. |
 | 7.21 | 2 November 2026 | **BUG-061 dan BUG-062 ditutup: 62 temuan, 62 ditutup, nol terbuka.** `020aee2`, merge `f11eb47`. Pola BUG-037/039 pada kedua modal pengaduan, ditambah Escape pada modal Teruskan atas persetujuan pengguna. 11 uji baru, 9 merah lebih dulu; dua sisanya dibuktikan lewat mutasi. Sisa tercatat di BUG-061: fokus tak kembali ke dropdown status sesudah modal Ubah Status ditutup. |
+| 7.22 | 2 November 2026 | **Sisa BUG-061 ditutup** (`0fa8825`, merge `4177022`): fokus kembali ke pemicu Dropdown sesudah memilih, sehingga modal Ubah Status memulangkan fokus ke dropdown status. Perbaikannya di komponen bersama `Dropdown`, berlaku di semua pemakainya. Rekap tetap 62 dari 62 ditutup. |
