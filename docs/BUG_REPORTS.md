@@ -157,8 +157,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
+| [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
 
-**Rekap** — 64 temuan: **63 ditutup, 1 terbuka** (Low: BUG-063).
+**Rekap** — 65 temuan: **63 ditutup, 2 terbuka** (Low: BUG-063, BUG-065).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3723,6 +3724,94 @@ Baris audit yang tercatat sebelum perbaikan tetap tanpa `sebelum`.
 
 ---
 
+### BUG-065 — nginx dev menjawab 502 sesudah upstream pulih, karena `host.docker.internal` kini dua alamat
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pemetaan TC-CMP-003, 3 November 2026, server dev lokal pada `main` `9e72abb` |
+| **Tanggal**  | 3 November 2026                                              |
+| **Lingkungan** | Docker Desktop 4.98.0 (Engine 29.9.2), `nginx:1.29-alpine` (`skm-proxy`), Windows 11 |
+| **Berkas**   | `infra/nginx/dev.conf` (`upstream skm_api`, `upstream skm_web`) |
+| **Severity** | Low (usulan penguji) -- hanya lingkungan pengembangan; `prod.conf` menunjuk `api:3001`/`web:3000`, bukan `host.docker.internal` |
+
+**Gejala**
+
+Sepuluh `POST /complaints` serentak lewat `http://skema.local` dijawab
+3× 201 dan **7× 502**. Server API sehat sepanjang waktu: sepuluh permintaan
+yang sama langsung ke `localhost:3001` dijawab 10× 201. Log `skm-proxy`:
+
+```
+connect() to [fdc4:f303:9324::254]:3001 failed (101: Network unreachable) while connecting to upstream
+no live upstreams while connecting to upstream ... upstream: "http://skm_api/api/v1/complaints"
+```
+
+Ke-502 itu tak pernah sampai ke Nest; log API tak memuat satu pun.
+
+**Akar masalah**
+
+1. DNS Docker Desktop kini menjawab `host.docker.internal` dengan DUA
+   alamat. Di dalam `skm-proxy`, `/etc/hosts` tak memuat nama itu, sedangkan
+   `getent ahosts` memberi `192.168.65.254` dan `fdc4:f303:9324::254`.
+   Komentar di `dev.conf` ("SATU alamat, dan itu penting") ditulis
+   27 Agustus 2026 dan kini tak berlaku lagi. Penyebabnya bukan `extra_hosts`:
+   `docker-compose.yml` tetap tanpa baris itu.
+2. nginx menerjemahkan nama upstream saat mulai, jadi `skm_api` dan
+   `skm_web` masing-masing punya dua peer. Peer IPv6 selalu gagal
+   ("Network unreachable") dan ditandai mati (`max_fails=1`, `fail_timeout=10s`
+   baku).
+3. Selagi API mati (restart, atau `nest --watch` membangun ulang), setiap
+   pekerja nginx yang menerima permintaan mencatat peer IPv4 gagal juga
+   ("Connection refused").
+4. Sesudah API pulih dan `fail_timeout` lewat, satu permintaan per pekerja
+   dipakai menguji ulang peer IPv4. Selama uji itu berlangsung, permintaan
+   lain di pekerja yang sama menemukan kedua peer mati, lalu dijawab 502
+   "no live upstreams" tanpa mencoba sama sekali.
+
+Dengan satu alamat, langkah 4 tak terjadi: nginx tak pernah menandai mati
+upstream yang hanya punya satu peer.
+
+**Reproduksi terpisah (tanpa menyentuh `skm-proxy` maupun API)**
+
+Kontainer `nginx:1.29-alpine` sekali pakai di porta 8099, upstream server
+Node kecil di `127.0.0.1:3999`. Fase: A sehat, B server dimatikan lalu 40
+permintaan serentak, C server dinyalakan lagi, tunggu 12 detik (> `fail_timeout`),
+lalu tiga ronde 10 permintaan serentak.
+
+| Upstream                        | A sehat | B mati  | C ronde 1         | C ronde 2-3 |
+| ------------------------------- | ------- | ------- | ----------------- | ----------- |
+| `host.docker.internal:3999` (dua alamat) | 20× 200 | 40× 502 | **1× 200, 9× 502** | 20× 200 |
+| `192.168.65.254:3999` (satu alamat)       | 20× 200 | 40× 502 | 10× 200           | 20× 200     |
+
+Kontrol tanpa riwayat gagal: GET `/api/v1/statistics` lewat `skema.local`,
+4 ronde × 10 serentak sesudah `skm-proxy` dimulai ulang dengan API hidup
+= 40× 200. Peer IPv6 tetap gagal di log, tetapi permintaannya dialihkan ke
+IPv4. 502 hanya muncul pada ledakan pertama sesudah API sempat mati.
+
+**Dampak**
+
+- Di pengembangan: sesudah setiap restart API atau web, halaman yang
+  menembakkan beberapa panggilan API serentak dapat menerima 502 sekali. Muat
+  ulang berikutnya normal, sehingga gejalanya tampak acak.
+- Uji Playwright yang berjalan sesudah server dev dimulai ulang dapat
+  menerima 502 yang sama. **Belum diukur** apakah ini menjelaskan sebagian
+  kegoyahan E2E yang belum terjelaskan; jangan dianggap terbukti.
+- `dev.conf` sendiri memperingatkan bahwa peer IPv6 yang mati membuat jabat
+  tangan WebSocket HMR gagal ("upstream sent no valid HTTP/1.0 header").
+  Keadaan dua alamat itu kini terjadi tanpa `extra_hosts`. **Belum diukur**
+  apakah HMR terdampak.
+- Produksi tak terdampak: `prod.conf` memakai nama layanan compose.
+
+**Arah perbaikan (belum ada yang terbukti)**
+
+Satu kandidat sudah dicoba di kontainer terpisah dan **gagal**:
+`resolver 127.0.0.11 ipv6=off` + `zone` + `server host.docker.internal:3999 resolve`
+menjawab 502 untuk seluruh 90 permintaan, termasuk saat upstream sehat.
+Kandidat lain, misalnya menyebut alamat IPv4 tersurat atau
+`max_fails=0`, belum dicoba. Alamat tersurat tidak portabel antarmesin.
+Keputusannya milik pengelola `infra/`.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -7082,3 +7171,4 @@ hanya dibaca, tidak diubah.
 | 7.24 | 3 November 2026 | **BUG-064 dibuka: 64 temuan, 62 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-AUD-002: log audit `update_status` survei dan pengguna hanya mencatat nilai baru, jadi draf→aktif tak dapat dibedakan dari ditutup→aktif. Low; kesenjangan terhadap kasus uji, bukan terhadap PRD. Belum diperbaiki. |
 | 7.25 | 3 November 2026 | **BUG-064 diperbaiki di cabang, belum ditutup.** `fix/audit-status-sebelum` (`6ec5a5b` backend, `cdc6927` frontend): tiga rute `update_status` kini mencatat nilai lama sebagai `detail.sebelum`, dan detail Log Aktivitas menampilkannya. E2E `audit.e2e-spec.ts:173` dan `:216` merah lalu hijau di lokal. Rekap tetap 62 ditutup, 2 terbuka sampai cabang itu masuk `main` dengan CI hijau. |
 | 7.26 | 3 November 2026 | **BUG-064 ditutup: 64 temuan, 63 ditutup, 1 terbuka.** Cabang `fix/audit-status-sebelum` masuk `main` lewat PR #11 (merge `9e72abb`); CI `E2E API (PostgreSQL sungguhan)` dan `Lint, format, uji unit, build` success pada SHA itu. TC-AUD-002 kini ✅. Yang tersisa terbuka hanya BUG-063. |
+| 7.27 | 3 November 2026 | **BUG-065 dibuka: 65 temuan, 63 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-CMP-003: 7 dari 10 `POST /complaints` serentak lewat `skema.local` dijawab 502 nginx "no live upstreams", sedangkan API sehat. Akarnya `host.docker.internal` kini diterjemahkan ke IPv4 dan IPv6 (Docker Desktop 4.98.0). Direproduksi di kontainer nginx terpisah: dua alamat 9× 502 pada ledakan pertama sesudah upstream pulih, satu alamat 0. Hanya pengembangan; produksi tak terdampak. |
