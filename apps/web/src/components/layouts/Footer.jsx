@@ -117,8 +117,10 @@ export default function Footer() {
         <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3 lg:pl-6">
           <h4 className="font-bold text-lg text-white mb-1">Tautan Cepat</h4>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/">Layanan</Link>
+          {/* "Tentang Platform", bukan "Bantuan" (2 November 2026): nama dan alamat
+              yang sama dengan navbar, dan urutannya pun sama. */}
+          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/about">Tentang Platform</Link>
           <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/statistics">Statistik Pelayanan</Link>
-          <Link className="text-outline-variant hover:text-white hover:translate-x-1 transition-all duration-200 inline-flex items-center min-h-[44px] w-fit" href="/about#faq">Bantuan</Link>
           {/* Kebijakan privasi WAJIB punya tautan permanen (25 September 2026).
               Sebelumnya keterangannya hanya muncul di gerbang persetujuan, jadi
               warga yang sudah menyetujui tak punya cara membacanya lagi, dan tak
