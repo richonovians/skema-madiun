@@ -22,6 +22,7 @@ import {
 import { Role } from '@prisma/client';
 import { memoryStorage } from 'multer';
 import { Audit } from '../../common/decorators/audit.decorator';
+import { statusPengaduanSebelum } from '../../common/interceptors/audit-sebelum.util';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -103,7 +104,7 @@ export class ComplaintsController {
   /** Ubah status pengaduan (Admin OPD pemilik). */
   @Patch(':id/status')
   @Roles(Role.kabupaten, Role.opd)
-  @Audit('complaint', 'update_status')
+  @Audit('complaint', 'update_status', statusPengaduanSebelum)
   @ApiOkResponse({ type: ComplaintEntity })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,

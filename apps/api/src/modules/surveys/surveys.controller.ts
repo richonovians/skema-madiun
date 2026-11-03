@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
+import { statusSurveiSebelum } from '../../common/interceptors/audit-sebelum.util';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -183,7 +184,7 @@ export class SurveysController {
   /** Publikasikan / tutup survei (Admin OPD). */
   @Patch(':id/status')
   @Roles(Role.kabupaten, Role.opd)
-  @Audit('survey', 'update_status')
+  @Audit('survey', 'update_status', statusSurveiSebelum)
   @ApiOkResponse({ type: SurveyEntity })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,

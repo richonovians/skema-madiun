@@ -1,7 +1,8 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { concatMap, Observable } from 'rxjs';
+import { concatMap, from, Observable } from 'rxjs';
 import { AuditService } from '../../modules/audit/audit.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AUDIT_KEY, AuditMeta } from '../decorators/audit.decorator';
 import { redactAuditBody } from './audit-redact.util';
 import type { CurrentUser } from '../decorators/current-user.decorator';
@@ -34,9 +35,12 @@ function inferAksi(method: string): string {
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(AuditInterceptor.name);
+
   constructor(
     private readonly reflector: Reflector,
     private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -46,9 +50,50 @@ export class AuditInterceptor implements NestInterceptor {
     }
 
     const request = context.switchToHttp().getRequest<AuditableRequest>();
-    return next
-      .handle()
-      .pipe(concatMap((value) => this.recordIfAuthenticated(request, meta).then(() => value)));
+    const rekam = (sebelum?: Record<string, unknown>) =>
+      next
+        .handle()
+        .pipe(
+          concatMap((value) =>
+            this.recordIfAuthenticated(request, meta, sebelum).then(() => value),
+          ),
+        );
+
+    if (!meta.sebelum) {
+      return rekam();
+    }
+    // Nilai lama dibaca SEBELUM handler berjalan (BUG-064). Pembacaan dan
+    // perubahan tidak satu transaksi: dua perubahan serentak atas baris yang
+    // sama dapat mencatat `sebelum` yang sama. Untuk aksi admin yang jarang
+    // bertabrakan itu diterima, dan lebih baik daripada tak mencatatnya sama
+    // sekali seperti sebelumnya.
+    return from(this.bacaSebelum(request, meta)).pipe(concatMap((sebelum) => rekam(sebelum)));
+  }
+
+  /**
+   * Best-effort, sama seperti `AuditService.record`: pembacaan yang gagal
+   * TIDAK menggagalkan permintaan; barisnya tetap tercatat tanpa `sebelum`.
+   * Permintaan tanpa pengguna tak akan dicatat, jadi tak perlu dibaca.
+   */
+  private async bacaSebelum(
+    request: AuditableRequest,
+    meta: AuditMeta,
+  ): Promise<Record<string, unknown> | undefined> {
+    if (!request.user || !meta.sebelum) {
+      return undefined;
+    }
+    const id = Number((request.params as { id?: unknown } | undefined)?.id);
+    if (!Number.isInteger(id)) {
+      return undefined;
+    }
+    try {
+      return (await meta.sebelum(this.prisma, id)) ?? undefined;
+    } catch (err) {
+      this.logger.warn(
+        `Gagal membaca nilai lama untuk audit (${meta.entitas} #${id}): ${String(err)}`,
+      );
+      return undefined;
+    }
   }
 
   /**
@@ -56,7 +101,11 @@ export class AuditInterceptor implements NestInterceptor {
    * lebih kuat & lebih mudah diuji e2e, tanpa membuat kegagalan pencatatan menggagalkan
    * request (AuditService.record menelan errornya sendiri).
    */
-  private async recordIfAuthenticated(request: AuditableRequest, meta: AuditMeta): Promise<void> {
+  private async recordIfAuthenticated(
+    request: AuditableRequest,
+    meta: AuditMeta,
+    sebelum?: Record<string, unknown>,
+  ): Promise<void> {
     if (!request.user) {
       return;
     }
@@ -69,6 +118,7 @@ export class AuditInterceptor implements NestInterceptor {
     await this.auditService.record(request.user.userId, aksi, meta.entitas, {
       params: redactAuditBody(request.params),
       body: redactAuditBody(request.body),
+      ...(sebelum ? { sebelum: redactAuditBody(sebelum) } : {}),
     });
   }
 }
