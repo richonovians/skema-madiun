@@ -159,8 +159,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
+| [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
 
-**Rekap** — 66 temuan: **63 ditutup, 3 terbuka** (Low: BUG-063, BUG-065, BUG-066).
+**Rekap** — 67 temuan: **63 ditutup, 4 terbuka** (Low: BUG-063, BUG-065, BUG-066, BUG-067).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3874,6 +3875,98 @@ langsung dapat dipakai.
   uji unit `non-production.guard.spec.ts:11`, yang tak melihat urutan
   penjaga maupun badan respons.
 
+### BUG-067 — Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, pengukuran ulang jalur baca, 3 November 2026, `main` `9e72abb` |
+| **Tanggal**  | 3 November 2026                                              |
+| **Lingkungan** | Pelari beban `apps/api/scripts/beban` (porta 3002, `skm_beban`, Redis logis 1), laptop ber-Docker Desktop, server dev ikut hidup |
+| **Berkas**   | `apps/api/src/modules/dashboard/dashboard.service.ts` (`hitungStatistik`, `answer.groupBy` berpenyaring `response: { survey: TIDAK_DIBUANG }`) |
+| **Asal cacat** | `f1c132e` -- perbaikan BUG-013, 19 Oktober 2026 |
+| **Severity** | Low (usulan penguji) -- hanya jalan dingin, satu permintaan per TTL 60 detik; pada ukuran yang diminta QA-PERF masih jauh di bawah 3 detik |
+
+**Gejala**
+
+Permintaan pertama `GET /api/v1/statistics` sesudah singgahannya kosong, pada
+dataset T3 yang sama dengan pengukuran 13 Oktober (744 survei, 744.000 respons,
+6.696.000 jawaban):
+
+| Ukuran                      | 13 Okt   | 3 Nov                |
+| --------------------------- | -------- | -------------------- |
+| dingin, permintaan tunggal  | 1.793 ms | 3.739 ms / 6.255 ms  |
+| maks, 10 koneksi `--dingin` | 1.917 ms | 4.973 ms             |
+| req/s, 10 koneksi `--dingin`| 1.222    | 625                  |
+
+`/dashboard/ikm` pada jalan yang sama tidak bergerak (1.341 ms lawan 1.184 ms),
+jadi yang mundur hanya `/statistics`. Seluruh jawaban tetap 2xx; jalur hangatnya
+8-9 ms.
+
+**Akar masalah**
+
+`f1c132e` menambahkan penyaring Sampah ke tujuh kueri `DashboardService`.
+Satu di antaranya menggapai survei lewat DUA relasi:
+
+```ts
+this.prisma.answer.groupBy({
+  by: ['nilai'],
+  where: { nilai: { not: null }, response: { survey: TIDAK_DIBUANG } },
+  _count: { _all: true },
+})
+```
+
+Prisma menerjemahkannya menjadi dua `LEFT JOIN` atas seluruh tabel jawaban
+(SQL dicatat lewat log kueri Prisma):
+
+```sql
+SELECT COUNT(*), answers.nilai FROM answers
+LEFT JOIN survey_responses j0 ON j0.id = answers.response_id
+LEFT JOIN surveys j1 ON j1.id = j0.survey_id
+WHERE answers.nilai IS NOT NULL AND j1.deleted_at IS NULL
+  AND j1.id IS NOT NULL AND j0.id IS NOT NULL
+GROUP BY answers.nilai
+```
+
+Kueri itu diukur terpisah lewat Prisma, hanya baca, tiga kali per bentuk:
+
+| Dataset              | Bentuk lama (tanpa penyaring) | Bentuk sekarang       |
+| -------------------- | ----------------------------- | --------------------- |
+| T1, 133.920 jawaban  | 25-35 ms                      | 75-79 ms              |
+| T3, 6.696.000 jawaban| 557-660 ms                    | 2.003-3.281 ms        |
+
+`EXPLAIN ANALYZE` pada T3: bentuk lama satu `Parallel Seq Scan` atas `answers`
+(687 ms); bentuk sekarang menambah `Parallel Hash Join` dengan 744.000 baris
+`survey_responses` dan `Hash Join` dengan `surveys` (2.247 ms). Biaya
+tambahannya tumbuh linear terhadap jumlah jawaban, sekitar tiga kali lipat
+pada kedua ukuran. Kueri lain dalam `Promise.all` yang sama berebut kolam
+koneksi bersamanya, sehingga selisih di tingkat endpoint lebih besar daripada
+selisih satu kueri.
+
+Biaya itu dibayar PENUH walau tak ada satu pun survei di Sampah: dataset beban
+tak memuatnya.
+
+Belum dibuktikan dengan membalik `f1c132e`; buktinya pengukuran kueri terpisah
+dan rencana eksekusinya.
+
+**Dampak**
+
+- Pada ukuran yang diminta QA-PERF ("ribuan responden", T1 = 14.880 respons)
+  jalan dingin `/statistics` 352-498 ms, maks di bawah beban 307 ms. Syarat
+  "< 3 detik" TERPENUHI di sana.
+- Pada T3 jalan dinginnya melewati 3 detik, padahal 13 Oktober tidak. T3
+  setara seribu respons per survei untuk seluruh 744 survei tiga tahun.
+- Hanya satu pengunjung per 60 detik yang menanggungnya (TTL singgahan), dan
+  penahan stampede tetap bekerja. `/statistics` `@Public()`.
+
+**Arah perbaikan (belum dicoba di kode aplikasi)**
+
+Sampah lazimnya kecil. Menghitung jawaban milik survei di Sampah lalu
+mengurangkannya dari `groupBy` tanpa penyaring menghindari kedua join atas
+tabel besar: kueri survei-di-Sampah diukur 9,6 ms pada T3 (nol baris). Bentuk
+lain, misalnya penyaring `response: { surveyId: { notIn: idSampah } }`, belum
+diukur. Uji BUG-013 yang ada harus tetap hijau, dan perbaikannya harus diukur
+ulang dengan pelari yang sama pada T3.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -7237,3 +7330,4 @@ hanya dibaca, tidak diubah.
 | 7.26 | 3 November 2026 | **BUG-064 ditutup: 64 temuan, 63 ditutup, 1 terbuka.** Cabang `fix/audit-status-sebelum` masuk `main` lewat PR #11 (merge `9e72abb`); CI `E2E API (PostgreSQL sungguhan)` dan `Lint, format, uji unit, build` success pada SHA itu. TC-AUD-002 kini ✅. Yang tersisa terbuka hanya BUG-063. |
 | 7.27 | 3 November 2026 | **BUG-065 dibuka: 65 temuan, 63 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-CMP-003: 7 dari 10 `POST /complaints` serentak lewat `skema.local` dijawab 502 nginx "no live upstreams", sedangkan API sehat. Akarnya `host.docker.internal` kini diterjemahkan ke IPv4 dan IPv6 (Docker Desktop 4.98.0). Direproduksi di kontainer nginx terpisah: dua alamat 9× 502 pada ledakan pertama sesudah upstream pulih, satu alamat 0. Hanya pengembangan; produksi tak terdampak. |
 | 7.28 | 3 November 2026 | **BUG-066 dibuka: 66 temuan, 63 ditutup, 3 terbuka.** Ditemukan saat memetakan TC-AUTH-010: di `NODE_ENV=production` `POST /auth/dev-login` dijawab 404, tetapi pesannya "Not Found" (rute tak ada: "Cannot POST ..."), ia membawa header `X-RateLimit-Limit: 30`, dan permintaan ke-31 dijawab 429. Akarnya rute tetap terdaftar dan penjaga batas laju global berjalan sebelum `NonProductionGuard`. Penjaganya tetap menolak; yang bocor hanya keberadaan rute. |
+| 7.29 | 3 November 2026 | **BUG-067 dibuka: 67 temuan, 63 ditutup, 4 terbuka.** Ditemukan saat mengukur ulang jalur baca untuk QA-PERF: jalan dingin `GET /statistics` pada T3 naik dari 1.793 ms ke 3.739-6.255 ms. Sebabnya penyaring Sampah dari perbaikan BUG-013 (`f1c132e`) yang membuat `answer.groupBy` menyaring lewat dua `LEFT JOIN`; kuerinya sendiri naik dari ~0,6 s ke 2,0-3,3 s. Pada T1 (ukuran QA-PERF) endpointnya tetap di bawah 500 ms. |

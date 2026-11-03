@@ -2,7 +2,7 @@
 
 **Tanggal pengukuran:** 13 Oktober 2026
 **Direvisi:** 13 Oktober 2026, sore — hari yang sama. Lihat kotak di bawah.
-**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e`.
+**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 syarat "< 3 detik" terpenuhi (§12.4).
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -568,7 +568,7 @@ atas.
 Batas yang harus dibaca bersamanya:
 
 - T3 = 744.000 respons, jauh di atas "ribuan responden". Pada ukuran yang
-  diminta QA-PERF, jalan dinginnya belum diukur hari ini (lihat 12.4).
+  diminta QA-PERF, jalan dinginnya belum diukur hari ini (lihat 12.4, diukur sesudahnya).
 - Hanya SATU permintaan per 60 detik yang menanggungnya (TTL singgahan);
   penahan stampede tetap bekerja -- maks 4.973 ms, di bawah waktu dingin
   tunggalnya. Hangatnya 8-9 ms.
@@ -581,12 +581,46 @@ jadi menghitung yang DIBUANG lalu mengurangkannya dari hitungan lama jauh
 lebih murah daripada menyaring 6,7 juta baris lewat dua join: kueri jawaban
 milik survei di Sampah diukur 9,6 ms pada dataset ini (nol baris). Keputusan
 dan pembuktiannya milik pengembang; uji BUG-013 yang ada harus tetap hijau.
+Dicatat sebagai [BUG-067](BUG_REPORTS.md#bug-067).
 
-### 12.4 Yang belum diukur hari ini
+### 12.4 T1 -- ukuran yang diminta QA-PERF
 
-- **T1 dan T2.** Hanya T3 yang tersedia di `skm_beban`; membangun T1/T2
-  mengosongkan T3, dan membangunnya kembali memakan ~17 menit. "Ribuan
-  responden" yang dituntut QA-PERF paling dekat dengan T1 (14.880 respons).
+Dibangun sesudah 12.1-12.3 atas permintaan pengguna (`beban:data -- --survei=744
+--respons=20`, 26 detik): 744 survei, 14.880 respons, 133.920 jawaban.
+**`skm_beban` kini memuat T1, bukan T3**; membangun T3 lagi memakan ~17 menit.
+
+Jalur hangat, `--semua`, 10 koneksi, 10 detik:
+
+| Skenario         | Dingin | p50   | p95    | p99    | Maks   | req/s |
+| ---------------- | ------ | ----- | ------ | ------ | ------ | ----- |
+| statistik        | 498 ms | 12 ms | 21 ms  | 25 ms  | 73 ms  | 738   |
+| dashboard-ikm    | 248 ms | 75 ms | 129 ms | 133 ms | 139 ms | 122   |
+| hasil-ikm        | 56 ms  | 24 ms | 32 ms  | 35 ms  | 44 ms  | 399   |
+| daftar-pengaduan | 23 ms  | 25 ms | 56 ms  | 72 ms  | 122 ms | 356   |
+| isi-survei-baca  | 39 ms  | 36 ms | 54 ms  | 62 ms  | 80 ms  | 265   |
+
+Jalur dingin, `--dingin`, 10 koneksi, 15 detik:
+
+| Skenario      | Dingin | p50   | p99    | Maks   | req/s |
+| ------------- | ------ | ----- | ------ | ------ | ----- |
+| statistik     | 352 ms | 8 ms  | 19 ms  | 307 ms | 1.025 |
+| dashboard-ikm | 424 ms | 81 ms | 138 ms | 458 ms | 116   |
+
+Seluruh jawaban 2xx, "Dataset tetap" pada ketiga jalan.
+
+**Pada ukuran ini syarat QA-PERF "dashboard < 3 detik" terpenuhi dengan
+lebar:** permintaan terburuk dari kedua endpoint dashboard 498 ms, termasuk
+jalan dingin. Kemunduran 12.3 ada juga di sini -- kueri `answer.groupBy`
+berpenyaring 75-79 ms lawan 25-35 ms tanpa penyaring -- tetapi selisih
+absolutnya puluhan milidetik. Dicatat sebagai
+[BUG-067](BUG_REPORTS.md#bug-067).
+
+Pembanding T1 13 Oktober (§5) diukur SEBELUM `2c63911` menghapus kipas per
+survei, jadi tak sebanding dengan tabel ini dan tidak disandingkan.
+
+### 12.5 Yang belum diukur hari ini
+
+- **T2.** Kurva hari ini dua titik, T1 dan T3.
 - **`GET /dashboard/opd`.** Dashboard Admin OPD tak punya skenario di
   `scripts/beban/skenario.ts` sejak awal, padahal ia juga "dashboard" dalam
   arti QA-PERF dan juga menerima penyaring Sampah pada `f1c132e`.
