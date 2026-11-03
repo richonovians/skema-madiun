@@ -22,6 +22,7 @@
  * supaya yang diukur jalur produksi. Dengan header dev yang lengkap,
  * `GET /api/v1/dashboard/ikm` menjawab 401 pada jalan pertama.
  */
+import type { PeranBeban } from './lib/akun-beban';
 
 export interface Skenario {
   nama: string;
@@ -36,11 +37,11 @@ export interface Skenario {
   /** `true` bila endpoint-nya `@Public()` dan sesi tak diperlukan. */
   publik?: boolean;
   /**
-   * Peran yang harus dibawa sesinya. Baku `kabupaten`. `responden` ada karena
-   * `@Roles` menolak lintas peran: satu akun memegang keduanya dan pelarinya
-   * menerbitkan satu sesi per peran.
+   * Peran yang harus dibawa sesinya. Baku `kabupaten`. Peran lain ada karena
+   * `@Roles` menolak lintas peran: satu akun memegang semuanya dan pelarinya
+   * menerbitkan satu sesi per peran (`PERAN_BEBAN`).
    */
-  peran?: 'kabupaten' | 'responden';
+  peran?: PeranBeban;
 }
 
 export const SKENARIO: Skenario[] = [
@@ -84,5 +85,15 @@ export const SKENARIO: Skenario[] = [
     method: 'GET',
     jalur: '/api/v1/surveys/:survei/fill',
     peran: 'responden',
+  },
+  {
+    nama: 'dashboard-opd',
+    alasan:
+      'Ringkasan satu OPD di layar Admin OPD: hitungan respons dan pengaduan, ' +
+      'jawaban teks, tren IKM. Tanpa singgahan, jadi setiap permintaan adalah ' +
+      'jalan dingin. Ikut menerima penyaring Sampah BUG-013.',
+    method: 'GET',
+    jalur: '/api/v1/dashboard/opd',
+    peran: 'opd',
   },
 ];
