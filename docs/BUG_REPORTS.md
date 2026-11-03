@@ -156,9 +156,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-O4 (gladi) |
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
-| [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | Terbuka — diperbaiki di `fix/audit-status-sebelum`, menunggu merge | TC-AUD-002 |
+| [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
 
-**Rekap** — 64 temuan: **62 ditutup, 2 terbuka** (Low: BUG-063, BUG-064). BUG-064 sudah diperbaiki di cabang `fix/audit-status-sebelum` (`6ec5a5b`, `cdc6927`) dan baru dihitung ditutup sesudah masuk `main` dengan CI hijau.
+**Rekap** — 64 temuan: **63 ditutup, 1 terbuka** (Low: BUG-063).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3687,8 +3687,8 @@ kesenjangan terhadap kasus uji, bukan terhadap PRD. Karena itu Low.
 status lama, dan interceptor menuliskannya sebagai `detail.sebelum`. Alternatif
 yang lebih murah adalah melonggarkan harapan TC-AUD-002. Keputusannya milik tim.
 
-**Perbaikan (3 November 2026, menunggu merge ke `main`).** Tim memilih
-melengkapi pencatatan, bukan melonggarkan harapan. Dua commit di cabang
+**Perbaikan (3 November 2026, DITUTUP; merge `9e72abb`, PR #11).** Tim memilih
+melengkapi pencatatan, bukan melonggarkan harapan. Dua commit dari cabang
 `fix/audit-status-sebelum`, berinduk `main` `40a20ce`:
 
 - `6ec5a5b` (backend). `@Audit` menerima pembaca nilai lama opsional;
@@ -3710,8 +3710,10 @@ melengkapi pencatatan, bukan melonggarkan harapan. Dua commit di cabang
 `Received: undefined` sebelum perbaikan. Unit
 `audit.interceptor.spec.ts:152` (5 kasus), Jest web
 `AuditChanges.test.jsx` (4 kasus) dan `auditLog.adapter.test.js:175`
-(2 kasus). Seluruhnya hijau di mesin lokal; CI pada SHA `main` belum ada
-karena belum di-merge.
+(2 kasus). Seluruhnya hijau di mesin lokal, dan CI pada `main` `9e72abb`:
+`E2E API (PostgreSQL sungguhan)` success, `Lint, format, uji unit, build`
+success. `E2E web (Playwright, belum gerbang)` masih berjalan saat dicatat
+dan bukan gerbang.
 
 **Yang belum terukur.** Jalur pengaduan hanya tercakup uji unit
 interceptor; belum ada e2e yang memeriksa `sebelum`-nya. Pembacaan dan
@@ -7079,3 +7081,4 @@ hanya dibaca, tidak diubah.
 | 7.23 | 3 November 2026 | **BUG-063 dibuka: 63 temuan, 62 ditutup, 1 terbuka.** Ditemukan saat menguji ulang TC-FE-034 (BUG-008) di `main` `40a20ce`: pengunjung tanpa sesi memicu `POST /auth/logout` untuk setiap 401 dari formulir beranda, 4 kali per muat di `next dev`. Low, tak terlihat pengguna. Belum diperbaiki. |
 | 7.24 | 3 November 2026 | **BUG-064 dibuka: 64 temuan, 62 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-AUD-002: log audit `update_status` survei dan pengguna hanya mencatat nilai baru, jadi draf→aktif tak dapat dibedakan dari ditutup→aktif. Low; kesenjangan terhadap kasus uji, bukan terhadap PRD. Belum diperbaiki. |
 | 7.25 | 3 November 2026 | **BUG-064 diperbaiki di cabang, belum ditutup.** `fix/audit-status-sebelum` (`6ec5a5b` backend, `cdc6927` frontend): tiga rute `update_status` kini mencatat nilai lama sebagai `detail.sebelum`, dan detail Log Aktivitas menampilkannya. E2E `audit.e2e-spec.ts:173` dan `:216` merah lalu hijau di lokal. Rekap tetap 62 ditutup, 2 terbuka sampai cabang itu masuk `main` dengan CI hijau. |
+| 7.26 | 3 November 2026 | **BUG-064 ditutup: 64 temuan, 63 ditutup, 1 terbuka.** Cabang `fix/audit-status-sebelum` masuk `main` lewat PR #11 (merge `9e72abb`); CI `E2E API (PostgreSQL sungguhan)` dan `Lint, format, uji unit, build` success pada SHA itu. TC-AUD-002 kini ✅. Yang tersisa terbuka hanya BUG-063. |
