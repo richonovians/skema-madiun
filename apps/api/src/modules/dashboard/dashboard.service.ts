@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
 import { periodeFromDate } from '../surveys/utils/periode.util';
+import { trenBulanan } from './tren-bulanan.util';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 import {
   OpdDashboardEntity,
@@ -439,6 +440,12 @@ export class DashboardService {
       allComplaints.map((c) => ({ periode: periodeFromDate(c.createdAt), value: 1 })),
       'sum',
     );
+    // Deret bulanan dari query `allComplaints` yang sama -- tak ada pemindaian
+    // tabel tambahan. Halaman statistik publik menyaringnya Bulanan/Tahunan.
+    const complaintTrendBulanan = trenBulanan(
+      allComplaints.map((c) => c.createdAt),
+      new Date(),
+    );
 
     const complaintStatus = complaintStatusRows.map(
       (row) =>
@@ -472,6 +479,7 @@ export class DashboardService {
       summary,
       ikmTrend,
       complaintTrend,
+      complaintTrendBulanan,
       complaintStatus,
       complaintCategories,
       serviceElements,

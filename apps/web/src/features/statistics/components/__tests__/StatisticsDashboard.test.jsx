@@ -174,15 +174,18 @@ describe('StatisticsDashboard', () => {
   });
 
   it('tidak meregangkan kartu melampaui isinya', async () => {
-    // Item grid bawaannya `stretch`: kartu kiri dipaksa setinggi kartu OPD di
-    // sebelahnya walau isinya lebih pendek, dan selisihnya menjadi ruang kosong
-    // DI DALAM kartu yang tak dapat diisi apa pun yang jujur. `items-start`
-    // membuat tinggi tiap kartu mengikuti isinya sendiri.
+    // Item grid bawaannya `stretch`: kartu kiri dipaksa setinggi kartu
+    // tetangganya walau isinya lebih pendek, dan selisihnya menjadi ruang kosong
+    // DI DALAM kartu yang tak dapat diisi apa pun yang jujur. Sejak grid 2x2
+    // (3 November 2026) penahannya per sel, `self-start`, bukan `items-start`
+    // pada grid -- kartu GRAFIK di kanan justru sengaja diregangkan, dan
+    // grafiknya ikut memanjang mengisi tinggi itu.
     render(<StatisticsDashboard />);
-    await screen.findByText('Top Kategori Pengaduan');
+    const judul = await screen.findByText('Top Kategori Pengaduan');
 
-    const grid = document.querySelector('[class*="lg:grid-cols-2"]');
-    expect(grid).toHaveClass('items-start');
+    const grid = judul.closest('[class*="lg:grid-cols-2"]');
+    const sel = [...grid.children].find((anak) => anak.contains(judul));
+    expect(sel).toHaveClass('self-start');
   });
 
   it('KONTROL: daftar kategori tetap utuh di kartu yang sama', async () => {

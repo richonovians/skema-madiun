@@ -117,6 +117,15 @@ export class StatisticsEntity extends BaseEntity<StatisticsEntity> {
   })
   complaintTrend: PeriodePointEntity[];
 
+  @ApiProperty({
+    type: PeriodePointEntity,
+    isArray: true,
+    example: [{ periode: '2026-11', value: 3 }],
+    description:
+      'Tren jumlah pengaduan masuk per BULAN ("YYYY-MM"), utuh sejak bulan pengaduan pertama sampai bulan ini; bulan kosong bernilai 0. Tampilan tahunan dijumlahkan dari deret ini.',
+  })
+  complaintTrendBulanan: PeriodePointEntity[];
+
   @ApiProperty({ type: ComplaintStatusDistributionEntity, isArray: true })
   complaintStatus: ComplaintStatusDistributionEntity[];
 

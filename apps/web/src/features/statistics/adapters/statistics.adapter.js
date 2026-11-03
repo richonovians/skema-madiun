@@ -20,6 +20,17 @@ export function adaptStatistics(statistics) {
       count: c.count,
     })),
     complaintStatus: adaptComplaintStatus(statistics.complaintStatus),
+    // Dua tampilan dari SATU deret bulanan backend (2 November 2026), supaya
+    // angka bulanan dan tahunan tak pernah berselisih. `?? []`: deret kosong
+    // berarti belum ada pengaduan, bukan nilai yang dikarang.
+    complaintTrendBulanan: (statistics.complaintTrendBulanan ?? [])
+      .slice(-BULAN_DITAMPILKAN)
+      .map((p) => ({ month: labelBulan(p.periode), value: p.value })),
+    complaintTrendTahunan: jumlahPerTahun(statistics.complaintTrendBulanan ?? []),
+    // `groupBy` backend tak membuat baris untuk status bernilai nol, jadi
+    // tanpa baris `selesai` jumlahnya memang 0.
+    completedComplaints:
+      statistics.complaintStatus.find((r) => r.status === 'selesai')?.count ?? 0,
     serviceElements: statistics.serviceElements.map((s) => ({
       name: s.name,
       score: Math.round(s.avgNrr * 25 * 100) / 100, // NRR (1-4) -> skala 0-100, konsisten rumus IkmService
@@ -32,6 +43,30 @@ export function adaptStatistics(statistics) {
       medal: MEDAL_BY_RANK[o.peringkat] ?? '',
     })),
   };
+}
+
+/** Tampilan Bulanan halaman statistik: dua belas bulan terakhir. */
+const BULAN_DITAMPILKAN = 12;
+
+const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+/** "2026-11" -> "Nov 2026". Periode yang tak dikenal ditampilkan apa adanya. */
+function labelBulan(periode) {
+  const cocok = /^(\d{4})-(\d{2})$/.exec(periode ?? '');
+  if (!cocok) return periode;
+  return `${NAMA_BULAN[Number(cocok[2]) - 1]} ${cocok[1]}`;
+}
+
+/** Deret `{periode:"YYYY-MM", value}` -> `{month:"YYYY", value}` per tahun, terurut. */
+function jumlahPerTahun(deret) {
+  const perTahun = new Map();
+  for (const p of deret) {
+    const tahun = String(p.periode).slice(0, 4);
+    perTahun.set(tahun, (perTahun.get(tahun) ?? 0) + p.value);
+  }
+  return [...perTahun.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([tahun, value]) => ({ month: tahun, value }));
 }
 
 const MEDAL_BY_RANK = { 1: '🥇', 2: '🥈', 3: '🥉' };

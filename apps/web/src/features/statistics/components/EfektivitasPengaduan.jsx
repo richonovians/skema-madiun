@@ -21,7 +21,7 @@ function satuDesimal(angka) {
   return (Math.round(angka * 10) / 10).toString().replace('.', ',');
 }
 
-export default function EfektivitasPengaduan({ summary }) {
+export default function EfektivitasPengaduan({ summary, selesai = null }) {
   const { completionRate, avgSlaDays, totalComplaints } = summary ?? {};
 
   // Keduanya nullable di statistics.entity.ts: tanpa satu pun pengaduan tak ada
@@ -74,9 +74,13 @@ export default function EfektivitasPengaduan({ summary }) {
           melekat pada sisi aslinya saat sumbunya dibalik.
 
           Penyebutnya wajib ada: 46% dari 13 berbeda artinya dari 46% dari 3. */}
-      <dl className="grid grid-cols-2 gap-3">
+      {/* Tiga kotak sejak 2 November 2026: "Aduan selesai" ditambahkan di kanan
+          "Aduan masuk", supaya persentasenya punya pembilang DAN penyebut.
+          Di ponsel tiga kolom terlalu sempit untuk "8,3 hari", jadi rata-rata
+          mengambil satu baris penuh dan pasangan masuk/selesai di bawahnya. */}
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {avgSlaDays != null && (
-          <div className="flex flex-col-reverse gap-0.5 rounded-xl bg-surface-container-low p-3">
+          <div className="col-span-2 flex flex-col-reverse gap-0.5 rounded-xl bg-surface-container-low p-3 sm:col-span-1">
             <dt className="text-xs font-medium text-text-secondary">Rata-rata penyelesaian</dt>
             <dd className="text-lg font-bold leading-tight text-text-primary">
               {satuDesimal(avgSlaDays)} hari
@@ -87,6 +91,12 @@ export default function EfektivitasPengaduan({ summary }) {
           <div className="flex flex-col-reverse gap-0.5 rounded-xl bg-surface-container-low p-3">
             <dt className="text-xs font-medium text-text-secondary">Aduan masuk</dt>
             <dd className="text-lg font-bold leading-tight text-text-primary">{totalComplaints}</dd>
+          </div>
+        )}
+        {selesai != null && (
+          <div className="flex flex-col-reverse gap-0.5 rounded-xl bg-surface-container-low p-3">
+            <dt className="text-xs font-medium text-text-secondary">Aduan selesai</dt>
+            <dd className="text-lg font-bold leading-tight text-text-primary">{selesai}</dd>
           </div>
         )}
       </dl>

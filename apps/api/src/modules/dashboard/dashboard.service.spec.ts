@@ -379,6 +379,19 @@ describe('DashboardService', () => {
       ]);
     });
 
+    it('complaintTrendBulanan dibucket dari createdAt per bulan sampai bulan ini', async () => {
+      const kini = new Date();
+      const bulanIni = `${kini.getFullYear()}-${String(kini.getMonth() + 1).padStart(2, '0')}`;
+      (prisma.complaint.findMany as jest.Mock).mockResolvedValue([
+        { createdAt: kini, updatedAt: kini, status: 'diterima' },
+        { createdAt: kini, updatedAt: kini, status: 'diterima' },
+      ]);
+
+      const result = await service.getStatistics();
+
+      expect(result.complaintTrendBulanan).toEqual([{ periode: bulanIni, value: 2 }]);
+    });
+
     it('serviceElements = rata-rata NRR per kode unsur lintas seluruh snapshot', async () => {
       const survey = { opdId: 1, opd: { nama: 'Dinas Contoh' } };
       (prisma.ikmResult.findMany as jest.Mock).mockResolvedValueOnce([
