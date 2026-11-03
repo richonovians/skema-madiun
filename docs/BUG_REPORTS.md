@@ -156,8 +156,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-O4 (gladi) |
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
+| [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | Terbuka | TC-AUD-002 |
 
-**Rekap** — 63 temuan: **62 ditutup, 1 terbuka** (Low: BUG-063).
+**Rekap** — 64 temuan: **62 ditutup, 2 terbuka** (Low: BUG-063, BUG-064).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3631,6 +3632,63 @@ endpoint bersesi akan mengulang pola yang sama.
 
 ---
 
+### BUG-064 — Log audit perubahan status hanya mencatat status baru
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pemetaan TC-AUD-002, 3 November 2026, server dev lokal (`skm_db`) pada `main` `40a20ce` |
+| **Tanggal**  | 3 November 2026                                              |
+| **Peran**    | Admin OPD (pelaku), Admin Kabupaten (pembaca log)            |
+| **Endpoint** | `PATCH /surveys/:id/status`; bentuk yang sama pada `PATCH /users/:id/status` |
+| **Berkas**   | `apps/api/src/common/interceptors/audit.interceptor.ts` (`recordIfAuthenticated`) |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Langkah reproduksi**
+
+1. Sebagai Admin OPD, buat survei custom draf.
+2. `PATCH /surveys/:id/status` `{ "status": "aktif" }`, lalu `{ "status": "ditutup" }`.
+3. Baca `audit_logs` ber-`entitas` `survey` dan `aksi` `update_status` untuk
+   survei itu.
+
+**Hasil yang diharapkan** (TC-AUD-002)
+
+Baris audit memuat status lama dan status baru.
+
+**Hasil sebenarnya**
+
+Dua baris, masing-masing hanya menyalin permintaannya:
+
+```
+update_status | {"body": {"status": "aktif"},   "params": {"id": "755"}}
+update_status | {"body": {"status": "ditutup"}, "params": {"id": "755"}}
+```
+
+Status sebelum perubahan tak tercatat di mana pun. Akibatnya draf→aktif
+(penerbitan pertama) dan ditutup→aktif (pembukaan kembali survei yang hasil
+IKM-nya sudah terbit) tercatat sama persis. Yang kedua justru perubahan yang
+paling perlu dapat ditelusuri. Untuk mengetahuinya, pembaca log harus menyusun
+ulang urutan seluruh baris survei itu dan berharap tak ada yang hilang.
+
+`PATCH /users/:id/status` berbentuk sama: `{"body": {"isActive": false}, ...}`
+tanpa nilai sebelumnya (TC-AUD-004). `PATCH /complaints/:id/status` memakai
+dekorator yang sama tetapi **belum diukur**.
+
+**Sebabnya, dibaca dari kode.** `AuditInterceptor.recordIfAuthenticated` menulis
+`{ params, body }` hasil redaksi dan tak pernah membaca baris sebelum handler
+mengubahnya. Itu berlaku bagi ke-23 rute ber-`@Audit`, bukan cacat satu rute.
+
+**Dampak.** Tak ada data yang rusak atau bocor; jejaknya tetap menjawab siapa,
+kapan, dan nilai apa yang dikirim. Yang hilang hanya nilai sebelumnya. PRD
+(NFR Auditabilitas) hanya menuntut "siapa mengubah apa, kapan", jadi ini
+kesenjangan terhadap kasus uji, bukan terhadap PRD. Karena itu Low.
+
+**Arah perbaikan (usulan, belum dikerjakan).** Cukup pada tiga rute
+`update_status`, bukan seluruh interceptor: handler (atau service) mengembalikan
+status lama, dan interceptor menuliskannya sebagai `detail.sebelum`. Alternatif
+yang lebih murah adalah melonggarkan harapan TC-AUD-002. Keputusannya milik tim.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -6987,3 +7045,4 @@ hanya dibaca, tidak diubah.
 | 7.21 | 2 November 2026 | **BUG-061 dan BUG-062 ditutup: 62 temuan, 62 ditutup, nol terbuka.** `020aee2`, merge `f11eb47`. Pola BUG-037/039 pada kedua modal pengaduan, ditambah Escape pada modal Teruskan atas persetujuan pengguna. 11 uji baru, 9 merah lebih dulu; dua sisanya dibuktikan lewat mutasi. Sisa tercatat di BUG-061: fokus tak kembali ke dropdown status sesudah modal Ubah Status ditutup. |
 | 7.22 | 2 November 2026 | **Sisa BUG-061 ditutup** (`0fa8825`, merge `4177022`): fokus kembali ke pemicu Dropdown sesudah memilih, sehingga modal Ubah Status memulangkan fokus ke dropdown status. Perbaikannya di komponen bersama `Dropdown`, berlaku di semua pemakainya. Rekap tetap 62 dari 62 ditutup. |
 | 7.23 | 3 November 2026 | **BUG-063 dibuka: 63 temuan, 62 ditutup, 1 terbuka.** Ditemukan saat menguji ulang TC-FE-034 (BUG-008) di `main` `40a20ce`: pengunjung tanpa sesi memicu `POST /auth/logout` untuk setiap 401 dari formulir beranda, 4 kali per muat di `next dev`. Low, tak terlihat pengguna. Belum diperbaiki. |
+| 7.24 | 3 November 2026 | **BUG-064 dibuka: 64 temuan, 62 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-AUD-002: log audit `update_status` survei dan pengguna hanya mencatat nilai baru, jadi draf→aktif tak dapat dibedakan dari ditutup→aktif. Low; kesenjangan terhadap kasus uji, bukan terhadap PRD. Belum diperbaiki. |
