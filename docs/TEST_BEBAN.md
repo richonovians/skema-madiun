@@ -2,7 +2,7 @@
 
 **Tanggal pengukuran:** 13 Oktober 2026
 **Direvisi:** 13 Oktober 2026, sore — hari yang sama. Lihat kotak di bawah.
-**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 syarat "< 3 detik" terpenuhi (§12.4).
+**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 dan T2 syarat "< 3 detik" terpenuhi (§12.4, §12.5).
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -618,12 +618,58 @@ absolutnya puluhan milidetik. Dicatat sebagai
 Pembanding T1 13 Oktober (§5) diukur SEBELUM `2c63911` menghapus kipas per
 survei, jadi tak sebanding dengan tabel ini dan tidak disandingkan.
 
-### 12.5 Yang belum diukur hari ini
+### 12.5 T2 dan dashboard Admin OPD (4 November 2026)
 
-- **T2.** Kurva hari ini dua titik, T1 dan T3.
-- **`GET /dashboard/opd`.** Dashboard Admin OPD tak punya skenario di
-  `scripts/beban/skenario.ts` sejak awal, padahal ia juga "dashboard" dalam
-  arti QA-PERF dan juga menerima penyaring Sampah pada `f1c132e`.
-- Pertumbuhan `complaints` (masih 0 baris) -- kini juga memberi makan tren
-  bulanan `e4759a5`, tanpa pemindaian tambahan.
+Dua celah dari daftar "belum diukur" ditutup keesokan harinya.
+
+**`GET /dashboard/opd` kini punya skenario**, `dashboard-opd`, di cabang
+`test/beban-dashboard-opd` (`0f2454e`, menunggu PR; hanya skrip pengukur yang
+berubah, kode aplikasi tidak). Akun beban kini memegang peran `opd` dan
+tertaut ke OPD `BEBAN0001`, yang memegang 12 survei seperti setiap OPD beban.
+Endpoint ini tanpa singgahan, jadi setiap permintaannya jalan dingin.
+
+**T2 dibangun** (`--survei=744 --respons=200`, 233 detik): 148.800 respons,
+1.339.200 jawaban, 2.400 respons per OPD. **`skm_beban` kini memuat T2.**
+
+Jalur hangat, `--semua`, 10 koneksi, 10 detik, pada T2:
+
+| Skenario         | Dingin | p50   | p95    | p99    | Maks   | req/s |
+| ---------------- | ------ | ----- | ------ | ------ | ------ | ----- |
+| statistik        | 710 ms | 7 ms  | 14 ms  | 17 ms  | 27 ms  | 1.149 |
+| dashboard-ikm    | 393 ms | 79 ms | 116 ms | 124 ms | 158 ms | 120   |
+| hasil-ikm        | 53 ms  | 26 ms | 43 ms  | 47 ms  | 67 ms  | 363   |
+| daftar-pengaduan | 23 ms  | 26 ms | 48 ms  | 57 ms  | 81 ms  | 348   |
+| isi-survei-baca  | 22 ms  | 32 ms | 58 ms  | 64 ms  | 127 ms | 280   |
+| dashboard-opd    | 62 ms  | 96 ms | 203 ms | 267 ms | 281 ms | 95    |
+
+Jalur dingin, `--dingin`, 10 koneksi, 15 detik, pada T2:
+
+| Skenario      | Dingin | p50   | p99    | Maks   | req/s |
+| ------------- | ------ | ----- | ------ | ------ | ----- |
+| statistik     | 993 ms | 8 ms  | 18 ms  | 891 ms | 1.007 |
+| dashboard-ikm | 487 ms | 78 ms | 158 ms | 778 ms | 112   |
+
+`dashboard-opd` diukur tiga kali di luar tabel: T1 dua kali (p50 73 dan
+80 ms, maks 190 dan 365 ms) dan T2 sekali lagi (p50 90 ms, maks 258 ms).
+Seluruh jawaban 2xx dan "Dataset tetap" pada setiap jalan.
+
+**Kesimpulan untuk QA-PERF:** pada T1 dan T2 kedua dashboard admin dan
+statistik publik selalu di bawah 1 detik, termasuk permintaan pertama. Syarat
+"< 3 detik" baru terlewati pada T3, dan hanya oleh permintaan pertama
+`/statistics` (BUG-067). Kurva dingin `/statistics` kini tiga titik:
+
+| Dataset | Jawaban   | Dingin `/statistics` |
+| ------- | --------- | -------------------- |
+| T1      | 133.920   | 352 / 498 ms         |
+| T2      | 1.339.200 | 710 / 993 ms         |
+| T3      | 6.696.000 | 3.739 / 6.255 ms     |
+
+**Batas yang tetap berlaku:** dataset beban tak memuat jawaban teks maupun
+pengaduan, padahal `/dashboard/opd` membaca keduanya (jawaban teks terbaru,
+hitungan pengaduan per status). Dua bagian kueri itu belum dibebani.
+
+### 12.6 Yang belum diukur
+
+- `dashboard-opd` pada T3 (12.000 respons per OPD).
+- Jawaban teks dan pengaduan di dataset beban (lihat 12.5).
 - Ketersediaan dan seluruh jalur tulis (§11, tetap ditunda).
