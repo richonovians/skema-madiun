@@ -155,8 +155,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-060](#bug-060) | nginx menyebut versinya di header `Server` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-O4 (gladi) |
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
+| [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
 
-**Rekap** — 62 temuan: **62 ditutup, 0 terbuka.**
+**Rekap** — 63 temuan: **62 ditutup, 1 terbuka** (Low: BUG-063).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3561,6 +3562,75 @@ fokus kembali ke tombol Teruskan.
 
 ---
 
+### BUG-063 — Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Uji ulang TC-FE-034 (BUG-008), 3 November 2026, di `main` `40a20ce` |
+| **Tanggal**  | 3 November 2026                                              |
+| **Peran**    | Pengunjung yang belum masuk                                  |
+| **Halaman**  | `/` (beranda publik)                                         |
+| **Berkas**   | `apps/web/src/services/api.js` (interseptor 401), `features/authentication/services/authStorage.js` (`clearSession`), `features/complaints/components/CreateComplaintForm.jsx`, `features/surveys/components/SurveyForm.jsx` |
+| **Severity** | Low (usulan penguji)                                         |
+
+**Langkah reproduksi**
+
+1. Buka `http://skema.local/` di konteks peramban baru, tanpa sesi apa pun.
+2. Amati lalu lintas jaringan ke `/api/v1`.
+
+**Hasil yang diharapkan**
+
+Pengunjung yang memang belum masuk tidak memicu permintaan logout: tak ada sesi
+yang perlu dicabut.
+
+**Hasil sebenarnya**
+
+Terukur di Chrome terpasang (Playwright, `next dev`), satu kali muat beranda:
+
+| Permintaan                       | Jumlah | Balasan |
+| -------------------------------- | :----: | :-----: |
+| `GET /opd?limit=100&isActive=true` | 2    | 401     |
+| `GET /ref/complaint-categories`  | 2      | 401     |
+| `POST /auth/logout`              | **4**  | 401     |
+
+Satu `POST /auth/logout` untuk setiap 401.
+
+**Sebabnya, dibaca dari kode.** Dua mata rantai:
+
+1. `CreateComplaintForm` dan `SurveyForm` tahu tak ada sesi (`useSesiAktif()`
+   bernilai `false`, dan karenanya menampilkan "Masuk untuk melihat ...") tetapi
+   TETAP memanggil `useAsync(getOpdList)` dan `useAsync(getComplaintCategories)`
+   tanpa syarat. Keduanya menuntut sesi, jadi pasti 401.
+2. Interseptor 401 di `api.js` memanggil `clearSession()` untuk setiap 401, dan
+   sejak 8 September 2026 `clearSession()` ikut memanggil
+   `matikanSesiDiServer()` -- `POST /auth/logout` dengan `credentials: 'include'`.
+   Pengunjung tak punya cookie `session`, jadi logout itu sendiri 401.
+
+Jadi yang dibersihkan adalah sesi yang tak pernah ada.
+
+**Batas pengukurannya.** Angka di atas dari `next dev`. Muatan ganda (dua kali
+setiap GET, juga `GET /statistics`) cocok dengan efek yang dijalankan dua kali
+oleh React Strict Mode di pengembangan, sehingga di build produksi jumlahnya
+kemungkinan separuhnya -- **belum diukur**, dan tidak ditulis sebagai fakta.
+
+**Dampak.** Tak terlihat oleh pengguna: penampung dropdown tetap benar dan tak
+ada galat di layar. Yang terbuang lalu lintas jaringan pada setiap kunjungan
+anonim ke pintu masuk utama layanan, dan baris log akses nginx/API yang tak
+berarti. Logout yang 401 ditolak penjaga sebelum mencapai handler, jadi tak
+ada baris `audit_logs` yang tertulis. Karena itu Low.
+
+**Arah perbaikan (usulan, belum dikerjakan).** Dua lapis, keduanya kecil:
+
+- formulir tak memanggil endpoint bersesi selagi `adaSesi` `false`;
+- `clearSession()` (atau interseptornya) tak memanggil `POST /auth/logout`
+  bila memang tak ada artefak sesi di klien -- tanpa `token` dan tanpa
+  `sso_expires_at`.
+
+Lapis kedua yang menutup akar kelasnya: halaman publik lain yang kelak memanggil
+endpoint bersesi akan mengulang pola yang sama.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -6916,3 +6986,4 @@ hanya dibaca, tidak diubah.
 | 7.20 | 2 November 2026 | **BUG-061 dan BUG-062 dibuka: 62 temuan, 60 ditutup, 2 terbuka.** Ditemukan pada gladi bersih skenario UAT oleh asisten (`TEST_KEAMANAN.md` §18), bukan pada UAT: modal Ubah Status Pengaduan dan modal Teruskan Pengaduan bukan dialog bagi pembaca layar, kelas yang sama dengan BUG-037/039. Keduanya Low dan tak menghalangi alur bagi pengguna tetikus. Belum diperbaiki. |
 | 7.21 | 2 November 2026 | **BUG-061 dan BUG-062 ditutup: 62 temuan, 62 ditutup, nol terbuka.** `020aee2`, merge `f11eb47`. Pola BUG-037/039 pada kedua modal pengaduan, ditambah Escape pada modal Teruskan atas persetujuan pengguna. 11 uji baru, 9 merah lebih dulu; dua sisanya dibuktikan lewat mutasi. Sisa tercatat di BUG-061: fokus tak kembali ke dropdown status sesudah modal Ubah Status ditutup. |
 | 7.22 | 2 November 2026 | **Sisa BUG-061 ditutup** (`0fa8825`, merge `4177022`): fokus kembali ke pemicu Dropdown sesudah memilih, sehingga modal Ubah Status memulangkan fokus ke dropdown status. Perbaikannya di komponen bersama `Dropdown`, berlaku di semua pemakainya. Rekap tetap 62 dari 62 ditutup. |
+| 7.23 | 3 November 2026 | **BUG-063 dibuka: 63 temuan, 62 ditutup, 1 terbuka.** Ditemukan saat menguji ulang TC-FE-034 (BUG-008) di `main` `40a20ce`: pengunjung tanpa sesi memicu `POST /auth/logout` untuk setiap 401 dari formulir beranda, 4 kali per muat di `next dev`. Low, tak terlihat pengguna. Belum diperbaiki. |
