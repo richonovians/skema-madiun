@@ -59,7 +59,28 @@ function ringkasLabel(teks) {
     .replace(/\s*-\s*/, ' ');
 }
 
-export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 }) {
+/**
+ * `aksi` (2 November 2026): elemen opsional di sisi kanan judul, mis. pilihan
+ * Bulanan/Tahunan pada tren pengaduan halaman statistik. Tanpa `aksi`, judul
+ * digambar persis seperti sebelumnya, jadi pemakai lain tak berubah.
+ *
+ * `isiTinggi` (3 November 2026): tinggi bagan mengikuti tinggi wadah yang
+ * DIUKUR, minimal TINGGI. Dipakai halaman statistik publik, tempat kartu
+ * grafik ditarik setinggi pasangannya di baris grid yang sama; tanpa ini
+ * kartunya memanjang tapi bagannya tetap 220px dan sisanya kosong. SVG-nya
+ * dipasang `absolute` supaya tingginya sendiri tak ikut menentukan tinggi
+ * wadah -- kalau ikut, ukuran yang terbaca ialah ukuran SVG itu sendiri dan
+ * bagan tak pernah bisa memendek lagi. Opt-in: pemakai lain tak berubah.
+ */
+export default function TrendChart({
+  data,
+  title,
+  dataKey,
+  yMin = 0,
+  yMax = 100,
+  aksi = null,
+  isiTinggi = false,
+}) {
   /**
    * BAGAN MENGIKUTI LEBAR PERANGKAT (1 September 2026).
    *
@@ -83,6 +104,7 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
    */
   const wadahRef = useRef(null);
   const [lebar, setLebar] = useState(LEBAR_PEMBUKA);
+  const [tinggiTerukur, setTinggiTerukur] = useState(TINGGI);
 
   useEffect(() => {
     const el = wadahRef.current;
@@ -94,12 +116,15 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
       // Dibulatkan supaya perubahan sub-piksel tak memicu render berulang.
       const bulat = Math.max(200, Math.round(w));
       setLebar((lama) => (Math.abs(lama - bulat) < 1 ? lama : bulat));
+      const h = entri.contentBoxSize?.[0]?.blockSize ?? entri.contentRect.height ?? 0;
+      const tinggiBulat = Math.max(TINGGI, Math.round(h));
+      setTinggiTerukur((lama) => (Math.abs(lama - tinggiBulat) < 1 ? lama : tinggiBulat));
     });
     pengamat.observe(el);
     return () => pengamat.disconnect();
   }, []);
 
-  const height = TINGGI;
+  const height = isiTinggi ? tinggiTerukur : TINGGI;
   /* Bantalan kiri harus tetap memuat label sumbu Y ("100" ~22px pada 12px),
      jadi 34px adalah batas bawah yang aman -- bukan angka yang dikira-kira. */
   const paddingX = lebar < 380 ? 34 : 40;
@@ -112,7 +137,9 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
 
   const points = data.map((item, index) => {
     const val = item[dataKey];
-    const x = paddingX + index * pointSpacing;
+    // Titik tunggal di TENGAH, bukan di tepi kiri (2 November 2026): di tepi
+    // kiri ia terbaca sebagai titik pertama dari grafik yang terpotong.
+    const x = data.length === 1 ? paddingX + innerWidth / 2 : paddingX + index * pointSpacing;
     const y = height - paddingY - ((val - yMin) / (yMax - yMin)) * innerHeight;
     return { x, y, val, label: item.month };
   });
@@ -142,7 +169,7 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
    * lebar mana pun, dan bukan cuma "kecil kemungkinannya".
    */
   const jangkarLabel = (index) =>
-    index === 0 ? 'start' : index === data.length - 1 ? 'end' : 'middle';
+    data.length === 1 ? 'middle' : index === 0 ? 'start' : index === data.length - 1 ? 'end' : 'middle';
 
   const bentangLabel = (index, teks) => {
     const lebarnya = lebarTeks(teks);
@@ -189,7 +216,14 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
 
   return (
     <div className="bg-white rounded-2xl p-6 border border-border shadow-sm flex flex-col h-full w-full overflow-hidden">
-      <h3 className="text-lg font-bold text-text-primary mb-6">{title}</h3>
+      {aksi ? (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-bold text-text-primary">{title}</h3>
+          {aksi}
+        </div>
+      ) : (
+        <h3 className="text-lg font-bold text-text-primary mb-6">{title}</h3>
+      )}
 
       <div ref={wadahRef} className="flex-1 w-full relative min-h-[220px]">
         {/* `viewBox` selebar wadahnya sendiri -> satu satuan = satu piksel CSS,
@@ -198,7 +232,7 @@ export default function TrendChart({ data, title, dataKey, yMin = 0, yMax = 100 
           viewBox={`0 0 ${lebar} ${height}`}
           width="100%"
           height={height}
-          className="overflow-visible"
+          className={isiTinggi ? 'absolute inset-x-0 top-0 overflow-visible' : 'overflow-visible'}
         >
           {/* Grid lines */}
           {[0, 0.5, 1].map((ratio, i) => {

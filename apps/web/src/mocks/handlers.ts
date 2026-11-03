@@ -768,6 +768,25 @@ export const handlers = [
           { periode: '2026-Q2', value: 14 },
           { periode: '2026-Q3', value: 12 },
         ],
+        // Deret bulanan UTUH sejak pengaduan pertama (2 November 2026): 14
+        // bulan, Okt 2025 s.d. Nov 2026, supaya tampilan Bulanan (12 bulan
+        // terakhir) dan Tahunan (dua tahun) sama-sama punya isi.
+        complaintTrendBulanan: [
+          { periode: '2025-10', value: 1 },
+          { periode: '2025-11', value: 0 },
+          { periode: '2025-12', value: 2 },
+          { periode: '2026-01', value: 3 },
+          { periode: '2026-02', value: 2 },
+          { periode: '2026-03', value: 3 },
+          { periode: '2026-04', value: 5 },
+          { periode: '2026-05', value: 4 },
+          { periode: '2026-06', value: 5 },
+          { periode: '2026-07', value: 4 },
+          { periode: '2026-08', value: 3 },
+          { periode: '2026-09', value: 2 },
+          { periode: '2026-10', value: 0 },
+          { periode: '2026-11', value: 0 },
+        ],
         complaintStatus: [
           { status: 'diterima', count: 6 },
           { status: 'diproses', count: 10 },
