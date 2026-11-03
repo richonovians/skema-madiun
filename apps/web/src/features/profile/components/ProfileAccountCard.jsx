@@ -1,17 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Tag, CalendarDays, History } from 'lucide-react';
+import { CalendarDays, History } from 'lucide-react';
 import Card from '@/components/ui/Card';
 
 export default function ProfileAccountCard({ user }) {
+  // "ID Responden" dihapus 2 November 2026: nomor baris basis data itu tak
+  // berguna bagi warga dan tak diminta di alur mana pun. Gridnya ikut turun
+  // ke dua kolom supaya sepertiga lebar di kanan tidak lowong.
   const accountItems = [
-    {
-      label: 'ID Responden',
-      value: user.id,
-      icon: Tag,
-      highlight: true,
-    },
     {
       label: 'Tanggal Bergabung',
       value: user.joinedAt,
@@ -33,17 +30,13 @@ export default function ProfileAccountCard({ user }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-2">
         {accountItems.map((item, index) => {
           const IconComponent = item.icon;
           return (
             <div 
               key={index} 
-              className={`p-4 rounded-xl border transition-colors ${
-                item.highlight 
-                  ? 'bg-primary-container/20 border-primary/30 text-primary' 
-                  : 'bg-surface-container-low/50 border-border/40 text-text-primary hover:bg-surface-container-low'
-              }`}
+              className="p-4 rounded-xl border transition-colors bg-surface-container-low/50 border-border/40 text-text-primary hover:bg-surface-container-low"
             >
               <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
                 <IconComponent size={15} className="text-primary shrink-0" />
