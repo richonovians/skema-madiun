@@ -164,6 +164,110 @@ describe('Audit Log (e2e)', () => {
     expect(entry).toBeDefined();
   });
 
+  /**
+   * BUG-064 (3 November 2026). Baris `update_status` dulu hanya menyalin
+   * permintaan, sehingga penerbitan pertama (draf -> aktif) dan pembukaan
+   * kembali survei yang hasil IKM-nya sudah terbit (ditutup -> aktif) tercatat
+   * sama persis: `{"body": {"status": "aktif"}}`.
+   */
+  it('PATCH status survei mencatat status lama sebagai detail.sebelum (BUG-064)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/surveys')
+      .set(opdHeaders())
+      .send({
+        judul: 'Survei Status Lama Audit',
+        periode: '2026-Q1',
+        jenis: 'custom',
+        tujuan: 'kepuasan',
+        metodeNilai: 'rata_rata',
+      });
+    const id = created.body.data.id;
+
+    for (const status of ['aktif', 'ditutup', 'aktif']) {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/surveys/${id}/status`)
+        .set(opdHeaders())
+        .send({ status });
+      expect(res.status).toBe(200);
+    }
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/audit-logs')
+      .query({ entitas: 'survey', aksi: 'update_status', actorId: opdUserId, limit: 100 })
+      .set(kabupatenHeaders());
+
+    const peralihan = (
+      res.body.data as {
+        id: number;
+        detail: {
+          params?: { id?: string };
+          body?: { status?: string };
+          sebelum?: { status?: string };
+        };
+      }[]
+    )
+      .filter((e) => String(e.detail?.params?.id) === String(id))
+      .sort((a, b) => a.id - b.id)
+      .map((e) => `${e.detail?.sebelum?.status} -> ${e.detail?.body?.status}`);
+
+    expect(peralihan).toEqual(['draft -> aktif', 'aktif -> ditutup', 'ditutup -> aktif']);
+  });
+
+  it('PATCH status pengguna mencatat isActive lama sebagai detail.sebelum (BUG-064)', async () => {
+    // Pelaku kabupaten WAJIB pengguna sungguhan: `audit_logs.actor_id` ber-FK
+    // ke `users`, dan baku `x-dev-user-id` = 1 tak ada di `skm_uji`.
+    const pelaku = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-audit-kab' },
+      update: {},
+      create: {
+        ssoSubject: 'e2e-audit-kab',
+        nama: 'Admin Kabupaten Audit',
+        email: 'e2e-audit-kab@example.go.id',
+        roles: [Role.kabupaten],
+      },
+    });
+    const sasaran = await prisma.user.upsert({
+      where: { ssoSubject: 'e2e-audit-sasaran' },
+      update: { isActive: true },
+      create: {
+        ssoSubject: 'e2e-audit-sasaran',
+        nama: 'Sasaran Audit',
+        email: 'e2e-audit-sasaran@example.go.id',
+        roles: [Role.responden],
+      },
+    });
+
+    try {
+      const patch = await request(app.getHttpServer())
+        .patch(`/api/v1/users/${sasaran.id}/status`)
+        .set(devHeaders({ role: Role.kabupaten, userId: pelaku.id }))
+        .send({ isActive: false });
+      expect(patch.status).toBe(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/audit-logs')
+        .query({ entitas: 'user', aksi: 'update_status', actorId: pelaku.id })
+        .set(kabupatenHeaders());
+      const entry = (
+        res.body.data as {
+          detail: {
+            params?: { id?: string };
+            body?: { isActive?: boolean };
+            sebelum?: { isActive?: boolean };
+          };
+        }[]
+      ).find((e) => String(e.detail?.params?.id) === String(sasaran.id));
+
+      expect(entry?.detail?.body?.isActive).toBe(false);
+      expect(entry?.detail?.sebelum).toEqual({ isActive: true });
+    } finally {
+      await prisma.auditLog.deleteMany({ where: { actorId: pelaku.id } });
+      await prisma.user.deleteMany({
+        where: { ssoSubject: { in: ['e2e-audit-kab', 'e2e-audit-sasaran'] } },
+      });
+    }
+  });
+
   it('PATCH jenis memakai aksi eksplisit "ganti_jenis" (8 Oktober 2026)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/surveys')

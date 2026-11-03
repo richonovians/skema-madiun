@@ -2,6 +2,7 @@ import { CallHandler, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { lastValueFrom, of } from 'rxjs';
 import type { AuditService } from '../../modules/audit/audit.service';
+import type { PrismaService } from '../../prisma/prisma.service';
 import { PENANDA_DISUNTING } from './audit-redact.util';
 import { AuditInterceptor } from './audit.interceptor';
 
@@ -21,9 +22,11 @@ describe('AuditInterceptor', () => {
     record: jest.fn().mockResolvedValue(undefined),
   } as unknown as AuditService;
 
+  const prisma = {} as PrismaService;
+
   const buildInterceptor = (meta: unknown) => {
     const reflector = { get: jest.fn().mockReturnValue(meta) } as unknown as Reflector;
-    return { interceptor: new AuditInterceptor(reflector, auditService), reflector };
+    return { interceptor: new AuditInterceptor(reflector, auditService, prisma), reflector };
   };
 
   beforeEach(() => jest.clearAllMocks());
@@ -138,5 +141,108 @@ describe('AuditInterceptor', () => {
     );
 
     expect(body.nama).toBe('Budi Santoso');
+  });
+
+  /**
+   * BUG-064 (3 November 2026). Baris `update_status` dulu hanya menyalin
+   * permintaan, jadi draf -> aktif dan ditutup -> aktif tercatat sama persis.
+   * Rute yang menyatakan `sebelum` kini ikut mencatat nilai lamanya, dibaca
+   * SEBELUM handler mengubah barisnya.
+   */
+  describe('nilai sebelum perubahan (BUG-064)', () => {
+    const permintaanStatus = () => ({
+      method: 'PATCH',
+      params: { id: '755' },
+      body: { status: 'aktif' },
+      user: { userId: 7 },
+    });
+
+    it('membaca nilai lama sebelum handler berjalan dan mencatatnya sebagai `sebelum`', async () => {
+      const urutan: string[] = [];
+      const sebelum = jest.fn().mockImplementation(() => {
+        urutan.push('baca');
+        return Promise.resolve({ status: 'ditutup' });
+      });
+      const handler = {
+        handle: () => {
+          urutan.push('handler');
+          return of({ id: 755 });
+        },
+      } as unknown as CallHandler;
+      const { interceptor } = buildInterceptor({
+        entitas: 'survey',
+        aksi: 'update_status',
+        sebelum,
+      });
+
+      const result = await lastValueFrom(
+        interceptor.intercept(mockContext(permintaanStatus()), handler),
+      );
+
+      expect(urutan).toEqual(['baca', 'handler']);
+      expect(sebelum).toHaveBeenCalledWith(prisma, 755);
+      expect(auditService.record).toHaveBeenCalledWith(7, 'update_status', 'survey', {
+        params: { id: '755' },
+        body: { status: 'aktif' },
+        sebelum: { status: 'ditutup' },
+      });
+      expect(result).toEqual({ id: 755 });
+    });
+
+    it('pembacaan yang gagal tidak menggagalkan permintaan; baris tetap tercatat tanpa `sebelum`', async () => {
+      const sebelum = jest.fn().mockRejectedValue(new Error('koneksi putus'));
+      const { interceptor } = buildInterceptor({ entitas: 'survey', sebelum });
+
+      const result = await lastValueFrom(
+        interceptor.intercept(mockContext(permintaanStatus()), mockHandler({ id: 755 })),
+      );
+
+      expect(result).toEqual({ id: 755 });
+      expect(auditService.record).toHaveBeenCalledWith(7, 'update', 'survey', {
+        params: { id: '755' },
+        body: { status: 'aktif' },
+      });
+    });
+
+    it('baris tak ditemukan (null) -> tanpa `sebelum`', async () => {
+      const sebelum = jest.fn().mockResolvedValue(null);
+      const { interceptor } = buildInterceptor({ entitas: 'survey', sebelum });
+
+      await lastValueFrom(interceptor.intercept(mockContext(permintaanStatus()), mockHandler()));
+
+      expect(auditService.record).toHaveBeenCalledWith(7, 'update', 'survey', {
+        params: { id: '755' },
+        body: { status: 'aktif' },
+      });
+    });
+
+    it('tanpa user tidak membaca apa pun', async () => {
+      const sebelum = jest.fn().mockResolvedValue({ status: 'draft' });
+      const { interceptor } = buildInterceptor({ entitas: 'survey', sebelum });
+
+      await lastValueFrom(
+        interceptor.intercept(
+          mockContext({ method: 'PATCH', params: { id: '755' }, body: {} }),
+          mockHandler(),
+        ),
+      );
+
+      expect(sebelum).not.toHaveBeenCalled();
+      expect(auditService.record).not.toHaveBeenCalled();
+    });
+
+    it('params.id bukan bilangan bulat -> tidak membaca apa pun', async () => {
+      const sebelum = jest.fn().mockResolvedValue({ status: 'draft' });
+      const { interceptor } = buildInterceptor({ entitas: 'survey', sebelum });
+
+      await lastValueFrom(
+        interceptor.intercept(
+          mockContext({ ...permintaanStatus(), params: { id: 'abc' } }),
+          mockHandler(),
+        ),
+      );
+
+      expect(sebelum).not.toHaveBeenCalled();
+    });
   });
 });

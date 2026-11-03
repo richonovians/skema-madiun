@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
+import { statusPenggunaSebelum } from '../../common/interceptors/audit-sebelum.util';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginatedResult } from '../../common/dto/paginated-result';
@@ -95,7 +96,7 @@ export class UsersController {
 
   /** Aktif/nonaktifkan akun. */
   @Patch(':id/status')
-  @Audit('user', 'update_status')
+  @Audit('user', 'update_status', statusPenggunaSebelum)
   @ApiOkResponse({ type: UserEntity })
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
