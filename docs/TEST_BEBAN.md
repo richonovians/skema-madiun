@@ -2,6 +2,7 @@
 
 **Tanggal pengukuran:** 13 Oktober 2026
 **Direvisi:** 13 Oktober 2026, sore — hari yang sama. Lihat kotak di bawah.
+**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e`.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -477,3 +478,118 @@ Untuk lampiran: jumlah berkas di `uploads-beban` sama dengan jumlah baris
   jebol, temuannya masuk `BUG_REPORTS.md` dan perbaikannya dirancang
   terpisah.
 
+## 12. Pengukuran ulang jalur baca (3 November 2026, QA-PERF)
+
+Diukur pada `main` `9e72abb` dengan pelari yang sama, terhadap dataset T3 yang
+sama (744 survei, 744.000 respons, 6.696.000 jawaban, 0 pengaduan). Dataset
+tidak dibangun ulang; yang dikerjakan hanya `beban:data -- --survei=0 --tambah`,
+yang menerapkan satu migrasi tertinggal (`20261020140000_notifikasi_tertaut_survei`)
+tanpa mengosongkan apa pun. Setiap jalan melaporkan "Dataset tetap".
+
+Server dev (`pnpm dev`, porta 3000/3001) **ikut hidup** selama pengukuran, di
+laptop yang sama. Tak diketahui apakah ia hidup pada 13 Oktober, jadi selisih
+belasan milidetik tetap derau; selisih yang dibahas di bawah berlipat, bukan
+belasan milidetik.
+
+### 12.1 Jalur hangat, `--semua`, 10 koneksi, 10 detik
+
+| Skenario         | Dingin   | p50   | p95    | p99    | Maks   | req/s | 13 Okt (sesudah perbaikan, §4) |
+| ---------------- | -------- | ----- | ------ | ------ | ------ | ----- | ------------------------------ |
+| statistik        | 3.739 ms | 8 ms  | 17 ms  | 21 ms  | 84 ms  | 1.044 | 16 ms, 557 req/s               |
+| dashboard-ikm    | 1.357 ms | 87 ms | 157 ms | 173 ms | 190 ms | 106   | 166 ms, 59 req/s               |
+| hasil-ikm        | 155 ms   | 28 ms | 48 ms  | 61 ms  | 107 ms | 334   | 44 ms                          |
+| daftar-pengaduan | 24 ms    | 29 ms | 49 ms  | 57 ms  | 87 ms  | 319   | 46 ms                          |
+| isi-survei-baca  | 50 ms    | 34 ms | 82 ms  | 96 ms  | 122 ms | 252   | 56 ms                          |
+
+Seluruh jawaban 2xx. Kolom hangat tak ada yang memburuk.
+
+### 12.2 Jalur dingin, `--dingin`, 10 koneksi, 15 detik
+
+Pembandingnya kolom "Dengan penahan" di tabel T3 sesudah perbaikan (§5),
+yang diukur dengan cara yang sama persis.
+
+| Skenario      | Ukuran | 13 Okt   | 3 Nov        |
+| ------------- | ------ | -------- | ------------ |
+| statistik     | dingin | 1.793 ms | **6.255 ms** |
+| statistik     | p50    | 6 ms     | 9 ms         |
+| statistik     | p99    | 13 ms    | 27 ms        |
+| statistik     | maks   | 1.917 ms | **4.973 ms** |
+| statistik     | req/s  | 1.222    | 625          |
+| dashboard-ikm | dingin | 1.341 ms | 1.184 ms     |
+| dashboard-ikm | p50    | 81 ms    | 76 ms        |
+| dashboard-ikm | p99    | 121 ms   | 132 ms       |
+| dashboard-ikm | maks   | 1.375 ms | 1.213 ms     |
+| dashboard-ikm | req/s  | 109      | 117          |
+
+Seluruh jawaban 2xx.
+
+### 12.3 Temuan: jalan dingin `/statistics` mundur 2-3,5 kali
+
+Dua sampel dingin hari ini, 3.739 ms dan 6.255 ms, terhadap 1.793-1.819 ms pada
+13 Oktober. `/dashboard/ikm` tidak bergerak, jadi yang mundur hanya
+`/statistics`.
+
+**Sebabnya diukur, bukan diduga.** Di antara kedua tanggal, `f1c132e`
+(perbaikan BUG-013, 19 Oktober 2026) menambahkan penyaring Sampah ke
+`DashboardService.hitungStatistik`. Salah satunya mengenai `answer.groupBy`,
+yang menggapai survei lewat DUA relasi:
+
+```ts
+where: { nilai: { not: null }, response: { survey: TIDAK_DIBUANG } }
+```
+
+Prisma menerjemahkannya menjadi dua `LEFT JOIN` atas tabel jawaban:
+
+```sql
+SELECT COUNT(*), answers.nilai FROM answers
+LEFT JOIN survey_responses j0 ON j0.id = answers.response_id
+LEFT JOIN surveys j1 ON j1.id = j0.survey_id
+WHERE answers.nilai IS NOT NULL AND j1.deleted_at IS NULL AND j1.id IS NOT NULL AND j0.id IS NOT NULL
+GROUP BY answers.nilai
+```
+
+Diukur langsung lewat Prisma di `skm_beban` (hanya baca, tiga kali masing-masing):
+
+| Bentuk kueri                             | Waktu                 |
+| ---------------------------------------- | --------------------- |
+| lama, tanpa penyaring Sampah             | 557 / 592 / 660 ms    |
+| sekarang, `response.survey.deletedAt`    | 2.003 / 2.078 / 3.281 ms |
+
+`EXPLAIN ANALYZE`: bentuk lama satu `Parallel Seq Scan` atas `answers`
+(687 ms); bentuk sekarang menambahkan `Parallel Hash Join` dengan 744.000
+baris `survey_responses` lalu `Hash Join` dengan `surveys` (2.247 ms). Jadi
+sekitar 1,5 detik tambahan per jalan dingin lahir dari satu kueri itu, dan
+kueri lain di `Promise.all` yang sama berebut kolam koneksi bersamanya. Belum
+dibuktikan dengan membalik `f1c132e`; buktinya pengukuran kueri terpisah di
+atas.
+
+**Kaitannya dengan QA-PERF ("dashboard < 3 detik").** Jalan dingin
+`/statistics` kini MELEWATI 3 detik pada T3, padahal 13 Oktober di bawahnya.
+Batas yang harus dibaca bersamanya:
+
+- T3 = 744.000 respons, jauh di atas "ribuan responden". Pada ukuran yang
+  diminta QA-PERF, jalan dinginnya belum diukur hari ini (lihat 12.4).
+- Hanya SATU permintaan per 60 detik yang menanggungnya (TTL singgahan);
+  penahan stampede tetap bekerja -- maks 4.973 ms, di bawah waktu dingin
+  tunggalnya. Hangatnya 8-9 ms.
+- `/statistics` tetap `@Public()`.
+- Dataset beban tak memuat satu pun survei di Sampah. Biaya join itu dibayar
+  penuh walau tak ada baris yang disaringnya.
+
+**Arah perbaikan (belum dicoba di kode aplikasi).** Sampah lazimnya kecil,
+jadi menghitung yang DIBUANG lalu mengurangkannya dari hitungan lama jauh
+lebih murah daripada menyaring 6,7 juta baris lewat dua join: kueri jawaban
+milik survei di Sampah diukur 9,6 ms pada dataset ini (nol baris). Keputusan
+dan pembuktiannya milik pengembang; uji BUG-013 yang ada harus tetap hijau.
+
+### 12.4 Yang belum diukur hari ini
+
+- **T1 dan T2.** Hanya T3 yang tersedia di `skm_beban`; membangun T1/T2
+  mengosongkan T3, dan membangunnya kembali memakan ~17 menit. "Ribuan
+  responden" yang dituntut QA-PERF paling dekat dengan T1 (14.880 respons).
+- **`GET /dashboard/opd`.** Dashboard Admin OPD tak punya skenario di
+  `scripts/beban/skenario.ts` sejak awal, padahal ia juga "dashboard" dalam
+  arti QA-PERF dan juga menerima penyaring Sampah pada `f1c132e`.
+- Pertumbuhan `complaints` (masih 0 baris) -- kini juga memberi makan tren
+  bulanan `e4759a5`, tanpa pemindaian tambahan.
+- Ketersediaan dan seluruh jalur tulis (§11, tetap ditunda).
