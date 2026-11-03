@@ -11,6 +11,9 @@
  *   - `detail` cuma `{ params, body }` mentah (params+body request asli),
  *     BUKAN diff before/after terstruktur -- ditampilkan apa adanya sbg
  *     payload permintaan, bukan dikarang jadi oldValue/newValue.
+ *     Pengecualian sejak BUG-064 (3 November 2026): tiga rute `update_status`
+ *     (survei, pengguna, pengaduan) ikut membawa `detail.sebelum`, nilai
+ *     kolom status SEBELUM diubah. Hanya kolom itu, bukan seluruh baris.
  * Adapter ini SENGAJA tidak mengarang nilai untuk field-field itu.
  */
 /**
@@ -100,6 +103,9 @@ export function adaptAuditLog(log) {
     summary: `${aksiLabel(log.aksi)} ${entitasLabel(log.entitas)}`,
     params: detail.params ?? null,
     body: detail.body ?? null,
+    // Nilai lama baris, hanya pada tiga rute `update_status` sejak BUG-064
+    // (3 November 2026). Baris lama dan aksi lain tak membawanya: `null`.
+    sebelum: detail.sebelum ?? null,
   };
 }
 

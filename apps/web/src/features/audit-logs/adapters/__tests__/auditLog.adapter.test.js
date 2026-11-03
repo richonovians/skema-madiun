@@ -1,4 +1,4 @@
-import { aksiLabel, entitasLabel } from '../auditLog.adapter';
+import { adaptAuditLog, aksiLabel, entitasLabel } from '../auditLog.adapter';
 import { ACTION_OPTIONS, MODULE_OPTIONS } from '../../components/AuditFilterBar';
 
 /**
@@ -168,5 +168,34 @@ describe('label aksi log aktivitas: seluruhnya bahasa Indonesia', () => {
     for (const opsi of ACTION_OPTIONS.filter((o) => o.value !== '')) {
       expect(opsi.label).toBe(aksiLabel(opsi.value));
     }
+  });
+});
+
+/**
+ * BUG-064 (3 November 2026). Backend kini mencatat nilai lama baris pada tiga
+ * rute `update_status` sebagai `detail.sebelum`. Adapter dulu hanya membawa
+ * `params` dan `body`, sehingga nilai itu hilang sebelum sampai ke layar.
+ */
+describe('adaptAuditLog: nilai sebelum perubahan', () => {
+  const log = (detail) => ({
+    id: 5,
+    actorId: 9,
+    actorNama: 'Budi Santoso',
+    aksi: 'update_status',
+    entitas: 'survey',
+    detail,
+    timestamp: '2026-11-03T03:00:00.000Z',
+  });
+
+  it('membawa detail.sebelum apa adanya', () => {
+    const hasil = adaptAuditLog(
+      log({ params: { id: '755' }, body: { status: 'aktif' }, sebelum: { status: 'ditutup' } }),
+    );
+    expect(hasil.sebelum).toEqual({ status: 'ditutup' });
+  });
+
+  it('baris lama tanpa sebelum -> null, bukan nilai karangan', () => {
+    const hasil = adaptAuditLog(log({ params: { id: '755' }, body: { status: 'aktif' } }));
+    expect(hasil.sebelum).toBeNull();
   });
 });
