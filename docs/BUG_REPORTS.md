@@ -158,8 +158,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
+| [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
 
-**Rekap** — 65 temuan: **63 ditutup, 2 terbuka** (Low: BUG-063, BUG-065).
+**Rekap** — 66 temuan: **63 ditutup, 3 terbuka** (Low: BUG-063, BUG-065, BUG-066).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3810,6 +3811,69 @@ Kandidat lain, misalnya menyebut alamat IPv4 tersurat atau
 `max_fails=0`, belum dicoba. Alamat tersurat tidak portabel antarmesin.
 Keputusannya milik pengelola `infra/`.
 
+### BUG-066 — `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pemetaan TC-AUTH-010, 3 November 2026, `main` `9e72abb`       |
+| **Tanggal**  | 3 November 2026                                              |
+| **Lingkungan** | Aplikasi Nest dinyalakan dengan `NODE_ENV=production` lewat berkas e2e sementara (pelari `test:e2e`, basis data `skm_uji`); berkasnya dihapus sesudah dijalankan |
+| **Berkas**   | `apps/api/src/modules/auth/guards/non-production.guard.ts`, `apps/api/src/modules/auth/auth.controller.ts` (`devLogin`), `apps/api/src/app.module.ts` (`APP_GUARD`) |
+| **Severity** | Low (usulan penguji) -- yang bocor hanya KEBERADAAN rute; tak ada token yang terbit |
+
+**Gejala**
+
+`NonProductionGuard` sengaja menjawab 404, bukan 403, "agar keberadaan rute
+dev tidak bocor" (TC-AUTH-010). Statusnya memang 404, tetapi tiga hal lain
+membedakannya dari rute yang benar-benar tak ada. Diukur dari satu IP:
+
+| Pembeda                           | `POST /auth/dev-login` | `POST /auth/rute-karangan`                  |
+| --------------------------------- | ---------------------- | ------------------------------------------- |
+| `message`                         | `"Not Found"`          | `"Cannot POST /api/v1/auth/rute-karangan"` |
+| header `X-RateLimit-Limit`        | `30`                   | tidak ada                                   |
+| 35 permintaan berturut            | 29× 404, lalu **6× 429** (429 pertama pada permintaan ke-31) | 35× 404 |
+
+Kontrol: `GET /auth/dev-login` (metode yang tak terdaftar) dijawab
+"Cannot GET /api/v1/auth/dev-login", sama dengan rute karangan. Jadi yang
+membocorkan adalah rute POST yang terdaftar, bukan jalurnya.
+
+**Akar masalah**
+
+1. Rutenya tetap TERDAFTAR di produksi; yang menolaknya penjaga. Express
+   karena itu menemukan rutenya, dan rangkaian penjaga Nest dijalankan.
+2. Penjaga global `ThrottlePenggunaGuard` (`APP_GUARD` di `app.module.ts`)
+   berjalan lebih dulu daripada `@UseGuards(NonProductionGuard)` tingkat
+   rute. Ia menghitung permintaannya terhadap `@Throttle(DEV_LOGIN_PER_MINUTE)`
+   (30/menit), menulis header batas laju, dan menjawab 429 begitu jatahnya
+   habis -- sebelum `NonProductionGuard` sempat melempar 404. Rute yang tak
+   terdaftar tak pernah melewati penjaga mana pun, jadi tak punya header
+   maupun 429.
+3. `NonProductionGuard` melempar `new NotFoundException()` tanpa pesan,
+   sehingga pesannya "Not Found", bukan "Cannot POST <jalur>" bawaan Express.
+
+**Dampak**
+
+Siapa pun di internet dapat memastikan bahwa produksi memuat rute
+`dev-login` -- rute penerbit sesi tanpa kata sandi (TC-AUTH-009). Penjaganya
+sendiri BEKERJA: tak satu pun dari 35 permintaan menerbitkan token. Yang
+gagal hanya penyembunyiannya, yang memang dijanjikan kode dan dokumen uji.
+Risiko nyatanya muncul hanya bila penjaga itu suatu saat lolos, misalnya
+`NODE_ENV` salah setel di server; saat itu rute yang sudah terpetakan
+langsung dapat dipakai.
+
+**Arah perbaikan (belum ada yang dicoba)**
+
+- Menyamakan pesan saja (`Cannot ${method} ${path}`) TIDAK cukup: header
+  batas laju dan 429 tetap membedakannya, karena keduanya lahir di penjaga
+  global yang berjalan lebih dulu.
+- Yang menutup ketiganya: tidak mendaftarkan rutenya sama sekali di
+  produksi, misalnya memindah `devLogin` ke controller sendiri yang modulnya
+  hanya diimpor bila `NODE_ENV !== 'production'`. `NonProductionGuard`
+  dapat dipertahankan sebagai lapis kedua.
+- Uji e2e permanen untuk mode produksi belum ada; TC-AUTH-010 hanya dijaga
+  uji unit `non-production.guard.spec.ts:11`, yang tak melihat urutan
+  penjaga maupun badan respons.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -7172,3 +7236,4 @@ hanya dibaca, tidak diubah.
 | 7.25 | 3 November 2026 | **BUG-064 diperbaiki di cabang, belum ditutup.** `fix/audit-status-sebelum` (`6ec5a5b` backend, `cdc6927` frontend): tiga rute `update_status` kini mencatat nilai lama sebagai `detail.sebelum`, dan detail Log Aktivitas menampilkannya. E2E `audit.e2e-spec.ts:173` dan `:216` merah lalu hijau di lokal. Rekap tetap 62 ditutup, 2 terbuka sampai cabang itu masuk `main` dengan CI hijau. |
 | 7.26 | 3 November 2026 | **BUG-064 ditutup: 64 temuan, 63 ditutup, 1 terbuka.** Cabang `fix/audit-status-sebelum` masuk `main` lewat PR #11 (merge `9e72abb`); CI `E2E API (PostgreSQL sungguhan)` dan `Lint, format, uji unit, build` success pada SHA itu. TC-AUD-002 kini ✅. Yang tersisa terbuka hanya BUG-063. |
 | 7.27 | 3 November 2026 | **BUG-065 dibuka: 65 temuan, 63 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-CMP-003: 7 dari 10 `POST /complaints` serentak lewat `skema.local` dijawab 502 nginx "no live upstreams", sedangkan API sehat. Akarnya `host.docker.internal` kini diterjemahkan ke IPv4 dan IPv6 (Docker Desktop 4.98.0). Direproduksi di kontainer nginx terpisah: dua alamat 9× 502 pada ledakan pertama sesudah upstream pulih, satu alamat 0. Hanya pengembangan; produksi tak terdampak. |
+| 7.28 | 3 November 2026 | **BUG-066 dibuka: 66 temuan, 63 ditutup, 3 terbuka.** Ditemukan saat memetakan TC-AUTH-010: di `NODE_ENV=production` `POST /auth/dev-login` dijawab 404, tetapi pesannya "Not Found" (rute tak ada: "Cannot POST ..."), ia membawa header `X-RateLimit-Limit: 30`, dan permintaan ke-31 dijawab 429. Akarnya rute tetap terdaftar dan penjaga batas laju global berjalan sebelum `NonProductionGuard`. Penjaganya tetap menolak; yang bocor hanya keberadaan rute. |
