@@ -156,9 +156,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-O4 (gladi) |
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
-| [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | Terbuka | TC-AUD-002 |
+| [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | Terbuka — diperbaiki di `fix/audit-status-sebelum`, menunggu merge | TC-AUD-002 |
 
-**Rekap** — 64 temuan: **62 ditutup, 2 terbuka** (Low: BUG-063, BUG-064).
+**Rekap** — 64 temuan: **62 ditutup, 2 terbuka** (Low: BUG-063, BUG-064). BUG-064 sudah diperbaiki di cabang `fix/audit-status-sebelum` (`6ec5a5b`, `cdc6927`) dan baru dihitung ditutup sesudah masuk `main` dengan CI hijau.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3687,6 +3687,38 @@ kesenjangan terhadap kasus uji, bukan terhadap PRD. Karena itu Low.
 status lama, dan interceptor menuliskannya sebagai `detail.sebelum`. Alternatif
 yang lebih murah adalah melonggarkan harapan TC-AUD-002. Keputusannya milik tim.
 
+**Perbaikan (3 November 2026, menunggu merge ke `main`).** Tim memilih
+melengkapi pencatatan, bukan melonggarkan harapan. Dua commit di cabang
+`fix/audit-status-sebelum`, berinduk `main` `40a20ce`:
+
+- `6ec5a5b` (backend). `@Audit` menerima pembaca nilai lama opsional;
+  `AuditInterceptor` memanggilnya SEBELUM handler berjalan dan menulis
+  hasilnya sebagai `detail.sebelum`. Dipasang hanya pada tiga rute
+  `update_status`: survei (`status`), pengguna (`isActive`), pengaduan
+  (`status`). Bentuk baris kini
+  `{"params": {"id": "755"}, "body": {"status": "aktif"}, "sebelum": {"status": "ditutup"}}`.
+  Arahnya sedikit berbeda dari usulan di atas: nilai lama dibaca interceptor
+  lewat pembaca yang dinyatakan pada dekorator, bukan dikembalikan handler,
+  sehingga service dan bentuk responsnya tak berubah.
+- `cdc6927` (frontend). Detail Log Aktivitas menampilkan blok "Perubahan"
+  (`Status  ditutup → aktif`; `isActive` dibaca Aktif/Nonaktif) bila
+  `sebelum` ada. Baris lama tampil seperti dulu.
+
+**Bukti.** E2E `apps/api/test/audit.e2e-spec.ts:173` (survei:
+`draft -> aktif`, `aktif -> ditutup`, `ditutup -> aktif`) dan `:216`
+(pengguna: `isActive` `true -> false`), keduanya memerah dengan
+`Received: undefined` sebelum perbaikan. Unit
+`audit.interceptor.spec.ts:152` (5 kasus), Jest web
+`AuditChanges.test.jsx` (4 kasus) dan `auditLog.adapter.test.js:175`
+(2 kasus). Seluruhnya hijau di mesin lokal; CI pada SHA `main` belum ada
+karena belum di-merge.
+
+**Yang belum terukur.** Jalur pengaduan hanya tercakup uji unit
+interceptor; belum ada e2e yang memeriksa `sebelum`-nya. Pembacaan dan
+perubahan tidak satu transaksi, jadi dua perubahan serentak atas baris yang
+sama dapat mencatat `sebelum` yang sama — diterima dan tertulis di kode.
+Baris audit yang tercatat sebelum perbaikan tetap tanpa `sebelum`.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -7046,3 +7078,4 @@ hanya dibaca, tidak diubah.
 | 7.22 | 2 November 2026 | **Sisa BUG-061 ditutup** (`0fa8825`, merge `4177022`): fokus kembali ke pemicu Dropdown sesudah memilih, sehingga modal Ubah Status memulangkan fokus ke dropdown status. Perbaikannya di komponen bersama `Dropdown`, berlaku di semua pemakainya. Rekap tetap 62 dari 62 ditutup. |
 | 7.23 | 3 November 2026 | **BUG-063 dibuka: 63 temuan, 62 ditutup, 1 terbuka.** Ditemukan saat menguji ulang TC-FE-034 (BUG-008) di `main` `40a20ce`: pengunjung tanpa sesi memicu `POST /auth/logout` untuk setiap 401 dari formulir beranda, 4 kali per muat di `next dev`. Low, tak terlihat pengguna. Belum diperbaiki. |
 | 7.24 | 3 November 2026 | **BUG-064 dibuka: 64 temuan, 62 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-AUD-002: log audit `update_status` survei dan pengguna hanya mencatat nilai baru, jadi draf→aktif tak dapat dibedakan dari ditutup→aktif. Low; kesenjangan terhadap kasus uji, bukan terhadap PRD. Belum diperbaiki. |
+| 7.25 | 3 November 2026 | **BUG-064 diperbaiki di cabang, belum ditutup.** `fix/audit-status-sebelum` (`6ec5a5b` backend, `cdc6927` frontend): tiga rute `update_status` kini mencatat nilai lama sebagai `detail.sebelum`, dan detail Log Aktivitas menampilkannya. E2E `audit.e2e-spec.ts:173` dan `:216` merah lalu hijau di lokal. Rekap tetap 62 ditutup, 2 terbuka sampai cabang itu masuk `main` dengan CI hijau. |
