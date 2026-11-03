@@ -44,7 +44,7 @@ import * as path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import { jalankanCli } from '../lib/jalankan-cli';
-import { IDENTITAS_ADMIN, PERAN_BEBAN } from './lib/akun-beban';
+import { IDENTITAS_ADMIN, OPD_BEBAN, PERAN_BEBAN } from './lib/akun-beban';
 import {
   NAMA_DB_BEBAN,
   basisDataBelumAda,
@@ -203,33 +203,50 @@ async function kosongkan(prisma: PrismaClient): Promise<void> {
  * yang ia pakai. `consent_at` diisi supaya penjaga persetujuan PDP tak
  * menghalangi jalur mana pun.
  *
- * DUA PERAN pada satu akun, bukan dua akun. `dev-login` menerima `role` dan
- * menolaknya bila akunnya tak memilikinya, jadi pelarinya menerbitkan dua sesi
- * dari akun yang sama: `kabupaten` untuk jalur administratif, `responden` untuk
- * `GET /surveys/:id/fill` yang dipalang `@Roles(Role.responden)` -- terukur
- * sebagai 403 "Sumber daya ini hanya untuk peran: responden" ketika akun ini
- * hanya berperan `kabupaten`.
+ * SATU AKUN untuk semua peran (`PERAN_BEBAN`), bukan satu akun per peran.
+ * `dev-login` menerima `role` dan menolaknya bila akunnya tak memilikinya, jadi
+ * pelarinya menerbitkan satu sesi per peran dari akun yang sama: `kabupaten`
+ * untuk jalur administratif, `responden` untuk `GET /surveys/:id/fill` yang
+ * dipalang `@Roles(Role.responden)` -- terukur sebagai 403 "Sumber daya ini
+ * hanya untuk peran: responden" ketika akun ini hanya berperan `kabupaten` --
+ * dan `opd` untuk `GET /dashboard/opd` (4 November 2026). Sesi `opd` menuntut
+ * `opd_id` terisi, jadi akun ini ditautkan ke `OPD_BEBAN`; karena itu fungsi
+ * ini harus berjalan SESUDAH `bangunOpd`.
  *
  * `DO UPDATE`, bukan `DO NOTHING`: akun yang sudah dibuat jalan sebelumnya tak
  * akan pernah memperoleh peran baru di bawah `DO NOTHING`, dan gejalanya adalah
  * 403 yang terlihat seperti cacat penjaga.
  *
- * TIDAK ikut dikosongkan: `TRUNCATE` di atas tak menyentuh `users`, jadi akun
- * ini bertahan dan `dev-login` tetap bekerja sesudah dataset dibangun ulang.
+ * IKUT DIKOSONGKAN, dan docblock ini sempat menyatakan sebaliknya. `TRUNCATE
+ * ... opd CASCADE` di `kosongkan` merambat ke setiap tabel yang merujuk `opd`,
+ * termasuk `users` lewat `users.opd_id` -- terukur 4 November 2026 dalam
+ * transaksi yang di-ROLLBACK: NOTICE "truncate cascades to table users" (juga
+ * `audit_logs`, `complaints`, `notifications`). Akun ini tetap ada sesudah
+ * pembangunan ulang karena fungsi ini MENYISIPKANNYA LAGI, bukan karena ia tak
+ * tersentuh. Akibatnya `--survei=0` (kosongkan saja) meninggalkan basis data
+ * tanpa akun beban sama sekali.
  */
 async function bangunPengguna(prisma: PrismaClient): Promise<void> {
   // Peran disusun dari `PERAN_BEBAN`, bukan ditulis dua kali di dalam SQL:
   // `jalankan.ts` menerbitkan satu sesi per nilai di daftar itu, dan dua daftar
   // yang menyimpang menghasilkan 403 yang terbaca seperti cacat penjaga.
   const peran = `ARRAY[${PERAN_BEBAN.map((p) => `'${p}'`).join(',')}]::user_role[]`;
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO users (sso_subject, nama, email, roles, is_active, consent_at, created_at, updated_at)
-     VALUES ($1, 'Admin Kabupaten Beban', $2, ${peran}, true, now(), now(), now())
+  const ditulis = await prisma.$executeRawUnsafe(
+    `INSERT INTO users (sso_subject, nama, email, roles, opd_id, is_active, consent_at, created_at, updated_at)
+     SELECT $1, 'Admin Kabupaten Beban', $2, ${peran}, o.id, true, now(), now(), now()
+     FROM opd o WHERE o.kode = $3
      ON CONFLICT (sso_subject)
-       DO UPDATE SET roles = ${peran}, updated_at = now()`,
+       DO UPDATE SET roles = ${peran}, opd_id = EXCLUDED.opd_id, updated_at = now()`,
     IDENTITAS_ADMIN,
     `${IDENTITAS_ADMIN}@contoh.test`,
+    OPD_BEBAN,
   );
+  // `INSERT ... SELECT` tanpa baris OPD menyisipkan NOL baris tanpa galat apa
+  // pun, dan gejala berikutnya baru muncul di pelari: dev-login 404. Ditolak di
+  // sini supaya sebabnya terbaca di tempat ia terjadi.
+  if (ditulis !== 1) {
+    throw new Error(`OPD '${OPD_BEBAN}' tidak ada; akun beban tak dapat ditautkan.`);
+  }
 }
 
 async function bangunOpd(prisma: PrismaClient): Promise<void> {

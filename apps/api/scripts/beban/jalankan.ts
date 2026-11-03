@@ -140,10 +140,11 @@ async function utama(): Promise<void> {
 
 /**
  * Menerbitkan SATU sesi PER PERAN, lalu Bearer tokennya dipakai ulang seluruh
- * pengukuran. Dua, bukan satu, karena `@Roles` tak mengenal lintas peran:
- * `GET /surveys/:id/fill` menjawab 403 "Sumber daya ini hanya untuk peran:
- * responden" bagi sesi `kabupaten`. Satu akun memegang keduanya; `dev-login`
- * menerima `role` dan menolaknya bila akunnya tak memilikinya.
+ * pengukuran. Satu per peran, bukan satu saja, karena `@Roles` tak mengenal
+ * lintas peran: `GET /surveys/:id/fill` menjawab 403 "Sumber daya ini hanya
+ * untuk peran: responden" bagi sesi `kabupaten`, dan `GET /dashboard/opd` hanya
+ * menerima `opd`. Satu akun memegang semuanya; `dev-login` menerima `role` dan
+ * menolaknya bila akunnya tak memilikinya.
  *
  * YANG DIKEMBALIKAN `dev-login` ADALAH TOKEN DI BADAN JAWABAN, bukan cookie.
  * Versi pertama mencari `Set-Cookie: session=...` dan gagal dengan "tak
