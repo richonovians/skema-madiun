@@ -509,9 +509,13 @@ describe('DashboardService', () => {
     it('(INT-14) complaintCategories menerjemahkan kode -> nama & terurut terbanyak', async () => {
       (prisma.complaint.groupBy as jest.Mock).mockImplementation(({ by }: { by: string[] }) => {
         if (by[0] === 'kategori') {
+          // Kode taksonomi per tingkat (4 November 2026). 'aduan'/'lapor'
+          // sudah tak ada di basis data: migrasi
+          // 20261104090000_tingkat_pengaduan memetakan ketiganya ke "Lainnya"
+          // pada tingkatnya masing-masing.
           return Promise.resolve([
-            { kategori: 'aduan', _count: { _all: 3 } },
-            { kategori: 'lapor', _count: { _all: 7 } },
+            { kategori: 'kab_kesehatan', _count: { _all: 3 } },
+            { kategori: 'kec_administrasi', _count: { _all: 7 } },
           ]);
         }
         return Promise.resolve([]);
@@ -520,8 +524,8 @@ describe('DashboardService', () => {
       const result = await service.getStatistics();
 
       expect(result.complaintCategories).toEqual([
-        { kode: 'lapor', nama: 'Lapor', count: 7 },
-        { kode: 'aduan', nama: 'Aduan', count: 3 },
+        { kode: 'kec_administrasi', nama: 'Pelayanan Administrasi Kecamatan', count: 7 },
+        { kode: 'kab_kesehatan', nama: 'Kesehatan', count: 3 },
       ]);
     });
   });

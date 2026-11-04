@@ -1,42 +1,76 @@
 import React from 'react';
 import Card from '@/components/ui/Card';
-import { Check, Hourglass } from 'lucide-react';
+import { Check, Hourglass, XCircle, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import { COMPLAINT_ALUR_UTAMA, COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
- * Progress steps: 'diterima', 'diproses', 'selesai'
+ * Penanda kemajuan lima tahap (4 November 2026, permintaan pengguna).
+ *
+ * Menggantikan tiga tahap lama Diterima -> Diproses -> Selesai.
+ *
+ * KETERANGAN TAHAP ADA DI SINI, bukan datang dari backend: ia kalimat
+ * antarmuka, dan backend sudah mengirim `label` untuk nama tahapnya. Yang
+ * disalin dari backend hanyalah URUTAN (`COMPLAINT_ALUR_UTAMA`), dan itu
+ * disadari -- lihat catatannya di `enumLabels.js`.
  */
-export default function ComplaintProgressStepper({ currentStatus = 'diproses' }) {
-  
-  const steps = [
-    {
-      id: 'diterima',
-      title: COMPLAINT_STATUS_LABEL.Diterima,
-      // BUKAN "telah diverifikasi sistem": pada tahap ini tak ada yang
-      // memverifikasi apa pun, laporannya baru masuk dan mengantre.
-      description: 'Laporan sudah masuk dan menunggu diperiksa petugas.',
-    },
-    {
-      id: 'diproses',
-      title: 'Diproses',
-      description: 'Sedang dalam peninjauan OPD terkait.',
-    },
-    {
-      id: 'selesai',
-      title: 'Selesai',
-      description: 'Hasil tindak lanjut akan diinfokan.',
-    }
-  ];
+const KETERANGAN_TAHAP = {
+  Terkirim: 'Pengaduan berhasil dikirim dan tersimpan di sistem. Anda menerima nomor tiket.',
+  'Menunggu Verifikasi': 'Pengaduan menunggu pemeriksaan kelengkapan dan kesesuaian oleh petugas.',
+  Diverifikasi: 'Pengaduan dinyatakan valid dan diteruskan kepada instansi yang berwenang.',
+  'Sedang Ditindaklanjuti': 'Instansi tujuan sedang melakukan pemeriksaan atau penanganan.',
+  Selesai: 'Penanganan telah selesai dan hasil tindak lanjutnya disampaikan kepada Anda.',
+};
 
-  // Helper to determine step status
-  const getStepState = (stepId, current) => {
-    const order = ['diterima', 'diproses', 'selesai'];
-    const currentIndex = order.indexOf(current.toLowerCase());
-    const stepIndex = order.indexOf(stepId);
-    
-    if (stepIndex < currentIndex) return 'completed';
-    if (stepIndex === currentIndex) return 'active';
+/**
+ * Status di luar alur utama. Keduanya TIDAK punya tempat di antara kelima
+ * tahap -- menyelipkannya akan menyiratkan bahwa tiket yang ditolak toh
+ * sedang menuju "Selesai". Jadi alurnya digambar membeku pada tahap terakhir
+ * yang terlampaui, dan keadaannya dijelaskan di panel terpisah di bawah.
+ */
+const STATUS_ALTERNATIF = {
+  Ditolak: {
+    Ikon: XCircle,
+    kelas: 'bg-error-container/40 border-error/30 text-on-error-container',
+    kelasIkon: 'text-error',
+    keterangan: 'Pengaduan tidak dapat diproses. Alasannya tercantum pada riwayat di bawah.',
+  },
+  'Perlu Perbaikan': {
+    Ikon: AlertTriangle,
+    kelas: 'bg-amber-50 border-amber-200 text-amber-900',
+    kelasIkon: 'text-amber-600',
+    keterangan:
+      'Petugas meminta Anda melengkapi informasi atau bukti. Balas lewat percakapan di halaman ini.',
+  },
+};
+
+/**
+ * Tahap terakhir yang sudah terlampaui ketika statusnya di LUAR alur utama.
+ *
+ * Diturunkan dari riwayat, bukan ditebak: pengaduan yang ditolak pada tahap
+ * verifikasi dan yang ditolak setelah ditindaklanjuti berhenti di tempat yang
+ * berbeda, dan hanya riwayatnya yang tahu di mana. Tanpa riwayat (daftar tak
+ * menariknya) jatuh ke tahap pertama -- menebak lebih jauh berarti menggambar
+ * kemajuan yang mungkin tak pernah terjadi.
+ */
+function tahapTerakhirDilalui(riwayat) {
+  const indeks = (riwayat ?? [])
+    .map((baris) => COMPLAINT_ALUR_UTAMA.indexOf(baris.label))
+    .filter((i) => i >= 0);
+  return indeks.length > 0 ? Math.max(...indeks) : 0;
+}
+
+export default function ComplaintProgressStepper({ currentStatus = 'Terkirim', riwayat }) {
+  const alternatif = STATUS_ALTERNATIF[currentStatus];
+  const indeksBerjalan = alternatif
+    ? tahapTerakhirDilalui(riwayat)
+    : COMPLAINT_ALUR_UTAMA.indexOf(currentStatus);
+
+  const keadaanTahap = (indeksTahap) => {
+    if (indeksTahap < indeksBerjalan) return 'completed';
+    // Pada status alternatif tak ada tahap yang "berjalan": tiketnya memang
+    // tidak sedang bergerak di alur utama.
+    if (indeksTahap === indeksBerjalan) return alternatif ? 'completed' : 'active';
     return 'pending';
   };
 
@@ -47,19 +81,18 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
           berbeda untuk hal yang sama dalam satu aplikasi terbaca seperti
           kelalaian. Diperbaiki 22 September 2026 atas permintaan pengguna. */}
       <h3 className="font-h3 text-h3 mb-6 text-text-primary">Status Progres</h3>
-      <div className="relative space-y-6">
-        {steps.map((step, index) => {
-          const state = getStepState(step.id, currentStatus);
-          const isLast = index === steps.length - 1;
-          
+
+      <ol className="relative space-y-6">
+        {COMPLAINT_ALUR_UTAMA.map((tahap, index) => {
+          const state = keadaanTahap(index);
+          const isLast = index === COMPLAINT_ALUR_UTAMA.length - 1;
+
           return (
-            <div key={step.id} className="flex gap-3 sm:gap-4 relative">
+            <li key={tahap} className="flex gap-3 sm:gap-4 relative">
               <div className="z-10 flex flex-col items-center shrink-0 w-8 relative">
-                
-                {/* Icon Container */}
                 {state === 'completed' && (
                   <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
-                    <Check size={18} strokeWidth={3} />
+                    <Check size={18} strokeWidth={3} aria-hidden="true" />
                   </div>
                 )}
                 {state === 'active' && (
@@ -70,37 +103,67 @@ export default function ComplaintProgressStepper({ currentStatus = 'diproses' })
                 )}
                 {state === 'pending' && (
                   <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-outline">
-                    <Hourglass size={18} />
+                    <Hourglass size={18} aria-hidden="true" />
                   </div>
                 )}
 
-                {/* Line connector */}
                 {!isLast && (
-                  <div 
+                  <div
                     className={clsx(
-                      "w-[2px] h-[calc(100%-8px)] absolute top-8 left-0 right-0 mx-auto",
-                      state === 'completed' ? "bg-primary" : "bg-outline-variant"
+                      'w-[2px] h-[calc(100%-8px)] absolute top-8 left-0 right-0 mx-auto',
+                      state === 'completed' ? 'bg-primary' : 'bg-outline-variant',
                     )}
                   ></div>
                 )}
               </div>
-              
-              <div className={clsx(!isLast && "pb-md")}>
-                <p className={clsx(
-                  "font-bold",
-                  state === 'completed' ? "text-text-primary" :
-                  state === 'active' ? "text-primary" : "text-outline"
-                )}>
-                  {step.title}
+
+              <div className={clsx(!isLast && 'pb-md')}>
+                <p
+                  className={clsx(
+                    'font-bold',
+                    state === 'completed'
+                      ? 'text-text-primary'
+                      : state === 'active'
+                        ? 'text-primary'
+                        : 'text-outline',
+                  )}
+                >
+                  {COMPLAINT_STATUS_LABEL[tahap] ?? tahap}
+                  {/* Keadaan tahap dibedakan WARNA & IKON saja tanpa ini, dan
+                      keduanya tak terbaca pembaca layar. */}
+                  <span className="sr-only">
+                    {state === 'completed'
+                      ? ' — selesai'
+                      : state === 'active'
+                        ? ' — sedang berjalan'
+                        : ' — belum dilalui'}
+                  </span>
                 </p>
-                <p className="text-text-secondary text-label-md">
-                  {step.description}
-                </p>
+                <p className="text-text-secondary text-label-md">{KETERANGAN_TAHAP[tahap]}</p>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
+
+      {alternatif && (
+        <div
+          className={clsx(
+            'mt-6 flex items-start gap-3 rounded-xl border p-4',
+            alternatif.kelas,
+          )}
+        >
+          <alternatif.Ikon
+            size={18}
+            className={clsx('shrink-0 mt-0.5', alternatif.kelasIkon)}
+            aria-hidden="true"
+          />
+          <div>
+            <p className="text-sm font-bold">{COMPLAINT_STATUS_LABEL[currentStatus]}</p>
+            <p className="text-xs leading-relaxed mt-0.5">{alternatif.keterangan}</p>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

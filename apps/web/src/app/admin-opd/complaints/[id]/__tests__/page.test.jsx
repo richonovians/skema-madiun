@@ -45,8 +45,8 @@ const pengaduan = () => ({
   dateStr: '1 Sep 2026',
   createdAt: '2026-09-01T02:00:00.000Z',
   ageDays: 10,
-  status: 'Diproses',
-  kategori: 'aduan',
+  status: 'Sedang Ditindaklanjuti',
+  kategori: 'kab_infrastruktur',
   target: 'Dinas Pekerjaan Umum',
   attachments: [],
 });
@@ -196,6 +196,6 @@ describe('halaman detail Admin OPD — Status Progres', () => {
     render(<AdminComplaintDetailPage />);
 
     const kartu = (await screen.findByText('Status Progres')).closest('div');
-    expect(kartu).toHaveTextContent('Diproses');
+    expect(kartu).toHaveTextContent('Sedang Ditindaklanjuti');
   });
 });

@@ -324,9 +324,9 @@ describe('Tab Analisis SKM — tren IKM per triwulan (OPD ini)', () => {
 describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
   const DATA = [
     aduan('Selesai', 0), // Q1
-    aduan('Diterima', 1), // Q1
-    aduan('Diproses', 4), // Q2
-    aduan('Diproses', 5), // Q2
+    aduan('Menunggu Verifikasi', 1), // Q1
+    aduan('Sedang Ditindaklanjuti', 4), // Q2
+    aduan('Sedang Ditindaklanjuti', 5), // Q2
     aduan('Ditolak', 5), // Q2
   ];
 
@@ -339,7 +339,7 @@ describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
     await screen.findByRole('button', { name: /analisis pengaduan/i });
     bukaTab(/analisis pengaduan/i);
 
-    // Q1: satu selesai, satu diterima -> masing-masing 50%.
+    // Q1: satu selesai, satu menunggu verifikasi -> masing-masing 50%.
     expect(await screen.findAllByText(/1 pengaduan \(50%\)/)).toHaveLength(2);
   });
 
@@ -352,11 +352,21 @@ describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
     await screen.findByRole('button', { name: /analisis pengaduan/i });
     bukaTab(/analisis pengaduan/i);
 
-    // Q2: diproses 2, ditolak 1, tak ada yang diterima/selesai.
+    // Q2: sedang ditindaklanjuti 2, ditolak 1, tak ada yang menunggu verifikasi/selesai.
     expect(await screen.findByText('2 pengaduan (67%)')).toBeInTheDocument();
     expect(screen.getByText('1 pengaduan (33%)')).toBeInTheDocument();
-    expect(screen.getAllByText('0 pengaduan (0%)')).toHaveLength(2);
-    for (const label of ['Diterima', 'Diproses', 'Selesai', 'Ditolak']) {
+    // EMPAT yang nol, bukan dua: alur lima tahap (4 November 2026) menambah
+    // "Diverifikasi" dan "Perlu Perbaikan", dan panelnya memang menggambar
+    // SELURUH status termasuk yang berjumlah nol — itulah yang diujinya.
+    expect(screen.getAllByText('0 pengaduan (0%)')).toHaveLength(4);
+    for (const label of [
+      'Menunggu Verifikasi',
+      'Diverifikasi',
+      'Sedang Ditindaklanjuti',
+      'Perlu Perbaikan',
+      'Selesai',
+      'Ditolak',
+    ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
   });
@@ -370,7 +380,7 @@ describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
     await screen.findByRole('button', { name: /analisis pengaduan/i });
     bukaTab(/analisis pengaduan/i);
 
-    // 5 pengaduan: selesai 1, diterima 1, diproses 2, ditolak 1.
+    // 5 pengaduan: selesai 1, menunggu verifikasi 1, sedang ditindaklanjuti 2, ditolak 1.
     expect(await screen.findByText('2 pengaduan (40%)')).toBeInTheDocument();
   });
 
@@ -403,7 +413,7 @@ describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
     // Tanpa pengambilan semua halaman, penyaring Q1 melihat NOL pengaduan dan
     // menyatakan "Tidak ada pengaduan" padahal datanya ada.
     pasangSurvei();
-    const halamanSatu = Array.from({ length: 100 }, () => aduan('Diproses', 4));
+    const halamanSatu = Array.from({ length: 100 }, () => aduan('Sedang Ditindaklanjuti', 4));
     const halamanDua = [aduan('Selesai', 0), aduan('Selesai', 1)];
     const halamanDiminta = [];
     server.use(
@@ -434,7 +444,7 @@ describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
       http.get(`${API_BASE}/complaints`, ({ request }) => {
         const halaman = Number(new URL(request.url).searchParams.get('page') ?? 1);
         return paginated(
-          Array.from({ length: 100 }, () => aduan('Diproses', 4)),
+          Array.from({ length: 100 }, () => aduan('Sedang Ditindaklanjuti', 4)),
           '/complaints',
           { page: halaman, limit: 100, total: 2500 },
         );

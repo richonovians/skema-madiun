@@ -1,3 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { TingkatPengaduan } from '@prisma/client';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
 /**
@@ -10,6 +12,18 @@ export class OpdEntity extends BaseEntity<OpdEntity> {
   nama: string;
   kode: string;
   jenisLayanan: string | null;
+  /**
+   * Tingkat pemerintahan OPD ini (4 November 2026). DIHITUNG di backend oleh
+   * `tingkatOpd()`, tidak disimpan — tabel `opd` baca-saja dari Helpdesk.
+   *
+   * Dikirim ke klien supaya formulir pengaduan dapat menyaring daftar tujuan
+   * per tingkat TANPA menghitung ulang aturannya sendiri. Frontend yang
+   * mencocokkan awalan nama akan menyimpang diam-diam begitu aturan di sini
+   * berubah — persis cacat yang dijaga catatan `bolehJadiAdminOpd` di
+   * `UserEntity`.
+   */
+  @ApiProperty({ enum: TingkatPengaduan })
+  tingkat: TingkatPengaduan;
   penanggungJawab: string | null;
   isActive: boolean;
   syncedAt: Date | null;

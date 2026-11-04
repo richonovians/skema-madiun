@@ -42,7 +42,7 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
         ticketNo: `E2EBH${urutan}${Date.now().toString().slice(-6)}`,
         userId,
         opdId,
-        kategori: 'aduan',
+        kategori: 'kab_infrastruktur',
         judul: `Pengaduan lama ${urutan}`,
         uraian: 'Disemai langsung untuk menguji batas harian.',
         createdAt: kapan,
@@ -106,7 +106,10 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
       .post('/api/v1/complaints')
       .set(devHeaders({ role: Role.responden, userId }))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan baru')
       .field('uraian', 'Isi pengaduan yang cukup panjang untuk lolos validasi.');
 

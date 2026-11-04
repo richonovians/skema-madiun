@@ -23,6 +23,7 @@ import {
 } from '@/utils/drafPengaduan';
 import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
+import PemilihTingkatPengaduan from './PemilihTingkatPengaduan';
 
 /**
  * Penolakan batas harian per akun, dikirim backend sebagai 429 berkode
@@ -31,6 +32,16 @@ import { createComplaint } from '../services/complaints.api';
  * endpoint sungguhan.
  */
 const KODE_BATAS_HARIAN = 'BATAS_HARIAN_PENGADUAN';
+
+/**
+ * Tingkat baku saat formulir dibuka (4 November 2026).
+ *
+ * Kabupaten, bukan kecamatan: terukur di basis data pengembangan, daftar
+ * tujuannya 39 instansi aktif melawan 23, dan daftar kategorinya 21 melawan 8
+ * -- tingkat inilah yang menampung sebagian besar pengaduan. Tetap dapat
+ * dipindah sebelum apa pun diisi.
+ */
+const TINGKAT_BAKU = 'kabupaten';
 
 export default function CreateComplaintForm() {
   const router = useRouter();
@@ -49,12 +60,47 @@ export default function CreateComplaintForm() {
   const adaSesi = useSesiAktif();
 
   const [formData, setFormData] = useState({
+    level: TINGKAT_BAKU,
     department: '',
     category: '',
     title: '',
     description: '',
+    incidentDate: '',
+    incidentLocation: '',
     isAnonim: false,
   });
+
+  /**
+   * Batas atas pemilih tanggal, 'YYYY-MM-DD' hari ini menurut peramban.
+   *
+   * DIBACA DI EFEK, bukan saat render, dengan alasan yang sama seperti
+   * `useSesiAktif` & pemulihan draf di bawah: halaman ini dirender di server,
+   * dan tanggal server dapat berbeda dari tanggal peramban. Membacanya saat
+   * render menghasilkan atribut `max` yang berbeda antara HTML server dan
+   * render pertama klien, yang tampil sebagai galat hidrasi.
+   *
+   * '' pada render pertama berarti pemilihnya sementara tanpa batas atas; yang
+   * menolak tanggal masa depan tetap backend (`parseTanggalKejadian`), dan
+   * atribut ini hanya mempercepat pengguna sampai ke sana.
+   */
+  const [tanggalMaksimum, setTanggalMaksimum] = useState('');
+  useEffect(() => {
+    const kini = new Date();
+    /* eslint-disable react-hooks/set-state-in-effect -- lihat alasan di atas:
+       nilainya tak dapat diturunkan dari props/state, dan render di server tak
+       boleh ikut menentukannya. */
+    setTanggalMaksimum(
+      // Dirangkai dari bagian LOKAL, bukan `toISOString().slice(0, 10)`: yang
+      // terakhir mengonversi ke UTC lebih dulu, sehingga bagi peramban di WIB
+      // (UTC+7) batasnya mundur sehari sepanjang pukul 00.00--07.00.
+      [
+        kini.getFullYear(),
+        String(kini.getMonth() + 1).padStart(2, '0'),
+        String(kini.getDate()).padStart(2, '0'),
+      ].join('-'),
+    );
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   // Draf yang tertahan karena persetujuan PDP belum diberikan (14 September
   // 2026). Dibaca di EFEK, bukan saat inisialisasi state: halaman ini dirender
@@ -93,10 +139,25 @@ export default function CreateComplaintForm() {
     error: gagalKategori,
   } = useAsync(fetchCategories);
 
-  const departmentOptions = (opdResponse?.data ?? []).map((opd) => ({
-    label: opd.name,
-    value: String(opd.id),
-  }));
+  /**
+   * Daftar tujuan DISARING menurut tingkat terpilih (4 November 2026).
+   *
+   * `opd.tingkat` DATANG DARI BACKEND (`OpdEntity.tingkat`, dihitung
+   * `tingkatOpd()`). Mencocokkan awalan nama di sini akan menjadi salinan kedua
+   * dari aturan yang sama, dan salinan itu menyimpang diam-diam begitu yang
+   * pertama berubah -- persis cacat yang dijaga catatan `bolehJadiAdminOpd`.
+   *
+   * Baris yang `tingkat`-nya belum terbaca (`null`) DIBUANG dari kedua daftar,
+   * bukan dilemparkan ke kabupaten: menebak akan menaruh kecamatan di daftar
+   * yang salah, dan pengaduannya lalu ditolak backend dengan galat yang tak
+   * dapat dipahami pelapornya.
+   */
+  const departmentOptions = (opdResponse?.data ?? [])
+    .filter((opd) => opd.tingkat === formData.level)
+    .map((opd) => ({
+      label: opd.name,
+      value: String(opd.id),
+    }));
   /**
    * Nilai penampung untuk "pengirim tak tahu tujuannya" (6 September 2026).
    *
@@ -106,7 +167,17 @@ export default function CreateComplaintForm() {
    * seharusnya menghalangi pengiriman sedangkan yang kedua justru sah.
    */
   const TANPA_TUJUAN = 'tanpa-tujuan';
-  const categoryOptions = (categories ?? []).map((c) => ({ label: c.nama, value: c.kode }));
+  /**
+   * Kategori DISARING menurut tingkat terpilih, dengan alasan dan cara yang
+   * sama seperti daftar tujuan di atas: `c.tingkat` dikirim backend, awalan
+   * `kec_`/`kab_` pada kodenya hanya konvensi untuk pembaca data mentah.
+   *
+   * Urutannya TIDAK diubah -- backend sudah mengirimkannya sesuai daftar yang
+   * diberikan pengguna, dengan "Lainnya" di posisi terakhir pada kedua tingkat.
+   */
+  const categoryOptions = (categories ?? [])
+    .filter((c) => c.tingkat === formData.level)
+    .map((c) => ({ label: c.nama, value: c.kode }));
 
   /**
    * Penampung kedua dropdown membedakan keadaan sesi (8 September 2026), dan
@@ -135,11 +206,17 @@ export default function CreateComplaintForm() {
    * mengambil data yang sama harus berkata hal yang sama ketika pengambilannya
    * gagal.
    */
+  const diKecamatan = formData.level === 'kecamatan';
+  // Kata bendanya ikut berpindah bersama tingkat (4 November 2026). Di tingkat
+  // kecamatan daftarnya memang tak memuat satu pun "instansi" dalam arti dinas:
+  // isinya 15 kecamatan dan 8 kelurahan (terukur), dan menyuruh "Pilih Instansi" di sana
+  // menyuruh mencari sesuatu yang tak ada di daftarnya.
+  const kataTujuan = diKecamatan ? 'kecamatan/kelurahan' : 'instansi';
   const penampungOpd = () => {
-    if (!adaSesi) return 'Masuk untuk melihat daftar instansi';
-    if (memuatOpd) return 'Memuat daftar instansi...';
-    if (gagalOpd) return 'Daftar instansi gagal dimuat';
-    return 'Pilih Instansi';
+    if (!adaSesi) return `Masuk untuk melihat daftar ${kataTujuan}`;
+    if (memuatOpd) return `Memuat daftar ${kataTujuan}...`;
+    if (gagalOpd) return `Daftar ${kataTujuan} gagal dimuat`;
+    return diKecamatan ? 'Pilih Kecamatan/Kelurahan' : 'Pilih Instansi';
   };
   // "kategori" saja, tanpa "pengaduan": diukur di peramban, kalimat penuhnya
   // terpotong menjadi "...kategori pen..." karena dropdown ini hanya selebar
@@ -161,6 +238,27 @@ export default function CreateComplaintForm() {
     setFormData((prev) => ({ ...prev, category: value }));
   };
 
+  /**
+   * Pindah tingkat MENGOSONGKAN tujuan & kategori (4 November 2026).
+   *
+   * Keduanya milik tingkat yang ditinggalkan: "Kecamatan Geger" tak ada di
+   * daftar kabupaten, dan "Pelayanan Administrasi Kecamatan" ditolak backend
+   * sebagai kategori kabupaten. Membiarkannya menghasilkan dua kegagalan yang
+   * berbeda dan sama-sama membingungkan -- dropdown yang menampilkan
+   * penampung padahal `value`-nya terisi (sebab pilihannya sudah tak ada di
+   * daftar), lalu penolakan 400 tepat saat tombol Kirim ditekan.
+   *
+   * Judul, uraian, tanggal, lokasi, lampiran, dan pilihan anonim SENGAJA
+   * DIPERTAHANKAN: tak satu pun bergantung pada tingkat, dan membuang kalimat
+   * yang sudah diketik warga hanya karena ia salah memilih tab di awal adalah
+   * kehilangan yang tak perlu.
+   */
+  const handleLevelChange = (level) => {
+    setFormData((prev) =>
+      prev.level === level ? prev : { ...prev, level, department: '', category: '' },
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError(null);
@@ -179,9 +277,12 @@ export default function CreateComplaintForm() {
           // `undefined`, bukan '' atau NaN: medannya harus benar-benar tidak
           // ikut terkirim, karena backend memvalidasi @IsInt bila ada.
           opdId: formData.department === TANPA_TUJUAN ? undefined : formData.department,
+          tingkat: formData.level,
           kategori: formData.category,
           title: formData.title,
           description: formData.description,
+          incidentDate: formData.incidentDate,
+          incidentLocation: formData.incidentLocation,
           isAnonim: formData.isAnonim,
         },
         files,
@@ -276,9 +377,16 @@ export default function CreateComplaintForm() {
           </div>
         )}
 
+        {/* DI ATAS kedua dropdown, sesuai permintaan pengguna 4 November 2026
+            ("tombol pindah tab/tingkatan pada bagian atas form OPD dan kategori
+            pengaduan") -- dan karena ia memang menentukan isi keduanya.
+            Menaruhnya di bawah berarti pelapor memilih dari daftar yang masih
+            akan berubah. */}
+        <PemilihTingkatPengaduan value={formData.level} onChange={handleLevelChange} />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Dropdown
-            label="OPD / Instansi Tujuan"
+            label={diKecamatan ? 'Kecamatan / Kelurahan Tujuan' : 'OPD / Instansi Tujuan'}
             id="department"
             options={[
               { label: penampungOpd(), value: '' },
@@ -312,8 +420,8 @@ export default function CreateComplaintForm() {
                gagal dimuat juga tak punya apa pun untuk dicari. Medan cari di
                atas daftar kosong menjanjikan sesuatu yang tak dapat ditepati. */
             searchable={adaSesi && departmentOptions.length > 0}
-            searchPlaceholder="Cari nama instansi..."
-            emptySearchLabel="Tidak ada instansi yang cocok"
+            searchPlaceholder={`Cari nama ${kataTujuan}...`}
+            emptySearchLabel={`Tidak ada ${kataTujuan} yang cocok`}
           />
           <Dropdown
             label="Kategori Pengaduan"
@@ -333,10 +441,46 @@ export default function CreateComplaintForm() {
           required
         />
 
+        {/* Tanggal & lokasi kejadian (4 November 2026, permintaan pengguna),
+            BERLAKU DI KEDUA TINGKAT -- tak ada cabang per tingkat di sini.
+
+            DI ATAS uraian, bukan di bawahnya. Keduanya pertanyaan pendek
+            berjawab pasti, dan menaruhnya sesudah kotak enam baris berarti
+            pelapor yang sudah selesai bercerita harus naik lagi. Petunjuk di
+            dalam placeholder uraian pun kini tak lagi menuntut waktu & tempat
+            diulang di sana. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input
+            label="Tanggal Kejadian"
+            id="incidentDate"
+            type="date"
+            value={formData.incidentDate}
+            onChange={handleChange}
+            // `max` menutup tanggal masa depan di pemilihnya sendiri; yang
+            // MENOLAK tetap backend (`parseTanggalKejadian`), sebab atribut
+            // HTML bukan penegakan. '' pada render pertama -- lihat
+            // `tanggalMaksimum` di atas untuk sebabnya.
+            max={tanggalMaksimum || undefined}
+            required
+          />
+          <Input
+            label="Lokasi Kejadian"
+            id="incidentLocation"
+            placeholder="Nama tempat, jalan, desa/kelurahan"
+            value={formData.incidentLocation}
+            onChange={handleChange}
+            maxLength={255}
+            required
+          />
+        </div>
+
         <Textarea
           label="Uraian Detail Kejadian"
           id="description"
-          placeholder="Ceritakan kronologi kejadian secara lengkap (Waktu, Tempat, dan Pihak terlibat)"
+          // Tanpa lagi menuntut "Waktu" dan "Tempat": keduanya kini punya
+          // medannya sendiri tepat di atas, dan memintanya dua kali membuat
+          // pelapor mengira salah satunya tak terkirim.
+          placeholder="Ceritakan kronologi kejadian secara lengkap (urutan peristiwa dan pihak yang terlibat)"
           rows={6}
           value={formData.description}
           onChange={handleChange}

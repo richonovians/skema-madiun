@@ -81,7 +81,19 @@ describe('OpdService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           opdId: { in: [1] },
-          status: { in: ['diterima', 'diproses'] },
+          // DIPAKU, bukan diambil dari `STATUS_BELUM_TUNTAS` (4 November
+          // 2026). Mengimpor konstanta yang sama dengan yang diujinya
+          // membuat uji ini membandingkan jawaban dengan dirinya sendiri:
+          // sebuah status yang keliru masuk atau keluar daftar itu akan
+          // mengubah kedua sisi perbandingan sekaligus dan tetap hijau.
+          status: {
+            in: [
+              'menunggu_verifikasi',
+              'diverifikasi',
+              'sedang_ditindaklanjuti',
+              'perlu_perbaikan',
+            ],
+          },
         }),
       }),
     );

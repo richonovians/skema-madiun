@@ -114,7 +114,7 @@ describe('IDOR pada endpoint "semua yang masuk" (e2e)', () => {
           ticketNo: `${PREFIKS_TIKET}${sufiks}`,
           userId,
           opdId,
-          kategori: 'aduan',
+          kategori: 'kab_infrastruktur',
           judul: `[UJI IDOR] ${sufiks}`,
           uraian: `uraian rahasia ${sufiks}`,
         },

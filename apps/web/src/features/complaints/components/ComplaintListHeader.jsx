@@ -10,8 +10,10 @@ import { Download, FileText } from 'lucide-react';
  */
 const KALIMAT_STATUS = {
   'Semua Status': 'pengaduan.',
-  Diterima: 'pengaduan baru yang belum ditindaklanjuti.',
-  Diproses: 'pengaduan yang sedang diproses.',
+  'Menunggu Verifikasi': 'pengaduan baru yang menunggu diverifikasi.',
+  Diverifikasi: 'pengaduan yang sudah diverifikasi dan menunggu ditindaklanjuti.',
+  'Sedang Ditindaklanjuti': 'pengaduan yang sedang ditindaklanjuti.',
+  'Perlu Perbaikan': 'pengaduan yang menunggu pelapor melengkapi berkas.',
   Selesai: 'pengaduan yang sudah selesai ditangani.',
   Ditolak: 'pengaduan yang ditolak.',
 };

@@ -381,7 +381,10 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
         .post('/api/v1/complaints')
         .set('Cookie', `${SESSION_COOKIE}=${sesi}`)
         .field('opdId', '1')
-        .field('kategori', 'aduan')
+        .field('kategori', 'kab_infrastruktur')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Uji persetujuan')
         // `uraian`, BUKAN `deskripsi`: ValidationPipe memakai
         // forbidNonWhitelisted, jadi nama field yang salah menghasilkan 400
@@ -412,7 +415,10 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
         .post('/api/v1/complaints')
         .set(auth)
         .field('opdId', '999999') // OPD sengaja tak ada
-        .field('kategori', 'aduan')
+        .field('kategori', 'kab_infrastruktur')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Uji persetujuan')
         .field('uraian', 'Persetujuan sudah ada, jadi yang menolak bukan lagi PDP');
 

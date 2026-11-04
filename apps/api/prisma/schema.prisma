@@ -125,13 +125,46 @@ enum IkmMutu {
   @@map("ikm_mutu")
 }
 
+/// Alur status pengaduan (4 November 2026, permintaan pengguna). Menggantikan
+/// empat status lama `diterima`/`diproses`/`selesai`/`ditolak`.
+///
+/// `terkirim` TIDAK PERNAH MENETAP. Pengaduan lahir langsung berstatus
+/// `menunggu_verifikasi`; `terkirim` hanya dipakai sebagai baris PERTAMA
+/// `complaint_status_history` -- peristiwa pengirimannya. Itu keputusan
+/// pengguna: dua status beruntun yang sama-sama tanpa tindakan siapa pun hanya
+/// menambah baris riwayat tanpa menambah keterangan. Nilainya tetap ada di enum
+/// karena riwayat memakai enum yang sama, dan karena ia langkah pertama pada
+/// penanda kemajuan lima tahap.
+///
+/// `perlu_perbaikan` BUKAN status akhir: Admin mengembalikannya ke
+/// `menunggu_verifikasi` sesudah pelapor melengkapi. `selesai` dan `ditolak`
+/// yang akhir.
 enum ComplaintStatus {
-  diterima
-  diproses
+  terkirim
+  menunggu_verifikasi
+  diverifikasi
+  sedang_ditindaklanjuti
   selesai
   ditolak
+  perlu_perbaikan
 
   @@map("complaint_status")
+}
+
+/// Cakupan pemerintahan yang dituju sebuah pengaduan (4 November 2026,
+/// permintaan pengguna). Menentukan DUA hal sekaligus di formulir warga: daftar
+/// OPD tujuan yang boleh dipilih, dan daftar kategori yang ditawarkan.
+///
+/// MENGAPA KOLOM, BUKAN DITURUNKAN DARI `opd_id`. Pengaduan boleh dikirim tanpa
+/// tujuan ("Lainnya", `opd_id` NULL) -- dan justru pada baris itulah tingkatnya
+/// paling dibutuhkan, sebab itulah satu-satunya petunjuk ke mana Admin
+/// Kabupaten harus meneruskannya. Menurunkannya dari nama OPD juga akan
+/// berubah sendiri begitu pengaduan diteruskan lintas tingkat.
+enum TingkatPengaduan {
+  kabupaten
+  kecamatan
+
+  @@map("tingkat_pengaduan")
 }
 
 // D9 (2026-08-05): in-app saja (bukan email) -- cakupan disepakati user:
@@ -230,6 +263,7 @@ model User {
   surveyResponses   SurveyResponse[]
   complaints        Complaint[]
   complaintReplies  ComplaintReply[]
+  statusChanges     ComplaintStatusHistory[]
   auditLogs         AuditLog[]
   notifications     Notification[]
   deletedSurveys    Survey[]           @relation("SurveyDeletedBy")
@@ -494,10 +528,28 @@ model Complaint {
   // PATCH /complaints/:id/opd. NULL berarti "belum bertujuan" -- bukan status
   // tersendiri, karena statusnya tetap `diterima` sampai OPD-nya menangani.
   opdId     Int?            @map("opd_id")
-  kategori  String          @db.VarChar(50) // 'aduan' | 'lapor' | 'lainnya' -- COMPLAINT_CATEGORIES
+  // Kode kategori baku -- COMPLAINT_CATEGORIES. Berawalan `kec_` atau `kab_`
+  // sejak 4 November 2026; awalannya WAJIB sepadan dengan `tingkat` di bawah
+  // (ditegakkan assertKategoriSesuaiTingkat, bukan oleh basis data).
+  kategori  String          @db.VarChar(50)
+  // Cakupan pengaduan (4 November 2026). Lihat enum TingkatPengaduan untuk
+  // alasan ia disimpan alih-alih diturunkan dari `opd_id`.
+  tingkat   TingkatPengaduan @default(kabupaten)
   judul     String          @db.VarChar(255)
   uraian    String          @db.Text
-  status    ComplaintStatus @default(diterima)
+  // Kapan & di mana kejadiannya (4 November 2026, permintaan pengguna). WAJIB
+  // di formulir maupun di CreateComplaintDto, tetapi NULLABLE di basis data:
+  // 19 pengaduan yang sudah ada dibuat sebelum kedua medan ini lahir, dan
+  // mengarang nilai untuk mereka berarti menuliskan tanggal kejadian yang tak
+  // pernah dilaporkan siapa pun. NULL di sini berarti "pengaduan lama", dan
+  // tampilan menyembunyikan barisnya alih-alih menggambar tanda hubung.
+  tanggalKejadian DateTime? @map("tanggal_kejadian") @db.Date
+  // TERENKRIPSI at-rest (`enc:v1:`), satu perlakuan dengan `uraian`: lokasi
+  // kejadian adalah isi pengaduan dan lazim menunjuk alamat rumah seseorang.
+  // Konsekuensinya disengaja -- kolom ini tak dapat dicari lewat SQL.
+  lokasiKejadian  String?   @map("lokasi_kejadian") @db.Text
+  // Lahir `menunggu_verifikasi`, BUKAN `terkirim` -- lihat enum di atas.
+  status    ComplaintStatus @default(menunggu_verifikasi)
   // Pengiriman anonim (4 September 2026). Basis data TETAP menyimpan userId
   // sebenarnya -- penyamaran terjadi di lapisan entity, supaya tautan pelapor
   // tetap ada untuk eskalasi resmi lewat audit_logs.
@@ -505,14 +557,16 @@ model Complaint {
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")
 
-  user        User                  @relation(fields: [userId], references: [id])
-  opd         Opd?                  @relation(fields: [opdId], references: [id])
-  replies     ComplaintReply[]
-  attachments ComplaintAttachment[]
+  user          User                     @relation(fields: [userId], references: [id])
+  opd           Opd?                     @relation(fields: [opdId], references: [id])
+  replies       ComplaintReply[]
+  attachments   ComplaintAttachment[]
+  statusHistory ComplaintStatusHistory[]
 
   @@index([userId])
   @@index([opdId])
   @@index([status])
+  @@index([tingkat])
   @@map("complaints")
 }
 
@@ -538,6 +592,41 @@ model ComplaintAttachment {
   @@index([complaintId])
   @@index([replyId])
   @@map("complaint_attachments")
+}
+
+/// Riwayat status pengaduan (4 November 2026, permintaan pengguna: halaman
+/// detail menampilkan perjalanan tiketnya, bukan hanya status terakhirnya).
+///
+/// BARIS PERISTIWA, bukan cuplikan keadaan. Satu baris lahir tiap kali status
+/// berpindah, dan baris PERTAMA selalu `terkirim` -- ditulis saat pengaduannya
+/// dibuat, meski kolom `status` pengaduannya sudah `menunggu_verifikasi` sejak
+/// detik itu. Karena itu baris terakhir riwayat tak selalu sama dengan status
+/// berjalan: pada pengaduan yang baru masuk, riwayatnya berbunyi "Terkirim"
+/// sementara lencananya berbunyi "Menunggu Verifikasi", dan keduanya benar.
+model ComplaintStatusHistory {
+  id          Int             @id @default(autoincrement())
+  complaintId Int             @map("complaint_id")
+  status      ComplaintStatus
+  /// Catatan petugas pada perpindahan ini. TERENKRIPSI at-rest (`enc:v1:`),
+  /// satu perlakuan dengan `complaint_replies.pesan`: ia teks bebas petugas
+  /// tentang kasus seorang warga, dan sejak 4 November 2026 di sinilah ia
+  /// tinggal -- sebelumnya alasan penolakan disalin menjadi sebuah balasan
+  /// percakapan. Menyalinnya ke dua tempat membuat halaman detail
+  /// menampilkan kalimat yang sama dua kali.
+  catatan     String?         @db.Text
+  /// Siapa yang memindahkannya. NULL berarti SISTEM, bukan "tak diketahui":
+  /// baris `terkirim` tak punya petugas, dan baris warisan hasil migrasi pun
+  /// tak pernah mencatat pelakunya.
+  actorId     Int?            @map("actor_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  actor     User?     @relation(fields: [actorId], references: [id])
+
+  // Satu indeks gabungan, bukan dua: satu-satunya kueri yang pernah dijalankan
+  // adalah "riwayat satu pengaduan, urut waktu".
+  @@index([complaintId, createdAt])
+  @@map("complaint_status_history")
 }
 
 model ComplaintReply {

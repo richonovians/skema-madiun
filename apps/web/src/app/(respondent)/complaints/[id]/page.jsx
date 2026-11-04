@@ -9,6 +9,7 @@ import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
 import ComplaintInfoCard from '@/features/complaints/components/ComplaintInfoCard';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
+import ComplaintStatusTimeline from '@/features/complaints/components/ComplaintStatusTimeline';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import ComplaintChatSection from '@/features/complaints/components/ComplaintChatSection';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
@@ -90,7 +91,10 @@ export default function ComplaintDetailPage() {
               target={data.complaint.target}
               status={data.complaint.status}
             />
-            <ComplaintProgressStepper currentStatus={data.complaint.status} />
+            <ComplaintProgressStepper
+              currentStatus={data.complaint.status}
+              riwayat={data.complaint.statusHistory}
+            />
             <ComplaintAttachments attachments={data.complaint.attachments} />
           </aside>
 
@@ -109,6 +113,15 @@ export default function ComplaintDetailPage() {
               }}
             />
             <ComplaintContentCard complaint={data.complaint} />
+            {/* Riwayat DI SINI, di kolom utama di atas percakapan (4 November
+                2026, permintaan pengguna). Warga datang ke halaman ini untuk
+                satu pertanyaan -- "pengaduan saya sampai mana?" -- dan
+                jawabannya tak boleh berada di bawah utas pesan yang panjangnya
+                tak terduga. */}
+            <ComplaintStatusTimeline
+              riwayat={data.complaint.statusHistory}
+              currentStatus={data.complaint.status}
+            />
             <ComplaintChatSection
               initialMessages={data.chatHistory}
               participants={CHAT_PARTICIPANTS}

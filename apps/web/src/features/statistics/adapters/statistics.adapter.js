@@ -71,9 +71,18 @@ function jumlahPerTahun(deret) {
 
 const MEDAL_BY_RANK = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
+/**
+ * Warnanya SAMA dengan `STATUS` di analitik.adapter.js, supaya satu status tak
+ * berganti rupa antara halaman publik dan halaman analitik.
+ *
+ * `terkirim` tak ada di sini: ia tak pernah menjadi status berjalan, jadi
+ * `groupBy status` backend tak akan pernah mengembalikannya.
+ */
 const STATUS_META = {
-  diterima: { label: 'Baru', color: '#4493CC' },
-  diproses: { label: 'Diproses', color: '#f59e0b' },
+  menunggu_verifikasi: { label: 'Menunggu Verifikasi', color: '#4493CC' },
+  diverifikasi: { label: 'Diverifikasi', color: '#6366f1' },
+  sedang_ditindaklanjuti: { label: 'Sedang Ditindaklanjuti', color: '#f59e0b' },
+  perlu_perbaikan: { label: 'Perlu Perbaikan', color: '#f97316' },
   selesai: { label: 'Selesai', color: '#10b981' },
   ditolak: { label: 'Ditolak', color: '#ef4444' },
 };

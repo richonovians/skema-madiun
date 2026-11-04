@@ -25,14 +25,18 @@ import {
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 /**
- * Empat status `ComplaintStatus` dalam urutan alur penanganan. `key` adalah
+ * Status `ComplaintStatus` yang dapat MENETAP, dalam urutan alur penanganan
+ * (enam sejak 4 November 2026; `terkirim` tak ikut karena ia tak pernah
+ * menjadi status berjalan, hanya baris pertama riwayat). `key` adalah
  * bentuk frontend (lihat STATUS_MAP di complaint.adapter.js). Warnanya sama
  * dengan STATUS_META di statistics.adapter.js supaya "Selesai" tak berganti
  * rupa antara halaman publik dan halaman ini.
  */
 const STATUS = [
-  { key: 'Diterima', id: 'diterima', label: 'Diterima', color: '#4493CC' },
-  { key: 'Diproses', id: 'diproses', label: 'Diproses', color: '#f59e0b' },
+  { key: 'Menunggu Verifikasi', id: 'menunggu_verifikasi', label: 'Menunggu Verifikasi', color: '#4493CC' },
+  { key: 'Diverifikasi', id: 'diverifikasi', label: 'Diverifikasi', color: '#6366f1' },
+  { key: 'Sedang Ditindaklanjuti', id: 'sedang_ditindaklanjuti', label: 'Sedang Ditindaklanjuti', color: '#f59e0b' },
+  { key: 'Perlu Perbaikan', id: 'perlu_perbaikan', label: 'Perlu Perbaikan', color: '#f97316' },
   { key: 'Selesai', id: 'selesai', label: 'Selesai', color: '#10b981' },
   { key: 'Ditolak', id: 'ditolak', label: 'Ditolak', color: '#ef4444' },
 ];
@@ -109,7 +113,11 @@ function bulanDalamPeriode(filter, sekarang) {
  *
  *   completionRate = selesai / total * 100, dibulatkan 2 desimal
  *   averageHours   = rata-rata (updatedAt - createdAt) pengaduan SELESAI, 1 desimal
- *   openTickets    = `diterima` + `diproses`
+ *   openTickets    = semua status yang belum tuntas, yakni semuanya kecuali
+ *                    `selesai` dan `ditolak` (4 November 2026 -- cermin
+ *                    `STATUS_BELUM_TUNTAS` di backend). DITURUNKAN, bukan
+ *                    didaftar: status yang kelak ditambahkan harus otomatis
+ *                    ikut terhitung, bukan diam-diam hilang dari angkanya.
  *
  * `updatedAt` pengaduan selesai dipakai sebagai waktu selesainya karena itulah
  * satu-satunya penanda yang ada; backend memakai pendekatan yang sama.
@@ -176,7 +184,10 @@ export function hitungAnalitikPengaduan({
     resolutionStats: {
       averageHours,
       completionRate: total > 0 ? round((jumlah('selesai') / total) * 100, 2) : null,
-      openTickets: jumlah('diterima') + jumlah('diproses'),
+      openTickets: STATUS.filter((s) => s.id !== 'selesai' && s.id !== 'ditolak').reduce(
+        (n, s) => n + jumlah(s.id),
+        0,
+      ),
     },
     volumeMonthly: volumeBulanan(dalamPeriode, filter, sekarang),
   };

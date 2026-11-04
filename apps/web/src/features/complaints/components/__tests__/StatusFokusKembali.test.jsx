@@ -16,10 +16,10 @@ function Rangkaian() {
   const [tertunda, setTertunda] = useState(null);
   return (
     <>
-      <ComplaintStatusControl currentStatus="Diterima" onStatusChangeRequest={setTertunda} />
+      <ComplaintStatusControl currentStatus="Menunggu Verifikasi" onStatusChangeRequest={setTertunda} />
       <ConfirmStatusModal
         isOpen={!!tertunda}
-        fromStatus="Diterima"
+        fromStatus="Menunggu Verifikasi"
         toStatus={tertunda ?? ''}
         onConfirm={jest.fn()}
         onCancel={() => setTertunda(null)}
@@ -30,10 +30,10 @@ function Rangkaian() {
 
 it('Batal pada modal Ubah Status mengembalikan fokus ke dropdown status', () => {
   render(<Rangkaian />);
-  const pemicu = screen.getByRole('button', { name: 'Diterima' });
+  const pemicu = screen.getByRole('button', { name: 'Menunggu Verifikasi' });
 
   fireEvent.click(pemicu);
-  const diproses = screen.getByRole('button', { name: 'Diproses' });
+  const diproses = screen.getByRole('button', { name: 'Diverifikasi' });
   diproses.focus();
   fireEvent.click(diproses);
   expect(screen.getByRole('dialog', { name: 'Ubah Status Pengaduan' })).toBeInTheDocument();

@@ -1,7 +1,8 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ListComplaintCategoryQueryDto } from './dto/list-complaint-category-query.dto';
 import { ComplaintCategoryEntity } from './entities/complaint-category.entity';
 import { UnsurEntity } from './entities/unsur.entity';
 import { ReferenceService } from './reference.service';
@@ -27,9 +28,14 @@ export class ReferenceController {
    * bersama taksonomi sub-kategori (D12/INT-42) -- lihat reference.constants.ts.
    */
   @Get('complaint-categories')
-  @ApiOperation({ summary: 'Daftar kategori baku pengaduan.' })
+  @ApiOperation({
+    summary: 'Daftar kategori baku pengaduan.',
+    description:
+      'Sejak 4 November 2026 setiap kategori membawa `tingkat` (kabupaten/kecamatan). ' +
+      'Tanpa kueri `tingkat`, seluruh kategori kedua tingkat dikembalikan.',
+  })
   @ApiOkResponse({ type: ComplaintCategoryEntity, isArray: true })
-  getComplaintCategories(): ComplaintCategoryEntity[] {
-    return this.referenceService.getComplaintCategories();
+  getComplaintCategories(@Query() query: ListComplaintCategoryQueryDto): ComplaintCategoryEntity[] {
+    return this.referenceService.getComplaintCategories(query.tingkat);
   }
 }

@@ -30,18 +30,50 @@ export const SURVEY_STATUS_BADGE_VARIANT = {
  * berarti menyunting dua belas berkas dan berharap tak ada yang terlewat.
  */
 export const COMPLAINT_STATUS_LABEL = {
-  Diterima: 'Diterima',
-  Diproses: 'Diproses',
+  Terkirim: 'Terkirim',
+  'Menunggu Verifikasi': 'Menunggu Verifikasi',
+  Diverifikasi: 'Diverifikasi',
+  'Sedang Ditindaklanjuti': 'Sedang Ditindaklanjuti',
   Selesai: 'Selesai',
   Ditolak: 'Ditolak',
+  'Perlu Perbaikan': 'Perlu Perbaikan',
 };
 
 export const COMPLAINT_STATUS_BADGE_VARIANT = {
-  Diterima: 'info',
-  Diproses: 'warning',
+  // Abu-abu: peristiwa, bukan keadaan yang menunggu siapa pun.
+  Terkirim: 'default',
+  Diverifikasi: 'info',
+  // Kuning untuk DUA keadaan yang sama-sama menunggu tindakan, dan itu
+  // disengaja: yang membedakan keduanya siapa yang ditunggu, bukan seberapa
+  // mendesaknya. Warna berbeda akan menyiratkan tingkatan yang tak ada.
+  'Menunggu Verifikasi': 'warning',
+  'Sedang Ditindaklanjuti': 'warning',
   Selesai: 'success',
   Ditolak: 'danger',
+  // Jingga, bukan merah: bola ada di tangan pelapor dan tiketnya masih hidup.
+  // Merah di sebelah "Ditolak" akan terbaca sebagai kembaran penolakan.
+  'Perlu Perbaikan': 'secondary',
 };
+
+/**
+ * Lima tahap alur utama, berurutan — pasangan `ALUR_UTAMA` di
+ * `apps/api/src/modules/complaints/alur-status.util.ts`.
+ *
+ * DISALIN, dan itu disadari: frontend repo ini tak mengimpor apa pun dari
+ * `apps/api` (lihat CLAUDE.md), jadi urutan tahap harus diketik ulang di satu
+ * sisi. Yang dijaga agar tak menyimpang adalah uji komponen penanda
+ * kemajuannya, bukan harapan bahwa dua berkas akan selalu disunting bersama.
+ */
+export const COMPLAINT_ALUR_UTAMA = [
+  'Terkirim',
+  'Menunggu Verifikasi',
+  'Diverifikasi',
+  'Sedang Ditindaklanjuti',
+  'Selesai',
+];
+
+/** Status di luar alur utama; tak punya tempat pada penanda kemajuan. */
+export const COMPLAINT_STATUS_ALTERNATIF = ['Ditolak', 'Perlu Perbaikan'];
 
 export const ROLE_LABEL = {
   ADMIN_OPD: 'Admin OPD',

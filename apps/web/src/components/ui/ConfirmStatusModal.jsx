@@ -6,14 +6,24 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 const STATUS_CONFIG = {
-  Diterima: {
+  'Menunggu Verifikasi': {
     color: 'bg-blue-100 text-blue-700 border-blue-200',
     dot: 'bg-blue-500',
     icon: Clock,
   },
-  Diproses: {
+  Diverifikasi: {
+    color: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    dot: 'bg-indigo-500',
+    icon: CheckCircle2,
+  },
+  'Sedang Ditindaklanjuti': {
     color: 'bg-amber-100 text-amber-700 border-amber-200',
     dot: 'bg-amber-500',
+    icon: Clock,
+  },
+  'Perlu Perbaikan': {
+    color: 'bg-orange-100 text-orange-700 border-orange-200',
+    dot: 'bg-orange-500',
     icon: Clock,
   },
   Selesai: {
@@ -183,14 +193,24 @@ export default function ConfirmStatusModal({
 
           {requireReason && (
             <div className={`transition-all ${shake ? 'animate-shake' : ''}`}>
+              {/* Kata-katanya MENGIKUTI status tujuan (4 November 2026). Dua
+                  status menuntut catatan dengan alasan yang berbeda: "Ditolak"
+                  memerlukan alasan penolakan, "Perlu Perbaikan" memerlukan
+                  daftar apa yang kurang. Satu label untuk keduanya menyuruh
+                  petugas menuliskan hal yang salah. */}
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Alasan Penolakan <span className="text-red-500">*</span>
+                {isDangerous ? 'Alasan Penolakan' : 'Catatan untuk Pelapor'}{' '}
+                <span className="text-red-500">*</span>
               </label>
               <textarea
                 ref={textareaRef}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Tuliskan alasan penolakan pengaduan ini secara jelas..."
+                placeholder={
+                  isDangerous
+                    ? 'Tuliskan alasan penolakan pengaduan ini secara jelas...'
+                    : 'Tuliskan apa yang perlu dilengkapi pelapor...'
+                }
                 rows={3}
                 className={`w-full text-sm px-3.5 py-2.5 rounded-xl border bg-slate-50 focus:bg-white text-slate-800 placeholder-slate-400 outline-none transition-all resize-none
                   ${!reason.trim() && shake
@@ -199,7 +219,11 @@ export default function ConfirmStatusModal({
                   }`}
               />
               {!reason.trim() && shake && (
-                <p className="text-xs text-red-500 mt-1 font-medium">Alasan penolakan wajib diisi.</p>
+                <p className="text-xs text-red-500 mt-1 font-medium">
+                  {isDangerous
+                    ? 'Alasan penolakan wajib diisi.'
+                    : 'Catatan wajib diisi — pelapor perlu tahu apa yang kurang.'}
+                </p>
               )}
             </div>
           )}

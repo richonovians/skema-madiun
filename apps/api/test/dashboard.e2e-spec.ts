@@ -108,10 +108,10 @@ describe('Dashboard & Statistics (e2e)', () => {
         ticketNo: 'PGDE2EDASH01',
         userId: respondenId,
         opdId,
-        kategori: 'lainnya',
+        kategori: 'kab_lainnya',
         judul: 'Pengaduan E2E Dashboard',
         uraian: 'Uraian pengaduan e2e dashboard',
-        status: ComplaintStatus.diterima,
+        status: ComplaintStatus.menunggu_verifikasi,
       },
     });
   }, 60000);
@@ -175,19 +175,22 @@ describe('Dashboard & Statistics (e2e)', () => {
       expect(res.body.data).not.toHaveProperty('insight');
     });
 
-    it('complaintStatus menyertakan pengaduan e2e ini (status diterima)', async () => {
+    it('complaintStatus menyertakan pengaduan e2e ini (status menunggu_verifikasi)', async () => {
       const res = await request(app.getHttpServer()).get('/api/v1/statistics');
       const diterima = res.body.data.complaintStatus.find(
-        (s: { status: string }) => s.status === 'diterima',
+        (s: { status: string }) => s.status === 'menunggu_verifikasi',
       );
       expect(diterima).toBeDefined();
       expect(diterima.count).toBeGreaterThan(0);
     });
 
-    it('(INT-14) complaintCategories menyertakan kategori "lainnya" dari pengaduan e2e ini', async () => {
+    it('(INT-14) complaintCategories menyertakan kategori "Lainnya" tingkat kabupaten dari pengaduan e2e ini', async () => {
+      // Kodenya 'kab_lainnya', bukan 'lainnya': taksonomi per tingkat
+      // (4 November 2026) memberi kedua tingkat sebuah "Lainnya" bernama sama,
+      // dan hanya awalan kodenya yang membedakan keduanya.
       const res = await request(app.getHttpServer()).get('/api/v1/statistics');
       const lainnya = res.body.data.complaintCategories.find(
-        (c: { kode: string }) => c.kode === 'lainnya',
+        (c: { kode: string }) => c.kode === 'kab_lainnya',
       );
       expect(lainnya).toBeDefined();
       expect(lainnya.nama).toBe('Lainnya');
@@ -270,7 +273,7 @@ describe('Dashboard & Statistics (e2e)', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.openComplaints).toEqual(expect.any(Number));
       expect(res.body.data.newComplaints).toEqual(expect.any(Number));
-      expect(res.body.data.openComplaints).toBeGreaterThanOrEqual(1); // pengaduan e2e ini (status diterima)
+      expect(res.body.data.openComplaints).toBeGreaterThanOrEqual(1); // pengaduan e2e ini (status menunggu_verifikasi)
     });
   });
 

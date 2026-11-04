@@ -178,13 +178,16 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Jalan rusak')
       .field('uraian', 'Jalan berlubang parah di depan balai desa');
 
     expect(res.status).toBe(201);
     expect(res.body.data.ticketNo).toMatch(/^PGD\d{8}[A-Z0-9]{4}$/);
-    expect(res.body.data.status).toBe('diterima');
+    expect(res.body.data.status).toBe('menunggu_verifikasi');
   });
 
   /**
@@ -203,7 +206,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Uji enkripsi kolom')
       .field('uraian', URAIAN);
     expect(buat.status).toBe(201);
@@ -236,7 +242,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lapor')
+      .field('kategori', 'kab_transportasi')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Sampah menumpuk')
       .field('uraian', 'Sampah tidak diangkut selama 2 minggu')
       .attach('lampiran', PNG_ASLI, 'foto.png');
@@ -262,7 +271,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lapor')
+      .field('kategori', 'kab_transportasi')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Jalan berlubang di tiga titik')
       .field('uraian', 'Tiga foto dari tiga titik yang berbeda')
       .attach('lampiran', PNG_ASLI, 'titik-1.png')
@@ -297,7 +309,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lapor')
+      .field('kategori', 'kab_transportasi')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', judul)
       .field('uraian', 'Batas lampiran adalah lima berkas');
 
@@ -332,7 +347,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lapor')
+      .field('kategori', 'kab_transportasi')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', judul)
       .field('uraian', 'Berkas dikirim pada medan bernama foto')
       .attach('foto', PNG_ASLI, 'salah-medan.png');
@@ -362,7 +380,10 @@ describe('Complaints (e2e)', () => {
         .post('/api/v1/complaints')
         .set(asResponden(respondenId))
         .field('opdId', opdId)
-        .field('kategori', 'lapor')
+        .field('kategori', 'kab_transportasi')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Uji tanda tangan lampiran')
         .field('uraian', 'Lampiran hanya boleh diambil lewat URL bertanda tangan')
         .attach('lampiran', PNG_ASLI, 'foto.png');
@@ -459,7 +480,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y')
       .attach('lampiran', Buffer.from('exe-bytes'), 'virus.exe');
@@ -480,7 +504,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Uji T2')
       .field('uraian', 'Isi berkas tidak cocok dengan tipe yang dinyatakan')
       .attach('lampiran', Buffer.from('<svg><script>alert(1)</script></svg>'), {
@@ -501,7 +528,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('subKategori', 'bpjs')
       .field('judul', 'Judul')
       .field('uraian', 'Uraian');
@@ -515,7 +545,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan anonim (uji e2e)')
       .field('uraian', 'Uraian pengaduan anonim')
       .field('isAnonim', 'true');
@@ -537,7 +570,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan biasa (uji e2e)')
       .field('uraian', 'Uraian pengaduan biasa');
 
@@ -572,7 +608,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan bernama dengan isAnonim=false (uji e2e)')
       .field('uraian', 'Nilai false harus dihormati, bukan dibaca sebagai true')
       .field('isAnonim', 'false');
@@ -608,7 +647,10 @@ describe('Complaints (e2e)', () => {
     const tanpaTujuan = await request(app.getHttpServer())
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan tanpa tujuan (uji e2e)')
       .field('uraian', 'Pelapor tak tahu harus ditujukan ke OPD mana');
     expect(tanpaTujuan.status).toBe(201);
@@ -637,7 +679,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asOpd())
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y');
     expect(res.status).toBe(403);
@@ -648,7 +693,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId + 999999)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y');
     expect(res.status).toBe(400);
@@ -660,7 +708,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId2))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Punya responden 2')
       .field('uraian', 'Uraian responden 2');
 
@@ -697,12 +748,15 @@ describe('Complaints (e2e)', () => {
     expect(res.body.meta.pagination.total).toBeGreaterThanOrEqual(3);
   });
 
-  it('lifecycle status: diterima -> diproses -> ditolak dengan catatan tercatat sebagai reply', async () => {
+  it('lifecycle status: menunggu_verifikasi -> diverifikasi -> ditolak, catatan tercatat di RIWAYAT', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Lifecycle')
       .field('uraian', 'Uraian lifecycle');
     const id = created.body.data.id;
@@ -710,9 +764,9 @@ describe('Complaints (e2e)', () => {
     const toDiproses = await request(app.getHttpServer())
       .patch(`/api/v1/complaints/${id}/status`)
       .set(asOpd())
-      .send({ status: 'diproses' });
+      .send({ status: 'diverifikasi' });
     expect(toDiproses.status).toBe(200);
-    expect(toDiproses.body.data.status).toBe('diproses');
+    expect(toDiproses.body.data.status).toBe('diverifikasi');
 
     const ditolakTanpaCatatan = await request(app.getHttpServer())
       .patch(`/api/v1/complaints/${id}/status`)
@@ -727,18 +781,40 @@ describe('Complaints (e2e)', () => {
     expect(ditolak.status).toBe(200);
     expect(ditolak.body.data.status).toBe('ditolak');
 
+    // RIWAYATNYA, bukan percakapannya (4 November 2026). Sampai hari itu
+    // catatan disalin menjadi sebuah balasan; kini ia tinggal di
+    // `complaint_status_history.catatan`, didekripsi saat dibaca.
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${created.body.data.ticketNo}`)
+      .set(asResponden(respondenId));
+    expect(detail.status).toBe(200);
+    const riwayat = detail.body.data.statusHistory as {
+      status: string;
+      label: string;
+      catatan: string | null;
+      actorNama: string | null;
+    }[];
+    // Tiga baris: terkirim (otomatis), diverifikasi, ditolak.
+    expect(riwayat.map((r) => r.status)).toEqual(['terkirim', 'diverifikasi', 'ditolak']);
+    expect(riwayat[0].actorNama).toBeNull(); // baris sistem
+    expect(riwayat[0].catatan).toBeNull();
+    expect(riwayat[2].catatan).toBe('Bukan kewenangan OPD ini');
+    expect(riwayat[2].label).toBe('Ditolak');
+
+    // PASANGANNYA, dan inilah yang menjaga perubahan itu: catatan yang masih
+    // ikut disalin ke percakapan membuat halaman detail menampilkan kalimat
+    // yang sama dua kali.
     const replies = await request(app.getHttpServer())
       .get(`/api/v1/complaints/${id}/replies`)
       .set(asResponden(respondenId));
     expect(replies.status).toBe(200);
-    expect(replies.body.data).toHaveLength(1);
-    expect(replies.body.data[0].pesan).toBe('Bukan kewenangan OPD ini');
+    expect(replies.body.data).toHaveLength(0);
 
     // status terminal → transisi lanjutan ditolak
     const afterTerminal = await request(app.getHttpServer())
       .patch(`/api/v1/complaints/${id}/status`)
       .set(asOpd())
-      .send({ status: 'diproses' });
+      .send({ status: 'diverifikasi' });
     expect(afterTerminal.status).toBe(400);
   });
 
@@ -747,13 +823,16 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y');
     const res = await request(app.getHttpServer())
       .patch(`/api/v1/complaints/${created.body.data.id}/status`)
       .set(asResponden(respondenId))
-      .send({ status: 'diproses' });
+      .send({ status: 'diverifikasi' });
     expect(res.status).toBe(403);
   });
 
@@ -762,13 +841,16 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y');
     const res = await request(app.getHttpServer())
       .patch(`/api/v1/complaints/${created.body.data.id}/status`)
       .set(devHeaders({ role: Role.opd, opdId: opdId + 999999 }))
-      .send({ status: 'diproses' });
+      .send({ status: 'diverifikasi' });
     expect(res.status).toBe(403);
   });
 
@@ -777,7 +859,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Lacak')
       .field('uraian', 'Uraian lacak');
     const ticketNo = created.body.data.ticketNo;
@@ -805,7 +890,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Percakapan')
       .field('uraian', 'Uraian percakapan');
     const id = created.body.data.id;
@@ -848,7 +936,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Peran ganda')
       .field('uraian', 'Dilaporkan dan ditangani akun yang sama');
     const id = created.body.data.id;
@@ -881,7 +972,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Kirim foto tanpa teks')
       .field('uraian', 'Uraian');
     const id = created.body.data.id;
@@ -902,7 +996,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y');
 
@@ -923,7 +1020,10 @@ describe('Complaints (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden(respondenId))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'X')
       .field('uraian', 'Y');
     const res = await request(app.getHttpServer())
@@ -948,7 +1048,10 @@ describe('Complaints (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/complaints')
         .set(asResponden(respondenId))
-        .field('kategori', 'lainnya')
+        .field('kategori', 'kab_lainnya')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Tidak tahu harus ke mana')
         .field('uraian', 'Pengirim tidak tahu OPD mana yang berwenang');
 
@@ -993,7 +1096,7 @@ describe('Complaints (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/complaints/${tiketId}/status`)
         .set(asKabupaten())
-        .send({ status: 'diproses' });
+        .send({ status: 'diverifikasi' });
 
       expect(res.status).toBe(400);
     });
@@ -1058,10 +1161,10 @@ describe('Complaints (e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/complaints/${tiketId}/status`)
         .set(asKabupaten())
-        .send({ status: 'diproses' });
+        .send({ status: 'diverifikasi' });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('diproses');
+      expect(res.body.data.status).toBe('diverifikasi');
     });
 
     it('meneruskan ulang -> 400 (bukan dialihkan diam-diam)', async () => {

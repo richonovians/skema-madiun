@@ -264,3 +264,75 @@ describe('adaptComplaint -- identitas pelapor', () => {
     expect(hasil.reporter.address).toBeNull();
   });
 });
+
+/**
+ * Tingkat, tanggal & lokasi kejadian (4 November 2026).
+ */
+describe('adaptComplaint — tingkat & kejadian', () => {
+  it('meneruskan tingkat apa adanya', () => {
+    expect(adaptComplaint(entity({ tingkat: 'kecamatan' })).tingkat).toBe('kecamatan');
+    expect(adaptComplaint(entity({ tingkat: 'kabupaten' })).tingkat).toBe('kabupaten');
+  });
+
+  it('memformat tanggal kejadian TANPA jam', () => {
+    // Kolomnya DATE di basis data, jadi bagian jam pada ISO-nya selalu
+    // 00:00:00Z -- bukan jam kejadian sungguhan. Menggambarnya akan menyatakan
+    // ketelitian yang tak pernah dikumpulkan dari pelapor.
+    const hasil = adaptComplaint(entity({ tanggalKejadian: '2026-11-01T00:00:00.000Z' }));
+
+    expect(hasil.incidentDate).toBe('2026-11-01T00:00:00.000Z');
+    expect(hasil.incidentDateStr).not.toMatch(/\d{2}[.:]\d{2}/);
+    expect(hasil.incidentDateStr).toMatch(/2026/);
+  });
+
+  it('meneruskan lokasi kejadian yang sudah didekripsi backend', () => {
+    const hasil = adaptComplaint(entity({ lokasiKejadian: 'Balai Desa Bangunsari' }));
+
+    expect(hasil.incidentLocation).toBe('Balai Desa Bangunsari');
+  });
+
+  /**
+   * Pengaduan yang dibuat SEBELUM 4 November 2026 tak punya keduanya, dan
+   * backend mengirimkannya `null`. `undefined` yang bocor ke komponen tak dapat
+   * dibedakan dari "kunci tak ditarik kueri", dan kartu ringkasan memakai
+   * perbedaan itu untuk memutuskan menyembunyikan barisnya.
+   */
+  it('pengaduan lama: ketiganya null, bukan undefined', () => {
+    const hasil = adaptComplaint(entity());
+
+    expect(hasil.tingkat).toBeNull();
+    expect(hasil.incidentDate).toBeNull();
+    expect(hasil.incidentDateStr).toBeNull();
+    expect(hasil.incidentLocation).toBeNull();
+  });
+});
+
+describe('toCreateComplaintPayload — medan baru 4 November 2026', () => {
+  const form = (over = {}) => ({
+    opdId: '5',
+    tingkat: 'kecamatan',
+    kategori: 'kec_administrasi',
+    title: 'Judul',
+    description: 'Uraian',
+    incidentDate: '2026-11-01',
+    incidentLocation: 'Balai Desa Bangunsari',
+    ...over,
+  });
+
+  it('memetakan ketiganya ke nama medan yang dipakai CreateComplaintDto', () => {
+    const payload = toCreateComplaintPayload(form());
+
+    expect(payload.tingkat).toBe('kecamatan');
+    expect(payload.tanggalKejadian).toBe('2026-11-01');
+    expect(payload.lokasiKejadian).toBe('Balai Desa Bangunsari');
+  });
+
+  it('meneruskan tanggalnya APA ADANYA, tanpa melewati objek Date', () => {
+    // Perjalanan bolak-balik lewat `new Date()` lalu `toISOString()` menggeser
+    // tanggalnya sehari bagi peramban di WIB (UTC+7): '2026-11-01' menjadi
+    // '2026-10-31'. Nilai yang keluar harus persis yang diketik pelapor.
+    expect(toCreateComplaintPayload(form({ incidentDate: '2026-01-01' })).tanggalKejadian).toBe(
+      '2026-01-01',
+    );
+  });
+});

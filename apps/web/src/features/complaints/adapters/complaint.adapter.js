@@ -13,11 +13,23 @@ import { formatDateId, getInitials } from '@/utils/format';
  * itu -- komponen yang menampilkannya sudah dirombak/dihapus di INT-33, bukan
  * tugas adapter frontend mengarang data.
  */
+/**
+ * Enum backend -> bentuk yang dipakai komponen (4 November 2026: tujuh nilai,
+ * menggantikan empat).
+ *
+ * Komponen memakai LABELNYA sebagai kunci internal, bukan kode enumnya -- pola
+ * yang sudah ada sejak awal berkas ini dan dipertahankan supaya seluruh layar
+ * tak perlu disunting dua kali. `STATUS_TO_BACKEND` di bawah memetakannya
+ * kembali sebelum dikirim.
+ */
 const STATUS_MAP = {
-  diterima: 'Diterima',
-  diproses: 'Diproses',
+  terkirim: 'Terkirim',
+  menunggu_verifikasi: 'Menunggu Verifikasi',
+  diverifikasi: 'Diverifikasi',
+  sedang_ditindaklanjuti: 'Sedang Ditindaklanjuti',
   selesai: 'Selesai',
   ditolak: 'Ditolak',
+  perlu_perbaikan: 'Perlu Perbaikan',
 };
 
 export function adaptComplaint(complaint) {
@@ -71,10 +83,41 @@ export function adaptComplaint(complaint) {
     updatedAt: complaint.updatedAt ?? null,
     ageDays,
     status: STATUS_MAP[complaint.status] ?? complaint.status,
-    // Kode kategori mentah ('aduan'/'lapor'/'lainnya') -- label ramah-baca
-    // perlu di-cross-reference terpisah ke GET /ref/complaint-categories, di
-    // luar tanggung jawab adapter sinkron ini.
+    /**
+     * Riwayat perpindahan status (4 November 2026). HANYA ada pada
+     * `GET /complaints/:ticketNo`; daftar pengaduan tak menariknya.
+     *
+     * `?? null`, BUKAN `?? []`: array kosong terbaca komponen sebagai "tiket
+     * ini tak punya riwayat", dan itu tak pernah benar sejak baris "Terkirim"
+     * lahir bersama tiketnya. `null` menyatakan "tak ditarik kueri".
+     *
+     * `label` DITERUSKAN APA ADANYA dari backend, tidak diterjemahkan ulang
+     * lewat STATUS_MAP: status yang kelak ditambahkan backend lebih dulu akan
+     * tetap terbaca, alih-alih muncul sebagai kode mentah di tengah linimasa.
+     */
+    statusHistory: (complaint.statusHistory ?? null)?.map((baris) => ({
+      id: baris.id,
+      status: baris.status,
+      label: baris.label ?? STATUS_MAP[baris.status] ?? baris.status,
+      catatan: baris.catatan ?? null,
+      actorNama: baris.actorNama ?? null,
+      createdAt: baris.createdAt,
+    })) ?? null,
+    // Kode kategori mentah ('kab_kesehatan', 'kec_sarana', ...) -- label
+    // ramah-baca perlu di-cross-reference terpisah ke
+    // GET /ref/complaint-categories, di luar tanggung jawab adapter sinkron ini.
     kategori: complaint.kategori,
+    // Cakupan pengaduan: 'kabupaten' | 'kecamatan' (4 November 2026). Tak dapat
+    // disimpulkan dari OPD tujuan -- pengaduan tanpa tujuan juga punya tingkat,
+    // dan di sana tingkatnya justru satu-satunya petunjuk triase.
+    tingkat: complaint.tingkat ?? null,
+    // Kapan & di mana kejadiannya. `null` berarti pengaduan ini dibuat SEBELUM
+    // kedua medan ini ada -- bukan "pelapornya mengosongkan", sebab keduanya
+    // wajib sejak 4 November 2026. Tampilan menyembunyikan barisnya alih-alih
+    // menggambar tanda hubung, dan itu sebabnya `null` tak diubah jadi ''.
+    incidentDate: complaint.tanggalKejadian ?? null,
+    incidentDateStr: complaint.tanggalKejadian ? formatDateId(complaint.tanggalKejadian) : null,
+    incidentLocation: complaint.lokasiKejadian ?? null,
     // Nama OPD tujuan (terisi dari GET /complaints maupun /complaints/:ticketNo, INT-18).
     target: complaint.opdNama ?? null,
     attachments: (complaint.attachments ?? []).map(adaptComplaintAttachment),
@@ -137,10 +180,13 @@ export function adaptComplaintAttachment(attachment) {
 }
 
 const STATUS_TO_BACKEND = {
-  Diterima: 'diterima',
-  Diproses: 'diproses',
+  Terkirim: 'terkirim',
+  'Menunggu Verifikasi': 'menunggu_verifikasi',
+  Diverifikasi: 'diverifikasi',
+  'Sedang Ditindaklanjuti': 'sedang_ditindaklanjuti',
   Selesai: 'selesai',
   Ditolak: 'ditolak',
+  'Perlu Perbaikan': 'perlu_perbaikan',
 };
 
 /** Terjemahkan status frontend ('Diproses' dkk) -> enum backend ('diproses' dkk). */
@@ -149,15 +195,31 @@ export function toBackendComplaintStatus(status) {
 }
 
 /** Terjemahkan payload form (lihat CreateComplaintForm.jsx) -> CreateComplaintDto backend. */
-export function toCreateComplaintPayload({ opdId, kategori, title, description, isAnonim }) {
+export function toCreateComplaintPayload({
+  opdId,
+  tingkat,
+  kategori,
+  title,
+  description,
+  incidentDate,
+  incidentLocation,
+  isAnonim,
+}) {
   return {
     // `undefined` bila tujuannya belum diketahui (6 September 2026). Number('')
     // menghasilkan 0 dan Number(undefined) menghasilkan NaN -- keduanya akan
     // terkirim sebagai medan yang ada dan ditolak backend.
     opdId: opdId == null || opdId === '' ? undefined : Number(opdId),
+    tingkat,
     kategori,
     judul: title,
     uraian: description,
+    // `<input type="date">` sudah bernilai 'YYYY-MM-DD', persis bentuk yang
+    // diminta backend. TIDAK dilewatkan `new Date()` lalu diformat ulang di
+    // sini: perjalanan bolak-balik itu akan menggeser tanggalnya sehari bagi
+    // peramban di WIB, yang zona lokalnya UTC+7.
+    tanggalKejadian: incidentDate,
+    lokasiKejadian: incidentLocation,
     isAnonim: isAnonim === true,
   };
 }

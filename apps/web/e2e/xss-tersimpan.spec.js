@@ -58,7 +58,10 @@ test.beforeAll(async () => {
 
   const form = new FormData();
   form.set('opdId', String(opd.user.opdId));
-  form.set('kategori', 'aduan');
+  form.set('tingkat', 'kabupaten');
+  form.set('kategori', 'kab_lainnya');
+  form.set('tanggalKejadian', '2026-11-01');
+  form.set('lokasiKejadian', 'Balai Desa Bangunsari');
   form.set('judul', DATA.judulAduan);
   form.set('uraian', DATA.uraian);
   const res = await fetch(`${BASE_URL}/api/v1/complaints`, {

@@ -72,7 +72,10 @@ describe('Batas ukuran lampiran pengaduan (e2e)', () => {
       .post('/api/v1/complaints')
       .set(devHeaders({ role: Role.responden, userId: pelaporId }))
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan berlampiran')
       .field('uraian', 'Isi pengaduan yang cukup panjang untuk lolos validasi.')
       .attach('lampiran', Buffer.alloc(ukuranByte, 1), {

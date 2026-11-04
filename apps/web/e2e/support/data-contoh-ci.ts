@@ -67,7 +67,10 @@ export async function siapkanDataContohCi(api: APIRequestContext, token: Token):
   const pengaduan = await minta('post', '/api/v1/complaints', 'responden', {
     multipart: {
       opdId: String(dinkes.id),
-      kategori: 'lainnya',
+      tingkat: 'kabupaten',
+      kategori: 'kab_kesehatan',
+      tanggalKejadian: '2026-11-01',
+      lokasiKejadian: 'Puskesmas Mejayan',
       judul: JUDUL_PENGADUAN,
       uraian:
         'Antrean di loket pendaftaran puskesmas mengular sejak pukul tujuh pagi dan nomor antrean tidak diumumkan dengan jelas.',

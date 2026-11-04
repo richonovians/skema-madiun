@@ -244,10 +244,20 @@ async function main(): Promise<void> {
         ticketNo: complaintMarker,
         userId: responden.id,
         opdId: opdByKode.DUKCAPIL.id,
-        kategori: 'lainnya',
+        // Taksonomi per tingkat (4 November 2026). Kode lama 'lainnya' sudah
+        // tak ada; `tingkat` berbaku `kabupaten` di skema, dan Disdukcapil
+        // memang OPD tingkat kabupaten.
+        kategori: 'kab_kependudukan',
         judul: 'Pelayanan pembuatan KTP lambat',
         uraian: enkripsiKolom(uraianContoh, kunciData),
-        status: ComplaintStatus.diterima,
+        // Tanggal & lokasi kejadian sengaja DIKOSONGKAN: contoh ini mewakili
+        // pengaduan yang lahir sebelum kedua medan itu ada, sehingga jalur
+        // "pengaduan lama" di tampilan ikut punya data untuk dilihat.
+        status: ComplaintStatus.menunggu_verifikasi,
+        // Satu baris riwayat, seperti pengaduan sungguhan (4 November 2026).
+        // Tanpa ini halaman detail contoh menggambar linimasa kosong, dan
+        // yang memeriksanya akan menyangka fiturnya tak bekerja.
+        statusHistory: { create: { status: ComplaintStatus.terkirim, actorId: null } },
       },
     });
   } else if (!kolomTerenkripsi(existingComplaint.uraian)) {
