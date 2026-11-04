@@ -221,7 +221,13 @@ export default function Dropdown({
       {isOpen && (
         <div
           ref={panelRef}
-          className="absolute top-full left-0 mt-2 w-full max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
+          // `flex flex-col` + `min-h-0` pada daftar: bila ruang layar sempit,
+          // useKeepInViewport memasang `max-height` dan `overflow-y:auto` pada
+          // panel ini, sementara daftar di bawah juga punya gulirnya sendiri --
+          // hasilnya DUA bilah gulir bersarang (dilaporkan pengguna di filter
+          // status /admin-opd/complaints). Dengan tata letak kolom, daftar
+          // menyusut mengikuti tinggi panel sehingga hanya daftar yang menggulir.
+          className="absolute top-full left-0 mt-2 w-full max-w-[calc(100vw-1.5rem)] flex flex-col bg-white rounded-xl shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200"
         >
           {searchable && (
             /* `sticky`, sebab yang menggulir bisa DUA lapis: `ul` di bawah
@@ -229,7 +235,7 @@ export default function Dropdown({
                gulir pada panel ini juga saat ruang layar sempit. Tanpa sticky,
                medan carinya ikut tergulir hilang persis pada layar yang paling
                membutuhkannya. */
-            <div className="sticky top-0 z-10 bg-white p-2 border-b border-slate-100">
+            <div className="sticky top-0 z-10 shrink-0 bg-white p-2 border-b border-slate-100">
               <div className="relative">
                 <Search
                   size={16}
@@ -261,7 +267,7 @@ export default function Dropdown({
             <p className="px-4 py-6 text-sm text-center text-text-secondary">{emptySearchLabel}</p>
           )}
 
-          <ul className={`py-1 overflow-y-auto ${menuMaxHeight}`}>
+          <ul className={`py-1 min-h-0 overflow-y-auto ${menuMaxHeight}`}>
             {opsiTampil.map((option) => (
               <li key={option.value}>
                 <button

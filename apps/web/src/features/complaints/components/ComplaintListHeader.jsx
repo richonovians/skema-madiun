@@ -20,7 +20,8 @@ const KALIMAT_STATUS = {
  * @param {object} props
  * @param {number} [props.totalComplaints]
  * @param {string} [props.statusFilter] penyaring status yang dipilih. Halaman
- *   warga tak punya penyaring dan tak mengirimnya, jadi kalimat lamanya tetap.
+ *   warga tak punya penyaring dan tak mengirimnya, jadi ia memakai kalimat
+ *   yang ditujukan kepada pelapor.
  */
 export default function ComplaintListHeader({
   totalComplaints = 0,
@@ -30,7 +31,7 @@ export default function ComplaintListHeader({
 }) {
   const ekor =
     statusFilter === undefined
-      ? 'tiket pengaduan aktif yang membutuhkan tindak lanjut segera.'
+      ? 'pengaduan yang pernah Anda ajukan.'
       : (KALIMAT_STATUS[statusFilter] ?? KALIMAT_STATUS['Semua Status']);
 
   return (

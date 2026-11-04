@@ -3,7 +3,7 @@ import ProfileContent from '@/features/profile/components/ProfileContent';
 
 export const metadata = {
   title: 'Profil Saya',
-  description: 'Informasi identitas akun yang terhubung melalui SSO Helpdesk Kabupaten Madiun.',
+  description: 'Data diri dan informasi akun Anda di SKEMA Kabupaten Madiun.',
 };
 
 export default function ProfilePage() {
@@ -15,7 +15,7 @@ export default function ProfilePage() {
           Profil Saya
         </h1>
         <p className="text-text-secondary text-sm md:text-base leading-relaxed">
-          Informasi identitas akun yang terhubung melalui SSO Helpdesk Kabupaten Madiun. Halaman ini bersifat read-only dan tidak menampilkan riwayat aktivitas pengaduan maupun survei.
+          Data diri dan informasi akun Anda di SKEMA Kabupaten Madiun.
         </p>
       </section>
 

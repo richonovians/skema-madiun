@@ -64,8 +64,7 @@ export default function ProfileBiodataCard({ user }) {
               ada -- dan barisnya pun tak lagi bertanda hubung melainkan
               disembunyikan. */}
           <p className="text-sm text-text-secondary">
-            Data identitas akun Anda pada sistem SKEMA, disalin dari akun Helpdesk saat Anda
-            masuk. Kolom yang tidak ditampilkan berarti Helpdesk tidak mengirimkannya.
+            Data diri Anda yang tercatat di SKEMA. Data yang belum terisi tidak ditampilkan.
           </p>
         </div>
         <span className="text-xs bg-surface-container px-3 py-1 rounded-full font-medium text-text-secondary border border-border/50">

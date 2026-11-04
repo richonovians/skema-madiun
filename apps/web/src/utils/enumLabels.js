@@ -46,7 +46,7 @@ export const COMPLAINT_STATUS_BADGE_VARIANT = {
 export const ROLE_LABEL = {
   ADMIN_OPD: 'Admin OPD',
   ADMIN_KABUPATEN: 'Admin Kabupaten',
-  RESPONDENT: 'Responden',
+  RESPONDENT: 'Masyarakat',
 };
 
 /** Tabel resmi PermenPANRB 14/2017 (docs/PRD-Sistem-SKM-dan-Pengaduan-Masyarakat.md baris 388-395). */
