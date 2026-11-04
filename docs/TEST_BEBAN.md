@@ -717,7 +717,7 @@ Hanya permintaan pertama yang terkena; sesudahnya singgahan menjawab (p50 9-12 m
 tak punya indeks `created_at`, sedangkan daftarnya `ORDER BY created_at DESC`.
 Rencana kuerinya pada 62.000 baris: Parallel Seq Scan lalu top-N heapsort, 36 ms.
 Uraiannya ada di BUG-069: pemindaian urutan bagian terbesar, dekripsi 20 baris
-hanya 2 ms, dan indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-8 ms.
+hanya 2 ms, dan indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-6 ms.
 Selisih kolom B dan D (163 dan 236 ms, pengaduan sama) belum dijelaskan.
 
 **Membaca kolom C.** 5.000 pengaduan per OPD adalah uji batas, bukan perkiraan

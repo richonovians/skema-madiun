@@ -4060,7 +4060,7 @@ dibuat lalu dihapus di `skm_beban`:
 | Bagian                               | Waktu    |
 | ------------------------------------ | -------- |
 | `findMany` + `include`, tanpa indeks | 36-41 ms |
-| `findMany` + `include`, dengan indeks `(created_at DESC)` | 5-8 ms |
+| `findMany` + `include`, dengan indeks `(created_at DESC)` | 5-6 ms |
 | `count`                              | 7-11 ms  |
 | Dekripsi 20 `uraian`                 | 2 ms     |
 
@@ -7449,4 +7449,4 @@ hanya dibaca, tidak diubah.
 | 7.27 | 3 November 2026 | **BUG-065 dibuka: 65 temuan, 63 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-CMP-003: 7 dari 10 `POST /complaints` serentak lewat `skema.local` dijawab 502 nginx "no live upstreams", sedangkan API sehat. Akarnya `host.docker.internal` kini diterjemahkan ke IPv4 dan IPv6 (Docker Desktop 4.98.0). Direproduksi di kontainer nginx terpisah: dua alamat 9× 502 pada ledakan pertama sesudah upstream pulih, satu alamat 0. Hanya pengembangan; produksi tak terdampak. |
 | 7.28 | 3 November 2026 | **BUG-066 dibuka: 66 temuan, 63 ditutup, 3 terbuka.** Ditemukan saat memetakan TC-AUTH-010: di `NODE_ENV=production` `POST /auth/dev-login` dijawab 404, tetapi pesannya "Not Found" (rute tak ada: "Cannot POST ..."), ia membawa header `X-RateLimit-Limit: 30`, dan permintaan ke-31 dijawab 429. Akarnya rute tetap terdaftar dan penjaga batas laju global berjalan sebelum `NonProductionGuard`. Penjaganya tetap menolak; yang bocor hanya keberadaan rute. |
 | 7.29 | 3 November 2026 | **BUG-067 dibuka: 67 temuan, 63 ditutup, 4 terbuka.** Ditemukan saat mengukur ulang jalur baca untuk QA-PERF: jalan dingin `GET /statistics` pada T3 naik dari 1.793 ms ke 3.739-6.255 ms. Sebabnya penyaring Sampah dari perbaikan BUG-013 (`f1c132e`) yang membuat `answer.groupBy` menyaring lewat dua `LEFT JOIN`; kuerinya sendiri naik dari ~0,6 s ke 2,0-3,3 s. Pada T1 (ukuran QA-PERF) endpointnya tetap di bawah 500 ms. |
-| 7.30 | 4 November 2026 | **BUG-068 dan BUG-069 dibuka: 69 temuan, 63 ditutup, 6 terbuka.** Ditemukan begitu dataset beban memuat pengaduan. `GET /statistics` memuat seluruh pengaduan ke memori (673-991 ms untuk 62.000 baris; permintaan pertama 4,5-4,6 s pada 310.000). `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten (p50 163 ms pada 62.000, 692 ms pada 310.000); indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-8 ms, diukur lalu dihapus di `skm_beban`. |
+| 7.30 | 4 November 2026 | **BUG-068 dan BUG-069 dibuka: 69 temuan, 63 ditutup, 6 terbuka.** Ditemukan begitu dataset beban memuat pengaduan. `GET /statistics` memuat seluruh pengaduan ke memori (673-991 ms untuk 62.000 baris; permintaan pertama 4,5-4,6 s pada 310.000). `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten (p50 163 ms pada 62.000, 692 ms pada 310.000); indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-6 ms, diukur lalu dihapus di `skm_beban`. |
