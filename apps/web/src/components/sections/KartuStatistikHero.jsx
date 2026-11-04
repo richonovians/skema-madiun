@@ -276,7 +276,7 @@ export default function KartuStatistikHero() {
                       <polyline
                         points={titikGaris(deret, 96, 36)}
                         fill="none"
-                        stroke="#004ac6"
+                        stroke="#4493CC"
                         strokeWidth="2.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -382,7 +382,7 @@ export default function KartuStatistikHero() {
                   label="Ditanggapi rata-rata"
                   nilai={`${angka(lamaTanggapan)} hari`}
                   deret={deret}
-                  warnaGaris="#004ac6"
+                  warnaGaris="#4493CC"
                   kelasHover={KELAS_HOVER}
                 />
               ) : (
@@ -392,7 +392,7 @@ export default function KartuStatistikHero() {
                   label="Pengaduan Masuk"
                   nilai={angka(summary.totalComplaints)}
                   deret={deret}
-                  warnaGaris="#004ac6"
+                  warnaGaris="#4493CC"
                   kelasHover={KELAS_HOVER}
                 />
               )}

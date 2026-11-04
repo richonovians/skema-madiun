@@ -200,7 +200,7 @@ const SIKU_LENGAN = 56;
 /** Selaras dengan token di app/globals.css (`--color-primary` dkk). */
 const WARNA = {
   latar: '#FFFFFF',
-  primer: '#004AC6',
+  primer: '#153969',
   atasPrimer: '#FFFFFF',
   judul: '#0F172A',
   label: '#64748B',

@@ -110,7 +110,7 @@ export default function GerbangPengisianPublik({ onSetuju }) {
         <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
           <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
             <Image
-              src="/images/navbar/skema-logo-2.png"
+              src="/images/navbar/skema-logo.png"
               alt="Logo SKEMA"
               width={76}
               height={48}

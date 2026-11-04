@@ -48,10 +48,10 @@ function IlustrasiJendela() {
         className="pointer-events-none absolute -inset-24 -z-10 hidden blur-[64px] lg:block"
         style={{
           background:
-            'radial-gradient(42% 46% at 70% 26%, rgba(99,102,241,0.62) 0%, rgba(99,102,241,0) 70%),' +
-            'radial-gradient(38% 42% at 28% 64%, rgba(0,74,198,0.5) 0%, rgba(0,74,198,0) 72%),' +
-            'radial-gradient(34% 36% at 66% 82%, rgba(217,70,239,0.42) 0%, rgba(217,70,239,0) 70%),' +
-            'radial-gradient(26% 30% at 86% 58%, rgba(244,114,182,0.3) 0%, rgba(244,114,182,0) 72%)',
+            'radial-gradient(42% 46% at 70% 26%, rgba(88,207,227,0.55) 0%, rgba(88,207,227,0) 70%),' +
+            'radial-gradient(38% 42% at 28% 64%, rgba(21,57,105,0.5) 0%, rgba(21,57,105,0) 72%),' +
+            'radial-gradient(34% 36% at 66% 82%, rgba(68,147,204,0.45) 0%, rgba(68,147,204,0) 70%),' +
+            'radial-gradient(26% 30% at 86% 58%, rgba(88,207,227,0.3) 0%, rgba(88,207,227,0) 72%)',
         }}
       />
 
@@ -105,7 +105,7 @@ function IlustrasiJendela() {
                 {[40, 70, 45, 90, 65, 85, 100].map((h, i) => (
                   <div key={i} className="group relative w-full rounded-t-sm bg-primary/10">
                     <div
-                      className="absolute bottom-0 w-full rounded-t-sm bg-gradient-to-t from-primary/80 to-indigo-500 transition-all duration-500"
+                      className="absolute bottom-0 w-full rounded-t-sm bg-gradient-to-t from-primary/80 to-brand-blue transition-all duration-500"
                       style={{ height: `${h}%` }}
                     />
                   </div>
@@ -211,9 +211,9 @@ export default function HeroSection() {
             <div
               className="animate-fade-in-up mb-6 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium shadow-sm"
               style={{
-                background: 'rgba(0, 74, 198, 0.08)',
-                border: '1px solid rgba(0, 74, 198, 0.15)',
-                color: '#004ac6',
+                background: 'rgba(21, 57, 105, 0.08)',
+                border: '1px solid rgba(21, 57, 105, 0.15)',
+                color: '#153969',
               }}
             >
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
@@ -228,7 +228,7 @@ export default function HeroSection() {
               <span
                 className="bg-clip-text text-transparent"
                 style={{
-                  backgroundImage: 'linear-gradient(135deg, #004ac6 0%, #6366f1 100%)',
+                  backgroundImage: 'linear-gradient(135deg, #153969 0%, #2B6FA5 100%)',
                 }}
               >
                 SKEMA

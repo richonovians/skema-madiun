@@ -104,7 +104,7 @@ export default function Navbar() {
             'w-full max-w-[1200px] h-14 flex items-center justify-between px-4 sm:px-5',
             'rounded-2xl border transition-all duration-500',
             scrolled
-              ? 'bg-white/80 backdrop-blur-xl border-slate-200/70 shadow-[0_8px_32px_rgba(0,74,198,0.10)]'
+              ? 'bg-white/80 backdrop-blur-xl border-slate-200/70 shadow-[0_8px_32px_rgba(21,57,105,0.10)]'
               : 'bg-white/30 backdrop-blur-sm border-white/20 shadow-none',
           )}
         >
@@ -122,7 +122,7 @@ export default function Navbar() {
                   tingginya 32px dan `object-contain` sudah menggambarnya pada
                   48x32 -- yang menyusut hanya pita transparan di kiri-kanan. */}
               <Image
-                src="/images/navbar/skema-logo-2.png"
+                src="/images/navbar/skema-logo.png"
                 alt="Logo SKEMA"
                 width={120}
                 height={80}
@@ -227,7 +227,7 @@ export default function Navbar() {
             ref={laciRef}
             className={clsx(
               'absolute top-[72px] left-4 right-4 lg:hidden',
-              'rounded-2xl border border-white/60 shadow-[0_8px_32px_rgba(0,74,198,0.13)]',
+              'rounded-2xl border border-white/60 shadow-[0_8px_32px_rgba(21,57,105,0.13)]',
               'bg-white/80 backdrop-blur-xl',
               'animate-in slide-in-from-top-3 fade-in duration-200',
             )}

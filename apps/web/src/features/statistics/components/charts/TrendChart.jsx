@@ -259,7 +259,7 @@ export default function TrendChart({
           <path
             d={pathD}
             fill="none"
-            stroke="#2563eb"
+            stroke="#4493CC"
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -300,7 +300,7 @@ export default function TrendChart({
                 cy={p.y}
                 r="5"
                 fill="#ffffff"
-                stroke="#2563eb"
+                stroke="#4493CC"
                 strokeWidth="2"
                 className="transition-transform origin-center [transform-box:fill-box] group-hover:scale-150"
               />

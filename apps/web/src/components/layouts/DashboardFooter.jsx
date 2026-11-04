@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export default function DashboardFooter() {
   return (
-    <footer className="w-full py-8 px-6 bg-[#0F172A] text-white mt-8">
+    <footer className="w-full py-8 px-6 bg-primary text-white mt-8">
       <div className="max-w-[1280px] mx-auto space-y-8 w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
           <div className="text-xl font-bold text-white">SKEMA Madiun</div>

@@ -5,9 +5,9 @@ export default function ServiceSelector({ activeTab = 'pengaduan', onTabChange }
   return (
     <div className="flex flex-col gap-6 w-full">
       {/* Premium Header */}
-      <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-slate-900 border border-slate-800 shadow-2xl group">
+      <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-primary border border-blue-800 shadow-2xl group">
         {/* Animated Background Gradients */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/30 transition-all duration-700" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-blue/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 group-hover:bg-brand-blue/30 transition-all duration-700" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 group-hover:bg-emerald-500/20 transition-all duration-700" />
         
         {/* Floating Icons Background */}
@@ -22,7 +22,7 @@ export default function ServiceSelector({ activeTab = 'pengaduan', onTabChange }
           <h2 className="font-h2 text-xl sm:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400 mb-2 drop-shadow-sm">
             Pilih Layanan
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 leading-relaxed font-medium w-full pr-4">
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium w-full pr-4">
             Akses cepat ke berbagai layanan publik untuk menyampaikan aspirasi dan penilaian Anda secara transparan.
           </p>
         </div>
@@ -35,7 +35,7 @@ export default function ServiceSelector({ activeTab = 'pengaduan', onTabChange }
           onClick={() => onTabChange?.('pengaduan')}
           className={`group relative w-full p-1 rounded-3xl transition-all duration-500 text-left overflow-hidden ${
             activeTab === 'pengaduan' 
-              ? 'bg-gradient-to-r from-primary to-blue-600 shadow-[0_8px_30px_rgb(0,74,198,0.3)] scale-[1.02] -translate-y-1' 
+              ? 'bg-gradient-to-r from-primary to-blue-600 shadow-[0_8px_30px_rgb(21,57,105,0.3)] scale-[1.02] -translate-y-1' 
               : 'bg-white border border-slate-200 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1'
           }`}
         >

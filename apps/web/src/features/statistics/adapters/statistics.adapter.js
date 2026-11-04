@@ -72,7 +72,7 @@ function jumlahPerTahun(deret) {
 const MEDAL_BY_RANK = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
 const STATUS_META = {
-  diterima: { label: 'Baru', color: '#3b82f6' },
+  diterima: { label: 'Baru', color: '#4493CC' },
   diproses: { label: 'Diproses', color: '#f59e0b' },
   selesai: { label: 'Selesai', color: '#10b981' },
   ditolak: { label: 'Ditolak', color: '#ef4444' },

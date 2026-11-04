@@ -31,7 +31,7 @@ const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'O
  * rupa antara halaman publik dan halaman ini.
  */
 const STATUS = [
-  { key: 'Diterima', id: 'diterima', label: 'Diterima', color: '#3b82f6' },
+  { key: 'Diterima', id: 'diterima', label: 'Diterima', color: '#4493CC' },
   { key: 'Diproses', id: 'diproses', label: 'Diproses', color: '#f59e0b' },
   { key: 'Selesai', id: 'selesai', label: 'Selesai', color: '#10b981' },
   { key: 'Ditolak', id: 'ditolak', label: 'Ditolak', color: '#ef4444' },
