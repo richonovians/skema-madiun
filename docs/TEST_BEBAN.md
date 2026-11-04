@@ -2,7 +2,7 @@
 
 **Tanggal pengukuran:** 13 Oktober 2026
 **Direvisi:** 13 Oktober 2026, sore — hari yang sama. Lihat kotak di bawah.
-**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 dan T2 syarat "< 3 detik" terpenuhi (§12.4, §12.5).
+**Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 dan T2 syarat "< 3 detik" terpenuhi (§12.4, §12.5). Dengan jawaban teks dan pengaduan: §12.6.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -668,8 +668,65 @@ statistik publik selalu di bawah 1 detik, termasuk permintaan pertama. Syarat
 pengaduan, padahal `/dashboard/opd` membaca keduanya (jawaban teks terbaru,
 hitungan pengaduan per status). Dua bagian kueri itu belum dibebani.
 
-### 12.6 Yang belum diukur
+### 12.6 Jawaban teks, pengaduan, dan T3 (4 November 2026)
 
-- `dashboard-opd` pada T3 (12.000 respons per OPD).
-- Jawaban teks dan pengaduan di dataset beban (lihat 12.5).
+Sampai §12.5 dataset beban tak memuat jawaban teks maupun pengaduan. Pembangunnya
+kini punya `--teks=` (persen respons yang menulis saran) dan `--pengaduan=` (jumlah
+per OPD), di cabang `test/beban-teks-pengaduan` (`5fb6393`, menunggu PR). Bakunya
+nol, jadi perintah T1, T2, dan T3 lama tetap membangun dataset yang sama. Hanya
+skrip pengukur yang berubah.
+
+`uraian` dienkripsi seperti di produksi, supaya `GET /complaints` ikut membayar
+dekripsi. Campuran statusnya anggapan: 50% selesai, 20% diterima, 20% diproses,
+10% ditolak. 100% jawaban teks adalah batas atas, bukan perkiraan.
+
+Empat dataset, masing-masing `--semua` 10 koneksi 10 detik, lalu `--dingin` 15
+detik dan satu jalan ulang `dashboard-opd`. Angka ganda berarti dua jalan. Seluruh
+jawaban 2xx dan "Dataset tetap" pada setiap jalan.
+
+| Ukuran                      | A: T2 kosong | B: T2 + 62 rb    | C: T2 + 310 rb   | D: T3 + 62 rb    |
+| --------------------------- | ------------ | ---------------- | ---------------- | ---------------- |
+| Respons                     | 148.800      | 148.800          | 148.800          | 744.000          |
+| Jawaban teks                | 0            | 148.800          | 148.800          | 744.000          |
+| Pengaduan                   | 0            | 62.000           | 310.000          | 62.000           |
+| Pertama `/statistics`       | 710 / 993 ms | 1.769 / 1.932 ms | 4.613 / 4.509 ms | 6.034 / 4.683 ms |
+| Pertama `dashboard-ikm`     | 393 / 487 ms | 570 / 785 ms     | 720 / 520 ms     | 1.792 / 1.699 ms |
+| `dashboard-opd` p50         | 96 / 90 ms   | 102 / 120 ms     | 244 / 271 ms     | 250 / 219 ms     |
+| `dashboard-opd` maks        | 281 / 258 ms | 238 / 440 ms     | 456 / 553 ms     | 587 / 377 ms     |
+| `daftar-pengaduan` p50      | 26 ms        | 163 ms           | 692 ms           | 236 ms           |
+| `daftar-pengaduan` maks     | 81 ms        | 309 ms           | 1.306 ms         | 401 ms           |
+| `hasil-ikm` p50             | 26 ms        | 24 ms            | 32 ms            | 33 ms            |
+| `isi-survei-baca` p50       | 32 ms        | 28 ms            | 36 ms            | 38 ms            |
+
+Kolom A adalah §12.5. Pada kolom C `/statistics` melewati 3 detik pada permintaan
+pertama, padahal respons tak bergeser dari kolom B; yang berubah hanya pengaduan.
+
+**Dashboard Admin OPD aman pada keempat dataset.** Terburuk 587 ms, dan pada T3
+dengan 12.000 respons per OPD sekalipun. Kueri tambahannya diukur sendiri pada
+kolom B untuk satu OPD: jawaban teks terbaru 15-24 ms (mengembalikan 5 baris),
+pengaduan selesai 8-11 ms (500 baris), hitungan pengaduan aktif 4-6 ms (400). Jadi
+datanya benar-benar terbaca, bukan kueri atas nol baris.
+
+**`/statistics` memuat seluruh pengaduan ke memori.** `complaint.findMany` tanpa
+batas di `dashboard.service.ts:352`, dipakai untuk tren dan rata-rata waktu
+penyelesaian. Pada kolom B kueri itu saja 673-991 ms untuk 62.000 baris, lebih
+mahal dari `answer.groupBy` penyebab [BUG-067](BUG_REPORTS.md#bug-067) (355-394 ms).
+Hanya permintaan pertama yang terkena; sesudahnya singgahan menjawab (p50 9-12 ms).
+
+**`GET /complaints` membayar setiap permintaan, dan tanpa singgahan.** `complaints`
+tak punya indeks `created_at`, sedangkan daftarnya `ORDER BY created_at DESC`.
+Rencana kuerinya pada 62.000 baris: Parallel Seq Scan lalu top-N heapsort, 36 ms.
+`count` di transaksi yang sama ikut memindai. Uraian penuh waktunya belum dibuat:
+36 ms itu kueri tunggal, sementara p50 di atas 10 koneksi bersamaan dan termasuk
+dekripsi. Selisih kolom B dan D (163 dan 236 ms, pengaduan sama) juga belum
+dijelaskan.
+
+**Membaca kolom C.** 5.000 pengaduan per OPD adalah uji batas, bukan perkiraan
+volume; tak ada data penerimaan pengaduan untuk memperkirakannya. Kedua temuan di
+atas belum dicatat di `BUG_REPORTS.md`.
+
+`skm_beban` kini memuat kolom D.
+
+### 12.7 Yang belum diukur
+
 - Ketersediaan dan seluruh jalur tulis (§11, tetap ditunda).
