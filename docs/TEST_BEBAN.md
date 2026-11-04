@@ -3,6 +3,7 @@
 **Tanggal pengukuran:** 13 Oktober 2026
 **Direvisi:** 13 Oktober 2026, sore — hari yang sama. Lihat kotak di bawah.
 **Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 dan T2 syarat "< 3 detik" terpenuhi (§12.4, §12.5). Dengan jawaban teks dan pengaduan: §12.6.
+**Ketersediaan:** diukur 4 November 2026 pada `main` `5cda6fa` — §13.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -728,3 +729,123 @@ volume; tak ada data penerimaan pengaduan untuk memperkirakannya.
 ### 12.7 Yang belum diukur
 
 - Ketersediaan dan seluruh jalur tulis (§11, tetap ditunda).
+
+**Diperbarui 4 November 2026:** ketersediaan kini diukur di §13. Jalur tulis tetap ditunda (§11).
+
+## 13. Uji ketersediaan (4 November 2026, QA-PERF)
+
+Diukur pada `main` `5cda6fa`. Sasaran dari PRD §10: "target uptime ≥ 99%; backup database terjadwal harian".
+
+### 13.1 Kesimpulan
+
+| Pertanyaan | Hasil |
+| --- | --- |
+| Uptime ≥ 99% | **Belum dapat dinyatakan.** Angka itu hanya terukur di server sungguhan selama berminggu-minggu; belum ada server maupun pemantau. 99% berarti paling lama 7 jam 12 menit padam per 30 hari. |
+| API pulih sendiri sesudah DB/Redis kembali | **Lulus.** Tak perlu restart; paling lama 2,5 detik sesudah perintah menyalakan DB, 0,3 detik sesudah Redis. |
+| Sesi selamat dari restart API dan restart Redis | **Lulus di server.** Token yang sama tetap dijawab 200. Di peramban tidak selamat bila Redis padam lebih dari 5 detik ([BUG-070](BUG_REPORTS.md#bug-070)). |
+| Ketahanan saat Redis gangguan | **Gagal.** Redis mati mengeluarkan pengguna; Redis macet membuat seluruh API tak menjawab ([BUG-070](BUG_REPORTS.md#bug-070), [BUG-071](BUG_REPORTS.md#bug-071)). |
+| `/health` mewakili keadaan layanan | **Gagal.** Tetap 200 selama DB mati ([BUG-072](BUG_REPORTS.md#bug-072)). |
+| Cadangan dapat dipulihkan | **Lulus**, dengan dua catatan ([BUG-074](BUG_REPORTS.md#bug-074)). |
+| Cadangan terjadwal harian | **Belum ada** ([BUG-073](BUG_REPORTS.md#bug-073)). |
+| Soak 30 menit jalur baca | **Lulus.** 276.370 permintaan, 0 gagal. Belum cukup panjang untuk menyatakan bebas kebocoran memori. |
+
+### 13.2 Cara mengukur
+
+Rig sekali pakai, dibongkar sesudahnya: API `main.ts` hasil tsc (`dist-beban/`) di porta 3003, kontainer `postgres:18-alpine` dan `redis:7-alpine --appendonly yes` tersendiri. Dataset: 744 survei, 14.880 respons, 135.409 jawaban, 6.200 pengaduan. Hanya kontainer rig yang diganggu; `skm_db`, `skm_beban`, dan server dev tetap jalan dan jumlah barisnya dicek sebelum dan sesudah.
+
+Satu probe per endpoint, satu permintaan per detik tanpa menunggu jawaban sebelumnya, batas 30 detik di sisi klien. Gangguan 60 detik (DB mati 90 detik).
+
+| Gangguan | Perintah | Meniru |
+| --- | --- | --- |
+| Mati | `docker kill`, lalu `docker start` | Proses jatuh, koneksi ditolak |
+| Macet | `docker pause`, lalu `docker unpause` | Layanan hang, koneksi tetap terbuka tanpa jawaban |
+
+Berkas pengukur ada di `qa-bug-hunt/repros/ketersediaan/`, lokal dan tak tercatat git.
+
+**Batas yang harus dibaca bersama angkanya:**
+
+- Laptop Windows ber-Docker Desktop dan `NODE_ENV=development`. Status jawaban dan urutan kejadian dapat dipakai; milidetiknya tidak dapat diterapkan ke server.
+- `THROTTLE_LIMIT` dilonggarkan seperti pada §2.
+- Tanpa nginx: API dipukul langsung. Di depan nginx permintaan yang menggantung berakhir sesuai `proxy_read_timeout`, yang belum diukur.
+
+### 13.3 Dependensi padam
+
+Jawaban selama gangguan, dalam jumlah permintaan. Latensi p50 dan maks dalam milidetik.
+
+| Gangguan | `/health` | `/statistics` (publik, singgah 60 s) | `/auth/me` | `/complaints` | Lampiran `/uploads` |
+| --- | --- | --- | --- | --- | --- |
+| DB mati, 90 s | 200 x90; p50 11 | 200 x46, lalu 500 x44; p50 26 | 500 x90; p50 2.068, maks 4.347 | 500 x90; p50 2.068, maks 4.347 | tak diprobe |
+| DB macet, 60 s | 200 x60; p50 7 | 200 x50, 500 x10; maks 10.036 | 200 x10, 500 x49, batas 30 s x1; p50 9.937 | 200 x10, 500 x50; p50 9.981 | 200 x60; p50 9 |
+| Redis mati, 60 s | 200 x60; **p50 6.650**, maks 15.292 | 200 x44, batas 30 s x16; **p50 23.392** | 200 x2, **401 x58**; p50 7.058 | 200 x2, **401 x58**; p50 7.058 | 200 x26, batas 30 s x34; **p50 30.001** |
+| Redis macet, 60 s | 200 x30, batas 30 s x30 | 200 x29, batas 30 s x31 | 200 x29, batas 30 s x31 | 200 x29, batas 30 s x31 | 200 x30, batas 30 s x30 |
+
+Membaca baris "macet": tak ada jawaban selama layanan beku. Yang tercatat 200 adalah permintaan yang masih menunggu saat layanan kembali, lalu selesai. Pada DB macet penantian itu berakhir 500 sesudah sekitar 10 detik; pada Redis macet tak berakhir sama sekali sampai Redis kembali.
+
+Yang tak terganggu: `/health` selama DB mati dan macet, lampiran selama DB macet, dan `/statistics` dari singgahan sampai TTL-nya habis. API tak pernah jatuh pada keempat gangguan.
+
+**Log saat Redis mati** dipenuhi `[ioredis] Unhandled error event` (64 baris dalam 60 detik) karena koneksi itu tak punya pendengar `error`. Prosesnya tidak jatuh.
+
+### 13.4 Waktu pulih
+
+Dihitung dari perintah mengakhiri gangguan sampai permintaan pertama yang sesudahnya semua sukses.
+
+| Gangguan | Waktu pulih | Gagal sesudah perintah |
+| --- | --- | --- |
+| DB mati | 2,5 s (Postgres siap 2,3 s) | 2 per endpoint ber-DB |
+| DB macet | 0,3 s | 0 |
+| Redis mati | 0,2-0,3 s | 0 |
+| Redis macet | 0,3 s | 0 |
+| API dibunuh lalu dinyalakan | 10,2 s sesudah perintah nyala; `/health` sehat 9,3 s | 10 per endpoint |
+
+| Boot | Hasil |
+| --- | --- |
+| DB dan Redis hidup | Sehat dalam 8,8-9,3 s (tiga jalan yang tercatat) |
+| DB mati | Lima percobaan, lalu keluar kode 1 sesudah 33,2 s. Benar untuk penyelia proses, tetapi **saat ini tak ada penyelia**: API yang jatuh tetap mati sampai dinyalakan orang. |
+| Redis mati | Sehat dalam 8,6 s, tetapi `dev-login` dijawab 500. Jalur SSO belum diuji. |
+
+### 13.5 Apa yang dilihat pengguna
+
+Masuk sungguhan lewat antarmuka di server dev (`warga`, Admin Kabupaten), lalu jawaban API dipalsukan di peramban memakai status yang terukur di §13.3, dimuat ulang, gangguan dicabut, dan dimuat ulang lagi.
+
+| Jawaban API | Tampilan selama gangguan | `POST /auth/logout` | Sesudah pulih |
+| --- | --- | --- | --- |
+| 401 (Redis mati) | Warga: "Gagal memuat ... Autentikasi diperlukan". Admin: "Sesi berakhir" | 16 kali (warga), 10 kali (admin) | **Keluar, terlempar ke `/`** |
+| 500 (DB mati) | "Gagal memuat ... Terjadi kesalahan pada server." | 0 | Tetap masuk |
+| 502 (nginx) | "Gagal memuat ... **Request failed with status code 502**" | 0 | Tetap masuk |
+| Jaringan putus | "Gagal memuat ... **Network Error**" | 0 | Tetap masuk |
+
+**Yang tidak diuji:** rangkaian ujung ke ujung dengan Redis sungguhan mati di bawah frontend, dan jalur cookie SSO. API terukur menjawab 401, frontend terukur membuang sesi pada 401; keduanya diukur terpisah.
+
+### 13.6 Cadangan dan pemulihan
+
+| Dataset | `pnpm cadangan` | Ukuran dump | `pnpm pulihkan` | Pencocokan |
+| --- | --- | --- | --- | --- |
+| Rig (135.409 jawaban) | 1,1 s | 7,8 MB | 2,2 s | Jumlah baris 7 tabel dan md5 5 kolom identik |
+| T3 (7.440.000 jawaban, `skm_beban`, baca saja) | 17 s | 437 MB | 114 s | Jumlah baris 3 tabel dan `sum(id)` jawaban identik |
+
+**Catatan cara:** jalan T3 memakai `node --max-old-space-size=4096`, yang tidak dipakai `pnpm pulihkan`. Tanpa flag itu belum diuji. Lampiran ikut tersalin ke cadangan tetapi tidak dipulihkan, sesuai rancangan skripnya. Waktu menyalin lampiran dan menyalakan API tak termasuk 114 detik itu.
+
+### 13.7 Soak
+
+10 pekerja berputar pada tujuh jalur baca, tanpa jeda, 30 menit.
+
+| Ukuran | Hasil |
+| --- | --- |
+| Permintaan | 276.370, **0 gagal** |
+| Memori privat proses, sesudah menit ke-2 | 372-380 MB |
+| Kemiringan memori privat, paruh kedua | 0,21 MB/menit |
+| Koneksi DB | 10, tetap |
+| Kunci Redis | 25-34, tak tumbuh |
+| Latensi | p50 42-44 ms sampai menit ke-8, lalu naik ke sekitar 75 ms mulai menit ke-11 dan bertahan |
+
+**Kenaikan latensi bukan penurunan API.** Proses API baru pada mesin yang sama langsung mencatat p50 71-81 ms (4 menit, 30.197 permintaan, 0 gagal). Sebabnya beban lain di laptop; beban CPU mesin 49% saat diperiksa sesudahnya.
+
+**Kebocoran memori belum dapat disingkirkan.** 0,21 MB/menit dalam 15 menit masih bisa derau, tetapi bila lurus berarti sekitar 300 MB per hari. Membedakannya menuntut soak berjam-jam.
+
+### 13.8 Yang belum diukur
+
+- Uptime sungguhan, karena belum ada server dan pemantau.
+- Shutdown anggun: pada Windows `kill` langsung mengakhiri proses tanpa `SIGTERM`, jadi `enableShutdownHooks` dan permintaan yang sedang jalan saat penggelaran tak teruji.
+- Disk penuh, `UPLOAD_DIR` tak terjangkau, dan koneksi DB habis.
+- Gangguan selagi menulis, sebab jalur tulis tetap ditunda (§11).
+- Soak lebih dari 30 menit.

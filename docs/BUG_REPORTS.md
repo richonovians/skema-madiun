@@ -162,8 +162,14 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
 | [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
+| [BUG-070](#bug-070) | Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif | Medium | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13) |
+| [BUG-071](#bug-071) | Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health` | Medium | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.3) |
+| [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.3) |
+| [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
+| [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
+| [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
 
-**Rekap** — 69 temuan: **63 ditutup, 6 terbuka** (Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069).
+**Rekap** — 75 temuan: **63 ditutup, 12 terbuka** (Medium: BUG-070, BUG-071, BUG-073; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4087,6 +4093,224 @@ untuk kueri itu sendiri; endpoint harus diukur ulang dengan pelari yang sama.
 
 ---
 
+<a id="bug-070"></a>
+
+### BUG-070 — Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, uji ketersediaan, `main` `5cda6fa` (`TEST_BEBAN.md` §13) |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | API pada rig sekali pakai; frontend di server dev dengan jawaban API dipalsukan di peramban |
+| **Berkas**   | `apps/api/src/modules/auth/providers/session-auth.provider.ts:130-137`, `apps/web/src/services/api.js:83-117` |
+| **Severity** | Medium (usulan penguji) -- padam Redis lebih dari 5 detik mengeluarkan semua pengguna aktif; tak ada data hilang |
+
+**Gejala**
+
+1. Redis dimatikan 60 detik (`docker kill`). `GET /auth/me` dan `GET /complaints` dengan token sah menjawab 200 dua kali, lalu `401 Autentikasi diperlukan` 58 kali.
+2. Sesudah Redis kembali, token yang sama dijawab 200 lagi. Sesinya tak pernah rusak.
+3. Di peramban, jawaban 401 itu membuat frontend membuang sesinya. `warga` mengirim 16 `POST /auth/logout`, Admin Kabupaten 10. Sesudah API pulih keduanya terlempar ke `/` dalam keadaan keluar.
+
+Pembanding pada dua akun yang sama: 500, 502, dan jaringan putus tidak mengeluarkan siapa pun, dan sesudah pulih keduanya tetap masuk.
+
+**Akar masalah**
+
+`sesiMasihBerlaku` menangkap galat penyimpan lalu menjawab `false`, jadi "Redis tak menjawab" dan "sesi tak sah" keluar sebagai 401 yang sama. `api.js` memperlakukan setiap 401 selain `ROLE_SELECTION_REQUIRED` sebagai sesi habis, dengan dasar tersurat di komentarnya: backend memakai 401 khusus untuk sesi tak sah. Di sini anggapan itu tidak benar.
+
+Singgahan 5 detik di `PenyimpanSesiRedis` hanya menahan kedipan lebih pendek dari itu.
+
+**Dampak**
+
+- Semua pengguna yang sedang aktif harus masuk ulang. Jalur cookie SSO belum diuji: `clearSession` juga memanggil `matikanSesiDiServer`, sehingga permintaan yang tiba sesudah Redis kembali dapat mencabut sesi yang sebenarnya masih sah.
+- Isian formulir yang belum terkirim ikut terancam; itu belum diuji.
+
+**Batas pengujian**
+
+API dan frontend diukur terpisah. Rangkaian ujung ke ujung dengan Redis sungguhan mati di bawah frontend belum dijalankan.
+
+**Arah perbaikan (belum dicoba)**
+
+Pertahankan gagal tertutup (keputusan 7 Oktober 2026), tetapi jawab 503 saat penyimpan tak menjawab. Sesi tetap ditolak, dan frontend sudah terbukti tidak mengeluarkan pengguna pada 5xx.
+
+---
+
+<a id="bug-071"></a>
+
+### BUG-071 — Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health`
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, uji ketersediaan, `main` `5cda6fa` (`TEST_BEBAN.md` §13.3) |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Rig sekali pakai, Windows + Docker Desktop, `NODE_ENV=development` |
+| **Berkas**   | `apps/api/src/app.module.ts:60`, `apps/api/src/common/cache/singgahan.module.ts:35`, `apps/api/src/modules/auth/session/session.module.ts:54`, `apps/api/src/common/uploads/cabut-lampiran.module.ts:33` |
+| **Severity** | Medium (usulan penguji) -- satu dependensi yang hang menjadi padam total; menuntut Redis hang, bukan hanya mati |
+
+**Gejala**
+
+| Endpoint | Redis macet 60 s | Redis mati 60 s |
+| --- | --- | --- |
+| `/health` | 30 dari 60 melewati batas klien 30 s | 200, tetapi p50 6.650 ms, maks 15.292 ms |
+| `/statistics` | 31 dari 60 melewati batas | p50 23.392 ms, 16 dari 60 melewati batas |
+| `/auth/me` | 31 dari 60 melewati batas | 401 sesudah p50 7.058 ms |
+| Lampiran `/uploads` | 30 dari 60 melewati batas | p50 30.001 ms, 34 dari 60 melewati batas |
+
+Pada Redis macet, tak ada jawaban sebelum Redis kembali. Permintaan yang tercatat 200 hanyalah yang masih menunggu saat itu. Garis dasar seluruh endpoint di bawah 50 ms.
+
+**Akar masalah**
+
+`commandTimeout` tak disetel di mana pun di `apps/api/src`, jadi perintah ioredis pada koneksi yang terbuka tetapi diam menunggu tanpa batas. Penjaga laju global menunggu Redis pada setiap permintaan, karena itu `/health` ikut tertahan.
+
+Lemparan galat baru terjadi setelah jatah coba ulang habis. Itu menjelaskan penantian detikan pada Redis mati: `maxRetriesPerRequest: 2` di tiga koneksi, dan `cabut-lampiran.module.ts:33` memakai bawaan ioredis (20), yang cocok dengan lampiran sebagai jalur terlambat. Penjelasan ini dibaca dari kode dan cocok dengan angkanya, tetapi tak diuji dengan mengubah nilainya.
+
+Docblock `PenyimpanLajuRedis` menyatakan limiter gagal terbuka supaya kedipan Redis tak menjadi padam total. Gagal terbukanya hanya bekerja bila Redis melempar galat. Bila Redis diam, yang terjadi persis yang hendak dicegahnya.
+
+**Dampak**
+
+Kelima endpoint yang diprobe tak menjawab selama Redis hang, publik maupun bersesi. Rute lain melewati penjaga global yang sama, tetapi tak diprobe satu per satu. API pulih sendiri dalam 0,3 detik sesudah Redis kembali.
+
+**Arah perbaikan (belum dicoba)**
+
+Setel `commandTimeout` pendek pada keempat koneksi, dan samakan `maxRetriesPerRequest` di `cabut-lampiran.module.ts`. Keluarkan `/health` dari penjaga laju. Ukur ulang dengan `docker pause` yang sama.
+
+---
+
+<a id="bug-072"></a>
+
+### BUG-072 — `GET /health` tetap 200 selama basis data mati
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, uji ketersediaan, `main` `5cda6fa` (`TEST_BEBAN.md` §13.3) |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Rig sekali pakai                                             |
+| **Berkas**   | `apps/api/src/app.service.ts:5-11` |
+| **Severity** | Low (usulan penguji) -- belum ada pemantau yang memakainya; menjadi lebih berat begitu ada |
+
+**Gejala**
+
+Selama 90 detik DB mati, `/health` menjawab 200 sebanyak 90 dari 90 kali, sementara `/auth/me` dan `/complaints` menjawab 500 sebanyak 90 dari 90 kali.
+
+**Akar masalah**
+
+`getHealth()` mengembalikan objek tetap `{ status: 'ok', ... }` tanpa memeriksa apa pun.
+
+**Dampak**
+
+Pemantau uptime yang memukul `/health` akan melaporkan 100% selama padam total DB. Target PRD "uptime ≥ 99%" karena itu tak dapat dibuktikan lewat endpoint ini. Penyeimbang beban pun akan terus mengirim lalu lintas ke API yang tak dapat melayani.
+
+**Arah perbaikan (belum dicoba)**
+
+Pisahkan dua pertanyaan: liveness tetap statis, readiness memeriksa DB dan Redis dengan batas waktu pendek. Jangan menjadikan pemeriksaan DB syarat liveness, supaya penyelia tidak merestart API yang sehat hanya karena DB padam.
+
+---
+
+<a id="bug-073"></a>
+
+### BUG-073 — Cadangan terjadwal harian yang diminta PRD belum ada
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, uji ketersediaan, `main` `5cda6fa` (`TEST_BEBAN.md` §13.6) |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Pemeriksaan isi repo: `.github/`, `docker-compose.yml`, `infra/`, `package.json`, `docs/keamanan/enkripsi-at-rest.md`, `README.md` |
+| **Berkas**   | `apps/api/scripts/cadangan.cjs`, `docs/keamanan/enkripsi-at-rest.md` §3 |
+| **Severity** | Medium (usulan penguji) -- persyaratan PRD §10 belum terpenuhi, GO-LIVE 23 November 2026 |
+
+**Gejala**
+
+PRD: "backup database terjadwal harian". Yang ada hanya perintah tangan `pnpm cadangan`. Pencarian `cron`, `schedule:`, `schtasks`, dan pemanggil `cadangan.cjs` di lokasi di atas tak menemukan penjadwal maupun prosedur menjadwalkannya.
+
+**Yang bekerja**
+
+Skripnya sendiri lulus: dump T3 437 MB tercadang dalam 17 detik dan pulih dalam 114 detik dengan jumlah baris yang cocok.
+
+**Batas pemeriksaan**
+
+Temuan ini tentang isi repo. Penjadwal di server tak dapat dinilai karena target penggelaran belum diputuskan.
+
+**Dampak**
+
+Bila go-live tanpa penjadwal, cadangan bergantung pada orang yang ingat menjalankannya, dan data yang hilang bisa sebanyak jarak sejak cadangan terakhir.
+
+**Arah perbaikan (belum dicoba)**
+
+Jadwalkan `pnpm cadangan` harian di server tujuan, salin hasilnya ke luar mesin itu seperti yang diminta `enkripsi-at-rest.md` §3, dan pasang peringatan bila cadangan gagal.
+
+---
+
+<a id="bug-074"></a>
+
+### BUG-074 — `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, uji ketersediaan, `main` `5cda6fa` (`TEST_BEBAN.md` §13.6) |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Rig sekali pakai, Node di mesin penguji |
+| **Berkas**   | `apps/api/scripts/pulihkan.cjs:111-118`, `apps/api/scripts/pulihkan.cjs:144`, `docs/keamanan/enkripsi-at-rest.md` §4 |
+| **Severity** | Low (usulan penguji) -- yang pertama punya jalan keluar jelas; yang kedua belum tercapai pada ukuran T3, tetapi menimpa pada hari pemulihan |
+
+**Gejala 1: tujuan belum ada (terukur)**
+
+```
+GAGAL: psql gagal pada "skm_pulih_uji": psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  database "skm_pulih_uji" does not exist
+```
+
+Sesudah `CREATE DATABASE` dijalankan tangan, pemulihannya lulus. Runbook §4 tak menyebut langkah itu.
+
+**Gejala 2: dump besar (bagiannya terukur)**
+
+`pulihkan.cjs:144` membaca seluruh dump sekaligus: `fs.readFileSync(sementara, 'utf8')`. Batas string Node di mesin ini `536.870.888` karakter. Berkas sintetis 540 MiB yang dibaca dengan panggilan yang sama menjawab `ERR_STRING_TOO_LONG`.
+
+Dump T3 437 MB masih lolos, jadi batas itu sekitar 23% di atas T3. `pulihkan.cjs` sendiri belum dijalankan terhadap dump sebesar itu. Jalan T3 juga memakai `--max-old-space-size=4096`, yang tak dipakai `pnpm pulihkan`; tanpa flag itu belum diuji.
+
+**Dampak**
+
+Kegagalan kedua terjadi sesudah dekripsi dan sebelum SQL apa pun dijalankan, jadi tak merusak data. Akibatnya perkakas pemulihan menolak bekerja justru saat dibutuhkan, dan operator harus mendekripsi serta menjalankan `psql` sendiri.
+
+**Arah perbaikan (belum dicoba)**
+
+Tulis di runbook bahwa tujuan harus dibuat lebih dulu, atau buat skripnya menawarkan itu. Alirkan dump ke `psql` lewat stdin alih-alih memuatnya ke memori.
+
+---
+
+<a id="bug-075"></a>
+
+### BUG-075 — Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, uji ketersediaan, `main` `5cda6fa` (`TEST_BEBAN.md` §13.5) |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Server dev, Chrome terpasang, jawaban API dipalsukan di peramban |
+| **Berkas**   | `apps/web/src/services/api.js:76-82` |
+| **Severity** | Low (usulan penguji) -- tampilan saja; sesi dan pemulihan benar |
+
+**Gejala**
+
+Di `/dashboard` warga dan `/admin-kab/dashboard`:
+
+| Keadaan | Teks yang tampil |
+| --- | --- |
+| nginx 502 | "Gagal memuat pengaduan **Request failed with status code 502**" |
+| Jaringan putus | "Gagal memuat pengaduan **Network Error**" |
+| API 500 (pembanding) | "Gagal memuat pengaduan Terjadi kesalahan pada server." |
+
+**Akar masalah**
+
+Interceptor hanya menyalin pesan bila jawaban berupa amplop backend. Halaman 502 nginx dan galat jaringan tak punya amplop, jadi `error.message` bawaan axios sampai ke layar.
+
+**Dampak**
+
+Warga melihat kalimat teknis berbahasa Inggris, tepat saat layanan sedang padam dan tak ada petunjuk apa yang harus dilakukan.
+
+**Arah perbaikan (belum dicoba)**
+
+Beri pesan cadangan berbahasa Indonesia di interceptor untuk jawaban tanpa amplop.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -7450,3 +7674,4 @@ hanya dibaca, tidak diubah.
 | 7.28 | 3 November 2026 | **BUG-066 dibuka: 66 temuan, 63 ditutup, 3 terbuka.** Ditemukan saat memetakan TC-AUTH-010: di `NODE_ENV=production` `POST /auth/dev-login` dijawab 404, tetapi pesannya "Not Found" (rute tak ada: "Cannot POST ..."), ia membawa header `X-RateLimit-Limit: 30`, dan permintaan ke-31 dijawab 429. Akarnya rute tetap terdaftar dan penjaga batas laju global berjalan sebelum `NonProductionGuard`. Penjaganya tetap menolak; yang bocor hanya keberadaan rute. |
 | 7.29 | 3 November 2026 | **BUG-067 dibuka: 67 temuan, 63 ditutup, 4 terbuka.** Ditemukan saat mengukur ulang jalur baca untuk QA-PERF: jalan dingin `GET /statistics` pada T3 naik dari 1.793 ms ke 3.739-6.255 ms. Sebabnya penyaring Sampah dari perbaikan BUG-013 (`f1c132e`) yang membuat `answer.groupBy` menyaring lewat dua `LEFT JOIN`; kuerinya sendiri naik dari ~0,6 s ke 2,0-3,3 s. Pada T1 (ukuran QA-PERF) endpointnya tetap di bawah 500 ms. |
 | 7.30 | 4 November 2026 | **BUG-068 dan BUG-069 dibuka: 69 temuan, 63 ditutup, 6 terbuka.** Ditemukan begitu dataset beban memuat pengaduan. `GET /statistics` memuat seluruh pengaduan ke memori (673-991 ms untuk 62.000 baris; permintaan pertama 4,5-4,6 s pada 310.000). `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten (p50 163 ms pada 62.000, 692 ms pada 310.000); indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-6 ms, diukur lalu dihapus di `skm_beban`. |
+| 7.31 | 4 November 2026 | **BUG-070 s.d. BUG-075 dibuka: 75 temuan, 63 ditutup, 12 terbuka.** Uji ketersediaan QA-PERF (`TEST_BEBAN.md` §13) pada rig sekali pakai, `main` `5cda6fa`. Medium: Redis padam dijawab 401 sehingga frontend mengeluarkan pengguna aktif (BUG-070); Redis macet membuat seluruh API tak menjawab karena tak ada `commandTimeout` (BUG-071); cadangan terjadwal PRD belum ada (BUG-073). Low: `/health` statis (BUG-072), keterbatasan `pnpm pulihkan` (BUG-074), kalimat axios mentah di layar (BUG-075). Yang lulus: API pulih sendiri sesudah DB dan Redis kembali, cadangan T3 dapat dipulihkan, soak 30 menit tanpa kegagalan. Uptime ≥ 99% belum dapat dinyatakan tanpa server. Tak ada perubahan kode. |
