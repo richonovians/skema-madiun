@@ -4128,9 +4128,11 @@ Singgahan 5 detik di `PenyimpanSesiRedis` hanya menahan kedipan lebih pendek dar
 
 API dan frontend diukur terpisah. Rangkaian ujung ke ujung dengan Redis sungguhan mati di bawah frontend belum dijalankan.
 
-**Arah perbaikan (belum dicoba)**
+**Arah perbaikan**
 
 Pertahankan gagal tertutup (keputusan 7 Oktober 2026), tetapi jawab 503 saat penyimpan tak menjawab. Sesi tetap ditolak, dan frontend sudah terbukti tidak mengeluarkan pengguna pada 5xx.
+
+**Diperbaiki di cabang, belum ditutup (4 November 2026).** `fix/redis-padam-sesi-batas-waktu` `6ead556`. API menjawab 503 berkode `PENYIMPAN_SESI_TAK_MENJAWAB`. Kini diuji ujung ke ujung: Redis rig dibunuh di bawah frontend sungguhan, dua peran, 0 `POST /auth/logout`, dan keduanya tetap masuk sesudah pulih. Jalur cookie SSO tetap belum diuji. Barisnya ditutup sesudah masuk `main` dengan CI hijau.
 
 ---
 
@@ -4169,9 +4171,11 @@ Docblock `PenyimpanLajuRedis` menyatakan limiter gagal terbuka supaya kedipan Re
 
 Kelima endpoint yang diprobe tak menjawab selama Redis hang, publik maupun bersesi. Rute lain melewati penjaga global yang sama, tetapi tak diprobe satu per satu. API pulih sendiri dalam 0,3 detik sesudah Redis kembali.
 
-**Arah perbaikan (belum dicoba)**
+**Arah perbaikan**
 
 Setel `commandTimeout` pendek pada keempat koneksi, dan samakan `maxRetriesPerRequest` di `cabut-lampiran.module.ts`. Keluarkan `/health` dari penjaga laju. Ukur ulang dengan `docker pause` yang sama.
+
+**Diperbaiki di cabang, belum ditutup (4 November 2026).** `fix/redis-padam-sesi-batas-waktu` `6ead556`: batas 1 detik lewat `buatKlienRedis`, dan tautan lampiran dijawab 503. Angkanya di `TEST_BEBAN.md` §13.9. `/health` TIDAK dikeluarkan dari penjaga laju, jadi ia tetap membayar sekitar 1 detik selama Redis padam. Barisnya ditutup sesudah masuk `main` dengan CI hijau.
 
 ---
 
@@ -7675,3 +7679,4 @@ hanya dibaca, tidak diubah.
 | 7.29 | 3 November 2026 | **BUG-067 dibuka: 67 temuan, 63 ditutup, 4 terbuka.** Ditemukan saat mengukur ulang jalur baca untuk QA-PERF: jalan dingin `GET /statistics` pada T3 naik dari 1.793 ms ke 3.739-6.255 ms. Sebabnya penyaring Sampah dari perbaikan BUG-013 (`f1c132e`) yang membuat `answer.groupBy` menyaring lewat dua `LEFT JOIN`; kuerinya sendiri naik dari ~0,6 s ke 2,0-3,3 s. Pada T1 (ukuran QA-PERF) endpointnya tetap di bawah 500 ms. |
 | 7.30 | 4 November 2026 | **BUG-068 dan BUG-069 dibuka: 69 temuan, 63 ditutup, 6 terbuka.** Ditemukan begitu dataset beban memuat pengaduan. `GET /statistics` memuat seluruh pengaduan ke memori (673-991 ms untuk 62.000 baris; permintaan pertama 4,5-4,6 s pada 310.000). `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten (p50 163 ms pada 62.000, 692 ms pada 310.000); indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-6 ms, diukur lalu dihapus di `skm_beban`. |
 | 7.31 | 4 November 2026 | **BUG-070 s.d. BUG-075 dibuka: 75 temuan, 63 ditutup, 12 terbuka.** Uji ketersediaan QA-PERF (`TEST_BEBAN.md` §13) pada rig sekali pakai, `main` `5cda6fa`. Medium: Redis padam dijawab 401 sehingga frontend mengeluarkan pengguna aktif (BUG-070); Redis macet membuat seluruh API tak menjawab karena tak ada `commandTimeout` (BUG-071); cadangan terjadwal PRD belum ada (BUG-073). Low: `/health` statis (BUG-072), keterbatasan `pnpm pulihkan` (BUG-074), kalimat axios mentah di layar (BUG-075). Yang lulus: API pulih sendiri sesudah DB dan Redis kembali, cadangan T3 dapat dipulihkan, soak 30 menit tanpa kegagalan. Uptime ≥ 99% belum dapat dinyatakan tanpa server. Tak ada perubahan kode. |
+| 7.32 | 4 November 2026 | **BUG-070 dan BUG-071 diperbaiki di cabang, belum ditutup.** `fix/redis-padam-sesi-batas-waktu` `6ead556`: Redis yang tak menjawab kini 503, bukan 401, dan keempat koneksi berbatas waktu 1 detik. Diukur ulang di rig (`TEST_BEBAN.md` §13.9) dan di peramban sungguhan. Rekap tetap 12 terbuka sampai masuk `main`. Tercatat juga: `test:e2e` dua kali keluar kode 1 dalam sembilan jalan penuh walau 750 uji lulus, sebab belum diketahui. |

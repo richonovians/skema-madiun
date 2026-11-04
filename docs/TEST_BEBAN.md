@@ -849,3 +849,21 @@ Masuk sungguhan lewat antarmuka di server dev (`warga`, Admin Kabupaten), lalu j
 - Disk penuh, `UPLOAD_DIR` tak terjangkau, dan koneksi DB habis.
 - Gangguan selagi menulis, sebab jalur tulis tetap ditunda (§11).
 - Soak lebih dari 30 menit.
+
+### 13.9 Sesudah perbaikan BUG-070 dan BUG-071
+
+Cabang `fix/redis-padam-sesi-batas-waktu` `6ead556`, belum di `main`. Rig, dataset, dan probe sama dengan §13.2, gangguan 60 detik. Latensi p50.
+
+| Endpoint | Redis macet, sebelum | Redis macet, sesudah | Redis mati, sebelum | Redis mati, sesudah |
+| --- | --- | --- | --- | --- |
+| `/health` | 200 x30, batas 30 s x30 | 200 x60; 1.019 ms | 200 x60; 6.650 ms | 200 x60; 1.017 ms |
+| `/statistics` | 200 x29, batas 30 s x31 | 200 x60; 2.289 ms | 200 x44, batas 30 s x16 | 200 x60; 2.248 ms |
+| `/auth/me` | 200 x29, batas 30 s x31 | 200 x2, 503 x58; 2.029 ms | 200 x2, 401 x58; 7.058 ms | 200 x1, 503 x59; 2.027 ms |
+| `/complaints` | 200 x29, batas 30 s x31 | 200 x2, 503 x58; 2.030 ms | 200 x2, 401 x58; 7.058 ms | 200 x1, 503 x59; 2.027 ms |
+| Lampiran | 200 x30, batas 30 s x30 | 200 x1, 503 x59; 1.021 ms | 200 x26, batas 30 s x34; 30.001 ms | 503 x60; 1.017 ms |
+
+Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesudah Redis kembali (§13.3). Pada kolom "sesudah", jawabannya tiba selama gangguan. Pemulihan tetap cepat: 0,2-1,2 detik, dengan paling banyak dua 503 sesudah perintah menyalakan Redis.
+
+**Peramban sungguhan.** Permintaan `/api/v1` dari frontend dev diteruskan ke API rig, dan Redis rig dibunuh sungguhan, dua peran. Yang tiba hanya 503 (10 dan 16 jawaban), 0 `POST /auth/logout`, tetap masuk selama gangguan dan sesudah pulih. Ini menutup batas §13.5 untuk jalur token, bukan untuk cookie SSO.
+
+**Yang masih terbuka:** tiap permintaan bertambah sekitar 1 detik per perintah Redis selama padam, masuk baru tetap 500, dan `[ioredis] Unhandled error event` masih mengisi log.
