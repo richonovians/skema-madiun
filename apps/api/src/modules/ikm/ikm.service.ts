@@ -1,13 +1,6 @@
+import { STATUS_BELUM_TUNTAS } from '../complaints/alur-status.util';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  ComplaintStatus,
-  IkmMutu,
-  JenisSurvei,
-  Prisma,
-  QuestionType,
-  Survey,
-  SurveyStatus,
-} from '@prisma/client';
+import { IkmMutu, JenisSurvei, Prisma, QuestionType, Survey, SurveyStatus } from '@prisma/client';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { PENYIMPAN_SINGGAHAN } from '../../common/cache/penyimpan-singgahan.interface';
 import { SekaliJalan } from '../../common/cache/sekali-jalan';
@@ -573,7 +566,7 @@ export class IkmService {
         this.prisma.complaint.count({
           where: {
             ...complaintWhere,
-            status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] },
+            status: { in: [...STATUS_BELUM_TUNTAS] },
           },
         }),
         this.prisma.complaint.count({

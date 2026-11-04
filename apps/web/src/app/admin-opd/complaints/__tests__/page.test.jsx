@@ -68,14 +68,14 @@ const DAFTAR = [
     id: 1,
     ticketNo: 'PGD20260901AAAA',
     judul: 'Rambu lalu lintas rusak',
-    status: 'diterima',
+    status: 'menunggu_verifikasi',
     reporterNama: 'Budi Santoso',
   }),
   complaintFixture({
     id: 2,
     ticketNo: 'PGD20260901BBBB',
     judul: 'Jalan berlubang',
-    status: 'diproses',
+    status: 'sedang_ditindaklanjuti',
     reporterNama: 'Siti Aminah',
   }),
   complaintFixture({
@@ -96,14 +96,14 @@ const DAFTAR = [
     id: 5,
     ticketNo: 'PGD20260901EEEE',
     judul: 'Saluran air mampet',
-    status: 'diterima',
+    status: 'menunggu_verifikasi',
     reporterNama: 'Rina Dewi',
   }),
   complaintFixture({
     id: 6,
     ticketNo: 'PGD20260901FFFF',
     judul: 'Trotoar rusak',
-    status: 'diproses',
+    status: 'sedang_ditindaklanjuti',
     reporterNama: 'Joko Susilo',
   }),
   complaintFixture({
@@ -125,7 +125,7 @@ const banyakBaris = (n) =>
       id: i + 1,
       ticketNo: `PGD20261001${String(i + 1).padStart(4, '0')}`,
       judul: i === 0 ? 'Lampu jalan mati' : `Pengaduan ke-${i + 1}`,
-      status: 'diterima',
+      status: 'menunggu_verifikasi',
       reporterNama: i === 0 ? 'Budi Santoso' : `Pelapor ${i + 1}`,
     }),
   );
@@ -147,7 +147,7 @@ const barisTabel = () => within(screen.getByRole('table')).getAllByRole('row').s
 const judulBaris = () =>
   barisTabel().map((r) => within(r).getAllByRole('cell')[2].textContent.trim());
 const dropdownStatus = () =>
-  screen.getByRole('button', { name: /semua status|diterima|diproses|selesai|ditolak/i });
+  screen.getByRole('button', { name: /semua status|menunggu verifikasi|sedang ditindaklanjuti|selesai|ditolak/i });
 const kolomCari = () => screen.getByPlaceholderText(/cari nomor tiket, judul, atau nama pelapor/i);
 
 const pilihStatus = async (status) => {
@@ -232,8 +232,8 @@ describe('Daftar pengaduan Admin OPD — kalimat judul mengikuti penyaring statu
   beforeEach(() => sajikan(DAFTAR));
 
   it.each([
-    ['Diterima', 'Menampilkan 2 pengaduan baru yang belum ditindaklanjuti.'],
-    ['Diproses', 'Menampilkan 2 pengaduan yang sedang diproses.'],
+    ['Menunggu Verifikasi', 'Menampilkan 2 pengaduan baru yang menunggu diverifikasi.'],
+    ['Sedang Ditindaklanjuti', 'Menampilkan 2 pengaduan yang sedang ditindaklanjuti.'],
     ['Selesai', 'Menampilkan 2 pengaduan yang sudah selesai ditangani.'],
     ['Ditolak', 'Menampilkan 1 pengaduan yang ditolak.'],
   ])('penyaring %s', async (status, kalimat) => {

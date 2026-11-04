@@ -1,3 +1,4 @@
+import { STATUS_BELUM_TUNTAS } from '../complaints/alur-status.util';
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { ComplaintStatus, Role, SurveyStatus } from '@prisma/client';
 import {
@@ -111,7 +112,7 @@ export class DashboardService {
       // Admin OPD tak bergeser sedikit pun ketika surveinya dibuang.
       this.prisma.surveyResponse.count({ where: { survey: { opdId, ...TIDAK_DIBUANG } } }),
       this.prisma.complaint.count({
-        where: { opdId, status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] } },
+        where: { opdId, status: { in: [...STATUS_BELUM_TUNTAS] } },
       }),
       this.prisma.complaint.findMany({
         where: { opdId, status: ComplaintStatus.selesai },

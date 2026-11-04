@@ -12,7 +12,12 @@ export default function ComplaintOverviewCards({ complaints }) {
   const stats = useMemo(() => {
     const total = complaints.length;
     const todayComplaints = complaints.filter((c) => c.ageDays <= 1).length;
-    const processing = complaints.filter((c) => c.status === 'Diproses').length;
+    // "Sedang diproses" kini mencakup SELURUH status yang belum tuntas (4
+    // November 2026): dengan enam status, menghitung satu di antaranya saja
+    // membuat kartunya melaporkan angka jauh lebih kecil dari kenyataan.
+    const processing = complaints.filter(
+      (c) => c.status !== 'Selesai' && c.status !== 'Ditolak',
+    ).length;
     const completed = complaints.filter((c) => c.status === 'Selesai').length;
 
     const opdCounts = {};

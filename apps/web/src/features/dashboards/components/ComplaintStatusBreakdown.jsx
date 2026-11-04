@@ -5,11 +5,15 @@ import { Inbox, ArrowRight, AlertTriangle } from 'lucide-react';
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
 import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
-// Empat status ComplaintStatus backend, dalam urutan alur penanganan.
-// Label sudah bentuk frontend (lihat STATUS_MAP di complaint.adapter.js).
+// Status ComplaintStatus yang dapat MENETAP, dalam urutan alur penanganan
+// (enam sejak 4 November 2026). Label sudah bentuk frontend (lihat STATUS_MAP
+// di complaint.adapter.js); `Terkirim` tak ikut karena ia tak pernah menjadi
+// status berjalan, hanya baris pertama riwayat.
 const STATUS_ROWS = [
-  { key: 'Diterima', bar: 'bg-blue-500', dot: 'bg-blue-500' },
-  { key: 'Diproses', bar: 'bg-amber-500', dot: 'bg-amber-500' },
+  { key: 'Menunggu Verifikasi', bar: 'bg-blue-500', dot: 'bg-blue-500' },
+  { key: 'Diverifikasi', bar: 'bg-indigo-500', dot: 'bg-indigo-500' },
+  { key: 'Sedang Ditindaklanjuti', bar: 'bg-amber-500', dot: 'bg-amber-500' },
+  { key: 'Perlu Perbaikan', bar: 'bg-orange-500', dot: 'bg-orange-500' },
   { key: 'Selesai', bar: 'bg-emerald-500', dot: 'bg-emerald-500' },
   { key: 'Ditolak', bar: 'bg-rose-500', dot: 'bg-rose-500' },
 ];

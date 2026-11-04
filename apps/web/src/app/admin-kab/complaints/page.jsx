@@ -50,10 +50,27 @@ export default function AdminKabComplaintsPage() {
     return map;
   }, [categories]);
 
+  /**
+   * Label penyaring MEMBAWA TINGKATNYA, berbeda dari `categoryMap` di atas yang
+   * memakai nama polos (4 November 2026).
+   *
+   * Sebabnya terukur, bukan selera: kedua tingkat punya kategori bernama
+   * "Lainnya", dan daftar ini menggabungkan keduanya. Tanpa keterangan tingkat,
+   * penyaring Admin Kabupaten menampilkan dua baris yang berbunyi persis sama
+   * dengan nilai yang berbeda -- tak ada cara bagi siapa pun memilih yang
+   * dimaksud, dan yang terpilih tampak acak.
+   *
+   * `categoryMap` sengaja TIDAK ikut diubah: di sana kategorinya menempel pada
+   * satu pengaduan yang tingkatnya sudah diketahui, jadi keterangannya hanya
+   * mengulang. Halaman detailnya menampilkan tingkat di barisnya sendiri.
+   */
   const categoryOptions = useMemo(
     () => [
       { value: '', label: 'Semua Kategori' },
-      ...(categories ?? []).map((c) => ({ value: c.kode, label: c.nama })),
+      ...(categories ?? []).map((c) => ({
+        value: c.kode,
+        label: c.tingkat ? `${c.nama} (${c.tingkat === 'kecamatan' ? 'Kec.' : 'Kab.'})` : c.nama,
+      })),
     ],
     [categories],
   );

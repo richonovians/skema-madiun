@@ -9,7 +9,10 @@ import ComplaintContentCard from '@/features/complaints/components/admin-kab/Com
 import ComplaintAttachmentGallery from '@/features/complaints/components/admin-kab/ComplaintAttachmentGallery';
 import ComplaintReporterProfile from '@/features/complaints/components/ComplaintReporterProfile';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
-import ComplaintStatusControl from '@/features/complaints/components/ComplaintStatusControl';
+import ComplaintStatusTimeline from '@/features/complaints/components/ComplaintStatusTimeline';
+import ComplaintStatusControl, {
+  STATUS_WAJIB_CATATAN,
+} from '@/features/complaints/components/ComplaintStatusControl';
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import LoadingState from '@/components/ui/LoadingState';
@@ -134,9 +137,9 @@ export default function AdminKabComplaintDetailPage() {
     if (!data) return;
     setActionError(null);
 
-    if (data.complaint.status !== 'Diproses') {
+    if (data.complaint.status !== 'Sedang Ditindaklanjuti') {
       setActionError(
-        'Tiket harus berstatus "Diproses" sebelum bisa ditutup. Ubah status terlebih dahulu.',
+        'Tiket harus berstatus "Sedang Ditindaklanjuti" sebelum bisa ditutup. Ubah status terlebih dahulu.',
       );
       return;
     }
@@ -189,6 +192,10 @@ export default function AdminKabComplaintDetailPage() {
         <div className="order-2 lg:order-1 lg:col-span-2 space-y-md">
           <ComplaintSummaryCard complaint={complaintView} />
           <ComplaintContentCard complaint={complaintView} />
+          <ComplaintStatusTimeline
+            riwayat={complaintView.statusHistory}
+            currentStatus={complaintView.status}
+          />
           <ComplaintAttachmentGallery complaint={{ attachments }} />
           <AdminResolutionWorkspace
             currentStatus={complaintView.status}
@@ -201,7 +208,14 @@ export default function AdminKabComplaintDetailPage() {
 
         <div className="order-1 lg:order-2 lg:col-span-1 space-y-md">
           <ComplaintReporterProfile reporter={complaintView.reporter} />
-          <ComplaintProgressStepper currentStatus={toBackendComplaintStatus(complaintView.status)} />
+          {/* LABEL tampilan, bukan enum backend (4 November 2026). Penanda
+              kemajuannya kini mencocokkan nama tahap, dan `toBackendComplaintStatus`
+              di sini akan membuatnya tak pernah menemukan tahap mana pun --
+              seluruh alur tergambar "belum dilalui". */}
+          <ComplaintProgressStepper
+            currentStatus={complaintView.status}
+            riwayat={complaintView.statusHistory}
+          />
           <ComplaintStatusControl
             currentStatus={complaintView.status}
             onStatusChangeRequest={handleStatusChangeRequest}
@@ -214,7 +228,7 @@ export default function AdminKabComplaintDetailPage() {
           isOpen={!!pendingStatus}
           fromStatus={complaintView.status}
           toStatus={pendingStatus ?? ''}
-          requireReason={pendingStatus === 'Ditolak'}
+          requireReason={STATUS_WAJIB_CATATAN.includes(pendingStatus)}
           onConfirm={handleConfirmStatus}
           onCancel={handleCancelStatus}
         />

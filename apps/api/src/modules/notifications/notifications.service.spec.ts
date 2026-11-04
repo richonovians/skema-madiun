@@ -30,10 +30,10 @@ const complaint = (over: Partial<Complaint> = {}): Complaint =>
     ticketNo: 'PGD20260805ABCD',
     userId: 10,
     opdId: 5,
-    kategori: 'lainnya',
+    kategori: 'kab_lainnya',
     judul: 'Jalan rusak',
     uraian: 'Uraian',
-    status: ComplaintStatus.diterima,
+    status: ComplaintStatus.menunggu_verifikasi,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...over,
@@ -129,7 +129,7 @@ describe('NotificationsService', () => {
   describe('notifyComplaintStatusChanged', () => {
     it('membuat notifikasi utk pelapor dgn label status & link yg benar', async () => {
       await service.notifyComplaintStatusChanged(
-        complaint({ status: ComplaintStatus.diproses }),
+        complaint({ status: ComplaintStatus.sedang_ditindaklanjuti }),
         999,
       );
 
@@ -138,7 +138,7 @@ describe('NotificationsService', () => {
         untukPeran: Role.responden,
         type: NotificationType.complaint_status_changed,
         title: 'Status Pengaduan Diperbarui',
-        message: 'Pengaduan PGD20260805ABCD kini berstatus "Diproses"',
+        message: 'Pengaduan PGD20260805ABCD kini berstatus "Sedang Ditindaklanjuti"',
         link: '/complaints/PGD20260805ABCD',
       });
     });

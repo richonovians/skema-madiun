@@ -4,7 +4,11 @@ import Dropdown from '@/components/ui/Dropdown';
 import { Search, Download, FileText, ChevronDown } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import {
+  COMPLAINT_ALUR_UTAMA,
+  COMPLAINT_STATUS_ALTERNATIF,
+  COMPLAINT_STATUS_LABEL,
+} from '@/utils/enumLabels';
 
 export default function ComplaintListFilter({
   searchQuery,
@@ -36,12 +40,17 @@ export default function ComplaintListFilter({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  /**
+   * DITURUNKAN dari alur bersama (4 November 2026), dengan alasan dan cara
+   * yang sama seperti `ComplaintFilterBar.jsx`: status yang kelak ditambahkan
+   * otomatis ikut dapat disaring. `Terkirim` dibuang karena ia tak pernah
+   * menjadi status berjalan — menyaringnya selalu nol baris.
+   */
   const statusOptions = [
     { value: 'Semua Status', label: 'Semua Status' },
-    { value: 'Diterima', label: COMPLAINT_STATUS_LABEL.Diterima },
-    { value: 'Diproses', label: 'Diproses' },
-    { value: 'Selesai', label: 'Selesai' },
-    { value: 'Ditolak', label: 'Ditolak' },
+    ...[...COMPLAINT_ALUR_UTAMA, ...COMPLAINT_STATUS_ALTERNATIF]
+      .filter((s) => s !== 'Terkirim')
+      .map((s) => ({ value: s, label: COMPLAINT_STATUS_LABEL[s] ?? s })),
   ];
 
   return (

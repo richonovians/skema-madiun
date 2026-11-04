@@ -270,7 +270,10 @@ describe('Alur End-to-End per Peran (e2e)', () => {
         .post('/api/v1/complaints')
         .set(responden1Headers())
         .field('opdId', String(opdId))
-        .field('kategori', 'aduan')
+        .field('kategori', 'kab_infrastruktur')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Pengaduan Journey E2E')
         .field('uraian', 'Uraian pengaduan test alur end-to-end lintas peran.');
 
@@ -309,14 +312,14 @@ describe('Alur End-to-End per Peran (e2e)', () => {
       }
     });
 
-    it('PATCH /complaints/:id/status -> diproses', async () => {
+    it('PATCH /complaints/:id/status -> diverifikasi', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/complaints/${complaintId}/status`)
         .set(opdHeaders())
-        .send({ status: 'diproses' });
+        .send({ status: 'diverifikasi' });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('diproses');
+      expect(res.body.data.status).toBe('diverifikasi');
     });
 
     it('POST /complaints/:id/replies (Admin OPD) -> balasan tersimpan', async () => {
@@ -331,13 +334,13 @@ describe('Alur End-to-End per Peran (e2e)', () => {
   });
 
   describe('5. Responden: lacak status & lihat balasan', () => {
-    it('GET /complaints/:ticketNo (Responden 1) -> status diproses, opdNama terisi', async () => {
+    it('GET /complaints/:ticketNo (Responden 1) -> status diverifikasi, opdNama terisi', async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/complaints/${complaintTicketNo}`)
         .set(responden1Headers());
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('diproses');
+      expect(res.body.data.status).toBe('diverifikasi');
       expect(res.body.data.opdNama).toBe('OPD E2E Journey');
     });
 
@@ -384,7 +387,7 @@ describe('Alur End-to-End per Peran (e2e)', () => {
     it('GET /complaints (Kabupaten) -> tiket OPD ini ikut terlihat (bukan cuma miliknya)', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/complaints')
-        .query({ status: 'diproses' })
+        .query({ status: 'diverifikasi' })
         .set(kabupatenHeaders());
 
       expect(res.status).toBe(200);

@@ -23,8 +23,10 @@ import {
   ComplaintAttachment,
   ComplaintReply,
   ComplaintStatus,
+  ComplaintStatusHistory,
   Prisma,
   Role,
+  TingkatPengaduan,
 } from '@prisma/client';
 import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
 import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
@@ -44,17 +46,27 @@ import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
 import { signAttachmentPath } from './attachment-url.util';
+import { parseTanggalKejadian } from './tanggal-kejadian.util';
+import { labelStatus, STATUS_WAJIB_CATATAN, TRANSISI_DIIZINKAN } from './alur-status.util';
+import { ComplaintStatusHistoryEntity } from './entities/complaint-status-history.entity';
+import { assertKategoriSesuaiTingkat, assertOpdSesuaiTingkat } from './tingkat-pengaduan.util';
 import { assertAllowedContent, safeFilename } from './attachment.util';
 import { ComplaintEntity } from './entities/complaint.entity';
 import { ComplaintReplyEntity } from './entities/complaint-reply.entity';
 
-/** Transisi status yang diizinkan (FR-CMP-03: Diterima → Diproses → Selesai, atau Ditolak). */
-const ALLOWED_TRANSITIONS: Record<ComplaintStatus, ComplaintStatus[]> = {
-  [ComplaintStatus.diterima]: [ComplaintStatus.diproses, ComplaintStatus.ditolak],
-  [ComplaintStatus.diproses]: [ComplaintStatus.selesai, ComplaintStatus.ditolak],
-  [ComplaintStatus.selesai]: [],
-  [ComplaintStatus.ditolak]: [],
-};
+/**
+ * Transisi status, status wajib-catatan, dan labelnya kini tinggal di
+ * `alur-status.util.ts` (4 November 2026) -- lihat docblock berkas itu untuk
+ * sebabnya. Tabel `ALLOWED_TRANSITIONS` yang dulu berdiri di sini dibuang
+ * bersama alur empat status.
+ *
+ * CATATAN PERPINDAHAN TIDAK LAGI DISALIN MENJADI BALASAN PERCAKAPAN. Sampai
+ * 4 November 2026, alasan penolakan ditulis sebagai `complaint_reply` supaya
+ * pelapor dapat membacanya; sejak riwayat status punya kolom `catatan`
+ * sendiri, menulisnya ke dua tempat membuat halaman detail menampilkan
+ * kalimat yang sama dua kali -- sekali di linimasa, sekali di percakapan.
+ * Tak ada keterangan yang hilang: keduanya tergambar di halaman yang sama.
+ */
 
 // Satu sumber dengan langit-langit multer (complaints.constants.ts).
 const MAX_FILE_SIZE_BYTES = BATAS_UKURAN_LAMPIRAN_BYTES;
@@ -88,6 +100,12 @@ type ComplaintWithAttachments = Complaint & {
    * memang tak ada, bukan tak ikut di-include.
    */
   opd?: { nama: string } | null;
+  /**
+   * Hanya terisi bila query di-`include` (lihat `findByTicketNo`). `undefined`
+   * berarti kuerinya memang tak menariknya -- bukan "pengaduan ini tak punya
+   * riwayat", yang mustahil sejak baris `terkirim` ditulis bersama barisnya.
+   */
+  statusHistory?: (ComplaintStatusHistory & { actor: { nama: string } | null })[];
 };
 
 @Injectable()
@@ -162,18 +180,25 @@ export class ComplaintsService {
     // Sebelum lampiran ditulis, dengan alasan yang sama seperti di atas.
     await this.assertBelumMelewatiBatasHarian(user.userId);
 
+    // Pemisahan tingkat (4 November 2026). SEBELUM lampiran ditulis ke disk,
+    // alasan yang sama seperti kedua penjaga di atas. Dua pemeriksaan murni
+    // (tanpa kueri) didahulukan supaya penolakan yang paling sering -- salah
+    // kategori -- tak perlu memukul basis data sama sekali.
+    assertKategoriSesuaiTingkat(dto.kategori, dto.tingkat);
+    const tanggalKejadian = parseTanggalKejadian(dto.tanggalKejadian);
+
     // Hanya bila tujuannya disertakan. Pengaduan "belum tahu tujuannya"
     // (6 September 2026) sengaja tak punya OPD untuk diperiksa; memanggil
     // pemeriksaan itu dengan undefined berarti mencari OPD ber-id undefined.
     if (dto.opdId != null) {
-      await this.assertOpdExists(dto.opdId);
+      await this.assertOpdExists(dto.opdId, dto.tingkat);
     }
     const validFiles = this.validateFiles(files);
     const saved = await this.persistFiles(validFiles);
 
     let complaint: ComplaintWithAttachments;
     try {
-      complaint = await this.insertWithUniqueTicket(dto, user.userId, saved);
+      complaint = await this.insertWithUniqueTicket(dto, tanggalKejadian, user.userId, saved);
     } catch (err) {
       // DB gagal setelah file tersimpan → bersihkan file tanpa induk (best-effort).
       await this.cleanupFiles(saved);
@@ -257,6 +282,17 @@ export class ComplaintsService {
         // ComplaintEntity.reporterNik untuk sebabnya.
         user: { select: { nama: true, nik: true, nomorHp: true, alamat: true } },
         opd: { select: { nama: true } },
+        // DI SINI SAJA, tidak di `findAll`: daftar pengaduan tak menggambar
+        // linimasa, dan menariknya per baris berarti seratus riwayat ikut
+        // terkirim demi kolom yang tak satu pun dipakai. Alasan yang sama
+        // dengan ketiga kolom identitas di atas.
+        //
+        // `nama` pelakunya ikut, bukan hanya id: tampilan menulis siapa yang
+        // memindahkan, dan id angka tak berarti apa-apa bagi pembacanya.
+        statusHistory: {
+          include: { actor: { select: { nama: true } } },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!complaint) {
@@ -283,13 +319,18 @@ export class ComplaintsService {
       );
     }
 
-    if (!ALLOWED_TRANSITIONS[complaint.status].includes(dto.status)) {
+    if (!TRANSISI_DIIZINKAN[complaint.status].includes(dto.status)) {
       throw new BadRequestException(
-        `Transisi status ${complaint.status} → ${dto.status} tidak diizinkan`,
+        `Transisi status ${labelStatus(complaint.status)} → ${labelStatus(dto.status)} tidak diizinkan`,
       );
     }
-    if (dto.status === ComplaintStatus.ditolak && !dto.catatan) {
-      throw new BadRequestException('Alasan penolakan (catatan) wajib diisi');
+    if (STATUS_WAJIB_CATATAN.includes(dto.status) && !dto.catatan) {
+      // Kalimatnya menyebut status yang dimaksud, bukan "catatan wajib diisi"
+      // saja: dua status menuntutnya dengan alasan berbeda, dan petugas perlu
+      // tahu APA yang harus ia tuliskan.
+      throw new BadRequestException(
+        `Catatan wajib diisi untuk status "${labelStatus(dto.status)}" — pelapor perlu tahu alasannya`,
+      );
     }
 
     const [updated] = await this.prisma.$transaction([
@@ -298,23 +339,20 @@ export class ComplaintsService {
         data: { status: dto.status },
         include: { attachments: true },
       }),
-      ...(dto.catatan
-        ? [
-            this.prisma.complaintReply.create({
-              // Catatan penolakan selalu ditulis petugas -- pelapor tak
-              // dapat mengubah status pengaduannya sendiri.
-              data: {
-                complaintId: id,
-                authorId: user.userId,
-                // Catatan penolakan adalah teks bebas petugas tentang kasus
-                // seorang warga; ia disimpan di kolom yang sama dengan pesan
-                // percakapan, jadi ia diperlakukan sama.
-                pesan: enkripsiKolom(dto.catatan, this.kunci),
-                dariPelapor: false,
-              },
-            }),
-          ]
-        : []),
+      // Satu baris riwayat per perpindahan. DI DALAM transaksi yang sama
+      // dengan perubahan statusnya: riwayat yang kehilangan satu baris karena
+      // penulisan kedua gagal akan memperlihatkan tiket yang melompati tahap,
+      // dan tak ada cara memulihkannya dari data yang tersisa.
+      this.prisma.complaintStatusHistory.create({
+        data: {
+          complaintId: id,
+          status: dto.status,
+          // Diperlakukan sama dengan `complaint_replies.pesan` -- teks bebas
+          // petugas tentang kasus seorang warga.
+          catatan: dto.catatan ? enkripsiKolom(dto.catatan, this.kunci) : null,
+          actorId: user.userId,
+        },
+      }),
     ]);
     await this.notificationsService.notifyComplaintStatusChanged(updated, user.userId);
     return this.toEntity(updated as ComplaintWithAttachments, user.userId);
@@ -543,11 +581,23 @@ export class ComplaintsService {
     );
   }
 
-  private async assertOpdExists(opdId: number): Promise<void> {
-    const opd = await this.prisma.opd.findUnique({ where: { id: opdId } });
+  /**
+   * OPD tujuan ada, DAN berada pada tingkat yang dinyatakan pengaduan
+   * (4 November 2026).
+   *
+   * Dua pemeriksaan dalam satu kueri, bukan dua kueri: keduanya memerlukan
+   * baris yang sama, dan `nama`-lah yang menentukan tingkatnya (lihat
+   * `tingkat-opd.util.ts` untuk sebab tingkat itu tak disimpan sebagai kolom).
+   */
+  private async assertOpdExists(opdId: number, tingkat: TingkatPengaduan): Promise<void> {
+    const opd = await this.prisma.opd.findUnique({
+      where: { id: opdId },
+      select: { nama: true },
+    });
     if (!opd) {
       throw new BadRequestException(`OPD dengan id ${opdId} tidak ditemukan`);
     }
+    assertOpdSesuaiTingkat(opd.nama, tingkat);
   }
 
   private async getByIdOrThrow(id: number): Promise<Complaint> {
@@ -570,6 +620,10 @@ export class ComplaintsService {
 
   private async insertWithUniqueTicket(
     dto: CreateComplaintDto,
+    // Sudah ter-parse & tervalidasi oleh `parseTanggalKejadian` di `create()`.
+    // Diterima sebagai `Date`, bukan di-parse ulang di sini: mengulanginya
+    // berarti dua tempat yang dapat berbeda pendapat tentang zona waktu.
+    tanggalKejadian: Date,
     userId: number,
     attachments: SavedFile[],
   ): Promise<ComplaintWithAttachments> {
@@ -591,11 +645,31 @@ export class ComplaintsService {
             // hasilnya kebetulan sama (default NULL), yang tersurat di sini
             // adalah "belum bertujuan" -- bukan "lupa diisi".
             opdId: dto.opdId ?? null,
+            tingkat: dto.tingkat,
             kategori: dto.kategori,
             judul: dto.judul,
             uraian: enkripsiKolom(dto.uraian, this.kunci),
+            tanggalKejadian,
+            // SATU PERLAKUAN dengan `uraian` di atas. Lokasi kejadian lazim
+            // menunjuk alamat rumah seseorang -- kalau isi pengaduannya
+            // terenkripsi sementara tempatnya tidak, janji "isi pengaduan
+            // terenkripsi" hanya setengah ditepati.
+            lokasiKejadian: enkripsiKolom(dto.lokasiKejadian, this.kunci),
             isAnonim: dto.isAnonim ?? false,
             attachments: { create: attachmentData },
+            // Baris pertama riwayat: peristiwa pengirimannya (4 November
+            // 2026). Statusnya `terkirim` meski kolom `status` pengaduannya
+            // sudah `menunggu_verifikasi` sejak detik ini -- keduanya benar,
+            // lihat enum ComplaintStatus.
+            //
+            // DITULIS DI SINI, dalam `create` yang sama, bukan sesudahnya:
+            // penulisan kedua yang gagal akan meninggalkan pengaduan tanpa
+            // riwayat sama sekali, dan tak ada yang dapat merekonstruksinya.
+            // `actorId` sengaja tak diisi: yang mengirim pengaduan adalah
+            // pelapornya, dan baris ini mencatat tindakan SISTEM menerimanya.
+            statusHistory: {
+              create: { status: ComplaintStatus.terkirim, actorId: null },
+            },
           },
           include: { attachments: true },
         });
@@ -709,7 +783,7 @@ export class ComplaintsService {
   }
 
   private toEntity(row: ComplaintWithAttachments, sub: number): ComplaintEntity {
-    const { user, opd, ...rest } = row;
+    const { user, opd, statusHistory, ...rest } = row;
     const entity = new ComplaintEntity({
       ...rest,
       // DEKRIPSI DI SINI, di chokepoint yang komentar berkas ini sendiri sudah
@@ -717,6 +791,11 @@ export class ComplaintsService {
       // yang masih polos dikembalikan apa adanya oleh `dekripsiKolom`, jadi
       // migrasi boleh bertahap dan sistem tak pernah harus berhenti.
       uraian: dekripsiKolom(rest.uraian, this.kunci),
+      // Sepasang dengan enkripsinya di `insertWithUniqueTicket`. `null`
+      // DIPERTAHANKAN sebagai `null` lewat `dekripsiOpsional`: itulah 19
+      // pengaduan yang dibuat sebelum medan ini lahir, dan tampilan
+      // menyembunyikan barisnya alih-alih menggambar tanda hubung.
+      lokasiKejadian: this.dekripsiOpsional(rest.lokasiKejadian) ?? null,
       attachments: this.tandaTanganiLampiran(rest.attachments, sub),
       reporterNama: user?.nama,
       // DIDEKRIPSI DI CHOKEPOINT YANG SAMA dengan `uraian` di atas. `undefined`
@@ -732,6 +811,22 @@ export class ComplaintsService {
       reporterNomorHp: this.dekripsiOpsional(user?.nomorHp),
       reporterAlamat: this.dekripsiOpsional(user?.alamat),
       opdNama: opd?.nama,
+      // `undefined` DIPERTAHANKAN bila kuerinya tak menariknya; array kosong
+      // akan terbaca klien sebagai "tiket ini tak punya riwayat", yang tak
+      // pernah benar.
+      statusHistory: statusHistory?.map(
+        (baris) =>
+          new ComplaintStatusHistoryEntity({
+            id: baris.id,
+            status: baris.status,
+            label: labelStatus(baris.status),
+            // Didekripsi di chokepoint yang SAMA dengan `uraian` di atas.
+            catatan: baris.catatan ? dekripsiKolom(baris.catatan, this.kunci) : null,
+            // `null` = sistem. Lihat entitasnya.
+            actorNama: baris.actor?.nama ?? null,
+            createdAt: baris.createdAt,
+          }),
+      ),
     });
     if (row.isAnonim) {
       delete entity.userId;

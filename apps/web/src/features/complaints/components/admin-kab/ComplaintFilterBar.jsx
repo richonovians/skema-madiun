@@ -5,7 +5,11 @@ import Button from '@/components/ui/Button';
 import { Search, Download, FileText, ChevronDown, Filter } from 'lucide-react';
 import ResetFilterButton from '@/components/ui/ResetFilterButton';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import {
+  COMPLAINT_ALUR_UTAMA,
+  COMPLAINT_STATUS_ALTERNATIF,
+  COMPLAINT_STATUS_LABEL,
+} from '@/utils/enumLabels';
 
 /**
  * Filter "Prioritas" & "Kecamatan" DIHAPUS -- tak ada field ini di backend
@@ -43,12 +47,21 @@ export default function ComplaintFilterBar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  /**
+   * DITURUNKAN dari alur bersama (4 November 2026), bukan diketik satu per
+   * satu: enam status yang dapat menetap, dan status yang kelak ditambahkan
+   * otomatis ikut dapat disaring alih-alih menghilang dari penyaring tanpa
+   * ada yang memerah.
+   *
+   * `Terkirim` dibuang dari daftar meski ada di `COMPLAINT_ALUR_UTAMA`: ia tak
+   * pernah menjadi status berjalan, jadi menyaringnya selalu menghasilkan nol
+   * baris.
+   */
   const statusOptions = [
     { value: '', label: 'Semua Status' },
-    { value: 'Diterima', label: COMPLAINT_STATUS_LABEL.Diterima },
-    { value: 'Diproses', label: 'Diproses' },
-    { value: 'Selesai', label: 'Selesai' },
-    { value: 'Ditolak', label: 'Ditolak' },
+    ...[...COMPLAINT_ALUR_UTAMA, ...COMPLAINT_STATUS_ALTERNATIF]
+      .filter((s) => s !== 'Terkirim')
+      .map((s) => ({ value: s, label: COMPLAINT_STATUS_LABEL[s] ?? s })),
   ];
 
   const handleChange = (key, value) => {

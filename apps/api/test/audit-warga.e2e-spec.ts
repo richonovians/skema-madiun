@@ -120,7 +120,10 @@ describe('Audit log aktivitas warga (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asWarga())
       .field('opdId', opdId)
-      .field('kategori', 'aduan')
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pungli oleh Pak Budi di loket 3')
       .field('uraian', 'Jalan berlubang parah di depan balai desa');
     expect(res.status).toBe(201);
@@ -142,7 +145,7 @@ describe('Audit log aktivitas warga (e2e)', () => {
     expect(detail.judul).toBe(PENANDA_DISUNTING);
     // KONTROL: tanpa ini, redaksi yang menyunting SEGALANYA akan membuat kedua
     // asersi di atas hijau sambil menghancurkan guna audit log.
-    expect(detail.kategori).toBe('aduan');
+    expect(detail.kategori).toBe('kab_infrastruktur');
   });
 
   it('POST /complaints/:id/replies -> tercatat sebagai create complaint_reply', async () => {

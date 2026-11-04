@@ -127,9 +127,9 @@ describe('hitungAnalitikPengaduan', () => {
 
   describe('penyaringan', () => {
     const data = [
-      aduan('Diterima', 0), // Q1
+      aduan('Menunggu Verifikasi', 0), // Q1
       aduan('Selesai', 1), // Q1
-      aduan('Diproses', 4), // Q2
+      aduan('Sedang Ditindaklanjuti', 4), // Q2
       aduan('Selesai', 10, { createdAt: tgl(2025, 10), updatedAt: tgl(2025, 10) }), // Q4 2025
     ];
 
@@ -156,7 +156,7 @@ describe('hitungAnalitikPengaduan', () => {
     });
 
     it('pengaduan tanpa createdAt tak lolos saat ada penyaring, tetapi tetap masuk bila tidak ada', () => {
-      const tanpaTanggal = [aduan('Diterima', 0, { createdAt: null })];
+      const tanpaTanggal = [aduan('Menunggu Verifikasi', 0, { createdAt: null })];
 
       expect(hitung(tanpaTanggal, '2026-Q1').totalComplaints).toBe(0);
       expect(hitung(tanpaTanggal, '').totalComplaints).toBe(1);
@@ -165,7 +165,7 @@ describe('hitungAnalitikPengaduan', () => {
 
   describe('angka resolusi (cermin DashboardService.getOpdDashboard)', () => {
     it('completionRate = selesai / total * 100, 2 desimal', () => {
-      const data = [aduan('Selesai', 0), aduan('Diterima', 0), aduan('Diproses', 0)];
+      const data = [aduan('Selesai', 0), aduan('Menunggu Verifikasi', 0), aduan('Sedang Ditindaklanjuti', 0)];
 
       expect(hitung(data, '2026-Q1').resolutionStats.completionRate).toBe(33.33);
     });
@@ -175,29 +175,35 @@ describe('hitungAnalitikPengaduan', () => {
         aduan('Selesai', 0, { createdAt: tgl(2026, 0, 10, 8), updatedAt: tgl(2026, 0, 10, 10) }), // 2 jam
         aduan('Selesai', 0, { createdAt: tgl(2026, 0, 11, 8), updatedAt: tgl(2026, 0, 11, 12) }), // 4 jam
         // Tak selesai: tak boleh ikut walau rentangnya sangat panjang.
-        aduan('Diproses', 0, { createdAt: tgl(2026, 0, 1, 8), updatedAt: tgl(2026, 0, 28, 8) }),
+        aduan('Sedang Ditindaklanjuti', 0, { createdAt: tgl(2026, 0, 1, 8), updatedAt: tgl(2026, 0, 28, 8) }),
       ];
 
       expect(hitung(data, '2026-Q1').resolutionStats.averageHours).toBe(3);
     });
 
-    it('openTickets = diterima + diproses (selesai & ditolak tak ikut)', () => {
+    it('openTickets = semua yang belum tuntas; hanya selesai & ditolak yang tak ikut', () => {
+      // Keempat status yang belum tuntas DISEBUT SATU PER SATU, bukan diwakili
+      // satu contoh (4 November 2026). Angka ini dihitung dengan membuang dua
+      // status tuntas dari daftar; sebuah status yang keliru ikut terbuang
+      // hanya membuat angkanya lebih kecil, dan tak ada yang memerah kecuali
+      // uji yang memeriksa keempatnya.
       const data = [
-        aduan('Diterima', 0),
-        aduan('Diproses', 0),
-        aduan('Diproses', 1),
+        aduan('Menunggu Verifikasi', 0),
+        aduan('Diverifikasi', 0),
+        aduan('Sedang Ditindaklanjuti', 0),
+        aduan('Perlu Perbaikan', 1),
         aduan('Selesai', 1),
         aduan('Ditolak', 2),
       ];
 
-      expect(hitung(data, '2026-Q1').resolutionStats.openTickets).toBe(3);
+      expect(hitung(data, '2026-Q1').resolutionStats.openTickets).toBe(4);
     });
 
     it('angka resolusi hanya dihitung dari periode terpilih, bukan dari seluruh data', () => {
       // Inilah alasan angkanya tak diambil dari GET /dashboard/opd: endpoint itu
       // menghitung sepanjang masa, dan akan menempelkan angka itu di bawah
       // judul triwulan tertentu.
-      const data = [aduan('Selesai', 0), aduan('Diterima', 4), aduan('Diterima', 5)];
+      const data = [aduan('Selesai', 0), aduan('Menunggu Verifikasi', 4), aduan('Menunggu Verifikasi', 5)];
 
       expect(hitung(data, '2026-Q1').resolutionStats.completionRate).toBe(100);
       expect(hitung(data, '2026-Q2').resolutionStats.completionRate).toBe(0);
@@ -205,20 +211,36 @@ describe('hitungAnalitikPengaduan', () => {
   });
 
   describe('sebaran status', () => {
-    it('selalu keempat status, urut alur penanganan, termasuk yang berjumlah nol', () => {
+    it('selalu keenam status yang dapat menetap, urut alur penanganan, termasuk yang berjumlah nol', () => {
       const hasil = hitung([aduan('Selesai', 0)], '2026-Q1').statusDistribution;
 
-      expect(hasil.map((s) => s.id)).toEqual(['diterima', 'diproses', 'selesai', 'ditolak']);
-      expect(hasil.map((s) => s.count)).toEqual([0, 0, 1, 0]);
+      expect(hasil.map((s) => s.id)).toEqual([
+        'menunggu_verifikasi',
+        'diverifikasi',
+        'sedang_ditindaklanjuti',
+        'perlu_perbaikan',
+        'selesai',
+        'ditolak',
+      ]);
+      expect(hasil.map((s) => s.count)).toEqual([0, 0, 0, 0, 1, 0]);
     });
 
     it('persentase dari total periode, dan semuanya 0 bila periodenya kosong (bukan NaN)', () => {
-      const data = [aduan('Selesai', 0), aduan('Selesai', 0), aduan('Diterima', 0), aduan('Ditolak', 0)];
+      const data = [
+        aduan('Selesai', 0),
+        aduan('Selesai', 0),
+        aduan('Menunggu Verifikasi', 0),
+        aduan('Ditolak', 0),
+      ];
 
+      // Urutannya: menunggu_verifikasi, diverifikasi, sedang_ditindaklanjuti,
+      // perlu_perbaikan, selesai, ditolak.
       expect(hitung(data, '2026-Q1').statusDistribution.map((s) => s.percentage)).toEqual([
-        25, 0, 50, 25,
+        25, 0, 0, 0, 50, 25,
       ]);
-      expect(hitung(data, '2024').statusDistribution.map((s) => s.percentage)).toEqual([0, 0, 0, 0]);
+      expect(hitung(data, '2024').statusDistribution.map((s) => s.percentage)).toEqual([
+        0, 0, 0, 0, 0, 0,
+      ]);
     });
 
     it('tiap butir membawa warna untuk digambar', () => {
@@ -231,10 +253,10 @@ describe('hitungAnalitikPengaduan', () => {
   describe('kategori', () => {
     it('memakai nama dari referensi, terbanyak dulu, dan kode asing jatuh ke kodenya', () => {
       const data = [
-        aduan('Diterima', 0, { kategori: 'lapor' }),
-        aduan('Diterima', 0, { kategori: 'aduan' }),
-        aduan('Diterima', 0, { kategori: 'aduan' }),
-        aduan('Diterima', 0, { kategori: 'tak-dikenal' }),
+        aduan('Menunggu Verifikasi', 0, { kategori: 'lapor' }),
+        aduan('Menunggu Verifikasi', 0, { kategori: 'aduan' }),
+        aduan('Menunggu Verifikasi', 0, { kategori: 'aduan' }),
+        aduan('Menunggu Verifikasi', 0, { kategori: 'tak-dikenal' }),
       ];
 
       expect(hitung(data, '2026-Q1').categories).toEqual([
@@ -247,7 +269,7 @@ describe('hitungAnalitikPengaduan', () => {
 
   describe('volume bulanan', () => {
     it('satu triwulan menggambar ketiga bulannya, termasuk bulan yang kosong', () => {
-      const data = [aduan('Diterima', 3), aduan('Selesai', 3), aduan('Diterima', 5)]; // Apr, Apr, Jun
+      const data = [aduan('Menunggu Verifikasi', 3), aduan('Selesai', 3), aduan('Menunggu Verifikasi', 5)]; // Apr, Apr, Jun
 
       expect(hitung(data, '2026-Q2').volumeMonthly).toEqual([
         { month: 'Apr', received: 2, completed: 1 },
@@ -257,7 +279,7 @@ describe('hitungAnalitikPengaduan', () => {
     });
 
     it('tahun saja menggambar dua belas bulan', () => {
-      const hasil = hitung([aduan('Diterima', 0)], '2026').volumeMonthly;
+      const hasil = hitung([aduan('Menunggu Verifikasi', 0)], '2026').volumeMonthly;
 
       expect(hasil).toHaveLength(12);
       expect(hasil[0]).toEqual({ month: 'Jan', received: 1, completed: 0 });
@@ -266,7 +288,7 @@ describe('hitungAnalitikPengaduan', () => {
 
     it('bulan yang belum tiba tidak digambar sebagai "tak ada yang mengadu"', () => {
       // 7 Oktober 2026: Triwulan IV baru berisi Oktober.
-      const hasil = hitung([aduan('Diterima', 9)], '2026-Q4', {
+      const hasil = hitung([aduan('Menunggu Verifikasi', 9)], '2026-Q4', {
         sekarang: new Date(2026, 9, 7),
       }).volumeMonthly;
 
@@ -274,7 +296,7 @@ describe('hitungAnalitikPengaduan', () => {
     });
 
     it('tanpa penyaring: hanya bulan yang punya data, enam terakhir', () => {
-      const data = [0, 1, 2, 3, 4, 5, 6, 7].map((bulan) => aduan('Diterima', bulan));
+      const data = [0, 1, 2, 3, 4, 5, 6, 7].map((bulan) => aduan('Menunggu Verifikasi', bulan));
 
       const hasil = hitung(data, '').volumeMonthly;
 

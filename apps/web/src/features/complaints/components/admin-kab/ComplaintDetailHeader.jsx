@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, Printer, Download, ChevronDown } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import useKeepInViewport from '@/hooks/useKeepInViewport';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import { COMPLAINT_STATUS_BADGE_VARIANT, COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 import { downloadComplaintPdf } from '@/utils/pdf';
 
 /**
@@ -34,15 +34,13 @@ export default function ComplaintDetailHeader({ complaint, chatHistory = [] }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'Selesai': return 'success';
-      case 'Diproses': return 'warning';
-      case 'Ditolak': return 'danger';
-      case 'Diterima': return 'info';
-      default: return 'default';
-    }
-  };
+  /**
+   * Varian lencana diambil dari peta BERSAMA, bukan `switch` sendiri
+   * (4 November 2026). Salinannya ketinggalan begitu alurnya menjadi tujuh
+   * status: "Sedang Ditindaklanjuti" jatuh ke `default` dan tergambar abu-abu
+   * di sebelah tabel yang menggambarnya kuning.
+   */
+  const getStatusVariant = (status) => COMPLAINT_STATUS_BADGE_VARIANT[status] ?? 'default';
 
   return (
     <div className="flex flex-col gap-4 mb-md">

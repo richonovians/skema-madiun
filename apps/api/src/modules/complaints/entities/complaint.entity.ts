@@ -1,6 +1,8 @@
-import { ComplaintStatus } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
+import { ComplaintStatus, TingkatPengaduan } from '@prisma/client';
 import { BaseEntity } from '../../../common/entities/base.entity';
 import { ComplaintAttachmentEntity } from './complaint-attachment.entity';
+import { ComplaintStatusHistoryEntity } from './complaint-status-history.entity';
 
 export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
   id: number;
@@ -18,9 +20,38 @@ export class ComplaintEntity extends BaseEntity<ComplaintEntity> {
    */
   opdId: number | null;
   kategori: string;
+  /**
+   * Cakupan pengaduan (4 November 2026). Dikirim ke klien supaya daftar &
+   * detail dapat MENAMPILKANNYA -- tingkatnya tak dapat disimpulkan dari OPD
+   * tujuan, sebab pengaduan tanpa tujuan juga punya tingkat.
+   */
+  @ApiProperty({ enum: TingkatPengaduan })
+  tingkat: TingkatPengaduan;
   judul: string;
   uraian: string;
+  /**
+   * Kapan & di mana kejadiannya (4 November 2026). `null` berarti pengaduan
+   * ini dibuat SEBELUM kedua medan ini ada -- bukan "pelapornya mengosongkan",
+   * sebab keduanya wajib di `CreateComplaintDto`. Tampilan menyembunyikan
+   * barisnya alih-alih menggambar tanda hubung.
+   */
+  tanggalKejadian: Date | null;
+  /** Didekripsi di `toEntity`, satu chokepoint dengan `uraian`. */
+  lokasiKejadian: string | null;
   status: ComplaintStatus;
+  /**
+   * Perjalanan tiket ini, terlama dulu (4 November 2026).
+   *
+   * HANYA pada `GET /complaints/:ticketNo`. Daftar pengaduan tak
+   * menggambarnya, dan menariknya per baris berarti satu kueri tambahan untuk
+   * seratus baris demi data yang tak satu pun kolomnya dipakai -- alasan yang
+   * sama dengan `reporterNik` di bawah.
+   *
+   * Baris TERAKHIRNYA tak selalu sama dengan `status` di atas: pengaduan yang
+   * baru masuk hanya punya satu baris, `terkirim`, sementara statusnya sudah
+   * `menunggu_verifikasi`. Keduanya benar; lihat enum `ComplaintStatus`.
+   */
+  statusHistory?: ComplaintStatusHistoryEntity[];
   /**
    * Pengaduan dikirim tanpa identitas. Bukan data identitas, jadi TETAP dikirim
    * ke admin -- justru inilah yang memberi tahu antarmuka untuk menampilkan

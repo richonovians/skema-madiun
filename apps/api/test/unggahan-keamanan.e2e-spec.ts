@@ -84,7 +84,10 @@ describe('Unggahan lampiran: jalur HTTP sungguhan (e2e)', () => {
       .post('/api/v1/complaints')
       .set(sebagaiPelapor())
       .field('opdId', opdId)
-      .field('kategori', 'lapor')
+      .field('kategori', 'kab_transportasi')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', '[UJI unggahan] berlampiran')
       .field('uraian', 'Pengaduan uji untuk jalur unggahan')
       .attach('lampiran', PNG_ASLI, 'foto.png');
@@ -150,7 +153,10 @@ describe('Unggahan lampiran: jalur HTTP sungguhan (e2e)', () => {
       .post('/api/v1/complaints')
       .set(sebagaiPelapor())
       .field('opdId', opdId)
-      .field('kategori', 'lapor')
+      .field('kategori', 'kab_transportasi')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', judul)
       .field('uraian', 'Isi berkas tidak cocok dengan tipe yang dinyatakan')
       .attach('lampiran', Buffer.from('<!doctype html><script>alert(1)</script>'), {

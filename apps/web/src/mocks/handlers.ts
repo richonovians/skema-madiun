@@ -88,6 +88,10 @@ export const opdFixture = (over = {}) => ({
   nama: 'Dinas Kesehatan',
   kode: 'DINKES',
   jenisLayanan: null,
+  // Dihitung backend dari nama (4 November 2026, lihat tingkat-opd.util.ts).
+  // Baku 'kabupaten' karena fixture bakunya "Dinas Kesehatan"; baris kecamatan
+  // di OPD_LIST menimpanya tersurat.
+  tingkat: 'kabupaten',
   penanggungJawab: null,
   isActive: true,
   syncedAt: '2026-08-06T07:27:39.537Z',
@@ -153,16 +157,59 @@ export const complaintFixture = (over = {}) => ({
   ticketNo: 'PGD20260806CDPH',
   userId: 21,
   opdId: 1,
-  kategori: 'aduan',
+  // Taksonomi per tingkat sejak 4 November 2026; 'aduan' sudah tak ada.
+  tingkat: 'kabupaten',
+  kategori: 'kab_transportasi',
   isAnonim: false,
   judul: 'Rambu lalu lintas rusak',
   uraian: 'Rambu di perempatan sudah tidak terbaca sejak bulan lalu.',
-  status: 'diterima',
+  // [REKAM] `tanggalKejadian` dikirim backend sebagai ISO dari kolom DATE,
+  // jadi bagian jamnya SELALU 00:00:00Z -- bukan jam kejadian sungguhan.
+  tanggalKejadian: '2026-08-01T00:00:00.000Z',
+  lokasiKejadian: 'Perempatan Jl. Panglima Sudirman, Mejayan',
+  status: 'menunggu_verifikasi',
   createdAt: '2026-08-06T07:39:57.925Z',
   updatedAt: '2026-08-06T08:16:21.904Z',
   attachments: [],
   ...over,
 });
+
+/**
+ * Riwayat status contoh (4 November 2026). Tiga baris, meniru bentuk yang
+ * benar-benar dikirim backend:
+ *
+ * - baris pertama SELALU `terkirim`, tanpa pelaku (`actorNama: null` =
+ *   sistem) dan tanpa catatan;
+ * - `label` datang JADI dari backend, tidak dirakit klien;
+ * - baris terakhir sepadan dengan `status` pengaduannya, tetapi itu kebetulan
+ *   keadaan ini saja -- pada pengaduan baru ia tidak.
+ */
+export const RIWAYAT_STATUS = [
+  {
+    id: 1,
+    status: 'terkirim',
+    label: 'Terkirim',
+    catatan: null,
+    actorNama: null,
+    createdAt: '2026-11-02T02:15:00.000Z',
+  },
+  {
+    id: 2,
+    status: 'diverifikasi',
+    label: 'Diverifikasi',
+    catatan: 'Pengaduan telah diperiksa dan dinyatakan valid.',
+    actorNama: 'Admin Kabupaten (Contoh)',
+    createdAt: '2026-11-02T06:20:00.000Z',
+  },
+  {
+    id: 3,
+    status: 'sedang_ditindaklanjuti',
+    label: 'Sedang Ditindaklanjuti',
+    catatan: 'Petugas sedang melakukan pemeriksaan di lokasi.',
+    actorNama: 'Admin OPD (Contoh)',
+    createdAt: '2026-11-03T01:30:00.000Z',
+  },
+];
 
 export const notificationFixture = (over = {}) => ({
   id: 17,
@@ -232,6 +279,11 @@ const OPD_LIST = [
   opdFixture(),
   opdFixture({ id: 2, kode: 'DISDIK', nama: 'Dinas Pendidikan', externalId: 'HD-002' }),
   opdFixture({ id: 3, kode: 'DUKCAPIL', nama: 'Dinas Kependudukan dan Pencatatan Sipil', externalId: 'HD-003' }),
+  // Dua baris tingkat KECAMATAN (4 November 2026). Tanpa keduanya, formulir
+  // pengaduan tingkat kecamatan menghadapi daftar tujuan kosong di setiap uji
+  // komponen, dan penyaringan per tingkat tak dapat dibuktikan bekerja.
+  opdFixture({ id: 4, kode: 'KECGEGER', nama: 'Kecamatan Geger', externalId: 'HD-004', tingkat: 'kecamatan' }),
+  opdFixture({ id: 5, kode: 'KELKRAJAN', nama: 'Kelurahan Krajan', externalId: 'HD-005', tingkat: 'kecamatan' }),
 ];
 
 const SURVEY_LIST = [
@@ -652,13 +704,23 @@ export const handlers = [
     return paginated(filtered, '/complaints', { total: filtered.length });
   }),
 
+  // [REKAM] `statusHistory` HANYA di jalur detail ini (4 November 2026);
+  // `GET /complaints` sengaja tak menariknya. Tiruan yang mengirimkannya di
+  // kedua tempat akan menyembunyikan komponen daftar yang keliru membacanya.
   http.get(`${API_BASE}/complaints/:id`, ({ params }) =>
-    ok(complaintFixture({ ticketNo: String(params.id) }), `/complaints/${params.id}`),
+    ok(
+      complaintFixture({
+        ticketNo: String(params.id),
+        status: 'sedang_ditindaklanjuti',
+        statusHistory: RIWAYAT_STATUS,
+      }),
+      `/complaints/${params.id}`,
+    ),
   ),
 
   http.post(`${API_BASE}/complaints`, async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as JsonBody;
-    return created(complaintFixture({ id: 99, ...body, status: 'diterima' }), '/complaints');
+    return created(complaintFixture({ id: 99, ...body, status: 'menunggu_verifikasi' }), '/complaints');
   }),
 
   // Teruskan pengaduan belum bertujuan ke OPD berwenang (6 September 2026).
@@ -705,16 +767,30 @@ export const handlers = [
   // [REKAM] ketiganya array objek { kode, nama } / { kode, teks }.
   http.get(`${API_BASE}/ref/unsur`, () => ok(UNSUR, '/ref/unsur')),
 
-  http.get(`${API_BASE}/ref/complaint-categories`, () =>
-    ok(
-      [
-        { kode: 'aduan', nama: 'Aduan' },
-        { kode: 'lapor', nama: 'Lapor' },
-        { kode: 'lainnya', nama: 'Lainnya' },
-      ],
+  // [REKAM] Sejak 4 November 2026 setiap kategori membawa `tingkat`, dan
+  // endpointnya menerima kueri `?tingkat=`. Tiruan ini MENGHORMATI kuerinya --
+  // mengembalikan daftar penuh apa pun yang diminta akan menyembunyikan
+  // pemanggil yang mengira ia tersaring di server.
+  //
+  // Hanya SEBAGIAN dari 29 kategori sungguhan: cukup untuk membuktikan
+  // penyaringan per tingkat & urutan "Lainnya" paling akhir, tanpa menyalin
+  // tabel yang kebenarannya ada di reference.constants.ts.
+  http.get(`${API_BASE}/ref/complaint-categories`, ({ request }) => {
+    const tingkat = new URL(request.url).searchParams.get('tingkat');
+    const semua = [
+      { kode: 'kec_administrasi', nama: 'Pelayanan Administrasi Kecamatan', tingkat: 'kecamatan' },
+      { kode: 'kec_aparatur', nama: 'Kinerja & Perilaku Aparatur Kecamatan', tingkat: 'kecamatan' },
+      { kode: 'kec_lainnya', nama: 'Lainnya', tingkat: 'kecamatan' },
+      { kode: 'kab_kependudukan', nama: 'Kependudukan & Pencatatan Sipil', tingkat: 'kabupaten' },
+      { kode: 'kab_kesehatan', nama: 'Kesehatan', tingkat: 'kabupaten' },
+      { kode: 'kab_lainnya', nama: 'Lainnya', tingkat: 'kabupaten' },
+    ];
+
+    return ok(
+      tingkat ? semua.filter((k) => k.tingkat === tingkat) : semua,
       '/ref/complaint-categories',
-    ),
-  ),
+    );
+  }),
 
   // Handler `/ref/complaint-sub-categories` DIBUANG 4 September 2026 bersama
   // taksonomi sub-kategori: endpointnya sudah tak ada di backend, dan mock yang
@@ -788,8 +864,8 @@ export const handlers = [
           { periode: '2026-11', value: 0 },
         ],
         complaintStatus: [
-          { status: 'diterima', count: 6 },
-          { status: 'diproses', count: 10 },
+          { status: 'menunggu_verifikasi', count: 6 },
+          { status: 'sedang_ditindaklanjuti', count: 10 },
           { status: 'selesai', count: 16 },
           { status: 'ditolak', count: 2 },
         ],

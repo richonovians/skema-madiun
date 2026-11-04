@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
-import { ComplaintStatus, Prisma, Role } from '@prisma/client';
+import { ComplaintStatus, Prisma, Role, TingkatPengaduan } from '@prisma/client';
+import type { CreateComplaintDto } from './dto/create-complaint.dto';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BATAS_HARIAN_PENGADUAN_BAKU } from './complaints.constants';
@@ -47,15 +48,39 @@ const kabupatenUserLain = (): CurrentUser => ({
   opdId: null,
 });
 
+/**
+ * `CreateComplaintDto` yang sah & lengkap (4 November 2026).
+ *
+ * DITAMBAHKAN saat `tingkat`, `tanggalKejadian`, dan `lokasiKejadian` menjadi
+ * wajib. Sebelumnya setiap uji `create` mengetik objeknya sendiri, dan setiap
+ * medan wajib baru berarti empat belas suntingan yang mudah terlewat satu.
+ */
+const dtoPengaduan = (over: Partial<CreateComplaintDto> = {}): CreateComplaintDto => ({
+  opdId: 5,
+  tingkat: TingkatPengaduan.kabupaten,
+  kategori: 'kab_lainnya',
+  judul: 'X',
+  uraian: 'Y',
+  // TANGGAL TETAP, bukan `new Date()`: `parseTanggalKejadian` menolak tanggal
+  // di masa depan, dan tanggal yang ikut berjalan membuat uji ini bergantung
+  // pada jam mesin yang menjalankannya.
+  tanggalKejadian: '2026-11-01',
+  lokasiKejadian: 'Jl. Raya Caruban No. 1',
+  ...over,
+});
+
 const complaintRow = (over: Record<string, unknown> = {}) => ({
   id: 1,
   ticketNo: 'PGD20260729ABCD',
   userId: 10,
   opdId: 5,
-  kategori: 'aduan',
+  tingkat: TingkatPengaduan.kabupaten,
+  kategori: 'kab_lainnya',
   judul: 'Jalan rusak',
   uraian: 'Jalan berlubang di depan kantor desa',
-  status: ComplaintStatus.diterima,
+  tanggalKejadian: new Date('2026-11-01T00:00:00.000Z'),
+  lokasiKejadian: 'Jl. Raya Caruban No. 1',
+  status: ComplaintStatus.menunggu_verifikasi,
   createdAt: new Date(),
   updatedAt: new Date(),
   attachments: [],
@@ -85,6 +110,7 @@ describe('ComplaintsService', () => {
       update: jest.fn(),
     },
     complaintReply: { create: jest.fn(), findMany: jest.fn() },
+    complaintStatusHistory: { create: jest.fn() },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
   /**
@@ -176,47 +202,35 @@ describe('ComplaintsService', () => {
     it('OPD tujuan tidak ada → BadRequest', async () => {
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue(null);
       await expect(
-        service.create(
-          { opdId: 99, kategori: 'lainnya', judul: 'X', uraian: 'Y' },
-          undefined,
-          respondenUser(),
-        ),
+        service.create(dtoPengaduan({ opdId: 99 }), undefined, respondenUser()),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('lebih dari 5 lampiran → BadRequest', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       const files = Array.from({ length: 6 }, () => ({
         mimetype: 'image/png',
         size: 100,
         originalname: 'a.png',
         buffer: Buffer.from(''),
       })) as unknown as Express.Multer.File[];
-      await expect(
-        service.create(
-          { opdId: 5, kategori: 'lainnya', judul: 'X', uraian: 'Y' },
-          files,
-          respondenUser(),
-        ),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create(dtoPengaduan(), files, respondenUser())).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('tipe berkas tidak diizinkan → BadRequest', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       const files = [
         { mimetype: 'application/zip', size: 100, originalname: 'a.zip', buffer: Buffer.from('') },
       ] as unknown as Express.Multer.File[];
-      await expect(
-        service.create(
-          { opdId: 5, kategori: 'lainnya', judul: 'X', uraian: 'Y' },
-          files,
-          respondenUser(),
-        ),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create(dtoPengaduan(), files, respondenUser())).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('ukuran berkas > 5MB → BadRequest', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       const files = [
         {
           mimetype: 'image/png',
@@ -228,21 +242,17 @@ describe('ComplaintsService', () => {
           buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
         },
       ] as unknown as Express.Multer.File[];
-      await expect(
-        service.create(
-          { opdId: 5, kategori: 'lainnya', judul: 'X', uraian: 'Y' },
-          files,
-          respondenUser(),
-        ),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create(dtoPengaduan(), files, respondenUser())).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('sukses tanpa lampiran → ticketNo berformat PGD{tanggal}{acak}', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
 
       const result = await service.create(
-        { opdId: 5, kategori: 'aduan', judul: 'Jalan rusak', uraian: 'Uraian' },
+        dtoPengaduan({ judul: 'Jalan rusak', uraian: 'Uraian' }),
         undefined,
         respondenUser(),
       );
@@ -256,30 +266,22 @@ describe('ComplaintsService', () => {
     });
 
     it('tabrakan nomor tiket (P2002) → retry lalu sukses', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock)
         .mockRejectedValueOnce(p2002())
         .mockResolvedValueOnce(complaintRow());
 
-      const result = await service.create(
-        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
-        undefined,
-        respondenUser(),
-      );
+      const result = await service.create(dtoPengaduan(), undefined, respondenUser());
 
       expect(result.id).toBe(1);
       expect(prisma.complaint.create).toHaveBeenCalledTimes(2);
     });
 
     it('menyimpan isAnonim=true ke kolomnya', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow({ isAnonim: true }));
 
-      await service.create(
-        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y', isAnonim: true },
-        undefined,
-        respondenUser(),
-      );
+      await service.create(dtoPengaduan({ isAnonim: true }), undefined, respondenUser());
 
       expect(prisma.complaint.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ isAnonim: true }) }),
@@ -287,14 +289,10 @@ describe('ComplaintsService', () => {
     });
 
     it('tanpa flag -> tersimpan false, bukan undefined', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
 
-      await service.create(
-        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
-        undefined,
-        respondenUser(),
-      );
+      await service.create(dtoPengaduan(), undefined, respondenUser());
 
       expect(prisma.complaint.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ isAnonim: false }) }),
@@ -302,14 +300,10 @@ describe('ComplaintsService', () => {
     });
 
     it('tidak lagi mengirim kolom subKategori ke Prisma', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
 
-      await service.create(
-        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
-        undefined,
-        respondenUser(),
-      );
+      await service.create(dtoPengaduan(), undefined, respondenUser());
 
       expect(prisma.complaint.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -319,16 +313,12 @@ describe('ComplaintsService', () => {
     });
 
     it('tabrakan nomor tiket terus-menerus → Conflict setelah 5 percobaan', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock).mockRejectedValue(p2002());
 
-      await expect(
-        service.create(
-          { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
-          undefined,
-          respondenUser(),
-        ),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.create(dtoPengaduan(), undefined, respondenUser())).rejects.toThrow(
+        ConflictException,
+      );
       expect(prisma.complaint.create).toHaveBeenCalledTimes(5);
     });
   });
@@ -457,6 +447,13 @@ describe('ComplaintsService', () => {
             // "identitas pelapor pada detail" di bawah.
             user: { select: { nama: true, nik: true, nomorHp: true, alamat: true } },
             opd: { select: { nama: true } },
+            // Riwayat status ikut sejak 4 November 2026 -- juga HANYA di
+            // jalur detail ini; lihat uji `findAll` di atas yang menjaga ia
+            // tak ikut tertarik per baris daftar.
+            statusHistory: {
+              include: { actor: { select: { nama: true } } },
+              orderBy: { createdAt: 'asc' },
+            },
           },
         }),
       );
@@ -465,50 +462,151 @@ describe('ComplaintsService', () => {
       expect((result as unknown as { user?: unknown }).user).toBeUndefined();
       expect((result as unknown as { opd?: unknown }).opd).toBeUndefined();
     });
+
+    it('memetakan riwayat status beserta labelnya, dan mendekripsi catatannya', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({
+          status: ComplaintStatus.sedang_ditindaklanjuti,
+          statusHistory: [
+            {
+              id: 1,
+              status: ComplaintStatus.terkirim,
+              catatan: null,
+              actor: null,
+              createdAt: new Date('2026-11-02T02:15:00.000Z'),
+            },
+            {
+              id: 2,
+              status: ComplaintStatus.diverifikasi,
+              catatan: enkripsiKolom('Berkas lengkap dan sesuai', KUNCI_UJI_KOLOM),
+              actor: { nama: 'Admin OPD (Contoh)' },
+              createdAt: new Date('2026-11-02T06:20:00.000Z'),
+            },
+          ],
+        }),
+      );
+
+      const result = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(result.statusHistory).toHaveLength(2);
+      // Label dikirim JADI: riwayat dapat memuat status yang kelak ditambahkan
+      // backend lebih dulu, dan baris tanpa label merusak urutan ceritanya.
+      expect(result.statusHistory?.[0]).toMatchObject({
+        status: ComplaintStatus.terkirim,
+        label: 'Terkirim',
+        catatan: null,
+        // `null` berarti SISTEM, bukan "tak diketahui" -- tampilan menulis
+        // "Otomatis" karenanya.
+        actorNama: null,
+      });
+      expect(result.statusHistory?.[1]).toMatchObject({
+        label: 'Diverifikasi',
+        catatan: 'Berkas lengkap dan sesuai',
+        actorNama: 'Admin OPD (Contoh)',
+      });
+    });
+
+    it('riwayat yang tak ditarik kueri tetap undefined, bukan array kosong', async () => {
+      // Array kosong terbaca klien sebagai "tiket ini tak punya riwayat", dan
+      // itu tak pernah benar sejak baris `terkirim` lahir bersama barisnya.
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+
+      const result = await service.findByTicketNo('PGDX', kabupatenUser());
+
+      expect(result.statusHistory).toBeUndefined();
+    });
   });
 
   describe('updateStatus', () => {
-    it('transisi tidak diizinkan (selesai → diproses) → BadRequest', async () => {
+    it('transisi tidak diizinkan (selesai → sedang_ditindaklanjuti) → BadRequest', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
         complaintRow({ status: ComplaintStatus.selesai }),
       );
       await expect(
-        service.updateStatus(1, { status: ComplaintStatus.diproses }, opdUser(5)),
+        service.updateStatus(1, { status: ComplaintStatus.sedang_ditindaklanjuti }, opdUser(5)),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('ditolak tanpa catatan → BadRequest', async () => {
+    it('melompati tahap (menunggu_verifikasi → selesai) → BadRequest', async () => {
+      // Alur baru punya lima tahap (4 November 2026), dan lompatan inilah yang
+      // paling mungkin terjadi tanpa sengaja: tombol "Selesai" yang muncul
+      // terlalu awal akan menamatkan tiket yang belum pernah diverifikasi
+      // maupun ditindaklanjuti, dan riwayatnya kehilangan dua baris selamanya.
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
       await expect(
-        service.updateStatus(1, { status: ComplaintStatus.ditolak }, opdUser(5)),
+        service.updateStatus(1, { status: ComplaintStatus.selesai }, opdUser(5)),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('tak ada status yang boleh kembali ke terkirim', async () => {
+      // `terkirim` hanya baris pertama riwayat, bukan status berjalan. Tanpa
+      // penjaga ini sebuah tiket dapat dikembalikan ke keadaan yang tak punya
+      // jalan keluar sama sekali.
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+      await expect(
+        service.updateStatus(1, { status: ComplaintStatus.terkirim }, opdUser(5)),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it.each([ComplaintStatus.ditolak, ComplaintStatus.perlu_perbaikan])(
+      '%s tanpa catatan → BadRequest',
+      async (status) => {
+        // Keduanya menyuruh pelapor berhenti berharap atau melakukan sesuatu;
+        // tanpa kalimat penjelas ia tak tahu apa yang salah maupun apa yang
+        // kurang. `perlu_perbaikan` ikut sejak 4 November 2026.
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+        await expect(service.updateStatus(1, { status }, opdUser(5))).rejects.toThrow(
+          BadRequestException,
+        );
+      },
+    );
 
     it('Admin OPD lain → Forbidden', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ opdId: 5 }));
       await expect(
-        service.updateStatus(1, { status: ComplaintStatus.diproses }, opdUser(99)),
+        service.updateStatus(1, { status: ComplaintStatus.diverifikasi }, opdUser(99)),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('diterima → diproses (tanpa catatan) sukses, tidak membuat reply', async () => {
+    it('menunggu_verifikasi → diverifikasi (tanpa catatan) sukses', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
       (prisma.$transaction as jest.Mock).mockResolvedValue([
-        complaintRow({ status: ComplaintStatus.diproses }),
+        complaintRow({ status: ComplaintStatus.diverifikasi }),
+        { id: 1 },
       ]);
 
       const result = await service.updateStatus(
         1,
-        { status: ComplaintStatus.diproses },
+        { status: ComplaintStatus.diverifikasi },
         opdUser(5),
       );
 
-      expect(result.status).toBe(ComplaintStatus.diproses);
+      expect(result.status).toBe(ComplaintStatus.diverifikasi);
     });
 
-    it('diproses → ditolak dengan catatan → transaksi menyertakan pembuatan reply', async () => {
+    it('perlu_perbaikan dapat dikembalikan ke menunggu_verifikasi', async () => {
+      // Keputusan pengguna 4 November 2026: "Perlu Perbaikan" bukan status
+      // akhir. Admin yang mengembalikannya, bukan balasan pelapornya sendiri.
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
-        complaintRow({ status: ComplaintStatus.diproses }),
+        complaintRow({ status: ComplaintStatus.perlu_perbaikan }),
+      );
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        complaintRow({ status: ComplaintStatus.menunggu_verifikasi }),
+        { id: 1 },
+      ]);
+
+      const result = await service.updateStatus(
+        1,
+        { status: ComplaintStatus.menunggu_verifikasi },
+        opdUser(5),
+      );
+
+      expect(result.status).toBe(ComplaintStatus.menunggu_verifikasi);
+    });
+
+    it('catatan tersimpan TERENKRIPSI pada baris riwayat, bukan sebagai balasan percakapan', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(
+        complaintRow({ status: ComplaintStatus.sedang_ditindaklanjuti }),
       );
       (prisma.$transaction as jest.Mock).mockResolvedValue([
         complaintRow({ status: ComplaintStatus.ditolak }),
@@ -524,34 +622,58 @@ describe('ComplaintsService', () => {
       expect(prisma.complaint.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { status: ComplaintStatus.ditolak } }),
       );
-      expect(prisma.complaintReply.create).toHaveBeenCalledWith({
+      expect(prisma.complaintStatusHistory.create).toHaveBeenCalledWith({
         data: {
           complaintId: 1,
-          authorId: 1,
-          // TERENKRIPSI, bukan teks polos (23 September 2026). Catatan penolakan
-          // adalah tulisan bebas petugas tentang kasus seorang warga, disimpan
-          // di kolom yang sama dengan pesan percakapan, jadi ia diperlakukan
-          // sama. Nilainya tak dapat ditulis sebagai harapan tetap di sini:
-          // garam dan iv acak membuatnya berbeda setiap kali.
-          pesan: expect.stringMatching(/^enc:v1:/) as unknown as string,
-          dariPelapor: false,
+          status: ComplaintStatus.ditolak,
+          // TERENKRIPSI, bukan teks polos (23 September 2026, dipindahkan ke
+          // riwayat 4 November 2026). Nilainya tak dapat ditulis sebagai
+          // harapan tetap: garam dan iv acak membuatnya berbeda setiap kali.
+          catatan: expect.stringMatching(/^enc:v1:/) as unknown as string,
+          actorId: 1,
         },
       });
 
       // Dan ia harus dapat DIBUKA KEMBALI. Tanpa asersi ini, uji di atas akan
       // tetap hijau seandainya kode menulis blob yang tak berarti apa-apa.
-      const ditulis = (prisma.complaintReply.create as jest.Mock).mock.calls[0][0] as {
-        data: { pesan: string };
+      const ditulis = (prisma.complaintStatusHistory.create as jest.Mock).mock.calls[0][0] as {
+        data: { catatan: string };
       };
-      expect(dekripsiKolom(ditulis.data.pesan, KUNCI_UJI_KOLOM)).toBe('Bukan wewenang OPD ini');
+      expect(dekripsiKolom(ditulis.data.catatan, KUNCI_UJI_KOLOM)).toBe('Bukan wewenang OPD ini');
+
+      // PASANGANNYA, dan inilah yang menjaga perubahan 4 November 2026: sampai
+      // hari itu catatan yang sama DISALIN menjadi sebuah balasan percakapan,
+      // sehingga halaman detail menampilkan kalimatnya dua kali.
+      expect(prisma.complaintReply.create).not.toHaveBeenCalled();
+    });
+
+    it('perpindahan tanpa catatan tetap menulis baris riwayat, dengan catatan null', async () => {
+      // Riwayat yang hanya terisi saat ada catatan akan melubangi linimasa
+      // justru pada tahap-tahap yang paling lazim dilalui.
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        complaintRow({ status: ComplaintStatus.diverifikasi }),
+        { id: 1 },
+      ]);
+
+      await service.updateStatus(1, { status: ComplaintStatus.diverifikasi }, opdUser(5));
+
+      expect(prisma.complaintStatusHistory.create).toHaveBeenCalledWith({
+        data: {
+          complaintId: 1,
+          status: ComplaintStatus.diverifikasi,
+          catatan: null,
+          actorId: 1,
+        },
+      });
     });
 
     it('(D9) sukses -> memicu notifyComplaintStatusChanged dgn baris terbaru', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
-      const updatedRow = complaintRow({ status: ComplaintStatus.diproses });
-      (prisma.$transaction as jest.Mock).mockResolvedValue([updatedRow]);
+      const updatedRow = complaintRow({ status: ComplaintStatus.diverifikasi });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([updatedRow, { id: 1 }]);
 
-      await service.updateStatus(1, { status: ComplaintStatus.diproses }, opdUser(5));
+      await service.updateStatus(1, { status: ComplaintStatus.diverifikasi }, opdUser(5));
 
       expect(notificationsService.notifyComplaintStatusChanged).toHaveBeenCalledWith(updatedRow, 1);
     });
@@ -806,7 +928,7 @@ describe('ComplaintsService', () => {
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow({ opdId: null }));
 
       const hasil = await service.create(
-        { kategori: 'lainnya', judul: 'Tak tahu ke mana', uraian: 'Uraian' },
+        dtoPengaduan({ opdId: undefined, judul: 'Tak tahu ke mana', uraian: 'Uraian' }),
         undefined,
         respondenUser(),
       );
@@ -821,14 +943,10 @@ describe('ComplaintsService', () => {
     });
 
     it('KONTROL: create DENGAN opdId tetap memeriksa OPD-nya', async () => {
-      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5 });
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
       (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
 
-      await service.create(
-        { opdId: 5, kategori: 'aduan', judul: 'X', uraian: 'Y' },
-        undefined,
-        respondenUser(),
-      );
+      await service.create(dtoPengaduan(), undefined, respondenUser());
 
       expect(prisma.opd.findUnique).toHaveBeenCalled();
     });
@@ -839,7 +957,7 @@ describe('ComplaintsService', () => {
       // Peran berhak penuh sekalipun ditolak: status adalah pekerjaan OPD
       // tujuan, dan belum ada OPD yang bertanggung jawab atas tiket ini.
       await expect(
-        service.updateStatus(1, { status: ComplaintStatus.diproses }, kabupatenUser()),
+        service.updateStatus(1, { status: ComplaintStatus.diverifikasi }, kabupatenUser()),
       ).rejects.toThrow(BadRequestException);
     });
 

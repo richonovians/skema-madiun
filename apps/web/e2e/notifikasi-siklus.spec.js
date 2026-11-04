@@ -196,7 +196,10 @@ test.describe('BUG-018 — meneruskan pengaduan menyiarkan ulang "Pengaduan Baru
       uraian:
         'Dibuat otomatis oleh pagar regresi BUG-018. Sengaja TANPA memilih OPD, ' +
         'supaya dapat diteruskan Admin Kabupaten pada langkah berikutnya.',
-      kategori: 'aduan',
+      tingkat: 'kabupaten',
+      kategori: 'kab_lainnya',
+      tanggalKejadian: '2026-11-01',
+      lokasiKejadian: 'Balai Desa Bangunsari',
     });
     tiket = pengaduan.ticketNo;
     pengaduanId = pengaduan.id;

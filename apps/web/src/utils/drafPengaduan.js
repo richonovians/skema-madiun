@@ -13,7 +13,16 @@ const KUNCI = 'skema:draf-pengaduan';
  * Layarnya karena itu WAJIB mengatakan bahwa lampirannya perlu dipilih ulang;
  * kehilangan yang diberitahukan jauh lebih baik daripada yang diam-diam.
  */
-const MEDAN = ['department', 'category', 'title', 'description', 'isAnonim'];
+const MEDAN = [
+  'level',
+  'department',
+  'category',
+  'title',
+  'description',
+  'incidentDate',
+  'incidentLocation',
+  'isAnonim',
+];
 
 /**
  * Draf pengaduan yang tertahan karena persetujuan PDP belum diberikan

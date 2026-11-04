@@ -6,13 +6,17 @@ import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListNotificationQueryDto } from './dto/list-notification-query.dto';
 import { NotificationEntity } from './entities/notification.entity';
+import { labelStatus } from '../complaints/alur-status.util';
 
-const STATUS_LABEL: Record<string, string> = {
-  diterima: 'Diterima',
-  diproses: 'Diproses',
-  selesai: 'Selesai',
-  ditolak: 'Ditolak',
-};
+/**
+ * Peta label SENDIRI di sini dibuang 4 November 2026 dan diganti
+ * `labelStatus()` dari `complaints/alur-status.util.ts`.
+ *
+ * Salinannya sempat benar dan tetap berbahaya: alur baru punya tujuh status,
+ * dan satu yang lupa ditambahkan di sini tidak membuat apa pun memerah -- ia
+ * hanya menerbitkan notifikasi berbunyi 'Pengaduan PGD... kini berstatus
+ * "sedang_ditindaklanjuti"' kepada warga.
+ */
 
 /**
  * Notifikasi in-app (D9, 2026-08-05, cakupan disepakati user): awalnya HANYA
@@ -148,7 +152,7 @@ export class NotificationsService {
 
   /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik) + kabupaten (oversight). */
   async notifyComplaintStatusChanged(complaint: Complaint, actorUserId: number): Promise<void> {
-    const label = STATUS_LABEL[complaint.status] ?? complaint.status;
+    const label = labelStatus(complaint.status);
     await this.safeCreate({
       userId: complaint.userId,
       untukPeran: Role.responden,

@@ -76,7 +76,10 @@ describe('Kode CONSENT_REQUIRED sampai ke klien (e2e)', () => {
       .post('/api/v1/complaints')
       .set(devHeaders({ role: Role.responden, userId }))
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan tanpa persetujuan PDP')
       .field('uraian', 'Uraian pengaduan untuk menguji penolakan persetujuan');
 

@@ -1,3 +1,4 @@
+import { STATUS_BELUM_TUNTAS } from '../complaints/alur-status.util';
 import {
   Inject,
   Injectable,
@@ -5,7 +6,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ComplaintStatus, Prisma, Role, SurveyStatus } from '@prisma/client';
+import { Prisma, Role, SurveyStatus } from '@prisma/client';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { lolosPolaLike } from '../../prisma/pola-like';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -15,6 +16,7 @@ import { OpdSyncReport } from './entities/opd-sync-report.entity';
 import { HelpdeskOpd, OpdSource } from './interfaces/opd-source.interface';
 import { OPD_SOURCE } from './opd.constants';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
+import { tingkatOpd } from './tingkat-opd.util';
 
 @Injectable()
 export class OpdService {
@@ -60,6 +62,7 @@ export class OpdService {
       (row) =>
         new OpdEntity({
           ...row,
+          tingkat: tingkatOpd(row.nama),
           activeSurveys: activeSurveysByOpd.get(row.id) ?? 0,
           openComplaints: openComplaintsByOpd.get(row.id) ?? 0,
           adminCount: adminsByOpd.get(row.id) ?? 0,
@@ -153,7 +156,7 @@ export class OpdService {
         by: ['opdId'],
         where: {
           opdId: { in: opdIds },
-          status: { in: [ComplaintStatus.diterima, ComplaintStatus.diproses] },
+          status: { in: [...STATUS_BELUM_TUNTAS] },
         },
         _count: { _all: true },
       }),
@@ -199,7 +202,7 @@ export class OpdService {
     if (!opd) {
       throw new NotFoundException(`OPD dengan id ${id} tidak ditemukan`);
     }
-    return new OpdEntity(opd);
+    return new OpdEntity({ ...opd, tingkat: tingkatOpd(opd.nama) });
   }
 
   /**

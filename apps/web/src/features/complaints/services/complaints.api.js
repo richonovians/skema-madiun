@@ -9,7 +9,7 @@ import {
 /**
  * Ajukan pengaduan baru (Responden). Multipart -- lampiran field `lampiran`,
  * maks 5 berkas (JPEG/PNG/WEBP/PDF, maks 5MB masing-masing, ditegakkan backend).
- * @param {{opdId: number|string, kategori: string, title: string, description: string, isAnonim?: boolean}} payload bentuk form (lihat CreateComplaintForm.jsx)
+ * @param {{opdId: number|string, tingkat: 'kabupaten'|'kecamatan', kategori: string, title: string, description: string, incidentDate: string, incidentLocation: string, isAnonim?: boolean}} payload bentuk form (lihat CreateComplaintForm.jsx)
  * @param {File[]} [files]
  */
 export async function createComplaint(payload, files = []) {
@@ -22,7 +22,10 @@ export async function createComplaint(payload, files = []) {
   if (dto.opdId != null) {
     formData.append('opdId', String(dto.opdId));
   }
+  formData.append('tingkat', dto.tingkat);
   formData.append('kategori', dto.kategori);
+  formData.append('tanggalKejadian', dto.tanggalKejadian);
+  formData.append('lokasiKejadian', dto.lokasiKejadian);
   // Hanya dikirim bila benar-benar anonim -- backend sudah berbaku `false`.
   if (dto.isAnonim) {
     formData.append('isAnonim', 'true');

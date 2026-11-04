@@ -99,7 +99,7 @@ describe('Notifications (e2e)', () => {
         ticketNo: 'PGDE2ENOTIF01',
         userId: respondenId,
         opdId,
-        kategori: 'lainnya',
+        kategori: 'kab_lainnya',
         judul: 'Pengaduan E2E Notifikasi',
         uraian: 'Uraian pengaduan e2e notifikasi',
       },
@@ -150,7 +150,7 @@ describe('Notifications (e2e)', () => {
     const patchRes = await request(app.getHttpServer())
       .patch(`/api/v1/complaints/${complaintId}/status`)
       .set(asOpd())
-      .send({ status: 'diproses' });
+      .send({ status: 'diverifikasi' });
     expect(patchRes.status).toBe(200);
 
     const res = await request(app.getHttpServer()).get('/api/v1/notifications').set(asResponden());
@@ -161,7 +161,9 @@ describe('Notifications (e2e)', () => {
     );
     expect(notif).toBeDefined();
     expect(notif.message).toContain(ticketNo);
-    expect(notif.message).toContain('Diproses');
+    // Label yang dibaca orang, bukan kode enumnya: pesan yang berbunyi
+    // 'kini berstatus "diverifikasi"' sampai ke warga apa adanya.
+    expect(notif.message).toContain('Diverifikasi');
     expect(notif.link).toBe(`/complaints/${ticketNo}`);
     expect(notif.isRead).toBe(false);
   });
@@ -220,7 +222,10 @@ describe('Notifications (e2e)', () => {
       .post('/api/v1/complaints')
       .set(asResponden())
       .field('opdId', opdId)
-      .field('kategori', 'lainnya')
+      .field('kategori', 'kab_lainnya')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
       .field('judul', 'Pengaduan baru utk uji notifikasi')
       .field('uraian', 'Uraian pengaduan baru');
     expect(createRes.status).toBe(201);
@@ -433,7 +438,10 @@ describe('Notifications (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/complaints')
         .set(asResponden())
-        .field('kategori', 'lainnya')
+        .field('kategori', 'kab_lainnya')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Pengaduan tanpa tujuan utk BUG-018')
         .field('uraian', 'Pelapor tak tahu harus ditujukan ke mana');
 

@@ -4,10 +4,13 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import ComplaintReporterProfile from '@/features/complaints/components/ComplaintReporterProfile';
-import ComplaintStatusControl from '@/features/complaints/components/ComplaintStatusControl';
+import ComplaintStatusControl, {
+  STATUS_WAJIB_CATATAN,
+} from '@/features/complaints/components/ComplaintStatusControl';
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
 import ComplaintAttachments from '@/features/complaints/components/ComplaintAttachments';
 import ComplaintProgressStepper from '@/features/complaints/components/ComplaintProgressStepper';
+import ComplaintStatusTimeline from '@/features/complaints/components/ComplaintStatusTimeline';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import ComplaintExportMenu from '@/features/complaints/components/ComplaintExportMenu';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
@@ -102,12 +105,13 @@ export default function AdminComplaintDetailPage() {
     if (!data) return;
     setActionError(null);
 
-    // Backend hanya izinkan Diproses -> Selesai (ALLOWED_TRANSITIONS) -- kalau
-    // tiket masih Diterima, tolak di sini dgn pesan jelas dulu ke pengguna,
-    // bukan biarkan gagal 400 mentah (pola sama assertDraftOrThrow, INT-19).
-    if (data.complaint.status !== 'Diproses') {
+    // Backend hanya izinkan Sedang Ditindaklanjuti -> Selesai (TRANSISI_DIIZINKAN,
+    // alur lima tahap 4 November 2026) -- kalau tiket belum sampai di sana,
+    // tolak di sini dgn pesan jelas dulu ke pengguna, bukan biarkan gagal 400
+    // mentah (pola sama assertDraftOrThrow, INT-19).
+    if (data.complaint.status !== 'Sedang Ditindaklanjuti') {
       setActionError(
-        'Tiket harus berstatus "Diproses" sebelum bisa ditutup. Ubah status terlebih dahulu.',
+        'Tiket harus berstatus "Sedang Ditindaklanjuti" sebelum bisa ditutup. Ubah status terlebih dahulu.',
       );
       return;
     }
@@ -188,11 +192,14 @@ export default function AdminComplaintDetailPage() {
                   22 September 2026 atas permintaan pengguna, pada urutan yang
                   sama dengan halaman Admin Kabupaten.
 
-                  Statusnya diterjemahkan lebih dulu: kartu ini membandingkan
-                  dengan nilai backend huruf kecil, sementara halaman ini
-                  memegang label tampilan. */}
+                  Statusnya TIDAK lagi diterjemahkan lebih dulu (4 November
+                  2026). Sampai alur lima tahap, kartu ini membandingkan dengan
+                  nilai backend huruf kecil; sekarang ia mencocokkan nama tahap
+                  yang dibaca orang, dan `toBackendComplaintStatus` di sini
+                  justru membuatnya tak pernah menemukan tahap mana pun. */}
               <ComplaintProgressStepper
-                currentStatus={toBackendComplaintStatus(data.complaint.status)}
+                currentStatus={data.complaint.status}
+                riwayat={data.complaint.statusHistory}
               />
               <ComplaintStatusControl
                 currentStatus={data.complaint.status}
@@ -209,6 +216,10 @@ export default function AdminComplaintDetailPage() {
                   referensi yang di-fetch bersamaan. */}
               <ComplaintSummaryCard complaint={{ ...data.complaint, categoryLabel }} />
               <ComplaintContentCard complaint={data.complaint} />
+              <ComplaintStatusTimeline
+                riwayat={data.complaint.statusHistory}
+                currentStatus={data.complaint.status}
+              />
               <AdminResolutionWorkspace
                 currentStatus={data.complaint.status}
                 chatHistory={data.chatHistory}
@@ -223,7 +234,7 @@ export default function AdminComplaintDetailPage() {
             isOpen={!!pendingStatus}
             fromStatus={data.complaint.status}
             toStatus={pendingStatus ?? ''}
-            requireReason={pendingStatus === 'Ditolak'}
+            requireReason={STATUS_WAJIB_CATATAN.includes(pendingStatus)}
             onConfirm={handleConfirmStatus}
             onCancel={handleCancelStatus}
           />

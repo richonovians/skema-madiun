@@ -212,7 +212,10 @@ describe('Matriks TC-RBAC: rute khusus responden (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/complaints')
         .set(kabupaten())
-        .field('kategori', 'aduan')
+        .field('kategori', 'kab_infrastruktur')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Tak boleh terbuat')
         .field('uraian', 'Permintaan ini harus berhenti di gerbang peran.');
 
@@ -224,7 +227,10 @@ describe('Matriks TC-RBAC: rute khusus responden (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/complaints')
         .set(opd())
-        .field('kategori', 'aduan')
+        .field('kategori', 'kab_infrastruktur')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', 'Balai Desa Bangunsari')
         .field('judul', 'Tak boleh terbuat')
         .field('uraian', 'Permintaan ini harus berhenti di gerbang peran.');
 

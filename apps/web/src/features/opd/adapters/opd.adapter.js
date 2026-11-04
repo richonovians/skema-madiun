@@ -14,6 +14,16 @@ export function adaptOpd(opd) {
     code: opd.kode,
     name: opd.nama,
     serviceType: opd.jenisLayanan,
+    // Tingkat pemerintahan: 'kabupaten' | 'kecamatan' (4 November 2026).
+    // DIHITUNG BACKEND (`tingkatOpd()`), bukan di sini. Formulir pengaduan
+    // menyaring daftar tujuan per tingkat dengan medan ini; mencocokkan awalan
+    // nama di frontend akan menyimpang diam-diam begitu aturannya berubah --
+    // dan gejalanya adalah dropdown yang kehilangan pilihan tanpa sebab.
+    //
+    // `?? null`, BUKAN `?? 'kabupaten'`: respons lama atau tiruan yang belum
+    // membawa medan ini berarti "belum terbaca", dan membakukannya ke
+    // kabupaten akan menaruh 15 kecamatan di daftar yang salah.
+    tingkat: opd.tingkat ?? null,
     activeSurveys: opd.activeSurveys ?? 0,
     openComplaints: opd.openComplaints ?? 0,
     // `?? null`, BUKAN `?? 0`: backend yang belum mengirim medan ini berarti

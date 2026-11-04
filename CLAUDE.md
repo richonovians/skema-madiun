@@ -160,6 +160,34 @@ Rantai permintaan yang perlu dipahami sekaligus, karena tersebar di beberapa ber
 
 Modul ada di `src/modules/`: `audit`, `auth`, `complaints`, `dashboard`, `ikm`, `notifications`, `opd`, `questions`, `reference`, `responses`, `surveys`, `turnstile`, `users`.
 
+### Tingkat pengaduan: kabupaten dan kecamatan
+
+Sejak 4 November 2026 pengaduan punya `tingkat` (`kabupaten` | `kecamatan`), **wajib** di `CreateComplaintDto`, yang menentukan dua hal sekaligus di formulir warga: daftar OPD tujuan dan daftar kategori.
+
+**`tingkat` DISIMPAN, bukan diturunkan dari `opd_id`.** Pengaduan boleh dikirim tanpa tujuan (`opd_id` NULL, pilihan "Lainnya") — dan justru di baris itulah tingkatnya paling dibutuhkan, sebab ia satu-satunya petunjuk triase bagi Admin Kabupaten.
+
+**Tingkat sebuah OPD DITURUNKAN DARI NAMANYA** (`apps/api/src/modules/opd/tingkat-opd.util.ts`), karena tabel `opd` baca-saja dari Helpdesk dan tak punya tempat untuk menuliskannya; `jenis_layanan` pun kosong pada 60 dari 63 baris termasuk seluruh 15 kecamatan. Polanya `^(kecamatan|kelurahan)\b` — **kelurahan ikut tingkat kecamatan** (keputusan pengguna). Hasilnya dikirim ke klien sebagai `OpdEntity.tingkat`; **jangan menghitungnya ulang di frontend.**
+
+Kategori baku diganti **taksonomi per tingkat**: 8 kategori `kec_*` + 21 kategori `kab_*` di `reference.constants.ts`, masing-masing membawa `tingkat`. Kategori lama `aduan`/`lapor`/`lainnya` **dibuang**, dan migrasi `20261104090000_tingkat_pengaduan` memetakan 19 baris yang ada ke "Lainnya" pada tingkatnya masing-masing — ketiganya kini ditolak 400. Kedua tingkat punya "Lainnya" bernama sama; hanya awalan kodenya yang membedakan, jadi penyaring Admin Kabupaten menambahkan "(Kab.)"/"(Kec.)" pada labelnya. Urutan daftarnya **bagian dari kontrak** (dropdown memakainya apa adanya, "Lainnya" selalu terakhir).
+
+Kesepadanan ditegakkan **di server**, bukan hanya oleh dropdown: `tingkat-pengaduan.util.ts` menolak kategori yang bukan milik tingkatnya dan OPD tujuan yang tingkatnya tak sepadan. `@IsIn` tak dapat melakukannya — ia hanya memeriksa satu medan terhadap daftar tetap.
+
+`tanggal_kejadian` (DATE) dan `lokasi_kejadian` (terenkripsi) **wajib di DTO tetapi NULLABLE di basis data**: yang NULL hanyalah 19 pengaduan yang lahir sebelum kedua medan ini ada, dan tampilan **menyembunyikan barisnya** alih-alih menggambar tanda hubung. `parseTanggalKejadian` menolak tanggal yang tak ada dalam kalender (`new Date('2026-02-31')` menggulung diam-diam menjadi 3 Maret) dan tanggal yang melampaui hari ini **menurut WIB**, bukan menurut jam server — selama tujuh jam setiap hari keduanya berbeda tanggal.
+
+### Alur status pengaduan dan riwayatnya
+
+Sejak 4 November 2026 alurnya **lima tahap** — `terkirim` → `menunggu_verifikasi` → `diverifikasi` → `sedang_ditindaklanjuti` → `selesai` — dengan dua status alternatif, `ditolak` dan `perlu_perbaikan`. Menggantikan empat status lama `diterima`/`diproses`/`selesai`/`ditolak`, yang **dibuang seluruhnya**; migrasi `20261104150000_alur_status_pengaduan` memetakan `diterima`→`menunggu_verifikasi` dan `diproses`→`sedang_ditindaklanjuti`.
+
+**`terkirim` TIDAK PERNAH MENETAP.** Pengaduan lahir langsung `menunggu_verifikasi`; `terkirim` hanya baris pertama `complaint_status_history`. Akibatnya **baris terakhir riwayat tak selalu sama dengan status berjalan** — pada pengaduan baru, linimasanya berbunyi "Terkirim" sementara lencananya "Menunggu Verifikasi", dan keduanya benar. Tak satu pun status boleh berpindah KE `terkirim`.
+
+**`perlu_perbaikan` bukan status akhir:** Admin mengembalikannya ke `menunggu_verifikasi` sesudah pelapor melengkapi. Yang mengembalikan Admin, bukan balasan pelapornya — balasan masuk kapan saja dan belum tentu memuat yang diminta. Hanya `selesai` dan `ditolak` yang akhir.
+
+Aturannya satu tempat: `apps/api/src/modules/complaints/alur-status.util.ts` (`TRANSISI_DIIZINKAN`, `STATUS_WAJIB_CATATAN`, `LABEL_STATUS`). **`STATUS_BELUM_TUNTAS` DITURUNKAN** dari `STATUS_TUNTAS`, tidak didaftar — sebelum ini `[diterima, diproses]` disalin tangan ke `dashboard.service.ts`, `opd.service.ts`, dan `ikm.service.ts`, dan dengan tujuh status salinan semacam itu hanya membuat angka dasbor diam-diam lebih kecil. Frontend mengulang urutan tahapnya sekali di `COMPLAINT_ALUR_UTAMA` (`utils/enumLabels.js`) karena `apps/web` tak mengimpor apa pun dari `apps/api`.
+
+**Catatan perpindahan tinggal di `complaint_status_history.catatan`** (terenkripsi), **bukan lagi disalin menjadi balasan percakapan**. Sampai 4 November 2026 alasan penolakan ditulis sebagai `complaint_reply`; sejak riwayat punya kolomnya sendiri, menulis ke dua tempat membuat halaman detail menampilkan kalimat yang sama dua kali. `ditolak` dan `perlu_perbaikan` **wajib** membawa catatan.
+
+Riwayat hanya ikut pada `GET /complaints/:ticketNo`, tidak pada daftar. Blok "Catatan Petugas" di antarmuka adalah catatan dari perpindahan **terbaru**, bukan kolom tersendiri.
+
 ### Peran jamak dan isolasi OPD
 
 `User.roles` adalah **`Role[]`**, bukan satu nilai. Sesi membawa klaim `act`, dan `CurrentUser.actingRole` itulah yang dipakai untuk semua keputusan akses. **Jangan memeriksa `user.role`**; medan itu sudah tidak ada.
@@ -190,7 +218,9 @@ Dua aturan lahir 6 Oktober 2026 dan keduanya mudah dilanggar tanpa sengaja.
 | --------------------------------------------- | --------------------------------------------- |
 | Lampiran pengaduan                            | `users.nama` (pencarian log audit memakainya) |
 | `complaints.uraian`                           | `users.email`, judul pengaduan                |
+| `complaints.lokasi_kejadian`                  | `complaints.tanggal_kejadian`                 |
 | `complaint_replies.pesan`                     | nama dan nomor HP responden survei            |
+| `complaint_status_history.catatan`            | status & waktu pada riwayat pengaduan         |
 | `users.nik`, `users.nomor_hp`, `users.alamat` |                                               |
 
 Cara menyebutnya yang benar: "isi pengaduan dan percakapannya terenkripsi, identitas pelapor tidak."
@@ -247,7 +277,7 @@ Catatan: `AGENTS.md` berisi blok `nextjs-agent-rules` yang **ditulis ulang `next
 
 ## Aturan tetap
 
-**Migrasi Prisma.** `prisma migrate dev` **tidak dipakai di repo ini**, meski skripnya ada di `package.json`. Tulis SQL migrasi dengan tangan di `apps/api/prisma/migrations/<timestamp>_<nama>/migration.sql`, lalu terapkan dengan `prisma:deploy`. Tiga puluh tiga migrasi yang ada semuanya bertanggal tangan.
+**Migrasi Prisma.** `prisma migrate dev` **tidak dipakai di repo ini**, meski skripnya ada di `package.json`. Tulis SQL migrasi dengan tangan di `apps/api/prisma/migrations/<timestamp>_<nama>/migration.sql`, lalu terapkan dengan `prisma:deploy`. Tiga puluh enam migrasi yang ada semuanya bertanggal tangan.
 
 **Jangan `pnpm build` atau `next build` selagi `pnpm dev` hidup.** Keduanya menulis ke `.next` yang sama, dan akibatnya server pengembangan membalas 404 untuk semua halaman.
 

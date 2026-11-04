@@ -21,27 +21,32 @@ jest.mock('@/utils/enumLabels', () => {
   const asli = jest.requireActual('@/utils/enumLabels');
   return {
     ...asli,
-    COMPLAINT_STATUS_LABEL: { ...asli.COMPLAINT_STATUS_LABEL, Diterima: 'KATA-PENANDA-UJI' },
+    COMPLAINT_STATUS_LABEL: {
+      ...asli.COMPLAINT_STATUS_LABEL,
+      'Menunggu Verifikasi': 'KATA-PENANDA-UJI',
+    },
   };
 });
 
 describe('Label status pengaduan', () => {
   it('lini masa warga mengambil katanya dari peta, bukan menuliskannya sendiri', () => {
-    render(<ComplaintProgressStepper currentStatus="diterima" />);
+    render(<ComplaintProgressStepper currentStatus="Menunggu Verifikasi" />);
 
     expect(screen.getByText(PENANDA)).toBeInTheDocument();
-    expect(screen.queryByText('Diterima')).not.toBeInTheDocument();
-    // Keterangannya dahulu berbunyi "Tiket telah diverifikasi sistem" -- klaim
-    // yang tak pernah terjadi: status ini terpasang saat warga menekan kirim,
-    // sebelum ada petugas yang melihatnya.
+    expect(screen.queryByText('Menunggu Verifikasi')).not.toBeInTheDocument();
+    // Keterangan tahap pertama dahulu berbunyi "Tiket telah diverifikasi
+    // sistem" -- klaim yang tak pernah terjadi. Sejak alur lima tahap
+    // (4 November 2026) verifikasi punya tahapnya SENDIRI, jadi tak satu pun
+    // keterangan boleh mengaku pengaduannya sudah diverifikasi selama tahap
+    // itu belum terlampaui.
     expect(screen.queryByText(/telah diverifikasi/i)).not.toBeInTheDocument();
   });
 
   it('kontrol status admin mengambil katanya dari peta yang sama', () => {
-    render(<ComplaintStatusControl currentStatus="Diterima" onStatusChangeRequest={jest.fn()} />);
+    render(<ComplaintStatusControl currentStatus="Menunggu Verifikasi" onStatusChangeRequest={jest.fn()} />);
 
     expect(screen.getByText(PENANDA)).toBeInTheDocument();
-    expect(screen.queryByText('Diterima')).not.toBeInTheDocument();
+    expect(screen.queryByText('Menunggu Verifikasi')).not.toBeInTheDocument();
   });
 });
 
@@ -53,13 +58,13 @@ describe('Label status pengaduan', () => {
  */
 describe('ComplaintProgressStepper — ejaan kepala kartu', () => {
   it('berbunyi "Status Progres"', () => {
-    render(<ComplaintProgressStepper currentStatus="diterima" />);
+    render(<ComplaintProgressStepper currentStatus="Menunggu Verifikasi" />);
 
     expect(screen.getByText('Status Progres')).toBeInTheDocument();
   });
 
   it('tidak lagi memakai ejaan lama "Status Progress"', () => {
-    render(<ComplaintProgressStepper currentStatus="diterima" />);
+    render(<ComplaintProgressStepper currentStatus="Menunggu Verifikasi" />);
 
     expect(screen.queryByText('Status Progress')).not.toBeInTheDocument();
   });

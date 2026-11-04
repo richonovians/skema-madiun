@@ -35,8 +35,16 @@ import { panaskanRute } from './support/pemanasan';
 const API = `${BASE_URL}/api/v1`;
 
 /** Kategori HARFIAH, bukan dibaca balik dari API — kalau dibaca balik,
- *  pengujiannya membandingkan jawaban dengan dirinya sendiri. */
-const KATEGORI = { kode: 'aduan', label: 'Aduan' };
+ *  pengujiannya membandingkan jawaban dengan dirinya sendiri.
+ *
+ *  Tingkat KABUPATEN, yakni tingkat baku formulir (4 November 2026). Kodenya
+ *  berawalan `kab_` dan itu bukan hiasan: kedua tingkat punya kategori bernama
+ *  sama, dan backend menolak kategori yang tingkatnya tak sepadan. */
+const KATEGORI = { kode: 'kab_infrastruktur', label: 'Infrastruktur & Pekerjaan Umum' };
+
+/** Tanggal & lokasi kejadian, wajib sejak 4 November 2026. Tanggalnya DIPAKU di
+ *  masa lalu: backend menolak tanggal yang melampaui hari ini. */
+const KEJADIAN = { tanggal: '2026-11-01', lokasi: '[UJI E2E] Depan balai desa' };
 
 /**
  * Dropdown kustom: klik pemicunya (`button#<id>`), lalu pilihan di panelnya.
@@ -118,7 +126,12 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     });
     const opdList = (await opdRes.json()).data ?? [];
     expect(opdList.length, 'Tak ada OPD aktif — pengaduan mustahil dikirim').toBeGreaterThan(0);
-    const opd = opdList[0];
+    // TINGKAT KABUPATEN TERSURAT (4 November 2026). Formulir menyaring daftar
+    // tujuan per tingkat, jadi `opdList[0]` yang kebetulan sebuah kecamatan
+    // tak akan pernah muncul di dropdown pada tingkat baku — dan gejalanya
+    // adalah batas waktu `pilihDropdown`, bukan galat yang menyebut sebabnya.
+    const opd = opdList.find((o) => o.tingkat === 'kabupaten');
+    expect(opd, 'Tak ada OPD tingkat kabupaten — formulir tak punya tujuan').toBeTruthy();
 
     await page.goto('/complaints/new');
     await expect(
@@ -135,6 +148,8 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
 
     await page.getByLabel('Judul Laporan').fill(judul);
     await page.getByLabel('Uraian Detail Kejadian').fill(uraian);
+    await page.getByLabel('Tanggal Kejadian').fill(KEJADIAN.tanggal);
+    await page.getByLabel('Lokasi Kejadian').fill(KEJADIAN.lokasi);
 
     await page.getByRole('button', { name: 'Kirim Laporan' }).click();
 
@@ -184,6 +199,8 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     await page
       .getByLabel('Uraian Detail Kejadian')
       .fill('Dikirim tanpa identitas untuk menguji janji anonimitas.');
+    await page.getByLabel('Tanggal Kejadian').fill(KEJADIAN.tanggal);
+    await page.getByLabel('Lokasi Kejadian').fill(KEJADIAN.lokasi);
     await page.locator('#isAnonim').check();
 
     await page.getByRole('button', { name: 'Kirim Laporan' }).click();
@@ -211,13 +228,16 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     const opdRes = await fetch(`${API}/opd?limit=100&isActive=true`, {
       headers: { Authorization: `Bearer ${sesi.token}` },
     });
-    const opd = ((await opdRes.json()).data ?? [])[0];
+    // Tingkat kabupaten tersurat, dengan alasan yang sama seperti di atas.
+    const opd = ((await opdRes.json()).data ?? []).find((o) => o.tingkat === 'kabupaten');
 
     const uraian = 'Uraian panjang yang sayang sekali kalau hilang gara-gara server bermasalah.';
     await pilihDropdown(page, 'department', opd.nama);
     await pilihDropdown(page, 'category', KATEGORI.label);
     await page.getByLabel('Judul Laporan').fill('[UJI E2E] Pengiriman gagal');
     await page.getByLabel('Uraian Detail Kejadian').fill(uraian);
+    await page.getByLabel('Tanggal Kejadian').fill(KEJADIAN.tanggal);
+    await page.getByLabel('Lokasi Kejadian').fill(KEJADIAN.lokasi);
 
     let jumlahPost = 0;
     await page.route('**/complaints', (route) => {
@@ -240,5 +260,62 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     await expect(page).toHaveURL(/\/complaints\/new/);
     await expect(page.getByLabel('Uraian Detail Kejadian')).toHaveValue(uraian);
     await expect(page.getByRole('button', { name: 'Kirim Laporan' })).toBeEnabled();
+  });
+
+  /**
+   * PEMISAHAN TINGKAT di peramban sungguhan (4 November 2026).
+   *
+   * Diuji DI SINI, bukan hanya di Jest, karena yang membedakan keduanya CSS.
+   * Pemilih tingkatnya radio ber-`sr-only` yang digambar labelnya; jsdom tak
+   * memuat CSS, sehingga `fireEvent.click` pada radionya selalu berhasil di
+   * sana, sedangkan di peramban LABELNYA yang menangkap penunjuk. Itu perilaku
+   * yang benar -- label meneruskan kliknya ke radio -- tetapi hanya jalan ini
+   * yang membuktikannya, dan `pointer-events` yang kelak salah tak akan
+   * memerah di mana pun selain di sini. Terukur saat uji ini ditulis:
+   * Playwright menolak klik pada radionya dengan "label intercepts pointer
+   * events".
+   */
+  test('tingkat kecamatan menukar daftar tujuan & kategori, lalu ikut tersimpan', async ({
+    page,
+  }) => {
+    const judul = `[UJI E2E] Pelayanan kecamatan ${Date.now()}`;
+
+    await masukSebagai(page, AKUN.warga, '/dashboard');
+    const sesi = await masukApi(AKUN.warga);
+
+    await page.goto('/complaints/new');
+    await expect(page.getByText('Pilih Instansi')).toBeVisible();
+
+    // LABELNYA yang diklik, bukan radionya -- lihat docblock di atas.
+    await page.getByText('Tingkat Kecamatan', { exact: true }).click();
+    // Label & penampung dropdown tujuan ikut berpindah bersama tingkat: di
+    // sini daftarnya memang tak memuat satu pun dinas.
+    await expect(page.getByText('Pilih Kecamatan/Kelurahan')).toBeVisible();
+
+    await pilihDropdown(page, 'department', 'Kecamatan Geger');
+    await pilihDropdown(page, 'category', 'Pelayanan Administrasi Kecamatan');
+    await page.getByLabel('Judul Laporan').fill(judul);
+    await page
+      .getByLabel('Uraian Detail Kejadian')
+      .fill('Antrean surat pengantar di kantor kecamatan tidak bergerak sejak pagi.');
+    await page.getByLabel('Tanggal Kejadian').fill(KEJADIAN.tanggal);
+    await page.getByLabel('Lokasi Kejadian').fill(KEJADIAN.lokasi);
+
+    await page.getByRole('button', { name: 'Kirim Laporan' }).click();
+    await page.waitForURL('**/complaints/success**', { timeout: 30000 });
+    const tiket = new URL(page.url()).searchParams.get('complaintId');
+    expect(tiket).toMatch(/^PGD\d{8}[A-Z0-9]{4}$/);
+
+    // Yang menentukan bukan layarnya, melainkan yang tersimpan.
+    const tersimpan = await ambilPengaduan(sesi.token, tiket);
+    expect(tersimpan, `Pengaduan bertiket ${tiket} tidak ditemukan di backend`).not.toBeNull();
+    expect(tersimpan.tingkat).toBe('kecamatan');
+    expect(tersimpan.kategori).toBe('kec_administrasi');
+    // Terbaca kembali sebagai teks biasa meski tersimpan `enc:v1:` di kolomnya.
+    expect(tersimpan.lokasiKejadian).toBe(KEJADIAN.lokasi);
+    // Kolomnya DATE, jadi bagian jamnya selalu tengah malam UTC. Tanggal yang
+    // bergeser sehari di sini berarti ada perjalanan lewat zona waktu lokal
+    // yang seharusnya tak pernah terjadi.
+    expect(tersimpan.tanggalKejadian).toBe(`${KEJADIAN.tanggal}T00:00:00.000Z`);
   });
 });

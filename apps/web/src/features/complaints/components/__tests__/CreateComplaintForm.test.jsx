@@ -58,17 +58,68 @@ beforeEach(() => {
 
 const kategoriDropdown = () => screen.getByLabelText(/kategori pengaduan/i);
 
-describe('CreateComplaintForm — kategori umum', () => {
-  it('menawarkan tepat tiga kategori dari API, tanpa kategori topik lama', async () => {
+/**
+ * Isi Tanggal & Lokasi Kejadian (4 November 2026).
+ *
+ * Keduanya WAJIB sejak hari itu, dan formulir yang tak mengisinya tertahan
+ * validasi peramban. Gejalanya menyesatkan: `POST /complaints` tak pernah
+ * terpanggil, pada uji yang sama sekali tak berurusan dengan kedua medan itu --
+ * yang terlihat hanyalah `terkirim` yang tetap null sampai waitFor kehabisan
+ * waktu.
+ *
+ * Tanggalnya DIPAKU di masa lalu, bukan hari ini: backend menolak tanggal masa
+ * depan, dan tanggal yang ikut berjalan membuat uji bergantung pada jam mesin.
+ */
+const isiKejadian = () => {
+  fireEvent.change(screen.getByLabelText(/tanggal kejadian/i), {
+    target: { value: '2026-11-01' },
+  });
+  fireEvent.change(screen.getByLabelText(/lokasi kejadian/i), {
+    target: { value: 'Balai Desa Bangunsari' },
+  });
+};
+
+/**
+ * Pemilih tingkat (4 November 2026). RADIO, bukan tab -- lihat docblock
+ * PemilihTingkatPengaduan.jsx untuk sebabnya; uji di sini menguncinya lewat
+ * `getByRole('radio')`, jadi ia memerah bila kelak diubah menjadi tombol biasa
+ * yang tak mengatakan apa-apa kepada pembaca layar.
+ */
+const tingkatRadio = (nama) => screen.getByRole('radio', { name: new RegExp(nama, 'i') });
+
+describe('CreateComplaintForm — kategori per tingkat', () => {
+  it('menawarkan kategori tingkat kabupaten saat formulir dibuka', async () => {
+    // Kabupaten adalah tingkat baku (TINGKAT_BAKU). Daftarnya 21 kategori
+    // melawan 8, dan tujuannya 48 instansi melawan 23.
     render(<CreateComplaintForm />);
     await screen.findByText('Pilih Kategori');
 
     fireEvent.click(kategoriDropdown());
 
-    expect(await screen.findByText('Aduan')).toBeInTheDocument();
-    expect(screen.getByText('Lapor')).toBeInTheDocument();
+    expect(await screen.findByText('Kependudukan & Pencatatan Sipil')).toBeInTheDocument();
+    expect(screen.getByText('Kesehatan')).toBeInTheDocument();
     expect(screen.getByText('Lainnya')).toBeInTheDocument();
+    // Kategori kecamatan TIDAK ikut muncul: itulah inti pemisahannya.
+    expect(screen.queryByText('Pelayanan Administrasi Kecamatan')).not.toBeInTheDocument();
+    // Kategori warisan yang dibuang 4 November 2026.
+    expect(screen.queryByText('Aduan')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lapor')).not.toBeInTheDocument();
+    // Taksonomi topik yang dibuang jauh sebelumnya (4 September 2026).
     expect(screen.queryByText('Infrastruktur')).not.toBeInTheDocument();
+  });
+
+  it('berpindah ke tingkat kecamatan menukar seluruh daftar kategorinya', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+    fireEvent.click(kategoriDropdown());
+
+    expect(await screen.findByText('Pelayanan Administrasi Kecamatan')).toBeInTheDocument();
+    expect(screen.getByText('Kinerja & Perilaku Aparatur Kecamatan')).toBeInTheDocument();
+    // PASANGANNYA, dan inilah yang membuat uji di atas berarti: tanpa baris ini
+    // sebuah penyaring yang menggabungkan kedua daftar tetap hijau.
+    expect(screen.queryByText('Kependudukan & Pencatatan Sipil')).not.toBeInTheDocument();
     expect(screen.queryByText('Kesehatan')).not.toBeInTheDocument();
   });
 
@@ -80,7 +131,7 @@ describe('CreateComplaintForm — kategori umum', () => {
     server.use(
       http.get(`${API_BASE}/ref/complaint-sub-categories`, () =>
         ok(
-          [{ kode: 'bpjs', nama: 'Layanan BPJS', kategoriKode: 'aduan' }],
+          [{ kode: 'bpjs', nama: 'Layanan BPJS', kategoriKode: 'kab_kesehatan' }],
           '/ref/complaint-sub-categories',
         ),
       ),
@@ -90,10 +141,10 @@ describe('CreateComplaintForm — kategori umum', () => {
     await screen.findByText('Pilih Kategori');
 
     fireEvent.click(kategoriDropdown());
-    fireEvent.click(await screen.findByText('Aduan'));
+    fireEvent.click(await screen.findByText('Kesehatan'));
 
     // Inilah keadaan tempat dropdown sub-kategori DULU muncul.
-    await waitFor(() => expect(kategoriDropdown()).toHaveTextContent('Aduan'));
+    await waitFor(() => expect(kategoriDropdown()).toHaveTextContent('Kesehatan'));
     expect(screen.queryByText(/sub-kategori/i)).not.toBeInTheDocument();
   });
 
@@ -181,6 +232,7 @@ describe('CreateComplaintForm — tujuan belum diketahui', () => {
     fireEvent.change(screen.getByLabelText(/uraian/i), {
       target: { value: 'Uraian pengaduan yang cukup panjang' },
     });
+    isiKejadian();
     fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
 
     await waitFor(() => expect(terkirim).not.toBeNull());
@@ -188,7 +240,11 @@ describe('CreateComplaintForm — tujuan belum diketahui', () => {
     // oleh @IsInt, jadi tak cukup "tidak memilih" -- medannya harus benar-benar
     // tidak ikut dalam FormData.
     expect('opdId' in terkirim).toBe(false);
-    expect(terkirim.kategori).toBe('lainnya');
+    // Kode "Lainnya" tingkat KABUPATEN, bukan 'lainnya' yang dipensiunkan:
+    // kedua tingkat punya "Lainnya" bernama sama, dan hanya kodenya yang
+    // membedakan keduanya.
+    expect(terkirim.kategori).toBe('kab_lainnya');
+    expect(terkirim.tingkat).toBe('kabupaten');
   });
 
   it('KONTROL: memilih OPD tetap mengirim opdId', async () => {
@@ -211,15 +267,226 @@ describe('CreateComplaintForm — tujuan belum diketahui', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
 
     fireEvent.click(kategoriDropdown());
-    fireEvent.click(await screen.findByText('Aduan'));
+    fireEvent.click(await screen.findByText('Kesehatan'));
     fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
     fireEvent.change(screen.getByLabelText(/uraian/i), {
       target: { value: 'Uraian pengaduan yang cukup panjang' },
     });
+    isiKejadian();
     fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
 
     await waitFor(() => expect(terkirim).not.toBeNull());
     expect('opdId' in terkirim).toBe(true);
+  });
+});
+
+/**
+ * PEMISAHAN TINGKAT (permintaan pengguna 4 November 2026: "pisahkan pengaduan
+ * menjadi tingkat kabupaten dan tingkat kecamatan dengan tombol pindah
+ * tab/tingkatan pada bagian atas form OPD dan kategori pengaduan").
+ *
+ * Penyaringan daftar OPD bersandar pada `OpdEntity.tingkat` dari backend, bukan
+ * pada pencocokan nama di frontend -- lihat komentar `departmentOptions` di
+ * komponennya. Fixture `mocks/handlers.ts` karena itu membawa dua baris
+ * bertingkat kecamatan ("Kecamatan Geger", "Kelurahan Krajan").
+ */
+describe('CreateComplaintForm — pemisahan tingkat', () => {
+  /**
+   * Label dropdown tujuan IKUT BERPINDAH bersama tingkat ("OPD / Instansi
+   * Tujuan" di kabupaten, "Kecamatan / Kelurahan Tujuan" di kecamatan), jadi
+   * pencariannya harus menerima keduanya.
+   *
+   * DIJANGKARKAN KE AWAL (`^`), dan itu bukan kerapian. Dropdown.jsx memberi
+   * medan carinya `aria-label="Cari ${label}"`, sehingga pola tanpa jangkar
+   * mencocokkan DUA elemen begitu panelnya terbuka -- pemicunya dan medan
+   * carinya. Uji yang hanya MEMBUKA dropdown tak pernah menemuinya; yang
+   * menutupnya kembali langsung memerah dengan "Found multiple elements".
+   */
+  const opdDropdown = () =>
+    screen.getByLabelText(new RegExp('^(opd / instansi|kecamatan / kelurahan) tujuan', 'i'));
+
+  it('tingkat kabupaten: menampilkan dinas, TANPA satu pun kecamatan', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+
+    expect(await screen.findByRole('button', { name: 'Dinas Kesehatan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kecamatan Geger' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kelurahan Krajan' })).not.toBeInTheDocument();
+  });
+
+  it('tingkat kecamatan: hanya kecamatan & kelurahan, TANPA satu pun dinas', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+    await screen.findByText('Pilih Kecamatan/Kelurahan');
+    fireEvent.click(opdDropdown());
+
+    // Kelurahan IKUT tingkat kecamatan (keputusan pengguna 4 November 2026).
+    expect(await screen.findByRole('button', { name: 'Kecamatan Geger' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kelurahan Krajan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dinas Kesehatan' })).not.toBeInTheDocument();
+  });
+
+  it('"Lainnya (belum tahu tujuannya)" tetap ada di KEDUA tingkat', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    expect(await screen.findByText('Lainnya (belum tahu tujuannya)')).toBeInTheDocument();
+
+    // Tutup dropdownnya sebelum berpindah tingkat, supaya pemeriksaan kedua
+    // tak membaca sisa panel yang masih terbuka dari pemeriksaan pertama.
+    fireEvent.click(opdDropdown());
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+    fireEvent.click(opdDropdown());
+
+    expect(await screen.findByText('Lainnya (belum tahu tujuannya)')).toBeInTheDocument();
+  });
+
+  it('berpindah tingkat MENGOSONGKAN tujuan & kategori yang sudah dipilih', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Kesehatan'));
+    await waitFor(() => expect(opdDropdown()).toHaveTextContent('Dinas Kesehatan'));
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+
+    // Keduanya milik tingkat yang ditinggalkan. Membiarkannya menghasilkan
+    // dropdown yang menampilkan penampung padahal `value`-nya terisi, lalu 400
+    // tepat saat tombol Kirim ditekan.
+    await waitFor(() => expect(opdDropdown()).toHaveTextContent('Pilih Kecamatan/Kelurahan'));
+    expect(kategoriDropdown()).toHaveTextContent('Pilih Kategori');
+  });
+
+  it('judul & uraian TIDAK ikut terhapus saat tingkat berpindah', async () => {
+    // PASANGAN uji di atas. Tanpa ini, "mengosongkan" yang membuang seluruh
+    // formulir juga tetap hijau -- dan warga kehilangan kalimat yang sudah
+    // diketiknya hanya karena salah memilih tab di awal.
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
+      target: { value: 'Lampu jalan mati' },
+    });
+    isiKejadian();
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+
+    expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati');
+    expect(screen.getByLabelText(/tanggal kejadian/i)).toHaveValue('2026-11-01');
+    expect(screen.getByLabelText(/lokasi kejadian/i)).toHaveValue('Balai Desa Bangunsari');
+  });
+
+  it('mengirim tingkat & kategori kecamatan yang sepadan', async () => {
+    let terkirim = null;
+    server.use(
+      http.post(`${API_BASE}/complaints`, async ({ request }) => {
+        const form = await request.formData();
+        terkirim = Object.fromEntries(form.entries());
+        return ok({ id: 99, ticketNo: 'PGD20261104AAAA', opdId: 4 }, '/complaints');
+      }),
+    );
+
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+    await screen.findByText('Pilih Kecamatan/Kelurahan');
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByRole('button', { name: 'Kecamatan Geger' }));
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Pelayanan Administrasi Kecamatan'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Uraian pengaduan yang cukup panjang' },
+    });
+    isiKejadian();
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+
+    await waitFor(() => expect(terkirim).not.toBeNull());
+    expect(terkirim.tingkat).toBe('kecamatan');
+    expect(terkirim.kategori).toBe('kec_administrasi');
+    expect(terkirim.opdId).toBe('4');
+  });
+});
+
+/**
+ * TANGGAL & LOKASI KEJADIAN (permintaan pengguna 4 November 2026: "tambahkan
+ * form baru untuk tanggal kejadian dan lokasi kejadian di semua
+ * tingkatan/cakupan pengaduan").
+ */
+describe('CreateComplaintForm — tanggal & lokasi kejadian', () => {
+  it('menyediakan kedua medan, dan keduanya wajib', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    const tanggal = screen.getByLabelText(/tanggal kejadian/i);
+    expect(tanggal).toBeRequired();
+    // `type="date"`, bukan teks bebas: pemilih tanggal bawaan peramban
+    // menghasilkan 'YYYY-MM-DD' yang persis diminta backend, tanpa penguraian
+    // format yang harus menebak "01/11/2026" itu Januari atau November.
+    expect(tanggal).toHaveAttribute('type', 'date');
+    expect(screen.getByLabelText(/lokasi kejadian/i)).toBeRequired();
+  });
+
+  it('ada di KEDUA tingkat, bukan hanya di salah satunya', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+
+    expect(screen.getByLabelText(/tanggal kejadian/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/lokasi kejadian/i)).toBeInTheDocument();
+  });
+
+  it('pemilih tanggalnya tidak dapat melampaui hari ini', async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    // Dibaca di efek, jadi `waitFor` -- lihat `tanggalMaksimum` di komponennya
+    // untuk sebab ia tak dapat dihitung saat render.
+    await waitFor(() =>
+      expect(screen.getByLabelText(/tanggal kejadian/i)).toHaveAttribute(
+        'max',
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      ),
+    );
+  });
+
+  it('mengirim keduanya ke backend dengan nama medan yang dipakai DTO', async () => {
+    let terkirim = null;
+    server.use(
+      http.post(`${API_BASE}/complaints`, async ({ request }) => {
+        const form = await request.formData();
+        terkirim = Object.fromEntries(form.entries());
+        return ok({ id: 99, ticketNo: 'PGD20261104BBBB', opdId: null }, '/complaints');
+      }),
+    );
+
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Lainnya'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Uraian pengaduan yang cukup panjang' },
+    });
+    isiKejadian();
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+
+    await waitFor(() => expect(terkirim).not.toBeNull());
+    // 'YYYY-MM-DD' APA ADANYA. Melewatkannya lewat `new Date()` lalu memformat
+    // ulang akan menggeser tanggalnya sehari bagi peramban di WIB (UTC+7).
+    expect(terkirim.tanggalKejadian).toBe('2026-11-01');
+    expect(terkirim.lokasiKejadian).toBe('Balai Desa Bangunsari');
   });
 });
 
@@ -285,6 +552,7 @@ describe('CreateComplaintForm — tanpa sesi', () => {
     fireEvent.change(screen.getByLabelText(/uraian/i), {
       target: { value: 'Uraian pengaduan yang cukup panjang' },
     });
+    isiKejadian();
     fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
 
     expect(
@@ -389,6 +657,7 @@ describe('CreateComplaintForm — pencarian instansi', () => {
       fireEvent.change(screen.getByLabelText(/uraian/i), {
         target: { value: 'Uraian pengaduan yang cukup panjang' },
       });
+      isiKejadian();
       fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
     };
 
@@ -450,6 +719,7 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     fireEvent.change(screen.getByLabelText(/uraian/i), {
       target: { value: 'Sudah tiga malam lampu di depan balai desa tidak menyala.' },
     });
+    isiKejadian();
     fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
   };
 
@@ -464,7 +734,8 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
 
     await waitFor(() => expect(draf()).not.toBeNull());
     expect(draf().title).toBe('Lampu jalan mati');
-    expect(draf().category).toBe('lainnya');
+    expect(draf().category).toBe('kab_lainnya');
+    expect(draf().level).toBe('kabupaten');
   });
 
   /**
@@ -512,10 +783,13 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     sessionStorage.setItem(
       'skema:draf-pengaduan',
       JSON.stringify({
+        level: 'kabupaten',
         department: '',
-        category: 'lainnya',
+        category: 'kab_lainnya',
         title: 'Lampu jalan mati',
         description: 'Sudah tiga malam lampu di depan balai desa tidak menyala.',
+        incidentDate: '2026-11-01',
+        incidentLocation: 'Balai Desa Bangunsari',
         isAnonim: false,
       }),
     );
@@ -528,6 +802,39 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     expect(screen.getByLabelText(/uraian/i)).toHaveValue(
       'Sudah tiga malam lampu di depan balai desa tidak menyala.',
     );
+    // Tanggal & lokasi kejadian IKUT dipulihkan (4 November 2026). Keduanya ada
+    // di daftar putih `drafPengaduan.js`; tanpa itu pelapor yang kembali dari
+    // halaman persetujuan harus mengetiknya lagi tanpa diberi tahu.
+    expect(screen.getByLabelText(/tanggal kejadian/i)).toHaveValue('2026-11-01');
+    expect(screen.getByLabelText(/lokasi kejadian/i)).toHaveValue('Balai Desa Bangunsari');
+  });
+
+  it('memulihkan tingkat yang dipilih, bukan jatuh kembali ke kabupaten', async () => {
+    // `level` ikut daftar putih dengan alasan yang tersurat: tujuan & kategori
+    // yang dipulihkan MILIK tingkat itu. Tanpa `level`, formulir terbuka di
+    // tingkat kabupaten membawa kategori kecamatan -- lalu ditolak 400 oleh
+    // `assertKategoriSesuaiTingkat` tepat saat Kirim ditekan.
+    sessionStorage.setItem(
+      'skema:draf-pengaduan',
+      JSON.stringify({
+        level: 'kecamatan',
+        department: '',
+        category: 'kec_administrasi',
+        title: 'Lampu jalan mati',
+        description: 'Uraian',
+        incidentDate: '2026-11-01',
+        incidentLocation: 'Balai Desa Bangunsari',
+      }),
+    );
+
+    render(<CreateComplaintForm />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: /tingkat kecamatan/i })).toBeChecked(),
+    );
+    expect(
+      screen.getByLabelText(new RegExp('kecamatan / kelurahan tujuan', 'i')),
+    ).toHaveTextContent('Pilih Kecamatan/Kelurahan');
   });
 
   /**
@@ -538,7 +845,7 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
   it('memberi tahu bahwa lampirannya perlu dipilih ulang', async () => {
     sessionStorage.setItem(
       'skema:draf-pengaduan',
-      JSON.stringify({ category: 'lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
+      JSON.stringify({ category: 'kab_lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
     );
 
     render(<CreateComplaintForm />);
@@ -559,7 +866,7 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
   it('draf dibuang begitu dipulihkan, jadi tak muncul lagi di formulir berikutnya', async () => {
     sessionStorage.setItem(
       'skema:draf-pengaduan',
-      JSON.stringify({ category: 'lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
+      JSON.stringify({ category: 'kab_lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
     );
 
     render(<CreateComplaintForm />);
