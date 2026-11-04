@@ -77,7 +77,7 @@ export default function IkmLeaderboard({ data = [], periode }) {
                 className={clsx(
                   "h-full rounded-full transition-all duration-1000 ease-out", 
                   getOpacityClass(index),
-                  "hover:drop-shadow-[0_0_8px_rgba(37,99,235,0.3)]" // Equivalent to .chart-bar-glow
+                  "hover:drop-shadow-[0_0_8px_rgba(68,147,204,0.3)]" // Equivalent to .chart-bar-glow
                 )} 
                 style={{ width: animate ? `${item.ikmScore}%` : '0%' }}
               ></div>

@@ -110,7 +110,7 @@ export default function AdminKabSidebar() {
     base += isDesktopSidebarCollapsed ? 'px-md md:justify-center md:px-0 ' : 'px-md ';
 
     if (isActive) {
-      base += 'bg-blue-600 text-white font-bold shadow-md ';
+      base += 'bg-primary text-white font-bold shadow-md ';
     } else {
       base += 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 ';
     }
@@ -164,12 +164,12 @@ export default function AdminKabSidebar() {
           className={`shrink-0 flex items-center h-[64px] md:h-[80px] border-b border-slate-200 w-full justify-between px-4 ${isDesktopSidebarCollapsed ? 'md:justify-center md:px-0' : ''}`}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(37,99,235,0.25)] overflow-hidden">
+            <div className="shrink-0 relative flex items-center justify-center w-[46px] h-[46px] rounded-[14px] bg-blue-600 shadow-[0_8px_16px_rgba(43,111,165,0.25)] overflow-hidden">
               {/* Sama persis dengan AdminSidebar.jsx: 3:2 mengikuti berkasnya
                   yang 1536x1024, dengan `w-[37px] h-auto` yang menjaga ukuran
                   tergambarnya tidak berubah. Lihat catatan di sana. */}
               <Image
-                src="/images/navbar/skema-logo-2.png"
+                src="/images/navbar/skema-logo.png"
                 alt="Logo SKEMA"
                 width={48}
                 height={32}

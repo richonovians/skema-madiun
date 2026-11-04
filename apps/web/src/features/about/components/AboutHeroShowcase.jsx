@@ -37,7 +37,7 @@ export default function AboutHeroShowcase() {
     >
       {/* Abstract Gradient Background */}
       <div className="absolute top-[-10%] right-[-10%] w-72 h-72 bg-blue-400/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
-      <div className="absolute bottom-[-10%] left-[-10%] w-72 h-72 bg-purple-400/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-72 h-72 bg-brand-cyan/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
       <div className="absolute top-[20%] left-[20%] w-72 h-72 bg-emerald-400/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70"></div>
 
       {/* Dotted Pattern Overlay */}
@@ -89,7 +89,7 @@ export default function AboutHeroShowcase() {
         className="sm:absolute sm:top-[10%] sm:right-[2%] md:right-[5%] z-20 w-full sm:w-40 md:w-48 bg-white/95 backdrop-blur-xl border border-white p-3 md:p-4 rounded-2xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.08)] transition-transform duration-700 hover:-translate-y-1"
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 shrink-0">
+          <div className="w-8 h-8 md:w-10 md:h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
             <BarChart3 size={18} />
           </div>
           <div>

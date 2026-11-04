@@ -376,7 +376,7 @@ export default function CreateComplaintForm() {
 
           <Button
             type="submit"
-            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg bg-primary-container text-white font-bold shadow-lg shadow-primary-container/20 hover:bg-primary-hover transition-all active:scale-95 flex items-center justify-center gap-2"
+            className="w-full md:w-auto min-h-[48px] px-8 rounded-lg bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:bg-primary-hover transition-all active:scale-95 flex items-center justify-center gap-2"
             disabled={isSubmitting}
           >
             {isSubmitting ? (

@@ -89,7 +89,7 @@ export default function BuilderToolbar({
             disabled={isPublishing}
             aria-label={isPublishing ? 'Memublikasikan...' : 'Publikasikan'}
             title={isPublishing ? 'Memublikasikan...' : 'Publikasikan'}
-            className="px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all flex items-center gap-1.5 md:gap-2 active:scale-95 disabled:opacity-60"
+            className="px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all flex items-center gap-1.5 md:gap-2 active:scale-95 disabled:opacity-60"
           >
             {isPublishing ? (
               <Loader2 size={16} className="animate-spin" />

@@ -144,14 +144,14 @@ export default function ComplaintSuccessCard() {
           type="button"
           onClick={lanjutIsiSurvei}
           disabled={mencariSurvei}
-          className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-70"
+          className="w-full py-3.5 px-6 min-h-[48px] rounded-xl bg-primary text-white font-bold text-sm sm:text-base shadow-lg shadow-primary/30 hover:bg-primary-hover transition-all disabled:opacity-70"
         >
           Lanjut Isi Survei
         </button>
         <button
           type="button"
           onClick={() => router.push('/complaints')}
-          className="w-full py-3 px-6 min-h-[48px] rounded-xl bg-white text-blue-600 font-semibold text-sm sm:text-base border-2 border-blue-600 hover:bg-blue-50 transition-all"
+          className="w-full py-3 px-6 min-h-[48px] rounded-xl bg-white text-primary font-semibold text-sm sm:text-base border-2 border-primary hover:bg-blue-50 transition-all"
         >
           Lihat Status Pengaduan
         </button>

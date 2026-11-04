@@ -5,7 +5,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import { BarChart3 } from 'lucide-react';
 
 const CATEGORY_COLORS = [
-  '#2563EB', '#943700', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4',
+  '#4493CC', '#943700', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', '#153969',
 ];
 
 /**

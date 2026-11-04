@@ -47,7 +47,7 @@ const gaya = {
     fontSize: '16px',
     fontWeight: 500,
     color: '#ffffff',
-    backgroundColor: '#004ac6',
+    backgroundColor: '#153969',
     border: 'none',
     borderRadius: '12px',
     cursor: 'pointer',

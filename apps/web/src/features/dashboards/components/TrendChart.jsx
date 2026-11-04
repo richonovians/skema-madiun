@@ -22,18 +22,18 @@ export default function TrendChart({ title, subtitle }) {
           {/* Area Gradient */}
           <defs>
             <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2"></stop>
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0"></stop>
+              <stop offset="0%" stopColor="#4493CC" stopOpacity="0.2"></stop>
+              <stop offset="100%" stopColor="#4493CC" stopOpacity="0"></stop>
             </linearGradient>
           </defs>
           <path d="M0,220 Q150,180 300,200 T600,140 T1000,100 V300 H0 Z" fill="url(#areaGradient)"></path>
-          <path d="M0,220 Q150,180 300,200 T600,140 T1000,100" fill="none" stroke="#2563eb" strokeLinecap="round" strokeWidth="4"></path>
+          <path d="M0,220 Q150,180 300,200 T600,140 T1000,100" fill="none" stroke="#4493CC" strokeLinecap="round" strokeWidth="4"></path>
           
           {/* Data Points */}
-          <circle cx="0" cy="220" fill="#2563eb" r="5"></circle>
-          <circle cx="300" cy="200" fill="#2563eb" r="5"></circle>
-          <circle cx="600" cy="140" fill="#2563eb" r="5"></circle>
-          <circle cx="1000" cy="100" fill="#2563eb" r="5"></circle>
+          <circle cx="0" cy="220" fill="#4493CC" r="5"></circle>
+          <circle cx="300" cy="200" fill="#4493CC" r="5"></circle>
+          <circle cx="600" cy="140" fill="#4493CC" r="5"></circle>
+          <circle cx="1000" cy="100" fill="#4493CC" r="5"></circle>
         </svg>
         
         {/* Bottom Axis Labels */}

@@ -44,7 +44,7 @@ export default function ComplaintDetailInfo({ complaint }) {
         </div>
 
         <div className="flex items-start gap-md">
-          <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
             <ShieldCheck size={20} />
           </div>
           <div>

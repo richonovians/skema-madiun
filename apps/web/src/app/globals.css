@@ -1,10 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #004ac6;
-  --color-primary-hover: #1D4ED8;
+  /* Palet mengikuti logo SKEMA (4 November 2026, permintaan pengguna): navy,
+     biru, dan cyan diambil dari piksel logonya. Kontras terhadap putih terukur
+     11,53 / 3,34 / 1,83, jadi hanya navy yang boleh menjadi warna teks dan
+     tombol. Biru untuk ikon, grafik, dan garis; cyan untuk hiasan saja, dan
+     teks di atas cyan harus navy (6,29). Pasangan warnanya dijaga
+     src/app/__tests__/paletWarna.test.js. */
+  --color-primary: #153969;
+  --color-primary-hover: #1F4F8A;
+  --color-brand-blue: #4493CC;
+  --color-brand-cyan: #58CFE3;
   --color-on-primary: #ffffff;
-  --color-secondary: #565e74;
+  --color-secondary: #4F6178;
   --color-on-secondary: #ffffff;
   --color-text-primary: #0F172A;
   --color-text-secondary: #64748B;
@@ -12,28 +20,56 @@
   --color-on-surface: #191b23;
   --color-background: #F8FAFC;
   --color-border: #E2E8F0;
-  --color-outline: #737686;
-  --color-outline-variant: #c3c6d7;
-  --color-primary-fixed: #dbe1ff;
-  --color-primary-fixed-dim: #b4c5ff;
-  --color-on-primary-fixed-variant: #003ea8;
-  --color-primary-container: #2563eb;
-  --color-on-primary-container: #eeefff;
-  --color-secondary-container: #dae2fd;
-  --color-on-secondary-container: #5c647a;
-  --color-surface-variant: #e1e2ed;
-  --color-on-surface-variant: #434655;
-  --color-surface-container-low: #f3f3fe;
-  --color-surface-container: #ededf9;
-  --color-surface-container-high: #e7e7f3;
-  --color-surface-container-highest: #e1e2ed;
-  --color-inverse-surface: #2e3039;
-  --color-inverse-on-surface: #f0f0fb;
+  --color-outline: #687585;
+  --color-outline-variant: #C3CCD8;
+  --color-primary-fixed: #DCEEF8;
+  --color-primary-fixed-dim: #BCDDF1;
+  --color-on-primary-fixed-variant: #1C4B78;
+  --color-primary-container: #2B6FA5;
+  --color-on-primary-container: #EFF7FC;
+  --color-secondary-container: #DCE8F2;
+  --color-on-secondary-container: #4C5D72;
+  --color-surface-variant: #E1E7EE;
+  --color-on-surface-variant: #3F4D5E;
+  --color-surface-container-low: #F2F7FB;
+  --color-surface-container: #EAF2F8;
+  --color-surface-container-high: #E3ECF4;
+  --color-surface-container-highest: #DCE7F0;
+  --color-inverse-surface: #1E2A3A;
+  --color-inverse-on-surface: #EEF3F8;
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
   --color-tertiary: #943700;
   --color-tertiary-container: #bc4800;
+
+  /* `blue-*` dan `indigo-*` dipakai sekitar 150 kali di 45 berkas. Skalanya
+     ditimpa di sini supaya warnanya mengikuti logo tanpa menyunting berkas itu.
+     `indigo-*` menjadi keluarga cyan, BUKAN biru kedua: badge peran membedakan
+     Admin Kabupaten (indigo) dari peran lain (blue) hanya lewat warna. */
+  --color-blue-50: #EFF7FC;
+  --color-blue-100: #DCEEF8;
+  --color-blue-200: #BCDDF1;
+  --color-blue-300: #96CAE9;
+  --color-blue-400: #6AAEDB;
+  --color-blue-500: #4493CC;
+  --color-blue-600: #2B6FA5;
+  --color-blue-700: #235C8C;
+  --color-blue-800: #1C4B78;
+  --color-blue-900: #153969;
+  --color-blue-950: #0E2647;
+  --color-indigo-50: #EBFAFC;
+  --color-indigo-100: #D2F3F8;
+  --color-indigo-200: #A9E7F1;
+  --color-indigo-300: #7FDCEA;
+  --color-indigo-400: #58CFE3;
+  --color-indigo-500: #1F9DB4;
+  --color-indigo-600: #17798D;
+  --color-indigo-700: #126272;
+  --color-indigo-800: #0F505E;
+  --color-indigo-900: #0D4250;
+  --color-indigo-950: #0A2F3A;
+
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;

@@ -26,7 +26,7 @@ export default function RecentFeedback({ feedbacks }) {
         <div className="space-y-lg flex-1">
           {feedbacks.map((item, index) => (
             <div key={item.id || index} className="flex gap-md group">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container">
                 <MessageSquare size={14} />
               </div>
 

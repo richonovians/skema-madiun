@@ -38,7 +38,7 @@ function IkonInstagram({ size = 18, className }) {
 
 export default function Footer() {
   return (
-    <footer className="w-full py-16 bg-[#0F172A] text-white">
+    <footer className="w-full py-16 bg-primary text-white">
       <div className="max-w-[1280px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12">
         {/* Brand & Info (Sejajar Horizontal antara Logo dan Keterangan) */}
         <div className="flex flex-col sm:flex-row items-start gap-5 col-span-1 md:col-span-2 lg:col-span-6">
@@ -133,15 +133,15 @@ export default function Footer() {
         <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3">
           <h4 className="font-bold text-lg text-white mb-1">Hubungi Kami</h4>
           <div className="flex gap-3 items-start">
-            <MapPin className="text-primary shrink-0 mt-0.5" size={18} />
+            <MapPin className="text-brand-cyan shrink-0 mt-0.5" size={18} />
             <p className="text-outline-variant text-sm leading-relaxed">Jl. Mastrip No. 23 Madiun</p>
           </div>
           <div className="flex gap-3 items-center">
-            <Phone className="text-primary shrink-0" size={18} />
+            <Phone className="text-brand-cyan shrink-0" size={18} />
             <p className="text-outline-variant text-sm font-mono">(0351) 462927</p>
           </div>
           <div className="flex gap-3 items-center">
-            <Mail className="text-primary shrink-0" size={18} />
+            <Mail className="text-brand-cyan shrink-0" size={18} />
             <p className="text-outline-variant text-sm">diskominfo@madiunkab.go.id</p>
           </div>
         </div>
