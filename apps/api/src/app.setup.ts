@@ -208,11 +208,18 @@ export function configureApp(app: INestApplication): void {
           next();
         } catch (err) {
           // GAGAL TERTUTUP. Penyimpan yang tak dapat menjawab berarti menolak,
-          // bukan meloloskan; lihat docblock `PenyimpanCabutLampiran`.
+          // bukan meloloskan; lihat docblock `PenyimpanCabutLampiran`. 503, bukan
+          // `tolak()`: tanda tangannya sudah terbukti sah, jadi status ini tak
+          // membocorkan apa pun, dan tautan yang tak dicabut tak boleh disebut
+          // dicabut (BUG-071).
           logLampiran.error(
             `Penyimpan pencabutan lampiran tak menjawab, akses ditolak: ${String(err)}`,
           );
-          tolak(res, 'dicabut');
+          res.status(503).json({
+            success: false,
+            statusCode: 503,
+            message: 'Lampiran sementara tak dapat dibuka. Coba lagi beberapa saat.',
+          });
         }
       })();
       return;

@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import type { ThrottlerStorage } from '@nestjs/throttler';
 import Redis from 'ioredis';
+import { tutupKlienRedis } from '../redis/klien-redis';
 
 /**
  * Tipe record diturunkan dari kontraknya sendiri. `ThrottlerStorageRecord`
@@ -101,7 +102,7 @@ export class PenyimpanLajuRedis implements ThrottlerStorage, OnModuleDestroy {
   constructor(private readonly redis: Redis) {}
 
   async onModuleDestroy(): Promise<void> {
-    await this.redis.quit();
+    await tutupKlienRedis(this.redis);
   }
 
   // `throttlerName` (arg kelima kontrak) sengaja tak dideklarasikan: kuncinya

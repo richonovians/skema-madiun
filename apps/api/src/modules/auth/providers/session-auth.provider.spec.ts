@@ -220,6 +220,9 @@ describe('SessionAuthProvider — daftar pencabutan', () => {
       daftar: jest.fn(),
     };
 
-    expect(await buat(penyimpanMati).resolveUser(req('Bearer t'))).toBeNull();
+    await expect(buat(penyimpanMati).resolveUser(req('Bearer t'))).rejects.toMatchObject({
+      status: 503,
+      response: { code: 'PENYIMPAN_SESI_TAK_MENJAWAB' },
+    });
   });
 });

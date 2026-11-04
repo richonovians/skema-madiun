@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+import { tutupKlienRedis } from '../redis/klien-redis';
 import type { PenyimpanSinggahan } from './penyimpan-singgahan.interface';
 
 /**
@@ -35,7 +36,7 @@ export class PenyimpanSinggahanRedis implements PenyimpanSinggahan, OnModuleDest
   constructor(private readonly redis: Redis) {}
 
   async onModuleDestroy(): Promise<void> {
-    await this.redis.quit();
+    await tutupKlienRedis(this.redis);
   }
 
   async ambil<T>(kunci: string): Promise<T | null> {

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+import { tutupKlienRedis } from '../redis/klien-redis';
 import type { PenyimpanCabutLampiran } from './penyimpan-cabut-lampiran.interface';
 
 /** Dipisahkan dari `sesi:`, `laju:`, dan `singgahan:` di keyspace yang sama. */
@@ -28,7 +29,7 @@ export class PenyimpanCabutLampiranRedis implements PenyimpanCabutLampiran, OnMo
   ) {}
 
   async onModuleDestroy(): Promise<void> {
-    await this.redis.quit();
+    await tutupKlienRedis(this.redis);
   }
 
   async cabut(uid: number, padaDetik: number): Promise<void> {
