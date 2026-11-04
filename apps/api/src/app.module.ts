@@ -2,9 +2,9 @@ import { ClassSerializerInterceptor, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
-import Redis from 'ioredis';
 import { CabutLampiranModule } from './common/uploads/cabut-lampiran.module';
 import { ThrottlePenggunaGuard } from './common/guards/throttle-pengguna.guard';
+import { buatKlienRedis } from './common/redis/klien-redis';
 import { PenyimpanLajuRedis } from './common/guards/penyimpan-laju.redis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -56,9 +56,7 @@ import { UsersModule } from './modules/users/users.module';
           // sekali `REDIS_URL` diisi keduanya ikut pindah ke Redis sekaligus.
           // Yang menolak in-memory di PRODUKSI bukan baris ini melainkan gerbang
           // boot `periksaPenyimpanSesi`, yang kini menjaga keduanya.
-          ...(url
-            ? { storage: new PenyimpanLajuRedis(new Redis(url, { maxRetriesPerRequest: 2 })) }
-            : {}),
+          ...(url ? { storage: new PenyimpanLajuRedis(buatKlienRedis(url)) } : {}),
         };
       },
     }),

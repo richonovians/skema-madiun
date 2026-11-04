@@ -1,6 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { buatKlienRedis } from '../redis/klien-redis';
 import { PENYIMPAN_SINGGAHAN } from './penyimpan-singgahan.interface';
 import type { PenyimpanSinggahan } from './penyimpan-singgahan.interface';
 import { PenyimpanSinggahanNonaktif } from './penyimpan-singgahan.nonaktif';
@@ -32,7 +32,7 @@ import { PenyimpanSinggahanRedis } from './penyimpan-singgahan.redis';
           );
           return new PenyimpanSinggahanNonaktif();
         }
-        return new PenyimpanSinggahanRedis(new Redis(url, { maxRetriesPerRequest: 2 }));
+        return new PenyimpanSinggahanRedis(buatKlienRedis(url));
       },
     },
   ],

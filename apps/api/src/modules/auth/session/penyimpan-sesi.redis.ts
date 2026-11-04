@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+import { tutupKlienRedis } from '../../../common/redis/klien-redis';
 import type { CatatanSesi, PenyimpanSesi, SesiTerdaftar } from './penyimpan-sesi.interface';
 
 const AWALAN_SESI = 'sesi:';
@@ -45,7 +46,7 @@ export class PenyimpanSesiRedis implements PenyimpanSesi, OnModuleDestroy {
   constructor(private readonly redis: Redis) {}
 
   async onModuleDestroy(): Promise<void> {
-    await this.redis.quit();
+    await tutupKlienRedis(this.redis);
   }
 
   private static get sekarang(): number {

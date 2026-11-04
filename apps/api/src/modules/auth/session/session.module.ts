@@ -1,7 +1,7 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import Redis from 'ioredis';
+import { buatKlienRedis } from '../../../common/redis/klien-redis';
 import { PenerbitSesi } from './penerbit-sesi.service';
 import { PENYIMPAN_SESI } from './penyimpan-sesi.interface';
 import type { PenyimpanSesi } from './penyimpan-sesi.interface';
@@ -51,7 +51,7 @@ import { SessionService } from './session.service';
           );
           return new PenyimpanSesiMemori();
         }
-        return new PenyimpanSesiRedis(new Redis(url, { maxRetriesPerRequest: 2 }));
+        return new PenyimpanSesiRedis(buatKlienRedis(url));
       },
     },
   ],

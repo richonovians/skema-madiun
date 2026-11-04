@@ -1,6 +1,6 @@
 import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { buatKlienRedis } from '../redis/klien-redis';
 import { PENYIMPAN_CABUT_LAMPIRAN } from './penyimpan-cabut-lampiran.interface';
 import { PenyimpanCabutLampiranMemori } from './penyimpan-cabut-lampiran.memori';
 import { PenyimpanCabutLampiranRedis } from './penyimpan-cabut-lampiran.redis';
@@ -30,7 +30,7 @@ import { PenyimpanCabutLampiranRedis } from './penyimpan-cabut-lampiran.redis';
         const ttl = config.get<number>('upload.signedUrlTtlSeconds') ?? 3600;
         const url = config.get<string>('redis.url');
         if (url && url.trim() !== '') {
-          return new PenyimpanCabutLampiranRedis(new Redis(url), ttl);
+          return new PenyimpanCabutLampiranRedis(buatKlienRedis(url), ttl);
         }
         new Logger('CabutLampiranModule').warn(
           'REDIS_URL kosong: pencabutan tautan lampiran DALAM MEMORI, tidak dibagi antarproses.',

@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { User } from '@prisma/client';
 import type { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -126,13 +132,23 @@ export class SessionAuthProvider implements AuthProvider {
    * Konsekuensinya penyimpan menjadi titik gagal tunggal bagi seluruh API, dan
    * itu ditebus dengan persistensi AOF serta singgahan pendek di sisi
    * implementasi Redis, bukan dengan melonggarkan baris ini.
+   *
+   * DITOLAK DENGAN 503, BUKAN 401 (BUG-070, 4 November 2026). Interceptor
+   * `api.js` membaca setiap 401 sebagai "sesi sudah habis" lalu membuang sesi
+   * peramban. Dulu baris ini menjawab `false`, yang keluar sebagai 401, jadi
+   * Redis padam lebih dari lima detik mengeluarkan semua pengguna aktif padahal
+   * sesinya tetap sah. Permintaannya tetap ditolak; yang berubah hanya
+   * kebenaran alasannya.
    */
   private async sesiMasihBerlaku(sid: string): Promise<boolean> {
     try {
       return await this.penyimpanSesi.hidup(sid);
     } catch (err) {
       this.logger.error(`Penyimpan sesi tak dapat menjawab, sesi ditolak: ${String(err)}`);
-      return false;
+      throw new ServiceUnavailableException({
+        message: 'Layanan sedang terganggu. Coba lagi beberapa saat.',
+        code: 'PENYIMPAN_SESI_TAK_MENJAWAB',
+      });
     }
   }
 
