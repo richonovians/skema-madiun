@@ -160,8 +160,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
 | [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
+| [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
+| [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
 
-**Rekap** — 67 temuan: **63 ditutup, 4 terbuka** (Low: BUG-063, BUG-065, BUG-066, BUG-067).
+**Rekap** — 69 temuan: **63 ditutup, 6 terbuka** (Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3967,6 +3969,122 @@ lain, misalnya penyaring `response: { surveyId: { notIn: idSampah } }`, belum
 diukur. Uji BUG-013 yang ada harus tetap hijau, dan perbaikannya harus diukur
 ulang dengan pelari yang sama pada T3.
 
+### BUG-068 — `GET /statistics` memuat seluruh pengaduan ke memori
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, dataset beban dengan pengaduan, 4 November 2026, `main` `5de1ee2` + skrip pengukur `5fb6393` |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Pelari beban `apps/api/scripts/beban` (porta 3002, `skm_beban`, Redis logis 1), laptop ber-Docker Desktop, server dev ikut hidup |
+| **Berkas**   | `apps/api/src/modules/dashboard/dashboard.service.ts:352` (`hitungStatistik`, `complaint.findMany` tanpa `take`) |
+| **Severity** | Low (usulan penguji) -- hanya permintaan pertama per TTL singgahan, dan baru melewati 3 detik pada volume uji batas |
+
+**Gejala**
+
+Permintaan pertama `GET /api/v1/statistics` sesudah singgahannya kosong, pada
+148.800 respons dan 100% jawaban teks. Yang digeser hanya jumlah pengaduan:
+
+| Pengaduan                   | Permintaan pertama |
+| --------------------------- | ------------------ |
+| 0 (tanpa jawaban teks)      | 710 / 993 ms       |
+| 62.000 (1.000 per OPD)      | 1.769 / 1.932 ms   |
+| 310.000 (5.000 per OPD)     | 4.613 / 4.509 ms   |
+
+Seluruh jawaban 2xx; jalur hangatnya p50 9-11 ms.
+
+**Akar masalah**
+
+```ts
+this.prisma.complaint.findMany({
+  select: { createdAt: true, updatedAt: true, status: true },
+}),
+```
+
+Tanpa `take` dan tanpa `where`. Setiap baris menyeberang ke Node untuk menghasilkan
+rata-rata waktu penyelesaian dan tren per triwulan. Diukur terpisah lewat Prisma
+pada 62.000 baris, empat kali: 991 / 836 / 673 / 719 ms. `answer.groupBy` penyebab
+[BUG-067](#bug-067) pada dataset yang sama 355-394 ms, jadi pada volume ini kueri
+pengaduan yang lebih mahal.
+
+Komentar di kode menyebut satu kueri ini sengaja dipakai untuk dua turunan supaya
+tak memindai tabel dua kali. Itu benar, tetapi tak mengubah bahwa barisnya dimuat
+semua.
+
+Waktu tingkat endpoint pada 310.000 baris belum diuraikan per kueri; bukti untuk
+angka itu hanya bahwa pengaduan satu-satunya yang berubah dari baris sebelumnya.
+
+**Dampak**
+
+- Hanya satu pengunjung per TTL singgahan yang menanggungnya, dan penahan stampede
+  tetap bekerja. `/statistics` `@Public()`.
+- Tumbuh mengikuti jumlah pengaduan, tak bergantung pada jumlah respons.
+- 310.000 pengaduan adalah uji batas, bukan perkiraan volume; tak ada data
+  penerimaan pengaduan untuk memperkirakannya.
+- Yang belum diukur: memori proses saat memuat barisnya. Yang terukur hanya waktu.
+
+**Arah perbaikan (belum dicoba di kode aplikasi)**
+
+Hitung rata-rata dan bucket triwulan di Postgres, lewat agregat, alih-alih di Node.
+Harus menghasilkan angka yang sama dengan bentuk sekarang (uji pencocokan pada
+dataset yang sama), lalu diukur ulang dengan pelari yang sama.
+
+### BUG-069 — `GET /complaints` memindai seluruh tabel di setiap permintaan
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA-PERF, dataset beban dengan pengaduan, 4 November 2026, `main` `5de1ee2` + skrip pengukur `5fb6393` |
+| **Tanggal**  | 4 November 2026                                              |
+| **Lingkungan** | Sama dengan BUG-068. Skenario `daftar-pengaduan` memakai sesi `kabupaten` |
+| **Berkas**   | `apps/api/prisma/schema.prisma` (model `Complaint`, tanpa indeks `created_at`), `apps/api/src/modules/complaints/complaints.service.ts:221` (`orderBy: { createdAt: 'desc' }`) |
+| **Severity** | Low (usulan penguji) -- di bawah 1 detik pada 62.000 pengaduan; di atasnya hanya pada uji batas |
+
+**Gejala**
+
+10 koneksi, 10 detik, sesi `kabupaten`, halaman pertama (20 baris). Tanpa singgahan,
+jadi setiap permintaan membayar:
+
+| Pengaduan | p50    | maks     | req/s |
+| --------- | ------ | -------- | ----- |
+| 0         | 26 ms  | 81 ms    | 348   |
+| 62.000    | 163 ms | 309 ms   | 59    |
+| 310.000   | 692 ms | 1.306 ms | 13    |
+
+Pada jumlah yang sama, 62.000, jalan lain di T3 mencatat p50 236 ms. Selisih itu
+belum dijelaskan; pengukuran berbagi laptop dengan server dev.
+
+**Akar masalah**
+
+Diukur pada 62.000 baris, satu klien tanpa beban, enam kali per bentuk. Indeksnya
+dibuat lalu dihapus di `skm_beban`:
+
+| Bagian                               | Waktu    |
+| ------------------------------------ | -------- |
+| `findMany` + `include`, tanpa indeks | 36-41 ms |
+| `findMany` + `include`, dengan indeks `(created_at DESC)` | 5-8 ms |
+| `count`                              | 7-11 ms  |
+| Dekripsi 20 `uraian`                 | 2 ms     |
+
+Angka di atas tanpa permintaan pertama yang memanaskan koneksi (114 ms dan 8 ms pada
+dua baris `findMany`). `EXPLAIN ANALYZE`, `ORDER BY created_at DESC LIMIT 20`: tanpa
+indeks `Parallel Seq Scan` lalu top-N heapsort, 28,6 ms; dengan indeks `Index Scan`,
+0,14 ms.
+
+Jadi pemindaian urutannya bagian terbesar, bukan dekripsi. Indeks yang ada hanya
+`user_id`, `opd_id`, dan `status`, dan tak satu pun menolong halaman pertama Admin
+Kabupaten yang tak menyaring apa pun.
+
+**Dampak**
+
+- Admin Kabupaten dan kotak masuknya. Sesi Admin OPD menyaring `opd_id`, jadi
+  barisnya jauh lebih sedikit; jalur itu belum diukur.
+- Tumbuh mengikuti jumlah pengaduan, dan dibayar setiap permintaan, bukan hanya
+  yang pertama.
+
+**Arah perbaikan (belum dicoba di kode aplikasi)**
+
+Indeks `complaints (created_at DESC)` lewat migrasi tulis tangan. Bukti di atas baru
+untuk kueri itu sendiri; endpoint harus diukur ulang dengan pelari yang sama.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -7331,3 +7449,4 @@ hanya dibaca, tidak diubah.
 | 7.27 | 3 November 2026 | **BUG-065 dibuka: 65 temuan, 63 ditutup, 2 terbuka.** Ditemukan saat memetakan TC-CMP-003: 7 dari 10 `POST /complaints` serentak lewat `skema.local` dijawab 502 nginx "no live upstreams", sedangkan API sehat. Akarnya `host.docker.internal` kini diterjemahkan ke IPv4 dan IPv6 (Docker Desktop 4.98.0). Direproduksi di kontainer nginx terpisah: dua alamat 9× 502 pada ledakan pertama sesudah upstream pulih, satu alamat 0. Hanya pengembangan; produksi tak terdampak. |
 | 7.28 | 3 November 2026 | **BUG-066 dibuka: 66 temuan, 63 ditutup, 3 terbuka.** Ditemukan saat memetakan TC-AUTH-010: di `NODE_ENV=production` `POST /auth/dev-login` dijawab 404, tetapi pesannya "Not Found" (rute tak ada: "Cannot POST ..."), ia membawa header `X-RateLimit-Limit: 30`, dan permintaan ke-31 dijawab 429. Akarnya rute tetap terdaftar dan penjaga batas laju global berjalan sebelum `NonProductionGuard`. Penjaganya tetap menolak; yang bocor hanya keberadaan rute. |
 | 7.29 | 3 November 2026 | **BUG-067 dibuka: 67 temuan, 63 ditutup, 4 terbuka.** Ditemukan saat mengukur ulang jalur baca untuk QA-PERF: jalan dingin `GET /statistics` pada T3 naik dari 1.793 ms ke 3.739-6.255 ms. Sebabnya penyaring Sampah dari perbaikan BUG-013 (`f1c132e`) yang membuat `answer.groupBy` menyaring lewat dua `LEFT JOIN`; kuerinya sendiri naik dari ~0,6 s ke 2,0-3,3 s. Pada T1 (ukuran QA-PERF) endpointnya tetap di bawah 500 ms. |
+| 7.30 | 4 November 2026 | **BUG-068 dan BUG-069 dibuka: 69 temuan, 63 ditutup, 6 terbuka.** Ditemukan begitu dataset beban memuat pengaduan. `GET /statistics` memuat seluruh pengaduan ke memori (673-991 ms untuk 62.000 baris; permintaan pertama 4,5-4,6 s pada 310.000). `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten (p50 163 ms pada 62.000, 692 ms pada 310.000); indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-8 ms, diukur lalu dihapus di `skm_beban`. |

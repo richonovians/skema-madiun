@@ -707,23 +707,21 @@ kolom B untuk satu OPD: jawaban teks terbaru 15-24 ms (mengembalikan 5 baris),
 pengaduan selesai 8-11 ms (500 baris), hitungan pengaduan aktif 4-6 ms (400). Jadi
 datanya benar-benar terbaca, bukan kueri atas nol baris.
 
-**`/statistics` memuat seluruh pengaduan ke memori.** `complaint.findMany` tanpa
+**`/statistics` memuat seluruh pengaduan ke memori ([BUG-068](BUG_REPORTS.md#bug-068)).** `complaint.findMany` tanpa
 batas di `dashboard.service.ts:352`, dipakai untuk tren dan rata-rata waktu
 penyelesaian. Pada kolom B kueri itu saja 673-991 ms untuk 62.000 baris, lebih
 mahal dari `answer.groupBy` penyebab [BUG-067](BUG_REPORTS.md#bug-067) (355-394 ms).
 Hanya permintaan pertama yang terkena; sesudahnya singgahan menjawab (p50 9-12 ms).
 
-**`GET /complaints` membayar setiap permintaan, dan tanpa singgahan.** `complaints`
+**`GET /complaints` membayar setiap permintaan, dan tanpa singgahan ([BUG-069](BUG_REPORTS.md#bug-069)).** `complaints`
 tak punya indeks `created_at`, sedangkan daftarnya `ORDER BY created_at DESC`.
 Rencana kuerinya pada 62.000 baris: Parallel Seq Scan lalu top-N heapsort, 36 ms.
-`count` di transaksi yang sama ikut memindai. Uraian penuh waktunya belum dibuat:
-36 ms itu kueri tunggal, sementara p50 di atas 10 koneksi bersamaan dan termasuk
-dekripsi. Selisih kolom B dan D (163 dan 236 ms, pengaduan sama) juga belum
-dijelaskan.
+Uraiannya ada di BUG-069: pemindaian urutan bagian terbesar, dekripsi 20 baris
+hanya 2 ms, dan indeks `created_at` menurunkan kuerinya dari 36-41 ms ke 5-8 ms.
+Selisih kolom B dan D (163 dan 236 ms, pengaduan sama) belum dijelaskan.
 
 **Membaca kolom C.** 5.000 pengaduan per OPD adalah uji batas, bukan perkiraan
-volume; tak ada data penerimaan pengaduan untuk memperkirakannya. Kedua temuan di
-atas belum dicatat di `BUG_REPORTS.md`.
+volume; tak ada data penerimaan pengaduan untuk memperkirakannya.
 
 `skm_beban` kini memuat kolom D.
 
