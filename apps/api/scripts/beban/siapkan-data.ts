@@ -39,12 +39,24 @@
  *
  *   pnpm --filter @skm-spm/api beban:data -- --survei=744 --respons=20
  *   pnpm --filter @skm-spm/api beban:data -- --survei=0            # kosongkan saja
+ *
+ * JAWABAN TEKS DAN PENGADUAN HARUS DIMINTA (4 November 2026). Bakunya nol supaya
+ * perintah di atas tetap membangun dataset yang tercatat di `docs/TEST_BEBAN.md`.
+ * Keduanya ada karena `/dashboard/opd` dan `/statistics` membacanya, sementara
+ * tanpa keduanya kueri itu berjalan atas nol baris dan terukur cepat tanpa arti.
+ *
+ *   ... beban:data -- --survei=744 --respons=200 --teks=100 --pengaduan=1000
+ *
+ * `--teks=` persen respons yang menulis saran, `--pengaduan=` jumlah per OPD.
  */
 import * as path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
+import { enkripsiKolom } from '../../src/common/crypto/kolom';
+import { bacaKunci } from '../../src/common/crypto/kunci';
 import { jalankanCli } from '../lib/jalankan-cli';
 import { IDENTITAS_ADMIN, OPD_BEBAN, PERAN_BEBAN } from './lib/akun-beban';
+import { angkaArgumen, bacaIsiTambahan } from './lib/opsi-dataset';
 import {
   NAMA_DB_BEBAN,
   basisDataBelumAda,
@@ -61,31 +73,21 @@ const RESPONS_BAKU = 20;
 const JUMLAH_UNSUR = 9;
 /** Survei per pernyataan INSERT, supaya satu pernyataan tak tumbuh tanpa batas. */
 const PETAK = 50;
+/** Sekitar 180 karakter, panjang saran yang wajar. */
+const SARAN_CONTOH = 'Pelayanan sudah cukup baik, tetapi antrean perlu dipercepat. '.repeat(3);
 
 interface BatasSurvei {
   min: number;
   max: number;
 }
 
-function angkaArgumen(nama: string, baku: number): number {
-  const awalan = `--${nama}=`;
-  const cocok = process.argv.find((a) => a.startsWith(awalan));
-  if (cocok === undefined) {
-    return baku;
-  }
-  const nilai = Number(cocok.slice(awalan.length));
-  if (!Number.isInteger(nilai) || nilai < 0) {
-    throw new Error(`${awalan} menuntut bilangan bulat tak negatif, bukan '${cocok}'`);
-  }
-  return nilai;
-}
-
 async function utama(): Promise<void> {
   dotenv.config({ path: path.join(AKAR_API, '.env') });
 
   const url = sasaranDbBeban(process.env.DATABASE_URL ?? '');
-  const jumlahSurvei = angkaArgumen('survei', SURVEI_BAKU);
-  const responsPerSurvei = angkaArgumen('respons', RESPONS_BAKU);
+  const jumlahSurvei = angkaArgumen(process.argv, 'survei', SURVEI_BAKU);
+  const responsPerSurvei = angkaArgumen(process.argv, 'respons', RESPONS_BAKU);
+  const { persenTeks, pengaduanPerOpd } = bacaIsiTambahan(process.argv);
   // MENGOSONGKAN ADALAH BAKUNYA, dan `--tambah` yang harus diminta. Sebelumnya
   // kebalikannya: `--bersih` yang harus diminta. Itu salah untuk uji beban --
   // angka hanya berarti bila ukuran datasetnya diketahui, dan jalan ulang yang
@@ -128,6 +130,12 @@ async function utama(): Promise<void> {
       await bangunPertanyaan(prisma, batas);
       await bangunRespons(prisma, batas, responsPerSurvei);
       await bangunJawaban(prisma, batas);
+      if (persenTeks > 0) {
+        await bangunJawabanTeks(prisma, batas, persenTeks);
+      }
+      if (pengaduanPerOpd > 0) {
+        await bangunPengaduan(prisma, pengaduanPerOpd);
+      }
       console.log(`\nDibangun dalam ${((Date.now() - mulai) / 1000).toFixed(1)}s.`);
     }
 
@@ -348,13 +356,98 @@ async function bangunJawaban(prisma: PrismaClient, s: BatasSurvei): Promise<void
   console.log(`  jawaban    : ${JUMLAH_UNSUR} per respons`);
 }
 
+/**
+ * Satu pertanyaan teks per survei, lalu jawabannya.
+ *
+ * Pertanyaannya hanya lahir bila diminta, supaya halaman pengisian pada dataset
+ * lama tetap memuat sembilan pertanyaan. Di luar unsur, jadi tak masuk hitungan
+ * IKM. Yang dipilih `r.id % 100`, bukan `random()`, supaya persennya tepat dan
+ * dapat diulang.
+ */
+async function bangunJawabanTeks(
+  prisma: PrismaClient,
+  s: BatasSurvei,
+  persen: number,
+): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO questions (survey_id, teks, tipe, is_ikm_unsur, urutan, created_at, updated_at)
+     SELECT s.id, 'Saran dan masukan', 'teks'::question_type, false, $1, now(), now()
+     FROM surveys s WHERE s.id BETWEEN $2 AND $3`,
+    JUMLAH_UNSUR + 1,
+    s.min,
+    s.max,
+  );
+  for (let a = s.min; a <= s.max; a += PETAK) {
+    const b = Math.min(a + PETAK - 1, s.max);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO answers (response_id, question_id, teks)
+       SELECT r.id, q.id, $1
+       FROM survey_responses r
+       JOIN questions q ON q.survey_id = r.survey_id AND q.tipe = 'teks'::question_type
+       WHERE r.survey_id BETWEEN $2 AND $3 AND r.id % 100 < $4
+       ON CONFLICT (response_id, question_id) DO NOTHING`,
+      SARAN_CONTOH,
+      a,
+      b,
+      persen,
+    );
+  }
+  console.log(`  jawaban teks: ${persen}% respons`);
+}
+
+/**
+ * Pengaduan dibagi rata ke setiap OPD beban, semuanya milik akun beban.
+ *
+ * `uraian` TERENKRIPSI seperti di produksi, satu ciphertext dipakai semua baris.
+ * Teks polos akan dilewatkan `dekripsiKolom` tanpa AES, dan `GET /complaints`
+ * terukur lebih murah dari yang sebenarnya. Isinya hanya kalimat contoh, jadi
+ * ciphertext yang sama tak mengurangi apa pun di basis data uji ini.
+ *
+ * Campuran statusnya ANGGAPAN, bukan data: 50% selesai, 20% diterima, 20%
+ * diproses, 10% ditolak. `selesai` diberi porsi terbesar karena kueri itulah yang
+ * memuat barisnya tanpa batas ke memori (`complaint.findMany` di dashboard).
+ */
+async function bangunPengaduan(prisma: PrismaClient, perOpd: number): Promise<void> {
+  const uraian = enkripsiKolom(
+    SARAN_CONTOH,
+    bacaKunci(process.env.DATA_ENCRYPTION_KEY ?? '', 'DATA_ENCRYPTION_KEY', 'development'),
+  );
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO complaints (ticket_no, user_id, opd_id, kategori, judul, uraian, status, created_at, updated_at)
+     SELECT 'PGDBEBAN' || lpad((dasar.n + b.nomor)::text, 10, '0'),
+            u.id, b.opd_id,
+            (ARRAY['aduan','lapor','lainnya'])[1 + (b.i % 3)],
+            'Pengaduan Beban ' || b.i,
+            $1,
+            (ARRAY['selesai','diterima','selesai','diproses','selesai',
+                   'diterima','selesai','diproses','selesai','ditolak'])[1 + (b.i % 10)]::complaint_status,
+            b.dibuat,
+            b.dibuat + (random() * interval '72 hours')
+     FROM (
+       SELECT o.id AS opd_id, i,
+              now() - (random() * interval '1000 days') AS dibuat,
+              row_number() OVER () AS nomor
+       FROM opd o CROSS JOIN generate_series(1, $2) AS i
+       WHERE o.kode LIKE 'BEBAN%'
+     ) AS b
+     CROSS JOIN (SELECT id FROM users WHERE sso_subject = $3) AS u
+     CROSS JOIN (SELECT COALESCE(max(id), 0) AS n FROM complaints) AS dasar`,
+    uraian,
+    perOpd,
+    IDENTITAS_ADMIN,
+  );
+  console.log(`  pengaduan  : ${perOpd.toLocaleString('id-ID')} per OPD`);
+}
+
 async function hitungBaris(prisma: PrismaClient): Promise<Record<string, number>> {
   const [baris] = await prisma.$queryRaw<Record<string, bigint>[]>`
     SELECT (SELECT count(*) FROM opd)              AS opd,
            (SELECT count(*) FROM surveys)          AS surveys,
            (SELECT count(*) FROM questions)        AS questions,
            (SELECT count(*) FROM survey_responses) AS survey_responses,
-           (SELECT count(*) FROM answers)          AS answers
+           (SELECT count(*) FROM answers)          AS answers,
+           (SELECT count(*) FROM answers WHERE teks IS NOT NULL) AS jawaban_teks,
+           (SELECT count(*) FROM complaints)       AS complaints
   `;
   return Object.fromEntries(Object.entries(baris).map(([k, v]) => [k, Number(v)]));
 }

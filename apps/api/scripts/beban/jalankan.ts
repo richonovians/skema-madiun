@@ -42,6 +42,7 @@ import Redis from 'ioredis';
 import { AWALAN_SINGGAHAN } from '../../src/common/cache/penyimpan-singgahan.redis';
 import { jalankanCli } from '../lib/jalankan-cli';
 import { IDENTITAS_ADMIN, PERAN_BEBAN, type PeranBeban } from './lib/akun-beban';
+import { HITUNGAN_DATASET, ringkasDataset, type HitunganDataset } from './lib/opsi-dataset';
 import {
   NAMA_DB_BEBAN,
   pastikanRedisBeban,
@@ -92,9 +93,7 @@ async function utama(): Promise<void> {
   const { idSurvei, baris } = await periksaDataset(url);
 
   console.log(`Basis data : ${NAMA_DB_BEBAN}`);
-  console.log(
-    `Dataset    : ${baris.survey_responses.toLocaleString('id-ID')} respons, ${baris.answers.toLocaleString('id-ID')} jawaban`,
-  );
+  console.log(`Dataset    : ${ringkasDataset(baris)}`);
   console.log(`Beban      : ${koneksi} koneksi, ${durasi}s per skenario\n`);
 
   console.log(
@@ -125,12 +124,10 @@ async function utama(): Promise<void> {
   // yang akan memerah lebih dulu begitu skenario tulis ditambahkan, dan itu
   // disengaja: angka beban hanya berarti bila ukuran datasetnya diketahui.
   const sesudah = await periksaDataset(url);
-  const berubah = (['survey_responses', 'answers'] as const).filter(
-    (t) => sesudah.baris[t] !== baris[t],
-  );
+  const berubah = HITUNGAN_DATASET.filter((t) => sesudah.baris[t] !== baris[t]);
   console.log(
     berubah.length === 0
-      ? `Dataset tetap: ${baris.survey_responses.toLocaleString('id-ID')} respons, ${baris.answers.toLocaleString('id-ID')} jawaban.`
+      ? `Dataset tetap: ${ringkasDataset(baris)}.`
       : 'PERINGATAN: dataset BERUBAH selama pengukuran — angka di atas tak dapat ' +
           `dipertanggungjawabkan. ${berubah
             .map((t) => `${t} ${baris[t]} -> ${sesudah.baris[t]}`)
@@ -195,9 +192,7 @@ async function masuk(peran: PeranBeban): Promise<string> {
  * menghasilkan angka yang tampak sangat bagus dan tak berarti apa pun -- jenis
  * kegagalan yang paling mudah dipercaya.
  */
-async function periksaDataset(
-  url: string,
-): Promise<{ idSurvei: number; baris: Record<string, number> }> {
+async function periksaDataset(url: string): Promise<{ idSurvei: number; baris: HitunganDataset }> {
   const prisma = new PrismaClient({ datasources: { db: { url } } });
   try {
     const [tersambung] = await prisma.$queryRaw<{ db: string }[]>`
@@ -207,9 +202,13 @@ async function periksaDataset(
 
     const [baris] = await prisma.$queryRaw<Record<string, bigint>[]>`
       SELECT (SELECT count(*) FROM survey_responses) AS survey_responses,
-             (SELECT count(*) FROM answers)          AS answers
+             (SELECT count(*) FROM answers)          AS answers,
+             (SELECT count(*) FROM answers WHERE teks IS NOT NULL) AS jawaban_teks,
+             (SELECT count(*) FROM complaints)       AS complaints
     `;
-    const hitung = Object.fromEntries(Object.entries(baris).map(([k, v]) => [k, Number(v)]));
+    const hitung = Object.fromEntries(
+      Object.entries(baris).map(([k, v]) => [k, Number(v)]),
+    ) as HitunganDataset;
     if (hitung.answers === 0) {
       throw new Error('Dataset beban kosong. Bangun dulu: pnpm --filter @skm-spm/api beban:data');
     }
