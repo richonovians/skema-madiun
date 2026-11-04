@@ -743,7 +743,7 @@ Diukur pada `main` `5cda6fa`. Sasaran dari PRD §10: "target uptime ≥ 99%; bac
 | Uptime ≥ 99% | **Belum dapat dinyatakan.** Angka itu hanya terukur di server sungguhan selama berminggu-minggu; belum ada server maupun pemantau. 99% berarti paling lama 7 jam 12 menit padam per 30 hari. |
 | API pulih sendiri sesudah DB/Redis kembali | **Lulus.** Tak perlu restart; paling lama 2,5 detik sesudah perintah menyalakan DB, 0,3 detik sesudah Redis. |
 | Sesi selamat dari restart API dan restart Redis | **Lulus di server.** Token yang sama tetap dijawab 200. Di peramban tidak selamat bila Redis padam lebih dari 5 detik ([BUG-070](BUG_REPORTS.md#bug-070)). |
-| Ketahanan saat Redis gangguan | **Gagal.** Redis mati mengeluarkan pengguna; Redis macet membuat seluruh API tak menjawab ([BUG-070](BUG_REPORTS.md#bug-070), [BUG-071](BUG_REPORTS.md#bug-071)). |
+| Ketahanan saat Redis gangguan | **Gagal.** Redis mati mengeluarkan pengguna; Redis macet membuat seluruh API tak menjawab ([BUG-070](BUG_REPORTS.md#bug-070), [BUG-071](BUG_REPORTS.md#bug-071)). Diperbaiki hari yang sama, §13.9. |
 | `/health` mewakili keadaan layanan | **Gagal.** Tetap 200 selama DB mati ([BUG-072](BUG_REPORTS.md#bug-072)). |
 | Cadangan dapat dipulihkan | **Lulus**, dengan dua catatan ([BUG-074](BUG_REPORTS.md#bug-074)). |
 | Cadangan terjadwal harian | **Belum ada** ([BUG-073](BUG_REPORTS.md#bug-073)). |
@@ -852,7 +852,7 @@ Masuk sungguhan lewat antarmuka di server dev (`warga`, Admin Kabupaten), lalu j
 
 ### 13.9 Sesudah perbaikan BUG-070 dan BUG-071
 
-Cabang `fix/redis-padam-sesi-batas-waktu` `6ead556`, belum di `main`. Rig, dataset, dan probe sama dengan §13.2, gangguan 60 detik. Latensi p50.
+Masuk `main` lewat PR #15 (merge `3cd88e8`, commit `6ead556`), CI `main` hijau. Rig, dataset, dan probe sama dengan §13.2, gangguan 60 detik. Latensi p50.
 
 | Endpoint | Redis macet, sebelum | Redis macet, sesudah | Redis mati, sebelum | Redis mati, sesudah |
 | --- | --- | --- | --- | --- |
