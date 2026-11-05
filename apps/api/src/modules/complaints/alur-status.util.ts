@@ -25,6 +25,7 @@ export const ALUR_UTAMA: readonly ComplaintStatus[] = [
 export const STATUS_ALTERNATIF: readonly ComplaintStatus[] = [
   ComplaintStatus.ditolak,
   ComplaintStatus.perlu_perbaikan,
+  ComplaintStatus.dialihkan,
 ];
 
 /**
@@ -60,6 +61,15 @@ export const STATUS_BELUM_TUNTAS: readonly ComplaintStatus[] = Object.values(
  * mengembalikannya ke antrean verifikasi sesudah pelapor melengkapi. Yang
  * mengembalikan Admin, bukan balasan pelapornya sendiri -- balasan masuk
  * kapan saja dan belum tentu memuat yang diminta.
+ *
+ * `dialihkan` MUNCUL SEBAGAI KUNCI, TIDAK PERNAH SEBAGAI TARGET, dan itu
+ * bukan kelalaian (5 November 2026). Satu-satunya yang boleh menuliskannya
+ * adalah `ComplaintsService.alihkan()`, sebab perpindahan itu mengubah
+ * kepemilikan tiket, kategori, dan tingkatnya sekaligus -- bukan hanya
+ * statusnya. Menaruhnya sebagai target di sini akan membuat
+ * `PATCH /complaints/:id/status` dapat menggeser status ke `dialihkan` tanpa
+ * memindahkan apa pun, dan meninggalkan tiket yang berbunyi "dialihkan" pada
+ * OPD yang sama.
  */
 export const TRANSISI_DIIZINKAN: Record<ComplaintStatus, readonly ComplaintStatus[]> = {
   [ComplaintStatus.terkirim]: [],
@@ -79,9 +89,37 @@ export const TRANSISI_DIIZINKAN: Record<ComplaintStatus, readonly ComplaintStatu
     ComplaintStatus.ditolak,
   ],
   [ComplaintStatus.perlu_perbaikan]: [ComplaintStatus.menunggu_verifikasi, ComplaintStatus.ditolak],
+  // Keluarnya sama persis dengan `menunggu_verifikasi`: bagi OPD tujuan, tiket
+  // yang baru dialihkan memang tiket yang baru masuk dan belum ia verifikasi.
+  [ComplaintStatus.dialihkan]: [
+    ComplaintStatus.diverifikasi,
+    ComplaintStatus.perlu_perbaikan,
+    ComplaintStatus.ditolak,
+  ],
   [ComplaintStatus.selesai]: [],
   [ComplaintStatus.ditolak]: [],
 };
+
+/**
+ * Status yang boleh DIALIHKAN ke OPD lain (5 November 2026).
+ *
+ * DITURUNKAN, bukan diketik ulang, dengan alasan yang sama seperti
+ * `STATUS_BELUM_TUNTAS`: status baru harus otomatis ikut boleh dialihkan,
+ * bukan diam-diam terkunci karena ada yang lupa mendaftarkannya.
+ *
+ * KEBETULAN SAMA DENGAN `STATUS_BELUM_TUNTAS` hari ini, dan namanya tetap dua
+ * karena pertanyaannya dua: "apakah tiket ini masih berjalan" bukan "apakah
+ * tiket ini boleh dipindahkan". Penambah status berikutnya memutuskan
+ * keduanya sendiri-sendiri; menyamakan nama akan menyembunyikan pilihan itu.
+ *
+ * `perlu_perbaikan` SENGAJA ikut boleh dialihkan, meski permintaan
+ * pelengkapan kepada pelapor dengan begitu hilang dari lencananya. Permintaan
+ * itu tetap terbaca di linimasa, dan OPD baru dapat menerbitkannya lagi bila
+ * masih relevan -- sering kali tidak, karena instansi berbeda menuntut berkas
+ * berbeda. Melarangnya justru mengunci tiket salah tujuan pada OPD yang tak
+ * berwenang menilainya.
+ */
+export const STATUS_BOLEH_DIALIHKAN: readonly ComplaintStatus[] = STATUS_BELUM_TUNTAS;
 
 /**
  * Status yang MENUNTUT catatan.
@@ -105,6 +143,7 @@ export const LABEL_STATUS: Record<ComplaintStatus, string> = {
   [ComplaintStatus.selesai]: 'Selesai',
   [ComplaintStatus.ditolak]: 'Ditolak',
   [ComplaintStatus.perlu_perbaikan]: 'Perlu Perbaikan',
+  [ComplaintStatus.dialihkan]: 'Dialihkan',
 };
 
 export function labelStatus(status: ComplaintStatus | string): string {
