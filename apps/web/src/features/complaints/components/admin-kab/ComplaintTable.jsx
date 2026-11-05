@@ -1,7 +1,7 @@
 import React from 'react';
 import Badge from '@/components/ui/Badge';
 import Link from 'next/link';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import { COMPLAINT_STATUS_BADGE_VARIANT, COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 /**
  * Kolom Prioritas/SLA/Progress% DIHAPUS -- tak ada field ini di backend
@@ -11,21 +11,6 @@ import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
  * adapter sinkron -- lihat catatan di complaint.adapter.js).
  */
 export default function ComplaintTable({ complaints, categoryMap = {}, onForward }) {
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'Selesai':
-        return 'success';
-      case 'Diproses':
-        return 'warning';
-      case 'Ditolak':
-        return 'danger';
-      case 'Diterima':
-        return 'info';
-      default:
-        return 'default';
-    }
-  };
-
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -86,7 +71,7 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                 </td>
 
                 <td className="px-lg py-lg">
-                  <Badge variant={getStatusVariant(complaint.status)}>
+                  <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]}>
                     {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
                   </Badge>
                 </td>

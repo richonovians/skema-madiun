@@ -332,7 +332,7 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
             ujung kiri. Di layar sempit keduanya bertumpuk, dan urutan ini
             menaruh tombol penutup tiket di posisi terjauh dari ibu jari. */}
         <div className="flex flex-col sm:flex-row sm:justify-end items-center gap-md">
-          {currentStatus === 'Diproses' && (
+          {currentStatus === 'Sedang Ditindaklanjuti' && (
             <button
               onClick={onCloseTicket}
               className="w-full sm:w-auto sm:mr-auto px-md sm:px-lg py-2 [@media(min-height:800px)]:py-3 rounded-lg border border-green-600/50 text-green-700 font-bold whitespace-nowrap hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-sm"

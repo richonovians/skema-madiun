@@ -2,23 +2,9 @@ import React from 'react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { Ticket, CalendarDays, Building2 } from 'lucide-react';
+import { COMPLAINT_STATUS_BADGE_VARIANT } from '@/utils/enumLabels';
 
 export default function ComplaintInfoCard({ ticketId, date, target, status }) {
-  const getStatusVariant = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'diterima':
-      case 'sedang diproses':
-      case 'diproses':
-        return 'secondary';
-      case 'selesai':
-        return 'success';
-      case 'ditolak':
-        return 'danger';
-      default:
-        return 'default';
-    }
-  };
-
   return (
     <Card className="overflow-hidden border-border/40 shadow-xl shadow-primary/5 transition-all hover:shadow-2xl hover:shadow-primary/10 relative">
       {/* Decorative blurred blobs for a premium glass/glow effect */}
@@ -35,7 +21,7 @@ export default function ComplaintInfoCard({ ticketId, date, target, status }) {
             </div>
             <span className="font-bold text-text-primary text-sm uppercase tracking-widest opacity-80">Tiket Laporan</span>
           </div>
-          <Badge variant={getStatusVariant(status)} className="px-3 py-1.5 font-bold tracking-widest uppercase text-[10px] leading-(--text-xs--line-height) shadow-sm ring-1 ring-black/5">
+          <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[status]} className="px-3 py-1.5 font-bold tracking-widest uppercase text-[10px] leading-(--text-xs--line-height) shadow-sm ring-1 ring-black/5">
             {status?.toUpperCase() || 'UNKNOWN'}
           </Badge>
         </div>

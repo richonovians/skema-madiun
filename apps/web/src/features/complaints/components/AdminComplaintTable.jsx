@@ -2,19 +2,9 @@ import React from 'react';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import Link from 'next/link';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import { COMPLAINT_STATUS_BADGE_VARIANT, COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 export default function AdminComplaintTable({ complaints }) {
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'Selesai': return 'success';
-      case 'Diproses': return 'warning';
-      case 'Ditolak': return 'danger';
-      case 'Diterima': return 'info';
-      default: return 'default';
-    }
-  };
-
   const getAvatarVariant = (initials) => {
     const charCode = initials.charCodeAt(0);
     if (charCode % 3 === 0) return 'primary';
@@ -65,7 +55,7 @@ export default function AdminComplaintTable({ complaints }) {
                 </td>
                 <td className="px-lg py-lg font-body-md text-body-md text-on-surface-variant">{complaint.dateStr}</td>
                 <td className="px-lg py-lg">
-                  <Badge variant={getStatusVariant(complaint.status)}>
+                  <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]}>
                     {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
                   </Badge>
                 </td>

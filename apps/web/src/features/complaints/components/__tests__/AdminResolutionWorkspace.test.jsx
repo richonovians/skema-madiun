@@ -18,21 +18,21 @@ describe('AdminResolutionWorkspace', () => {
     // Urutan DOM menentukan dua hal sekaligus: di layar lebar tombol penutup
     // terdorong ke ujung kiri, dan di layar sempit -- tempat keduanya bertumpuk
     // -- ia berada paling jauh dari ibu jari.
-    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     const posisi = tombolSelesai().compareDocumentPosition(tombolKirim());
     expect(posisi & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('penutup tiket hanya ditawarkan saat tiket berstatus Diproses', () => {
-    // Backend hanya mengizinkan Diproses -> Selesai; menawarkannya pada status
-    // lain berarti menjanjikan yang pasti ditolak 400.
+  it('penutup tiket hanya ditawarkan saat tiket berstatus Sedang Ditindaklanjuti', () => {
+    // Backend hanya mengizinkan Sedang Ditindaklanjuti -> Selesai; menawarkannya
+    // pada status lain berarti menjanjikan yang pasti ditolak 400 (BUG-076).
     const { rerender } = render(
-      <AdminResolutionWorkspace currentStatus="Diterima" onSendUpdate={jest.fn()} />,
+      <AdminResolutionWorkspace currentStatus="Menunggu Verifikasi" onSendUpdate={jest.fn()} />,
     );
     expect(screen.queryByRole('button', { name: /selesaikan pengaduan/i })).not.toBeInTheDocument();
 
-    rerender(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    rerender(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
     expect(tombolSelesai()).toBeInTheDocument();
   });
 
@@ -44,7 +44,7 @@ describe('AdminResolutionWorkspace', () => {
           lepaskan = resolve;
         }),
     );
-    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+    render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={onSendUpdate} />);
 
     fireEvent.change(screen.getByPlaceholderText(/tulis jawaban solusi/i), {
       target: { value: 'Sudah kami tindak lanjuti.' },
@@ -66,7 +66,7 @@ describe('AdminResolutionWorkspace', () => {
 
     it('Enter mengirim pesannya', async () => {
       const onSendUpdate = jest.fn().mockResolvedValue(undefined);
-      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+      render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={onSendUpdate} />);
 
       fireEvent.keyDown(ketik(), { key: 'Enter' });
 
@@ -76,7 +76,7 @@ describe('AdminResolutionWorkspace', () => {
 
     it('Shift+Enter tidak mengirim, supaya balasan panjang tetap bisa berparagraf', () => {
       const onSendUpdate = jest.fn().mockResolvedValue(undefined);
-      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+      render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={onSendUpdate} />);
 
       fireEvent.keyDown(ketik(), { key: 'Enter', shiftKey: true });
 
@@ -85,7 +85,7 @@ describe('AdminResolutionWorkspace', () => {
 
     it('Enter pada kotak kosong tidak mengirim apa-apa', () => {
       const onSendUpdate = jest.fn().mockResolvedValue(undefined);
-      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+      render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={onSendUpdate} />);
 
       fireEvent.keyDown(screen.getByPlaceholderText(/tulis jawaban solusi/i), { key: 'Enter' });
 
@@ -96,7 +96,7 @@ describe('AdminResolutionWorkspace', () => {
       // Papan ketik beraksara majemuk memakai Enter untuk MEMILIH calon aksara.
       // Tanpa penjagaan ini, pemilihan itu ikut mengirim pesan yang belum jadi.
       const onSendUpdate = jest.fn().mockResolvedValue(undefined);
-      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+      render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={onSendUpdate} />);
 
       fireEvent.keyDown(ketik(), { key: 'Enter', isComposing: true });
 
@@ -106,7 +106,7 @@ describe('AdminResolutionWorkspace', () => {
     it('Enter berulang selagi pengiriman berjalan tidak mengirim dua kali', async () => {
       let lepaskan;
       const onSendUpdate = jest.fn(() => new Promise((r) => { lepaskan = r; }));
-      render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={onSendUpdate} />);
+      render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={onSendUpdate} />);
 
       const kotak = ketik();
       fireEvent.keyDown(kotak, { key: 'Enter' });
@@ -133,7 +133,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
   };
 
   it('menawarkan template admin', () => {
-    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     bukaTemplate();
 
@@ -142,7 +142,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
 
   /** KONTROL: kalimat pelapor tak boleh ditawarkan kepada admin. */
   it('KONTROL: tidak menawarkan satu pun template warga', () => {
-    render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     bukaTemplate();
 
@@ -153,7 +153,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
   it('mengisi kotak yang kosong, lengkap dengan nomor tiketnya', () => {
     render(
       <AdminResolutionWorkspace
-        currentStatus="Diproses"
+        currentStatus="Sedang Ditindaklanjuti"
         nomorTiket="PGD20260917ABCD"
         onSendUpdate={jest.fn()}
       />,
@@ -169,7 +169,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
 
   it('menyambung tanpa menghapus kalimat yang sedang diketik', () => {
     render(
-      <AdminResolutionWorkspace currentStatus="Diproses" nomorTiket="PGD1" onSendUpdate={jest.fn()} />,
+      <AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" nomorTiket="PGD1" onSendUpdate={jest.fn()} />,
     );
     fireEvent.change(kotakPesan(), { target: { value: 'Selamat pagi.' } });
 
@@ -193,7 +193,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
    */
   it('lampiran dipicu tombol bernama, bukan label yang tak dapat difokus', () => {
     const { container } = render(
-      <AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />,
+      <AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />,
     );
 
     const tombol = screen.getByRole('button', { name: /lampirkan dokumen\/foto/i });
@@ -215,7 +215,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
     const kemarin = new Date(Date.now() - 86_400_000).toISOString();
     render(
       <AdminResolutionWorkspace
-        currentStatus="Diproses"
+        currentStatus="Sedang Ditindaklanjuti"
         onSendUpdate={jest.fn()}
         chatHistory={[
           { role: "user", text: "pesan kemarin", createdAt: kemarin, timestamp: "09.00 WIB" },
@@ -232,7 +232,7 @@ describe('AdminResolutionWorkspace — template pesan', () => {
     const kemarin = new Date(Date.now() - 86_400_000).toISOString();
     render(
       <AdminResolutionWorkspace
-        currentStatus="Diproses"
+        currentStatus="Sedang Ditindaklanjuti"
         onSendUpdate={jest.fn()}
         chatHistory={[
           { role: "user", text: "pesan kemarin", createdAt: kemarin, timestamp: "09.00 WIB" },
@@ -270,7 +270,7 @@ describe('AdminResolutionWorkspace — validasi lampiran (BUG-007)', () => {
   const inputBerkas = (container) => container.querySelector('input[type="file"]');
 
   it('input lampiran membawa accept yang sama dengan daftar izin backend', () => {
-    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     expect(inputBerkas(container)).toHaveAttribute(
       'accept',
@@ -279,7 +279,7 @@ describe('AdminResolutionWorkspace — validasi lampiran (BUG-007)', () => {
   });
 
   it('menolak jenis yang tak diterima backend, dan menyebut alasannya', async () => {
-    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     fireEvent.change(inputBerkas(container), {
       target: { files: [berkas('animasi.gif', 'image/gif')] },
@@ -293,7 +293,7 @@ describe('AdminResolutionWorkspace — validasi lampiran (BUG-007)', () => {
   });
 
   it('menolak berkas yang melebihi batas ukuran', async () => {
-    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     fireEvent.change(inputBerkas(container), {
       target: { files: [berkas('foto.jpg', 'image/jpeg', 5 * 1024 * 1024 + 5000)] },
@@ -308,7 +308,7 @@ describe('AdminResolutionWorkspace — validasi lampiran (BUG-007)', () => {
   });
 
   it('menerima WEBP dan menulis ukurannya dengan koma', () => {
-    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     fireEvent.change(inputBerkas(container), {
       target: {
@@ -323,7 +323,7 @@ describe('AdminResolutionWorkspace — validasi lampiran (BUG-007)', () => {
   });
 
   it('tombol hapus menyebut berkas mana yang dibuangnya', () => {
-    const { container } = render(<AdminResolutionWorkspace currentStatus="Diproses" onSendUpdate={jest.fn()} />);
+    const { container } = render(<AdminResolutionWorkspace currentStatus="Sedang Ditindaklanjuti" onSendUpdate={jest.fn()} />);
 
     fireEvent.change(inputBerkas(container), {
       target: { files: [berkas('bukti.png', 'image/png')] },

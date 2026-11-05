@@ -13,12 +13,10 @@ import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
 import { getMySurveyResponses } from '@/features/surveys/services/surveys.api';
 import { formatDateId } from '@/utils/format';
+import { COMPLAINT_STATUS_BADGE_VARIANT } from '@/utils/enumLabels';
 
 const STATUS_VARIANT = {
-  Diterima: 'info',
-  Diproses: 'secondary',
-  Selesai: 'success',
-  Ditolak: 'error',
+  ...COMPLAINT_STATUS_BADGE_VARIANT,
   // Status semu untuk baris pengisian survei (lihat `surveyRows` di bawah).
   Terkirim: 'success',
 };
