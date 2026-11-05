@@ -4,6 +4,7 @@
 **Direvisi:** 13 Oktober 2026, sore — hari yang sama. Lihat kotak di bawah.
 **Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 dan T2 syarat "< 3 detik" terpenuhi (§12.4, §12.5). Dengan jawaban teks dan pengaduan: §12.6.
 **Ketersediaan:** diukur 4 November 2026 pada `main` `5cda6fa` — §13.
+**QA-PERF ditutup dengan catatan:** 5 November 2026 — §14.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -867,3 +868,31 @@ Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesud
 **Peramban sungguhan.** Permintaan `/api/v1` dari frontend dev diteruskan ke API rig, dan Redis rig dibunuh sungguhan, dua peran. Yang tiba hanya 503 (10 dan 16 jawaban), 0 `POST /auth/logout`, tetap masuk selama gangguan dan sesudah pulih. Ini menutup batas §13.5 untuk jalur token, bukan untuk cookie SSO.
 
 **Yang masih terbuka:** tiap permintaan bertambah sekitar 1 detik per perintah Redis selama padam, masuk baru tetap 500, dan `[ioredis] Unhandled error event` masih mengisi log.
+
+---
+
+## 14. Penutupan QA-PERF (5 November 2026)
+
+**Keputusan: QA-PERF ditutup dengan catatan.** Diputuskan penguji pada 5 November 2026, sehari sebelum tenggat. Ini keputusan pengujian, bukan persetujuan pemilik produk atau pernyataan siap produksi.
+
+### 14.1 Hasil terhadap sasaran
+
+| Sasaran | Hasil | Bukti |
+| --- | --- | --- |
+| Dashboard < 3 detik untuk ribuan responden | **Terpenuhi.** Terburuk 498 ms pada T1; selalu di bawah 1 detik pada T1 dan T2, termasuk permintaan pertama | §12.4, §12.5 |
+| API pulih sendiri sesudah DB dan Redis kembali | **Lulus.** Tanpa restart; paling lama 2,5 detik sesudah DB dinyalakan, 0,3 detik sesudah Redis | §13.1 |
+| Tahan gangguan Redis | **Lulus sesudah perbaikan.** BUG-070 dan BUG-071 sudah ditutup | §13.9 |
+| Soak 30 menit jalur baca | **Lulus.** 276.370 permintaan, 0 gagal | §13.7 |
+| Cadangan dapat dipulihkan | **Lulus, dengan dua catatan** dari BUG-074 | §13.6 |
+| Uptime ≥ 99% | **Belum dapat dinyatakan.** Belum ada server maupun pemantau | §13.1 |
+| Cadangan terjadwal harian | **Belum ada** (BUG-073, Medium) | §13.6 |
+
+### 14.2 Catatan yang ikut pada penutupan
+
+1. **BUG-073 menjadi syarat sebelum GO-LIVE 23 November 2026.** Temuan ini tetap terbuka dan belum punya pemilik perbaikan. PRD §10 memintanya, dan kehilangan data tanpa cadangan harian tidak tertangani oleh kinerja yang baik.
+2. **Uptime dibawa ke tahap server.** Angkanya hanya dapat diukur di server sungguhan selama berminggu-minggu, jadi penutupan ini tidak menyatakan sasaran itu tercapai.
+3. **Jalur tulis tetap ditunda** (§11). Beban saat warga mengirim jawaban dan pengaduan, serta gangguan selagi menulis, belum diukur.
+4. **Angka di atas diukur sebelum PR #17 dan #18**, pada `main` `9e72abb` dan `5cda6fa`. PR #17 mengubah layanan `dashboard`, `opd`, dan `ikm`; di `dashboard` penyaring status belum tuntas kini memakai `STATUS_BELUM_TUNTAS`. Dampaknya pada waktu jawab belum diukur ulang. Yang berjalan terhadap `a1e3c1f` hanya uji fungsional, bukan uji beban.
+5. **Batas pada data besar tetap terbuka.** Permintaan pertama `/statistics` melewati 3 detik pada T3 (3.739 / 6.255 ms, BUG-067) dan pada 310.000 pengaduan (BUG-068). `GET /complaints` memindai seluruh tabel (BUG-069). Ketiganya Low dan berada di atas ukuran yang diminta QA-PERF.
+6. **Temuan Low lain yang tetap terbuka:** BUG-072 (`/health` tetap 200 saat DB mati), BUG-074, dan BUG-075.
+7. **Yang belum diukur di §13.8 tetap belum diukur**, antara lain shutdown anggun, disk penuh, koneksi DB habis, dan soak lebih dari 30 menit.
