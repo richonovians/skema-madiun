@@ -1,17 +1,10 @@
 import React from 'react';
 import Link from 'next/link';
+import Badge from '@/components/ui/Badge';
 import { Tr, Td } from '@/components/ui/Table';
-import { COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
+import { COMPLAINT_STATUS_BADGE_VARIANT, COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
 export default function ComplaintRow({ id, date, department, title, status, isAnonim = false }) {
-  const statusStyles = {
-    'Selesai': 'bg-emerald-100 text-emerald-700',
-    'Diproses': 'bg-blue-100 text-blue-700',
-    'Diterima': 'bg-slate-100 text-slate-600',
-  };
-
-  const currentStyle = statusStyles[status] || 'bg-surface-container-high text-text-primary';
-
   return (
     <Tr className="group hover:bg-surface-container-low transition-colors">
       <Td className="font-medium text-primary font-bold">{id}</Td>
@@ -33,9 +26,12 @@ export default function ComplaintRow({ id, date, department, title, status, isAn
         )}
       </Td>
       <Td>
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${currentStyle}`}>
+        <Badge
+          variant={COMPLAINT_STATUS_BADGE_VARIANT[status]}
+          className="px-2 text-[11px] leading-(--text-xs--line-height) font-bold uppercase tracking-wider"
+        >
           {COMPLAINT_STATUS_LABEL[status] ?? status}
-        </span>
+        </Badge>
       </Td>
       <Td className="text-right">
         <Link href={`/complaints/${id.toLowerCase().replace('#', '')}`} className="text-primary font-medium hover:underline transition-all">
