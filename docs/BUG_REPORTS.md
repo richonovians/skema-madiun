@@ -168,8 +168,18 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
+| [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-069) |
+| [BUG-077](#bug-077) | Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-054) |
+| [BUG-078](#bug-078) | Permintaan serentak menimpa status: tiket `selesai` terbuka lagi menjadi `dialihkan` | Medium | Terkonfirmasi | Terbuka | QA PR #17 dan #18 (TC-CMP-071) |
+| [BUG-079](#bug-079) | Warga yang lupa memilih instansi tetap terkirim dan diberi tahu "Instansi Terkait" | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-052) |
+| [BUG-080](#bug-080) | Layar menampilkan `Validation failed` saat kategori kosong atau alasan pengalihan melebihi 1.000 karakter | Medium | Terkonfirmasi | Terbuka | QA PR #17 dan #18 (TC-CMP-053, TC-CMP-091) |
+| [BUG-081](#bug-081) | Lencana empat status baru memakai warna cadangan di empat komponen | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-070) |
+| [BUG-082](#bug-082) | Catatan wajib lolos bila hanya berisi spasi pada `PATCH /complaints/:id/status` | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-063) |
+| [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-049) |
+| [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | QA PR #18 (TC-CMP-090) |
+| [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 
-**Rekap** — 75 temuan: **65 ditutup, 10 terbuka** (Medium: BUG-073; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075).
+**Rekap** — 85 temuan: **65 ditutup, 20 terbuka** (Medium: BUG-073, BUG-076, BUG-077, BUG-078, BUG-079, BUG-080; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-081, BUG-082, BUG-083, BUG-084, BUG-085).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4319,6 +4329,330 @@ Beri pesan cadangan berbahasa Indonesia di interceptor untuk jawaban tanpa amplo
 
 ---
 
+<a id="bug-076"></a>
+
+### BUG-076 — Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'`
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev `http://skema.local`, Chrome terpasang; uji komponen Jest |
+| **Berkas**   | `apps/web/src/features/complaints/components/AdminResolutionWorkspace.jsx:335` |
+| **Severity** | Medium (usulan penguji) -- berlaku di detail Admin OPD dan Admin Kabupaten; jalan lain lewat dropdown Kontrol Status masih ada |
+
+**Gejala**
+
+Pada tiket berstatus Sedang Ditindaklanjuti, kolom percakapan hanya menampilkan "Kirim Pesan". Tombol "Selesaikan Pengaduan" tidak ada (`jumlahTombol: 0`).
+
+**Akar masalah**
+
+Syaratnya `currentStatus === 'Diproses'`, padahal status itu dibuang PR #17. `handleCloseTicket` di halaman detail sudah memakai `'Sedang Ditindaklanjuti'`, jadi hanya komponen ini yang tertinggal.
+
+**Mengapa suite tetap hijau**
+
+`AdminResolutionWorkspace.test.jsx:21,31,35` masih mengirim `Diproses` dan `Diterima` sebagai prop, sehingga uji itu membuktikan syarat lama, bukan alur baru.
+
+**Langkah reproduksi**
+
+1. Masuk sebagai Admin OPD.
+2. Buka tiket berstatus Sedang Ditindaklanjuti.
+3. Lihat bagian bawah kolom percakapan.
+
+**Arah perbaikan (belum dicoba)**
+
+Ganti syaratnya menjadi `'Sedang Ditindaklanjuti'` dan perbarui uji tersebut.
+
+---
+
+<a id="bug-077"></a>
+
+### BUG-077 — Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, permintaan API langsung |
+| **Berkas**   | `apps/api/src/modules/complaints/complaints.service.ts:513` (`forward`) |
+| **Severity** | Medium (usulan penguji) -- data salah tersimpan dan terjangkau dari modal Teruskan, tetapi hanya pada tiket tanpa tujuan |
+
+**Gejala**
+
+Pengaduan tingkat kecamatan tanpa tujuan diteruskan ke Dinas Kesehatan. Jawabannya 200, dan barisnya menjadi `tingkat: kecamatan`, `kategori: kec_administrasi`, `opd: Dinas Kesehatan`. Riwayatnya tetap hanya `terkirim`, jadi linimasa pelapor tidak mencatat penerusan.
+
+**Akar masalah**
+
+`create()` dan `alihkan()` menegakkan kesepadanan tingkat, sedangkan `forward()` hanya memeriksa OPD ada dan tujuan masih kosong.
+
+**Langkah reproduksi**
+
+1. Sebagai warga, kirim pengaduan tingkat Kecamatan dengan tujuan "Lainnya (belum tahu tujuannya)".
+2. Sebagai Admin Kabupaten, teruskan ke Dinas Kesehatan.
+3. Buka detail tiket.
+
+**Arah perbaikan (belum dicoba)**
+
+Perlu keputusan pemilik produk: tolak penerusan lintas tingkat, atau turunkan tingkat dari OPD tujuan dan minta kategori baru seperti `alihkan()`.
+
+---
+
+<a id="bug-078"></a>
+
+### BUG-078 — Permintaan serentak menimpa status: tiket `selesai` terbuka lagi menjadi `dialihkan`
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17 dan #18, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, permintaan API serentak (`Promise.all`) |
+| **Berkas**   | `apps/api/src/modules/complaints/complaints.service.ts:338,352` (`updateStatus`), `:587,624` (`alihkan`) |
+| **Severity** | Medium (usulan penguji) -- tiket final dapat terbuka lagi, tetapi kedua permintaan harus tumpang tindih dalam waktu sangat singkat |
+
+**Gejala**
+
+| Percobaan | Hasil |
+| --- | --- |
+| `selesai` melawan `alihkan`, 3 kali | 3 dari 3 keduanya 200; status akhir `dialihkan`, riwayat memuat `selesai` |
+| Dua pengalihan ke tujuan berbeda | Keduanya 200; keduanya tercatat di riwayat |
+| Empat perpindahan ke `diverifikasi` | Dua 200, riwayat ganda, pelapor menerima 2 notifikasi |
+
+**Akar masalah**
+
+Status diperiksa di luar transaksi, lalu `update` hanya bersyarat `where: { id }`. Permintaan yang membaca status lama tetap menulis walau status sudah berubah.
+
+**Langkah reproduksi**
+
+Tidak dapat dilakukan dengan tangan karena butuh permintaan dengan selisih waktu sangat kecil. Kirim `PATCH /complaints/:id/status` (`selesai`) dan `PATCH /complaints/:id/alihkan` secara serentak pada tiket berstatus `sedang_ditindaklanjuti`.
+
+**Arah perbaikan (belum dicoba)**
+
+Tambahkan status lama ke syarat `where` memakai `updateMany` di dalam transaksi, lalu jawab 409 bila tak ada baris yang berubah.
+
+**Catatan**
+
+Seberapa sering ini terjadi pada pemakaian nyata belum diukur.
+
+---
+
+<a id="bug-079"></a>
+
+### BUG-079 — Warga yang lupa memilih instansi tetap terkirim dan diberi tahu "Instansi Terkait"
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang, akun warga |
+| **Berkas**   | `apps/web/src/features/complaints/components/CreateComplaintForm.jsx:279,301` |
+| **Severity** | Medium (usulan penguji) -- formulir utama warga; laporan tidak hilang, tetapi halaman sukses menyesatkan |
+
+**Gejala**
+
+Formulir yang kategorinya dipilih tetapi instansinya belum dipilih dijawab 201 dengan `opd_id` NULL. Peramban diarahkan ke `/complaints/success?complaintId=...&opdId=&opdName=Instansi%20Terkait`.
+
+**Akar masalah**
+
+Komentar `CreateComplaintForm.jsx:162-168` menyatakan "belum memilih" seharusnya menghalangi pengiriman. Kenyataannya nilai kosong dikirim sebagai `opdId` kosong dan `toCreateComplaintPayload` mengubahnya menjadi `undefined`, sama dengan pilihan "Lainnya (belum tahu tujuannya)". Tak ada pemeriksaan untuk keadaan kosong. Baris yang sama sudah ada sebelum PR #17, jadi ini bukan regresi.
+
+**Langkah reproduksi**
+
+1. Sebagai warga, buka `/complaints/new`.
+2. Pilih kategori dan isi medan lain, tetapi jangan pilih instansi.
+3. Klik "Kirim Laporan".
+
+**Arah perbaikan (belum dicoba)**
+
+Tolak `department === ''` di klien sebelum mengirim.
+
+---
+
+<a id="bug-080"></a>
+
+### BUG-080 — Layar menampilkan `Validation failed` saat kategori kosong atau alasan pengalihan melebihi 1.000 karakter
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17 dan #18, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang |
+| **Berkas**   | `apps/web/src/features/complaints/components/CreateComplaintForm.jsx:262`, `apps/web/src/features/complaints/components/AlihkanComplaintModal.jsx:230`, `apps/web/src/services/api.js:80` |
+| **Severity** | Medium (usulan penguji) -- warga melihat pesan Inggris tanpa petunjuk medan yang salah; mudah terpicu dengan lupa memilih kategori |
+
+**Gejala**
+
+| Tempat | Pemicu | Teks di layar |
+| --- | --- | --- |
+| Formulir pengaduan warga | Kategori belum dipilih | `Validation failed` |
+| Modal alihkan | Alasan 1.001 karakter | `Validation failed` |
+
+**Akar masalah**
+
+Kategori tidak divalidasi di klien, alasan pengalihan tidak punya `maxLength`, dan interceptor meneruskan pesan generik `ValidationPipe` apa adanya. Sebabnya berbeda dari BUG-075, yang menyangkut jawaban tanpa amplop backend.
+
+**Langkah reproduksi**
+
+1. Di `/complaints/new`, isi semua medan kecuali instansi dan kategori, lalu kirim.
+2. Atau di modal alihkan, isi alasan 1.001 karakter, lalu kirim.
+
+**Arah perbaikan (belum dicoba)**
+
+Validasi kategori di klien, beri `maxLength={1000}` pada alasan, dan terjemahkan galat validasi di satu tempat.
+
+---
+
+<a id="bug-081"></a>
+
+### BUG-081 — Lencana empat status baru memakai warna cadangan di empat komponen
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Uji komponen Jest |
+| **Berkas**   | `AdminComplaintTable.jsx:8`, `admin-kab/ComplaintTable.jsx:14`, `ComplaintRow.jsx:7`, `ComplaintInfoCard.jsx:7` di `apps/web/src/features/complaints/components/` |
+| **Severity** | Low (usulan penguji) -- hanya warna; label statusnya tetap benar |
+
+**Gejala**
+
+Menunggu Verifikasi, Diverifikasi, Sedang Ditindaklanjuti, dan Dialihkan jatuh ke kelas cadangan `bg-surface-container-high`. Keempat komponen dikalikan empat status menghasilkan 16 kasus yang merah.
+
+**Akar masalah**
+
+Keempat komponen punya pemetaan lokal yang masih memakai `Diterima` dan `Diproses`, padahal `COMPLAINT_STATUS_BADGE_VARIANT` di `utils/enumLabels.js` sudah memuat seluruh status baru.
+
+**Langkah reproduksi**
+
+Buka daftar pengaduan yang memuat salah satu status tersebut, lalu bandingkan warnanya dengan `COMPLAINT_STATUS_BADGE_VARIANT`.
+
+**Arah perbaikan (belum dicoba)**
+
+Keempat komponen memakai peta `COMPLAINT_STATUS_BADGE_VARIANT`.
+
+---
+
+<a id="bug-082"></a>
+
+### BUG-082 — Catatan wajib lolos bila hanya berisi spasi pada `PATCH /complaints/:id/status`
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, permintaan API langsung |
+| **Berkas**   | `apps/api/src/modules/complaints/dto/update-complaint-status.dto.ts:30-33`, `apps/api/src/modules/complaints/complaints.service.ts:343` |
+| **Severity** | Low (usulan penguji) -- antarmuka sudah memangkas spasi (`ConfirmStatusModal.jsx:116`), jadi hanya terjangkau lewat API |
+
+**Gejala**
+
+`{"status":"perlu_perbaikan","catatan":"   "}` dan `{"status":"ditolak","catatan":"   "}` dijawab 200. Pelapor melihat blok "Catatan Petugas" tanpa isi yang berarti.
+
+**Akar masalah**
+
+DTO tidak memangkas `catatan`, dan service hanya memeriksa `!dto.catatan`. `AlihkanComplaintDto` sudah memangkas medan yang sama.
+
+**Langkah reproduksi**
+
+`PATCH /api/v1/complaints/<id>/status` dengan sesi Admin OPD dan badan di atas.
+
+**Arah perbaikan (belum dicoba)**
+
+Terapkan `@Transform` yang sama seperti pada `AlihkanComplaintDto`.
+
+---
+
+<a id="bug-083"></a>
+
+### BUG-083 — Lokasi kejadian dan uraian lolos bila hanya berisi spasi
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, permintaan API langsung |
+| **Berkas**   | `apps/api/src/modules/complaints/dto/create-complaint.dto.ts:73,107` |
+| **Severity** | Low (usulan penguji) -- isian menjadi kosong secara makna; hanya terjadi bila diisi spasi dengan sengaja |
+
+**Gejala**
+
+`lokasiKejadian: "   "` dan `uraian: "   "` masing-masing dijawab 201 dan tersimpan apa adanya. Jalur lewat formulir diturunkan dari kode dan belum dijalankan: atribut `required` peramban menerima spasi.
+
+**Akar masalah**
+
+`@MinLength(1)` menerima spasi karena nilainya tidak dipangkas lebih dulu.
+
+**Langkah reproduksi**
+
+`POST /api/v1/complaints` dengan salah satu medan tersebut berisi tiga spasi.
+
+**Arah perbaikan (belum dicoba)**
+
+Pangkas lalu validasi, seperti `AlihkanComplaintDto.catatan`.
+
+---
+
+<a id="bug-084"></a>
+
+### BUG-084 — Modal alihkan terpotong dan tak dapat digulir di layar pendek
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #18, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang, ukuran layar diatur Playwright |
+| **Berkas**   | `apps/web/src/features/complaints/components/AlihkanComplaintModal.jsx:152,156` |
+| **Severity** | Low (usulan penguji) -- pada 360x640 hanya terpotong 4 px; yang parah terjadi pada layar sangat pendek atau ponsel mendatar |
+
+**Gejala**
+
+`body` terkunci, sedangkan dialog dan pembungkusnya tidak punya wilayah gulir.
+
+| Layar | Tepi atas dialog | Tepi bawah tombol | Tinggi layar |
+| --- | ---: | ---: | ---: |
+| 360x640 | -21 | 644 | 640 |
+| 320x568 | -65 | 616 | 568 |
+| 640x360 | -100 | 443 | 360 |
+
+**Langkah reproduksi**
+
+Buka modal alihkan pada ukuran layar 320x568 atau 640x360.
+
+**Arah perbaikan (belum dicoba)**
+
+Beri `max-h` dan `overflow-y-auto` pada bagian isi, tanpa memotong panel dropdown yang berposisi absolut.
+
+---
+
+<a id="bug-085"></a>
+
+### BUG-085 — Dua kategori "Lainnya" tak terbedakan pada data statistik
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | QA PR #17, `main` `a1e3c1f` |
+| **Tanggal**  | 5 November 2026 |
+| **Lingkungan** | Server dev, permintaan API langsung |
+| **Berkas**   | `apps/api/src/modules/dashboard/dashboard.service.ts:461`, `apps/web/src/features/statistics/components/StatisticsDashboard.jsx:65` |
+| **Severity** | Low (usulan penguji) -- angkanya benar, tetapi pembaca tak tahu tingkat mana yang dimaksud |
+
+**Gejala**
+
+`GET /statistics` mengirim `{kode: kab_lainnya, nama: Lainnya}` dan `{kode: kec_lainnya, nama: Lainnya}`. Data ini terbukti di API; tampilan kartu "Top Kategori Pengaduan" diturunkan dari kode dan belum dilihat langsung.
+
+**Akar masalah**
+
+Kedua tingkat memakai nama yang sama. Penyaring Admin Kabupaten menambahkan "(Kab.)" dan "(Kec.)", tetapi data statistik tidak.
+
+**Langkah reproduksi**
+
+Buat pengaduan `kab_lainnya` dan `kec_lainnya`, lalu baca `complaintCategories` pada `GET /statistics`.
+
+**Arah perbaikan (belum dicoba)**
+
+Tambahkan pembeda tingkat pada label kategori di statistik.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -7685,3 +8019,4 @@ hanya dibaca, tidak diubah.
 | 7.31 | 4 November 2026 | **BUG-070 s.d. BUG-075 dibuka: 75 temuan, 63 ditutup, 12 terbuka.** Uji ketersediaan QA-PERF (`TEST_BEBAN.md` §13) pada rig sekali pakai, `main` `5cda6fa`. Medium: Redis padam dijawab 401 sehingga frontend mengeluarkan pengguna aktif (BUG-070); Redis macet membuat seluruh API tak menjawab karena tak ada `commandTimeout` (BUG-071); cadangan terjadwal PRD belum ada (BUG-073). Low: `/health` statis (BUG-072), keterbatasan `pnpm pulihkan` (BUG-074), kalimat axios mentah di layar (BUG-075). Yang lulus: API pulih sendiri sesudah DB dan Redis kembali, cadangan T3 dapat dipulihkan, soak 30 menit tanpa kegagalan. Uptime ≥ 99% belum dapat dinyatakan tanpa server. Tak ada perubahan kode. |
 | 7.32 | 4 November 2026 | **BUG-070 dan BUG-071 diperbaiki di cabang, belum ditutup.** `fix/redis-padam-sesi-batas-waktu` `6ead556`: Redis yang tak menjawab kini 503, bukan 401, dan keempat koneksi berbatas waktu 1 detik. Diukur ulang di rig (`TEST_BEBAN.md` §13.9) dan di peramban sungguhan. Rekap tetap 12 terbuka sampai masuk `main`. Tercatat juga: `test:e2e` dua kali keluar kode 1 dalam sembilan jalan penuh walau 750 uji lulus, sebab belum diketahui. |
 | 7.33 | 4 November 2026 | **BUG-070 dan BUG-071 ditutup: 75 temuan, 65 ditutup, 10 terbuka.** PR #15, merge `3cd88e8`, CI `main` hijau 3 dari 3 job. Temuan Medium yang tersisa tinggal BUG-073. Sisa yang tak menahan penutupan: tiap permintaan bertambah sekitar 1 detik per perintah Redis selama padam, masuk baru tetap 500, `[ioredis] Unhandled error event` masih mengisi log, jalur cookie SSO belum diuji, dan `test:e2e` kode 1 dalam 2 dari 9 jalan penuh di mesin penguji belum terjelaskan. |
+| 7.34 | 5 November 2026 | **BUG-076 s.d. BUG-085 dibuka: 85 temuan, 65 ditutup, 20 terbuka.** QA PR #17 dan #18 pada `main` `a1e3c1f`. Medium: tombol Selesaikan mati, penerusan lintas tingkat, permintaan serentak menimpa status, formulir tanpa instansi, dan `Validation failed` di layar. BUG-079 dan bagian formulir BUG-080 sudah ada sebelum PR #17, jadi bukan regresi. Yang belum dijalankan: e2e `apps/api` dan suite Playwright terhadap `a1e3c1f`. |
