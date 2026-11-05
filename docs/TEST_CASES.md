@@ -549,8 +549,15 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 > **Alur status berganti 4 November 2026 (PR #17), dan pengalihan lahir 5 November 2026 (PR #18).**
 > Empat status lama `diterima`, `diproses`, `selesai`, `ditolak` diganti tujuh status, ditambah `dialihkan`.
 > TC-CMP-001, 020 s.d. 024, dan TC-ISO-006 sudah diuji ulang penguji terhadap `main` `a1e3c1f`.
-> **Baris TC-CMP lain BELUM dijalankan ulang**, jadi rujukan `diterima`, `diproses`, dan CI lama di sana adalah
-> rekaman bertanggal, bukan bukti untuk `a1e3c1f`. Menunggu jalan e2e `apps/api` dan Playwright.
+> **Suite penuh dijalankan 5 November 2026 terhadap `a1e3c1f`:** e2e `apps/api` 52 suite, 767 uji lulus; Playwright
+> 162 uji, yaitu 159 lulus, 2 lulus pada percobaan ulang, dan 1 dilewati. Pemetaan baris TC-CMP lama ke nomor baris
+> uji TIDAK dihitung ulang, jadi rujukan `diterima`, `diproses`, `berkas:baris`, dan CI lama di sana tetap rekaman
+> bertanggal.
+>
+> **Kegoyahan.** `nama-terakses.spec.ts:142` (daftar pengaduan Admin Kabupaten, 320px) gagal sekali karena tombol
+> Ekspor belum ditemukan; `nilai-survei-alur.spec.ts:225` gagal sekali karena builder belum menampilkan sembilan
+> pertanyaan dalam 20 detik. Keduanya lulus pada percobaan ulang dan tidak dihitung sebagai cacat. Reporter tidak
+> menyebut nama uji yang dilewati, jadi uji itu belum diidentifikasi.
 >
 > **Cara kasus H.5 s.d. H.7 dibuktikan.** Diuji penguji pada 5 November 2026 di server dev, dengan pengaduan
 > berpenanda `[UJI QA-PR18]` yang sudah dibersihkan. Skrip probe dan keluarannya ada di `qa-bug-hunt/` lokal
@@ -660,7 +667,7 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-090 | Modal dapat dipakai di layar pendek | Buka modal pada 320x568 dan 640x360 | Seluruh isi dapat digulir. **Gagal:** terpotong tanpa wilayah gulir, lihat BUG-084 | P2 | Manual | ❌ |
 | TC-CMP-091 | Alasan terlalu panjang diberi pesan jelas | Isi alasan 1.001 karakter lalu kirim | Dibatasi, atau diberi pesan berbahasa Indonesia. **Gagal:** `Validation failed`, lihat BUG-080 | P2 | Manual | ❌ |
 | TC-CMP-092 | Riwayat mempertahankan setiap tujuan | Alihkan dua kali, baca riwayat | Kedua baris `dialihkan` memuat tujuannya sendiri. **Lulus** (dibuktikan pada percobaan serentak TC-CMP-071) | P2 | Integ | ✅ |
-| TC-CMP-093 | OPD nonaktif ditolak | PATCH `alihkan` ke OPD nonaktif | 400. **Belum diuji penguji:** `skm_db` lokal tak punya OPD nonaktif. Ada `alihkan-pengaduan.e2e-spec.ts:235`, menunggu jalan e2e | P1 | Integ | 🟡 |
+| TC-CMP-093 | OPD nonaktif ditolak | PATCH `alihkan` ke OPD nonaktif | 400. **Lulus:** `alihkan-pengaduan.e2e-spec.ts:235` menuntut 400 dan lulus pada jalan e2e 5 November 2026 di `a1e3c1f`. `skm_db` lokal tak punya OPD nonaktif, jadi tidak diuji lewat server dev | P1 | Integ | ✅ |
 
 ---
 
