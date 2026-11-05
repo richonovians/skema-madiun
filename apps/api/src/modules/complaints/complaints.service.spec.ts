@@ -151,6 +151,7 @@ describe('ComplaintsService', () => {
     notifyComplaintStatusChanged: jest.fn(),
     notifyComplaintReply: jest.fn(),
     notifyComplaintForwarded: jest.fn(),
+    notifyComplaintAlihkan: jest.fn(),
   } as unknown as NotificationsService;
   const consent = {
     assertConsented: jest.fn().mockResolvedValue(undefined),
@@ -1084,6 +1085,191 @@ describe('ComplaintsService', () => {
       await expect(service.forward(99, { opdId: 9 }, kabupatenUser())).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  /**
+   * Pengalihan pengaduan antar-instansi (5 November 2026).
+   *
+   * BEDANYA DARI `forward`: yang itu mengisi tujuan yang MASIH KOSONG dan tak
+   * menggeser status; yang ini memindahkan tujuan yang SUDAH ADA, boleh
+   * dilakukan Admin OPD pemiliknya sendiri, dan menggeser status ke
+   * `dialihkan` sambil memperbaiki kategori serta tingkatnya.
+   */
+  describe('mengalihkan pengaduan ke instansi lain (alihkan)', () => {
+    const PUPR = { id: 9, nama: 'Dinas Pekerjaan Umum dan Penataan Ruang', isActive: true };
+    const WUNGU = { id: 12, nama: 'Kecamatan Wungu', isActive: true };
+    const dto = (over: Record<string, unknown> = {}) => ({
+      opdId: 9,
+      kategori: 'kab_lainnya',
+      catatan: 'Berkaitan dengan kewenangan infrastruktur.',
+      ...over,
+    });
+    const siapkan = (
+      complaint: Record<string, unknown> = complaintRow(),
+      opd: Record<string, unknown> | null = PUPR,
+    ) => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaint);
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue(opd);
+      const updated = complaintRow({
+        opdId: (opd as { id?: number })?.id ?? 9,
+        status: ComplaintStatus.dialihkan,
+      });
+      (prisma.$transaction as jest.Mock).mockResolvedValue([updated, {}]);
+      return updated;
+    };
+
+    it('memindahkan opdId, kategori, tingkat, dan status sekaligus', async () => {
+      siapkan();
+
+      await service.alihkan(1, dto(), opdUser(5));
+
+      expect(prisma.complaint.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 1 },
+          data: expect.objectContaining({
+            opdId: 9,
+            kategori: 'kab_lainnya',
+            tingkat: TingkatPengaduan.kabupaten,
+            status: ComplaintStatus.dialihkan,
+          }),
+        }),
+      );
+    });
+
+    it('menurunkan tingkat dari NAMA OPD tujuan, bukan dari badan permintaan', async () => {
+      // "Kecamatan Wungu" -> tingkat kecamatan, jadi kategorinya pun harus
+      // kategori kecamatan. Tak ada medan `tingkat` di DTO yang dapat
+      // bertentangan dengannya.
+      siapkan(complaintRow(), WUNGU);
+
+      await service.alihkan(1, dto({ opdId: 12, kategori: 'kec_lainnya' }), kabupatenUser());
+
+      expect(prisma.complaint.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ tingkat: TingkatPengaduan.kecamatan }),
+        }),
+      );
+    });
+
+    it('menolak kategori yang bukan milik tingkat OPD tujuan', async () => {
+      siapkan(complaintRow(), WUNGU);
+
+      await expect(
+        service.alihkan(1, dto({ opdId: 12, kategori: 'kab_lainnya' }), kabupatenUser()),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('menolak pengaduan tanpa tujuan dan menunjuk jalur triase', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ opdId: null }));
+
+      await expect(service.alihkan(1, dto(), kabupatenUser())).rejects.toThrow(
+        /belum diteruskan ke OPD/i,
+      );
+    });
+
+    it.each([ComplaintStatus.selesai, ComplaintStatus.ditolak])(
+      'menolak pengaduan berstatus %s',
+      async (status) => {
+        siapkan(complaintRow({ status }));
+
+        await expect(service.alihkan(1, dto(), kabupatenUser())).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      },
+    );
+
+    it('menolak OPD tujuan yang sama dengan pemilik saat ini', async () => {
+      // Tanpa penjaga ini, "mengalihkan" ke diri sendiri hanya melahirkan
+      // baris riwayat yang menyatakan perpindahan yang tak pernah terjadi.
+      siapkan(complaintRow({ opdId: 9 }));
+
+      await expect(service.alihkan(1, dto({ opdId: 9 }), kabupatenUser())).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('menolak OPD tujuan yang nonaktif', async () => {
+      // OPD nonaktif tak punya akun yang dapat masuk (opd.service.ts menyaring
+      // `isActive: true` saat mencari penerima notifikasi), jadi tiketnya akan
+      // duduk di sana tanpa seorang pun yang dapat menanganinya.
+      siapkan(complaintRow(), { ...PUPR, isActive: false });
+
+      await expect(service.alihkan(1, dto(), kabupatenUser())).rejects.toThrow(BadRequestException);
+    });
+
+    it('OPD tujuan tidak ada -> NotFound', async () => {
+      siapkan(complaintRow(), null);
+
+      await expect(service.alihkan(1, dto({ opdId: 404 }), kabupatenUser())).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('Admin OPD bukan pemilik DITOLAK', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ opdId: 5 }));
+
+      await expect(service.alihkan(1, dto(), opdUser(7))).rejects.toThrow(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('menulis riwayat bertujuan dengan catatan TERENKRIPSI, di transaksi yang sama', async () => {
+      siapkan();
+
+      await service.alihkan(1, dto(), opdUser(5));
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const argumenRiwayat = (prisma.complaintStatusHistory.create as jest.Mock).mock.calls.at(-1);
+      expect(argumenRiwayat?.[0].data).toMatchObject({
+        complaintId: 1,
+        status: ComplaintStatus.dialihkan,
+        actorId: 1,
+        opdTujuanId: 9,
+      });
+      const catatan = argumenRiwayat?.[0].data.catatan as string;
+      expect(catatan.startsWith('enc:v1:')).toBe(true);
+      expect(dekripsiKolom(catatan, KUNCI_UJI_KOLOM)).toBe(
+        'Berkaitan dengan kewenangan infrastruktur.',
+      );
+    });
+
+    it('mencatat audit alihkan dengan OPD lama dan OPD baru', async () => {
+      siapkan();
+
+      await service.alihkan(1, dto(), opdUser(5));
+
+      expect(audit.record).toHaveBeenCalledWith(
+        1,
+        'alihkan',
+        'complaint',
+        expect.objectContaining({
+          complaintId: 1,
+          ticketNo: 'PGD20260729ABCD',
+          opdLama: 5,
+          opdBaru: 9,
+          kategoriLama: 'kab_lainnya',
+          kategoriBaru: 'kab_lainnya',
+        }),
+      );
+    });
+
+    it('memberi tahu lewat notifyComplaintAlihkan, BUKAN notifyComplaintStatusChanged', async () => {
+      // Dua kabar atas satu peristiwa adalah cacat yang sama bentuknya dengan
+      // BUG-018: pelapor menerima "dialihkan ke X" lalu "kini berstatus
+      // Dialihkan" berturut-turut.
+      const updated = siapkan();
+
+      await service.alihkan(1, dto(), opdUser(5));
+
+      expect(notificationsService.notifyComplaintAlihkan).toHaveBeenCalledWith(
+        updated,
+        PUPR.nama,
+        5,
+        1,
+      );
+      expect(notificationsService.notifyComplaintStatusChanged).not.toHaveBeenCalled();
     });
   });
 
