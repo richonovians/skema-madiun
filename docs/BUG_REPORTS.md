@@ -4363,6 +4363,10 @@ Syaratnya `currentStatus === 'Diproses'`, padahal status itu dibuang PR #17. `ha
 
 Ganti syaratnya menjadi `'Sedang Ditindaklanjuti'` dan perbarui uji tersebut.
 
+**Status 5 November 2026**
+
+Diperbaiki di cabang `fix/nama-status-lama-komponen` `08a2787`, belum masuk `main`, jadi temuan ini belum ditutup.
+
 ---
 
 <a id="bug-077"></a>
@@ -4528,6 +4532,10 @@ Buka daftar pengaduan yang memuat salah satu status tersebut, lalu bandingkan wa
 **Arah perbaikan (belum dicoba)**
 
 Keempat komponen memakai peta `COMPLAINT_STATUS_BADGE_VARIANT`.
+
+**Koreksi dan status 5 November 2026**
+
+Laporan di atas kurang dua tempat. `RecentComplaintWidget.jsx` dan `ActivityHistoryTable.jsx` di dashboard warga punya pemetaan lama yang sama, dan keduanya memakai varian `error` yang tak ada di `Badge`, sehingga `Ditolak` tampil abu-abu. Keenam tampilan diperbaiki di cabang `fix/nama-status-lama-komponen` `08a2787`, belum masuk `main`, jadi temuan ini belum ditutup.
 
 ---
 
@@ -8022,3 +8030,4 @@ hanya dibaca, tidak diubah.
 | 7.34 | 5 November 2026 | **BUG-076 s.d. BUG-085 dibuka: 85 temuan, 65 ditutup, 20 terbuka.** QA PR #17 dan #18 pada `main` `a1e3c1f`. Medium: tombol Selesaikan mati, penerusan lintas tingkat, permintaan serentak menimpa status, formulir tanpa instansi, dan `Validation failed` di layar. BUG-079 dan bagian formulir BUG-080 sudah ada sebelum PR #17, jadi bukan regresi. Yang belum dijalankan: e2e `apps/api` dan suite Playwright terhadap `a1e3c1f`. |
 | 7.35 | 5 November 2026 | **Suite penuh terhadap `main` `a1e3c1f`, tanpa temuan baru: 85 temuan, 65 ditutup, 20 terbuka.** e2e `apps/api` 52 suite, 767 uji lulus. Playwright 162 uji: 159 lulus, 2 lulus pada percobaan ulang, 1 dilewati. Suite yang hijau tidak menutup BUG-076 s.d. BUG-085: tak satu pun uji itu menagih perilaku yang dilanggar temuan tersebut. |
 | 7.36 | 5 November 2026 | **QA-PERF ditutup dengan catatan (`TEST_BEBAN.md` §14), angka temuan tetap: 85 temuan, 65 ditutup, 20 terbuka.** BUG-073 tetap terbuka dan menjadi syarat sebelum GO-LIVE 23 November 2026; pemilik perbaikannya belum ditetapkan. |
+| 7.37 | 5 November 2026 | **BUG-076 dan BUG-081 diperbaiki di cabang, belum ditutup.** `fix/nama-status-lama-komponen` `08a2787`. BUG-081 ternyata mengenai enam tampilan, bukan empat. Angka temuan tetap: 85 temuan, 65 ditutup, 20 terbuka. |
