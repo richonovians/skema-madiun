@@ -452,7 +452,13 @@ describe('ComplaintsService', () => {
             // jalur detail ini; lihat uji `findAll` di atas yang menjaga ia
             // tak ikut tertarik per baris daftar.
             statusHistory: {
-              include: { actor: { select: { nama: true } } },
+              include: {
+                actor: { select: { nama: true } },
+                // Instansi tujuan pengalihan ikut sejak 5 November 2026:
+                // halaman detail pelapor tak punya daftar OPD untuk memetakan
+                // idnya sendiri.
+                opdTujuan: { select: { nama: true } },
+              },
               orderBy: { createdAt: 'asc' },
             },
           },
