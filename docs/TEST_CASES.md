@@ -646,8 +646,8 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-066 | Melompati tahap ditolak | `menunggu_verifikasi` ke `selesai` | 400. **Lulus:** "Transisi status ... tidak diizinkan" | P0 | Integ | ✅ |
 | TC-CMP-067 | Riwayat hanya ikut pada detail | GET `/complaints` | Baris daftar tanpa `statusHistory`. **Lulus** | P2 | Integ | ✅ |
 | TC-CMP-068 | Catatan riwayat terenkripsi dan terbaca pelapor | Tulis catatan, baca kolom mentah dan GET detail | Kolom berawalan `enc:v1:`; pelapor membaca teks aslinya. **Lulus** | P0 | Integ | ✅ |
-| TC-CMP-069 | **Tombol "Selesaikan Pengaduan" muncul pada tahapnya** | Buka tiket Sedang Ditindaklanjuti sebagai Admin OPD | Tombol tampil. **Gagal:** nol tombol, lihat BUG-076 | P1 | Manual | ❌ |
-| TC-CMP-070 | Lencana mengikuti warna status baru | Render empat komponen dengan empat status baru | Warna mengikuti `COMPLAINT_STATUS_BADGE_VARIANT`. **Gagal:** warna cadangan, lihat BUG-081 | P3 | Component | ❌ |
+| TC-CMP-069 | **Tombol "Selesaikan Pengaduan" muncul pada tahapnya** | Buka tiket Sedang Ditindaklanjuti sebagai Admin OPD | Tombol tampil. **Lulus 5 Nov 2026 di `0bdb78b`** (awalnya gagal, BUG-076, ditutup): tombol tampil dan tiket uji sampai `selesai` di Chrome | P1 | Manual | ✅ |
+| TC-CMP-070 | Lencana mengikuti warna status baru | Render keenam tampilan dengan tujuh status | Warna mengikuti `COMPLAINT_STATUS_BADGE_VARIANT`. **Lulus 5 Nov 2026 di `0bdb78b`** (awalnya gagal, BUG-081, ditutup): `lencanaStatusPengaduan.test.jsx` | P3 | Component | ✅ |
 | TC-CMP-071 | **Permintaan serentak tak menimpa status** | Kirim `selesai` dan `alihkan` serentak | Hanya satu yang menang. **Gagal:** keduanya 200 pada 3 dari 3 percobaan, lihat BUG-078 | P1 | Integ | ❌ |
 
 ### H.7 Alihkan Pengaduan (PR #18)

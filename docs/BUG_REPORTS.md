@@ -168,18 +168,18 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
-| [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-069) |
+| [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-069) |
 | [BUG-077](#bug-077) | Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-054) |
 | [BUG-078](#bug-078) | Permintaan serentak menimpa status: tiket `selesai` terbuka lagi menjadi `dialihkan` | Medium | Terkonfirmasi | Terbuka | QA PR #17 dan #18 (TC-CMP-071) |
 | [BUG-079](#bug-079) | Warga yang lupa memilih instansi tetap terkirim dan diberi tahu "Instansi Terkait" | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-052) |
 | [BUG-080](#bug-080) | Layar menampilkan `Validation failed` saat kategori kosong atau alasan pengalihan melebihi 1.000 karakter | Medium | Terkonfirmasi | Terbuka | QA PR #17 dan #18 (TC-CMP-053, TC-CMP-091) |
-| [BUG-081](#bug-081) | Lencana empat status baru memakai warna cadangan di empat komponen | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-070) |
+| [BUG-081](#bug-081) | Lencana status baru memakai warna cadangan di enam tampilan | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-070) |
 | [BUG-082](#bug-082) | Catatan wajib lolos bila hanya berisi spasi pada `PATCH /complaints/:id/status` | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-063) |
 | [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-049) |
 | [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | QA PR #18 (TC-CMP-090) |
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 
-**Rekap** — 85 temuan: **65 ditutup, 20 terbuka** (Medium: BUG-073, BUG-076, BUG-077, BUG-078, BUG-079, BUG-080; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-081, BUG-082, BUG-083, BUG-084, BUG-085).
+**Rekap** — 85 temuan: **67 ditutup, 18 terbuka** (Medium: BUG-073, BUG-077, BUG-078, BUG-079, BUG-080; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4363,9 +4363,9 @@ Syaratnya `currentStatus === 'Diproses'`, padahal status itu dibuang PR #17. `ha
 
 Ganti syaratnya menjadi `'Sedang Ditindaklanjuti'` dan perbarui uji tersebut.
 
-**Status 5 November 2026**
+**Status 5 November 2026: Ditutup**
 
-Diperbaiki di cabang `fix/nama-status-lama-komponen` `08a2787`, belum masuk `main`, jadi temuan ini belum ditutup.
+Perbaikan `08a2787` masuk lewat PR #19, merge `main` `0bdb78b`. Diuji ulang di Chrome pada `0bdb78b`: tombol muncul pada Sedang Ditindaklanjuti dan tiket uji sampai `selesai`. Pagarnya `AdminResolutionWorkspace.test.jsx`, yang kini memakai status baru.
 
 ---
 
@@ -4535,7 +4535,7 @@ Keempat komponen memakai peta `COMPLAINT_STATUS_BADGE_VARIANT`.
 
 **Koreksi dan status 5 November 2026**
 
-Laporan di atas kurang dua tempat. `RecentComplaintWidget.jsx` dan `ActivityHistoryTable.jsx` di dashboard warga punya pemetaan lama yang sama, dan keduanya memakai varian `error` yang tak ada di `Badge`, sehingga `Ditolak` tampil abu-abu. Keenam tampilan diperbaiki di cabang `fix/nama-status-lama-komponen` `08a2787`, belum masuk `main`, jadi temuan ini belum ditutup.
+Laporan di atas kurang dua tempat. `RecentComplaintWidget.jsx` dan `ActivityHistoryTable.jsx` di dashboard warga punya pemetaan lama yang sama, dan keduanya memakai varian `error` yang tak ada di `Badge`, sehingga `Ditolak` tampil abu-abu. Keenam tampilan diperbaiki lewat PR #19, merge `main` `0bdb78b`, jadi temuan ini **Ditutup**. Pagarnya `lencanaStatusPengaduan.test.jsx`. Warna diperiksa di Chrome pada tiga tampilan: daftar warga, dashboard warga, dan daftar Admin OPD; sisanya lewat uji komponen.
 
 ---
 
@@ -8031,3 +8031,4 @@ hanya dibaca, tidak diubah.
 | 7.35 | 5 November 2026 | **Suite penuh terhadap `main` `a1e3c1f`, tanpa temuan baru: 85 temuan, 65 ditutup, 20 terbuka.** e2e `apps/api` 52 suite, 767 uji lulus. Playwright 162 uji: 159 lulus, 2 lulus pada percobaan ulang, 1 dilewati. Suite yang hijau tidak menutup BUG-076 s.d. BUG-085: tak satu pun uji itu menagih perilaku yang dilanggar temuan tersebut. |
 | 7.36 | 5 November 2026 | **QA-PERF ditutup dengan catatan (`TEST_BEBAN.md` §14), angka temuan tetap: 85 temuan, 65 ditutup, 20 terbuka.** BUG-073 tetap terbuka dan menjadi syarat sebelum GO-LIVE 23 November 2026; pemilik perbaikannya belum ditetapkan. |
 | 7.37 | 5 November 2026 | **BUG-076 dan BUG-081 diperbaiki di cabang, belum ditutup.** `fix/nama-status-lama-komponen` `08a2787`. BUG-081 ternyata mengenai enam tampilan, bukan empat. Angka temuan tetap: 85 temuan, 65 ditutup, 20 terbuka. |
+| 7.38 | 5 November 2026 | **BUG-076 dan BUG-081 ditutup: 85 temuan, 67 ditutup, 18 terbuka.** PR #19, merge `0bdb78b`. CI: lint, uji unit, build, dan E2E API lulus. Job Playwright yang belum menjadi gerbang tetap gagal pada `ajukan-pengaduan.spec.js:278`, sama seperti pada `a1e3c1f` sebelum perubahan ini; uji itu lulus di server dev lokal dan penyebabnya belum diselidiki. |
