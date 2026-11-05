@@ -32,5 +32,17 @@ export class ComplaintStatusHistoryEntity extends BaseEntity<ComplaintStatusHist
   @ApiPropertyOptional({ nullable: true })
   actorNama: string | null;
 
+  /**
+   * Nama instansi TUJUAN pengalihan (5 November 2026). `null` pada setiap
+   * baris yang bukan `dialihkan` — termasuk seluruh baris yang lahir sebelum
+   * fitur ini ada.
+   *
+   * NAMA, bukan id: halaman detail pelapor tak punya cara menerjemahkan id
+   * menjadi nama instansi, dan menambahkan satu panggilan hanya untuk itu
+   * akan membuat linimasa menunggu kedua kalinya.
+   */
+  @ApiPropertyOptional({ nullable: true })
+  opdTujuanNama: string | null;
+
   createdAt: Date;
 }

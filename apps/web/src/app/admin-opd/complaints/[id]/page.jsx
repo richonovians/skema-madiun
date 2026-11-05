@@ -1,8 +1,8 @@
 'use client';
 import React, { useCallback, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Forward } from 'lucide-react';
 import ComplaintReporterProfile from '@/features/complaints/components/ComplaintReporterProfile';
 import ComplaintStatusControl, {
   STATUS_WAJIB_CATATAN,
@@ -13,10 +13,13 @@ import ComplaintProgressStepper from '@/features/complaints/components/Complaint
 import ComplaintStatusTimeline from '@/features/complaints/components/ComplaintStatusTimeline';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import ComplaintExportMenu from '@/features/complaints/components/ComplaintExportMenu';
+import AlihkanComplaintModal from '@/features/complaints/components/AlihkanComplaintModal';
+import Button from '@/components/ui/Button';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
 import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
+import { COMPLAINT_STATUS_TUNTAS as STATUS_TUNTAS } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getComplaintByTicketNo,
@@ -38,6 +41,8 @@ export default function AdminComplaintDetailPage() {
   const ticketNo = (params?.id || '').toUpperCase();
   const [actionError, setActionError] = useState(null);
   const [pendingStatus, setPendingStatus] = useState(null);
+  const [bukaAlihkan, setBukaAlihkan] = useState(false);
+  const router = useRouter();
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
@@ -60,6 +65,13 @@ export default function AdminComplaintDetailPage() {
     ? ((data.categories ?? []).find((c) => c.kode === data.complaint.kategori)?.nama ??
       data.complaint.kategori)
     : null;
+
+  /**
+   * Tiket yang sudah tamat tak dapat dialihkan — backend menolaknya 400
+   * (`STATUS_BOLEH_DIALIHKAN`). Menyembunyikan tombolnya adalah kenyamanan;
+   * penolakan backend yang menjaga.
+   */
+  const bolehDialihkan = Boolean(data) && !STATUS_TUNTAS.includes(data.complaint.status);
 
   const handleStatusChangeRequest = (newStatus) => {
     if (!data || newStatus === data.complaint.status) return;
@@ -205,6 +217,14 @@ export default function AdminComplaintDetailPage() {
                 currentStatus={data.complaint.status}
                 onStatusChangeRequest={handleStatusChangeRequest}
               />
+              {bolehDialihkan && (
+                <Button variant="secondary" className="w-full" onClick={() => setBukaAlihkan(true)}>
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Forward size={14} />
+                    Alihkan ke instansi lain
+                  </span>
+                </Button>
+              )}
               <ComplaintAttachments attachments={data.complaint.attachments} />
             </div>
 
@@ -229,6 +249,25 @@ export default function AdminComplaintDetailPage() {
               />
             </div>
           </div>
+
+          {bukaAlihkan && (
+            <AlihkanComplaintModal
+              complaint={{
+                id: data.complaint.numericId,
+                ticketNo,
+                opdId: data.complaint.opdId,
+              }}
+              onClose={() => setBukaAlihkan(false)}
+              onDone={() => {
+                setBukaAlihkan(false);
+                // KEMBALI KE DAFTAR, bukan memuat ulang halaman ini. Begitu
+                // `opd_id` berpindah, tiket ini bukan lagi milik OPD pengguna
+                // dan `opdWhereFilter` menyingkirkannya -- memuat ulang
+                // detailnya akan dijawab 403.
+                router.push('/admin-opd/complaints');
+              }}
+            />
+          )}
 
           <ConfirmStatusModal
             isOpen={!!pendingStatus}

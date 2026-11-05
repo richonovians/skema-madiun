@@ -147,6 +147,14 @@ enum ComplaintStatus {
   selesai
   ditolak
   perlu_perbaikan
+  /// Pengaduan dipindahkan ke instansi lain yang lebih berwenang (5 November
+  /// 2026). Status TAMBAHAN, bukan tahap alur utama: ia MENETAP sebagai
+  /// antrean masuk OPD tujuan sampai OPD itu memverifikasinya.
+  ///
+  /// Hanya `ComplaintsService.alihkan()` yang menuliskannya; `updateStatus`
+  /// tak dapat mencapainya, sebab ia bukan target pada kunci mana pun di
+  /// `TRANSISI_DIIZINKAN`.
+  dialihkan
 
   @@map("complaint_status")
 }
@@ -311,6 +319,9 @@ model Opd {
   users      User[]
   surveys    Survey[]
   complaints Complaint[]
+  /// Baris riwayat yang MENUNJUK OPD ini sebagai tujuan pengalihan -- bukan
+  /// riwayat pengaduan miliknya. Sisi balik `ComplaintStatusHistory.opdTujuan`.
+  riwayatTujuan ComplaintStatusHistory[]
 
   @@map("opd")
 }
@@ -618,10 +629,22 @@ model ComplaintStatusHistory {
   /// baris `terkirim` tak punya petugas, dan baris warisan hasil migrasi pun
   /// tak pernah mencatat pelakunya.
   actorId     Int?            @map("actor_id")
+  /// OPD tujuan pengalihan. Terisi HANYA pada baris berstatus `dialihkan`;
+  /// NULL pada setiap baris lain, sebab hanya perpindahan antar-instansi yang
+  /// punya tujuan.
+  ///
+  /// MENGAPA KOLOM, BUKAN NAMA INSTANSI DISISIPKAN KE DALAM `catatan`.
+  /// `complaints.opd_id` hanya menyimpan pemilik TERAKHIR, jadi pengaduan yang
+  /// dialihkan dua kali kehilangan tujuan pertamanya bagi pelapor -- ia hanya
+  /// tersisa di `audit_logs`, yang memang tak boleh dibacanya. Menaruh nama
+  /// instansi di dalam teks catatan akan menyimpan data terstruktur di dalam
+  /// teks bebas, yang harus diurai kembali begitu ada yang ingin menyaringnya.
+  opdTujuanId Int?            @map("opd_tujuan_id")
   createdAt   DateTime        @default(now()) @map("created_at")
 
   complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
   actor     User?     @relation(fields: [actorId], references: [id])
+  opdTujuan Opd?      @relation(fields: [opdTujuanId], references: [id])
 
   // Satu indeks gabungan, bukan dua: satu-satunya kueri yang pernah dijalankan
   // adalah "riwayat satu pengaduan, urut waktu".

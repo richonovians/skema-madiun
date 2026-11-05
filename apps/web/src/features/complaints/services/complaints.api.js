@@ -143,3 +143,27 @@ export async function forwardComplaint(id, opdId) {
   const response = await api.patch(`/complaints/${id}/opd`, { opdId: Number(opdId) });
   return adaptComplaint(response.data);
 }
+
+/**
+ * Alihkan pengaduan yang SUDAH bertujuan ke instansi lain yang lebih berwenang
+ * (`PATCH /complaints/:id/alihkan`, 5 November 2026).
+ *
+ * BUKAN `forwardComplaint` di atas. Triase mengisi tujuan yang masih kosong
+ * dan tak menggeser status; pengalihan memindahkan tujuan yang sudah ada,
+ * memperbaiki kategori beserta tingkatnya, dan menggeser status ke
+ * "Dialihkan".
+ *
+ * Haknya (Admin Kabupaten maupun Admin OPD pemiliknya) ditegakkan backend di
+ * dalam ComplaintsService.alihkan, bukan di sini.
+ *
+ * @param {number|string} id
+ * @param {{opdId: number|string, kategori: string, catatan: string}} payload
+ */
+export async function alihkanComplaint(id, { opdId, kategori, catatan }) {
+  const response = await api.patch(`/complaints/${id}/alihkan`, {
+    opdId: Number(opdId),
+    kategori,
+    catatan,
+  });
+  return adaptComplaint(response.data);
+}

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Forward } from 'lucide-react';
 import ComplaintDetailHeader from '@/features/complaints/components/admin-kab/ComplaintDetailHeader';
 import ComplaintSummaryCard from '@/features/complaints/components/admin-kab/ComplaintSummaryCard';
 import ComplaintContentCard from '@/features/complaints/components/admin-kab/ComplaintContentCard';
@@ -14,9 +14,12 @@ import ComplaintStatusControl, {
   STATUS_WAJIB_CATATAN,
 } from '@/features/complaints/components/ComplaintStatusControl';
 import ConfirmStatusModal from '@/components/ui/ConfirmStatusModal';
+import AlihkanComplaintModal from '@/features/complaints/components/AlihkanComplaintModal';
+import Button from '@/components/ui/Button';
 import AdminResolutionWorkspace from '@/features/complaints/components/AdminResolutionWorkspace';
 import LoadingState from '@/components/ui/LoadingState';
 import ErrorState from '@/components/ui/ErrorState';
+import { COMPLAINT_STATUS_TUNTAS as STATUS_TUNTAS } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
 import {
   getComplaintByTicketNo,
@@ -71,6 +74,7 @@ export default function AdminKabComplaintDetailPage() {
   const ticketNo = (params?.id || '').toUpperCase();
   const [actionError, setActionError] = useState(null);
   const [pendingStatus, setPendingStatus] = useState(null);
+  const [bukaAlihkan, setBukaAlihkan] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     const complaint = await getComplaintByTicketNo(ticketNo);
@@ -220,8 +224,36 @@ export default function AdminKabComplaintDetailPage() {
             currentStatus={complaintView.status}
             onStatusChangeRequest={handleStatusChangeRequest}
           />
+          {/* Tiket yang sudah tamat tak dapat dialihkan — backend menolaknya
+              400 (`STATUS_BOLEH_DIALIHKAN`). Menyembunyikan tombolnya
+              kenyamanan; penolakan backend yang menjaga. */}
+          {!STATUS_TUNTAS.includes(complaintView.status) && (
+            <Button variant="secondary" className="w-full" onClick={() => setBukaAlihkan(true)}>
+              <span className="flex items-center justify-center gap-1.5">
+                <Forward size={14} />
+                Alihkan ke instansi lain
+              </span>
+            </Button>
+          )}
         </div>
       </div>
+
+      {bukaAlihkan && (
+        <AlihkanComplaintModal
+          complaint={{
+            id: complaintView.numericId,
+            ticketNo,
+            opdId: complaintView.opdId,
+          }}
+          onClose={() => setBukaAlihkan(false)}
+          onDone={() => {
+            setBukaAlihkan(false);
+            // Admin Kabupaten menembus batas OPD, jadi detail tiket ini tetap
+            // dapat dibukanya sesudah berpindah — cukup dimuat ulang.
+            refetch();
+          }}
+        />
+      )}
 
       {data && (
         <ConfirmStatusModal

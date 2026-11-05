@@ -107,6 +107,18 @@ export default function ComplaintStatusTimeline({ riwayat, currentStatus }) {
                       {' · '}
                       {pelaku(item)}
                     </p>
+                    {/* Instansi tujuan pengalihan (5 November 2026). Dibaca
+                        dari BARISNYA SENDIRI, bukan dari `target` tiketnya:
+                        yang itu hanya menyimpan pemilik TERAKHIR, sehingga
+                        tiket yang dialihkan dua kali akan menampilkan tujuan
+                        yang sama dua kali. `null` pada setiap baris yang bukan
+                        pengalihan -- barisnya tak digambar sama sekali, bukan
+                        digambar dengan tanda hubung. */}
+                    {item.opdTujuanNama && (
+                      <p className="text-sm font-semibold text-text-primary mt-1.5 break-words">
+                        Dialihkan ke {item.opdTujuanNama}
+                      </p>
+                    )}
                     {item.catatan && (
                       // `break-words`: catatan boleh 1000 aksara dan diketik
                       // bebas, termasuk tautan panjang tanpa spasi.

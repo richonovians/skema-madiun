@@ -29,6 +29,7 @@ import { PaginatedResult } from '../../common/dto/paginated-result';
 import { ComplaintsService } from './complaints.service';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { ForwardComplaintDto } from './dto/forward-complaint.dto';
+import { AlihkanComplaintDto } from './dto/alihkan-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
@@ -140,6 +141,35 @@ export class ComplaintsController {
     @CurrentUser() user: CurrentUser,
   ): Promise<ComplaintEntity> {
     return this.complaintsService.forward(id, dto, user);
+  }
+
+  /**
+   * Alihkan pengaduan yang SUDAH bertujuan ke instansi lain yang lebih
+   * berwenang (5 November 2026).
+   *
+   * RUTE TERSENDIRI, bukan perluasan `:id/opd` di atas. Triase mengisi tujuan
+   * yang masih kosong, hanya boleh Admin Kabupaten, dan tak menggeser status.
+   * Pengalihan memindahkan tujuan yang sudah ada, boleh dilakukan Admin OPD
+   * pemiliknya sendiri, dan menggeser status ke `dialihkan` sambil
+   * memperbaiki kategori serta tingkatnya. Keduanya juga menuntut nama aksi
+   * audit yang berbeda.
+   *
+   * TANPA `@Audit`: service sudah mencatatnya sendiri karena ia memegang OPD
+   * lama dan kategori lama, yang sudah hilang saat dekorator berjalan.
+   * Menambahkannya di sini hanya melahirkan baris kedua.
+   */
+  @Patch(':id/alihkan')
+  @ApiOperation({
+    summary: 'Alihkan pengaduan yang sudah bertujuan ke instansi lain yang lebih berwenang.',
+  })
+  @Roles(Role.kabupaten, Role.opd)
+  @ApiOkResponse({ type: ComplaintEntity })
+  alihkan(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AlihkanComplaintDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<ComplaintEntity> {
+    return this.complaintsService.alihkan(id, dto, user);
   }
 
   /** Riwayat tanggapan pada satu tiket. */

@@ -71,6 +71,7 @@ const MATRIKS: [string, string, Akses][] = [
   ['GET', '/complaints/:ticketNo', 'semua'],
   ['PATCH', '/complaints/:id/status', [K, O]],
   ['PATCH', '/complaints/:id/opd', [K]],
+  ['PATCH', '/complaints/:id/alihkan', [K, O]],
   ['GET', '/complaints/:id/replies', 'semua'],
   ['POST', '/complaints/:id/replies', [K, O, R]],
   ['GET', '/dashboard/opd', [O]],

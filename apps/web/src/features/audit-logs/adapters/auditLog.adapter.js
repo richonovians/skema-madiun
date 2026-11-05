@@ -70,6 +70,10 @@ const AKSI_LABEL = {
   reorder: 'UBAH URUTAN',
   duplicate: 'DUPLIKAT',
   forward: 'TERUSKAN KE OPD',
+  // Dua aksi berbeda, dan labelnya menyebut bedanya (5 November 2026):
+  // `forward` MENGISI tujuan yang masih kosong, `alihkan` MEMINDAHKAN tujuan
+  // yang sudah ada ke instansi lain.
+  alihkan: 'ALIHKAN KE OPD LAIN',
   restore: 'PULIHKAN',
   purge: 'MUSNAHKAN',
   // Dua aksi SSO. Keduanya perubahan hak akses yang terjadi tanpa ada manusia

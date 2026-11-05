@@ -211,7 +211,7 @@ describe('hitungAnalitikPengaduan', () => {
   });
 
   describe('sebaran status', () => {
-    it('selalu keenam status yang dapat menetap, urut alur penanganan, termasuk yang berjumlah nol', () => {
+    it('selalu ketujuh status yang dapat menetap, urut alur penanganan, termasuk yang berjumlah nol', () => {
       const hasil = hitung([aduan('Selesai', 0)], '2026-Q1').statusDistribution;
 
       expect(hasil.map((s) => s.id)).toEqual([
@@ -219,10 +219,13 @@ describe('hitungAnalitikPengaduan', () => {
         'diverifikasi',
         'sedang_ditindaklanjuti',
         'perlu_perbaikan',
+        // Pengalihan antar-instansi (5 November 2026). Tiket yang menunggu
+        // instansi lain memang menetap di status ini.
+        'dialihkan',
         'selesai',
         'ditolak',
       ]);
-      expect(hasil.map((s) => s.count)).toEqual([0, 0, 0, 0, 1, 0]);
+      expect(hasil.map((s) => s.count)).toEqual([0, 0, 0, 0, 0, 1, 0]);
     });
 
     it('persentase dari total periode, dan semuanya 0 bila periodenya kosong (bukan NaN)', () => {
@@ -234,12 +237,12 @@ describe('hitungAnalitikPengaduan', () => {
       ];
 
       // Urutannya: menunggu_verifikasi, diverifikasi, sedang_ditindaklanjuti,
-      // perlu_perbaikan, selesai, ditolak.
+      // perlu_perbaikan, dialihkan, selesai, ditolak.
       expect(hitung(data, '2026-Q1').statusDistribution.map((s) => s.percentage)).toEqual([
-        25, 0, 0, 0, 50, 25,
+        25, 0, 0, 0, 0, 50, 25,
       ]);
       expect(hitung(data, '2024').statusDistribution.map((s) => s.percentage)).toEqual([
-        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0,
       ]);
     });
 

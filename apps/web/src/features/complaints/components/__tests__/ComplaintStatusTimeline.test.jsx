@@ -129,4 +129,54 @@ describe('ComplaintStatusTimeline', () => {
 
     expect(screen.getByText(/belum tersedia/i)).toBeInTheDocument();
   });
+
+  /**
+   * Pengalihan antar-instansi (5 November 2026). `complaints.opd_id` hanya
+   * menyimpan pemilik TERAKHIR, jadi nama instansi tujuan harus datang dari
+   * barisnya sendiri -- kalau tidak, tiket yang dialihkan dua kali kehilangan
+   * tujuan pertamanya bagi pelapor.
+   */
+  describe('baris pengalihan', () => {
+    const BARIS_DIALIHKAN = {
+      id: 9,
+      status: 'dialihkan',
+      label: 'Dialihkan',
+      catatan: 'Berkaitan dengan kewenangan infrastruktur.',
+      actorNama: 'Admin OPD (Contoh)',
+      opdTujuanNama: 'Dinas Pekerjaan Umum dan Penataan Ruang',
+      createdAt: '2026-11-05T02:00:00.000Z',
+    };
+
+    it('menyebut instansi tujuan di baris Dialihkan', () => {
+      render(<ComplaintStatusTimeline riwayat={[RIWAYAT[0], BARIS_DIALIHKAN]} />);
+
+      expect(
+        screen.getByText(/Dialihkan ke Dinas Pekerjaan Umum dan Penataan Ruang/i),
+      ).toBeInTheDocument();
+    });
+
+    it('dua pengalihan menampilkan KEDUA instansi tujuannya', () => {
+      render(
+        <ComplaintStatusTimeline
+          riwayat={[
+            RIWAYAT[0],
+            BARIS_DIALIHKAN,
+            { ...BARIS_DIALIHKAN, id: 10, opdTujuanNama: 'Kecamatan Wungu' },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText(/Dialihkan ke Dinas Pekerjaan Umum/i)).toBeInTheDocument();
+      expect(screen.getByText(/Dialihkan ke Kecamatan Wungu/i)).toBeInTheDocument();
+    });
+
+    it('baris tanpa opdTujuanNama tidak menggambar barisnya sama sekali', () => {
+      // Seluruh baris yang lahir sebelum fitur ini ada membawa `null`. Yang
+      // tak boleh terjadi adalah "Dialihkan ke " tanpa nama, atau tanda
+      // hubung yang menyiratkan nama yang gagal dimuat.
+      render(<ComplaintStatusTimeline riwayat={RIWAYAT} />);
+
+      expect(screen.queryByText(/Dialihkan ke/i)).not.toBeInTheDocument();
+    });
+  });
 });

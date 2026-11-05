@@ -2,6 +2,7 @@ import {
   adaptComplaint,
   adaptComplaintAttachment,
   adaptComplaintReplyToChatMessage,
+  toBackendComplaintStatus,
   toCreateComplaintPayload,
 } from '../complaint.adapter';
 
@@ -42,6 +43,51 @@ describe('adaptComplaint — updatedAt', () => {
     // Fixture `entity()` memang tak punya `updatedAt`. `undefined` yang lolos
     // akan menyeberang ke perhitungan selisih waktu sebagai NaN.
     expect(adaptComplaint(entity()).updatedAt).toBeNull();
+  });
+});
+
+/**
+ * SATU BARIS YANG HILANG DI `STATUS_MAP` MEMATIKAN ENAM LAYAR SEKALIGUS
+ * (5 November 2026, hasil tinjauan cabang).
+ *
+ * Seluruh frontend memakai LABEL Title Case sebagai kunci internal —
+ * `ALLOWED_NEXT_STATUS`, `STATUS_ALTERNATIF` penanda kemajuan, varian lencana,
+ * penyaring daftar sisi klien, ember sebaran status, dan kolom Status pada
+ * ekspor PDF. Status backend yang tak dipetakan jatuh ke `?? complaint.status`
+ * dan beredar sebagai kode mentah, sehingga tiap peta itu meleset diam-diam:
+ * tiket yang dialihkan terbaca "final dan tidak dapat diubah lagi" oleh
+ * instansi tujuannya, dan penanda kemajuannya kosong seluruhnya.
+ */
+describe('adaptComplaint — pemetaan status', () => {
+  it.each([
+    ['terkirim', 'Terkirim'],
+    ['menunggu_verifikasi', 'Menunggu Verifikasi'],
+    ['diverifikasi', 'Diverifikasi'],
+    ['sedang_ditindaklanjuti', 'Sedang Ditindaklanjuti'],
+    ['perlu_perbaikan', 'Perlu Perbaikan'],
+    ['dialihkan', 'Dialihkan'],
+    ['selesai', 'Selesai'],
+    ['ditolak', 'Ditolak'],
+  ])('status backend "%s" menjadi "%s"', (backend, label) => {
+    expect(adaptComplaint(entity({ status: backend })).status).toBe(label);
+  });
+
+  it('setiap status yang dipakai frontend dapat dikirim kembali ke backend', () => {
+    // Perjalanan pulang-pergi. Tanpa ini, status yang hanya terpetakan satu
+    // arah membuat penyaring daftar mengirim nilai yang ditolak 400 — atau,
+    // lebih buruk, nilai yang tak pernah cocok dengan baris mana pun.
+    for (const backend of [
+      'menunggu_verifikasi',
+      'diverifikasi',
+      'sedang_ditindaklanjuti',
+      'perlu_perbaikan',
+      'dialihkan',
+      'selesai',
+      'ditolak',
+    ]) {
+      const label = adaptComplaint(entity({ status: backend })).status;
+      expect(toBackendComplaintStatus(label)).toBe(backend);
+    }
   });
 });
 

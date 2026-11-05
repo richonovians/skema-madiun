@@ -14,6 +14,7 @@ const KALIMAT_STATUS = {
   Diverifikasi: 'pengaduan yang sudah diverifikasi dan menunggu ditindaklanjuti.',
   'Sedang Ditindaklanjuti': 'pengaduan yang sedang ditindaklanjuti.',
   'Perlu Perbaikan': 'pengaduan yang menunggu pelapor melengkapi berkas.',
+  Dialihkan: 'pengaduan yang dialihkan ke instansi lain dan menunggu diverifikasi di sana.',
   Selesai: 'pengaduan yang sudah selesai ditangani.',
   Ditolak: 'pengaduan yang ditolak.',
 };

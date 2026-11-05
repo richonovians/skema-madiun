@@ -355,15 +355,17 @@ describe('Tab Analisis Pengaduan — angka mengikuti penyaring periode', () => {
     // Q2: sedang ditindaklanjuti 2, ditolak 1, tak ada yang menunggu verifikasi/selesai.
     expect(await screen.findByText('2 pengaduan (67%)')).toBeInTheDocument();
     expect(screen.getByText('1 pengaduan (33%)')).toBeInTheDocument();
-    // EMPAT yang nol, bukan dua: alur lima tahap (4 November 2026) menambah
-    // "Diverifikasi" dan "Perlu Perbaikan", dan panelnya memang menggambar
+    // LIMA yang nol, bukan dua: alur lima tahap (4 November 2026) menambah
+    // "Diverifikasi" dan "Perlu Perbaikan", lalu pengalihan antar-instansi
+    // (5 November 2026) menambah "Dialihkan". Panelnya memang menggambar
     // SELURUH status termasuk yang berjumlah nol — itulah yang diujinya.
-    expect(screen.getAllByText('0 pengaduan (0%)')).toHaveLength(4);
+    expect(screen.getAllByText('0 pengaduan (0%)')).toHaveLength(5);
     for (const label of [
       'Menunggu Verifikasi',
       'Diverifikasi',
       'Sedang Ditindaklanjuti',
       'Perlu Perbaikan',
+      'Dialihkan',
       'Selesai',
       'Ditolak',
     ]) {

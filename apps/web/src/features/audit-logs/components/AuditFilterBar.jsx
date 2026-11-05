@@ -38,6 +38,7 @@ export const ACTION_OPTIONS = [
     'reorder',
     'duplicate',
     'forward',
+    'alihkan',
     'restore',
     'purge',
     'sso_grant_kabupaten',

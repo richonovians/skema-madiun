@@ -20,6 +20,10 @@ import { getComplaintCategories } from '@/features/complaints/services/reference
  */
 jest.mock('next/navigation', () => ({
   useParams: () => ({ id: 'ADU-001' }),
+  // Halaman ini memakai router sejak tombol "Alihkan" ada (5 November 2026):
+  // sesudah pengalihan berhasil ia kembali ke daftar, sebab tiketnya bukan
+  // lagi milik OPD ini dan detailnya akan dijawab 403.
+  useRouter: () => ({ push: jest.fn() }),
 }));
 
 jest.mock('@/features/complaints/services/complaints.api', () => ({

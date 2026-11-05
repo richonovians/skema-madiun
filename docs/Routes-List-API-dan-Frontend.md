@@ -182,7 +182,9 @@ menyamarkan betapa dokumen ini tertinggal.
 | POST | `/api/v1/complaints` | ✓ | Responden | Ajukan pengaduan (multipart, lampiran opsional maks 5 file @5MB) — dapat nomor tiket |
 | GET | `/api/v1/complaints` | ✓ | Semua¹ | Daftar pengaduan (terfilter kepemilikan). Filter opsional `opdId` mempersempit ke satu OPD — di-AND-kan dengan penyaring kepemilikan, jadi tak dapat melebarkan akses |
 | GET | `/api/v1/complaints/:ticketNo` | ✓ | Semua¹ | Detail & lacak status via nomor tiket publik |
-| PATCH | `/api/v1/complaints/:id/status` | ✓ | OPD (pemilik) | Ubah status: diterima→diproses→selesai, atau →ditolak (catatan wajib bila ditolak) |
+| PATCH | `/api/v1/complaints/:id/status` | ✓ | Kabupaten, OPD (pemilik) | Ubah status pada alur lima tahap: menunggu_verifikasi→diverifikasi→sedang_ditindaklanjuti→selesai, atau →ditolak / →perlu_perbaikan (catatan wajib pada keduanya). Tak dapat mencapai `terkirim` maupun `dialihkan` |
+| PATCH | `/api/v1/complaints/:id/opd` | ✓ | Kabupaten | **Triase**: mengisi tujuan pengaduan yang `opdId`-nya masih NULL. Ditolak 400 bila tiket sudah bertujuan; tidak menggeser status |
+| PATCH | `/api/v1/complaints/:id/alihkan` | ✓ | Kabupaten, OPD (pemilik) | **Pengalihan** (5 November 2026): memindahkan tiket yang SUDAH bertujuan ke instansi lain, beserta kategori barunya. Status menjadi `dialihkan`, `tingkat` diturunkan dari nama OPD tujuan, catatan wajib. Ditolak 400 bila tiket belum bertujuan, sudah tamat, tujuannya sama, atau OPD tujuannya nonaktif |
 | GET | `/api/v1/complaints/:id/replies` | ✓ | Semua¹ | Riwayat tanggapan pada tiket |
 | POST | `/api/v1/complaints/:id/replies` | ✓ | OPD (pemilik), Responden (pengaju) | Tambah tanggapan |
 

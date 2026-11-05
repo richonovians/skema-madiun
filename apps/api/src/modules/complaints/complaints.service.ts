@@ -42,14 +42,21 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { ForwardComplaintDto } from './dto/forward-complaint.dto';
+import { AlihkanComplaintDto } from './dto/alihkan-complaint.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { ListComplaintQueryDto } from './dto/list-complaint-query.dto';
 import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
 import { signAttachmentPath } from './attachment-url.util';
 import { parseTanggalKejadian } from './tanggal-kejadian.util';
-import { labelStatus, STATUS_WAJIB_CATATAN, TRANSISI_DIIZINKAN } from './alur-status.util';
+import {
+  labelStatus,
+  STATUS_BOLEH_DIALIHKAN,
+  STATUS_WAJIB_CATATAN,
+  TRANSISI_DIIZINKAN,
+} from './alur-status.util';
 import { ComplaintStatusHistoryEntity } from './entities/complaint-status-history.entity';
 import { assertKategoriSesuaiTingkat, assertOpdSesuaiTingkat } from './tingkat-pengaduan.util';
+import { tingkatOpd } from '../opd/tingkat-opd.util';
 import { assertAllowedContent, safeFilename } from './attachment.util';
 import { ComplaintEntity } from './entities/complaint.entity';
 import { ComplaintReplyEntity } from './entities/complaint-reply.entity';
@@ -105,7 +112,10 @@ type ComplaintWithAttachments = Complaint & {
    * berarti kuerinya memang tak menariknya -- bukan "pengaduan ini tak punya
    * riwayat", yang mustahil sejak baris `terkirim` ditulis bersama barisnya.
    */
-  statusHistory?: (ComplaintStatusHistory & { actor: { nama: string } | null })[];
+  statusHistory?: (ComplaintStatusHistory & {
+    actor: { nama: string } | null;
+    opdTujuan: { nama: string } | null;
+  })[];
 };
 
 @Injectable()
@@ -290,7 +300,13 @@ export class ComplaintsService {
         // `nama` pelakunya ikut, bukan hanya id: tampilan menulis siapa yang
         // memindahkan, dan id angka tak berarti apa-apa bagi pembacanya.
         statusHistory: {
-          include: { actor: { select: { nama: true } } },
+          include: {
+            actor: { select: { nama: true } },
+            // Nama instansi tujuan pengalihan. Dibaca di sini, bukan
+            // diterjemahkan di klien: halaman detail pelapor tak punya daftar
+            // OPD untuk memetakan idnya.
+            opdTujuan: { select: { nama: true } },
+          },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -539,6 +555,118 @@ export class ComplaintsService {
     // instansi yang berwenang (7 Oktober 2026), berikut Admin Kabupaten LAIN
     // sebagai pengawas -- pelakunya dikecualikan lewat `user.userId`.
     await this.notificationsService.notifyComplaintForwarded(updated, opd.nama, user.userId);
+
+    return this.toEntity(updated as ComplaintWithAttachments, user.userId);
+  }
+
+  /**
+   * `PATCH /complaints/:id/alihkan` -- memindahkan pengaduan yang SUDAH
+   * bertujuan ke instansi lain yang lebih berwenang (5 November 2026).
+   *
+   * BEDANYA DARI `forward()`, dan sebabnya rute ini berdiri sendiri. Penerusan
+   * mengisi tujuan yang masih kosong, hanya boleh dilakukan Admin Kabupaten,
+   * dan tak menggeser status. Pengalihan memindahkan tujuan yang sudah ada,
+   * boleh dilakukan Admin OPD pemiliknya sendiri, dan menggeser status ke
+   * `dialihkan` sambil memperbaiki kategori serta tingkatnya. Menyatukan
+   * keduanya berarti satu badan fungsi bercabang pada `opdId == null` dengan
+   * dua daftar peran, dan satu nama aksi audit untuk dua peristiwa berbeda.
+   *
+   * URUTAN PEMERIKSAAN MENGIKAT: penolakan PERAN lebih dahulu, baru penolakan
+   * KEADAAN. Dibalik, akun yang tak berhak akan belajar bahwa tiketnya ada.
+   */
+  async alihkan(id: number, dto: AlihkanComplaintDto, user: CurrentUser): Promise<ComplaintEntity> {
+    const complaint = await this.getByIdOrThrow(id);
+    assertOpdAccess(user, complaint.opdId);
+
+    if (complaint.opdId == null) {
+      throw new BadRequestException(
+        'Pengaduan ini belum diteruskan ke OPD mana pun, jadi tak ada yang dapat dialihkan. ' +
+          'Teruskan ke OPD yang berwenang lebih dahulu.',
+      );
+    }
+    if (!STATUS_BOLEH_DIALIHKAN.includes(complaint.status)) {
+      throw new BadRequestException(
+        `Pengaduan berstatus "${labelStatus(complaint.status)}" tidak dapat dialihkan`,
+      );
+    }
+
+    const opd = await this.prisma.opd.findUnique({ where: { id: dto.opdId } });
+    if (!opd) {
+      // 404, bukan 400: yang tak ditemukan sumber daya yang ditunjuk pemanggil.
+      throw new NotFoundException(`OPD dengan id ${dto.opdId} tidak ditemukan`);
+    }
+    // LEBIH KETAT daripada `forward()`, yang menerima baris apa pun yang ada.
+    // OPD nonaktif tak punya akun yang dapat masuk -- `opd.service.ts`
+    // menyaring `isActive: true` saat mencari penerima notifikasi -- sehingga
+    // tiket yang mendarat di sana duduk tanpa seorang pun yang menanganinya.
+    if (!opd.isActive) {
+      throw new BadRequestException(
+        `"${opd.nama}" sedang nonaktif, jadi pengaduan tidak dapat dialihkan ke sana`,
+      );
+    }
+    if (dto.opdId === complaint.opdId) {
+      throw new BadRequestException(
+        'Pengaduan ini sudah ditujukan ke instansi tersebut; pilih instansi lain',
+      );
+    }
+
+    // Tingkat DITURUNKAN dari nama OPD tujuan, tidak dikirim pemanggil: medan
+    // yang dapat dikirim adalah medan yang dapat bertentangan dengan OPD-nya.
+    const tingkatBaru = tingkatOpd(opd.nama);
+    assertKategoriSesuaiTingkat(dto.kategori, tingkatBaru);
+
+    // DIBACA SEBELUM pembaruan: sesudahnya nilainya sudah hilang, dan
+    // notifikasi di bawah membutuhkannya untuk mengabari OPD yang kehilangan
+    // tiket ini.
+    const opdLamaId = complaint.opdId;
+    const kategoriLama = complaint.kategori;
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.complaint.update({
+        where: { id },
+        data: {
+          opdId: dto.opdId,
+          kategori: dto.kategori,
+          tingkat: tingkatBaru,
+          status: ComplaintStatus.dialihkan,
+        },
+        include: { attachments: true },
+      }),
+      // DI DALAM transaksi yang sama dengan perpindahannya, alasan yang sama
+      // dengan `updateStatus`: riwayat yang kehilangan satu baris
+      // memperlihatkan tiket yang berpindah tangan tanpa sebab, dan tak ada
+      // cara memulihkannya dari data yang tersisa.
+      this.prisma.complaintStatusHistory.create({
+        data: {
+          complaintId: id,
+          status: ComplaintStatus.dialihkan,
+          catatan: enkripsiKolom(dto.catatan, this.kunci),
+          actorId: user.userId,
+          // Tujuan disimpan PER BARIS. `complaints.opd_id` hanya menyimpan
+          // pemilik terakhir, jadi tanpa kolom ini tiket yang dialihkan dua
+          // kali kehilangan tujuan pertamanya bagi pelapor.
+          opdTujuanId: dto.opdId,
+        },
+      }),
+    ]);
+
+    await this.audit.record(user.userId, 'alihkan', 'complaint', {
+      complaintId: id,
+      ticketNo: complaint.ticketNo,
+      opdLama: opdLamaId,
+      opdBaru: dto.opdId,
+      kategoriLama,
+      kategoriBaru: dto.kategori,
+    });
+    // BUKAN `notifyComplaintStatusChanged`. Statusnya memang berubah, tetapi
+    // kabar kedua ("kini berstatus Dialihkan") atas peristiwa yang sama persis
+    // bentuknya dengan BUG-018.
+    await this.notificationsService.notifyComplaintAlihkan(
+      updated,
+      opd.nama,
+      opdLamaId,
+      user.userId,
+    );
 
     return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }
@@ -824,6 +952,8 @@ export class ComplaintsService {
             catatan: baris.catatan ? dekripsiKolom(baris.catatan, this.kunci) : null,
             // `null` = sistem. Lihat entitasnya.
             actorNama: baris.actor?.nama ?? null,
+            // Terisi HANYA pada baris dialihkan; null pada yang lain.
+            opdTujuanNama: baris.opdTujuan?.nama ?? null,
             createdAt: baris.createdAt,
           }),
       ),
