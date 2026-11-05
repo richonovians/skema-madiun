@@ -282,6 +282,106 @@ describe('NotificationsService', () => {
   });
 
   /**
+   * Pengalihan antar-instansi (5 November 2026) punya SATU penerima yang tak
+   * dimiliki penerusan: OPD yang KEHILANGAN tiketnya. Tanpa kabar itu, tiket
+   * lenyap dari daftar dan dasbornya tanpa suara -- dan aksesnya sudah
+   * terlanjur hilang bersama `opd_id`, jadi ia tak dapat memeriksanya sendiri.
+   */
+  describe('notifyComplaintAlihkan', () => {
+    const alihkan = () =>
+      service.notifyComplaintAlihkan(complaint({ opdId: 7 }), 'Dinas PUPR', 5, 99);
+
+    it('memberi tahu PELAPOR ke mana pengaduannya dialihkan', async () => {
+      await alihkan();
+
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 10,
+        untukPeran: Role.responden,
+        type: NotificationType.complaint_forwarded,
+        title: 'Pengaduan Dialihkan',
+        message:
+          'Pengaduan PGD20260805ABCD Anda dialihkan ke Dinas PUPR yang lebih berwenang menanganinya',
+        link: '/complaints/PGD20260805ABCD',
+      });
+    });
+
+    it('memberi tahu Admin OPD TUJUAN bahwa tiket itu kini miliknya', async () => {
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (where.roles?.has === Role.opd && where.opdId === 7)
+          return Promise.resolve([{ id: 200 }]);
+        return Promise.resolve([]);
+      });
+
+      await alihkan();
+
+      expect(semuaNotifikasi()).toContainEqual(
+        expect.objectContaining({
+          userId: 200,
+          untukPeran: Role.opd,
+          link: expect.stringContaining('/admin-opd/'),
+        }),
+      );
+    });
+
+    it('memberi tahu Admin OPD LAMA bahwa tiket itu keluar dari daftarnya', async () => {
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (where.roles?.has === Role.opd && where.opdId === 5)
+          return Promise.resolve([{ id: 201 }]);
+        return Promise.resolve([]);
+      });
+
+      await alihkan();
+
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 201,
+        untukPeran: Role.opd,
+        type: NotificationType.complaint_forwarded,
+        title: 'Pengaduan Dialihkan ke Instansi Lain',
+        message:
+          'Pengaduan PGD20260805ABCD dialihkan ke Dinas PUPR dan tidak lagi berada pada daftar Anda',
+        // DAFTAR, bukan detail: aksesnya ke tiket itu sudah hilang bersama
+        // `opd_id`-nya, jadi tautan ke detail akan dijawab 403.
+        link: '/admin-opd/complaints',
+      });
+    });
+
+    it('tidak mengabari pelaku pengalihan di OPD lama maupun di kabupaten', async () => {
+      await alihkan();
+
+      const kueriOpdLama = (prisma.user.findMany as jest.Mock).mock.calls.find(
+        ([arg]) => arg.where?.opdId === 5,
+      );
+      expect(kueriOpdLama?.[0].where).toMatchObject({ id: { not: 99 } });
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: { not: 99 } }) }),
+      );
+    });
+
+    it('mengabari kabupaten sebagai pengawas', async () => {
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        if (isFullAccessQuery(where)) return Promise.resolve([{ id: 300 }]);
+        return Promise.resolve([]);
+      });
+
+      await alihkan();
+
+      expect(semuaNotifikasi()).toContainEqual({
+        userId: 300,
+        untukPeran: Role.kabupaten,
+        type: NotificationType.complaint_forwarded,
+        title: 'Pengaduan Dialihkan ke Instansi Lain',
+        message: 'Pengaduan PGD20260805ABCD dialihkan ke Dinas PUPR',
+        link: '/admin-kab/complaints/PGD20260805ABCD',
+      });
+    });
+
+    it('gagal membuat notifikasi TIDAK melempar error (efek samping)', async () => {
+      (prisma.notification.create as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
+      await expect(alihkan()).resolves.toBeUndefined();
+    });
+  });
+
+  /**
    * ARAH BALASAN DITENTUKAN PERAN YANG DIPAKAI, BUKAN ID PENULIS (22 September
    * 2026, laporan pengguna: "notifikasi balasan tidak muncul" pada akun ber-3
    * peran).

@@ -150,6 +150,64 @@ export class NotificationsService {
     );
   }
 
+  /**
+   * Pengaduan DIALIHKAN ke instansi lain (5 November 2026).
+   *
+   * BEDANYA DARI `notifyComplaintForwarded`. Penerusan mengisi tujuan yang
+   * masih kosong; pengalihan MEMINDAHKAN tujuan yang sudah ada. Karena itu ada
+   * penerima keempat yang tak dimiliki penerusan: OPD yang KEHILANGAN tiketnya.
+   * Tanpa kabar itu, tiket lenyap dari daftar dan dasbornya tanpa suara --
+   * terutama ketika Admin Kabupaten yang mengalihkan -- dan aksesnya sudah
+   * terlanjur hilang bersama `opd_id`, jadi ia tak dapat memeriksanya sendiri.
+   *
+   * TIPENYA TETAP `complaint_forwarded`, tanpa nilai enum baru: bagi penerima
+   * peristiwanya sejenis, dan kalimatnyalah yang membedakan.
+   *
+   * JANGAN memanggil `notifyComplaintStatusChanged` dari jalur pengalihan.
+   * Statusnya memang berubah, tetapi kabar kedua ("kini berstatus Dialihkan")
+   * atas peristiwa yang sama persis bentuknya dengan BUG-018.
+   *
+   * `namaOpdBaru` disalurkan dari pemanggil, bukan dibaca ulang: `alihkan()`
+   * sudah memuat OPD-nya untuk memeriksa keberadaan dan keaktifannya.
+   */
+  async notifyComplaintAlihkan(
+    complaint: Complaint,
+    namaOpdBaru: string,
+    opdLamaId: number,
+    actorUserId: number,
+  ): Promise<void> {
+    await this.safeCreate({
+      userId: complaint.userId,
+      untukPeran: Role.responden,
+      type: NotificationType.complaint_forwarded,
+      title: 'Pengaduan Dialihkan',
+      message: `Pengaduan ${complaint.ticketNo} Anda dialihkan ke ${namaOpdBaru} yang lebih berwenang menanganinya`,
+      link: `/complaints/${complaint.ticketNo}`,
+    });
+    // Bagi OPD tujuan, inilah saat tiket itu menjadi tanggung jawabnya --
+    // peristiwa yang sama dengan pengaduan yang baru masuk.
+    await this.notifyOpdTujuan(complaint);
+    await this.notifyRole(
+      Role.opd,
+      opdLamaId,
+      NotificationType.complaint_forwarded,
+      'Pengaduan Dialihkan ke Instansi Lain',
+      `Pengaduan ${complaint.ticketNo} dialihkan ke ${namaOpdBaru} dan tidak lagi berada pada daftar Anda`,
+      // DAFTAR, bukan detail tiketnya: aksesnya ke tiket itu sudah hilang
+      // bersama `opd_id`, jadi tautan ke detail akan dijawab 403.
+      '/admin-opd/complaints',
+      undefined,
+      actorUserId,
+    );
+    await this.notifyKabupaten(
+      actorUserId,
+      NotificationType.complaint_forwarded,
+      'Pengaduan Dialihkan ke Instansi Lain',
+      `Pengaduan ${complaint.ticketNo} dialihkan ke ${namaOpdBaru}`,
+      `/admin-kab/complaints/${complaint.ticketNo}`,
+    );
+  }
+
   /** Pengaduan berpindah status -> beri tahu pelapor (responden pemilik) + kabupaten (oversight). */
   async notifyComplaintStatusChanged(complaint: Complaint, actorUserId: number): Promise<void> {
     const label = labelStatus(complaint.status);
@@ -310,13 +368,25 @@ export class NotificationsService {
     message: string,
     link: string,
     surveyId?: number,
+    // Pelaku yang dikecualikan. Dibutuhkan sejak pengalihan antar-instansi
+    // (5 November 2026): Admin OPD yang mengalihkan tiketnya sendiri ada di
+    // dalam OPD lama, dan mengabarinya bahwa tiket itu keluar dari daftarnya
+    // hanya mengulangi apa yang baru saja ia lakukan. `undefined` berarti tak
+    // ada yang dikecualikan -- klausanya DIHILANGKAN, bukan diisi id semu,
+    // alasan yang sama dengan `notifyKabupaten`.
+    excludeUserId?: number,
   ): Promise<void> {
     try {
       const recipients = await this.prisma.user.findMany({
         // `roles: { has }` (5 September 2026): pemberitahuan menyasar
         // KEPEMILIKAN role, bukan peran yang sedang dipakai seseorang --
         // penerimanya belum tentu sedang membuka aplikasi sama sekali.
-        where: { roles: { has: role }, opdId, isActive: true },
+        where: {
+          roles: { has: role },
+          opdId,
+          isActive: true,
+          ...(excludeUserId === undefined ? {} : { id: { not: excludeUserId } }),
+        },
         select: { id: true },
       });
       // SATU `createMany`, bukan satu `create` per penerima. Lihat catatan di
