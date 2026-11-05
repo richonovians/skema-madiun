@@ -1,6 +1,6 @@
 import React from 'react';
 import Card from '@/components/ui/Card';
-import { Check, Hourglass, XCircle, AlertTriangle } from 'lucide-react';
+import { Check, Hourglass, XCircle, AlertTriangle, Forward } from 'lucide-react';
 import clsx from 'clsx';
 import { COMPLAINT_ALUR_UTAMA, COMPLAINT_STATUS_LABEL } from '@/utils/enumLabels';
 
@@ -41,6 +41,24 @@ const STATUS_ALTERNATIF = {
     kelasIkon: 'text-amber-600',
     keterangan:
       'Petugas meminta Anda melengkapi informasi atau bukti. Balas lewat percakapan di halaman ini.',
+  },
+  /**
+   * Pengalihan antar-instansi (5 November 2026).
+   *
+   * KALIMATNYA MENYEBUT PENGULANGAN, dan itu perlu: tiket yang dialihkan dari
+   * "Sedang Ditindaklanjuti" memang mundur ke antrean verifikasi OPD baru.
+   * Tanpa kalimat ini pelapor melihat penanda kemajuannya surut tanpa sebab.
+   */
+  Dialihkan: {
+    Ikon: Forward,
+    // Palet mentah, sama seperti "Perlu Perbaikan" di atas: tema ini tak
+    // mendefinisikan token `info-container`, jadi kelas semacam
+    // `bg-info-container/40` tak menghasilkan CSS apa pun dan panelnya
+    // tergambar polos.
+    kelas: 'bg-sky-50 border-sky-200 text-sky-900',
+    kelasIkon: 'text-sky-600',
+    keterangan:
+      'Pengaduan Anda dialihkan ke instansi yang lebih berwenang. Penanganannya dimulai kembali dari verifikasi di instansi tersebut; nama instansi dan alasannya tercantum pada riwayat di bawah.',
   },
 };
 

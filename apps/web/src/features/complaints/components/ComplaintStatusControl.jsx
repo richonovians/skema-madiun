@@ -22,6 +22,15 @@ const ALLOWED_NEXT_STATUS = {
   Diverifikasi: ['Sedang Ditindaklanjuti', 'Perlu Perbaikan', 'Ditolak'],
   'Sedang Ditindaklanjuti': ['Selesai', 'Perlu Perbaikan', 'Ditolak'],
   'Perlu Perbaikan': ['Menunggu Verifikasi', 'Ditolak'],
+  // Pengalihan antar-instansi (5 November 2026). Keluarnya sama persis dengan
+  // 'Menunggu Verifikasi': bagi OPD tujuan, tiket yang baru dialihkan adalah
+  // tiket yang baru masuk.
+  //
+  // 'Dialihkan' TIDAK pernah muncul sebagai NILAI pada kunci mana pun, dan itu
+  // disengaja: dropdown status tak boleh menawarkannya, sebab pengalihan juga
+  // memindahkan kepemilikan, kategori, dan tingkat. Tombol "Alihkan" yang
+  // melakukannya, lewat PATCH /complaints/:id/alihkan.
+  Dialihkan: ['Diverifikasi', 'Perlu Perbaikan', 'Ditolak'],
   Selesai: [],
   Ditolak: [],
 };

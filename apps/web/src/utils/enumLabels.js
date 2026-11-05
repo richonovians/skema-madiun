@@ -37,6 +37,7 @@ export const COMPLAINT_STATUS_LABEL = {
   Selesai: 'Selesai',
   Ditolak: 'Ditolak',
   'Perlu Perbaikan': 'Perlu Perbaikan',
+  Dialihkan: 'Dialihkan',
 };
 
 export const COMPLAINT_STATUS_BADGE_VARIANT = {
@@ -53,6 +54,9 @@ export const COMPLAINT_STATUS_BADGE_VARIANT = {
   // Jingga, bukan merah: bola ada di tangan pelapor dan tiketnya masih hidup.
   // Merah di sebelah "Ditolak" akan terbaca sebagai kembaran penolakan.
   'Perlu Perbaikan': 'secondary',
+  // Biru, sewarna "Diverifikasi" dan bukan kuning: bolanya sudah berpindah ke
+  // instansi lain, bukan sedang menunggu pelapor maupun petugas yang sekarang.
+  Dialihkan: 'info',
 };
 
 /**
@@ -73,7 +77,17 @@ export const COMPLAINT_ALUR_UTAMA = [
 ];
 
 /** Status di luar alur utama; tak punya tempat pada penanda kemajuan. */
-export const COMPLAINT_STATUS_ALTERNATIF = ['Ditolak', 'Perlu Perbaikan'];
+export const COMPLAINT_STATUS_ALTERNATIF = ['Ditolak', 'Perlu Perbaikan', 'Dialihkan'];
+
+/**
+ * Status AKHIR — pasangan `STATUS_TUNTAS` di
+ * `apps/api/src/modules/complaints/alur-status.util.ts`.
+ *
+ * Dipakai layar detail admin untuk menyembunyikan tombol "Alihkan": backend
+ * menolak pengalihan atas tiket yang sudah tamat (400). Menyembunyikannya
+ * kenyamanan; penolakan backend yang menjaga.
+ */
+export const COMPLAINT_STATUS_TUNTAS = ['Selesai', 'Ditolak'];
 
 export const ROLE_LABEL = {
   ADMIN_OPD: 'Admin OPD',

@@ -83,6 +83,9 @@ const STATUS_META = {
   diverifikasi: { label: 'Diverifikasi', color: '#6366f1' },
   sedang_ditindaklanjuti: { label: 'Sedang Ditindaklanjuti', color: '#f59e0b' },
   perlu_perbaikan: { label: 'Perlu Perbaikan', color: '#f97316' },
+  // Biru langit, sewarna lencananya di enumLabels.js: tiketnya berpindah ke
+  // instansi lain, bukan menunggu pelapor.
+  dialihkan: { label: 'Dialihkan', color: '#0ea5e9' },
   selesai: { label: 'Selesai', color: '#10b981' },
   ditolak: { label: 'Ditolak', color: '#ef4444' },
 };

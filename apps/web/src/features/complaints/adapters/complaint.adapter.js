@@ -30,6 +30,18 @@ const STATUS_MAP = {
   selesai: 'Selesai',
   ditolak: 'Ditolak',
   perlu_perbaikan: 'Perlu Perbaikan',
+  /**
+   * WAJIB ADA, dan ketiadaannya tidak memerah di mana pun (5 November 2026).
+   *
+   * Status backend yang tak terpetakan jatuh ke `?? complaint.status` dan
+   * beredar sebagai kode mentah, lalu MELESET pada setiap peta yang berkunci
+   * label: `ALLOWED_NEXT_STATUS` (tiket terbaca final dan tak dapat diubah
+   * instansi tujuannya), `STATUS_ALTERNATIF` penanda kemajuan (kelima tahap
+   * tergambar belum dilalui), varian lencana, penyaring daftar sisi klien
+   * (selalu nol baris), ember sebaran status, dan kolom Status pada ekspor
+   * PDF. Satu baris di sini, enam layar di hilir.
+   */
+  dialihkan: 'Dialihkan',
 };
 
 export function adaptComplaint(complaint) {
@@ -101,6 +113,10 @@ export function adaptComplaint(complaint) {
       label: baris.label ?? STATUS_MAP[baris.status] ?? baris.status,
       catatan: baris.catatan ?? null,
       actorNama: baris.actorNama ?? null,
+      // Instansi tujuan pengalihan (5 November 2026). `null` pada setiap
+      // baris yang bukan `dialihkan`, termasuk seluruh baris yang lahir
+      // sebelum kolomnya ada.
+      opdTujuanNama: baris.opdTujuanNama ?? null,
       createdAt: baris.createdAt,
     })) ?? null,
     // Kode kategori mentah ('kab_kesehatan', 'kec_sarana', ...) -- label
@@ -187,6 +203,9 @@ const STATUS_TO_BACKEND = {
   Selesai: 'selesai',
   Ditolak: 'ditolak',
   'Perlu Perbaikan': 'perlu_perbaikan',
+  // Tanpa baris ini penyaring status di daftar admin tak dapat memilih
+  // "Dialihkan": nilainya akan dikirim apa adanya dan ditolak backend.
+  Dialihkan: 'dialihkan',
 };
 
 /** Terjemahkan status frontend ('Diproses' dkk) -> enum backend ('diproses' dkk). */

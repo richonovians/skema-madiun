@@ -37,6 +37,7 @@ const STATUS = [
   { key: 'Diverifikasi', id: 'diverifikasi', label: 'Diverifikasi', color: '#6366f1' },
   { key: 'Sedang Ditindaklanjuti', id: 'sedang_ditindaklanjuti', label: 'Sedang Ditindaklanjuti', color: '#f59e0b' },
   { key: 'Perlu Perbaikan', id: 'perlu_perbaikan', label: 'Perlu Perbaikan', color: '#f97316' },
+  { key: 'Dialihkan', id: 'dialihkan', label: 'Dialihkan', color: '#0ea5e9' },
   { key: 'Selesai', id: 'selesai', label: 'Selesai', color: '#10b981' },
   { key: 'Ditolak', id: 'ditolak', label: 'Ditolak', color: '#ef4444' },
 ];

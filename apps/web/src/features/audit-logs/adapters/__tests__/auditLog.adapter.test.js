@@ -97,6 +97,7 @@ describe('label aksi log aktivitas: seluruhnya bahasa Indonesia', () => {
     'reorder',
     'duplicate',
     'forward',
+    'alihkan',
     'restore',
     'purge',
     'sso_grant_kabupaten',
@@ -120,6 +121,7 @@ describe('label aksi log aktivitas: seluruhnya bahasa Indonesia', () => {
 
   it.each([
     ['forward', 'TERUSKAN KE OPD'],
+    ['alihkan', 'ALIHKAN KE OPD LAIN'],
     ['restore', 'PULIHKAN'],
     ['purge', 'MUSNAHKAN'],
     ['sso_grant_kabupaten', 'SSO BERI PERAN KABUPATEN'],

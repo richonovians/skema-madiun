@@ -104,6 +104,54 @@ describe('ComplaintProgressStepper — alur lima tahap', () => {
       expect(keadaan('Selesai')).toBe('belum');
     });
 
+    /**
+     * Pengalihan antar-instansi (5 November 2026).
+     *
+     * `STATUS_ALTERNATIF` di komponennya adalah PETA BERKUNCI, bukan cabang
+     * umum untuk "status apa pun di luar alur". Tanpa entri `Dialihkan`,
+     * `indexOf` bernilai -1 dan SELURUH tahap tergambar "belum" -- penanda
+     * kemajuannya berbunyi seolah tak ada apa pun yang pernah terjadi pada
+     * tiket yang sudah diverifikasi.
+     */
+    const RIWAYAT_DIALIHKAN = [
+      { id: 1, label: 'Terkirim', createdAt: '2026-11-02T02:15:00.000Z' },
+      { id: 2, label: 'Menunggu Verifikasi', createdAt: '2026-11-02T03:00:00.000Z' },
+      { id: 3, label: 'Diverifikasi', createdAt: '2026-11-02T06:00:00.000Z' },
+      { id: 4, label: 'Dialihkan', createdAt: '2026-11-03T01:00:00.000Z' },
+    ];
+
+    it('Dialihkan: tahap yang sudah dilalui tetap tergambar terlampaui', () => {
+      render(
+        <ComplaintProgressStepper currentStatus="Dialihkan" riwayat={RIWAYAT_DIALIHKAN} />,
+      );
+
+      expect(keadaan('Terkirim')).toBe('selesai');
+      expect(keadaan('Menunggu Verifikasi')).toBe('selesai');
+      expect(keadaan('Diverifikasi')).toBe('selesai');
+      expect(keadaan('Sedang Ditindaklanjuti')).toBe('belum');
+      expect(keadaan('Selesai')).toBe('belum');
+    });
+
+    it('Dialihkan: menjelaskan bahwa penanganan dimulai ulang di instansi baru', () => {
+      // Tiket yang dialihkan dari "Sedang Ditindaklanjuti" memang mundur ke
+      // antrean verifikasi OPD baru. Yang tak boleh terjadi adalah pelapor
+      // melihatnya mundur tanpa penjelasan.
+      render(
+        <ComplaintProgressStepper currentStatus="Dialihkan" riwayat={RIWAYAT_DIALIHKAN} />,
+      );
+
+      expect(screen.getByText(/dimulai kembali/i)).toBeInTheDocument();
+    });
+
+    it('Dialihkan tidak diselipkan ke dalam kelima tahap', () => {
+      render(
+        <ComplaintProgressStepper currentStatus="Dialihkan" riwayat={RIWAYAT_DIALIHKAN} />,
+      );
+
+      const butir = within(screen.getByRole('list')).getAllByRole('listitem');
+      expect(butir.map((b) => b.textContent.split('—')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
+    });
+
     it('tanpa riwayat, tak satu pun tahap digambar berjalan', () => {
       // Daftar pengaduan tak menarik riwayat. Menebak lebih jauh berarti
       // menggambar kemajuan yang mungkin tak pernah terjadi.
