@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsString, MaxLength, Min } from 'class-validator';
 import { COMPLAINT_CATEGORIES } from '../../reference/reference.constants';
 
 const KATEGORI_KODE = COMPLAINT_CATEGORIES.map((k) => k.kode);
@@ -49,5 +49,9 @@ export class AlihkanComplaintDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
+  // Batas yang SAMA dengan `UpdateComplaintStatusDto.catatan`: keduanya
+  // menulis ke kolom `complaint_status_history.catatan` yang sama, dan dua
+  // batas berbeda atas satu kolom berarti salah satunya tak berlaku.
+  @MaxLength(1000)
   catatan: string;
 }

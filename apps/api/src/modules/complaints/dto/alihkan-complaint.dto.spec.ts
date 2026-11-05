@@ -44,6 +44,17 @@ describe('AlihkanComplaintDto', () => {
     expect(dto({ catatan: '  Salah tujuan.  ' }).catatan).toBe('Salah tujuan.');
   });
 
+  it('menolak catatan yang melampaui 1000 aksara', async () => {
+    // Batas yang SAMA dengan `UpdateComplaintStatusDto.catatan`: keduanya
+    // menulis ke kolom `complaint_status_history.catatan` yang sama, dan dua
+    // batas berbeda atas satu kolom berarti salah satunya tak berlaku.
+    expect(await medanGalat({ catatan: 'a'.repeat(1001) })).toContain('catatan');
+  });
+
+  it('menerima catatan tepat 1000 aksara', async () => {
+    expect(await medanGalat({ catatan: 'a'.repeat(1000) })).toHaveLength(0);
+  });
+
   it('menolak opdId 0', async () => {
     expect(await medanGalat({ opdId: 0 })).toContain('opdId');
   });

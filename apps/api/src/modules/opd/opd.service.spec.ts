@@ -86,12 +86,19 @@ describe('OpdService', () => {
           // membuat uji ini membandingkan jawaban dengan dirinya sendiri:
           // sebuah status yang keliru masuk atau keluar daftar itu akan
           // mengubah kedua sisi perbandingan sekaligus dan tetap hijau.
+          //
+          // `dialihkan` ikut sejak 5 November 2026, dan kawat pemicu ini
+          // bekerja persis seperti maksudnya: status baru itu masuk daftar
+          // SENDIRI karena `STATUS_BELUM_TUNTAS` diturunkan, dan uji ini
+          // memerah sampai keikutsertaannya diakui di sini. Tiket yang sedang
+          // menunggu instansi lain memang belum tuntas.
           status: {
             in: [
               'menunggu_verifikasi',
               'diverifikasi',
               'sedang_ditindaklanjuti',
               'perlu_perbaikan',
+              'dialihkan',
             ],
           },
         }),

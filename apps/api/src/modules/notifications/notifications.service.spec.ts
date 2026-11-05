@@ -345,15 +345,43 @@ describe('NotificationsService', () => {
       });
     });
 
+    /**
+     * DUA KOTAK MASUK, DIPERIKSA TERPISAH — dan versi pertama uji ini tidak
+     * dapat gagal pada bagian keduanya: asersi "kabupaten" yang ditulisnya
+     * sudah dipenuhi oleh kueri OPD lama yang baru saja diperiksa asersi
+     * pertama, sehingga `notifyKabupaten` boleh lupa mengecualikan pelaku dan
+     * uji ini tetap hijau.
+     *
+     * Yang ditegaskan sekarang NOTIFIKASI YANG TERBIT, bukan bentuk kueri:
+     * pelaku (id 99) ada di kedua kolam penerima, dan tak boleh menerima
+     * satu baris pun.
+     */
     it('tidak mengabari pelaku pengalihan di OPD lama maupun di kabupaten', async () => {
+      // Pelaku (99) ada DI OPD LAMA dan di kolam kabupaten — dua kotak masuk
+      // yang keduanya harus mengecualikannya. Ia TIDAK ada di OPD tujuan;
+      // `assertOpdAccess` menuntut ia memiliki OPD asalnya, dan alih ke diri
+      // sendiri ditolak, jadi keadaan itu tak dapat terjadi.
+      const kolam: Record<string, { id: number }[]> = {
+        kabupaten: [{ id: 300 }, { id: 99 }],
+        opd5: [{ id: 201 }, { id: 99 }],
+        opd7: [{ id: 200 }],
+      };
+      (prisma.user.findMany as jest.Mock).mockImplementation(({ where }) => {
+        const kunci = isFullAccessQuery(where) ? 'kabupaten' : `opd${where.opdId}`;
+        const dikecualikan = (where as { id?: { not?: number } }).id?.not;
+        return Promise.resolve((kolam[kunci] ?? []).filter((u) => u.id !== dikecualikan));
+      });
+
       await alihkan();
 
-      const kueriOpdLama = (prisma.user.findMany as jest.Mock).mock.calls.find(
-        ([arg]) => arg.where?.opdId === 5,
+      expect(semuaNotifikasi()).not.toContainEqual(expect.objectContaining({ userId: 99 }));
+      // KONTROL: penerima lain di kedua kolam tetap dikabari, jadi uji di atas
+      // tak lulus hanya karena tak ada notifikasi yang terbit sama sekali.
+      expect(semuaNotifikasi()).toContainEqual(
+        expect.objectContaining({ userId: 201, untukPeran: Role.opd }),
       );
-      expect(kueriOpdLama?.[0].where).toMatchObject({ id: { not: 99 } });
-      expect(prisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ id: { not: 99 } }) }),
+      expect(semuaNotifikasi()).toContainEqual(
+        expect.objectContaining({ userId: 300, untukPeran: Role.kabupaten }),
       );
     });
 
