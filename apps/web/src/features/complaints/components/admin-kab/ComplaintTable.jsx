@@ -16,7 +16,13 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
       {/* Padding samping sel `px-md`, bukan `px-lg` (7 November 2026). Sejak
           status, tanggal, dan aksi tak boleh patah baris, tabel ini meluap 63px
           di layar 1280px bersidebar lebar -- tombol aksinya terpotong. Enam
-          kolom kali dua sisi kali 8px menutup luapan itu. */}
+          kolom kali dua sisi kali 8px menutup luapan itu DI DATA LOKAL.
+
+          Di CI ia tetap meluap 51px: label status terpanjang ("Menunggu
+          Verifikasi") dan font runner Linux yang lebih lebar. Mengejar lebar
+          piksel demi piksel rapuh terhadap font dan data, jadi kolom AKSI kini
+          LENGKET di kanan: bila tabel terpaksa bergulir, tombolnya tetap utuh
+          terlihat. Kolom judul turun ke `min-w-[10rem]` untuk sisanya. */}
       <table className="w-full text-left border-collapse">
         <thead className="bg-surface-container text-on-surface-variant">
           <tr>
@@ -25,7 +31,7 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
             <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">JUDUL KELUHAN</th>
             <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">TANGGAL & UMUR</th>
             <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
-            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
+            <th className="sticky right-0 z-10 bg-surface-container px-md py-md font-label-md text-label-md uppercase tracking-wider text-left shadow-[-6px_0_6px_-6px_rgb(0_0_0/0.15)]">AKSI</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-outline-variant">
@@ -58,11 +64,14 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                   </div>
                 </td>
 
-                {/* `min-w-[12rem] max-w-[20rem]`, BUKAN `max-w-xs` (27 Oktober 2026, BUG-040):
+                {/* `min-w-[10rem] max-w-[20rem]`, BUKAN `max-w-xs` (27 Oktober 2026, BUG-040):
                     di apps/web `max-w-xs` bernilai 4px karena token spasi membajak
                     skala `max-w-*`, jadi kolom judul selalu diperas ke lebar
-                    minimumnya. Terukur 101-109px pada layar 1366px. */}
-                <td className="px-md py-lg min-w-[12rem] max-w-[20rem]">
+                    minimumnya. Terukur 101-109px pada layar 1366px. Batas
+                    bawahnya turun dari 12rem ke 10rem pada 7 November 2026 demi
+                    kolom yang kini tak boleh patah baris; 160px tetap jauh di
+                    atas lebar yang dulu dikeluhkan. */}
+                <td className="px-md py-lg min-w-[10rem] max-w-[20rem]">
                   <p className="font-body-md text-body-md text-on-surface line-clamp-2" title={complaint.title}>
                     {complaint.title}
                   </p>
@@ -87,7 +96,7 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                   </Badge>
                 </td>
 
-                <td className="px-md py-lg text-left">
+                <td className="sticky right-0 z-10 bg-white group-hover:bg-slate-50 transition-colors px-md py-lg text-left shadow-[-6px_0_6px_-6px_rgb(0_0_0/0.15)]">
                   {/* Sasaran sentuh 44px (28 Oktober 2026): keduanya dulu ~29px.
                       "Monitor Tiket" dulu `<button>` di dalam `<Link>` --
                       kendali di dalam kendali; kini tautannya yang bergaya tombol. */}

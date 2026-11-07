@@ -62,10 +62,16 @@ export default function AdminComplaintTable({ complaints }) {
                   </Badge>
                 </td>
                 <td className="px-lg py-lg text-right">
-                  <Link href={`/admin-opd/complaints/${complaint.id}`}>
-                    <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md whitespace-nowrap hover:bg-primary hover:text-white transition-all">
-                      Buka Tiket
-                    </button>
+                  {/* Tautan bergaya tombol, setinggi minimal 44px (7 November
+                      2026). Dulu `<button>` di dalam `<Link>` -- kendali di dalam
+                      kendali -- setinggi 31px, dan ia lolos uji sasaran sentuh
+                      hanya karena teksnya patah menjadi dua baris. Pola yang
+                      sama dengan "Monitor Tiket" di admin-kab/ComplaintTable. */}
+                  <Link
+                    href={`/admin-opd/complaints/${complaint.id}`}
+                    className="inline-flex items-center min-h-[44px] px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md whitespace-nowrap hover:bg-primary hover:text-white transition-all"
+                  >
+                    Buka Tiket
                   </Link>
                 </td>
               </tr>

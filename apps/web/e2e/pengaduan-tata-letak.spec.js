@@ -62,12 +62,17 @@ test.describe('Tata letak pengaduan Admin Kabupaten', () => {
       await page.waitForTimeout(500);
 
       // Larangan patah baris tak boleh dibayar dengan tombol aksi yang
-      // terpotong: sebelum padding sel diperkecil, tabel ini meluap 63px di
-      // 1280px bersidebar lebar.
-      const luap = await page
-        .locator('table')
-        .evaluate((t) => t.parentElement.scrollWidth - t.parentElement.clientWidth);
-      expect(luap, 'tabel meluap horizontal').toBeLessThanOrEqual(0);
+      // terpotong. Bukan "tabel tak boleh meluap": itu bergantung pada font
+      // dan data -- di CI tabel yang sama meluap 51px, di lokal 0. Yang dijanjikan
+      // kepada pengguna adalah tombolnya utuh terlihat tanpa menggulir, dan
+      // itulah gunanya kolom AKSI yang lengket di kanan.
+      const aksiTerpotong = await page.locator('table').evaluate((t) => {
+        const wadah = t.parentElement.getBoundingClientRect();
+        return [...t.querySelectorAll('tbody a')]
+          .map((a) => a.getBoundingClientRect())
+          .filter((r) => r.left < wadah.left - 0.5 || r.right > wadah.right + 0.5).length;
+      });
+      expect(aksiTerpotong, 'tombol aksi terpotong oleh tepi tabel').toBe(0);
 
       const n = Math.min(await baris.count(), 10);
       for (let i = 0; i < n; i += 1) {
@@ -82,6 +87,45 @@ test.describe('Tata letak pengaduan Admin Kabupaten', () => {
       }
     });
   }
+
+  /**
+   * KASUS TERBURUK, disusun di DOM dan tak menyentuh basis data. Label status
+   * terpanjang dan tanggal terpanjang di setiap baris: di lokal tabel ini
+   * meluap 28px dengan isi seperti itu, padahal datanya sendiri tak pernah
+   * memuatnya -- dan CI memuatnya, sehingga kegagalannya hanya tampak di sana.
+   */
+  test('tabel: kasus terburuk tetap menyisakan tombol aksi utuh (sidebar lebar)', async ({
+    page,
+  }) => {
+    await page.locator('table tbody tr').first().waitFor();
+    test.skip(
+      (await page.locator('table tbody tr td:nth-child(5) span').count()) === 0,
+      'Belum ada pengaduan untuk diubah.',
+    );
+    await page.locator('table').evaluate((t) => {
+      for (const tr of t.querySelectorAll('tbody tr')) {
+        tr.querySelector('td:nth-child(5) span').textContent = 'Menunggu Verifikasi';
+        tr.querySelector('td:nth-child(4) div').textContent = '30 September 2026';
+      }
+    });
+
+    const hasil = await page.locator('table').evaluate((t) => {
+      const wadah = t.parentElement.getBoundingClientRect();
+      const tautan = [...t.querySelectorAll('tbody a')].map((a) => a.getBoundingClientRect());
+      const lencana = [...t.querySelectorAll('tbody td:nth-child(5) span')].map((s) => {
+        const range = document.createRange();
+        range.selectNodeContents(s);
+        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+      });
+      return {
+        terpotong: tautan.filter((r) => r.left < wadah.left - 0.5 || r.right > wadah.right + 0.5)
+          .length,
+        lencanaPatah: lencana.filter((n) => n !== 1).length,
+      };
+    });
+    expect(hasil.terpotong, 'tombol aksi terpotong oleh tepi tabel').toBe(0);
+    expect(hasil.lencanaPatah, 'lencana "Menunggu Verifikasi" patah baris').toBe(0);
+  });
 
   test('ruang solusi: teks panjang tak tertutup toolbar Template/Lampirkan', async ({ page }) => {
     const tautan = page.getByRole('link', { name: 'Monitor Tiket' }).first();
