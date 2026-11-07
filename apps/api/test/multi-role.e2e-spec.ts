@@ -228,6 +228,50 @@ describe('Multi-role: hak mengikuti peran yang dipakai (e2e)', () => {
 
       expect(res.status).toBe(400);
     });
+
+    /**
+     * Keluar harus terbuka bagi sesi yang belum memilih peran (7 November
+     * 2026, audit `auth.logout.unselected-role-session-survives`). Tanpa
+     * `@AllowUnselectedRole()` rutenya menjawab 401 ROLE_SELECTION_REQUIRED
+     * SEBELUM handler berjalan: sid tak pernah dicabut dan cookie HttpOnly tak
+     * pernah dihapus, sementara frontend tetap membuang keadaan lokalnya.
+     * Pengguna mengira sudah keluar, padahal sesinya hidup sampai `abs`.
+     *
+     * Bukti pencabutannya `GET /auth/roles`, bukan `/auth/me`: hanya rute
+     * berdekorator yang menerima sesi tanpa peran, jadi 401 di sana berarti
+     * sesinya mati -- bukan sekadar perannya belum dipilih.
+     */
+    it('POST /auth/logout BERHASIL walau peran belum dipilih, dan sesinya mati', async () => {
+      const token = await penerbit.terbitkan(userId);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+
+      const sesudah = await request(app.getHttpServer())
+        .get('/api/v1/auth/roles')
+        .set('Authorization', `Bearer ${token}`);
+      expect(sesudah.status).toBe(401);
+      expect(sesudah.body.error.code).not.toBe('ROLE_SELECTION_REQUIRED');
+    });
+
+    it('POST /auth/logout-semua BERHASIL walau peran belum dipilih, dan sesinya mati', async () => {
+      const token = await penerbit.terbitkan(userId);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/logout-semua')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+
+      const sesudah = await request(app.getHttpServer())
+        .get('/api/v1/auth/roles')
+        .set('Authorization', `Bearer ${token}`);
+      expect(sesudah.status).toBe(401);
+      expect(sesudah.body.error.code).not.toBe('ROLE_SELECTION_REQUIRED');
+    });
   });
 
   /**
