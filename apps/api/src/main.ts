@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
+import { periksaDevLogin } from './config/gerbang-dev-login';
 import { periksaPenyimpanSesi, periksaPenyimpanan } from './config/gerbang-penyimpanan';
 import { anotasiRute } from './modules/dokumentasi/anotasi-rute';
 import { bangunKonfigOpenApi } from './modules/dokumentasi/openapi.config';
@@ -21,6 +22,12 @@ async function bootstrap(): Promise<void> {
   // lengkapnya di gerbang-penyimpanan.ts.
   periksaPenyimpanan(process.env.NODE_ENV ?? 'development', process.env.DB_STORAGE_ENCRYPTED);
   periksaPenyimpanSesi(process.env.NODE_ENV ?? 'development', process.env.REDIS_URL);
+  periksaDevLogin(process.env.NODE_ENV ?? 'development', process.env.DEV_LOGIN_ENABLED);
+  // Saklar yang hidup diumumkan di log boot: login tanpa kata sandi tak boleh
+  // menyala tanpa ada yang melihatnya.
+  if (config.get<boolean>('devLogin.enabled')) {
+    logger.warn('dev-login HIDUP (DEV_LOGIN_ENABLED=true): login tanpa kata sandi tersedia.');
+  }
 
   // Prefiks + ValidationPipe global (konfigurasi bersama dengan e2e).
   configureApp(app);

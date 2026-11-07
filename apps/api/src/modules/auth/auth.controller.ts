@@ -37,6 +37,7 @@ import { pesanGalatSso, pesanKegagalanMasuk } from './sso-galat.util';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
 import { SessionEntity } from './entities/session.entity';
+import { DevLoginGuard } from './guards/dev-login.guard';
 import { NonProductionGuard } from './guards/non-production.guard';
 import { SessionCookieService } from './session/session-cookie.service';
 import { SsoService } from './sso.service';
@@ -87,12 +88,14 @@ export class AuthController {
   ) {}
 
   /**
-   * Login sementara tanpa SSO (dev/staging) — 404 di production (lihat NonProductionGuard).
+   * Login sementara tanpa SSO (dev/staging) — 404 di production (lihat NonProductionGuard),
+   * dan 404 di mana pun selama `DEV_LOGIN_ENABLED` tidak persis `true` (DevLoginGuard,
+   * 7 November 2026).
    * Digantikan callback SSO OAuth2 saat spec Helpdesk tersedia. Publik (tak perlu Bearer)
    * karena tujuannya justru MENERBITKAN Bearer token itu sendiri.
    */
   @Public()
-  @UseGuards(NonProductionGuard)
+  @UseGuards(NonProductionGuard, DevLoginGuard)
   @Post('dev-login')
   @ApiOperation({
     summary: 'Login sementara tanpa SSO untuk dev/staging. Tidak tersedia di produksi.',

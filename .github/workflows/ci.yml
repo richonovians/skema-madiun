@@ -230,6 +230,10 @@ jobs:
       # melewati dirinya karena basis data seed tak memuat ketiganya. HANYA di
       # sini: di laptop suite ini tak boleh menulis data ke skm_db.
       E2E_DATA_CONTOH: '1'
+      # Suite Playwright masuk lewat dev-login, yang sejak 7 November 2026 mati
+      # kecuali dinyalakan tersurat. Job e2e-api tak memerlukannya di sini:
+      # scripts/uji-e2e.ts menyalakannya sendiri.
+      DEV_LOGIN_ENABLED: 'true'
       # TURNSTILE_SECRET_KEY & NEXT_PUBLIC_TURNSTILE_SITE_KEY SENGAJA tidak
       # diisi: kosong berarti captcha mati di kedua sisi (lihat
       # features/surveys/utils/captcha.js), sehingga uji tak bergantung pada

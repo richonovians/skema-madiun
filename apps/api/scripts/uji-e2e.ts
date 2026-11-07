@@ -124,7 +124,14 @@ async function utama(): Promise<void> {
       cwd: AKAR_API,
       databaseUrl: sasaran.url,
       // `BilaAda`: CI tak punya Redis dan tak menyetel `REDIS_URL` sama sekali.
-      env: redisUji === undefined ? {} : { REDIS_URL: redisUji },
+      // `DEV_LOGIN_ENABLED` dinyalakan DI SINI, bukan di `.env` masing-masing
+      // orang (7 November 2026): sembilan berkas e2e masuk lewat dev-login, dan
+      // menjalankan uji tak boleh menuntut langkah manual. Berkas yang menguji
+      // saklarnya sendiri menimpa nilai ini.
+      env: {
+        DEV_LOGIN_ENABLED: 'true',
+        ...(redisUji === undefined ? {} : { REDIS_URL: redisUji }),
+      },
     },
   );
   process.exit(kodeJest);

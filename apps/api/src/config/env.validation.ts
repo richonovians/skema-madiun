@@ -196,6 +196,15 @@ class EnvironmentVariables {
   @IsString()
   DB_STORAGE_ENCRYPTED?: string;
 
+  /**
+   * Saklar `POST /auth/dev-login` (7 November 2026). Hanya `'true'` yang
+   * menyalakannya, dan tidak di produksi; lihat `devLogin` di configuration.ts
+   * dan `periksaDevLogin`.
+   */
+  @IsOptional()
+  @IsString()
+  DEV_LOGIN_ENABLED?: string;
+
   @IsOptional()
   @IsInt()
   @Min(1)
