@@ -93,15 +93,21 @@ export class PenyimpanSesiRedis implements PenyimpanSesi, OnModuleDestroy {
     return false;
   }
 
-  async cabut(sid: string): Promise<void> {
+  async cabut(sid: string): Promise<boolean> {
     const uid = await this.redis.hget(AWALAN_SESI + sid, 'uid');
     const pipa = this.redis.multi().del(AWALAN_SESI + sid);
     if (uid) pipa.srem(AWALAN_AKUN + uid, sid);
-    await pipa.exec();
+    const hasil = await pipa.exec();
     // Dibuang dari singgahan SETELAH Redis, bukan sebelum: urutan sebaliknya
     // membuka celah sepersekian detik ketika permintaan lain mengisi ulang
     // singgahan dari kunci yang belum sempat terhapus.
     this.singgahan.delete(sid);
+    // Jawaban DEL itu sendiri, bukan `hget` di atas: hanya DEL yang atomik
+    // terhadap pencabutan lain, sehingga dari dua pencabut yang berlomba
+    // tepat satu yang mendapat `1`.
+    const [galat, jumlah] = hasil?.[0] ?? [];
+    if (galat) throw galat;
+    return jumlah === 1;
   }
 
   async cabutSemua(uid: number): Promise<void> {

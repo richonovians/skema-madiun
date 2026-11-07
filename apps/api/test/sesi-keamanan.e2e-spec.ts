@@ -9,6 +9,7 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PENYIMPAN_SESI } from '../src/modules/auth/session/penyimpan-sesi.interface';
 import type { PenyimpanSesi } from '../src/modules/auth/session/penyimpan-sesi.interface';
+import { PenerbitSesi } from '../src/modules/auth/session/penerbit-sesi.service';
 
 /**
  * QA-SECURITY-UAT #7: keutuhan token sesi dan pencabutannya.
@@ -218,6 +219,39 @@ describe('Keamanan sesi (e2e)', () => {
 
       expect((await me(res.body.data.token as string)).status).toBe(200);
       expect((await me(lama)).status).toBe(401);
+    });
+
+    /**
+     * Audit auth 7 November 2026, `sesi/acting-role-menerbitkan-melewati-pencabutan`.
+     * Sesi diperiksa hidup di guard, lalu sesi baru diterbitkan beberapa
+     * langkah kemudian. Bila "keluarkan semua perangkat" mendarat di antara
+     * keduanya, sesi baru lahir SESUDAH pencabutan dan lolos darinya.
+     *
+     * Celahnya disisipkan dengan membungkus `terbitkan`: pencabutan dijalankan
+     * tepat sebelum penerbitan, sesudah guard meloloskan permintaan.
+     */
+    it('pencabutan yang mendarat di tengah ganti peran tidak dilewati', async () => {
+      const lama = await masuk();
+      const penerbit = app.get(PenerbitSesi);
+      const penyimpan = app.get<PenyimpanSesi>(PENYIMPAN_SESI);
+      const asli = penerbit.terbitkan.bind(penerbit);
+      const mata = jest
+        .spyOn(penerbit, 'terbitkan')
+        .mockImplementation(async (...argumen: Parameters<PenerbitSesi['terbitkan']>) => {
+          await penyimpan.cabutSemua(userId);
+          return asli(...argumen);
+        });
+      try {
+        const res = await http()
+          .post('/api/v1/auth/acting-role')
+          .set('Authorization', `Bearer ${lama}`)
+          .send({ role: Role.responden });
+
+        expect(res.status).toBe(401);
+        await expect(penyimpan.daftar(userId)).resolves.toEqual([]);
+      } finally {
+        mata.mockRestore();
+      }
     });
   });
 });

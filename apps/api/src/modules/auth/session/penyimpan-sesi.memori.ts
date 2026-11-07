@@ -42,9 +42,12 @@ export class PenyimpanSesiMemori implements PenyimpanSesi {
     return true;
   }
 
-  async cabut(sid: string): Promise<void> {
+  async cabut(sid: string): Promise<boolean> {
     const catatan = this.sesi.get(sid);
     this.buang(sid, catatan?.uid);
+    // Pagu yang sudah lewat dihitung tak ada, sama seperti Redis yang kuncinya
+    // sudah dihapus TTL.
+    return catatan !== undefined && catatan.abs > PenyimpanSesiMemori.sekarang;
   }
 
   async cabutSemua(uid: number): Promise<void> {

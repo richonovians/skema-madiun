@@ -42,6 +42,26 @@ describe('PenyimpanSesi (memori)', () => {
     await expect(penyimpan.hidup('sid-a')).resolves.toBe(false);
   });
 
+  /**
+   * Jawaban `cabut` dipakai pergantian peran untuk mengetahui apakah sesi
+   * asalnya MASIH ada pada saat ditukar (7 November 2026, audit
+   * `sesi/acting-role-menerbitkan-melewati-pencabutan`). `hidup()` tak dapat
+   * dipakai untuk itu: implementasi Redis menyinggahkannya lima detik.
+   */
+  it('cabut menjawab true hanya bila ada sesi hidup yang benar-benar dicabut', async () => {
+    await penyimpan.simpan('sid-a', catatan());
+
+    await expect(penyimpan.cabut('sid-a')).resolves.toBe(true);
+    await expect(penyimpan.cabut('sid-a')).resolves.toBe(false);
+    await expect(penyimpan.cabut('sid-tak-dikenal')).resolves.toBe(false);
+  });
+
+  it('cabut menjawab false untuk sesi yang pagunya sudah lewat', async () => {
+    await penyimpan.simpan('sid-basi', catatan({ abs: Math.floor(Date.now() / 1000) - 1 }));
+
+    await expect(penyimpan.cabut('sid-basi')).resolves.toBe(false);
+  });
+
   it('mencabut seluruh sesi satu akun, dan tidak menyentuh akun lain', async () => {
     await penyimpan.simpan('sid-a', catatan({ uid: 7 }));
     await penyimpan.simpan('sid-b', catatan({ uid: 7 }));

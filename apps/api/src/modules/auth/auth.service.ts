@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -226,8 +227,7 @@ export class AuthService {
     // Pagu `abs` DIWARISI dari sesi asal (7 November 2026, audit
     // `sesi/acting-role-mereset-pagu-abs`): ganti peran bukan masuk baru, jadi
     // ia tak boleh memberi dua belas jam baru.
-    const token = await this.penerbitSesi.terbitkan(user.userId, role, perangkat, user.abs);
-
+    //
     // Sid LAMA DICABUT sesudah yang baru terbit (7 November 2026, audit
     // `sesi/acting-role-sid-lama-tetap-hidup`, keputusan pengguna). Sampai
     // hari itu sesi lama dibiarkan habis sendiri dengan alasan cookie di
@@ -239,8 +239,17 @@ export class AuthService {
     // Urutannya disengaja: bila penerbitan gagal, sesi lama masih utuh dan
     // pemiliknya tak terlempar keluar. Harganya kecil -- permintaan yang
     // sedang berjalan dengan token lama pada saat pergantian dapat dijawab 401.
-    if (user.sid) {
-      await this.penyimpanSesi.cabut(user.sid);
+    //
+    // Sid lama yang ternyata SUDAH dicabut saat ditukar berarti izinnya ditarik
+    // di tengah jalan; sesi baru ikut dicabut dan permintaan ini ditolak
+    // (audit `sesi/acting-role-menerbitkan-melewati-pencabutan`). Lihat
+    // `PenerbitSesi.gantikan`. Token terbitan lama tanpa `sid` tak dapat
+    // dicabut sama sekali, jadi tak ada yang perlu ditukar.
+    const token = user.sid
+      ? await this.penerbitSesi.gantikan(user.sid, user.userId, role, perangkat, user.abs)
+      : await this.penerbitSesi.terbitkan(user.userId, role, perangkat, user.abs);
+    if (token === null) {
+      throw new UnauthorizedException('Sesi Anda sudah berakhir. Silakan masuk kembali.');
     }
     return { token, consentRequired };
   }

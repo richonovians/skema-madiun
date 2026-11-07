@@ -50,4 +50,41 @@ export class PenerbitSesi {
     });
     return token;
   }
+
+  /**
+   * Terbitkan sesi pengganti untuk `sidLama`, lalu cabut `sidLama`
+   * (7 November 2026, dipakai pergantian peran).
+   *
+   * `null` berarti `sidLama` SUDAH TIDAK ADA saat ditukar -- dicabut oleh
+   * logout atau "keluarkan semua perangkat" yang mendarat sesudah guard
+   * meloloskan permintaan ini. Sesi baru lalu ikut dicabut, karena ia lahir
+   * dari izin yang sudah ditarik (audit
+   * `sesi/acting-role-menerbitkan-melewati-pencabutan`).
+   *
+   * Urutannya terbit-dahulu-lalu-cabut, dan itu yang menutup celahnya:
+   * pencabutan massal yang berjalan SESUDAH sesi baru tercatat ikut
+   * menyapunya; yang berjalan SEBELUMNYA membuat `cabut(sidLama)` menjawab
+   * `false`. `hidup()` tak dipakai karena hasilnya disinggahkan.
+   *
+   * Sisa celah yang diketahui: `cabutSemua` di Redis membaca daftar sid lalu
+   * menghapusnya dalam dua perjalanan. Sesi baru yang tercatat tepat di antara
+   * keduanya lolos. Jendelanya satu perjalanan jaringan ke Redis.
+   */
+  async gantikan(
+    sidLama: string,
+    userId: number,
+    act?: Role,
+    perangkat?: { ua?: string; ip?: string },
+    paguWarisan?: number,
+  ): Promise<string | null> {
+    const token = await this.terbitkan(userId, act, perangkat, paguWarisan);
+    if (await this.penyimpan.cabut(sidLama)) {
+      return token;
+    }
+    const sidBaru = this.sessionService.verify(token)?.sid;
+    if (sidBaru) {
+      await this.penyimpan.cabut(sidBaru);
+    }
+    return null;
+  }
 }
