@@ -67,7 +67,7 @@ export class SessionAuthProvider implements AuthProvider {
       });
     }
 
-    return this.bentuk(user, hasil.actingRole, payload.sid);
+    return this.bentuk(user, hasil.actingRole, payload);
   }
 
   /**
@@ -83,7 +83,7 @@ export class SessionAuthProvider implements AuthProvider {
     }
     // `roles[0]` PENAMPUNG belaka. Rute yang memakai jalur ini tak ber-@Roles
     // dan tak memakai `actingRole` untuk apa pun.
-    return this.bentuk(sesi.user, sesi.user.roles[0], sesi.payload.sid);
+    return this.bentuk(sesi.user, sesi.user.roles[0], sesi.payload);
   }
 
   /** Token -> payload -> baris user yang masih aktif. Satu-satunya tempat. */
@@ -152,7 +152,11 @@ export class SessionAuthProvider implements AuthProvider {
     }
   }
 
-  private bentuk(user: User, actingRole: (typeof user.roles)[number], sid?: string): CurrentUser {
+  private bentuk(
+    user: User,
+    actingRole: (typeof user.roles)[number],
+    { sid, abs }: Pick<SessionPayload, 'sid' | 'abs'>,
+  ): CurrentUser {
     return {
       userId: user.id,
       roles: user.roles,
@@ -160,6 +164,7 @@ export class SessionAuthProvider implements AuthProvider {
       opdId: user.opdId,
       ssoSubject: user.ssoSubject,
       ...(sid ? { sid } : {}),
+      ...(typeof abs === 'number' ? { abs } : {}),
     };
   }
 

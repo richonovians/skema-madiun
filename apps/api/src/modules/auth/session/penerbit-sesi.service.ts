@@ -28,8 +28,9 @@ export class PenerbitSesi {
     userId: number,
     act?: Role,
     perangkat?: { ua?: string; ip?: string },
+    paguWarisan?: number,
   ): Promise<string> {
-    const token = this.sessionService.issue(userId, act);
+    const token = this.sessionService.issue(userId, act, paguWarisan);
     const payload = this.sessionService.verify(token);
     // Keduanya mustahil pada token yang baru saja kita tandatangani sendiri.
     // Diperiksa supaya kegagalannya berbunyi di sini, bukan menjadi catatan

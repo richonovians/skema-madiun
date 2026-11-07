@@ -37,6 +37,14 @@ export interface CurrentUser {
    * untuk token terbitan lama, yang memang tak dapat dicabut.
    */
   sid?: string;
+  /**
+   * Pagu mutlak sesi yang sedang dipakai, dari klaim `abs` (7 November 2026).
+   *
+   * Ada di sini supaya ganti peran MEWARISI pagu sesi asalnya alih-alih
+   * menghitung pagu baru (audit `sesi/acting-role-mereset-pagu-abs`).
+   * Undefined untuk token terbitan lama dan untuk StubAuthProvider.
+   */
+  abs?: number;
 }
 
 /** Param decorator: mengambil pengguna aktif dari request (diisi oleh RolesGuard). */

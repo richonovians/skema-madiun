@@ -224,8 +224,12 @@ export class AuthService {
     // tak dapat diubah di tempat. Sesi lama dibiarkan habis sendiri -- ia ada
     // di peramban yang sama dan langsung tertimpa, dan itu persis perilaku
     // sebelum daftar pencabutan ada.
+    //
+    // Pagu `abs` DIWARISI dari sesi asal (7 November 2026, audit
+    // `sesi/acting-role-mereset-pagu-abs`): ganti peran bukan masuk baru, jadi
+    // ia tak boleh memberi dua belas jam baru.
     return {
-      token: await this.penerbitSesi.terbitkan(user.userId, role, perangkat),
+      token: await this.penerbitSesi.terbitkan(user.userId, role, perangkat, user.abs),
       consentRequired,
     };
   }

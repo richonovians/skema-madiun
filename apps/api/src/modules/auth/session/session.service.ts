@@ -84,12 +84,24 @@ export class SessionService {
     return Math.floor(Date.now() / 1000);
   }
 
-  issue(userId: number, act?: Role): string {
-    const abs = SessionService.sekarang + this.paguDetik;
+  /**
+   * `paguWarisan` diisi HANYA oleh pergantian peran (7 November 2026): sesi
+   * baru itu kelanjutan sesi yang sama, jadi pagu mutlaknya tetap dihitung
+   * sejak masuk. Tanpa ini setiap ganti peran memberi dua belas jam baru, dan
+   * berganti peran sebelum pagu habis memperpanjang sesi tanpa batas. Masuk
+   * baru (dev-login, callback SSO) tak mengisinya dan mendapat pagu penuh.
+   */
+  issue(userId: number, act?: Role, paguWarisan?: number): string {
+    const abs = paguWarisan ?? SessionService.sekarang + this.paguDetik;
     // 128 bit acak kriptografis. Sid yang dapat ditebak membuat pencabutan
     // salah sasaran: siapa pun yang menebaknya dapat mencabut sesi orang lain.
     const sid = randomBytes(16).toString('hex');
-    return this.tandaTangani({ sub: userId, ...(act ? { act } : {}), abs, sid }, this.jendelaDetik);
+    // Jendela dipangkas ke sisa pagu, sama seperti `perpanjang`: token tak
+    // boleh hidup melewati `abs`-nya sendiri.
+    return this.tandaTangani(
+      { sub: userId, ...(act ? { act } : {}), abs, sid },
+      Math.min(this.jendelaDetik, abs - SessionService.sekarang),
+    );
   }
 
   /**
