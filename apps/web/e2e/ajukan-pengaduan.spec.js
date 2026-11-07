@@ -88,6 +88,23 @@ async function pilihDropdown(page, id, label) {
   );
 }
 
+/**
+ * OPD aktif bernama PERSIS `nama` ada di basis data?
+ *
+ * Dipakai uji tingkat kecamatan (7 November 2026). Basis data CI hanya berisi
+ * seed, dan seed hanya membuat tiga dinas -- tak satu pun kecamatan, karena
+ * OPD sesungguhnya disinkronkan dari Helpdesk. Tanpa pemeriksaan ini ujinya
+ * merah di setiap lari CI sejak lahir (689d006) dengan pesan "panel dropdown
+ * tak pernah terbuka", padahal yang tak pernah muncul adalah opsinya.
+ */
+async function adaOpdAktif(token, nama) {
+  const res = await fetch(`${API}/opd?search=${encodeURIComponent(nama)}&isActive=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await res.json();
+  return (json.data ?? []).some((o) => o.nama === nama);
+}
+
 async function ambilPengaduan(token, ticketNo) {
   const res = await fetch(`${API}/complaints?limit=100`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -280,8 +297,13 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
   }) => {
     const judul = `[UJI E2E] Pelayanan kecamatan ${Date.now()}`;
 
-    await masukSebagai(page, AKUN.warga, '/dashboard');
     const sesi = await masukApi(AKUN.warga);
+    test.skip(
+      !(await adaOpdAktif(sesi.token, 'Kecamatan Geger')),
+      'OPD "Kecamatan Geger" tak ada: basis data seed tak memuat kecamatan (hanya hasil sinkron Helpdesk).',
+    );
+
+    await masukSebagai(page, AKUN.warga, '/dashboard');
 
     await page.goto('/complaints/new');
     await expect(page.getByText('Pilih Instansi')).toBeVisible();
