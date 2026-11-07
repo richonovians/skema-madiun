@@ -22,6 +22,8 @@ pnpm --filter @skm-spm/api db:seed                # data contoh, aman diulang
 pnpm dev                                          # api :3001 + web :3000 paralel
 ```
 
+**`dev-login` mati kecuali `DEV_LOGIN_ENABLED=true` ada di `apps/api/.env`** (sejak 7 November 2026). Tanpanya rute itu menjawab 404 dan Playwright tak bisa masuk; `.env` tidak di-commit, jadi setiap orang menambahkannya sendiri. Di `NODE_ENV=production` nilai `true` membuat aplikasi menolak menyala. Uji e2e `apps/api` tak membutuhkannya di `.env` karena `scripts/uji-e2e.ts` menyalakannya sendiri.
+
 Buka **`http://skema.local`**, bukan `http://localhost:3000`. Hanya lewat origin tunggal itu cookie sesi terbaca frontend maupun backend, dan hanya alamat itu yang cocok dengan `redirect_uri` terdaftar di SSO Helpdesk.
 
 **Dari ponsel di Wi-Fi yang sama, `skema.local` harus tetap dipakai** -- bukan

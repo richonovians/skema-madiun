@@ -66,3 +66,59 @@ describe('configuration: gerbang Swagger', () => {
     expect(configuration().swagger.enabled).toBe(false);
   });
 });
+
+/**
+ * SAKLAR DEV-LOGIN (7 November 2026, audit
+ * `auth.non-production-guard.unset-node-env-opens-dev-login`).
+ *
+ * `dev-login` menerbitkan sesi untuk akun mana pun tanpa kata sandi. Sampai
+ * hari itu ia hidup di setiap lingkungan yang `NODE_ENV`-nya bukan persis
+ * `production` -- termasuk penggelaran yang lupa menyetel `NODE_ENV` sama
+ * sekali. Kini ia mati kecuali dinyalakan tersurat, dan produksi tak dapat
+ * menyalakannya.
+ */
+describe('configuration: saklar dev-login', () => {
+  const envAsli = process.env;
+
+  beforeEach(() => {
+    process.env = { ...envAsli };
+    delete process.env.DEV_LOGIN_ENABLED;
+  });
+
+  afterAll(() => {
+    process.env = envAsli;
+  });
+
+  it('NODE_ENV kosong tanpa saklar -> MATI (inti temuan audit)', () => {
+    delete process.env.NODE_ENV;
+
+    expect(configuration().devLogin.enabled).toBe(false);
+  });
+
+  it('pengembangan tanpa saklar -> MATI', () => {
+    process.env.NODE_ENV = 'development';
+
+    expect(configuration().devLogin.enabled).toBe(false);
+  });
+
+  it('pengembangan dengan DEV_LOGIN_ENABLED=true -> HIDUP', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.DEV_LOGIN_ENABLED = 'true';
+
+    expect(configuration().devLogin.enabled).toBe(true);
+  });
+
+  it('produksi dengan DEV_LOGIN_ENABLED=true -> TETAP MATI', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DEV_LOGIN_ENABLED = 'true';
+
+    expect(configuration().devLogin.enabled).toBe(false);
+  });
+
+  it.each(['TRUE', '1', 'yes', ' true'])('nilai "%s" bukan "true" -> MATI', (nilai) => {
+    process.env.NODE_ENV = 'development';
+    process.env.DEV_LOGIN_ENABLED = nilai;
+
+    expect(configuration().devLogin.enabled).toBe(false);
+  });
+});

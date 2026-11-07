@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AUTH_PROVIDER, SSO_SOURCE } from './auth.constants';
 import { ConsentService } from './consent.service';
+import { DevLoginGuard } from './guards/dev-login.guard';
 import { NonProductionGuard } from './guards/non-production.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { AuthProvider } from './interfaces/auth-provider.interface';
@@ -39,6 +40,7 @@ import { SsoStateService } from './sso-state.service';
     StubAuthProvider,
     SessionAuthProvider,
     NonProductionGuard,
+    DevLoginGuard,
     ConsentService,
     SsoService,
     SsoStateService,

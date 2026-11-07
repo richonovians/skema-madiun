@@ -70,6 +70,25 @@ export default () => ({
       (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
     path: 'api/docs',
   },
+  devLogin: {
+    // SAKLAR TERSURAT (7 November 2026, audit
+    // `auth.non-production-guard.unset-node-env-opens-dev-login`).
+    //
+    // `POST /auth/dev-login` menerbitkan sesi untuk akun mana pun TANPA kata
+    // sandi. Sampai hari itu satu-satunya penjaganya `NonProductionGuard`,
+    // yang menutupnya hanya bila `NODE_ENV` persis `production` -- sedangkan
+    // `NODE_ENV` kosong jatuh ke `development` dan tak satu pun artefak repo
+    // menyetel `production` untuk API. Penggelaran yang lupa SATU variabel
+    // membuka login tanpa kata sandi bagi seluruh akun, termasuk kabupaten.
+    //
+    // Kini gagal tertutup: mati kecuali `DEV_LOGIN_ENABLED` persis `'true'`,
+    // dan di produksi tak dapat dinyalakan sama sekali (yang mencobanya
+    // ditolak saat boot oleh `periksaDevLogin`). Pola yang sama dengan
+    // `swagger.enabled` di atas.
+    enabled:
+      (process.env.NODE_ENV ?? 'development') !== 'production' &&
+      process.env.DEV_LOGIN_ENABLED === 'true',
+  },
   cors: {
     // Comma-separated di production (mis. dashboard OPD + kabupaten beda subdomain).
     origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
