@@ -6,10 +6,16 @@ export const ALLOW_UNSELECTED_ROLE_KEY = 'allowUnselectedRole';
  * Menandai rute yang boleh diakses pemilik sesi yang BELUM memilih peran
  * (5 September 2026).
  *
- * Ada tepat satu pemakainya: `POST /auth/acting-role`. Tanpa kekecualian ini
- * akun ber-role banyak TERKURUNG -- setiap rute menolaknya 401
+ * Pemakainya `POST /auth/acting-role` dan `GET /auth/roles`. Tanpa kekecualian
+ * ini akun ber-role banyak TERKURUNG -- setiap rute menolaknya 401
  * `ROLE_SELECTION_REQUIRED`, termasuk rute yang justru dipakai untuk memilih
- * peran, sehingga satu-satunya jalan keluar adalah logout.
+ * peran.
+ *
+ * `POST /auth/logout` dan `POST /auth/logout-semua` ikut memakainya sejak
+ * 7 November 2026 (audit `auth.logout.unselected-role-session-survives`).
+ * Sebelumnya keluar pun ditolak 401 sebelum handler berjalan: sid tak dicabut,
+ * cookie HttpOnly tak dihapus, dan sesinya hidup sampai `abs` sementara
+ * frontend sudah menganggapnya keluar.
  *
  * BUKAN `@Public()`, dan bedanya penting: sesi tetap WAJIB sah dan akun tetap
  * WAJIB aktif. Yang dilonggarkan hanya keharusan `actingRole` sudah

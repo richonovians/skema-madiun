@@ -228,6 +228,7 @@ export class AuthController {
    * `login` dan `logout` tercatat lewat satu jalur yang sama (dan mudah
    * ditelusuri bersamaan), keduanya memakai pemanggilan langsung.
    */
+  @AllowUnselectedRole()
   @Post('logout')
   @ApiOperation({ summary: 'Keluar sesi. Cookie sesi dihapus di sisi server.' })
   @HttpCode(HttpStatus.OK)
@@ -249,6 +250,7 @@ export class AuthController {
    * cookie yang pasti ditolak pada permintaan berikutnya, yang akan terbaca
    * olehnya sebagai aplikasi rusak alih-alih sebagai keluar yang berhasil.
    */
+  @AllowUnselectedRole()
   @Post('logout-semua')
   @ApiOperation({ summary: 'Keluarkan akun ini dari SEMUA perangkat.' })
   @HttpCode(HttpStatus.OK)

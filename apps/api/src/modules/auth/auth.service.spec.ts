@@ -314,7 +314,8 @@ describe('AuthService', () => {
         Role.opd,
       );
 
-      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(9, Role.opd, undefined);
+      // Argumen keempat `abs` warisan sesi asal; `cu()` tak membawanya.
+      expect(penerbitSesi.terbitkan).toHaveBeenCalledWith(9, Role.opd, undefined, undefined);
       expect(hasil.token).toBe('token-baru');
     });
 

@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Role } from '@prisma/client';
@@ -6,6 +7,9 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { PENYIMPAN_SESI } from '../src/modules/auth/session/penyimpan-sesi.interface';
+import type { PenyimpanSesi } from '../src/modules/auth/session/penyimpan-sesi.interface';
+import { PenerbitSesi } from '../src/modules/auth/session/penerbit-sesi.service';
 
 /**
  * QA-SECURITY-UAT #7: keutuhan token sesi dan pencabutannya.
@@ -158,6 +162,95 @@ describe('Keamanan sesi (e2e)', () => {
         expect((await me(token)).status).toBe(401);
       } finally {
         await prisma.user.update({ where: { id: userId }, data: { deletedAt: null } });
+      }
+    });
+  });
+
+  describe('pergantian peran', () => {
+    /**
+     * Sesi sah yang pagunya tinggal sepuluh menit. Ditandatangani dan
+     * didaftarkan sendiri karena `PenerbitSesi` selalu memberi pagu penuh;
+     * tanpa pagu yang dekat, "dibawa" dan "dihitung ulang" tak dapat dibedakan.
+     */
+    const sesiHampirHabis = async (): Promise<{ token: string; abs: number }> => {
+      const abs = Math.floor(Date.now() / 1000) + 600;
+      const sid = randomBytes(16).toString('hex');
+      const token = jwt.sign({ sub: userId, abs, sid }, { expiresIn: 600 });
+      await app.get<PenyimpanSesi>(PENYIMPAN_SESI).simpan(sid, { uid: userId, abs });
+      return { token, abs };
+    };
+
+    /**
+     * Audit auth 7 November 2026, `sesi/acting-role-mereset-pagu-abs`. `abs`
+     * adalah batas mutlak sejak MASUK. Bila ganti peran menghitungnya ulang,
+     * pemegang sesi -- termasuk pemegang salinan token curian -- dapat
+     * memperpanjang sesinya tanpa batas dengan berganti peran sebelum pagunya
+     * habis, dan pagu dua belas jam itu kehilangan artinya.
+     */
+    it('token hasil ganti peran membawa abs sesi asalnya, bukan pagu baru', async () => {
+      const { token, abs } = await sesiHampirHabis();
+
+      const res = await http()
+        .post('/api/v1/auth/acting-role')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ role: Role.responden });
+
+      expect(res.status).toBe(200);
+      const baru = muatan(res.body.data.token as string);
+      expect(baru.abs).toBe(abs);
+      expect(baru.exp as number).toBeLessThanOrEqual(abs);
+    });
+
+    /**
+     * Audit auth 7 November 2026, `sesi/acting-role-sid-lama-tetap-hidup`;
+     * diputuskan pengguna pada hari yang sama. `logout` hanya mencabut sid
+     * yang sedang dipakai, jadi sid dari pergantian peran sebelumnya -- dan
+     * salinan tokennya di mana pun -- hidup sampai `abs` walau pemiliknya
+     * sudah keluar.
+     */
+    it('token LAMA mati sesudah ganti peran, token baru hidup', async () => {
+      const lama = await masuk();
+
+      const res = await http()
+        .post('/api/v1/auth/acting-role')
+        .set('Authorization', `Bearer ${lama}`)
+        .send({ role: Role.responden });
+      expect(res.status).toBe(200);
+
+      expect((await me(res.body.data.token as string)).status).toBe(200);
+      expect((await me(lama)).status).toBe(401);
+    });
+
+    /**
+     * Audit auth 7 November 2026, `sesi/acting-role-menerbitkan-melewati-pencabutan`.
+     * Sesi diperiksa hidup di guard, lalu sesi baru diterbitkan beberapa
+     * langkah kemudian. Bila "keluarkan semua perangkat" mendarat di antara
+     * keduanya, sesi baru lahir SESUDAH pencabutan dan lolos darinya.
+     *
+     * Celahnya disisipkan dengan membungkus `terbitkan`: pencabutan dijalankan
+     * tepat sebelum penerbitan, sesudah guard meloloskan permintaan.
+     */
+    it('pencabutan yang mendarat di tengah ganti peran tidak dilewati', async () => {
+      const lama = await masuk();
+      const penerbit = app.get(PenerbitSesi);
+      const penyimpan = app.get<PenyimpanSesi>(PENYIMPAN_SESI);
+      const asli = penerbit.terbitkan.bind(penerbit);
+      const mata = jest
+        .spyOn(penerbit, 'terbitkan')
+        .mockImplementation(async (...argumen: Parameters<PenerbitSesi['terbitkan']>) => {
+          await penyimpan.cabutSemua(userId);
+          return asli(...argumen);
+        });
+      try {
+        const res = await http()
+          .post('/api/v1/auth/acting-role')
+          .set('Authorization', `Bearer ${lama}`)
+          .send({ role: Role.responden });
+
+        expect(res.status).toBe(401);
+        await expect(penyimpan.daftar(userId)).resolves.toEqual([]);
+      } finally {
+        mata.mockRestore();
       }
     });
   });

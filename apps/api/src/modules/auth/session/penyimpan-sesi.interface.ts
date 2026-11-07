@@ -49,8 +49,15 @@ export interface PenyimpanSesi {
    */
   hidup(sid: string): Promise<boolean>;
 
-  /** Cabut satu sesi. Sid yang tak dikenal bukan galat. */
-  cabut(sid: string): Promise<void>;
+  /**
+   * Cabut satu sesi. Sid yang tak dikenal bukan galat.
+   *
+   * Menjawab `true` hanya bila ada sesi HIDUP yang benar-benar dicabut oleh
+   * panggilan ini (7 November 2026). Pergantian peran memakai jawaban itu untuk
+   * mengetahui apakah sesi asalnya masih ada pada saat ditukar; `hidup()` tak
+   * dapat dipakai untuk itu karena implementasi Redis menyinggahkannya.
+   */
+  cabut(sid: string): Promise<boolean>;
 
   /** Cabut seluruh sesi milik satu akun. Akun lain tak tersentuh. */
   cabutSemua(uid: number): Promise<void>;

@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -221,13 +222,36 @@ export class AuthService {
 
     // Pergantian peran menerbitkan sesi BARU dengan sid baru, bukan menyunting
     // yang lama: klaim `act` ada di dalam token yang sudah ditandatangani dan
-    // tak dapat diubah di tempat. Sesi lama dibiarkan habis sendiri -- ia ada
-    // di peramban yang sama dan langsung tertimpa, dan itu persis perilaku
-    // sebelum daftar pencabutan ada.
-    return {
-      token: await this.penerbitSesi.terbitkan(user.userId, role, perangkat),
-      consentRequired,
-    };
+    // tak dapat diubah di tempat.
+    //
+    // Pagu `abs` DIWARISI dari sesi asal (7 November 2026, audit
+    // `sesi/acting-role-mereset-pagu-abs`): ganti peran bukan masuk baru, jadi
+    // ia tak boleh memberi dua belas jam baru.
+    //
+    // Sid LAMA DICABUT sesudah yang baru terbit (7 November 2026, audit
+    // `sesi/acting-role-sid-lama-tetap-hidup`, keputusan pengguna). Sampai
+    // hari itu sesi lama dibiarkan habis sendiri dengan alasan cookie di
+    // peramban yang sama langsung tertimpa. Alasan itu hanya benar untuk
+    // peramban itu: `logout` mencabut sid yang sedang dipakai saja, sehingga
+    // sid dari setiap pergantian peran sebelumnya -- beserta salinan tokennya
+    // di mana pun -- tetap sah sampai `abs` walau pemiliknya sudah keluar.
+    //
+    // Urutannya disengaja: bila penerbitan gagal, sesi lama masih utuh dan
+    // pemiliknya tak terlempar keluar. Harganya kecil -- permintaan yang
+    // sedang berjalan dengan token lama pada saat pergantian dapat dijawab 401.
+    //
+    // Sid lama yang ternyata SUDAH dicabut saat ditukar berarti izinnya ditarik
+    // di tengah jalan; sesi baru ikut dicabut dan permintaan ini ditolak
+    // (audit `sesi/acting-role-menerbitkan-melewati-pencabutan`). Lihat
+    // `PenerbitSesi.gantikan`. Token terbitan lama tanpa `sid` tak dapat
+    // dicabut sama sekali, jadi tak ada yang perlu ditukar.
+    const token = user.sid
+      ? await this.penerbitSesi.gantikan(user.sid, user.userId, role, perangkat, user.abs)
+      : await this.penerbitSesi.terbitkan(user.userId, role, perangkat, user.abs);
+    if (token === null) {
+      throw new UnauthorizedException('Sesi Anda sudah berakhir. Silakan masuk kembali.');
+    }
+    return { token, consentRequired };
   }
 
   /** Profil pengguna aktif + profil demografis (bila responden). */
