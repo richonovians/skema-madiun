@@ -199,5 +199,25 @@ describe('Keamanan sesi (e2e)', () => {
       expect(baru.abs).toBe(abs);
       expect(baru.exp as number).toBeLessThanOrEqual(abs);
     });
+
+    /**
+     * Audit auth 7 November 2026, `sesi/acting-role-sid-lama-tetap-hidup`;
+     * diputuskan pengguna pada hari yang sama. `logout` hanya mencabut sid
+     * yang sedang dipakai, jadi sid dari pergantian peran sebelumnya -- dan
+     * salinan tokennya di mana pun -- hidup sampai `abs` walau pemiliknya
+     * sudah keluar.
+     */
+    it('token LAMA mati sesudah ganti peran, token baru hidup', async () => {
+      const lama = await masuk();
+
+      const res = await http()
+        .post('/api/v1/auth/acting-role')
+        .set('Authorization', `Bearer ${lama}`)
+        .send({ role: Role.responden });
+      expect(res.status).toBe(200);
+
+      expect((await me(res.body.data.token as string)).status).toBe(200);
+      expect((await me(lama)).status).toBe(401);
+    });
   });
 });
