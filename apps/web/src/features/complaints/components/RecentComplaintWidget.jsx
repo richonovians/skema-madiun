@@ -77,7 +77,7 @@ export default function RecentComplaintWidget() {
         <div className="flex-grow space-y-2 relative z-10 w-full">
           <div className="flex items-center gap-4">
             <span className="text-primary font-bold text-sm tracking-wider">#{complaint.id}</span>
-            <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]}>{COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}</Badge>
+            <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]} className="whitespace-nowrap">{COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}</Badge>
           </div>
           <h3 className="text-xl sm:text-2xl font-semibold text-text-primary">{complaint.title}</h3>
           <p className="text-text-secondary font-body flex items-center gap-2 text-sm sm:text-base">
