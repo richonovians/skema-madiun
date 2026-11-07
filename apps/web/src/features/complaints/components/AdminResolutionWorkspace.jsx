@@ -258,7 +258,15 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
           </div>
         )}
 
-        <div className="relative mb-sm [@media(min-height:800px)]:mb-lg">
+        {/* POLA KOMPOSER (7 November 2026, laporan pengguna). Toolbar
+            Template/Lampirkan dan petunjuk Enter dulu `absolute` DI ATAS
+            textarea, dengan ruang di bawahnya disisihkan lewat `pb-12`. Padding
+            itu ikut tergulir bersama isi, jadi begitu teks melebihi tinggi
+            kotak, baris yang terlihat jatuh tepat di bawah tombol dan tertutup.
+            Kini bingkai, latar, dan cincin fokus milik WADAH; textarea tanpa
+            bingkai bergulir di areanya sendiri, dan toolbar menjadi baris biasa
+            di bawahnya -- keduanya tak mungkin lagi bertumpuk. */}
+        <div className="mb-sm [@media(min-height:800px)]:mb-lg flex flex-col border border-outline-variant rounded-xl bg-background transition-all focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary">
           <textarea 
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
@@ -270,49 +278,51 @@ export default function AdminResolutionWorkspace({ currentStatus, chatHistory = 
                menolong, sebab yang sempit adalah TINGGI jendelanya, dan
                tangkapan layar pengguna justru berasal dari jendela lebar yang
                pendek. */
-            className="w-full min-h-[72px] [@media(min-height:640px)]:min-h-[96px] [@media(min-height:800px)]:min-h-[160px] p-md [@media(min-height:800px)]:p-lg pb-12 [@media(min-height:800px)]:pb-14 border border-outline-variant rounded-xl bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none font-body-md text-body-md" 
+            className="w-full min-h-[72px] [@media(min-height:640px)]:min-h-[96px] [@media(min-height:800px)]:min-h-[160px] p-md [@media(min-height:800px)]:p-lg pb-xs bg-transparent border-0 rounded-t-xl outline-none focus:ring-0 resize-none font-body-md text-body-md" 
             placeholder="Tulis jawaban solusi atau update status di sini..."
           />
-          <div className="absolute bottom-md left-md flex items-center gap-sm">
-            <TemplatePesanPicker
-              templates={TEMPLATE_ADMIN}
-              nomorTiket={nomorTiket}
-              onPilih={(teks) => setReplyText((sekarang) => gabungPesan(sekarang, teks))}
-            />
-            {/* DULU `<label>` yang membungkus inputnya (21 September 2026).
-                Label bukan elemen yang dapat difokus, dan inputnya
-                `display: none` -- keduanya bersama berarti admin yang memakai
-                keyboard sama sekali tak dapat melampirkan berkas di sini. Itu
-                fungsi yang hilang, bukan sekadar nama yang kurang.
+          <div className="flex flex-wrap items-center justify-between gap-x-sm gap-y-xs px-md pb-sm pt-xs">
+            <div className="flex items-center gap-sm">
+              <TemplatePesanPicker
+                templates={TEMPLATE_ADMIN}
+                nomorTiket={nomorTiket}
+                onPilih={(teks) => setReplyText((sekarang) => gabungPesan(sekarang, teks))}
+              />
+              {/* DULU `<label>` yang membungkus inputnya (21 September 2026).
+                  Label bukan elemen yang dapat difokus, dan inputnya
+                  `display: none` -- keduanya bersama berarti admin yang memakai
+                  keyboard sama sekali tak dapat melampirkan berkas di sini. Itu
+                  fungsi yang hilang, bukan sekadar nama yang kurang.
 
-                Inputnya dipindah keluar menjadi saudara, bukan tetap di dalam:
-                elemen interaktif bersarang di dalam `<button>` bukan HTML yang
-                sah. Nama tombolnya sengaja disalin persis dari tulisan yang
-                tampak di layar lebar, supaya perintah suara menyebut hal yang
-                sama dengan yang dibaca mata. */}
-            <input
-              type="file"
-              className="hidden"
-              accept={JENIS_ACCEPT}
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Lampirkan Dokumen/Foto"
-              title="Lampirkan Dokumen/Foto"
-              className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs cursor-pointer"
-            >
-              <Paperclip size={20} aria-hidden="true" />
-              <span className="text-label-md hidden sm:inline">Lampirkan Dokumen/Foto</span>
-            </button>
+                  Inputnya dipindah keluar menjadi saudara, bukan tetap di dalam:
+                  elemen interaktif bersarang di dalam `<button>` bukan HTML yang
+                  sah. Nama tombolnya sengaja disalin persis dari tulisan yang
+                  tampak di layar lebar, supaya perintah suara menyebut hal yang
+                  sama dengan yang dibaca mata. */}
+              <input
+                type="file"
+                className="hidden"
+                accept={JENIS_ACCEPT}
+                ref={fileInputRef}
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Lampirkan Dokumen/Foto"
+                title="Lampirkan Dokumen/Foto"
+                className="p-sm text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-colors flex items-center gap-xs cursor-pointer"
+              >
+                <Paperclip size={20} aria-hidden="true" />
+                <span className="text-label-md hidden sm:inline whitespace-nowrap">Lampirkan Dokumen/Foto</span>
+              </button>
+            </div>
+            {/* Hanya pada layar lebar: di peranti sentuh Enter memang menyisipkan
+                baris baru, jadi petunjuk ini akan menyesatkan di sana. */}
+            <span className="hidden sm:block ml-auto text-xs text-text-secondary whitespace-nowrap">
+              Enter untuk mengirim, Shift + Enter baris baru
+            </span>
           </div>
-          {/* Hanya pada layar lebar: di peranti sentuh Enter memang menyisipkan
-              baris baru, jadi petunjuk ini akan menyesatkan di sana. */}
-          <span className="hidden sm:block absolute bottom-md right-md text-xs text-text-secondary">
-            Enter untuk mengirim, Shift + Enter baris baru
-          </span>
         </div>
 
         {galatKirim && (

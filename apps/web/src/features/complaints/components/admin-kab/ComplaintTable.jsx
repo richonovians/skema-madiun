@@ -13,15 +13,19 @@ import { COMPLAINT_STATUS_BADGE_VARIANT, COMPLAINT_STATUS_LABEL } from '@/utils/
 export default function ComplaintTable({ complaints, categoryMap = {}, onForward }) {
   return (
     <div className="overflow-x-auto">
+      {/* Padding samping sel `px-md`, bukan `px-lg` (7 November 2026). Sejak
+          status, tanggal, dan aksi tak boleh patah baris, tabel ini meluap 63px
+          di layar 1280px bersidebar lebar -- tombol aksinya terpotong. Enam
+          kolom kali dua sisi kali 8px menutup luapan itu. */}
       <table className="w-full text-left border-collapse">
         <thead className="bg-surface-container text-on-surface-variant">
           <tr>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">NO. TIKET</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">OPD & KATEGORI</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">JUDUL KELUHAN</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">TANGGAL & UMUR</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
-            <th className="px-lg py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">NO. TIKET</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">OPD & KATEGORI</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">JUDUL KELUHAN</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">TANGGAL & UMUR</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider">STATUS</th>
+            <th className="px-md py-md font-label-md text-label-md uppercase tracking-wider text-left">AKSI</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-outline-variant">
@@ -34,11 +38,11 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
           ) : (
             complaints.map((complaint) => (
               <tr key={complaint.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="px-lg py-lg">
+                <td className="px-md py-lg">
                   <div className="font-mono text-sm font-bold text-primary">#{complaint.id}</div>
                 </td>
 
-                <td className="px-lg py-lg">
+                <td className="px-md py-lg">
                   {/* "Belum bertujuan" sebagai LENCANA, bukan '-': tanda hubung
                       tak dapat dibedakan dari nama OPD yang gagal dimuat,
                       sedangkan baris inilah yang justru menuntut tindakan. */}
@@ -58,32 +62,39 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                     di apps/web `max-w-xs` bernilai 4px karena token spasi membajak
                     skala `max-w-*`, jadi kolom judul selalu diperas ke lebar
                     minimumnya. Terukur 101-109px pada layar 1366px. */}
-                <td className="px-lg py-lg min-w-[12rem] max-w-[20rem]">
+                <td className="px-md py-lg min-w-[12rem] max-w-[20rem]">
                   <p className="font-body-md text-body-md text-on-surface line-clamp-2" title={complaint.title}>
                     {complaint.title}
                   </p>
                   <div className="text-xs text-slate-500 mt-1">Pelapor: {complaint.reporter?.name ?? '-'}</div>
                 </td>
 
-                <td className="px-lg py-lg">
-                  <div className="font-body-md text-body-md text-on-surface-variant">{complaint.dateStr}</div>
+                {/* Status, tanggal, dan tombol aksi TIDAK BOLEH patah baris
+                    (7 November 2026, laporan pengguna). `table-layout: auto`
+                    memeras kolom-kolom pendek ini lebih dulu, sehingga "Menunggu
+                    Verifikasi" patah di dalam kapsulnya dan ukurannya berubah
+                    setiap kali sidebar dibuka atau ditutup. Dengan `nowrap` kolom
+                    ini mempertahankan lebarnya; layar sempit bergulir lewat
+                    `overflow-x-auto` di pembungkus tabel. */}
+                <td className="px-md py-lg">
+                  <div className="font-body-md text-body-md text-on-surface-variant whitespace-nowrap">{complaint.dateStr}</div>
                   <div className="text-xs font-medium text-slate-500 mt-1">Umur: {complaint.ageDays} hari</div>
                 </td>
 
-                <td className="px-lg py-lg">
-                  <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]}>
+                <td className="px-md py-lg">
+                  <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]} className="whitespace-nowrap">
                     {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
                   </Badge>
                 </td>
 
-                <td className="px-lg py-lg text-left">
+                <td className="px-md py-lg text-left">
                   {/* Sasaran sentuh 44px (28 Oktober 2026): keduanya dulu ~29px.
                       "Monitor Tiket" dulu `<button>` di dalam `<Link>` --
                       kendali di dalam kendali; kini tautannya yang bergaya tombol. */}
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={`/admin-kab/complaints/${complaint.id}`}
-                      className="inline-flex items-center min-h-[44px] px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all"
+                      className="inline-flex items-center min-h-[44px] px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md whitespace-nowrap hover:bg-primary hover:text-white transition-all"
                     >
                       Monitor Tiket
                     </Link>
@@ -93,7 +104,7 @@ export default function ComplaintTable({ complaints, categoryMap = {}, onForward
                       <button
                         type="button"
                         onClick={() => onForward(complaint)}
-                        className="inline-flex items-center min-h-[44px] px-md py-1.5 text-white bg-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all"
+                        className="inline-flex items-center min-h-[44px] px-md py-1.5 text-white bg-primary rounded-lg font-label-md text-label-md whitespace-nowrap hover:opacity-90 transition-all"
                       >
                         Teruskan
                       </button>

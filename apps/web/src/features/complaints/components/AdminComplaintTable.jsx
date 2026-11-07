@@ -53,15 +53,17 @@ export default function AdminComplaintTable({ complaints }) {
                 <td className="px-lg py-lg min-w-[12rem] max-w-[20rem]">
                   <p className="font-body-md text-body-md text-on-surface line-clamp-1">{complaint.title}</p>
                 </td>
-                <td className="px-lg py-lg font-body-md text-body-md text-on-surface-variant">{complaint.dateStr}</td>
+                {/* Tanggal, status, dan tombol tak patah baris; alasannya di
+                    admin-kab/ComplaintTable.jsx (7 November 2026). */}
+                <td className="px-lg py-lg font-body-md text-body-md text-on-surface-variant whitespace-nowrap">{complaint.dateStr}</td>
                 <td className="px-lg py-lg">
-                  <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]}>
+                  <Badge variant={COMPLAINT_STATUS_BADGE_VARIANT[complaint.status]} className="whitespace-nowrap">
                     {COMPLAINT_STATUS_LABEL[complaint.status] ?? complaint.status}
                   </Badge>
                 </td>
                 <td className="px-lg py-lg text-right">
                   <Link href={`/admin-opd/complaints/${complaint.id}`}>
-                    <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md hover:bg-primary hover:text-white transition-all">
+                    <button className="px-md py-1.5 text-primary border border-primary rounded-lg font-label-md text-label-md whitespace-nowrap hover:bg-primary hover:text-white transition-all">
                       Buka Tiket
                     </button>
                   </Link>

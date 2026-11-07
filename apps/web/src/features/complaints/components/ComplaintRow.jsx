@@ -28,7 +28,7 @@ export default function ComplaintRow({ id, date, department, title, status, isAn
       <Td>
         <Badge
           variant={COMPLAINT_STATUS_BADGE_VARIANT[status]}
-          className="px-2 text-[11px] leading-(--text-xs--line-height) font-bold uppercase tracking-wider"
+          className="px-2 text-[11px] leading-(--text-xs--line-height) font-bold uppercase tracking-wider whitespace-nowrap"
         >
           {COMPLAINT_STATUS_LABEL[status] ?? status}
         </Badge>
