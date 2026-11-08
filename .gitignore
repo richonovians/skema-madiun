@@ -42,11 +42,17 @@ docs/superpowers/
 # salinannya -- simpan salinan tahan lama di luar repo.
 docs/keamanan/
 
-# Setelan Claude Code per-mesin. `.claude/skills/` dan `.claude/settings.json`
-# SENGAJA tercatat: isinya aturan kerja proyek yang harus berlaku bagi siapa
-# pun yang mengklona repo ini. Yang dikecualikan hanya berkas `*.local.*`,
-# yang memuat keputusan izin milik satu pengembang, bukan aturan proyek.
+# Setelan Claude Code per-mesin. Berkas `*.local.*` memuat keputusan izin
+# milik satu pengembang, bukan aturan proyek.
+#
+# `.claude/skills/` dilepas dari repo 8 November 2026 atas permintaan
+# pengguna: setiap pengembang menyimpan salinannya sendiri di mesinnya.
+# Sebelumnya folder ini sengaja tercatat. Commit yang melepasnya ikut
+# MENGHAPUS folder itu dari disk siapa pun yang menarik atau me-merge-nya,
+# dan baris di bawah tidak mencegah itu. Isinya masih ada di riwayat;
+# pulihkan dengan `git restore --source=b904be4 -- .claude/skills`.
 .claude/**/*.local.*
+.claude/skills/
 
 # Cadangan basis data & lampiran (23 September 2026).
 #
