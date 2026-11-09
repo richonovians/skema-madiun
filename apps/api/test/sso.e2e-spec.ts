@@ -237,10 +237,9 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
       // KONTRAK BERUBAH 22 Oktober 2026 (BUG-019). Baris ini dahulu menuntut
       // `toContain('Pengguna%20membatalkan')`, yaitu MENGUNCI cacatnya:
       // `error_description` dari luar wajib muncul di alamat tujuan. Yang
-      // dituntut sekarang kalimat milik aplikasi sendiri.
-      expect(decodeURIComponent(res.headers.location as string)).toContain(
-        'Anda membatalkan proses masuk di halaman Helpdesk.',
-      );
+      // dituntut sekarang kode milik aplikasi sendiri; sejak 9 November 2026
+      // fragment hanya membawa kode, dan kalimatnya dipilih frontend.
+      expect(res.headers.location).toMatch(/\/sso\/callback#error=SSO_DIBATALKAN$/);
       expect(cookieValue(res, SESSION_COOKIE)).toBeNull();
     });
 
@@ -266,7 +265,7 @@ describe('SSO Helpdesk end-to-end (e2e)', () => {
       expect(terbaca).not.toContain('0812-PENIPU');
       expect(terbaca).not.toContain('diblokir');
       // Bukan sekadar "tak memuat": alamat kosong pun lulus asersi itu.
-      expect(terbaca).toContain('Anda membatalkan proses masuk di halaman Helpdesk.');
+      expect(terbaca).toMatch(/#error=SSO_DIBATALKAN$/);
     });
 
     it('state palsu ditolak & cookie state dibuang', async () => {

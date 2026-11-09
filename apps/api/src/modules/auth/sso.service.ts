@@ -35,6 +35,7 @@ import {
   resolveRolesFromClaims,
 } from './sso-role.mapper';
 import { peranSetelahSinkron } from './sinkron-peran-opd';
+import type { KodeGalatMasuk } from './sso-galat.util';
 import { SsoStateService } from './sso-state.service';
 
 /** Batas kolom `users.nama` (VarChar(50)) & `users.email` (VarChar(100)). */
@@ -124,12 +125,16 @@ export class SsoService {
         );
         return { token: sesiBerjalan, clearCookie: this.stateService.clearCookie() };
       }
-      throw new BadRequestException(
-        'Parameter state tidak sah atau kedaluwarsa. Silakan ulangi proses masuk.',
-      );
+      throw new BadRequestException({
+        message: 'Parameter state tidak sah atau kedaluwarsa. Silakan ulangi proses masuk.',
+        code: 'SSO_STATE_TIDAK_SAH',
+      });
     }
     if (!code) {
-      throw new BadRequestException('Callback SSO tanpa parameter code');
+      throw new BadRequestException({
+        message: 'Callback SSO tanpa parameter code',
+        code: 'SSO_TANPA_CODE',
+      });
     }
 
     const profile = await this.ssoSource.exchangeCodeForProfile(code);
@@ -244,10 +249,12 @@ export class SsoService {
           this.logger.warn(
             `Penautan akun id=${byEmail.id} DITOLAK — email_verified=${String(profile.emailVerified)}`,
           );
-          throw new ForbiddenException(
-            'Alamat email pada akun Helpdesk Anda belum terverifikasi, sehingga tidak dapat ' +
+          throw new ForbiddenException({
+            message:
+              'Alamat email pada akun Helpdesk Anda belum terverifikasi, sehingga tidak dapat ' +
               'ditautkan ke akun SKEMA yang sudah ada. Hubungi Admin Kabupaten.',
-          );
+            code: 'SSO_EMAIL_BELUM_TERVERIFIKASI',
+          });
         }
 
         // NILAI `sso_subject` sengaja tidak ikut dicetak (22 September 2026):
@@ -288,9 +295,11 @@ export class SsoService {
         select: { id: true },
       });
       if (deleted) {
-        throw new ForbiddenException(
-          'Akun dengan email ini pernah dihapus. Hubungi Admin Kabupaten untuk mengaktifkannya kembali.',
-        );
+        throw new ForbiddenException({
+          message:
+            'Akun dengan email ini pernah dihapus. Hubungi Admin Kabupaten untuk mengaktifkannya kembali.',
+          code: 'SSO_AKUN_DIHAPUS',
+        });
       }
     }
 
@@ -656,7 +665,7 @@ export class SsoService {
    */
   private async acceptLogin(user: User, profile: SsoProfile): Promise<User> {
     if (!user.isActive) {
-      throw new ForbiddenException('Akun tidak aktif');
+      throw new ForbiddenException({ message: 'Akun tidak aktif', code: 'SSO_AKUN_TIDAK_AKTIF' });
     }
 
     const nama = profile.nama ? truncate(profile.nama, NAMA_MAX) : null;
@@ -760,9 +769,15 @@ export class SsoService {
     return this.stateService.clearCookie();
   }
 
-  /** Alamat frontend saat login gagal — pesannya ditampilkan sebagai galat. */
-  buildFailureRedirect(message: string): string {
-    return `${this.webBase()}/sso/callback#error=${encodeURIComponent(message)}`;
+  /**
+   * Alamat frontend saat login gagal.
+   *
+   * Hanya KODE dari `KODE_GALAT_MASUK` yang boleh ditaruh di sini (9 November
+   * 2026); kalimatnya dipilih frontend. Tipenya yang menjaga itu: kalimat
+   * bebas tak lagi terkompilasi sebagai argumen.
+   */
+  buildFailureRedirect(kode: KodeGalatMasuk): string {
+    return `${this.webBase()}/sso/callback#error=${encodeURIComponent(kode)}`;
   }
 
   /** Akar alamat frontend, tanpa garis miring di akhir. */

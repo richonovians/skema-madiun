@@ -119,19 +119,23 @@ afterEach(() => {
 });
 
 describe('AuthCallbackLoader — kegagalan yang terbaca (TC-FE-043)', () => {
-  it('menampilkan pesan galat dari fragment, bukan layar putih', async () => {
-    denganFragment('#error=akses%20ditolak%20oleh%20pengguna');
+  // Sejak 9 November 2026 fragment membawa KODE, bukan kalimat; kalimatnya
+  // dipilih `utils/galatSso.js`. Lihat blok "fragment berteks bebas" di bawah.
+  it('menampilkan kalimat galat untuk kode di fragment, bukan layar putih', async () => {
+    denganFragment('#error=SSO_DIBATALKAN');
 
     render(<AuthCallbackLoader />);
 
-    expect(await screen.findByText(/akses ditolak oleh pengguna/)).toBeInTheDocument();
+    expect(
+      await screen.findByText('Anda membatalkan proses masuk di halaman Helpdesk.'),
+    ).toBeInTheDocument();
   });
 
   it('membuang fragment dari bilah alamat supaya pesan galat tak ikut tersalin', async () => {
-    denganFragment('#error=state%20tidak%20cocok');
+    denganFragment('#error=SSO_STATE_TIDAK_SAH');
 
     render(<AuthCallbackLoader />);
-    await screen.findByText(/state tidak cocok/);
+    await screen.findByText(/state tidak sah atau kedaluwarsa/);
 
     // Alamat ditulis ulang TANPA fragment — pengguna yang menyalin URL tak ikut
     // membawa pesan galat, dan memuat ulang tak menampilkannya lagi.
@@ -141,10 +145,10 @@ describe('AuthCallbackLoader — kegagalan yang terbaca (TC-FE-043)', () => {
   it('membuang sesi lokal yang tertinggal ketika masuk gagal', async () => {
     localStorage.setItem('token', 'sesi-lama');
     localStorage.setItem('role', 'kabupaten');
-    denganFragment('#error=gagal%20menukar%20kode');
+    denganFragment('#error=SSO_GAGAL');
 
     render(<AuthCallbackLoader />);
-    await screen.findByText(/gagal menukar kode/);
+    await screen.findByText('Proses masuk gagal. Coba lagi.');
 
     // Membiarkannya membuat navbar menampilkan keadaan "sudah masuk" tepat di
     // atas halaman galat ini.
@@ -238,7 +242,7 @@ describe('AuthCallbackLoader — ke mana ia mengantar', () => {
   });
 
   it('dari halaman galat, "Coba masuk lagi" kembali ke SSO Helpdesk', async () => {
-    denganFragment('#error=akses%20ditolak');
+    denganFragment('#error=SSO_DIBATALKAN');
 
     render(<AuthCallbackLoader />);
     fireEvent.click(await screen.findByRole('button', { name: /coba masuk lagi/i }));
@@ -247,11 +251,37 @@ describe('AuthCallbackLoader — ke mana ia mengantar', () => {
   });
 
   it('dari halaman galat, "Kembali ke layanan" mengantar ke beranda publik', async () => {
-    denganFragment('#error=akses%20ditolak');
+    denganFragment('#error=SSO_DIBATALKAN');
 
     render(<AuthCallbackLoader />);
     fireEvent.click(await screen.findByRole('button', { name: /kembali ke layanan/i }));
 
     expect(window.location.hash).toBe('');
+  });
+});
+
+/**
+ * Temuan audit `sso-callback-fragment-text-injection` (9 November 2026),
+ * terukur di Chrome sebelum perbaikan: membuka
+ * `/sso/callback#error=Akun%20Anda%20diblokir.%20Hubungi%200812-PENIPU...`
+ * menampilkan kalimat itu persis di bawah judul resmi. Perbaikan BUG-019
+ * hanya menyaring apa yang ditulis SERVER, padahal fragment tak pernah
+ * melewati server -- siapa pun yang membuat warga membuka satu tautan
+ * memilih kalimatnya.
+ */
+describe('AuthCallbackLoader — fragment berteks bebas', () => {
+  const KARANGAN = 'Akun Anda diblokir. Hubungi 0812-PENIPU untuk membukanya.';
+
+  it('kalimat karangan di fragment TIDAK tampil; yang tampil kalimat umum', async () => {
+    denganFragment(`#error=${encodeURIComponent(KARANGAN)}`);
+
+    render(<AuthCallbackLoader />);
+
+    // Bukan sekadar "tak memuat": layar kosong pun lulus asersi itu.
+    expect(
+      await screen.findByText('Proses masuk lewat SSO Helpdesk gagal. Coba lagi.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/0812-PENIPU/)).not.toBeInTheDocument();
+    expect(screen.getByText('Gagal masuk lewat SSO Helpdesk')).toBeInTheDocument();
   });
 });

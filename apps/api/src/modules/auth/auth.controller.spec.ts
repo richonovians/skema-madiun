@@ -24,7 +24,7 @@ function buat() {
     beginLogin: jest.fn(),
     completeLogin: jest.fn(),
     buildSuccessRedirect: jest.fn((exp: number) => `http://web/sso/callback#expires=${exp}`),
-    buildFailureRedirect: jest.fn((msg: string) => `http://web/sso/callback#error=${msg}`),
+    buildFailureRedirect: jest.fn((kode: string) => `http://web/sso/callback#error=${kode}`),
     clearStateCookie: jest.fn(() => 'sso_state=; Max-Age=0'),
   };
   const sessionCookie = {
@@ -99,7 +99,7 @@ describe('AuthController — penyambungan SSO', () => {
       // `this.logger.error` tepat di atas pengalihan.
       expect(res.redirect).toHaveBeenCalledWith(
         HttpStatus.FOUND,
-        'http://web/sso/callback#error=Proses masuk gagal. Coba lagi.',
+        'http://web/sso/callback#error=SSO_GAGAL',
       );
     });
 
@@ -199,7 +199,7 @@ describe('AuthController — penyambungan SSO', () => {
       // kontraknya, bukan asersinya yang dilonggarkan.
       expect(res.redirect).toHaveBeenCalledWith(
         HttpStatus.FOUND,
-        'http://web/sso/callback#error=Anda membatalkan proses masuk di halaman Helpdesk.',
+        'http://web/sso/callback#error=SSO_DIBATALKAN',
       );
     });
 
@@ -225,10 +225,8 @@ describe('AuthController — penyambungan SSO', () => {
       expect(alamat).not.toContain('0812-PENIPU');
       expect(alamat).not.toContain('diblokir');
       // Bukan sekadar "tak memuat" -- alamat kosong pun lulus asersi itu.
-      // Yang terbit wajib kalimat milik aplikasi sendiri.
-      expect(alamat).toBe(
-        'http://web/sso/callback#error=Anda membatalkan proses masuk di halaman Helpdesk.',
-      );
+      // Yang terbit wajib kode milik aplikasi sendiri.
+      expect(alamat).toBe('http://web/sso/callback#error=SSO_DIBATALKAN');
       expect(ssoService.completeLogin).not.toHaveBeenCalled();
     });
 
@@ -239,9 +237,7 @@ describe('AuthController — penyambungan SSO', () => {
 
       const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
       expect(alamat).not.toContain('0812');
-      expect(alamat).toBe(
-        'http://web/sso/callback#error=Proses masuk lewat SSO Helpdesk gagal. Coba lagi.',
-      );
+      expect(alamat).toBe('http://web/sso/callback#error=SSO_GALAT_HELPDESK');
     });
 
     it('completeLogin melempar: TETAP redirect (bukan galat mentah) & cookie state dibuang', async () => {
@@ -250,7 +246,9 @@ describe('AuthController — penyambungan SSO', () => {
       // bukan `Error` biasa. 403 berarti kalimatnya kita sendiri yang tulis
       // untuk warga, jadi ia TETAP lewat -- dan itulah kendali yang membedakan
       // perbaikan ini dari "ganti semua dengan kalimat umum".
-      ssoService.completeLogin.mockRejectedValue(new ForbiddenException('Akun tidak aktif'));
+      ssoService.completeLogin.mockRejectedValue(
+        new ForbiddenException({ message: 'Akun tidak aktif', code: 'SSO_AKUN_TIDAK_AKTIF' }),
+      );
 
       await controller.ssoCallback({ code: 'kode-1', state: 'nonce-1' }, req(), res);
 
@@ -258,7 +256,7 @@ describe('AuthController — penyambungan SSO', () => {
       // berarti ia menatap JSON galat di tab kosong.
       expect(res.redirect).toHaveBeenCalledWith(
         HttpStatus.FOUND,
-        'http://web/sso/callback#error=Akun tidak aktif',
+        'http://web/sso/callback#error=SSO_AKUN_TIDAK_AKTIF',
       );
       expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', 'sso_state=; Max-Age=0');
       // Tak ada sesi yang diterbitkan atas login yang gagal.
@@ -285,7 +283,7 @@ describe('AuthController — penyambungan SSO', () => {
       const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
       expect(alamat).not.toContain('madiunkab.go.id');
       expect(alamat).not.toContain('fetch failed');
-      expect(alamat).toBe('http://web/sso/callback#error=Proses masuk gagal. Coba lagi.');
+      expect(alamat).toBe('http://web/sso/callback#error=SSO_GAGAL');
     });
 
     it('galat bukan HttpException: pesannya tidak dipantulkan', async () => {
@@ -296,7 +294,7 @@ describe('AuthController — penyambungan SSO', () => {
 
       const alamat = (res.redirect as jest.Mock).mock.calls[0][1] as string;
       expect(alamat).not.toContain('10.0.0.5');
-      expect(alamat).toBe('http://web/sso/callback#error=Proses masuk gagal. Coba lagi.');
+      expect(alamat).toBe('http://web/sso/callback#error=SSO_GAGAL');
     });
   });
 

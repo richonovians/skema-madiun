@@ -9,6 +9,7 @@ import { authApi, getSsoLoginUrl } from '../services/sso.api';
 import { clearSession, saveSsoSession } from '../services/authStorage';
 import RoleLoginPicker from './RoleLoginPicker';
 import { getMyRoles } from '../services/actingRole.api';
+import { kalimatGalatSso } from '../utils/galatSso';
 
 /**
  * Halaman pendaratan setelah callback SSO Helpdesk (`/sso/callback`).
@@ -54,7 +55,10 @@ export default function AuthCallbackLoader() {
       // berhasil masuk, dan meninggalkan artefak sesi lama membuat navbar
       // menampilkan keadaan "sudah masuk" di atas halaman galat ini.
       clearSession();
-      setMessage(galat);
+      // KODE, bukan kalimat (9 November 2026). Fragment dapat ditulis siapa
+      // saja lewat satu tautan, jadi nilainya tak pernah dirender langsung:
+      // kode yang tak dikenal jatuh ke kalimat umum. Lihat utils/galatSso.js.
+      setMessage(kalimatGalatSso(galat));
       setStatus('gagal');
       return;
     }

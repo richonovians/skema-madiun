@@ -72,4 +72,24 @@ test.describe('BUG-019 — teks luar pada layar gagal masuk SSO', () => {
       'kalimat karangan dari tautan ikut ke layar "Gagal masuk lewat SSO Helpdesk"',
     ).not.toContain('0812-PENIPU');
   });
+
+  /**
+   * Temuan audit `sso-callback-fragment-text-injection` (9 November 2026).
+   *
+   * Dua uji di atas hanya menjaga apa yang DITULIS backend. Tautan yang
+   * langsung menuju `/sso/callback#error=<teks>` tak pernah melewati backend
+   * -- fragment tak dikirim ke server -- jadi di sinilah, di peramban, satu-
+   * satunya tempat cacat itu terlihat. Sebelum perbaikan uji ini merah:
+   * kalimat karangan tampil persis di bawah judul resmi.
+   */
+  test('fragment berteks bebas pada tautan langsung tidak tampil di layar', async ({ page }) => {
+    await page.goto(`/sso/callback#error=${encodeURIComponent(KALIMAT_KARANGAN)}`);
+
+    await expect(page.getByText('Gagal masuk lewat SSO Helpdesk')).toBeVisible();
+    // Bukan sekadar "tak memuat": layar kosong pun lulus asersi itu.
+    await expect(
+      page.getByText('Proses masuk lewat SSO Helpdesk gagal. Coba lagi.'),
+    ).toBeVisible();
+    await expect(page.getByText(/0812-PENIPU/)).toHaveCount(0);
+  });
 });
