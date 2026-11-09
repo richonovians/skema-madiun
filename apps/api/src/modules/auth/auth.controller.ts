@@ -26,6 +26,7 @@ import { AllowUnselectedRole } from '../../common/decorators/allow-unselected-ro
 import { Audit } from '../../common/decorators/audit.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { amankanLog } from '../../common/log/aman-log';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from './auth.service';
 import { perangkatDari } from './session/perangkat.util';
@@ -164,8 +165,13 @@ export class AuthController {
     // Pengguna membatalkan di halaman Helpdesk, atau klien ditolak. Bukan galat
     // program — dikembalikan apa adanya tanpa menyentuh basis data.
     if (query.error) {
+      // Kedua nilai dikuasai siapa pun yang membuat tautan ke rute ini, dan
+      // cabang ini jalan sebelum pemeriksaan state. `amankanLog` menetralkan
+      // CR/LF/ESC agar mereka tak dapat memalsukan baris log; kutipnya
+      // menandai batas nilai (temuan `sso-callback-error-log-forging`).
       this.logger.warn(
-        `Callback SSO membawa galat: ${query.error} ${query.error_description ?? ''}`,
+        `Callback SSO membawa galat: error="${amankanLog(query.error)}" ` +
+          `description="${amankanLog(query.error_description ?? '')}"`,
       );
       // BUG-019 (22 Oktober 2026). Baris ini dahulu meneruskan
       // `query.error_description ?? query.error` APA ADANYA, dan fragment

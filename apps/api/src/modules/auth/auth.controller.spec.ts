@@ -1,4 +1,9 @@
-import { ForbiddenException, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpStatus,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { Request, Response } from 'express';
 import type { AuditService } from '../audit/audit.service';
@@ -228,6 +233,49 @@ describe('AuthController — penyambungan SSO', () => {
       // Yang terbit wajib kode milik aplikasi sendiri.
       expect(alamat).toBe('http://web/sso/callback#error=SSO_DIBATALKAN');
       expect(ssoService.completeLogin).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Temuan audit `sso-callback-error-log-forging` (9 November 2026).
+     *
+     * Rute ini `@Public` dan cabang galatnya jalan sebelum pemeriksaan state,
+     * jadi siapa pun dapat mengisi `error`/`error_description`. Sebelum
+     * diperbaiki, LF dan ESC dari query sampai mentah ke stdout lewat
+     * `ConsoleLogger` -- terukur dengan `process.stdout.write` hari itu: satu
+     * permintaan menghasilkan baris `[Nest] ... LOG [SsoService]` palsu yang
+     * tak terbedakan dari catatan asli.
+     */
+    it('galat dari query tidak dapat memalsukan baris log maupun menyisipkan ESC', async () => {
+      const { controller, res } = buat();
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      try {
+        await controller.ssoCallback(
+          {
+            error: 'x\n[Nest] 1  - 01/01/2027, 00:00:00     LOG [SsoService] palsu\u001b[2J',
+            error_description: 'y\r\nz" palsu="1',
+          },
+          req(),
+          res,
+        );
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        const pesan = String(warn.mock.calls[0][0]);
+        for (const kendali of ['\r', '\n', String.fromCharCode(0x1b)]) {
+          expect(pesan).not.toContain(kendali);
+        }
+        // Keterangan aslinya tetap terbaca operator, hanya dinetralkan.
+        expect(pesan).toBe(
+          'Callback SSO membawa galat: error="x\\u000a[Nest] 1  - 01/01/2027, 00:00:00     ' +
+            'LOG [SsoService] palsu\\u001b[2J" description="y\\u000d\\u000az\\" palsu=\\"1"',
+        );
+        expect(res.redirect).toHaveBeenCalledWith(
+          HttpStatus.FOUND,
+          'http://web/sso/callback#error=SSO_GALAT_HELPDESK',
+        );
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it('BUG-019: kode galat yang tak dikenal pun tidak dipantulkan', async () => {
