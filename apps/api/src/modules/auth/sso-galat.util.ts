@@ -27,7 +27,9 @@ import { HttpException, HttpStatus } from '@nestjs/common';
  *
  * Keterangan aslinya TIDAK hilang: `auth.controller.ts` tetap mencatatnya ke
  * log lewat `logger.warn`/`logger.error`, dan di situlah tempatnya --
- * operator membutuhkannya, warga tidak.
+ * operator membutuhkannya, warga tidak. Sejak 9 November 2026 keterangan dari
+ * query dicatat lewat `amankanLog`, karena tanpa itu LF di dalamnya dapat
+ * memalsukan baris log (temuan `sso-callback-error-log-forging`).
  *
  * DUA jalur bermuara ke fragment `#error=` yang sama, jadi keduanya diatur di
  * sini: galat yang DILAPORKAN Helpdesk lewat query (`kodeGalatSso`), dan galat
