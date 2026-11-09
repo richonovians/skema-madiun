@@ -5,6 +5,7 @@
 **Diukur ulang:** 3 November 2026 pada `main` `9e72abb` (QA-PERF) — §12. Jalan dingin `/statistics` mundur 2-3,5 kali sejak `f1c132e` ([BUG-067](BUG_REPORTS.md#bug-067)); pada T1 dan T2 syarat "< 3 detik" terpenuhi (§12.4, §12.5). Dengan jawaban teks dan pengaduan: §12.6.
 **Ketersediaan:** diukur 4 November 2026 pada `main` `5cda6fa` — §13.
 **QA-PERF ditutup dengan catatan:** 5 November 2026 — §14.
+**Diukur ulang sesudah PR #17 dan #18:** 9 November 2026 pada `main` `50175c7` — §15. Tak ada kemunduran yang dapat dikaitkan ke kedua PR; pada T1 syarat "< 3 detik" tetap terpenuhi.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -892,7 +893,168 @@ Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesud
 1. **BUG-073 menjadi syarat sebelum GO-LIVE 23 November 2026.** Temuan ini tetap terbuka dan belum punya pemilik perbaikan. PRD §10 memintanya, dan kehilangan data tanpa cadangan harian tidak tertangani oleh kinerja yang baik.
 2. **Uptime dibawa ke tahap server.** Angkanya hanya dapat diukur di server sungguhan selama berminggu-minggu, jadi penutupan ini tidak menyatakan sasaran itu tercapai.
 3. **Jalur tulis tetap ditunda** (§11). Beban saat warga mengirim jawaban dan pengaduan, serta gangguan selagi menulis, belum diukur.
-4. **Angka di atas diukur sebelum PR #17 dan #18**, pada `main` `9e72abb` dan `5cda6fa`. PR #17 mengubah layanan `dashboard`, `opd`, dan `ikm`; di `dashboard` penyaring status belum tuntas kini memakai `STATUS_BELUM_TUNTAS`. Dampaknya pada waktu jawab belum diukur ulang. Yang berjalan terhadap `a1e3c1f` hanya uji fungsional, bukan uji beban.
+4. **Angka di atas diukur sebelum PR #17 dan #18**, pada `main` `9e72abb` dan `5cda6fa`. PR #17 mengubah layanan `dashboard`, `opd`, dan `ikm`; di `dashboard` penyaring status belum tuntas kini memakai `STATUS_BELUM_TUNTAS`. Dampaknya pada waktu jawab belum diukur ulang. Yang berjalan terhadap `a1e3c1f` hanya uji fungsional, bukan uji beban. **Diperbarui 9 November 2026:** kini diukur ulang di §15.
 5. **Batas pada data besar tetap terbuka.** Permintaan pertama `/statistics` melewati 3 detik pada T3 (3.739 / 6.255 ms, BUG-067) dan pada 310.000 pengaduan (BUG-068). `GET /complaints` memindai seluruh tabel (BUG-069). Ketiganya Low dan berada di atas ukuran yang diminta QA-PERF.
 6. **Temuan Low lain yang tetap terbuka:** BUG-072 (`/health` tetap 200 saat DB mati), BUG-074, dan BUG-075.
 7. **Yang belum diukur di §13.8 tetap belum diukur**, antara lain shutdown anggun, disk penuh, koneksi DB habis, dan soak lebih dari 30 menit.
+
+## 15. Pengukuran ulang sesudah PR #17 dan #18 (9 November 2026)
+
+Menjawab catatan §14.2 butir 4. Diukur pada `main` `50175c7`. Kode aplikasinya
+sama dengan `b904be4` (merge PR #24 hanya melepas `.claude/skills/`), jadi yang
+terukur memuat PR #17 dan #18 **dan** semua yang masuk sesudahnya sampai PR #23,
+termasuk perubahan siklus sesi (#20) dan dev-login (#22). Selisih apa pun di
+bawah tak dapat ditunjuk ke satu PR tertentu.
+
+Pelari dan perintahnya sama dengan §12: `--semua` 10 koneksi 10 detik, lalu
+`--semua --dingin` 10 koneksi 15 detik, masing-masing **dua kali**. Seluruh
+jawaban 2xx dan "Dataset tetap" pada kedelapan jalan. Server dev **mati**
+selama pengukuran (porta 3000-3002 tak ada yang mendengarkan). Pada 3 November
+ia ikut hidup (§12); pada 4 November keadaannya tak tercatat.
+
+Angka ganda berarti jalan pertama / jalan kedua.
+
+### 15.1 Dataset D (T3 + 62.000 pengaduan), dibanding §12.6 kolom D
+
+Dataset D tidak dibangun ulang. Yang dikerjakan hanya
+`beban:data -- --survei=0 --tambah`, yang menerapkan empat migrasi tertinggal
+(`20261104090000_tingkat_pengaduan`, `20261104150000_alur_status_pengaduan`,
+`20261105093000_status_dialihkan`, `20261105110000_fk_opd_tujuan_set_null`)
+tanpa mengosongkan apa pun. Migrasi alur status memetakan `diterima` ke
+`menunggu_verifikasi` dan `diproses` ke `sedang_ditindaklanjuti`, jadi porsi
+pengaduan belum tuntas tetap 40% seperti pada 4 November.
+
+Jalur hangat, `--semua`:
+
+| Skenario         | Pertama          | p50          | p95          | p99            | Maks            | req/s      |
+| ---------------- | ---------------- | ------------ | ------------ | -------------- | --------------- | ---------- |
+| statistik        | 3.514 / 3.266 ms | 8 / 9 ms     | 13 / 15 ms   | 17 / 19 ms     | 60 / 55 ms      | 1.111 / 1.033 |
+| dashboard-ikm    | 1.190 / 1.131 ms | 75 / 79 ms   | 116 / 145 ms | 121 / **2.703** ms | 135 / **2.733** ms | 125 / 86 |
+| hasil-ikm        | 155 / 247 ms     | 25 / 33 ms   | 34 / 80 ms   | 36 / 90 ms     | 45 / 151 ms     | 385 / 266  |
+| daftar-pengaduan | 101 / 74 ms      | 231 / 247 ms | 396 / 400 ms | 440 / 438 ms   | 508 / 501 ms    | 41 / 39    |
+| isi-survei-baca  | 60 / 61 ms       | 33 / 32 ms   | 50 / 76 ms   | 57 / 90 ms     | 83 / 155 ms     | 286 / 266  |
+| dashboard-opd    | 96 / 125 ms      | 179 / 209 ms | 244 / 421 ms | 271 / 468 ms   | 276 / 485 ms    | 54 / 46    |
+
+Jalur dingin, `--semua --dingin`:
+
+| Skenario         | Pertama          | p50          | p99          | Maks             | req/s     |
+| ---------------- | ---------------- | ------------ | ------------ | ---------------- | --------- |
+| statistik        | 3.599 / 4.804 ms | 8 / 13 ms    | 23 / 52 ms   | 3.346 / 4.005 ms | 764 / 462 |
+| dashboard-ikm    | 1.235 / 1.672 ms | 71 / 93 ms   | 151 / 179 ms | 1.514 / 1.749 ms | 123 / 93  |
+| hasil-ikm        | 113 / 155 ms     | 24 / 36 ms   | 39 / 64 ms   | 555 / 706 ms     | 381 / 251 |
+| daftar-pengaduan | 97 / 146 ms      | 205 / 335 ms | 332 / 528 ms | 404 / 651 ms     | 48 / 29   |
+| isi-survei-baca  | 88 / 193 ms      | 33 / 47 ms   | 121 / 84 ms  | 209 / 108 ms     | 243 / 203 |
+| dashboard-opd    | 272 / 171 ms     | 216 / 233 ms | 911 / 707 ms | 1.294 / 1.003 ms | 39 / 40   |
+
+Dibanding kolom D §12.6:
+
+| Ukuran                  | 4 Nov            | 9 Nov (empat jalan) |
+| ----------------------- | ---------------- | ------------------- |
+| Pertama `/statistics`   | 6.034 / 4.683 ms | 3.266 - 4.804 ms    |
+| Pertama `dashboard-ikm` | 1.792 / 1.699 ms | 1.131 - 1.672 ms    |
+| `dashboard-opd` p50     | 250 / 219 ms     | 179 - 233 ms        |
+| `daftar-pengaduan` p50  | 236 ms           | 205 - 335 ms        |
+| `hasil-ikm` p50         | 33 ms            | 24 - 36 ms          |
+| `isi-survei-baca` p50   | 38 ms            | 32 - 47 ms          |
+
+**Tak ada yang memburuk secara berarti.** Permintaan pertama `/statistics` dan
+`dashboard-ikm` justru lebih rendah, tetapi perubahan kodenya tidak menyentuh
+kueri penyebab BUG-067 dan BUG-068. Sebab selisihnya tak diketahui; kandidatnya
+derau mesin dan server dev yang mungkin ikut hidup pada 4 November. Ini
+**tidak** dibaca sebagai perbaikan.
+Permintaan pertama `/statistics` tetap melewati 3 detik pada D; BUG-067 dan
+BUG-068 tetap terbuka.
+
+Tiga hal yang belum dijelaskan:
+
+1. **`dashboard-ikm` hangat sekali mencapai 2.733 ms** (jalan kedua `--semua`,
+   p99 2.703 ms). Jalan pertama maksimal 135 ms. Dugaan: singgahannya kedaluwarsa
+   di tengah jalan, sehingga satu hitung ulang (~1,1-1,7 detik pada D) ditunggu
+   bersama oleh permintaan yang tertahan penahan stampede. Dugaan ini belum
+   dibuktikan. Angkanya tetap di bawah 3 detik.
+2. **`dashboard-opd` maks 1.003-1.294 ms pada jalan `--dingin`**, lawan 276-485 ms
+   pada `--semua` dan 377-587 ms pada 4 November. Endpoint ini tanpa singgahan,
+   jadi `--dingin` seharusnya tak mengubah apa pun baginya. Belum diselidiki.
+3. **`hasil-ikm` maks 555-706 ms pada `--dingin`**, lawan 45-151 ms hangat.
+   Ini sesuai harapan (penyapu mengosongkan singgahannya), dan dicatat hanya
+   supaya tak dibaca sebagai kemunduran.
+
+### 15.2 T1, ukuran yang diminta QA-PERF, dibanding §12.4 dan §12.5
+
+Sesudah 15.1, T1 dibangun ulang (`beban:data -- --survei=744 --respons=20`,
+30,2 detik): 744 survei, 14.880 respons, 133.920 jawaban, 0 jawaban teks,
+0 pengaduan. Sama dengan §12.4.
+
+Jalur hangat, `--semua`:
+
+| Skenario         | Pertama      | p50          | p95          | p99          | Maks         | req/s      |
+| ---------------- | ------------ | ------------ | ------------ | ------------ | ------------ | ---------- |
+| statistik        | 365 / 472 ms | 9 / 9 ms     | 17 / 18 ms   | 28 / 22 ms   | 76 / 38 ms   | 966 / 1.001 |
+| dashboard-ikm    | 313 / 282 ms | 135 / 80 ms  | 369 / 102 ms | 487 / 111 ms | 550 / 210 ms | 62 / 121   |
+| hasil-ikm        | 74 / 59 ms   | 52 / 30 ms   | 99 / 66 ms   | 114 / 75 ms  | 174 / 134 ms | 180 / 294  |
+| daftar-pengaduan | 63 / 19 ms   | 38 / 22 ms   | 62 / 32 ms   | 83 / 36 ms   | 147 / 47 ms  | 244 / 422  |
+| isi-survei-baca  | 44 / 27 ms   | 47 / 28 ms   | 71 / 43 ms   | 80 / 51 ms   | 91 / 123 ms  | 203 / 337  |
+| dashboard-opd    | 64 / 45 ms   | 123 / 66 ms  | 237 / 108 ms | 274 / 125 ms | 353 / 179 ms | 76 / 144   |
+
+Jalur dingin, `--semua --dingin`:
+
+| Skenario         | Pertama      | p50        | p99          | Maks             | req/s       |
+| ---------------- | ------------ | ---------- | ------------ | ---------------- | ----------- |
+| statistik        | 306 / 344 ms | 6 / 10 ms  | 14 / 48 ms   | 268 / 310 ms     | 1.358 / 736 |
+| dashboard-ikm    | 273 / 620 ms | 70 / 76 ms | 101 / 254 ms | 371 / **1.104** ms | 137 / 111 |
+| hasil-ikm        | 86 / 35 ms   | 23 / 27 ms | 36 / 69 ms   | 129 / 145 ms     | 412 / 338   |
+| daftar-pengaduan | 29 / 23 ms   | 22 / 26 ms | 44 / 113 ms  | 255 / 386 ms     | 413 / 302   |
+| isi-survei-baca  | 58 / 45 ms   | 42 / 40 ms | 143 / 70 ms  | 240 / 111 ms     | 208 / 235   |
+| dashboard-opd    | 42 / 49 ms   | 78 / 85 ms | 124 / 165 ms | 170 / 202 ms     | 125 / 114   |
+
+Dibanding §12.4 dan §12.5:
+
+| Ukuran                   | 3-4 Nov                 | 9 Nov (empat jalan)  |
+| ------------------------ | ----------------------- | -------------------- |
+| Pertama `/statistics`    | 498 ms; dingin 352 ms   | 306 - 472 ms         |
+| Pertama `dashboard-ikm`  | 248 ms; dingin 424 ms   | 273 - 620 ms         |
+| `dashboard-ikm` maks     | 139 ms; dingin 458 ms   | 210 - 550 ms; satu jalan 1.104 ms |
+| `dashboard-opd` p50      | 73 / 80 ms              | 66 - 123 ms          |
+| `dashboard-opd` maks     | 190 / 365 ms            | 170 - 353 ms         |
+
+**Syarat QA-PERF "dashboard < 3 detik" tetap terpenuhi.** Permintaan terburuk
+dari kedua endpoint dashboard dan `/statistics` di kedelapan jalan T1 adalah
+1.104 ms. Itu naik dari 498 ms pada §12.4, tetapi hanya satu sampel: tiga jalan
+lain berhenti di 550 ms atau kurang. Satu sampel tak cukup untuk menyebutnya
+kemunduran, dan belum diselidiki.
+
+Jalan `--semua` pertama sesudah pembangunan ulang lebih lambat di hampir setiap
+skenario (`dashboard-ikm` p50 135 ms lawan 80 ms pada jalan kedua). Dugaan:
+basis data baru saja menerima sisipan massal dan statistik tabelnya belum
+segar. Dugaan ini belum dibuktikan.
+
+### 15.3 Cacat pada pembangun dataset
+
+**`beban:data -- --pengaduan=` tak dapat lagi membangun pengaduan.**
+`bangunPengaduan` di `apps/api/scripts/beban/siapkan-data.ts` masih menyisipkan
+status `diterima` dan `diproses` lewat `::complaint_status`, serta kategori
+`aduan`/`lapor`/`lainnya`. Migrasi `20261104150000_alur_status_pengaduan` membuang
+kedua status itu dari enum (`DROP TYPE "complaint_status"`), dan ketiga kategori
+itu sudah tak berlaku sejak `20261104090000_tingkat_pengaduan`. Pernyataan
+`INSERT`-nya juga tak mengisi `tingkat`, `tanggal_kejadian`, maupun
+`lokasi_kejadian`.
+
+Ini **dibaca dari kode dan migrasinya, tidak dijalankan.** Akibatnya pasti untuk
+status: nilai yang tak ada di enum ditolak Postgres saat di-cast, jadi seluruh
+`INSERT` gagal. Kategori lama tidak akan menggagalkannya: `kategori` hanya
+`VARCHAR(50)` tanpa `CHECK` di migrasi mana pun, dan penolakannya hanya ada di
+DTO yang tak dilewati skrip ini. Bila status diperbaiki sendirian, skrip akan
+diam-diam menulis kategori yang tak sepadan dengan `tingkat` bakunya
+(`kabupaten`).
+
+Akibatnya dataset B, C, dan D di §12.6 tak dapat dibangun ulang sampai fungsi
+itu diperbarui. D masih dapat diukur di 15.1 hanya karena barisnya sudah ada
+dan ikut dimigrasikan. Perbaikannya perubahan pada skrip pengukur di `main`,
+bukan pada kode aplikasi.
+
+### 15.4 Keadaan sesudahnya
+
+- `skm_beban` kini memuat **T1**. D sudah tak ada dan baru dapat dibangun lagi
+  sesudah 15.3 diperbaiki.
+- Tak ada temuan BUG baru. Angka BUG_REPORTS tetap.
+- Catatan §14.2 lainnya tetap berlaku apa adanya.
