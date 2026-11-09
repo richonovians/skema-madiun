@@ -40,9 +40,10 @@ export class OpdController {
    */
   @Get()
   @ApiOperation({
-    summary:
-      'Daftar OPD dari cache lokal. Terbuka bagi semua peran terautentikasi; ' +
-      'agregat activeSurveys/openComplaints/adminCount hanya untuk Admin Kabupaten.',
+    summary: 'Daftar OPD dari cache lokal. Terbuka bagi semua peran terautentikasi.',
+    description:
+      'Agregat `activeSurveys`, `openComplaints`, dan `adminCount` hanya dikirim kepada ' +
+      'Admin Kabupaten; peran lain menerima daftar tanpa ketiga medan itu.',
   })
   @ApiOkResponse({ type: OpdEntity, isArray: true })
   findAll(
