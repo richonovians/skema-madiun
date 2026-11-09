@@ -1,10 +1,30 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
+import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotFoundException } from '@nestjs/common';
 import { ListOpdQueryDto } from './dto/list-opd-query.dto';
 import { OpdSource } from './interfaces/opd-source.interface';
 import { OpdService } from './opd.service';
+
+const kab = {
+  userId: 1,
+  roles: [Role.kabupaten],
+  actingRole: Role.kabupaten,
+  opdId: null,
+} as CurrentUser;
+const adminOpd = {
+  userId: 2,
+  roles: [Role.opd],
+  actingRole: Role.opd,
+  opdId: 1,
+} as CurrentUser;
+const warga = {
+  userId: 3,
+  roles: [Role.responden],
+  actingRole: Role.responden,
+  opdId: null,
+} as CurrentUser;
 
 const opdRow = {
   id: 1,
@@ -56,7 +76,7 @@ describe('OpdService', () => {
   it('findAll mengembalikan PaginatedResult dengan meta yang benar', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, kab);
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].kode).toBe('DINKES');
@@ -68,7 +88,7 @@ describe('OpdService', () => {
     (prisma.survey.groupBy as jest.Mock).mockResolvedValue([{ opdId: 1, _count: { _all: 3 } }]);
     (prisma.complaint.groupBy as jest.Mock).mockResolvedValue([{ opdId: 1, _count: { _all: 5 } }]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, kab);
 
     expect(result.items[0].activeSurveys).toBe(3);
     expect(result.items[0].openComplaints).toBe(5);
@@ -110,7 +130,7 @@ describe('OpdService', () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
     // groupBy default (dari beforeEach) mengembalikan [] — tak ada baris untuk opdId manapun.
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, kab);
 
     expect(result.items[0].activeSurveys).toBe(0);
     expect(result.items[0].openComplaints).toBe(0);
@@ -119,7 +139,7 @@ describe('OpdService', () => {
   it('findAll: halaman kosong tidak memanggil groupBy sama sekali', async () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
 
-    await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+    await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, kab);
 
     expect(prisma.survey.groupBy).not.toHaveBeenCalled();
     expect(prisma.complaint.groupBy).not.toHaveBeenCalled();
@@ -148,7 +168,7 @@ describe('OpdService', () => {
     (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
     (prisma.user.groupBy as jest.Mock).mockResolvedValue([{ opdId: 1, _count: { _all: 2 } }]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, kab);
 
     expect(result.items[0].adminCount).toBe(2);
     expect(prisma.user.groupBy).toHaveBeenCalledWith(
@@ -169,9 +189,39 @@ describe('OpdService', () => {
     // seluruh perubahan ini dibuat untuknya.
     (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
 
-    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto);
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, kab);
 
     expect(result.items[0].adminCount).toBe(0);
+  });
+
+  /**
+   * AGREGAT HANYA UNTUK PERAN BERAKSES PENUH (9 November 2026, telaah rute
+   * tanpa `@Roles` sesudah audit run-1).
+   *
+   * `GET /opd` dibuka bagi semua peran demi dropdown OPD tujuan (INT-18),
+   * tetapi ketiga agregat INT-10 ikut terkirim ke setiap warga: jumlah
+   * pengaduan belum tuntas per OPD dan OPD mana yang belum punya admin.
+   * Hanya halaman Admin Kabupaten yang memakainya. Untuk peran lain ketiganya
+   * TIDAK DIKIRIM (bukan 0 -- nol adalah klaim), dan query hitungnya tidak
+   * dijalankan sama sekali.
+   */
+  it.each([
+    ['opd', adminOpd],
+    ['responden', warga],
+  ])('findAll (%s): agregat tidak dihitung dan tidak dikirim', async (_peran, user) => {
+    (prisma.$transaction as jest.Mock).mockResolvedValue([[opdRow], 1]);
+
+    const result = await service.findAll({ page: 1, limit: 20 } as ListOpdQueryDto, user);
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].nama).toBe('Dinas Kesehatan');
+    expect(result.items[0].tingkat).toBeDefined();
+    expect(result.items[0].activeSurveys).toBeUndefined();
+    expect(result.items[0].openComplaints).toBeUndefined();
+    expect(result.items[0].adminCount).toBeUndefined();
+    expect(prisma.survey.groupBy).not.toHaveBeenCalled();
+    expect(prisma.complaint.groupBy).not.toHaveBeenCalled();
+    expect(prisma.user.groupBy).not.toHaveBeenCalled();
   });
 
   it('findOne melempar NotFoundException bila OPD tidak ada', async () => {

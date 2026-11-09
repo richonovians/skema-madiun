@@ -7,6 +7,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma, Role, SurveyStatus } from '@prisma/client';
+import { hasFullAccess } from '../../common/auth/role.util';
+import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/paginated-result';
 import { lolosPolaLike } from '../../prisma/pola-like';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -28,7 +30,17 @@ export class OpdService {
   ) {}
 
   /** Daftar OPD dari cache lokal (paginated + filter). */
-  async findAll(query: ListOpdQueryDto): Promise<PaginatedResult<OpdEntity>> {
+  /**
+   * Agregat INT-10 (`activeSurveys`, `openComplaints`, `adminCount`) HANYA
+   * untuk peran berakses penuh (9 November 2026, telaah rute tanpa `@Roles`
+   * sesudah audit run-1). Rute ini dibuka bagi semua peran demi dropdown OPD
+   * tujuan (INT-18), dan sebelumnya setiap warga ikut menerima jumlah pengaduan
+   * belum tuntas per OPD serta OPD mana yang belum punya admin -- angka yang
+   * hanya dipakai halaman Admin Kabupaten. Untuk peran lain ketiganya tidak
+   * dikirim sama sekali (bukan 0, yang adalah klaim), dan ketiga query hitungnya
+   * tidak dijalankan.
+   */
+  async findAll(query: ListOpdQueryDto, user: CurrentUser): Promise<PaginatedResult<OpdEntity>> {
     const { page, limit, search, isActive } = query;
 
     const where: Prisma.OpdWhereInput = {};
@@ -53,6 +65,11 @@ export class OpdService {
       }),
       this.prisma.opd.count({ where }),
     ]);
+
+    if (!hasFullAccess(user.actingRole)) {
+      const items = rows.map((row) => new OpdEntity({ ...row, tingkat: tingkatOpd(row.nama) }));
+      return paginate(items, total, page, limit);
+    }
 
     const { activeSurveysByOpd, openComplaintsByOpd, adminsByOpd } = await this.countsByOpd(
       rows.map((row) => row.id),

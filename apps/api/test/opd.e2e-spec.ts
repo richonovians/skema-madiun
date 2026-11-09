@@ -84,22 +84,37 @@ describe('OPD (e2e)', () => {
     expect(res.body.data.some((o: { kode: string }) => o.kode === 'E2ETEST')).toBe(true);
     expect(res.body.data[0]).toHaveProperty('externalId');
     expect(res.body.data[0]).toHaveProperty('syncedAt');
+    // Agregat INT-10 hanya untuk peran berakses penuh (9 November 2026).
+    expect(res.body.data[0]).toHaveProperty('activeSurveys');
+    expect(res.body.data[0]).toHaveProperty('openComplaints');
+    expect(res.body.data[0]).toHaveProperty('adminCount');
   });
 
-  it('GET /opd (opd) -> 200 (INT-18: list terbuka semua peran terautentikasi, bukan hanya Kabupaten)', async () => {
+  /**
+   * Peran selain kabupaten menerima daftar OPD TANPA agregat INT-10
+   * (`activeSurveys`, `openComplaints`, `adminCount`), 9 November 2026.
+   * Rute ini dibuka bagi semua peran hanya demi dropdown OPD tujuan; jumlah
+   * pengaduan belum tuntas per OPD dan OPD mana yang belum punya admin bukan
+   * urusan warga. Diuji lewat HTTP, bukan hanya di service, karena yang
+   * menentukan peran adalah `@CurrentUser` di controller.
+   */
+  it.each([
+    ['opd', () => devHeaders({ role: Role.opd, opdId })],
+    ['responden', () => devHeaders({ role: Role.responden })],
+  ])('GET /opd (%s) -> 200 tanpa agregat (INT-18: list terbuka semua peran)', async (_p, hdr) => {
     const res = await request(app.getHttpServer())
-      .get('/api/v1/opd')
-      .set(devHeaders({ role: Role.opd, opdId }));
+      .get('/api/v1/opd?search=E2ETEST&limit=10')
+      .set(hdr());
 
     expect(res.status).toBe(200);
-  });
-
-  it('GET /opd (responden) -> 200 (INT-18: dibutuhkan dropdown OPD tujuan saat buat pengaduan)', async () => {
-    const res = await request(app.getHttpServer())
-      .get('/api/v1/opd')
-      .set(devHeaders({ role: Role.responden }));
-
-    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    for (const o of res.body.data) {
+      expect(o).toHaveProperty('nama');
+      expect(o).toHaveProperty('tingkat');
+      expect(o).not.toHaveProperty('activeSurveys');
+      expect(o).not.toHaveProperty('openComplaints');
+      expect(o).not.toHaveProperty('adminCount');
+    }
   });
 
   /**

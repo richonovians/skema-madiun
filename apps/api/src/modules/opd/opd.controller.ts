@@ -33,14 +33,24 @@ export class OpdController {
    * CreateComplaintForm.jsx). Sebelumnya dibatasi Admin Kabupaten saja,
    * membuat form pengaduan Responden tak bisa menampilkan pilihan OPD sama
    * sekali (403 diam-diam tertelan di frontend, ditemukan saat wiring INT-18).
+   *
+   * Terbuka bukan berarti sama isinya: agregat INT-10 (`activeSurveys`,
+   * `openComplaints`, `adminCount`) hanya dikirim kepada peran berakses penuh
+   * sejak 9 November 2026. Lihat docblock `OpdService.findAll`.
    */
   @Get()
   @ApiOperation({
     summary: 'Daftar OPD dari cache lokal. Terbuka bagi semua peran terautentikasi.',
+    description:
+      'Agregat `activeSurveys`, `openComplaints`, dan `adminCount` hanya dikirim kepada ' +
+      'Admin Kabupaten; peran lain menerima daftar tanpa ketiga medan itu.',
   })
   @ApiOkResponse({ type: OpdEntity, isArray: true })
-  findAll(@Query() query: ListOpdQueryDto): Promise<PaginatedResult<OpdEntity>> {
-    return this.opdService.findAll(query);
+  findAll(
+    @Query() query: ListOpdQueryDto,
+    @CurrentUser() user: CurrentUser,
+  ): Promise<PaginatedResult<OpdEntity>> {
+    return this.opdService.findAll(query, user);
   }
 
   /** Sinkronisasi data OPD dari Helpdesk (upsert by external_id). Hanya Admin Kabupaten. */
