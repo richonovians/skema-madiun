@@ -24,8 +24,12 @@ export function adaptOpd(opd) {
     // membawa medan ini berarti "belum terbaca", dan membakukannya ke
     // kabupaten akan menaruh 15 kecamatan di daftar yang salah.
     tingkat: opd.tingkat ?? null,
-    activeSurveys: opd.activeSurveys ?? 0,
-    openComplaints: opd.openComplaints ?? 0,
+    // `?? null`, BUKAN `?? 0` (9 November 2026): sejak `GET /opd` hanya
+    // mengirim agregat ini kepada Admin Kabupaten, ketiadaannya adalah keadaan
+    // biasa bagi Admin OPD dan responden. Nol berarti "dihitung, hasilnya
+    // nol" -- klaim yang tak pernah dibuat backend untuk peran itu.
+    activeSurveys: opd.activeSurveys ?? null,
+    openComplaints: opd.openComplaints ?? null,
     // `?? null`, BUKAN `?? 0`: backend yang belum mengirim medan ini berarti
     // "belum terbaca", dan menjadikannya 0 akan membuat setiap OPD dituduh tak
     // punya admin (4 Oktober 2026). Nol yang sungguhan datang dari backend.

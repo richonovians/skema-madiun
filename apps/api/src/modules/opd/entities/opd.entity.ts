@@ -29,9 +29,14 @@ export class OpdEntity extends BaseEntity<OpdEntity> {
   syncedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  /** Jumlah survei berstatus `aktif` milik OPD ini. Hanya diisi pada `GET /opd` (INT-10). */
+  /**
+   * Jumlah survei berstatus `aktif` milik OPD ini. Hanya diisi pada `GET /opd`
+   * (INT-10), dan hanya untuk peran berakses penuh sejak 9 November 2026 --
+   * peran lain tidak menerima medan ini sama sekali. Berlaku juga untuk
+   * `openComplaints` dan `adminCount` di bawah.
+   */
   activeSurveys?: number;
-  /** Jumlah pengaduan belum tuntas (`diterima`/`diproses`) milik OPD ini. Hanya diisi pada `GET /opd` (INT-10). */
+  /** Jumlah pengaduan belum tuntas (`STATUS_BELUM_TUNTAS`) milik OPD ini. Hanya diisi pada `GET /opd` (INT-10). */
   openComplaints?: number;
   /**
    * Jumlah akun AKTIF berperan `opd` yang tertaut ke OPD ini (4 Oktober 2026).
