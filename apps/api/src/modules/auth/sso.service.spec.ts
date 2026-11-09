@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -16,6 +17,21 @@ import { SessionService } from './session/session.service';
 import type { PenerbitSesi } from './session/penerbit-sesi.service';
 import { SsoService } from './sso.service';
 import { SsoStateService } from './sso-state.service';
+
+/**
+ * Kode yang dibawa badan exception (`{ message, code }`), atau `undefined`.
+ *
+ * Sejak 9 November 2026 kode inilah yang sampai ke fragment `#error=`, bukan
+ * kalimatnya (`kodeKegagalanMasuk` di `sso-galat.util.ts`). Pelemparan 4xx
+ * tanpa kode jatuh ke kalimat umum, jadi kodenya bagian dari kontrak.
+ */
+function kodeGalat(galat: unknown): unknown {
+  if (!(galat instanceof HttpException)) return undefined;
+  const badan = galat.getResponse();
+  return typeof badan === 'object' && badan !== null
+    ? (badan as { code?: unknown }).code
+    : undefined;
+}
 
 const CONFIG_TERISI: Record<string, string | boolean> = {
   'helpdesk.ssoIssuer': 'https://api.example.go.id/api/oauth',
@@ -171,9 +187,11 @@ describe('SsoService', () => {
       const { service, state, source } = buat();
       state.verify.mockReturnValue(false);
 
-      await expect(service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
-        BadRequestException,
-      );
+      const galat = await service
+        .completeLogin('kode-1', 'nonce-1', 'sso_state=abc')
+        .catch((e: unknown) => e);
+      expect(galat).toBeInstanceOf(BadRequestException);
+      expect(kodeGalat(galat)).toBe('SSO_STATE_TIDAK_SAH');
       // Inti pertahanan CSRF: jangan menghubungi Helpdesk atas permintaan yang
       // belum terbukti berasal dari alur login kita sendiri.
       expect(source.exchangeCodeForProfile).not.toHaveBeenCalled();
@@ -181,9 +199,11 @@ describe('SsoService', () => {
 
     it('state sah tapi code tak ada -> 400', async () => {
       const { service, source } = buat();
-      await expect(service.completeLogin(undefined, 'nonce-1', 'sso_state=abc')).rejects.toThrow(
-        BadRequestException,
-      );
+      const galat = await service
+        .completeLogin(undefined, 'nonce-1', 'sso_state=abc')
+        .catch((e: unknown) => e);
+      expect(galat).toBeInstanceOf(BadRequestException);
+      expect(kodeGalat(galat)).toBe('SSO_TANPA_CODE');
       expect(source.exchangeCodeForProfile).not.toHaveBeenCalled();
     });
   });
@@ -246,9 +266,11 @@ describe('SsoService', () => {
       source.exchangeCodeForProfile.mockResolvedValue(profil({ emailVerified: false }));
       siapkan(prisma);
 
-      await expect(service.completeLogin('kode-1', 'nonce-1', 'sso_state=abc')).rejects.toThrow(
-        ForbiddenException,
-      );
+      const galat = await service
+        .completeLogin('kode-1', 'nonce-1', 'sso_state=abc')
+        .catch((e: unknown) => e);
+      expect(galat).toBeInstanceOf(ForbiddenException);
+      expect(kodeGalat(galat)).toBe('SSO_EMAIL_BELUM_TERVERIFIKASI');
       expect(prisma.user.update).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
       // Bukan cuma tak ditulis: tak ada sesi yang terbit sama sekali.
@@ -454,9 +476,10 @@ describe('SsoService', () => {
         .mockResolvedValueOnce(null) // by email (aktif)
         .mockResolvedValueOnce({ id: 5 }); // by email (terhapus)
 
-      await expect(service.completeLogin('kode-1', 'nonce-1', 'c')).rejects.toThrow(
-        /pernah dihapus/i,
-      );
+      const galat = await service.completeLogin('kode-1', 'nonce-1', 'c').catch((e: unknown) => e);
+      // Kalimatnya tetap ada untuk log server; layar warga membaca kodenya.
+      expect((galat as Error).message).toMatch(/pernah dihapus/i);
+      expect(kodeGalat(galat)).toBe('SSO_AKUN_DIHAPUS');
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
   });
@@ -759,9 +782,11 @@ describe('SsoService', () => {
       const m = buat();
       m.prisma.user.findFirst.mockResolvedValueOnce(userRow({ isActive: false }));
 
-      await expect(m.service.completeLogin('kode-1', 'nonce-1', 'c')).rejects.toThrow(
-        ForbiddenException,
-      );
+      const galat = await m.service
+        .completeLogin('kode-1', 'nonce-1', 'c')
+        .catch((e: unknown) => e);
+      expect(galat).toBeInstanceOf(ForbiddenException);
+      expect(kodeGalat(galat)).toBe('SSO_AKUN_TIDAK_AKTIF');
       expect(m.audit.record).not.toHaveBeenCalled();
     });
   });
@@ -787,18 +812,22 @@ describe('SsoService', () => {
       expect(url.split('#')[1]).toBe('expires=1756000000');
     });
 
-    it('pesan galat di-encode agar tak merusak alamat', () => {
+    // Sejak 9 November 2026 yang ditaruh di fragment hanya kode dari
+    // `KODE_GALAT_MASUK`, bukan kalimat -- jadi tak ada lagi spasi atau `&`
+    // yang perlu di-encode. `encodeURIComponent` tetap dipasang sebagai sabuk.
+    it('kode galat ditaruh di fragment, bukan di query', () => {
       const { service } = buat();
-      const url = service.buildFailureRedirect('Akun tidak aktif & ditolak');
+      const url = service.buildFailureRedirect('SSO_AKUN_TIDAK_AKTIF');
 
-      expect(url).toContain('#error=');
-      expect(url).not.toContain('&ditolak');
+      expect(url).toBe('http://localhost:3000/sso/callback#error=SSO_AKUN_TIDAK_AKTIF');
     });
 
     it('garis miring berlebih pada WEB_APP_URL tidak menghasilkan alamat ganda', () => {
       const { service } = buat({ 'app.webUrl': 'http://localhost:3000///' });
       expect(service.buildSuccessRedirect(1)).toBe('http://localhost:3000/sso/callback#expires=1');
-      expect(service.buildFailureRedirect('x')).toBe('http://localhost:3000/sso/callback#error=x');
+      expect(service.buildFailureRedirect('SSO_GAGAL')).toBe(
+        'http://localhost:3000/sso/callback#error=SSO_GAGAL',
+      );
     });
   });
 });

@@ -95,8 +95,10 @@ describe('SSO tanpa kredensial: gagal yang tetap terbaca manusia (e2e)', () => {
 
       expect(pesan).not.toMatch(/ssoClientId/);
       expect(pesan).not.toMatch(/belum dikonfigurasi/i);
-      // Bukan sekadar "tak memuat": pesan kosong pun lulus asersi itu.
-      expect(pesan).toBe('Proses masuk gagal. Coba lagi.');
+      // Bukan sekadar "tak memuat": pesan kosong pun lulus asersi itu. Sejak
+      // 9 November 2026 fragment hanya membawa KODE (kalimatnya milik frontend),
+      // jadi yang ditagih kodenya.
+      expect(pesan).toBe('SSO_GAGAL');
     });
 
     it('tak ada cookie state yang dipasang pada percobaan yang gagal', async () => {

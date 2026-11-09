@@ -33,7 +33,7 @@ import { ConsentService } from './consent.service';
 import { DevLoginDto } from './dto/dev-login.dto';
 import { SetActingRoleDto } from './dto/set-acting-role.dto';
 import { SsoCallbackQueryDto } from './dto/sso-callback-query.dto';
-import { pesanGalatSso, pesanKegagalanMasuk } from './sso-galat.util';
+import { kodeGalatSso, kodeKegagalanMasuk } from './sso-galat.util';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
 import { SessionEntity } from './entities/session.entity';
@@ -140,10 +140,7 @@ export class AuthController {
       // gagal sebelum responsnya jadi), dan membuang yang ada berarti mematikan
       // percobaan masuk yang mungkin sedang berjalan di tab lain: pengguna yang
       // sudah berada di halaman Helpdesk kembali ke callback tanpa cookie.
-      res.redirect(
-        HttpStatus.FOUND,
-        this.ssoService.buildFailureRedirect(pesanKegagalanMasuk(err)),
-      );
+      res.redirect(HttpStatus.FOUND, this.ssoService.buildFailureRedirect(kodeKegagalanMasuk(err)));
     }
   }
 
@@ -175,10 +172,12 @@ export class AuthController {
       // `#error=` itu dirender `AuthCallbackLoader.jsx` sebagai pesan galat --
       // sehingga pengarang tautan memilih kalimat yang dibaca warga di layar
       // masuk pemerintah. Keterangan aslinya tidak hilang: ia tercatat di baris
-      // `logger.warn` di atas, dan di situlah tempatnya.
+      // `logger.warn` di atas, dan di situlah tempatnya. Sejak 9 November 2026
+      // yang dititipkan ke fragment hanya KODE, bukan kalimat -- lihat
+      // docblock `sso-galat.util.ts`.
       res.redirect(
         HttpStatus.FOUND,
-        this.ssoService.buildFailureRedirect(pesanGalatSso(query.error)),
+        this.ssoService.buildFailureRedirect(kodeGalatSso(query.error)),
       );
       return;
     }
@@ -205,10 +204,7 @@ export class AuthController {
       // Cookie state ikut dibuang walau gagal — ia sekali pakai, dan
       // membiarkannya hidup berarti percobaan berikutnya memakai state basi.
       res.setHeader('Set-Cookie', this.ssoService.clearStateCookie());
-      res.redirect(
-        HttpStatus.FOUND,
-        this.ssoService.buildFailureRedirect(pesanKegagalanMasuk(err)),
-      );
+      res.redirect(HttpStatus.FOUND, this.ssoService.buildFailureRedirect(kodeKegagalanMasuk(err)));
     }
   }
 
