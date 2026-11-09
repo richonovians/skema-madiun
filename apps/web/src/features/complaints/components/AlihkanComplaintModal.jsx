@@ -11,6 +11,9 @@ import { getSemuaOpd } from '@/features/opd/services/opd.api';
 import { getComplaintCategories } from '../services/reference.api';
 import { alihkanComplaint } from '../services/complaints.api';
 
+/** Batas alasan pengalihan, sama dengan `@MaxLength(1000)` di backend. */
+const BATAS_ALASAN = 1000;
+
 /**
  * Mengalihkan pengaduan yang SUDAH bertujuan ke instansi lain yang lebih
  * berwenang (5 November 2026).
@@ -233,10 +236,21 @@ export default function AlihkanComplaintModal({ complaint, onClose, onDone }) {
               value={catatan}
               onChange={(e) => setCatatan(e.target.value)}
               placeholder="Mis. Berkaitan dengan kewenangan infrastruktur."
+              // Batas yang SAMA dengan `@MaxLength(1000)` di
+              // `AlihkanComplaintDto.catatan` (BUG-080). Tanpanya alasan yang
+              // lebih panjang baru ditolak sesudah tombol ditekan, dengan pesan
+              // umum yang tak menyebut medan mana yang salah.
+              maxLength={BATAS_ALASAN}
               className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
-            <p className="text-xs text-text-secondary mt-1">
-              Alasan ini ditampilkan kepada pelapor pada riwayat pengaduannya.
+            {/* Penghitungnya penjelasan bagi `maxLength`: tanpa itu ketikan
+                berhenti di karakter ke-1.000, dan alasan yang ditempel
+                terpotong, tanpa satu pun keterangan. */}
+            <p className="text-xs text-text-secondary mt-1 flex justify-between gap-3">
+              <span>Alasan ini ditampilkan kepada pelapor pada riwayat pengaduannya.</span>
+              <span className="shrink-0 tabular-nums">
+                {catatan.length.toLocaleString('id-ID')}/{BATAS_ALASAN.toLocaleString('id-ID')}
+              </span>
             </p>
           </div>
         </div>
