@@ -628,8 +628,8 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-049 | Lokasi dan uraian hanya spasi ditolak | POST `lokasiKejadian: "   "`, lalu `uraian: "   "` | 400. **Gagal:** keduanya 201, lihat BUG-083 | P2 | Integ | ❌ |
 | TC-CMP-050 | Uraian dan lokasi terenkripsi di basis data | Baca kolom mentah di `skm_db` | Keduanya berawalan `enc:v1:`; tanggal tetap polos. **Lulus** | P0 | Integ | ✅ |
 | TC-CMP-051 | Pindah tingkat mengosongkan tujuan dan kategori | Pilih tujuan, pindah tingkat | Tujuan dan kategori kembali ke penampung; judul, tanggal, lokasi bertahan. **Lulus:** `CreateComplaintForm.test.jsx:349,368` | P1 | Component | ✅ |
-| TC-CMP-052 | **Instansi belum dipilih menahan pengiriman** | Di `/complaints/new`, pilih kategori saja lalu kirim | Pengiriman tertahan. **Gagal:** 201 dan `opdName=Instansi%20Terkait`, lihat BUG-079 | P1 | Manual | ❌ |
-| TC-CMP-053 | Kategori kosong diberi pesan yang jelas | Di `/complaints/new`, kosongkan kategori lalu kirim | Pesan berbahasa Indonesia yang menyebut kategori. **Gagal:** `Validation failed`, lihat BUG-080 | P1 | Manual | ❌ |
+| TC-CMP-052 | **Instansi belum dipilih menahan pengiriman** | Di `/complaints/new`, pilih kategori saja lalu kirim | Pengiriman tertahan. **Lulus 9 Nov 2026 di `f132c05`** (awalnya gagal: 201 dan `opdName=Instansi%20Terkait`, BUG-079, ditutup): tak ada `POST` dan pesan tampil di bawah dropdown; skenario persisnya di `CreateComplaintForm.test.jsx`, kedua dropdown kosong di Chrome | P1 | Manual | ✅ |
+| TC-CMP-053 | Kategori kosong diberi pesan yang jelas | Di `/complaints/new`, kosongkan kategori lalu kirim | Pesan berbahasa Indonesia yang menyebut kategori. **Lulus 9 Nov 2026 di `f132c05`** (awalnya gagal: `Validation failed`, BUG-080, ditutup): "Pilih kategori pengaduan." di Chrome dan `CreateComplaintForm.test.jsx` | P1 | Manual | ✅ |
 | TC-CMP-054 | **Penerusan menjaga kesepadanan tingkat** | Teruskan tiket kecamatan ke Dinas Kesehatan | Ditolak, atau tingkat dan kategori disesuaikan. **Gagal:** 200 dan datanya tak sepadan, lihat BUG-077 | P1 | Integ | ❌ |
 | TC-CMP-055 | Dua "Lainnya" terbedakan di statistik | GET `/statistics` dengan `kab_lainnya` dan `kec_lainnya` | Label memuat pembeda tingkat. **Gagal:** keduanya `Lainnya`, lihat BUG-085 | P3 | Integ | ❌ |
 
@@ -665,7 +665,7 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-088 | Pengalihan tercatat di audit | Baca `audit_logs` dengan `aksi = 'alihkan'` | Memuat OPD dan kategori lama serta baru. **Lulus** | P1 | Integ | ✅ |
 | TC-CMP-089 | Modal tak menawarkan OPD pemilik | Buka daftar instansi pada modal | Instansi pemilik tidak ada. **Lulus** di peramban | P2 | Manual | ✅ |
 | TC-CMP-090 | Modal dapat dipakai di layar pendek | Buka modal pada 320x568 dan 640x360 | Seluruh isi dapat digulir. **Gagal:** terpotong tanpa wilayah gulir, lihat BUG-084 | P2 | Manual | ❌ |
-| TC-CMP-091 | Alasan terlalu panjang diberi pesan jelas | Isi alasan 1.001 karakter lalu kirim | Dibatasi, atau diberi pesan berbahasa Indonesia. **Gagal:** `Validation failed`, lihat BUG-080 | P2 | Manual | ❌ |
+| TC-CMP-091 | Alasan terlalu panjang diberi pesan jelas | Isi alasan 1.001 karakter lalu kirim | Dibatasi, atau diberi pesan berbahasa Indonesia. **Lulus 9 Nov 2026 di `f132c05`** (awalnya gagal: `Validation failed`, BUG-080, ditutup): `maxLength` 1000 dan penghitung, dibuktikan `AlihkanComplaintModal.test.jsx` saja, belum di peramban | P2 | Manual | ✅ |
 | TC-CMP-092 | Riwayat mempertahankan setiap tujuan | Alihkan dua kali, baca riwayat | Kedua baris `dialihkan` memuat tujuannya sendiri. **Lulus** (dibuktikan pada percobaan serentak TC-CMP-071) | P2 | Integ | ✅ |
 | TC-CMP-093 | OPD nonaktif ditolak | PATCH `alihkan` ke OPD nonaktif | 400. **Lulus:** `alihkan-pengaduan.e2e-spec.ts:235` menuntut 400 dan lulus pada jalan e2e 5 November 2026 di `a1e3c1f`. `skm_db` lokal tak punya OPD nonaktif, jadi tidak diuji lewat server dev | P1 | Integ | ✅ |
 
