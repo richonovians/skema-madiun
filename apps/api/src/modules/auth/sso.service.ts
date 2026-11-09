@@ -115,6 +115,12 @@ export class SsoService {
         // Pengguna benar-benar sudah masuk, lalu dikeluarkan lagi oleh
         // penanganan galatnya sendiri.
         //
+        // Paragraf di atas kini SEJARAH: sejak 9 November 2026 cabang galat
+        // `AuthCallbackLoader` tidak lagi memanggil `clearSession()` (temuan
+        // audit `sso-callback-error-forces-logout`), jadi penolakan di sini tak
+        // lagi mencabut sesi. Penjaga ini tetap dipakai karena hasilnya lebih
+        // baik daripada layar galat: pemilik sesi diantar ke berandanya.
+        //
         // PENJAGA CSRF TIDAK DILEMAHKAN. Syaratnya bukan "state boleh dipakai
         // ulang", melainkan "permintaan ini membawa cookie sesi yang MASIH
         // SAH". Pemiliknya tak memperoleh apa pun yang belum dipegangnya, tak

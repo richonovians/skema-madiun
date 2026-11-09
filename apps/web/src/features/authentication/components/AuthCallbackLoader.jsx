@@ -51,10 +51,18 @@ export default function AuthCallbackLoader() {
 
     const galat = fragment.get('error');
     if (galat) {
-      // Sesi lokal apa pun yang tertinggal ikut dibuang: pengguna JELAS tidak
-      // berhasil masuk, dan meninggalkan artefak sesi lama membuat navbar
-      // menampilkan keadaan "sudah masuk" di atas halaman galat ini.
-      clearSession();
+      // Sesi TIDAK disentuh, di server maupun di peramban (9 November 2026,
+      // temuan audit `sso-callback-error-forces-logout`). Sampai tanggal itu
+      // baris ini memanggil `clearSession()`, yang menembakkan
+      // `POST /auth/logout` -- dan halaman ini dapat dibuka siapa saja lewat
+      // satu tautan ke `/sso/callback#error=x`, atau ke callback backend
+      // ber-`?error=` yang dialihkan ke sini tanpa memeriksa `state`. Terukur di
+      // Chrome: warga yang sedang masuk mengikuti tautan itu dan sesinya
+      // dicabut. Fragment `#error` bukan bukti bahwa peramban INI baru saja
+      // gagal masuk, dan masuk yang gagal memang bukan keluar: sesi yang ada
+      // sebelum percobaan ini tetap sah. Artefak lokal yang basi dibersihkan
+      // jalur biasa, `isAuthenticated()` dan interceptor 401.
+      //
       // KODE, bukan kalimat (9 November 2026). Fragment dapat ditulis siapa
       // saja lewat satu tautan, jadi nilainya tak pernah dirender langsung:
       // kode yang tak dikenal jatuh ke kalimat umum. Lihat utils/galatSso.js.

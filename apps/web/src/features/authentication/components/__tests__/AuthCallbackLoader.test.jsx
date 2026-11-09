@@ -28,8 +28,9 @@ jest.mock('../../services/sso.api', () => ({
  *  - callback berujung layar putih ketika fragment membawa `error=` atau ketika
  *    pembacaan sesi gagal;
  *  - fragment galat tertinggal di bilah alamat sehingga ikut tersalin;
- *  - sesi lama tertinggal sesudah masuk gagal, sehingga navbar mengaku "sudah
- *    masuk" tepat di atas halaman galat;
+ *  - sesi yang sedang berjalan ikut diakhiri oleh halaman galat, sehingga satu
+ *    tautan ke `/sso/callback#error=` mengeluarkan pengguna (sampai 9 November
+ *    2026 butir ini berbunyi sebaliknya: sesi lama WAJIB dibuang);
  *  - cookie `role` tak ditulis sebelum navigasi keras, sehingga proxy.js
  *    memantulkan admin dari areanya sendiri.
  *
@@ -142,18 +143,22 @@ describe('AuthCallbackLoader — kegagalan yang terbaca (TC-FE-043)', () => {
     expect(window.history.replaceState).toHaveBeenCalledWith(null, '', window.location.pathname);
   });
 
-  it('membuang sesi lokal yang tertinggal ketika masuk gagal', async () => {
-    localStorage.setItem('token', 'sesi-lama');
-    localStorage.setItem('role', 'kabupaten');
+  it('menyelesaikan gagal masuk tanpa menyentuh sesi lokal yang sedang berjalan', async () => {
+    localStorage.setItem('token', 'sesi-berjalan');
+    localStorage.setItem('role', 'responden');
     denganFragment('#error=SSO_GAGAL');
 
     render(<AuthCallbackLoader />);
     await screen.findByText('Proses masuk gagal. Coba lagi.');
 
-    // Membiarkannya membuat navbar menampilkan keadaan "sudah masuk" tepat di
-    // atas halaman galat ini.
-    expect(localStorage.getItem('token')).toBeNull();
-    expect(localStorage.getItem('role')).toBeNull();
+    // Sampai 9 November 2026 uji ini menuntut kebalikannya: sesi lokal dibuang
+    // supaya navbar tak mengaku "sudah masuk" di atas halaman galat. Tuntutan
+    // itu dicabut bersama temuan `sso-callback-error-forces-logout` -- lihat
+    // blok "tautan galat lintas situs" di bawah. Masuk yang gagal bukan keluar:
+    // sesi yang sudah ada sebelum percobaan ini tetap sah, dan navbar yang
+    // menampilkannya menyatakan keadaan yang benar.
+    expect(localStorage.getItem('token')).toBe('sesi-berjalan');
+    expect(localStorage.getItem('role')).toBe('responden');
   });
 
   it('menerangkan kegagalan membaca sesi alih-alih menggantung di "memuat"', async () => {
@@ -283,5 +288,30 @@ describe('AuthCallbackLoader — fragment berteks bebas', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/0812-PENIPU/)).not.toBeInTheDocument();
     expect(screen.getByText('Gagal masuk lewat SSO Helpdesk')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Temuan audit `sso-callback-error-forces-logout` (9 November 2026), terukur
+ * di Chrome terhadap `skema.local` sebelum perbaikan: warga bersesi `session`
+ * yang mengikuti tautan ke `/sso/callback#error=x` -- atau ke
+ * `/api/v1/auth/sso/callback?error=access_denied`, yang dialihkan backend ke
+ * halaman yang sama -- memicu `POST /auth/logout` (200) dari halaman ini, dan
+ * `GET /auth/me` berikutnya dijawab 401.
+ *
+ * Halaman ini dapat dibuka langsung siapa saja, jadi fragment `#error` bukan
+ * bukti bahwa PERAMBAN INI baru saja gagal masuk. Penolakannya harus di sini,
+ * bukan di backend: cabang `?error` di controller hanya satu dari dua jalan
+ * menuju halaman ini.
+ */
+describe('AuthCallbackLoader — tautan galat lintas situs', () => {
+  it('fragment galat TIDAK mengakhiri sesi di server', async () => {
+    denganFragment('#error=x');
+
+    render(<AuthCallbackLoader />);
+    await screen.findByText('Gagal masuk lewat SSO Helpdesk');
+
+    const keLogout = global.fetch.mock.calls.filter(([url]) => String(url).endsWith('/auth/logout'));
+    expect(keLogout).toEqual([]);
   });
 });
