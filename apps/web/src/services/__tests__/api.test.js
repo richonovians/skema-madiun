@@ -227,3 +227,53 @@ describe('api — menerima perpanjangan sesi dari header', () => {
     expect(Number(localStorage.getItem('sso_expires_at'))).toBe(semula);
   });
 });
+
+/**
+ * GALAT VALIDASI DTO (BUG-080, 9 November 2026).
+ *
+ * `AllExceptionsFilter` menjawab penolakan `ValidationPipe` dengan pesan tetap
+ * `'Validation failed'` dan menaruh daftar kalimat class-validator (Inggris)
+ * di `error.details`. Interseptor dulu meneruskan `'Validation failed'` apa
+ * adanya, sehingga warga melihat kalimat Inggris tanpa petunjuk apa pun.
+ *
+ * Dikenali dari BENTUKNYA -- 400 dengan `details` berupa daftar -- bukan dari
+ * bunyi pesannya: hanya penolakan `ValidationPipe` yang membawa daftar di
+ * sana, dan bunyi pesan dapat diubah kapan saja tanpa ada yang memerah.
+ */
+describe('api — galat validasi DTO', () => {
+  const balas400 = (message, details) =>
+    server.use(
+      http.post(`${API_BASE}/apa-saja`, () =>
+        HttpResponse.json(
+          {
+            success: false,
+            statusCode: 400,
+            message,
+            error: { code: 'BAD_REQUEST', details },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+  it('menerjemahkan "Validation failed" menjadi kalimat bahasa Indonesia', async () => {
+    balas400('Validation failed', ['kategori must be one of the following values: kab_lainnya']);
+
+    await expect(api.post('/apa-saja', {})).rejects.toMatchObject({
+      message: 'Isian belum lengkap atau tidak sesuai. Periksa kembali lalu coba lagi.',
+    });
+  });
+
+  /**
+   * KONTROL. Penolakan 400 dari aturan bisnis membawa kalimat bahasa Indonesia
+   * yang menyebut sebabnya (mis. kategori yang tak sepadan dengan tingkat).
+   * Menimpanya dengan kalimat umum justru membuang satu-satunya petunjuk.
+   */
+  it('KONTROL: 400 berpesan tunggal tetap membawa pesannya sendiri', async () => {
+    balas400('Kategori tidak sesuai dengan tingkat pengaduan.', 'Bad Request');
+
+    await expect(api.post('/apa-saja', {})).rejects.toMatchObject({
+      message: 'Kategori tidak sesuai dengan tingkat pengaduan.',
+    });
+  });
+});

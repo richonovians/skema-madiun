@@ -52,6 +52,20 @@ export default function CreateComplaintForm() {
   // bekerja pada penyuntingan teks berikutnya tanpa ada uji yang memerah.
   const [submitErrorCode, setSubmitErrorCode] = useState(null);
   const [files, setFiles] = useState([]);
+  /**
+   * Dropdown yang belum dipilih saat Kirim ditekan (BUG-079, BUG-080;
+   * 9 November 2026).
+   *
+   * Diperlukan karena `Dropdown` bukan `<select>` asli: atribut `required`
+   * tak berlaku padanya, sehingga peramban tak pernah menahan apa pun. Dulu
+   * instansi kosong terkirim sebagai pengaduan TANPA tujuan, dan kategori
+   * kosong ditolak backend dengan `Validation failed`.
+   *
+   * Yang disimpan hanya ADA-TIDAKNYA galat, bukan kalimatnya: kalimat instansi
+   * mengikuti tingkat terpilih ("instansi" atau "kecamatan/kelurahan"), jadi
+   * ia disusun saat render.
+   */
+  const [galatMedan, setGalatMedan] = useState({ department: false, category: false });
 
   // Beranda dirender di server, yang tak dapat melihat localStorage. Sesi
   // karenanya dibaca lewat useSesiAktif, bukan inisialisasi useState: yang
@@ -236,6 +250,12 @@ export default function CreateComplaintForm() {
 
   const handleCategoryChange = (value) => {
     setFormData((prev) => ({ ...prev, category: value }));
+    setGalatMedan((prev) => ({ ...prev, category: false }));
+  };
+
+  const handleDepartmentChange = (value) => {
+    setFormData((prev) => ({ ...prev, department: value }));
+    setGalatMedan((prev) => ({ ...prev, department: false }));
   };
 
   /**
@@ -270,6 +290,15 @@ export default function CreateComplaintForm() {
       setSubmitError('Masuk terlebih dahulu untuk mengirim laporan pengaduan.');
       return;
     }
+    // '' berarti BELUM MEMILIH. Pengirim yang memang tak tahu tujuannya punya
+    // pilihannya sendiri (`TANPA_TUJUAN`), jadi kosong tak boleh lagi lolos
+    // sebagai pengaduan tanpa tujuan (BUG-079).
+    const belumDipilih = {
+      department: formData.department === '',
+      category: formData.category === '',
+    };
+    setGalatMedan(belumDipilih);
+    if (belumDipilih.department || belumDipilih.category) return;
     setIsSubmitting(true);
     try {
       const result = await createComplaint(
@@ -410,7 +439,12 @@ export default function CreateComplaintForm() {
               ...departmentOptions,
             ]}
             value={formData.department}
-            onChange={(val) => setFormData((prev) => ({ ...prev, department: val }))}
+            onChange={handleDepartmentChange}
+            error={
+              galatMedan.department
+                ? `Pilih ${kataTujuan} tujuan, atau pilih "Lainnya (belum tahu tujuannya)".`
+                : null
+            }
             /* Medan cari, atas permintaan pengguna 11 September 2026. Daftar
                OPD berisi 62 instansi aktif (terukur), sementara panel dropdown
                hanya setinggi 240px.
@@ -429,6 +463,7 @@ export default function CreateComplaintForm() {
             options={[{ label: penampungKategori(), value: '' }, ...categoryOptions]}
             value={formData.category}
             onChange={handleCategoryChange}
+            error={galatMedan.category ? 'Pilih kategori pengaduan.' : null}
           />
         </div>
 

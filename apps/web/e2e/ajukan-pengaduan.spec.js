@@ -211,6 +211,11 @@ test.describe('Pengajuan pengaduan oleh warga', () => {
     const sesi = await masukApi(AKUN.warga);
 
     await page.goto('/complaints/new');
+    // Tujuan dipilih TERSURAT sejak BUG-079 (9 November 2026): dropdown yang
+    // tak disentuh kini menahan pengiriman, padahal sebelumnya diam-diam
+    // terkirim sebagai pengaduan tanpa tujuan. Uji ini dulu bersandar pada
+    // cacat itu tanpa menyebutnya.
+    await pilihDropdown(page, 'department', 'Lainnya (belum tahu tujuannya)');
     await pilihDropdown(page, 'category', KATEGORI.label);
     await page.getByLabel('Judul Laporan').fill(judul);
     await page

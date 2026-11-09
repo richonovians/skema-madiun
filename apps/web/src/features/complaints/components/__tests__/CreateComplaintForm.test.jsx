@@ -87,6 +87,24 @@ const isiKejadian = () => {
  */
 const tingkatRadio = (nama) => screen.getByRole('radio', { name: new RegExp(nama, 'i') });
 
+/**
+ * Memilih "Lainnya (belum tahu tujuannya)" secara TERSURAT (9 November 2026).
+ *
+ * Sebelum BUG-079 diperbaiki, uji yang mengirim tanpa menyentuh dropdown
+ * tujuan pun lolos sebagai pengaduan tanpa tujuan -- dan itulah cacatnya:
+ * "belum memilih" diperlakukan sama dengan "sengaja memilih tak bertujuan".
+ * Kini "belum memilih" menahan pengiriman, jadi uji yang memang bermaksud
+ * mengirim tanpa tujuan harus memilihnya seperti warga.
+ *
+ * Polanya dijangkarkan ke awal dengan alasan yang sama seperti `opdDropdown`
+ * di blok "pemisahan tingkat": tanpa jangkar, medan cari di panel yang
+ * terbuka ikut cocok.
+ */
+const pilihTanpaTujuan = async () => {
+  fireEvent.click(screen.getByLabelText(/^(opd \/ instansi|kecamatan \/ kelurahan) tujuan/i));
+  fireEvent.click(await screen.findByText('Lainnya (belum tahu tujuannya)'));
+};
+
 describe('CreateComplaintForm — kategori per tingkat', () => {
   it('menawarkan kategori tingkat kabupaten saat formulir dibuka', async () => {
     // Kabupaten adalah tingkat baku (TINGKAT_BAKU). Daftarnya 21 kategori
@@ -211,7 +229,7 @@ describe('CreateComplaintForm — tujuan belum diketahui', () => {
     expect(screen.queryByText((teks) => teks.trim() === 'Lainnya')).not.toBeInTheDocument();
   });
 
-  it('mengirim TANPA memilih OPD tidak menyertakan opdId sama sekali', async () => {
+  it('memilih "Lainnya (belum tahu tujuannya)" tidak menyertakan opdId sama sekali', async () => {
     let terkirim = null;
     server.use(
       http.post(`${API_BASE}/complaints`, async ({ request }) => {
@@ -224,6 +242,7 @@ describe('CreateComplaintForm — tujuan belum diketahui', () => {
     render(<CreateComplaintForm />);
     await screen.findByText('Pilih Kategori');
 
+    await pilihTanpaTujuan();
     fireEvent.click(kategoriDropdown());
     fireEvent.click(await screen.findByText('Lainnya'));
     fireEvent.change(screen.getByLabelText(/judul laporan/i), {
@@ -473,6 +492,7 @@ describe('CreateComplaintForm — tanggal & lokasi kejadian', () => {
     render(<CreateComplaintForm />);
     await screen.findByText('Pilih Kategori');
 
+    await pilihTanpaTujuan();
     fireEvent.click(kategoriDropdown());
     fireEvent.click(await screen.findByText('Lainnya'));
     fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
@@ -487,6 +507,138 @@ describe('CreateComplaintForm — tanggal & lokasi kejadian', () => {
     // ulang akan menggeser tanggalnya sehari bagi peramban di WIB (UTC+7).
     expect(terkirim.tanggalKejadian).toBe('2026-11-01');
     expect(terkirim.lokasiKejadian).toBe('Balai Desa Bangunsari');
+  });
+});
+
+/**
+ * BUG-079 dan BUG-080 (9 November 2026): kedua dropdown WAJIB dipilih.
+ *
+ * `Dropdown` bukan `<select>` asli, jadi atribut `required` tak berlaku
+ * padanya dan peramban tak pernah menahan apa pun. Akibatnya dua: instansi
+ * yang belum dipilih terkirim sebagai pengaduan tanpa tujuan (201, lalu
+ * halaman sukses menyebut "Instansi Terkait"), dan kategori yang belum dipilih
+ * ditolak backend dengan `Validation failed`.
+ *
+ * Setiap uji di sini MENGISI semua medan lain, supaya yang menahan pengiriman
+ * hanya dropdown yang diuji -- bukan validasi peramban atas medan teks.
+ */
+describe('CreateComplaintForm — kedua dropdown wajib dipilih', () => {
+  const opdDropdown = () =>
+    screen.getByLabelText(/^(opd \/ instansi|kecamatan \/ kelurahan) tujuan/i);
+
+  const pantauKirim = () => {
+    const dikirim = jest.fn();
+    server.use(
+      http.post(`${API_BASE}/complaints`, () => {
+        dikirim();
+        return ok({ id: 99, ticketNo: 'PGD20261109AAAA', opdId: null }, '/complaints');
+      }),
+    );
+    return dikirim;
+  };
+
+  const isiMedanTeks = () => {
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Uraian pengaduan yang cukup panjang' },
+    });
+    isiKejadian();
+  };
+
+  const kirim = () => fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+
+  it('instansi belum dipilih: tidak mengirim, dan menyebut pilihan "Lainnya"', async () => {
+    const dikirim = pantauKirim();
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Lainnya'));
+    isiMedanTeks();
+    kirim();
+
+    expect(
+      await screen.findByText(
+        'Pilih instansi tujuan, atau pilih "Lainnya (belum tahu tujuannya)".',
+      ),
+    ).toBeInTheDocument();
+    expect(dikirim).not.toHaveBeenCalled();
+    expect(useRouter().push).not.toHaveBeenCalled();
+  });
+
+  it('kategori belum dipilih: tidak mengirim, dan menyebut kategorinya', async () => {
+    const dikirim = pantauKirim();
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
+    isiMedanTeks();
+    kirim();
+
+    expect(await screen.findByText('Pilih kategori pengaduan.')).toBeInTheDocument();
+    expect(dikirim).not.toHaveBeenCalled();
+    // Pesan Inggris dari backend tak boleh sampai ke layar: permintaannya
+    // memang tak boleh pernah berangkat.
+    expect(screen.queryByText('Validation failed')).not.toBeInTheDocument();
+  });
+
+  it('di tingkat kecamatan, pesannya menyebut kecamatan/kelurahan', async () => {
+    pantauKirim();
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(tingkatRadio('Tingkat Kecamatan'));
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Pelayanan Administrasi Kecamatan'));
+    isiMedanTeks();
+    kirim();
+
+    expect(
+      await screen.findByText(
+        'Pilih kecamatan/kelurahan tujuan, atau pilih "Lainnya (belum tahu tujuannya)".',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('pesan sebuah dropdown hilang begitu dropdown itu dipilih', async () => {
+    pantauKirim();
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    isiMedanTeks();
+    kirim();
+    await screen.findByText('Pilih kategori pengaduan.');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Pilih instansi tujuan, atau pilih "Lainnya (belum tahu tujuannya)".'),
+      ).not.toBeInTheDocument(),
+    );
+    // Hanya pesan milik dropdown yang disentuh yang hilang.
+    expect(screen.getByText('Pilih kategori pengaduan.')).toBeInTheDocument();
+  });
+
+  /**
+   * KONTROL. Tanpa ini, formulir yang menolak SEMUA pengiriman tetap
+   * meluluskan keempat uji di atas.
+   */
+  it('KONTROL: keduanya terpilih, pengaduan terkirim', async () => {
+    const dikirim = pantauKirim();
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Kesehatan'));
+    isiMedanTeks();
+    kirim();
+
+    await waitFor(() => expect(dikirim).toHaveBeenCalled());
   });
 });
 
@@ -649,6 +801,7 @@ describe('CreateComplaintForm — pencarian instansi', () => {
       render(<CreateComplaintForm />);
       await screen.findByText('Pilih Kategori');
 
+      await pilihTanpaTujuan();
       fireEvent.click(kategoriDropdown());
       fireEvent.click(await screen.findByText('Lainnya'));
       fireEvent.change(screen.getByLabelText(/judul laporan/i), {
@@ -711,6 +864,7 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     render(<CreateComplaintForm />);
     await screen.findByText('Pilih Kategori');
 
+    await pilihTanpaTujuan();
     fireEvent.click(kategoriDropdown());
     fireEvent.click(await screen.findByText('Lainnya'));
     fireEvent.change(screen.getByLabelText(/judul laporan/i), {

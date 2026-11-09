@@ -80,6 +80,16 @@ api.interceptors.response.use(
       if (envelope && typeof envelope === 'object' && 'message' in envelope) {
         error.message = envelope.message;
       }
+      // Penolakan `ValidationPipe` (BUG-080, 9 November 2026). Backend
+      // menjawabnya dengan pesan tetap 'Validation failed' dan daftar kalimat
+      // class-validator berbahasa Inggris di `error.details`; tak satu pun
+      // layak dibaca warga. Dikenali dari BENTUKNYA -- 400 dengan `details`
+      // berupa daftar, yang hanya dihasilkan penolakan DTO -- bukan dari bunyi
+      // pesannya. Penolakan 400 dari aturan bisnis membawa pesan tunggal yang
+      // menyebut sebabnya, dan pesan itu tetap diteruskan.
+      if (error.response.status === 400 && Array.isArray(envelope?.error?.details)) {
+        error.message = 'Isian belum lengkap atau tidak sesuai. Periksa kembali lalu coba lagi.';
+      }
       if (error.response.status === 401) {
         // SATU pengecualian, ditambahkan bersama multi-role (5 September 2026):
         // "peran belum dipilih" BUKAN sesi mati. Sesinya masih sah sepenuhnya;

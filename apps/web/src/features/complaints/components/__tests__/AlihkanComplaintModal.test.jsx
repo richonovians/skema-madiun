@@ -142,6 +142,31 @@ describe('AlihkanComplaintModal', () => {
     expect(opsi('Dinas Kesehatan')).not.toBeInTheDocument();
   });
 
+  /**
+   * BUG-080 (9 November 2026). Backend memasang `@MaxLength(1000)` pada
+   * `AlihkanComplaintDto.catatan`; tanpa batas yang sama di sini, alasan
+   * 1.001 karakter baru ditolak sesudah tombol ditekan, dengan pesan umum
+   * yang tak menyebut medan mana yang salah.
+   */
+  it('alasan dibatasi 1.000 karakter, sama dengan batas backend', () => {
+    render(<AlihkanComplaintModal complaint={pengaduan()} onClose={jest.fn()} onDone={jest.fn()} />);
+
+    expect(screen.getByLabelText(/alasan pengalihan/i)).toHaveAttribute('maxLength', '1000');
+  });
+
+  /**
+   * PASANGAN dari uji di atas: `maxLength` menghentikan ketikan tanpa
+   * penjelasan apa pun, dan petugas yang menempel alasan panjang mendapati
+   * kalimatnya terpotong diam-diam. Penghitung inilah penjelasannya.
+   */
+  it('menampilkan sisa batas alasan selagi diketik', () => {
+    render(<AlihkanComplaintModal complaint={pengaduan()} onClose={jest.fn()} onDone={jest.fn()} />);
+
+    isiAlasan('Bukan kewenangan kami.');
+
+    expect(screen.getByText('22/1.000')).toBeInTheDocument();
+  });
+
   it('menampilkan galat backend tanpa menutup modal', async () => {
     server.use(
       http.patch(`${API_BASE}/complaints/:id/alihkan`, () =>
