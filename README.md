@@ -12,7 +12,7 @@ Dokumen ini ditulis untuk siapa pun yang perlu memahami proyek ini, termasuk yan
 
 Penyelenggara pelayanan publik wajib mengukur kepuasan masyarakat sebagai dasar perbaikan layanan. Kewajiban itu berasal dari UU No. 25 Tahun 2009 tentang Pelayanan Publik, sedangkan cara mengukurnya diatur **PermenPANRB No. 14 Tahun 2017**: sembilan unsur pelayanan, jawaban berskala 1 sampai 4, lalu dikonversi menjadi angka Indeks Kepuasan Masyarakat (IKM).
 
-Sembilan unsur baku itu tersedia sebagai template siap pakai:
+Sembilan unsur bakunya:
 
 | Kode | Unsur                                    |
 | ---- | ---------------------------------------- |
@@ -26,7 +26,12 @@ Sembilan unsur baku itu tersedia sebagai template siap pakai:
 | U8   | Sarana dan Prasarana                     |
 | U9   | Penanganan Pengaduan, Saran, dan Masukan |
 
-Template ini tidak ditanam mati di dalam kode. OPD boleh menambah pertanyaannya sendiri di luar sembilan unsur, dan susunan pertanyaan bisa berubah bila pedoman nasional diperbarui.
+OPD memilih satu dari dua jenis survei saat membuatnya:
+
+- **SKM PermenPANRB** memuat sembilan unsur itu sejak dibuat. Unsurnya tidak bisa dihapus atau diganti kodenya, jadi OPD hanya mengubah kalimat pertanyaannya. Hasilnya nilai IKM.
+- **Custom** disusun bebas dan tidak menghasilkan IKM. Hasilnya Nilai Survei, ditampilkan sebagai rata-rata (misalnya "3,40 / 4") atau persen (misalnya "85%").
+
+OPD boleh menambah pertanyaannya sendiri di luar sembilan unsur, tetapi pertanyaan tambahan itu tidak ikut dihitung IKM. Jenis survei masih bisa diganti selama survei berstatus draf dan belum dijawab.
 
 Dua masalah yang ingin dipecahkan sistem ini:
 
@@ -39,19 +44,19 @@ Dua masalah yang ingin dipecahkan sistem ini:
 
 ### Masyarakat
 
-- Mengisi survei kepuasan setelah menerima layanan, lewat tautan atau kode QR yang dibagikan OPD.
-- Mengajukan pengaduan, melampirkan foto atau dokumen bila perlu.
-- Memantau pengaduannya sendiri: diterima, diproses, selesai, atau ditolak, beserta balasan dari OPD.
+- Mengisi survei kepuasan setelah menerima layanan, lewat tautan atau kode QR yang dibagikan OPD. Survei yang diizinkan OPD bisa diisi tanpa masuk.
+- Mengajukan pengaduan ke tingkat kabupaten atau kecamatan, dengan tanggal dan lokasi kejadian, dan melampirkan foto atau dokumen bila perlu.
+- Memantau pengaduannya sendiri sampai selesai atau ditolak, termasuk riwayat status dan balasan dari OPD.
 - Melihat statistik layanan publik yang terbuka untuk umum tanpa perlu masuk.
 
-Warga cukup mendaftar sekali. Setelah itu tidak perlu mengisi ulang data diri untuk setiap survei atau pengaduan.
+Warga masuk dengan akun Helpdesk kabupaten (SSO). Data dirinya terisi dari sana, jadi tidak perlu diketik ulang untuk setiap survei atau pengaduan. Sebelum mengirim survei atau pengaduan, warga wajib menyetujui pemrosesan data pribadinya (UU PDP).
 
 ### Admin OPD
 
-- Menyusun paket survei: memakai sembilan unsur baku, menambah pertanyaan sendiri, dan menetapkan periode penilaian (per triwulan).
+- Menyusun survei SKM atau Custom, menambah pertanyaan sendiri, dan menetapkan periode penilaian (per triwulan).
 - Menerbitkan survei, menutupnya, atau menyimpannya dulu sebagai draf.
 - Membaca hasil: nilai IKM, mutu layanan A sampai D, jumlah responden, dan jawaban satu per satu.
-- Menindaklanjuti pengaduan yang ditujukan ke OPD-nya dan membalas pelapor.
+- Memverifikasi dan menindaklanjuti pengaduan yang ditujukan ke OPD-nya, membalas pelapor, dan mengalihkan pengaduan ke OPD lain yang lebih berwenang.
 - Mengunduh hasil survei dan rekap pengaduan dalam bentuk Excel atau PDF.
 
 Setiap Admin OPD hanya melihat data OPD-nya sendiri.
@@ -59,7 +64,7 @@ Setiap Admin OPD hanya melihat data OPD-nya sendiri.
 ### Admin Kabupaten
 
 - Melihat ringkasan seluruh OPD dalam satu dashboard, termasuk perbandingan nilai IKM antar-OPD.
-- Memantau seluruh pengaduan di kabupaten.
+- Memantau seluruh pengaduan di kabupaten, termasuk pengaduan yang dikirim tanpa OPD tujuan.
 - Mengelola akun pengguna dan perannya.
 - Membaca log aktivitas: siapa mengubah apa, dan kapan.
 
@@ -81,24 +86,29 @@ Survei yang sudah punya jawaban tidak bisa diubah sembarangan. Judul dan pengatu
 ## Perjalanan satu pengaduan
 
 ```
-Warga mengajukan pengaduan, boleh dengan lampiran
-  -> berstatus diterima, OPD membacanya
-  -> berstatus diproses, OPD membalas pelapor
-  -> berstatus selesai atau ditolak, pelapor diberi tahu
+Warga memilih tingkat, OPD tujuan, dan kategori, lalu mengirim pengaduan
+  -> terkirim, lalu menunggu verifikasi
+  -> diverifikasi OPD
+  -> sedang ditindaklanjuti, OPD membalas pelapor
+  -> selesai
 ```
 
-Pengaduan dikelompokkan menjadi tiga kategori umum: Aduan, Lapor, dan Lainnya. Ada batas jumlah pengaduan per akun per hari agar kanal ini tidak dibanjiri kiriman berulang.
+Selama berjalan, Admin bisa menolak pengaduan atau meminta pelapor memperbaikinya. Keduanya wajib disertai catatan untuk pelapor. Pengaduan yang diminta perbaikan dikembalikan Admin ke antrean verifikasi sesudah pelapor melengkapinya. Admin juga bisa mengalihkan pengaduan ke OPD lain, dan OPD baru itu memverifikasinya dari awal. Setiap perpindahan tercatat di riwayat status, dan pelapor diberi tahu lewat notifikasi di dalam aplikasi.
+
+Tingkat pengaduan menentukan daftar OPD tujuan dan kategorinya: 21 kategori untuk tingkat kabupaten dan 8 untuk tingkat kecamatan. Kelurahan ikut tingkat kecamatan. Pelapor yang tidak tahu harus mengadu ke OPD mana boleh memilih "Lainnya (belum tahu tujuannya)", dan pengaduannya ditangani Admin Kabupaten. Satu akun dibatasi 10 pengaduan per hari (nilai baku, bisa diatur lewat `COMPLAINT_DAILY_LIMIT`) agar kanal ini tidak dibanjiri kiriman berulang.
 
 ---
 
 ## Status proyek
 
-Dikembangkan sejak 20 Juli 2026 dan **masih dalam pengembangan**. Alur utamanya sudah berjalan, tetapi beberapa hal belum bisa dinyalakan karena menunggu pihak lain:
+Dikembangkan sejak 20 Juli 2026 dan **masih dalam pengembangan**. Alur utamanya sudah berjalan. Per 10 November 2026, hal berikut masih menunggu pihak lain:
 
-- **Masuk lewat SSO Helpdesk** sudah ditulis lengkap, tetapi belum bisa dipakai di lapangan karena `client_id` dan `client_secret` belum diberikan tim Helpdesk. Selama itu, lingkungan pengembangan memakai jalur masuk sementara yang mati sendiri di produksi.
+- **Masuk lewat SSO Helpdesk.** Kredensialnya (`client_id` dan `client_secret`) sudah ada sejak 4 Oktober 2026, dan masuk dari ujung ke ujung sudah terbukti untuk akun warga. Pemetaan akun Admin Kabupaten dan Admin OPD masih menunggu keputusan di sisi Helpdesk.
+- **Sinkron daftar OPD.** Kunci API Helpdesk ditolak (401) saat dicek 9 November 2026. Sampai ada kunci baru, aplikasi tetap memakai daftar hasil sinkron terakhir (9 Oktober 2026).
 - **Captcha pengisian survei** (Cloudflare Turnstile) belum punya kunci produksi atas nama akun resmi Diskominfo.
-- **Docker untuk aplikasi.** Yang berjalan di dalam kontainer baru basis data dan reverse proxy. Backend dan frontend masih dijalankan langsung di komputer pengembang.
-- **Uji ujung-ke-ujung baru mencakup satu alur**, yaitu pengisian survei tanpa sesi. Selebihnya diuji di tingkat unit dan komponen.
+- **Docker untuk aplikasi.** Yang berjalan di dalam kontainer baru basis data, Redis, dan reverse proxy. Backend dan frontend masih dijalankan langsung di komputer pengembang.
+
+Selama SSO belum dipakai penuh, lingkungan pengembangan punya jalur masuk sementara lewat akun contoh. Jalur itu hanya hidup bila `DEV_LOGIN_ENABLED=true`, dan di produksi nilai itu membuat aplikasi menolak menyala.
 
 ---
 
@@ -110,7 +120,7 @@ Satu repositori berisi beberapa bagian sekaligus (monorepo), dikelola dengan pnp
 | ----------------------- | ------------------------------------------------------------------------------------------------- |
 | `apps/api`              | Backend: NestJS, Prisma, PostgreSQL. Menangani aturan bisnis, perhitungan IKM, dan ekspor berkas. |
 | `apps/web`              | Frontend: Next.js. Semua halaman yang dilihat warga dan admin.                                    |
-| `packages/shared-types` | Tipe data yang dipakai bersama oleh backend dan frontend.                                         |
+| `packages/shared-types` | Disiapkan untuk tipe data bersama backend dan frontend; saat ini masih kosong.                    |
 | `infra/nginx`           | Konfigurasi reverse proxy untuk pengembangan dan produksi.                                        |
 | `docs`                  | Dokumen produk: PRD, diagram basis data (ERD), dan daftar rute.                                   |
 
@@ -122,7 +132,7 @@ Satu repositori berisi beberapa bagian sekaligus (monorepo), dikelola dengan pnp
 
 - Node.js 22 atau lebih baru
 - pnpm 9 atau lebih baru
-- Docker Desktop (untuk PostgreSQL dan reverse proxy)
+- Docker Desktop (untuk PostgreSQL, Redis, dan reverse proxy)
 
 ### Langkah
 
@@ -162,7 +172,9 @@ Tanpa `SESSION_JWT_SECRET` yang panjangnya cukup, aplikasi menolak menyala. Tanp
 
 **Kehilangan `DATA_ENCRYPTION_KEY` berarti kehilangan lampiran dan isi pengaduan secara permanen.** Tidak ada pintu belakang, dan cadangan tidak menolong karena isinya terenkripsi kunci yang sama. Simpan salinannya di luar komputer ini sebelum melanjutkan. Penjelasan lengkapnya ada di `docs/keamanan/enkripsi-at-rest.md`.
 
-**3. Nyalakan basis data dan proxy.**
+`apps/api/.env.example` sudah memuat `DEV_LOGIN_ENABLED=true`, yang menyalakan jalur masuk lewat akun contoh tanpa SSO. Tanpa baris itu jalur tersebut menjawab 404. Jangan memakai nilai `true` di produksi, karena aplikasi akan menolak menyala.
+
+**3. Nyalakan basis data, Redis, dan proxy.**
 
 ```bash
 docker compose up -d
@@ -211,7 +223,7 @@ Alamat lain yang mungkin berguna selama pengembangan:
 
 ## Kunci enkripsi dalam tim
 
-Sejak 23 September 2026, lampiran pengaduan dan dua kolom teks bebas di basis data tersimpan dalam bentuk terenkripsi. Ada satu aturan yang paling mudah salah, dan akibatnya tidak terlihat sampai terlambat.
+Lampiran pengaduan dan sejumlah kolom pribadi di basis data tersimpan dalam bentuk terenkripsi. Enkripsinya dimulai 23 September 2026, dan daftar kolomnya ada di bagian Catatan keamanan. Ada satu aturan yang paling mudah salah, dan akibatnya tidak terlihat sampai terlambat.
 
 **Basis data sendiri, kunci sendiri.** Tiap orang menjalankan PostgreSQL-nya sendiri lewat `docker compose`, jadi buat kunci sendiri dan jangan menyalin punya orang lain.
 
@@ -232,7 +244,7 @@ pnpm enkripsi:kolom -- --uji
 pnpm enkripsi:kolom
 ```
 
-Keduanya aman dijalankan berulang kali. Yang sudah terenkripsi dilewati, jadi menjalankannya lagi adalah cara memastikan tidak ada yang tertinggal.
+`enkripsi:kolom` mencakup `complaints.uraian` dan `complaint_replies.pesan`. Kedua skrip aman dijalankan berulang kali. Yang sudah terenkripsi dilewati, jadi menjalankannya lagi adalah cara memastikan tidak ada yang tertinggal.
 
 ---
 
@@ -272,4 +284,4 @@ Perlu diketahui saat membaca PRD: dokumen itu masih menyebut peran **Superuser**
 - Berkas `.env` tidak pernah masuk ke repositori. Yang tercatat hanya `.env.example` berisi contoh tanpa nilai rahasia. Kunci SSO, secret captcha, dan kunci penanda tangan sesi diisi sendiri di setiap lingkungan.
 - Dokumentasi API di `/api/docs` harus dimatikan di produksi. Tanpa itu seluruh permukaan API, termasuk endpoint admin, terpampang tanpa perlu masuk.
 - Lampiran pengaduan tidak dapat dibuka lewat alamat biasa. Setiap tautan lampiran ditandatangani dan kedaluwarsa, supaya alamat yang bocor tidak berlaku selamanya.
-- Lampiran dan dua kolom paling pribadi (`complaints.uraian` dan `complaint_replies.pesan`) tersimpan terenkripsi. Basis datanya **tidak** terenkripsi seluruhnya: nama dan email pengguna, judul pengaduan, serta nama dan nomor HP responden survei tetap tersimpan polos. `users.nama` memang tidak bisa dienkripsi selama pencarian log audit memakainya; sisanya polos karena belum masuk cakupan, dan bisa menyusul. Cara menyebutnya yang benar adalah "isi pengaduan dan percakapannya terenkripsi, identitas pelapor tidak". Batas tepatnya, prosedur kunci, dan runbook cadangan ada di `docs/keamanan/enkripsi-at-rest.md`.
+- Lampiran tersimpan terenkripsi, begitu pula kolom paling pribadi: `complaints.uraian`, `complaints.lokasi_kejadian`, `complaint_replies.pesan`, `complaint_status_history.catatan`, `users.nik`, `users.nomor_hp`, dan `users.alamat`. Basis datanya **tidak** terenkripsi seluruhnya: nama dan email pengguna, judul dan tanggal kejadian pengaduan, serta nama dan nomor HP responden survei tetap tersimpan polos. `users.nama` memang tidak bisa dienkripsi selama pencarian log audit memakainya; sisanya polos karena belum masuk cakupan, dan bisa menyusul. Cara menyebutnya yang benar adalah "isi pengaduan dan percakapannya terenkripsi, identitas pelapor tidak". Batas tepatnya, prosedur kunci, dan runbook cadangan ada di `docs/keamanan/enkripsi-at-rest.md`.
