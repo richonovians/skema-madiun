@@ -143,8 +143,12 @@ export default function RoleLoginPicker({
           </p>
           <h3 className="font-bold text-slate-800 text-lg leading-tight mt-1">
             {isSwitch ? 'Ganti peran' : 'Masuk sebagai'}
-            {userName ? ` — ${userName}` : ''}
           </h3>
+          {/* Nama di baris sendiri, bukan disambung ke judul dengan tanda pisah
+              (10 November 2026). */}
+          {userName ? (
+            <p className="text-sm font-medium text-slate-600 mt-0.5">{userName}</p>
+          ) : null}
           <p className="text-sm text-slate-500 mt-1">
             Pilih peran yang ingin Anda pakai. Hak akses sesi ini mengikuti pilihan tersebut.
           </p>

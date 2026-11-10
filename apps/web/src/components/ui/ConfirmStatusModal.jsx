@@ -222,7 +222,7 @@ export default function ConfirmStatusModal({
                 <p className="text-xs text-red-500 mt-1 font-medium">
                   {isDangerous
                     ? 'Alasan penolakan wajib diisi.'
-                    : 'Catatan wajib diisi — pelapor perlu tahu apa yang kurang.'}
+                    : 'Catatan wajib diisi. Pelapor perlu tahu apa yang kurang.'}
                 </p>
               )}
             </div>

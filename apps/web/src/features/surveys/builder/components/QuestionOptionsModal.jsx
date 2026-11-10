@@ -186,7 +186,7 @@ export default function QuestionOptionsModal({
           </h3>
           <p className="text-sm text-slate-500 mt-1">
             {isScale
-              ? 'Responden memilih satu skor 1-4. Yang diubah di sini hanya KALIMAT tiap skor — skornya tetap 1-4 dan Nilai IKM tetap dihitung dari angka itu.'
+              ? 'Responden memilih satu skor 1 sampai 4. Yang diubah di sini hanya kalimat tiap skor. Skornya tetap 1 sampai 4, dan Nilai IKM tetap dihitung dari angka itu.'
               : 'Responden memilih satu opsi. Pertanyaan ini tidak dihitung ke Nilai IKM (rumus IKM hanya memakai pertanyaan skala 1-4).'}
           </p>
         </div>
@@ -278,7 +278,7 @@ export default function QuestionOptionsModal({
             <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700 font-medium leading-relaxed">
               {isScale
-                ? 'Skor 1 sampai 4 tetap seperti aslinya — Nilai IKM dihitung dari skor, bukan dari kalimatnya. Label masih bisa diubah sampai survei ditutup.'
+                ? 'Skor 1 sampai 4 tetap seperti aslinya, karena Nilai IKM dihitung dari skor, bukan dari kalimatnya. Label masih bisa diubah sampai survei ditutup.'
                 : isEdit
                   ? 'Opsi lama diganti seluruhnya dengan daftar di atas. Aman dilakukan karena survei masih draf dan belum bisa diisi responden.'
                   : 'Responden memilih satu opsi. Opsi jawaban masih bisa diubah selama survei berstatus draf.'}

@@ -110,7 +110,7 @@ export default function TabSnippet({ operasi }) {
       {hasilSalin === 'ok' ? <Check size={14} /> : null}
       {hasilSalin === 'gagal' ? <AlertTriangle size={14} /> : null}
       {hasilSalin === null ? <Copy size={14} /> : null}
-      {hasilSalin === 'ok' ? 'Tersalin' : hasilSalin === 'gagal' ? 'Gagal — salin manual' : 'Salin'}
+      {hasilSalin === 'ok' ? 'Tersalin' : hasilSalin === 'gagal' ? 'Gagal, salin manual' : 'Salin'}
     </button>
   );
 
@@ -182,7 +182,7 @@ export default function TabSnippet({ operasi }) {
               </p>
             )}
             <Blok
-              judul={`Berhasil — ${operasi.statusSukses ?? 200}`}
+              judul={`Berhasil (${operasi.statusSukses ?? 200})`}
               teks={berhasil}
               testId="contoh-berhasil"
               kepalaId="kepala-respons"

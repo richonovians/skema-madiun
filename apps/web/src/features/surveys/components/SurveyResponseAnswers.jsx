@@ -60,7 +60,7 @@ export default function SurveyResponseAnswers({ answers }) {
                   {/* Label hanya muncul bila pengelola survei menyesuaikannya
                       (lihat nilaiLabel di adaptSurveyResponseAnswer) -- label
                       baku SKM sengaja tidak diulang di sini. */}
-                  {answer.nilaiLabel ? ` — ${answer.nilaiLabel}` : ''}
+                  {answer.nilaiLabel ? ` (${answer.nilaiLabel})` : ''}
                 </span>
               )}
               {answer.teks != null && (

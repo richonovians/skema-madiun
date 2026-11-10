@@ -127,7 +127,7 @@ describe('SurveyResponseAnswers (TC-FE-042)', () => {
     // Skala menyimpan SKOR; pilihan ganda menyimpan ID OPSI. Menukar keduanya
     // adalah kerusakan yang pernah nyata (backend menolak "Opsi N bukan opsi
     // pertanyaan M"), dan di layar ia muncul sebagai angka tanpa makna.
-    expect(screen.getByText(/Nilai: 4 \/ 4 — Sangat jelas/)).toBeInTheDocument();
+    expect(screen.getByText(/Nilai: 4 \/ 4 \(Sangat jelas\)/)).toBeInTheDocument();
     expect(screen.getByText('Datang langsung')).toBeInTheDocument();
     expect(screen.getByText('Tambah loket di jam sibuk.')).toBeInTheDocument();
   });

@@ -86,8 +86,8 @@ export function responsGagal(operasi) {
 
 export function kodeGalatLain(operasi) {
   const lain = [];
-  if (operasi.butuhSesi) lain.push('403 — peran yang sedang dipakai tak berwenang');
-  if (operasi.parameterPath.length > 0) lain.push('404 — sumber daya tak ditemukan');
+  if (operasi.butuhSesi) lain.push('403: peran yang sedang dipakai tak berwenang');
+  if (operasi.parameterPath.length > 0) lain.push('404: sumber daya tak ditemukan');
 
   const adaMasukan =
     Boolean(operasi.skemaBadan) ||
@@ -95,7 +95,7 @@ export function kodeGalatLain(operasi) {
     operasi.parameterPath.length > 0;
   // 400 tak diulang pada endpoint publik: di sana ia justru yang dicontohkan.
   if (operasi.butuhSesi && adaMasukan) {
-    lain.push('400 — badan atau parameter tak lolos validasi');
+    lain.push('400: badan atau parameter tak lolos validasi');
   }
 
   // 429 SELALU disebut, termasuk pada endpoint publik: throttle global berlaku
@@ -104,9 +104,9 @@ export function kodeGalatLain(operasi) {
   const batas = operasi.batasLaju ?? operasi.batasLajuGlobal;
   if (batas) {
     const detik = Math.round(batas.ttlMs / 1000);
-    lain.push(`429 — batas laju, ${batas.limit} permintaan per ${detik} detik`);
+    lain.push(`429: batas laju, ${batas.limit} permintaan per ${detik} detik`);
   } else {
-    lain.push('429 — batas laju terlampaui');
+    lain.push('429: batas laju terlampaui');
   }
 
   return lain;

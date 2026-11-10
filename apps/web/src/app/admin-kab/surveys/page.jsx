@@ -74,7 +74,7 @@ const CONFIRM_COPY = {
   jadikanUtama: {
     title: 'Jadikan survei utama OPD ini?',
     description: (survey) =>
-      `"${survey.title}" akan menjadi survei utama ${survey.opdName || 'OPD ini'} — tujuan tombol "Lanjut Isi Survei" pada halaman sukses pengaduan. Bila OPD ini sudah punya survei utama lain, penunjukannya otomatis berpindah ke survei ini (yang lama tak lagi menjadi utama).`,
+      `"${survey.title}" akan menjadi survei utama ${survey.opdName || 'OPD ini'}, yaitu survei yang dibuka tombol "Lanjut Isi Survei" di halaman sukses pengaduan. Bila OPD ini sudah punya survei utama, survei lama itu tidak lagi menjadi utama.`,
     confirmLabel: 'Ya, Jadikan Utama',
     tone: 'primary',
   },

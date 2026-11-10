@@ -151,10 +151,10 @@ export default function ComplaintProgressStepper({ currentStatus = 'Terkirim', r
                       keduanya tak terbaca pembaca layar. */}
                   <span className="sr-only">
                     {state === 'completed'
-                      ? ' — selesai'
+                      ? ', selesai'
                       : state === 'active'
-                        ? ' — sedang berjalan'
-                        : ' — belum dilalui'}
+                        ? ', sedang berjalan'
+                        : ', belum dilalui'}
                   </span>
                 </p>
                 <p className="text-text-secondary text-label-md">{KETERANGAN_TAHAP[tahap]}</p>
