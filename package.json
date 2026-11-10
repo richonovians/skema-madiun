@@ -41,22 +41,35 @@
       "Empat advisori, dan yang paling mengena BUKAN yang tertinggi tingkatnya:",
       "batas `limits.fileSize` dapat dilewati lewat race pada fileFilter async.",
       "Jalur unggah lampiran pengaduan bersandar persis pada batas itu, dan",
-      "penjaganya test/lampiran-batas-ukuran.e2e-spec.ts. Tiga sisanya DoS."
+      "penjaganya test/lampiran-batas-ukuran.e2e-spec.ts. Tiga sisanya DoS.",
+      "",
+      "Ditinjau ulang 10 November 2026 (`pnpm audit`: 7 critical, 32 high).",
+      "Dinaikkan: brace-expansion, fast-uri, multer, qs, sharp; ditambahkan",
+      "body-parser@2, dompurify@3 (html2pdf.js/jspdf), follow-redirects,",
+      "handlebars@4 (ts-jest), proxy-addr@2 (express 5: IP spoofing lewat",
+      "IPv4-mapped IPv6 -- relevan karena `trust proxy` dipasang di",
+      "app.setup.ts), source-map-js@1. Semuanya tetap di mayor yang sama."
     ],
     "overrides": {
-      "brace-expansion@1": "^1.1.18",
-      "brace-expansion@2": "^2.1.4",
-      "brace-expansion@5": "^5.0.9",
+      "body-parser@2": "^2.4.0",
+      "brace-expansion@1": "^1.1.21",
+      "brace-expansion@2": "^2.1.7",
+      "brace-expansion@5": "^5.0.12",
       "browserslist": "^4.28.7",
-      "fast-uri": "^3.1.6",
+      "dompurify@3": "^3.4.17",
+      "fast-uri": "^3.1.9",
+      "follow-redirects": "^1.16.2",
+      "handlebars@4": "^4.7.10",
       "js-yaml@3": "^3.15.1",
       "js-yaml@4": "^4.3.1",
       "js-yaml@5": "^5.2.2",
-      "multer": "^2.3.0",
+      "multer": "^2.5.0",
       "nanoid@3": "^3.3.18",
       "postcss": "^8.5.23",
-      "qs": "^6.16.0",
-      "sharp": "^0.35.0"
+      "proxy-addr@2": "^2.0.8",
+      "qs": "^6.16.1",
+      "sharp": "^0.35.5",
+      "source-map-js@1": "^1.2.2"
     },
     "//tidak-di-override": [
       "uuid (8.3.2, ditarik exceljs 4.4.0): tambalannya >=11.1.1, yaitu TIGA",
@@ -71,7 +84,13 @@
       "peladen produksi, dan tak pernah menyentuh masukan dari pengguna.",
       "",
       "Keduanya harus ditinjau lagi begitu exceljs / Prisma menaikkan sendiri",
-      "batas versinya."
+      "batas versinya.",
+      "",
+      "minimatch@10 (ditarik typescript-eslint) dan glob@13 (ditarik",
+      "@nestjs/cli), 10 November 2026: tambalannya di mayor berikutnya",
+      "(minimatch 11, glob 14). Keduanya alat pengembangan yang hanya membaca",
+      "pola jalur milik repo sendiri, bukan masukan pengguna. deepmerge@4",
+      "(low, jest & @nestjs/cli) belum punya versi tambalan sama sekali."
     ],
     "onlyBuiltDependencies": [
       "@prisma/client",

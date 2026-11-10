@@ -345,7 +345,15 @@ describe('NotificationDropdown — menyelaraskan diri dengan layar lain', () => 
  */
 describe('NotificationDropdown — penyegaran berkala', () => {
   beforeEach(() => {
-    jest.useFakeTimers({ now: NOW });
+    // `queueMicrotask` dan `nextTick` TIDAK dipalsukan (10 November 2026).
+    // Bawaan Jest memalsukan keduanya. Sejak undici 8.12.0 -- polyfill
+    // `fetch`/`Response` di jest.setup.js -- `extractBody` menutup stream
+    // badan respons lewat `queueMicrotask` di dalam `pull`, sehingga dengan
+    // microtask palsu `response.json()` dari MSW tak pernah selesai dan
+    // seluruh berkas menggantung tanpa batas waktu (terukur: 8.11.2 lulus
+    // 18 dtk, 8.12.0 hang). Yang diuji di sini jeda `setInterval` milik
+    // penyegaran berkala, dan itu tetap palsu.
+    jest.useFakeTimers({ now: NOW, doNotFake: ['queueMicrotask', 'nextTick'] });
   });
 
   afterEach(() => {
