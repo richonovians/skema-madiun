@@ -1,4 +1,5 @@
 import * as net from 'node:net';
+import { Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { BATAS_PERINTAH_MS, buatKlienRedis, tutupKlienRedis } from './klien-redis';
 
@@ -71,6 +72,80 @@ describe('buatKlienRedis', () => {
 
     expect(galat).toBeInstanceOf(Error);
     expect(ms).toBeLessThan(BATAS_PERINTAH_MS + 1000);
+  });
+});
+
+/**
+ * Galat koneksi dicatat SEKALI per pemadaman (10 November 2026).
+ *
+ * Tanpa listener `error`, ioredis mencetak setiap kegagalan sebagai
+ * "[ioredis] Unhandled error event" lengkap dengan stack trace. Saat Docker
+ * menyala ulang di bawah `pnpm dev` yang sudah jalan, itu menjadi puluhan blok
+ * `Command timed out` yang menenggelamkan log lain, padahal aplikasinya tetap
+ * jalan. Yang dibutuhkan operator dua baris: kapan Redis putus, kapan kembali.
+ */
+describe('buatKlienRedis -- pencatatan putus-sambung', () => {
+  let klien: Redis | undefined;
+  let warn: jest.SpyInstance;
+  let log: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    klien?.disconnect();
+    klien = undefined;
+    warn.mockRestore();
+    log.mockRestore();
+  });
+
+  it('memasang listener error sendiri, jadi ioredis tak mencetak "Unhandled error event"', () => {
+    klien = buatKlienRedis(`redis://127.0.0.1:1`, { lazyConnect: true });
+
+    expect(klien.listenerCount('error')).toBeGreaterThan(0);
+  });
+
+  it('banyak galat beruntun pada Redis yang mati hanya menghasilkan satu peringatan', async () => {
+    klien = buatKlienRedis(`redis://127.0.0.1:${await ambilPortaKosong()}`);
+
+    // Beberapa percobaan sambung ulang dan beberapa perintah yang gagal.
+    await Promise.allSettled([klien.get('a'), klien.get('b'), klien.get('c')]);
+    await new Promise((r) => setTimeout(r, 600));
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/Redis tak terjangkau/);
+  });
+
+  it('pulih lalu putus lagi: satu baris pulih, lalu satu peringatan baru', () => {
+    klien = buatKlienRedis(`redis://127.0.0.1:1`, { lazyConnect: true });
+
+    klien.emit('error', new Error('Command timed out'));
+    klien.emit('error', new Error('Command timed out'));
+    klien.emit('ready');
+    klien.emit('error', new Error('connect ECONNREFUSED'));
+
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0][0])).toMatch(/Redis tersambung lagi/);
+  });
+
+  it('sambungan pertama yang lancar tidak dicatat sebagai "tersambung lagi"', () => {
+    klien = buatKlienRedis(`redis://127.0.0.1:1`, { lazyConnect: true });
+
+    klien.emit('ready');
+
+    expect(log).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('peringatan tidak memuat URL Redis, yang dapat berisi kata sandi', () => {
+    klien = buatKlienRedis(`redis://:rahasia-sekali@127.0.0.1:1`, { lazyConnect: true });
+
+    klien.emit('error', new Error('connect ECONNREFUSED 127.0.0.1:1'));
+
+    expect(String(warn.mock.calls[0][0])).not.toContain('rahasia-sekali');
   });
 });
 

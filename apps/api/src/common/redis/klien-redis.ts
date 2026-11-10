@@ -1,4 +1,5 @@
-import Redis from 'ioredis';
+import { Logger } from '@nestjs/common';
+import Redis, { type RedisOptions } from 'ioredis';
 
 /**
  * Batas tunggu satu perintah Redis, milidetik.
@@ -25,8 +26,48 @@ export const BATAS_PERINTAH_MS = 1_000;
  * jatah coba ulang bawaan ioredis (20), sehingga tautan lampiran melewati 30 detik
  * saat koneksi lain sudah menjawab.
  */
-export function buatKlienRedis(url: string): Redis {
-  return new Redis(url, { maxRetriesPerRequest: 2, commandTimeout: BATAS_PERINTAH_MS });
+export function buatKlienRedis(url: string, opsi: Pick<RedisOptions, 'lazyConnect'> = {}): Redis {
+  const klien = new Redis(url, {
+    ...opsi,
+    maxRetriesPerRequest: 2,
+    commandTimeout: BATAS_PERINTAH_MS,
+  });
+  catatPutusSambung(klien);
+  return klien;
+}
+
+const logger = new Logger('Redis');
+
+/**
+ * Mencatat SATU peringatan saat Redis tak terjangkau dan SATU baris saat ia
+ * kembali (10 November 2026).
+ *
+ * Tanpa listener `error`, ioredis mencetak setiap kegagalan sebagai
+ * "[ioredis] Unhandled error event" beserta stack trace. Ketika Docker menyala
+ * ulang di bawah `pnpm dev` yang sudah jalan, setiap perintah yang melewati
+ * `BATAS_PERINTAH_MS` dan setiap percobaan sambung ulang menambah satu blok,
+ * sehingga puluhan `Command timed out` menenggelamkan log lain -- padahal
+ * aplikasinya tetap jalan (pembatas laju dan singgahan dirancang gagal
+ * terbuka). Penolakan per perintah tetap sampai ke pemanggilnya; yang diredam
+ * hanya cetakan berulang di konsol.
+ *
+ * URL tidak ikut dicetak: ia dapat memuat kata sandi Redis.
+ */
+function catatPutusSambung(klien: Redis): void {
+  let putus = false;
+  klien.on('error', (galat: Error) => {
+    if (putus) return;
+    putus = true;
+    logger.warn(
+      `Redis tak terjangkau (${galat.message}). Perintah ditolak sampai sambungan pulih; ` +
+        'peringatan berikutnya ditahan sampai Redis tersambung lagi.',
+    );
+  });
+  klien.on('ready', () => {
+    if (!putus) return;
+    putus = false;
+    logger.log('Redis tersambung lagi.');
+  });
 }
 
 /**
