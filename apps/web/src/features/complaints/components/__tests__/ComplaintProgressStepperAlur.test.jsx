@@ -9,14 +9,14 @@ import { COMPLAINT_ALUR_UTAMA } from '@/utils/enumLabels';
  *
  * Keadaan tiap tahap dibedakan warna dan ikon, yang tak satu pun terbaca
  * pembaca layar maupun oleh jsdom. Komponennya karena itu menulis keterangan
- * `sr-only` (" — selesai" / " — sedang berjalan" / " — belum dilalui"), dan
+ * `sr-only` (", selesai" / ", sedang berjalan" / ", belum dilalui"), dan
  * di sanalah uji ini membacanya.
  */
 const tahap = (nama) => screen.getByText(nama).closest('li');
 const keadaan = (nama) => {
   const teks = tahap(nama).textContent;
-  if (teks.includes('— sedang berjalan')) return 'berjalan';
-  if (teks.includes('— selesai')) return 'selesai';
+  if (teks.includes(', sedang berjalan')) return 'berjalan';
+  if (teks.includes(', selesai')) return 'selesai';
   return 'belum';
 };
 
@@ -26,7 +26,7 @@ describe('ComplaintProgressStepper — alur lima tahap', () => {
 
     const butir = within(screen.getByRole('list')).getAllByRole('listitem');
     expect(butir).toHaveLength(5);
-    expect(butir.map((b) => b.textContent.split('—')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
+    expect(butir.map((b) => b.textContent.split(',')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
   });
 
   it('menyorot tahap yang sedang berjalan dan menandai yang sudah lewat', () => {
@@ -69,7 +69,7 @@ describe('ComplaintProgressStepper — alur lima tahap', () => {
 
       const butir = within(screen.getByRole('list')).getAllByRole('listitem');
       expect(butir).toHaveLength(5);
-      expect(butir.map((b) => b.textContent.split('—')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
+      expect(butir.map((b) => b.textContent.split(',')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
     });
 
     it('menjelaskan keadaannya di panel terpisah', () => {
@@ -149,7 +149,7 @@ describe('ComplaintProgressStepper — alur lima tahap', () => {
       );
 
       const butir = within(screen.getByRole('list')).getAllByRole('listitem');
-      expect(butir.map((b) => b.textContent.split('—')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
+      expect(butir.map((b) => b.textContent.split(',')[0].trim())).toEqual(COMPLAINT_ALUR_UTAMA);
     });
 
     it('tanpa riwayat, tak satu pun tahap digambar berjalan', () => {

@@ -25,14 +25,14 @@ function kalimatBatasan(batasan = {}) {
   const panjangMin = minLength === 1 ? undefined : minLength;
 
   if (panjangMin !== undefined && maxLength !== undefined) {
-    bagian.push(`${panjangMin}–${maxLength} karakter`);
+    bagian.push(`${panjangMin} sampai ${maxLength} karakter`);
   } else if (maxLength !== undefined) {
     bagian.push(`maks ${maxLength} karakter`);
   } else if (panjangMin !== undefined) {
     bagian.push(`min ${panjangMin} karakter`);
   }
 
-  if (minimum !== undefined && maximum !== undefined) bagian.push(`${minimum}–${maximum}`);
+  if (minimum !== undefined && maximum !== undefined) bagian.push(`${minimum} sampai ${maximum}`);
   else if (minimum !== undefined) bagian.push(`minimal ${minimum}`);
   else if (maximum !== undefined) bagian.push(`maksimal ${maximum}`);
 
@@ -52,7 +52,7 @@ function kalimatBatasan(batasan = {}) {
  *                            di service, bukan di guard
  */
 function labelPeran(operasi) {
-  if (operasi.publik) return 'Publik — tanpa sesi';
+  if (operasi.publik) return 'Publik, tanpa sesi';
   if (operasi.peran === null) return null;
   if (operasi.peran.length === 0) return 'Semua peran terautentikasi';
   return `Peran: ${operasi.peran.join(', ')}`;
@@ -64,7 +64,7 @@ function BarisProperti({ properti }) {
 
   return (
     <li className="text-body-md leading-relaxed text-on-surface-variant">
-      <code className="text-on-surface">{properti.nama}</code> — {properti.tipe ?? 'tak bertipe'}
+      <code className="text-on-surface">{properti.nama}</code>: {properti.tipe ?? 'tak bertipe'}
       {batasan ? <span>, {batasan}</span> : null}
       {properti.pilihan ? <span>. Pilihan: {properti.pilihan.join(', ')}</span> : null}
       {properti.keterangan ? (
@@ -175,7 +175,7 @@ export default function DetailOperasi({ operasi }) {
       <Daftar judul="Parameter path" properti={operasi.parameterPath} />
       <Daftar judul="Query wajib" properti={queryWajib} />
       <Daftar judul="Kolom wajib di request body" properti={badanWajib} />
-      <Daftar judul="Query opsional — boleh kamu tambahkan sendiri" properti={queryOpsional} />
+      <Daftar judul="Query opsional yang boleh kamu tambahkan sendiri" properti={queryOpsional} />
       <Daftar judul="Kolom opsional di request body" properti={badanOpsional} />
 
       <TabSnippet operasi={operasi} />

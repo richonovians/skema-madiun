@@ -219,7 +219,7 @@ export default function AlihkanComplaintModal({ complaint, onClose, onDone }) {
             <p className="text-xs text-text-secondary mt-1">
               {opdTerpilih
                 ? `Kategori tingkat ${tingkatTujuan === 'kecamatan' ? 'kecamatan' : 'kabupaten'}, mengikuti instansi tujuan.`
-                : 'Pilih instansi tujuan lebih dahulu — daftar kategorinya mengikuti tingkat instansi itu.'}
+                : 'Pilih instansi tujuan lebih dahulu. Daftar kategorinya mengikuti tingkat instansi itu.'}
             </p>
           </div>
 

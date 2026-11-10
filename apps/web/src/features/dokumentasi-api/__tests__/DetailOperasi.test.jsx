@@ -125,7 +125,7 @@ describe('DetailOperasi', () => {
       </ul>,
     );
 
-    expect(screen.getByText(/publik — tanpa sesi/i)).toBeInTheDocument();
+    expect(screen.getByText(/publik, tanpa sesi/i)).toBeInTheDocument();
     expect(screen.queryByText(/semua peran terautentikasi/i)).not.toBeInTheDocument();
   });
   /**

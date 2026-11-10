@@ -205,7 +205,10 @@ describe('AuthCallbackLoader — peran tunggal vs peran banyak (TC-FE-043)', () 
 
     render(<AuthCallbackLoader />);
 
-    expect(await screen.findByText(/Masuk sebagai — Rahmat Hidayat/)).toBeInTheDocument();
+    // Nama tampil di baris sendiri di bawah judul, bukan disambung ke judul
+    // dengan tanda pisah (10 November 2026).
+    expect(await screen.findByRole('heading', { name: 'Masuk sebagai' })).toBeInTheDocument();
+    expect(screen.getByText('Rahmat Hidayat')).toBeInTheDocument();
     // Peran BELUM ditulis: sesi yang perannya belum dipilih tak boleh mewarisi
     // peran dari sesi sebelumnya di peramban yang sama.
     expect(localStorage.getItem('role')).toBeNull();

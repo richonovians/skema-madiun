@@ -136,7 +136,7 @@ export default function SSOLoginButton() {
             type="button"
             onClick={() => setIsFormOpen(true)}
             className="text-xs font-semibold text-slate-400 hover:text-slate-600 underline underline-offset-2 whitespace-nowrap"
-            title="Masuk dengan akun seed tanpa Helpdesk — hanya tersedia di lingkungan pengembangan"
+            title="Masuk dengan akun seed tanpa Helpdesk. Hanya tersedia di lingkungan pengembangan."
           >
             akun dev
           </button>

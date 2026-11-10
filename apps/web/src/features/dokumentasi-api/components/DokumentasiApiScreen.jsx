@@ -136,8 +136,8 @@ export default function DokumentasiApiScreen() {
         </div>
         <p className="mt-2 max-w-prose text-body-lg leading-relaxed text-on-surface-variant">
           Daftar ini dibuat langsung dari kode API, jadi isinya selalu sesuai dengan yang berjalan
-          sekarang. Snippet di bawah untuk <strong>disalin</strong> — halaman ini tidak mengirim
-          permintaan apa pun.
+          sekarang. Snippet di bawah hanya untuk <strong>disalin</strong>. Halaman ini tidak
+          mengirim permintaan apa pun.
         </p>
       </div>
 
@@ -166,8 +166,8 @@ export default function DokumentasiApiScreen() {
           <div>
             <dt className="font-semibold text-on-surface">Bentuk respons gagal</dt>
             <dd className="text-on-surface-variant">
-              <code>{'{ success, statusCode, message, error, meta }'}</code> — bentuk yang berbeda,
-              tanpa <code>data</code>. <code>error.details</code> berupa teks, kecuali pada
+              <code>{'{ success, statusCode, message, error, meta }'}</code>. Bentuknya berbeda
+              dari respons sukses karena tidak memuat <code>data</code>. <code>error.details</code> berupa teks, kecuali pada
               kegagalan validasi (400) yang mengirimnya sebagai daftar pesan.
             </dd>
           </div>
@@ -182,7 +182,7 @@ export default function DokumentasiApiScreen() {
             <dt className="font-semibold text-on-surface">Skema di tiap endpoint</dt>
             <dd className="text-on-surface-variant">
               Menggambarkan isi <code>data</code> saja, bukan seluruh pembungkusnya. Contoh
-              utuhnya — berhasil maupun gagal — ada di tab <strong>respons</strong> tiap endpoint.
+              utuhnya, untuk respons berhasil maupun gagal, ada di tab <strong>respons</strong> tiap endpoint.
             </dd>
           </div>
           <div>
@@ -197,7 +197,7 @@ export default function DokumentasiApiScreen() {
             </dt>
             <dd className="text-on-surface-variant">
               Diganti nilai cookie <code>session</code> milikmu. Jangan tempelkan ke tiket atau
-              grup percakapan — itu setara kata sandi.
+              grup percakapan, karena nilainya setara kata sandi.
             </dd>
           </div>
         </dl>
