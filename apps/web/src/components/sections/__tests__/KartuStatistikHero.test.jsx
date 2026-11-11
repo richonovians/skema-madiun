@@ -45,7 +45,11 @@ describe('KartuStatistikHero', () => {
     // SEKALI saja. Sebelum 16 September 2026 angkanya muncul dua kali -- kartu
     // desktop dan strip ringkasan khusus ponsel -- dan strip itu kini digantikan
     // kartu yang sama, yang kini ikut tampil di layar sempit.
-    expect(await screen.findAllByText('91,2')).toHaveLength(1);
+    //
+    // Sejak 10 November 2026 angka yang sama sah muncul DUA kali: di kartu Nilai
+    // IKM dan di pil batang triwulan terbaru pada kartu Tren IKM. Yang dijaga
+    // karena itu kartu Nilai IKM-nya sendiri.
+    expect(await screen.findByTestId('nilai-ikm')).toHaveTextContent('91,2');
     expect(screen.getByText(/438/)).toBeInTheDocument();
   });
 
@@ -118,15 +122,130 @@ describe('KartuStatistikHero', () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
-  it('grafik garis bertitik sebanyak periode pada data', async () => {
+  /**
+   * DIBUANG 10 November 2026: "grafik garis bertitik sebanyak periode". Garis
+   * kecil di kartu Nilai IKM dan di kedua chip pengaduan dihapus bersama
+   * penataan ulang ke kartu Tren IKM di tengah. Garis di chip pengaduan
+   * menggambar tren IKM, bukan tren pengaduan -- ia menyesatkan, bukan sekadar
+   * berlebih. Uji di bawah menahan agar tak kembali diam-diam.
+   */
+  it('tak ada lagi garis kecil yang meminjam deret IKM', async () => {
     getStatistics.mockResolvedValue(DATA);
 
     const { container } = render(<KartuStatistikHero />);
     await screen.findByTestId('nilai-ikm');
 
-    const garis = container.querySelector('polyline');
-    expect(garis).toBeInTheDocument();
-    expect(garis.getAttribute('points').trim().split(/\s+/)).toHaveLength(DATA.ikmTrend.length);
+    expect(container.querySelectorAll('polyline')).toHaveLength(0);
+  });
+
+  /**
+   * Kartu Tren IKM menjadi isi utama (10 November 2026, permintaan pengguna
+   * mengikuti referensi "Learning progress score"): ia berada di alur, bukan
+   * melayang, dan ketiga angka lainnya menempel di pinggirnya.
+   */
+  it('kartu Tren IKM adalah isi utama, ketiga angka lain di pinggirnya', async () => {
+    getStatistics.mockResolvedValue(DATA);
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByTestId('nilai-ikm');
+
+    const utama = container.querySelector('[data-kartu-utama]');
+    expect(utama).toHaveTextContent('Tren IKM');
+    expect(utama.closest('[class*="lg:absolute"]')).toBeNull();
+    expect(container.querySelectorAll('[data-kartu-pinggir]')).toHaveLength(3);
+    container.querySelectorAll('[data-kartu-pinggir]').forEach((el) => {
+      expect(el.className).toMatch(/lg:absolute/);
+    });
+  });
+
+  /**
+   * BINGKAI BENING kartu utama (10 November 2026, permintaan pengguna mengikuti
+   * referensi). Bingkai putih tembus pandang hanya terlihat di atas panel biru
+   * di belakangnya -- terukur di Chrome: di atas latar putih ia lebur sama
+   * sekali. Panel itu milik `lg` (HeroSection), jadi bingkainya juga: di ponsel
+   * ia hanya menambah tepi kosong.
+   */
+  it('kartu utama berbingkai bening mulai lg, kartu pinggir tidak', async () => {
+    getStatistics.mockResolvedValue(DATA);
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByTestId('nilai-ikm');
+
+    const bingkai = container.querySelectorAll('[data-bingkai-kartu]');
+    expect(bingkai).toHaveLength(1);
+    expect(bingkai[0].closest('[data-kartu-utama]')).not.toBeNull();
+    const kelas = [...bingkai[0].classList];
+    expect(kelas).toEqual(expect.arrayContaining(['lg:p-3', 'lg:bg-white/35']));
+    // Setiap kelas pembentuk bingkai berawalan `lg:`.
+    expect(kelas.filter((k) => /^(p-|bg-|ring-)/.test(k))).toEqual([]);
+  });
+
+  /**
+   * Setiap batang membawa angkanya sendiri, seperti pil persentase pada
+   * referensi. Tanpa itu tingginya hanya bisa ditebak.
+   */
+  it('setiap batang membawa pil nilainya', async () => {
+    getStatistics.mockResolvedValue(DATA);
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByTestId('nilai-ikm');
+
+    const pil = [...container.querySelectorAll('[data-pil-nilai]')].map((el) => el.textContent);
+    expect(pil).toEqual(['77,78', '88', '91,2']);
+  });
+
+  /**
+   * Tinggi batang pada skala IKM 0-100, BUKAN relatif terhadap nilai tertinggi.
+   * Skala relatif membuat selisih 88 dan 91,2 tampak berlipat; skala tetap
+   * memperlihatkan selisihnya apa adanya.
+   */
+  it('tinggi batang mengikuti skala 0-100', async () => {
+    getStatistics.mockResolvedValue(DATA);
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByTestId('nilai-ikm');
+
+    const tinggi = [...container.querySelectorAll('[data-batang]')].map((b) => b.style.height);
+    expect(tinggi).toEqual(['77.78%', '88%', '91.2%']);
+  });
+
+  /**
+   * `ikmTrend` tak dibatasi backend, jadi setiap triwulan baru menambah satu
+   * batang. Kartunya memuat setahun terakhir; selebihnya ada di /statistics.
+   */
+  it('hanya empat triwulan terakhir yang digambar', async () => {
+    const enam = [
+      ['Triwulan III - 2025', 70],
+      ['Triwulan IV - 2025', 71],
+      ['Triwulan I - 2026', 72],
+      ['Triwulan II - 2026', 73],
+      ['Triwulan III - 2026', 74],
+      ['Triwulan IV - 2026', 75],
+    ].map(([month, value]) => ({ month, value }));
+    getStatistics.mockResolvedValue({ ...DATA, ikmTrend: enam });
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByTestId('nilai-ikm');
+
+    expect(container.querySelectorAll('[data-batang]')).toHaveLength(4);
+    expect(screen.getByText("TW1 '26")).toBeInTheDocument();
+    expect(screen.queryByText("TW4 '25")).not.toBeInTheDocument();
+  });
+
+  /**
+   * Kartu utama yang kosong tanpa penjelasan terbaca sebagai halaman rusak.
+   * Instalasi baru memang belum punya nilai IKM per triwulan.
+   */
+  it('tanpa nilai per triwulan, kartu utamanya berkata begitu', async () => {
+    getStatistics.mockResolvedValue({ ...DATA, ikmTrend: [] });
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByTestId('nilai-ikm');
+
+    expect(container.querySelector('[data-kartu-utama]')).toHaveTextContent(
+      /belum ada nilai ikm per triwulan/i,
+    );
+    expect(container.querySelectorAll('[data-batang]')).toHaveLength(0);
   });
 
   it('batang digambar satu per periode', async () => {
@@ -208,9 +327,10 @@ describe('KartuStatistikHero', () => {
   });
 
   /**
-   * Ketiga kartu SEBELUMNYA muncul serempak begitu data tiba. Dimunculkan
+   * Kartu-kartunya SEBELUMNYA muncul serempak begitu data tiba. Dimunculkan
    * bergiliran, matanya sempat mengikuti satu per satu alih-alih disodori
-   * seluruhnya sekaligus.
+   * seluruhnya sekaligus. Sejak 10 November 2026 kartunya empat: Tren IKM di
+   * tengah dan tiga angka di pinggirnya.
    */
   it('kartu masuk bergiliran, bukan serempak', async () => {
     getStatistics.mockResolvedValue(DATA);
@@ -221,9 +341,9 @@ describe('KartuStatistikHero', () => {
     const jeda = [...container.querySelectorAll('.animate-fade-in-up')].map(
       (el) => el.style.animationDelay,
     );
-    expect(jeda).toHaveLength(3);
-    // Jeda yang sama untuk ketiganya bukan bergiliran, hanya tampak begitu.
-    expect(new Set(jeda).size).toBe(3);
+    expect(jeda).toHaveLength(4);
+    // Jeda yang sama untuk semuanya bukan bergiliran, hanya tampak begitu.
+    expect(new Set(jeda).size).toBe(4);
   });
 
   /**
@@ -247,14 +367,14 @@ describe('KartuStatistikHero', () => {
    * "ini bisa diklik". Menjanjikannya tanpa tujuan berarti menyesatkan; kartunya
    * menuju /statistics, yang isinya memang perluasan dari angka yang dipajang.
    */
-  it('ketiga kartu menjadi tautan ke halaman statistik', async () => {
+  it('setiap kartu menjadi tautan ke halaman statistik', async () => {
     getStatistics.mockResolvedValue(DATA);
 
     render(<KartuStatistikHero />);
     await screen.findByTestId('nilai-ikm');
 
     const tautan = screen.getAllByRole('link');
-    expect(tautan).toHaveLength(3);
+    expect(tautan).toHaveLength(4);
     tautan.forEach((t) => expect(t).toHaveAttribute('href', '/statistics'));
   });
 
@@ -310,7 +430,7 @@ describe('KartuStatistikHero', () => {
     await screen.findByTestId('nilai-ikm');
 
     const tautan = screen.getAllByRole('link');
-    expect(tautan).toHaveLength(3);
+    expect(tautan).toHaveLength(4);
     tautan.forEach((t) => {
       if (/outline-none/.test(t.className)) {
         expect(t.className).toMatch(/focus-visible:ring-2/);
@@ -379,6 +499,26 @@ describe('KartuStatistikHero', () => {
     // Jumlah sebenarnya tetap disebut. Itu yang membuatnya ajakan ikut menilai,
     // bukan sekadar kolom yang dikosongkan tanpa penjelasan.
     expect(screen.getByText(/5 dari 30/i)).toBeInTheDocument();
+  });
+
+  /**
+   * Sejak kartu Tren IKM membawa pil nilai per triwulan (10 November 2026),
+   * angka yang sama bisa lolos lewat batangnya. Nilai per triwulan dari lima
+   * penilaian bahkan lebih tipis lagi dasarnya, jadi kartu utama ikut menahan
+   * batangnya dan menerangkan sebabnya.
+   */
+  it('selagi penilaian belum cukup, batang tren juga belum digambar', async () => {
+    getStatistics.mockResolvedValue({
+      ...DATA,
+      summary: { ...DATA.summary, totalRespondents: 5 },
+    });
+
+    const { container } = render(<KartuStatistikHero />);
+    await screen.findByText(/belum cukup penilaian/i);
+
+    expect(container.querySelectorAll('[data-batang]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-pil-nilai]')).toHaveLength(0);
+    expect(container.querySelector('[data-kartu-utama]')).toHaveTextContent(/30 penilaian/);
   });
 
   /**

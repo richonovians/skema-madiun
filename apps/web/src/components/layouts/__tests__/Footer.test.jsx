@@ -61,6 +61,22 @@ describe('Footer — data kontak dan tautan resmi', () => {
   });
 
   /**
+   * Email tanpa titik putus baris mendorong kolom "Hubungi Kami" melebar:
+   * terukur di Chrome pada 1024px, ia berakhir di x=1031 dan seluruh halaman
+   * bisa digeser 7px ke samping (10 November 2026). jsdom tak menghitung tata
+   * letak, jadi yang dijaga di sini aturannya: baris email dan kolomnya boleh
+   * menyempit, dan putusnya jatuh sesudah `@`, bukan di tengah domain.
+   */
+  it('email boleh putus sesudah @ agar kolomnya tak meluap', () => {
+    render(<Footer />);
+
+    const email = screen.getByText('diskominfo@madiunkab.go.id');
+    expect(email.innerHTML).toBe('diskominfo@<wbr>madiunkab.go.id');
+    expect(email.className).toMatch(/min-w-0/);
+    expect(email.closest('.lg\\:col-span-3').className).toMatch(/min-w-0/);
+  });
+
+  /**
    * PASANGAN yang membuat uji di atas berarti. Nilai lama dulu tampil seolah
    * sah; tanpa penjaga ini, menambahkan nilai baru di tempat lain pada footer
    * yang sama akan tetap lulus sementara nomor karangan itu masih terpasang.
