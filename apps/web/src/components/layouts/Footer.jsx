@@ -130,7 +130,15 @@ export default function Footer() {
         </div>
         
         {/* Contact */}
-        <div className="flex flex-col gap-3.5 col-span-1 lg:col-span-3">
+        {/* `min-w-0` di kolom DAN di baris email (10 November 2026). Alamat
+            email tak punya titik putus baris, dan tanpa keduanya ia menolak
+            menyempit: terukur di Chrome pada 1024px, kolom lg:col-span-3 ini
+            terdorong sampai email berakhir di x=1031 dan seluruh halaman bisa
+            digeser 7px ke samping. `<wbr />` sesudah `@` memberinya titik
+            putus yang wajar ("diskominfo@" / "madiunkab.go.id"); tanpanya
+            `overflow-wrap:anywhere` memotong di tengah domain. Keduanya hanya
+            bekerja bila memang tak muat -- di lebar lain ia tetap satu baris. */}
+        <div className="flex min-w-0 flex-col gap-3.5 col-span-1 lg:col-span-3">
           <h4 className="font-bold text-lg text-white mb-1">Hubungi Kami</h4>
           <div className="flex gap-3 items-start">
             <MapPin className="text-brand-cyan shrink-0 mt-0.5" size={18} />
@@ -142,7 +150,7 @@ export default function Footer() {
           </div>
           <div className="flex gap-3 items-center">
             <Mail className="text-brand-cyan shrink-0" size={18} />
-            <p className="text-outline-variant text-sm">diskominfo@madiunkab.go.id</p>
+            <p className="text-outline-variant min-w-0 text-sm [overflow-wrap:anywhere]">diskominfo@<wbr />madiunkab.go.id</p>
           </div>
         </div>
       </div>

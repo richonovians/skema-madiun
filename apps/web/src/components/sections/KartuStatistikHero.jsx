@@ -2,40 +2,19 @@
 
 import React, { useCallback } from 'react';
 import clsx from 'clsx';
-import { CheckCircle2, Building2, Clock } from 'lucide-react';
+import { CheckCircle2, Building2, Clock, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useAsync } from '@/hooks/useAsync';
 import { getStatistics } from '@/features/statistics/services/statistics.api';
 
 const angka = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n ?? 0);
 
-/**
- * Titik `<polyline>` dari deret nilai, dinormalkan ke kotak lebar x tinggi.
- *
- * Rentang nol -- semua periode bernilai sama, atau baru ada satu periode --
- * dijaga dengan `|| 1`. Tanpa itu pembagiannya menghasilkan NaN dan garisnya
- * lenyap tanpa satu pun galat, persis pada keadaan yang paling wajar terjadi di
- * awal pemakaian.
- */
-function titikGaris(nilai, lebar, tinggi) {
-  if (nilai.length === 0) return '';
-  const min = Math.min(...nilai);
-  const rentang = Math.max(...nilai) - min || 1;
-  const langkah = nilai.length > 1 ? lebar / (nilai.length - 1) : 0;
-  return nilai
-    .map(
-      (v, i) =>
-        `${(i * langkah).toFixed(1)},${(tinggi - ((v - min) / rentang) * tinggi).toFixed(1)}`,
-    )
-    .join(' ');
-}
-
 const ANGKA_ROMAWI = { I: 1, II: 2, III: 3, IV: 4 };
 
 /**
  * "Triwulan III - 2026" -> "TW3 '26".
  *
- * Label penuh tak muat di kartu selebar 200px: terukur di peramban, ia
+ * Label penuh tak muat di bawah batang selebar ~70px: terukur di peramban, ia
  * membungkus dan mendorong kartunya melebar sampai keluar susunan. Bentuk yang
  * TAK dikenali dikembalikan apa adanya, bukan dipotong: kalau format di
  * `formatPeriodeLabel` berubah suatu saat, label yang salah masih terbaca,
@@ -46,6 +25,23 @@ function labelSingkat(teks) {
   if (!cocok) return teks;
   return `TW${ANGKA_ROMAWI[cocok[1].toUpperCase()]} '${cocok[2].slice(2)}`;
 }
+
+/**
+ * Jumlah triwulan yang digambar di kartu Tren IKM: setahun terakhir.
+ *
+ * `ikmTrend` dari backend tak dibatasi, jadi setiap triwulan baru menambah
+ * satu batang. Pada batang kelima pil nilainya ("72,17") sudah lebih lebar
+ * daripada batangnya sendiri. Riwayat lengkapnya ada di /statistics, yang
+ * dituju kartu ini.
+ */
+const TRIWULAN_DITAMPILKAN = 4;
+
+/**
+ * Arsiran jalur kosong di atas setiap batang, seperti pada referensi. Murni
+ * gradasi CSS -- tak ada berkas gambar.
+ */
+const ARSIRAN_JALUR =
+  'repeating-linear-gradient(135deg, rgba(148,163,184,0.22) 0 4px, transparent 4px 9px)';
 
 const KELAS_KARTU =
   'rounded-2xl border border-white/70 bg-white/85 backdrop-blur-xl shadow-[0_18px_45px_rgba(15,23,42,0.14)]';
@@ -91,39 +87,134 @@ const KELAS_FOKUS =
 const KELAS_JEDA = 'hover:[animation-play-state:paused]';
 
 /**
- * Wadah ketiga kartu, dan satu-satunya tempat perbedaan ponsel/desktop diputuskan
+ * Wadah keempat kartu, dan satu-satunya tempat perbedaan ponsel/desktop diputuskan
  * (16 September 2026, laporan pengguna: kartunya tak terlihat di ponsel 6,78").
  *
- * Di bawah `lg` ia kolom biasa; mulai `lg` ia kembali `block` sehingga anak-anaknya
- * yang ber-`lg:absolute` menumpang pada rangka ilustrasi seperti semula. Yang tak
- * bisa hidup di layar 393px memang hanya TATA LETAKNYA -- posisi absolut terhadap
- * rangka yang di sana tak digambar, lebar tetap 268px, dan ayunan tanpa henti.
- * Kartunya sendiri bisa.
+ * Di bawah `lg` ia kolom biasa: Tren IKM di atas, lalu ketiga angka bertumpuk.
+ * Mulai `lg` ia menjadi panggung ber-`relative`: kartu Tren IKM tetap di alur
+ * dan dipusatkan, ketiga angka `lg:absolute` menempel di pinggirnya.
+ *
+ * SUSUNAN PINGGIR (10 November 2026). Ketiga angka menumpang pada KEPALA dan
+ * KAKI kartu utama -- Nilai IKM di sudut kanan atas, kedua angka pengaduan di
+ * kedua sudut bawah -- bukan pada sisi tengahnya seperti pil kecil di
+ * referensi. Kartu angka di sini jauh lebih lebar daripada pil itu: pada
+ * kolom 456px (lebar `lg` terkecil) kartu yang ditempel di sisi tengah
+ * menutup batang triwulan pertama atau terakhir, padahal batang terakhir
+ * justru yang disorot. Kepala kartu utama kosong di kanan dan kakinya diberi
+ * ruang `lg:pb-12`, jadi tak satu batang pun tertutup pada lebar mana pun.
  *
  * Kartunya sengaja TIDAK digambar dua kali. Satu pohon DOM berarti setiap angka,
  * tautan, dan penanda fokus yang sudah dijaga uji tetap berlaku untuk kedua lebar
  * layar; salinan kedua akan menggandakan semuanya dan diam-diam boleh menyimpang.
  */
-const KELAS_TUMPUKAN = 'flex flex-col gap-3 lg:block';
+const KELAS_TUMPUKAN = 'flex flex-col gap-3 lg:relative lg:block lg:py-10';
 
-function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHover = '' }) {
+/** Letak ketiga kartu pinggir mulai `lg`. Dipakai kartu dan kerangkanya. */
+const LETAK = {
+  nilaiIkm: 'lg:absolute lg:top-0 lg:right-0',
+  tanggapan: 'lg:absolute lg:bottom-0 lg:left-0',
+  selesai: 'lg:absolute lg:bottom-0 lg:right-0',
+};
+
+/**
+ * Dua lapisan animasi per kartu, dan pemisahannya perlu. Utilitas `animate-*`
+ * menetapkan properti `animation` secara utuh, jadi memasang gerak masuk dan
+ * gerak melayang pada elemen yang sama membuat yang satu menghapus yang lain.
+ * Pembungkus luar mengurus kemunculan, pembungkus dalam mengurus ayunan.
+ *
+ * Ayunannya `lg:`-saja: kartu yang mengayun 13px tanpa henti di layar 393px
+ * membuat angkanya jadi sasaran bergerak.
+ */
+function Melayang({ kelas, jeda, ayunan, children, ...atribut }) {
   return (
-    <div className={clsx(KELAS_KARTU, kelasHover, 'flex items-center gap-3 px-3.5 py-2.5')}>
-      <Ikon size={18} className={clsx('shrink-0', warnaIkon)} />
-      <div className="leading-tight">
-        <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</p>
-        <p className="text-sm font-bold text-slate-800">{nilai}</p>
+    <div
+      {...atribut}
+      className={clsx('animate-fade-in-up', kelas)}
+      style={{ animationDelay: `${jeda}ms` }}
+    >
+      <div className={clsx(ayunan, KELAS_JEDA)}>
+        <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
+          {children}
+        </Link>
       </div>
-      <svg viewBox="0 0 44 20" className="ml-1 h-5 w-11 shrink-0" aria-hidden="true">
-        <polyline
-          points={titikGaris(deret, 44, 18)}
-          fill="none"
-          stroke={warnaGaris}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+    </div>
+  );
+}
+
+function KartuPinggir({ ikon: Ikon, warnaIkon, latarIkon, label, children }) {
+  return (
+    <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'flex items-center gap-3 px-3.5 py-3')}>
+      <span
+        className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', latarIkon)}
+      >
+        <Ikon size={18} className={warnaIkon} />
+      </span>
+      <div className="min-w-0 leading-tight">
+        <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Isi kartu utama: satu batang per triwulan, tinggi pada skala IKM 0-100.
+ *
+ * Skala TETAP, bukan relatif terhadap nilai tertinggi seperti kartu kecil
+ * sebelumnya (10 November 2026). Skala relatif membuat 88 dan 91,2 tampak
+ * berselisih separuh tinggi kartu; skala tetap memperlihatkan selisihnya apa
+ * adanya, dan pil di atas setiap batang menyebut angkanya.
+ */
+function BatangTren({ deret }) {
+  return (
+    <div className="mt-5 flex items-end gap-3">
+      {deret.map((t, i) => {
+        const terbaru = i === deret.length - 1;
+        return (
+          <div key={t.month} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <span
+              data-pil-nilai
+              className={clsx(
+                'rounded-full border bg-white px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap',
+                terbaru ? 'border-primary/30 text-primary' : 'border-slate-200 text-slate-600',
+              )}
+            >
+              {angka(t.value)}
+            </span>
+            {/* Jalur bertinggi PASTI. Tanpa ini persentase batangnya tak punya
+                acuan -- terukur di peramban: kolomnya menyusut ke tinggi
+                labelnya sendiri dan batangnya terhitung 0px. Batangnya diletakkan
+                dengan `items-end`, BUKAN `absolute`: KartuHeroPonsel.test.jsx
+                menolak `.absolute` tanpa syarat di dalam tumpukan. */}
+            <div
+              className="flex h-36 w-full items-end overflow-hidden rounded-xl bg-slate-50"
+              style={{ backgroundImage: ARSIRAN_JALUR }}
+            >
+              <div
+                data-batang
+                className={clsx(
+                  'animate-tumbuh-batang w-full origin-bottom rounded-xl',
+                  terbaru
+                    ? 'bg-gradient-to-b from-brand-blue to-primary shadow-[0_10px_24px_rgba(21,57,105,0.35)]'
+                    : 'bg-slate-200',
+                )}
+                style={{
+                  height: `${Math.min(Math.max(t.value, 0), 100)}%`,
+                  animationDelay: `${260 + i * 90}ms`,
+                }}
+              />
+            </div>
+            <span
+              className={clsx(
+                'text-[11px] whitespace-nowrap',
+                terbaru ? 'font-bold text-slate-800' : 'font-medium text-slate-500',
+              )}
+            >
+              {labelSingkat(t.month)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -131,24 +222,10 @@ function Chip({ ikon: Ikon, warnaIkon, label, nilai, deret, warnaGaris, kelasHov
 function Kerangka() {
   return (
     <div data-testid="kerangka-statistik" aria-hidden="true" className={KELAS_TUMPUKAN}>
-      <div
-        className={clsx(
-          KELAS_KARTU,
-          'h-[124px] w-full animate-pulse lg:absolute lg:top-14 lg:-left-12 lg:w-[268px]',
-        )}
-      />
-      <div
-        className={clsx(
-          KELAS_KARTU,
-          'h-[108px] w-full animate-pulse lg:absolute lg:-top-9 lg:right-0 lg:w-[200px]',
-        )}
-      />
-      <div
-        className={clsx(
-          KELAS_KARTU,
-          'h-[104px] w-full animate-pulse lg:absolute lg:-bottom-10 lg:left-10 lg:w-[212px]',
-        )}
-      />
+      <div className={clsx(KELAS_KARTU, 'h-[300px] w-full animate-pulse lg:mx-auto lg:w-[360px]')} />
+      <div className={clsx(KELAS_KARTU, 'h-[84px] w-full animate-pulse lg:w-[220px]', LETAK.nilaiIkm)} />
+      <div className={clsx(KELAS_KARTU, 'h-16 w-full animate-pulse lg:w-[210px]', LETAK.tanggapan)} />
+      <div className={clsx(KELAS_KARTU, 'h-16 w-full animate-pulse lg:w-[200px]', LETAK.selesai)} />
     </div>
   );
 }
@@ -161,6 +238,9 @@ function Kerangka() {
  * bahwa dasarnya setipis itu. Rata-rata dari lima orang bukan laporan, ia
  * kebetulan; satu jawaban ekstrem menggeser seluruh nilainya.
  *
+ * Sejak 10 November 2026 lantai yang sama juga menahan batang Tren IKM: pil
+ * nilainya menyebut angka per triwulan, yang dasarnya lebih tipis lagi.
+ *
  * 30 adalah ambang lazim bagi rata-rata yang dilaporkan, BUKAN kutipan aturan.
  * Kalau SKM Kabupaten Madiun sudah punya ketentuan jumlah sampel minimum sendiri
  * dari Permenpan-RB atau Diskominfo, angka itu yang menang -- dan menggantinya
@@ -169,8 +249,10 @@ function Kerangka() {
 const AMBANG_PENILAIAN = 30;
 
 /**
- * Tumpukan kartu melayang di atas ilustrasi hero (14 September 2026, permintaan
- * pengguna, mengikuti referensi yang dikirimkannya).
+ * Kartu statistik di kolom kanan hero. Susunan pertama 14 September 2026;
+ * ditata ulang 10 November 2026 atas permintaan pengguna mengikuti referensi
+ * "Learning progress score": Tren IKM menjadi kartu utama di tengah, sedangkan
+ * Nilai IKM, lama tanggapan, dan pengaduan selesai menempel di pinggirnya.
  *
  * Angkanya SUNGGUHAN, diambil dari `GET /statistics` yang memang publik tanpa
  * autentikasi. Halaman resmi pemerintah tak boleh memajang angka hias: pembaca
@@ -184,8 +266,8 @@ const AMBANG_PENILAIAN = 30;
  * predikat resmi.
  *
  * Pemanggilannya sengaja berada di komponen ini, bukan di HeroSection: kegagalan
- * jaringan cukup menghapus tumpukan kartunya, tanpa pernah menyentuh judul,
- * paragraf, dan tombol masuk yang menjadi isi utama halaman.
+ * jaringan cukup menghapus kartunya, tanpa pernah menyentuh judul, paragraf,
+ * dan tombol masuk yang menjadi isi utama halaman.
  */
 export default function KartuStatistikHero() {
   const ambil = useCallback(() => getStatistics(), []);
@@ -212,22 +294,17 @@ export default function KartuStatistikHero() {
    * Yang TETAP dijaga dari versi lama: kartu berangka tak boleh digambar di
    * sini. Nol di halaman utama terbaca sebagai kabupaten tanpa satu pun layanan,
    * bukan sebagai jaringan yang sedang putus.
-   *
-   * Di `lg` ke atas rangka ilustrasi hero tetap digambar, jadi yang hilang hanya
-   * kartu melayangnya. Di bawah `lg` rangka itu sendiri `hidden`, jadi kolomnya
-   * memang kosong dan halamannya sekadar memendek.
    */
   if (error || !data?.summary) return null;
 
   const { summary, ikmTrend = [], complaintStatus } = data;
-  const deret = ikmTrend.map((t) => t.value);
-  const tertinggi = Math.max(...deret, 1);
+  const deret = ikmTrend.slice(-TRIWULAN_DITAMPILKAN);
 
   /**
-   * Kedua chip ini menjawab keraguan yang sebenarnya menahan warga sebelum
-   * melapor: apakah laporan saya akan ditanggapi, dan apakah pernah ada yang
-   * benar-benar tuntas. "OPD Aktif 62" tak menjawab keduanya -- ia menceritakan
-   * ukuran sistemnya, bukan hasilnya.
+   * Kedua angka pengaduan menjawab keraguan yang sebenarnya menahan warga
+   * sebelum melapor: apakah laporan saya akan ditanggapi, dan apakah pernah ada
+   * yang benar-benar tuntas. "OPD Aktif 62" tak menjawab keduanya -- ia
+   * menceritakan ukuran sistemnya, bukan hasilnya.
    */
   const lamaTanggapan = Number(summary.avgSlaDays) > 0 ? summary.avgSlaDays : null;
   const jumlahSelesai = complaintStatus?.status?.find((s) => s.id === 'selesai')?.count ?? null;
@@ -236,182 +313,145 @@ export default function KartuStatistikHero() {
 
   return (
     <div data-tumpukan-statistik className={KELAS_TUMPUKAN}>
-      {/* DUA lapisan animasi, dan pemisahannya perlu. Utilitas `animate-*`
-            menetapkan properti `animation` secara utuh, jadi memasang gerak masuk
-            dan gerak melayang pada elemen yang sama membuat yang satu menghapus
-            yang lain. Pembungkus luar mengurus kemunculan, pembungkus dalam
-            mengurus ayunan. */}
-      <div
-        className="animate-fade-in-up z-20 lg:absolute lg:top-14 lg:-left-12"
-        style={{ animationDelay: '0ms' }}
+      {/* KARTU UTAMA: Tren IKM. Di alur, bukan melayang absolut, jadi ia yang
+          menentukan tinggi panggung dan ketiga kartu pinggir menumpang padanya. */}
+      <Melayang
+        data-kartu-utama
+        kelas="relative z-10 lg:mx-auto lg:w-[360px]"
+        jeda={0}
+        ayunan="lg:animate-melayang-lambat"
       >
-        {/* Lapisan kedalaman 3D dari redesain hero (main). Sengaja `lg:`-saja:
-            `transform` menjadikan elemennya blok penampung sekaligus konteks
-            tumpuk, dan di bawah `lg` kartu-kartu ini hidup dalam alur biasa
-            sebagai tumpukan ponsel -- efek kedalaman tak punya arti di sana
-            sebab rangka ilustrasi yang menaunginya pun tak digambar.
-            Ia berdiri sendiri, BUKAN digabung ke lapisan ayunan: utilitas
-            `animate-*` menetapkan `animation` secara utuh dan geraknya memakai
-            `transform`, jadi keduanya akan saling menelan di elemen yang sama. */}
-        <div className="lg:[transform:translateZ(50px)]">
-          <div className={clsx('lg:animate-melayang', KELAS_JEDA)}>
-            <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
-              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3.5 lg:w-[268px]')}>
-                <span className="bg-primary/10 text-primary inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold">
-                  Nilai IKM
-                </span>
+        {/* BINGKAI BENING (10 November 2026), mengikuti referensi: kartu putih
+            di dalam bingkai putih tembus pandang 12px. Ia hanya terlihat di atas
+            panel biru di belakangnya (PanggungStatistik di HeroSection) --
+            terukur di Chrome, di atas latar putih bingkai ini lebur sama
+            sekali. Panel itu milik `lg`, jadi setiap kelas bingkai juga.
 
-                {cukupPenilaian ? (
-                  <div className="mt-2.5 flex items-end justify-between gap-3">
-                    <div className="leading-none">
-                      <p data-testid="nilai-ikm" className="text-[32px] font-bold text-slate-900">
-                        {angka(summary.ikm)}
-                      </p>
-                      <p className="mt-1.5 text-[11px] font-medium text-slate-500">
-                        dari {angka(summary.totalRespondents)} penilaian warga
-                      </p>
-                    </div>
+            Bingkainya lapisan TERSENDIRI, bukan `box-shadow` pada kartu:
+            KELAS_HOVER mengganti `box-shadow` saat disentuh, dan bingkai yang
+            dibangun dari bayangan akan lenyap tepat ketika kursor mendekat.
+            Gerak angkatnya dipindah ke lapisan ini supaya kartu dan bingkainya
+            terangkat bersama. */}
+        <div
+          data-bingkai-kartu
+          className="transition-transform duration-300 ease-out group-hover:-translate-y-1 group-focus-visible:-translate-y-1 lg:rounded-[28px] lg:bg-white/35 lg:p-3 lg:ring-1 lg:ring-white/70 lg:backdrop-blur-md"
+        >
+          <div
+            className={clsx(
+              KELAS_KARTU,
+              'w-full bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.18)] transition-shadow duration-300 group-hover:shadow-[0_26px_60px_rgba(15,23,42,0.24)] lg:pb-12',
+            )}
+          >
+            <p className="text-base font-bold text-slate-900">Tren IKM</p>
+            <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+              Per triwulan, skala 0-100
+            </p>
 
-                    <svg viewBox="0 0 96 40" className="h-10 w-24 shrink-0" aria-hidden="true">
-                      <polyline
-                        points={titikGaris(deret, 96, 36)}
-                        fill="none"
-                        stroke="#4493CC"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                ) : (
-                  /* Jumlah sebenarnya tetap disebut, dan itu disengaja. Kolom
-                     yang dikosongkan tanpa penjelasan terbaca sebagai aplikasi
-                     yang rusak; menyebut "5 dari 30" mengubah kekurangan itu
-                     menjadi alasan untuk ikut mengisi. */
-                  <div className="mt-2.5 leading-snug">
-                    <p className="text-base font-bold text-slate-800">Belum cukup penilaian</p>
-                    <p className="mt-1 text-[11px] font-medium text-slate-500">
-                      Baru {angka(jumlahPenilaian)} dari {AMBANG_PENILAIAN} penilaian yang
-                      dibutuhkan agar nilainya layak ditampilkan.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </Link>
+            {!cukupPenilaian ? (
+              /* Batang dan pil nilainya ditahan bersama Nilai IKM. Ruangnya tetap
+                 diisi penjelasan, supaya kartu utama tak terbaca rusak. */
+              <p className="mt-5 rounded-xl bg-slate-50 px-4 py-6 text-center text-xs leading-relaxed font-medium text-slate-600">
+                Tren tampil setelah {AMBANG_PENILAIAN} penilaian warga terkumpul.
+              </p>
+            ) : deret.length === 0 ? (
+              <p className="mt-5 rounded-xl bg-slate-50 px-4 py-6 text-center text-xs leading-relaxed font-medium text-slate-600">
+                Belum ada nilai IKM per triwulan.
+              </p>
+            ) : (
+              <BatangTren deret={deret} />
+            )}
           </div>
         </div>
-      </div>
+      </Melayang>
 
-      {/* Kartu batang: satu batang per periode, yang terbaru diberi warna tegas. */}
-      <div
-        className="animate-fade-in-up z-10 lg:absolute lg:-top-9 lg:right-0"
-        style={{ animationDelay: '130ms' }}
+      <Melayang
+        data-kartu-pinggir
+        kelas={clsx('z-20', LETAK.nilaiIkm)}
+        jeda={130}
+        ayunan="lg:animate-melayang"
       >
-        {/* Lapisan kedalaman 3D dari redesain hero (main). Sengaja `lg:`-saja:
-            `transform` menjadikan elemennya blok penampung sekaligus konteks
-            tumpuk, dan di bawah `lg` kartu-kartu ini hidup dalam alur biasa
-            sebagai tumpukan ponsel -- efek kedalaman tak punya arti di sana
-            sebab rangka ilustrasi yang menaunginya pun tak digambar.
-            Ia berdiri sendiri, BUKAN digabung ke lapisan ayunan: utilitas
-            `animate-*` menetapkan `animation` secara utuh dan geraknya memakai
-            `transform`, jadi keduanya akan saling menelan di elemen yang sama. */}
-        <div className="lg:[transform:translateZ(30px)]">
-          <div className={clsx('lg:animate-melayang-lambat', KELAS_JEDA)}>
-            <Link href="/statistics" className={clsx('group block', KELAS_FOKUS)}>
-              <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3.5 lg:w-[200px]')}>
-                <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-                  Tren IKM
-                </p>
-                <div className="mt-3 flex items-end gap-2.5">
-                  {ikmTrend.map((t, i) => (
-                    <div key={t.month} className="flex flex-1 flex-col items-center gap-1.5">
-                      {/* Jalur bertinggi PASTI. Tanpa ini persentase batangnya tak
-                    punya acuan -- terukur di peramban: kolomnya menyusut ke
-                    tinggi labelnya sendiri dan batangnya terhitung 0px, jadi
-                    kartunya tampil dengan label tanpa satu pun batang. */}
-                      <div className="flex h-12 w-full items-end">
-                        <div
-                          data-batang
-                          className={clsx(
-                            'animate-tumbuh-batang w-full origin-bottom rounded-md',
-                            i === ikmTrend.length - 1 ? 'bg-primary' : 'bg-primary/25',
-                          )}
-                          style={{
-                            height: `${Math.max((t.value / tertinggi) * 100, 10)}%`,
-                            animationDelay: `${260 + i * 90}ms`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-semibold whitespace-nowrap text-slate-500">
-                        {labelSingkat(t.month)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
+        <div className={clsx(KELAS_KARTU, KELAS_HOVER, 'w-full px-4 py-3 lg:w-[220px]')}>
+          <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold">
+            <Star size={12} aria-hidden="true" />
+            Nilai IKM
+          </span>
 
-      {/* Dua chip kecil yang bertumpuk, mengikuti susunan pada referensi. */}
-      <div
-        className="animate-fade-in-up z-30 lg:absolute lg:-bottom-10 lg:left-10"
-        style={{ animationDelay: '260ms' }}
+          {cukupPenilaian ? (
+            <div className="mt-2 leading-none">
+              <p data-testid="nilai-ikm" className="text-[28px] font-bold text-slate-900">
+                {angka(summary.ikm)}
+              </p>
+              <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                dari {angka(summary.totalRespondents)} penilaian warga
+              </p>
+            </div>
+          ) : (
+            /* Jumlah sebenarnya tetap disebut, dan itu disengaja. Kolom yang
+               dikosongkan tanpa penjelasan terbaca sebagai aplikasi yang
+               rusak; menyebut "5 dari 30" mengubah kekurangan itu menjadi
+               alasan untuk ikut mengisi. */
+            <div className="mt-2 leading-snug">
+              <p className="text-base font-bold text-slate-800">Belum cukup penilaian</p>
+              <p className="mt-1 text-[11px] font-medium text-slate-500">
+                Baru {angka(jumlahPenilaian)} dari {AMBANG_PENILAIAN} penilaian yang dibutuhkan agar
+                nilainya layak ditampilkan.
+              </p>
+            </div>
+          )}
+        </div>
+      </Melayang>
+
+      <Melayang
+        data-kartu-pinggir
+        kelas={clsx('z-20', LETAK.tanggapan)}
+        jeda={260}
+        ayunan="lg:animate-melayang"
       >
-        {/* Lapisan kedalaman 3D dari redesain hero (main). Sengaja `lg:`-saja:
-            `transform` menjadikan elemennya blok penampung sekaligus konteks
-            tumpuk, dan di bawah `lg` kartu-kartu ini hidup dalam alur biasa
-            sebagai tumpukan ponsel -- efek kedalaman tak punya arti di sana
-            sebab rangka ilustrasi yang menaunginya pun tak digambar.
-            Ia berdiri sendiri, BUKAN digabung ke lapisan ayunan: utilitas
-            `animate-*` menetapkan `animation` secara utuh dan geraknya memakai
-            `transform`, jadi keduanya akan saling menelan di elemen yang sama. */}
-        <div className="lg:[transform:translateZ(60px)]">
-          <div className={clsx('lg:animate-melayang-lambat', KELAS_JEDA)}>
-            <Link href="/statistics" className={clsx('group flex flex-col gap-2', KELAS_FOKUS)}>
-              {/* Instalasi baru belum punya pengaduan yang selesai, jadi
-            `avgSlaDays` belum bernilai. "0 hari" terbaca sebagai janji tanggapan
-            seketika dan "null hari" sebagai aplikasi rusak; keduanya lebih buruk
-            daripada tak menjanjikan apa pun. Chip-nya diganti, bukan
-            dikosongkan, supaya susunannya tak berlubang. */}
-              {lamaTanggapan !== null ? (
-                <Chip
-                  ikon={Clock}
-                  warnaIkon="text-primary"
-                  label="Ditanggapi rata-rata"
-                  nilai={`${angka(lamaTanggapan)} hari`}
-                  deret={deret}
-                  warnaGaris="#4493CC"
-                  kelasHover={KELAS_HOVER}
-                />
-              ) : (
-                <Chip
-                  ikon={Building2}
-                  warnaIkon="text-primary"
-                  label="Pengaduan Masuk"
-                  nilai={angka(summary.totalComplaints)}
-                  deret={deret}
-                  warnaGaris="#4493CC"
-                  kelasHover={KELAS_HOVER}
-                />
-              )}
+        {/* Instalasi baru belum punya pengaduan yang selesai, jadi `avgSlaDays`
+            belum bernilai. "0 hari" terbaca sebagai janji tanggapan seketika dan
+            "null hari" sebagai aplikasi rusak; keduanya lebih buruk daripada tak
+            menjanjikan apa pun. Kartunya diganti, bukan dikosongkan, supaya
+            susunannya tak berlubang. */}
+        {lamaTanggapan !== null ? (
+          <KartuPinggir
+            ikon={Clock}
+            warnaIkon="text-primary"
+            latarIkon="bg-primary/10"
+            label="Ditanggapi rata-rata"
+          >
+            <p className="mt-0.5 text-base font-bold text-slate-800">{angka(lamaTanggapan)} hari</p>
+          </KartuPinggir>
+        ) : (
+          <KartuPinggir
+            ikon={Building2}
+            warnaIkon="text-primary"
+            latarIkon="bg-primary/10"
+            label="Pengaduan Masuk"
+          >
+            <p className="mt-0.5 text-base font-bold text-slate-800">
+              {angka(summary.totalComplaints)}
+            </p>
+          </KartuPinggir>
+        )}
+      </Melayang>
 
-              {jumlahSelesai !== null && (
-                <Chip
-                  ikon={CheckCircle2}
-                  warnaIkon="text-emerald-500"
-                  label="Pengaduan Selesai"
-                  nilai={angka(jumlahSelesai)}
-                  deret={deret}
-                  warnaGaris="#10b981"
-                  kelasHover={KELAS_HOVER}
-                />
-              )}
-            </Link>
-          </div>
-        </div>
-      </div>
+      {jumlahSelesai !== null && (
+        <Melayang
+          data-kartu-pinggir
+          kelas={clsx('z-20', LETAK.selesai)}
+          jeda={390}
+          ayunan="lg:animate-melayang-lambat"
+        >
+          <KartuPinggir
+            ikon={CheckCircle2}
+            warnaIkon="text-emerald-600"
+            latarIkon="bg-emerald-50"
+            label="Pengaduan Selesai"
+          >
+            <p className="mt-0.5 text-base font-bold text-slate-800">{angka(jumlahSelesai)}</p>
+          </KartuPinggir>
+        </Melayang>
+      )}
     </div>
   );
 }

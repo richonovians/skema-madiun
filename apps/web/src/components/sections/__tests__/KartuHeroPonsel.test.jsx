@@ -110,13 +110,20 @@ describe('KartuStatistikHero — kartu sampai ke layar ponsel', () => {
 
     const wadah = tumpukan(container);
     expect(wadah.innerHTML).not.toMatch(/class="[^"]*(^|\s)w-\[\d+px\]/);
-    expect(wadah.querySelectorAll('[class*="lg:w-[268px]"]').length).toBeGreaterThan(0);
+    // Kartu Tren IKM di tengah (10 November 2026) -- sebelumnya kartu Nilai IKM
+    // selebar 268px.
+    expect(wadah.querySelectorAll('[class*="lg:w-[360px]"]').length).toBeGreaterThan(0);
   });
 
   /**
    * KONTROL. Tumpukan yang "aman di ponsel" karena tata letak melayangnya
    * dibuang sama sekali juga meluluskan ketiga uji di atas, sambil menghapus
    * susunan yang memang diminta pengguna untuk desktop.
+   *
+   * Sejak 10 November 2026 susunannya: Tren IKM di tengah (`lg:mx-auto`),
+   * Nilai IKM menempel di sudut kanan atas, kedua angka pengaduan di kedua
+   * sudut bawah. Ketiganya menumpang pada kepala dan kaki kartu utama, bukan
+   * pada batangnya.
    */
   it('KONTROL: susunan melayang desktop tetap utuh', async () => {
     getStatistics.mockResolvedValue(DATA);
@@ -125,7 +132,8 @@ describe('KartuStatistikHero — kartu sampai ke layar ponsel', () => {
     await screen.findByTestId('nilai-ikm');
 
     const wadah = tumpukan(container);
-    for (const kelas of ['lg:top-14', 'lg:-left-12', 'lg:-top-9', 'lg:right-0', 'lg:-bottom-10']) {
+    expect(wadah.className).toMatch(/lg:relative/);
+    for (const kelas of ['lg:mx-auto', 'lg:top-0', 'lg:right-0', 'lg:bottom-0', 'lg:left-0']) {
       expect(wadah.querySelectorAll(`[class*="${kelas}"]`).length).toBeGreaterThan(0);
     }
   });

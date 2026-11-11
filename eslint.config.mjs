@@ -27,6 +27,13 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.min.js',
       '**/prisma/generated/**',
+      // Artefak lokal qa-bug-hunter (laporan, skrip repro, probe peramban).
+      // Dipalang `.gitignore`, jadi tak pernah sampai ke CI -- tetapi tanpa baris
+      // ini `pnpm lint` membacanya di mesin yang menyimpannya dan memerah atas
+      // berkas yang tak dilacak (10 November 2026: 12 galat, semuanya di
+      // `qa-bug-hunt/repros/`). Probe-nya memang dijalankan di peramban, jadi
+      // `document` dan `innerHeight` di sana bukan cacat.
+      'qa-bug-hunt/**',
       // Frontend Next.js punya eslint.config sendiri (eslint-config-next).
       'apps/web/**',
     ],

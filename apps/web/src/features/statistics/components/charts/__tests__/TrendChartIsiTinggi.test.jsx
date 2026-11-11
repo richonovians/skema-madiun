@@ -14,14 +14,14 @@ import TrendChart from '../TrendChart';
  * Opt-in: pemakai lain (dashboard admin) tidak berubah sama sekali.
  *
  * jsdom tak punya ResizeObserver, jadi dipasang tiruan yang melaporkan ukuran
- * yang ditentukan uji.
+ * yang ditentukan uji. Instans terakhirnya disimpan sebagai properti statis,
+ * bukan `let x = this`, karena eslint apps/web menolak
+ * `@typescript-eslint/no-this-alias`.
  */
-let pengamatTerakhir = null;
-
 class ResizeObserverTiruan {
   constructor(cb) {
     this.cb = cb;
-    pengamatTerakhir = this;
+    ResizeObserverTiruan.terakhir = this;
   }
   observe() {}
   disconnect() {}
@@ -41,7 +41,7 @@ const DATA = [
 ];
 
 beforeEach(() => {
-  pengamatTerakhir = null;
+  ResizeObserverTiruan.terakhir = null;
   global.ResizeObserver = ResizeObserverTiruan;
 });
 afterEach(() => {
@@ -56,7 +56,7 @@ describe('TrendChart — isiTinggi', () => {
   it('tinggi SVG mengikuti tinggi wadah yang diukur', () => {
     const { container } = render(<TrendChart title="Uji" data={DATA} dataKey="value" yMax={2} isiTinggi />);
 
-    act(() => pengamatTerakhir.lapor(500, 400));
+    act(() => ResizeObserverTiruan.terakhir.lapor(500, 400));
 
     expect(tinggiSvg(container)).toBe(400);
     expect(container.querySelector('svg').getAttribute('viewBox')).toBe('0 0 500 400');
@@ -65,7 +65,7 @@ describe('TrendChart — isiTinggi', () => {
   it('tak pernah lebih pendek dari 220px', () => {
     const { container } = render(<TrendChart title="Uji" data={DATA} dataKey="value" yMax={2} isiTinggi />);
 
-    act(() => pengamatTerakhir.lapor(500, 100));
+    act(() => ResizeObserverTiruan.terakhir.lapor(500, 100));
 
     expect(tinggiSvg(container)).toBe(220);
   });
@@ -73,7 +73,7 @@ describe('TrendChart — isiTinggi', () => {
   it('KONTROL: tanpa isiTinggi, tinggi tetap 220px walau wadahnya lebih tinggi', () => {
     const { container } = render(<TrendChart title="Uji" data={DATA} dataKey="value" yMax={2} />);
 
-    act(() => pengamatTerakhir.lapor(500, 400));
+    act(() => ResizeObserverTiruan.terakhir.lapor(500, 400));
 
     expect(tinggiSvg(container)).toBe(220);
   });

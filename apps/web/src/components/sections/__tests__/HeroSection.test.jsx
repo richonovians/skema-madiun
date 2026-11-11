@@ -46,7 +46,7 @@ describe('HeroSection', () => {
     expect(screen.queryByRole('button', { name: /masuk via sso/i })).not.toBeInTheDocument();
   });
 
-  it('memasang tumpukan kartu statistik di atas ilustrasi', async () => {
+  it('memasang tumpukan kartu statistik', async () => {
     isAuthenticated.mockReturnValue(false);
 
     render(<HeroSection />);
@@ -55,22 +55,36 @@ describe('HeroSection', () => {
   });
 
   /**
-   * Rangka jendelanya hiasan belaka dan harus disembunyikan dari pembaca layar
-   * -- membacakan selusin kotak kosong tak memberi apa pun. Kartu statusnya
-   * lain: isinya pernyataan sungguhan tentang layanan ini, jadi ia justru harus
-   * terbaca. Menyembunyikan seluruh kolom kanan sekaligus, seperti versi
-   * sebelumnya, ikut membungkam pernyataan itu.
+   * ILUSTRASI JENDELA PERAMBAN DIBUANG (10 November 2026, keputusan pengguna).
+   *
+   * Kartu Tren IKM kini isi utama kolom kanan, dan dasbor tiruan di
+   * belakangnya berebut tempat dengannya. Lebih dari itu, tiruan tersebut
+   * memajang "84%" dan "< 2 Jam" -- angka karangan -- tepat di sebelah angka
+   * sungguhan dari /statistics, padahal pembaca tak punya cara membedakan
+   * keduanya.
    */
-  it('rangka jendela disembunyikan dari pembaca layar, kartu angkanya tidak', async () => {
+  it('dasbor tiruan beserta angka karangannya tak digambar lagi', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    expect(container.querySelector('[data-rangka-ilustrasi]')).toBeNull();
+    expect(screen.queryByText('84%')).not.toBeInTheDocument();
+    expect(screen.queryByText(/< 2 Jam/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Cahaya gradasi di belakang kartu murni hiasan dan disembunyikan dari
+   * pembaca layar; kartu angkanya tidak boleh ikut terbungkam.
+   */
+  it('cahaya latar disembunyikan dari pembaca layar, kartu angkanya tidak', async () => {
     isAuthenticated.mockReturnValue(false);
 
     const { container } = render(<HeroSection />);
     const nilai = await screen.findByTestId('nilai-ikm');
 
-    expect(container.querySelector('[data-rangka-ilustrasi]')).toHaveAttribute(
-      'aria-hidden',
-      'true',
-    );
+    expect(container.querySelector('[data-cahaya-latar]')).toHaveAttribute('aria-hidden', 'true');
     expect(nilai.closest('[aria-hidden="true"]')).toBeNull();
   });
 
@@ -120,81 +134,99 @@ describe('HeroSection', () => {
   });
 
   /**
-   * Sebelumnya `hidden lg:block` menempel di SELURUH kolom kanan, jadi rangka
-   * hiasannya dan angka-angkanya lenyap bersama-sama di bawah `lg`. Rangkanya
-   * memang pantas hilang di ponsel -- ia cuma hiasan yang memanjangkan halaman.
-   * Angkanya tidak: justru itu yang seharusnya dibaca warga sebelum memutuskan
-   * mengisi survei, dan mayoritas dari mereka datang dari ponsel.
+   * Kartu statistiknya harus tetap terlihat di bawah `lg`: angka itulah yang
+   * seharusnya dibaca warga sebelum memutuskan mengisi survei, dan mayoritas
+   * dari mereka datang dari ponsel. Hanya cahaya latarnya yang milik `lg`.
    */
-  it('kartu statistiknya tidak ikut disembunyikan bersama rangka ilustrasi', async () => {
+  it('kartu statistiknya tidak disembunyikan di bawah lg', async () => {
     isAuthenticated.mockReturnValue(false);
 
     const { container } = render(<HeroSection />);
     await screen.findByTestId('nilai-ikm');
 
-    expect(container.querySelector('[data-rangka-ilustrasi]').className).toMatch(/hidden/);
+    const cahaya = container.querySelector('[data-cahaya-latar]').classList;
+    expect(cahaya.contains('hidden') && cahaya.contains('lg:block')).toBe(true);
     expect(container.querySelector('[data-tumpukan-statistik]').closest('.hidden')).toBeNull();
+  });
+
+  /**
+   * PANEL BIRU di belakang kartu (10 November 2026). Bingkai bening kartu Tren
+   * IKM hanya terlihat di atas warna -- terukur di Chrome: cahaya radial yang
+   * samar sebelumnya tak cukup, panel biru brand muda cukup. Biru tua diuji
+   * dan ditolak: ia terbaca sebagai noda bayangan.
+   */
+  it('latar di belakang kartu adalah panel biru brand muda', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    const panel = container.querySelector('[data-cahaya-latar]');
+    expect(panel.hasAttribute('data-panel-biru')).toBe(true);
+    expect(panel.style.background).toMatch(/rgba\(68,\s*147,\s*204/);
+    expect(panel.style.background).not.toMatch(/radial-gradient/);
+  });
+
+  /**
+   * JARAK BIRU DI KIRI-KANAN SETARA ATAS-BAWAH (10 November 2026, permintaan
+   * pengguna). Panel 460px hanya menyisakan 38px di tiap sisi kartu berbingkai
+   * (384px), dan gradasinya sudah memudar di sana -- sisi kartu nyaris putih
+   * sementara atas-bawahnya biru. Di atas-bawah panel menjulur 64px melewati
+   * panggung yang sendirinya ber-`lg:py-10`; sisi kiri-kanan harus memberi
+   * paling sedikit 64px juga.
+   */
+  it('panel menjulur paling sedikit 64px di kiri dan kanan kartu berbingkai', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    const panel = container.querySelector('[data-cahaya-latar]');
+    const lebar = Number(/(?:^|\s)w-\[(\d+)px\]/.exec(panel.className)?.[1]);
+    const KARTU_BERBINGKAI = 360 + 2 * 12;
+    expect((lebar - KARTU_BERBINGKAI) / 2).toBeGreaterThanOrEqual(64);
+  });
+
+  /**
+   * KEEMPAT SISI MEMUDAR (10 November 2026, pengguna memilih "contoh 2" dari
+   * tiga pratinjau di Chrome). Sebelumnya hanya atas-bawah yang memudar lewat
+   * `mask-image`; kiri-kanan pekat sampai dekat tepi lalu putus pendek, jadi
+   * panelnya terbaca sebagai balok. Kini dua gradasi -- mendatar dan tegak --
+   * diirisi, sehingga setiap sisi memudar sama panjangnya.
+   */
+  it('panel memudar di keempat sisi lewat dua gradasi yang diirisi', async () => {
+    isAuthenticated.mockReturnValue(false);
+
+    const { container } = render(<HeroSection />);
+    await screen.findByTestId('nilai-ikm');
+
+    const gaya = container.querySelector('[data-cahaya-latar]').style;
+    const masker = gaya.maskImage || gaya.webkitMaskImage || '';
+    expect(masker).toMatch(/90deg/);
+    expect(masker).toMatch(/180deg/);
+    expect(gaya.maskComposite || gaya.webkitMaskComposite).toBeTruthy();
   });
 });
 
 /**
- * EFEK 3D MILIK LAYAR LEBAR SAJA (16 September 2026, saat menggabungkan
- * redesain hero 3D dari `main` dengan tumpukan kartu ponsel).
+ * EFEK 3D DIBUANG (10 November 2026), bersama ilustrasi jendela.
  *
- * `IlustrasiJendela` memasang `perspective(1200px) rotateX(4deg) rotateY(-12deg)
- * rotateZ(2deg)` lewat `style` sebaris, jadi berlaku di SETIAP lebar. Sejak
- * kartu statistik ikut hidup di ponsel sebagai tumpukan dalam alur biasa,
- * ketiganya ikut termiringkan.
- *
- * Terukur di Chrome pada 393px sesudah penggabungan: lebar kotak pembatas
- * tumpukan berubah-ubah 358-367px alih-alih tetap 361px -- tanda kotaknya
- * memang terputar, sebab `getBoundingClientRect` mengembalikan kotak sejajar
- * sumbu dari elemen yang miring. Tangkapan layarnya memastikan: garis dasar
- * teksnya melandai.
- *
- * Rangka ilustrasi yang dinaungi efek ini sendiri `hidden lg:block`, jadi
- * mengurungnya ke `lg` mempertahankan maksud aslinya dan sekaligus menegakkan
- * kembali kartu di ponsel.
+ * Kemiringan `perspective(1200px) rotateX(4deg) rotateY(-12deg) rotateZ(2deg)`
+ * (16 September 2026) memiringkan rangka jendela beserta kartu yang
+ * menumpanginya. Referensi baru menampilkan kartu tegak, dan tanpa rangka di
+ * belakangnya kemiringan hanya membuat garis dasar teks dan batang ikut
+ * melandai -- tepat di kartu yang angkanya harus dibaca. Uji lamanya menjaga
+ * agar kemiringan itu milik `lg` saja; kini yang dijaga adalah ketiadaannya di
+ * lebar mana pun.
  */
-describe('HeroSection — efek 3D tidak memiringkan kartu ponsel', () => {
-  it('transformasi 3D-nya tidak berlaku tanpa syarat', async () => {
+describe('HeroSection — kartu statistik tegak', () => {
+  it('tak ada transformasi putar maupun perspektif di kolom kartu', async () => {
     isAuthenticated.mockReturnValue(false);
 
     const { container } = render(<HeroSection />);
     await screen.findByTestId('nilai-ikm');
 
-    const pembungkus = container.querySelector('[data-ilustrasi-3d]');
-
-    expect(pembungkus).not.toBeNull();
-    expect(pembungkus.style.transform).toBe('');
-  });
-
-  it('dipasang lewat kelas yang hanya hidup mulai lg', async () => {
-    isAuthenticated.mockReturnValue(false);
-
-    const { container } = render(<HeroSection />);
-    await screen.findByTestId('nilai-ikm');
-
-    const kelas = container.querySelector('[data-ilustrasi-3d]').className;
-
-    expect(kelas).toMatch(/lg:\[transform:perspective/);
-    expect(kelas).toMatch(/lg:\[transform-style:preserve-3d\]/);
-  });
-
-  /**
-   * PASANGAN kontrol. Efek yang dibuang seluruhnya juga meluluskan kedua uji di
-   * atas, sambil menghapus redesain yang baru saja masuk ke `main`.
-   */
-  it('KONTROL: sudut putaran aslinya dipertahankan apa adanya', async () => {
-    isAuthenticated.mockReturnValue(false);
-
-    const { container } = render(<HeroSection />);
-    await screen.findByTestId('nilai-ikm');
-
-    const kelas = container.querySelector('[data-ilustrasi-3d]').className;
-
-    for (const bagian of ['rotateX(4deg)', 'rotateY(-12deg)', 'rotateZ(2deg)']) {
-      expect(kelas).toContain(bagian);
-    }
+    expect(container.innerHTML).not.toMatch(/rotate[XYZ]\(|perspective\(|translateZ\(/);
+    expect(container.querySelector('[data-ilustrasi-3d]')).toBeNull();
   });
 });

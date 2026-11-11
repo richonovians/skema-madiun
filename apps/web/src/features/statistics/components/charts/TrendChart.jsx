@@ -59,6 +59,25 @@ function ringkasLabel(teks) {
     .replace(/\s*-\s*/, ' ');
 }
 
+const ANGKA_ROMAWI = { I: 1, II: 2, III: 3, IV: 4 };
+
+/**
+ * Bentuk PALING ringkas, untuk bagan sempit (10 November 2026): "Triwulan III
+ * - 2026" -> "TW3 '26" (sama dengan kartu hero beranda) dan "Nov 2026" ->
+ * "Nov '26". Terukur di Chrome pada ponsel 393px: kartunya 313px dan bentuk
+ * "TW III 2026" pun masih bertindih, sehingga dua dari empat triwulan tampil
+ * tanpa label. Bentuk yang tak dikenali dikembalikan apa adanya, supaya
+ * perubahan format di adapter tak menghasilkan label kosong.
+ */
+function ringkasLabelMini(teks) {
+  const t = String(teks ?? '');
+  const triwulan = /^triwulan\s+(IV|I{1,3})\D+(\d{4})$/i.exec(t);
+  if (triwulan) return `TW${ANGKA_ROMAWI[triwulan[1].toUpperCase()]} '${triwulan[2].slice(2)}`;
+  const bulan = /^(\S+)\s+(\d{4})$/.exec(t);
+  if (bulan) return `${bulan[1]} '${bulan[2].slice(2)}`;
+  return t;
+}
+
 /**
  * `aksi` (2 November 2026): elemen opsional di sisi kanan judul, mis. pilihan
  * Bulanan/Tahunan pada tren pengaduan halaman statistik. Tanpa `aksi`, judul
@@ -179,13 +198,6 @@ export default function TrendChart({
     return { kiri, kanan: kiri + lebarnya };
   };
 
-  const labelPenuh = data.map((item) => String(item.month ?? ''));
-  const semuaPenuhMuat = labelPenuh.reduce(
-    (jumlah, teks) => jumlah + lebarTeks(teks) + JARAK_LABEL,
-    -JARAK_LABEL,
-  ) <= innerWidth;
-  const labelTeks = semuaPenuhMuat ? labelPenuh : labelPenuh.map(ringkasLabel);
-
   const terakhir = data.length - 1;
   // `data` kosong harus menghasilkan daftar kosong, bukan indeks -1: itu akan
   // membaca `points[-1]` dan melempar saat bentangnya diukur.
@@ -199,17 +211,43 @@ export default function TrendChart({
           ...Array.from({ length: Math.max(0, terakhir - 1) }, (_, k) => terakhir - 1 - k),
         ];
 
-  const dipakai = [];
-  const labelTampil = new Set();
-  for (const index of urutanPrioritas) {
-    const { kiri, kanan } = bentangLabel(index, labelTeks[index]);
-    const bertabrakan = dipakai.some(
-      (d) => kanan + JARAK_LABEL > d.kiri && kiri < d.kanan + JARAK_LABEL,
-    );
-    if (!bertabrakan) {
-      dipakai.push({ kiri, kanan });
-      labelTampil.add(index);
+  const pilihLabel = (teksLabel) => {
+    const dipakai = [];
+    const tampil = new Set();
+    for (const index of urutanPrioritas) {
+      const { kiri, kanan } = bentangLabel(index, teksLabel[index]);
+      const bertabrakan = dipakai.some(
+        (d) => kanan + JARAK_LABEL > d.kiri && kiri < d.kanan + JARAK_LABEL,
+      );
+      if (!bertabrakan) {
+        dipakai.push({ kiri, kanan });
+        tampil.add(index);
+      }
     }
+    return tampil;
+  };
+
+  /**
+   * Bentuk label dipilih bertingkat -- penuh, pendek, paling ringkas -- dan
+   * yang dipakai ialah bentuk PERTAMA yang SETIAP labelnya lolos pemeriksaan
+   * bentang pada posisinya sendiri (10 November 2026). Bila bentuk paling
+   * ringkas pun tak memuat semuanya, ia tetap dipakai dan labelnya ditipiskan.
+   *
+   * Penentu sebelumnya ialah jumlah lebar semua label dibanding lebar bagan,
+   * dan itu keliru: label tidak dirapatkan, ia berjangkar pada titiknya. Empat
+   * triwulan pada bagan 520px berjumlah 470px -- "muat" -- padahal "Triwulan
+   * III - 2026" berakhir 2,8px sebelum label terakhir mulai, sehingga dibuang
+   * dan periodenya tampil tanpa label. Bentuk pendek "TW III 2026" memuat
+   * keempatnya.
+   */
+  const labelPenuh = data.map((item) => String(item.month ?? ''));
+  const tingkatLabel = [labelPenuh, labelPenuh.map(ringkasLabel), labelPenuh.map(ringkasLabelMini)];
+  let labelTeks;
+  let labelTampil;
+  for (const teksLabel of tingkatLabel) {
+    labelTeks = teksLabel;
+    labelTampil = pilihLabel(teksLabel);
+    if (labelTampil.size === data.length) break;
   }
 
   const pathD = `M ${points.map((p) => `${p.x},${p.y}`).join(' L ')}`;

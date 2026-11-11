@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { BarChart3, Activity, PieChart, TrendingUp, Users } from 'lucide-react';
 import KartuStatistikHero from './KartuStatistikHero';
 import SSOLoginButton from '@/features/authentication/components/SSOLoginButton';
 import {
@@ -10,159 +9,80 @@ import {
 } from '@/features/authentication/services/authStorage';
 
 /**
- * Ilustrasi jendela peramban, digambar dari elemen biasa (14 September 2026).
+ * Panggung kartu statistik di kolom kanan hero (10 November 2026).
  *
- * TANPA berkas gambar dan tanpa alamat luar, atas permintaan pengguna. Alasannya
- * bukan sekadar selera: halaman utama yang menarik berkas dari CDN ikut
- * menggantungkan tampilannya pada layanan di luar kendali Diskominfo, dan
- * membocorkan kunjungan setiap warga ke pihak ketiga. Kotak-kotak di bawah ini
- * hanyalah div berwarna, jadi tak ada permintaan keluar sama sekali.
+ * Menggantikan ilustrasi jendela peramban (14 September 2026) atas keputusan
+ * pengguna, mengikuti referensi "Learning progress score": kartu Tren IKM
+ * menjadi isi utama, tegak, di atas panel biru. Dasbor tiruan yang dulu
+ * di sini memajang "84%" dan "< 2 Jam" -- angka karangan -- tepat di sebelah
+ * angka sungguhan dari /statistics, dan pembaca tak punya cara membedakan
+ * keduanya. Kemiringan 3D-nya ikut dibuang: tanpa rangka di belakangnya, ia
+ * hanya membuat garis dasar teks dan batang melandai di kartu yang angkanya
+ * harus dibaca.
  *
- * Disembunyikan di bawah `lg`. Di ponsel ia hanya memanjangkan hero sebelum
- * kalimat pembukanya terbaca.
+ * TANPA berkas gambar dan tanpa alamat luar, atas permintaan pengguna:
+ * halaman utama yang menarik berkas dari CDN ikut menggantungkan tampilannya
+ * pada layanan di luar kendali Diskominfo, dan membocorkan kunjungan setiap
+ * warga ke pihak ketiga. Panelnya murni `linear-gradient`.
  */
-function IlustrasiJendela() {
-  return (
-    /* Efek kedalamannya `lg:`-saja (16 September 2026). Sebelumnya dipasang
-       lewat `style` sebaris, jadi berlaku di setiap lebar -- dan sejak kartu
-       statistik ikut hidup di ponsel sebagai tumpukan dalam alur biasa,
-       ketiganya ikut termiringkan. Terukur pada 393px: lebar kotak pembatas
-       tumpukan berubah-ubah 358-367px alih-alih tetap 361px, tanda kotaknya
-       memang terputar. Rangka ilustrasi yang dinaungi efek ini sendiri
-       `hidden lg:block`, jadi mengurungnya ke `lg` mempertahankan maksud
-       aslinya. Sudut putarannya tidak diubah sedikit pun.
+/** Pudar mendatar dan tegak; diirisi, keduanya memudarkan keempat sisi panel. */
+const MASKER_EMPAT_SISI =
+  'linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%),' +
+  'linear-gradient(180deg, transparent 0%, #000 28%, #000 72%, transparent 100%)';
 
-       `lg:scale-95` DIBUANG, bukan dipindahkan: `style` sebaris selalu
-       mengalahkan kelas, jadi selama ini ia tak pernah berlaku sama sekali.
-       Menghidupkannya sekarang justru akan mengubah tampilan desktop. */
-    <div
-      data-ilustrasi-3d
-      className="relative mt-12 origin-center lg:mt-16 xl:origin-right lg:[transform:perspective(1200px)_rotateX(4deg)_rotateY(-12deg)_rotateZ(2deg)] lg:[transform-style:preserve-3d]"
-    >
-      {/* Bola gradasi di belakang tumpukan, memberi kedalaman seperti pada
-          referensi. Murni `radial-gradient` -- tak ada berkas gambar dan tak ada
-          alamat luar sama sekali. `blur` besar membuat tepinya larut, jadi ia
-          tak pernah bersaing dengan kartu di depannya. */}
+function PanggungStatistik() {
+  return (
+    <div className="relative mt-12 lg:mt-0">
+      {/* PANEL BIRU di belakang kartu Tren IKM (10 November 2026), padanan
+          kolom oranye referensi dalam biru brand muda (#4493CC). Ia yang membuat
+          bingkai bening kartu utama terlihat -- terukur di Chrome: di atas
+          cahaya radial samar sebelumnya bingkai itu lebur. Biru tua (#153969)
+          diuji dan ditolak: terbaca sebagai noda bayangan dan membuat kartu
+          pinggir tampak kusam.
+
+          Kolom tegak dengan garis-garis tipis yang MEMUDAR DI KEEMPAT SISI
+          (10 November 2026, pengguna memilih "contoh 2" dari tiga pratinjau
+          di Chrome). Dua gradasi -- mendatar dan tegak -- diirisi lewat
+          `mask-composite`, jadi setiap sisi memudar panjang (30%/28% dari
+          tepinya) dan bentuknya tetap persegi seperti kolom di referensi.
+          Versi sebelumnya hanya memudarkan atas-bawah; kiri-kanannya pekat lalu
+          putus pendek, sehingga terbaca sebagai balok. Pratinjau elips ditolak
+          karena terbaca sebagai lampu sorot, bukan kolom.
+
+          Ukurannya 600px x (panggung + 2 x 110px); di bawah 1440px juluran
+          atas-bawahnya 56px. Terukur di Chrome: `<section>` hero mulai di y=80
+          dan ber-`overflow-hidden`, sedangkan pada 1024px juluran 110px membuat
+          panel mulai di y=50 -- pudar atasnya terpotong dan menyisakan garis
+          mendatar di bawah navbar. Pudar kiri-kanan sepanjang
+          180px, jadi tepi kartu berbingkai (384px, 108px dari tepi panel) masih
+          berada di dalam pudar -- birunya sudah terasa di sisi kartu, dan baru
+          bening penuh 108px di luarnya. Di lebar `lg` terkecil (kolom 456px)
+          panel menjulur 72px ke tiap sisi kolom; bagian itu sudah hampir
+          bening, jadi tak menimpa kolom teks.
+
+          `lg:`-saja: di ponsel kartunya bertumpuk dalam alur biasa dan
+          bingkainya pun tak digambar. Hiasan belaka, jadi disembunyikan dari
+          pembaca layar; kartu angkanya TIDAK. */}
       <div
+        data-cahaya-latar
+        data-panel-biru
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-24 -z-10 hidden blur-[64px] lg:block"
+        className="pointer-events-none absolute -top-14 -bottom-14 left-1/2 min-[1440px]:-top-[110px] min-[1440px]:-bottom-[110px] -z-10 hidden w-[600px] -translate-x-1/2 lg:block"
         style={{
           background:
-            'radial-gradient(42% 46% at 70% 26%, rgba(88,207,227,0.55) 0%, rgba(88,207,227,0) 70%),' +
-            'radial-gradient(38% 42% at 28% 64%, rgba(21,57,105,0.5) 0%, rgba(21,57,105,0) 72%),' +
-            'radial-gradient(34% 36% at 66% 82%, rgba(68,147,204,0.45) 0%, rgba(68,147,204,0) 70%),' +
-            'radial-gradient(26% 30% at 86% 58%, rgba(88,207,227,0.3) 0%, rgba(88,207,227,0) 72%)',
+            'repeating-linear-gradient(90deg, rgba(255,255,255,0.3) 0 2px, rgba(255,255,255,0) 2px 40px),' +
+            'linear-gradient(rgba(68,147,204,0.85), rgba(68,147,204,0.85))',
+          maskImage: MASKER_EMPAT_SISI,
+          WebkitMaskImage: MASKER_EMPAT_SISI,
+          maskComposite: 'intersect',
+          // Padanan `intersect` pada sintaks `-webkit-` lama.
+          WebkitMaskComposite: 'source-in',
         }}
       />
 
-      {/* Rangkanya hiasan belaka -- membacakan selusin kotak kosong tak memberi
-          apa pun kepada pengguna pembaca layar. Kartu statusnya SENGAJA berada
-          di luar pembungkus ini: isinya pernyataan sungguhan tentang layanan
-          ini, jadi ia justru harus terbaca. */}
-      <div
-        data-rangka-ilustrasi
-        aria-hidden="true"
-        className="hidden overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.10)] lg:block"
-      >
-        {/* Browser header */}
-        <div className="flex items-center border-b border-slate-100 bg-slate-50/80 px-4 py-3">
-          <div className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-red-400" />
-            <span className="h-3 w-3 rounded-full bg-amber-400" />
-            <span className="h-3 w-3 rounded-full bg-emerald-400" />
-          </div>
-          <div className="mx-auto flex h-6 w-1/2 items-center justify-center rounded-md bg-white px-3 shadow-sm ring-1 ring-slate-200/50">
-            <span className="text-[10px] font-medium text-slate-400">skema.madiunkab.go.id</span>
-          </div>
-        </div>
-
-        {/* Dashboard Content Mock */}
-        <div className="relative bg-slate-50/30 p-5">
-          {/* Header Dashboard Mock */}
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Ringkasan Eksekutif</h3>
-              <p className="text-[11px] text-slate-500">Performa Layanan Publik Hari Ini</p>
-            </div>
-            <div className="flex gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                <Activity size={14} className="text-primary" />
-              </span>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100">
-                <Users size={14} className="text-indigo-600" />
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            {/* Main Chart Mock */}
-            <div className="col-span-2 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600">Grafik Kepuasan</span>
-                <BarChart3 size={16} className="text-slate-400" />
-              </div>
-              <div className="flex h-32 items-end justify-between gap-2">
-                {[40, 70, 45, 90, 65, 85, 100].map((h, i) => (
-                  <div key={i} className="group relative w-full rounded-t-sm bg-primary/10">
-                    <div
-                      className="absolute bottom-0 w-full rounded-t-sm bg-gradient-to-t from-primary/80 to-brand-blue transition-all duration-500"
-                      style={{ height: `${h}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Side Metric Mock */}
-            <div className="flex flex-col gap-4">
-              <div className="flex-1 rounded-2xl border border-slate-100 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm">
-                <span className="text-xs font-semibold text-indigo-800">Partisipasi</span>
-                <div className="mt-2 text-2xl font-black tracking-tight text-indigo-950">84%</div>
-                <div className="mt-1 flex items-center gap-1 text-[10px] font-medium text-emerald-600">
-                  <TrendingUp size={12} />
-                  <span>+12% dr bulan lalu</span>
-                </div>
-              </div>
-              <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                <div className="absolute -right-4 -top-4 opacity-5">
-                  <PieChart size={64} />
-                </div>
-                <span className="text-xs font-semibold text-slate-600">Respon Cepat</span>
-                <div className="mt-2 text-xl font-bold text-slate-800">&lt; 2 Jam</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-4">
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-              <div className="h-10 w-10 rounded-xl bg-emerald-100/50" />
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-16 rounded bg-slate-200" />
-                <div className="h-2 w-10 rounded bg-slate-100" />
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-              <div className="h-10 w-10 rounded-xl bg-amber-100/50" />
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-16 rounded bg-slate-200" />
-                <div className="h-2 w-10 rounded bg-slate-100" />
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-              <div className="h-10 w-10 rounded-xl bg-blue-100/50" />
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-16 rounded bg-slate-200" />
-                <div className="h-2 w-10 rounded bg-slate-100" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tumpukan kartunya, dua irama melayang. Lihat catatan
-          `--animate-melayang` di globals.css: 6 dtk dan 7,5 dtk tak pernah
-          bertemu di puncak yang sama, jadi tiap kartu terbaca sebagai lapisan
-          yang berdiri sendiri. */}
+      {/* Kartunya, dua irama melayang. Lihat catatan `--animate-melayang` di
+          globals.css: kedua durasinya tak pernah bertemu di puncak yang sama,
+          jadi tiap kartu terbaca sebagai lapisan yang berdiri sendiri. */}
       <KartuStatistikHero />
     </div>
   );
@@ -256,7 +176,7 @@ export default function HeroSection() {
             )}
           </div>
 
-          <IlustrasiJendela />
+          <PanggungStatistik />
         </div>
       </div>
     </section>
