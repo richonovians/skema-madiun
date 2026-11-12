@@ -11,7 +11,11 @@
  * setiap kali pengguna pindah halaman.
  */
 export const metadata = {
-  title: 'Detail Survei',
+  // Nama situs DITULIS DI SINI, tidak diserahkan ke `template` root layout:
+  // `surveys/layout.jsx` di atasnya mengisi `title` dengan string biasa, dan
+  // itu memutus pewarisan template. Terukur di Chrome 12 November 2026 --
+  // `'Isi Survei'` saja tampil sebagai "Isi Survei" tanpa nama situs.
+  title: 'Isi Survei - SKEMA Madiun',
 };
 
 export default function Layout({ children }) {
