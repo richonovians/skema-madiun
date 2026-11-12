@@ -182,3 +182,90 @@ per satu (kolom Keterangan).
 - **Playwright tidak berjalan di CI.** Regresi lapisan ini hanya terukur saat
   dijalankan dengan tangan seperti di sini; tiga cacat yang ditemukan
   27 Oktober (BUG-047, BUG-048, dua spec basi) lolos lebih dari sehari karena itu.
+
+---
+
+## 7. Regresi ulang 12 November 2026 (QA-FINAL-UAT)
+
+**Kode yang diuji:** `main` di `6e84a4b` (sama dengan `origin/main`), pohon
+kerja bersih. Alasan diulang: sembilan PR masuk ke `main` sesudah pengukuran
+terakhir, 9 sampai 11 November:
+
+| PR  | Merge     | Isi                                                              |
+| --- | --------- | ---------------------------------------------------------------- |
+| #26 | `b756b81` | fragment galat SSO membawa kode, bukan kalimat                   |
+| #27 | `1892fde` | halaman galat SSO tidak lagi mengakhiri sesi                     |
+| #28 | `b0a6172` | galat callback SSO tak lagi dapat memalsukan baris log           |
+| #29 | `29f02f9` | daftar OPD tidak lagi mengirim agregat admin ke semua peran      |
+| #30 | `29d8a85` | Redis putus dicatat sekali                                       |
+| #31 | `615f643` | tambalan keamanan dependensi dalam mayor yang sama               |
+| #32 | `ffb6f96` | README diselaraskan                                              |
+| #33 | `5cd8357` | teks antarmuka tanpa tanda pisah                                 |
+| #34 | `6e84a4b` | tata letak hero, kartu statistik, dan label sumbu chart tren     |
+
+### 7.1 Hasil
+
+**Tidak ada regresi.** Ketujuh langkah gerbang lulus dalam satu jalan:
+
+| Lapisan                         | Suite | Uji   | Hasil                                   | 28 Okt (§1) |
+| ------------------------------- | ----- | ----- | --------------------------------------- | ----------- |
+| Unit API (Jest)                 | 99    | 1.584 | 1.584 lulus                             | 86 / 1.413  |
+| e2e API (Postgres sungguhan)    | 53    | 777   | 777 lulus                               | 42 / 473    |
+| Komponen web (Jest + RTL + MSW) | 269   | 2.219 | 2.219 lulus                             | 237 / 1.941 |
+| E2E web (Playwright, Chrome)    | 24    | 167   | 164 lulus, 3 goyah, 0 dilewati, 0 gagal | 22 / 158    |
+| ESLint seluruh repo             | —     | —     | kode 0                                  | kode 0      |
+| Prettier                        | —     | —     | kode 0 (tidak berlaku untuk `apps/web`) | kode 0      |
+
+Durasi: unit API 60 dtk, e2e API 249 dtk, komponen web 153 dtk, Playwright
+19 menit. Perintahnya sama dengan §1:
+
+```bash
+E2E_IDENTIFIER=seed-admin-kabupaten \
+  node .claude/skills/verifikasi-penuh/scripts/verifikasi.mjs --e2e-api --e2e-web
+```
+
+**Nol dilewati, berbeda dengan 28 Oktober.** Dua uji "hapus permanen di
+Sampah" yang dulu dilewati kini jalan dan lulus.
+
+### 7.2 Lingkungan
+
+Sama dengan §2, dengan dua perbedaan. Server yang menjawab dicek sebelum
+menulis: `DATABASE_URL` menunjuk `localhost:5432/skm_db`, dan yang menjawab
+Postgres 18.4 di kontainer `skm-db` (kini 172.18.0.3). Akun
+`seed-admin-kabupaten` (id 1) dicek punya `{kabupaten,responden,opd}`, ber-OPD,
+aktif, tidak terhapus.
+
+### 7.3 Uji goyah
+
+Ketiganya gagal pada percobaan pertama, lalu lulus saat diulang. Sebabnya
+halaman yang belum siap, bukan asersi yang salah. Polanya sama dengan §4.
+
+| Uji | Sebab percobaan pertama |
+| --- | ----------------------- |
+| `nilai-survei-tata-letak.spec.ts:25` — ponsel, memilih Custom | kartu jenis survei tak dapat diklik dalam 30 detik |
+| `pengaduan-tata-letak.spec.js:44` — tabel sidebar ciut | `beforeEach`: `waitForURL` ke `/admin-kab/dashboard` habis waktu sesudah `domcontentloaded` |
+| `responsif-komponen.spec.ts:170` — menu akun di 390px | penjaga fixture berhenti: lembar gaya belum berlaku (`--spacing-xs` kosong) |
+
+Uji ketiga gagal dengan sengaja: penjaganya menolak mengukur halaman tanpa CSS,
+supaya tidak melaporkan cacat palsu.
+
+### 7.4 Data uji
+
+Dibersihkan sesudahnya dengan `bersihkan-data-uji.mjs` (sasaran `skm_db`,
+lolos palang): 5 pengaduan, 8 survei, 3 respons, 25 notifikasi, dan 1 berkas
+unggahan tak tertaut (71 byte). Penyapuan `--tanpa-induk --dry` sesudahnya
+menemukan 0 notifikasi tanpa induk. `audit_logs` tidak disentuh.
+
+### 7.5 Yang tidak dicakup
+
+- **Tabel verifikasi perbaikan bug seperti §5 tidak diulang.** Ada 21 temuan
+  yang lahir dan ditutup sesudah 28 Oktober: BUG-049 s.d. 062, 064, 070, 071,
+  076, 079, 080, dan 081. Pagarnya ada di suite yang ikut lulus di §7.1,
+  tetapi belum dicocokkan satu per satu ke berkas ujinya. Yang masih terbuka
+  ada 16 temuan, tiga di antaranya Medium (BUG-073, 077, 078).
+- **SSO Helpdesk sungguhan dan sinkron OPD nyata** tidak dijalankan. Sinkron
+  OPD masih ditolak Helpdesk (401 `invalid api key`) sejak 9 November.
+- **Uji beban** tidak diulang; lihat `TEST_BEBAN.md` §15.
+- Catatan §6 tentang Playwright di CI sudah usang: sejak 30 Oktober 2026 job
+  `e2e-web` jalan pada setiap push dan PR, tetapi masih `continue-on-error`,
+  jadi belum menjadi gerbang.
