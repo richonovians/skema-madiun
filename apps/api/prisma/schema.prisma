@@ -583,6 +583,10 @@ model Complaint {
   @@index([opdId])
   @@index([status])
   @@index([tingkat])
+  // Halaman pertama daftar Admin Kabupaten tak menyaring apa pun dan hanya
+  // mengurutkan `created_at DESC`; tanpa indeks ini setiap permintaan memindai
+  // seluruh tabel lalu mengurutkannya (BUG-069).
+  @@index([createdAt(sort: Desc)])
   @@map("complaints")
 }
 
