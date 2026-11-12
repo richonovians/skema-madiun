@@ -12,9 +12,12 @@ import { gayaJenisNotifikasi, JENIS_NOTIFIKASI } from '../notificationJenis';
 describe('gayaJenisNotifikasi', () => {
   const SEMUA = Object.keys(JENIS_NOTIFIKASI);
 
-  it('mengenali kelima jenis yang benar-benar dibuat backend', () => {
+  // `backup_failed` sejak 12 November 2026 (BUG-073): cadangan harian
+  // terjadwal yang gagal mengabari Admin Kabupaten.
+  it('mengenali keenam jenis yang benar-benar dibuat backend', () => {
     expect(SEMUA.sort()).toEqual(
       [
+        'backup_failed',
         'complaint_created',
         'complaint_forwarded',
         'complaint_reply',
@@ -22,6 +25,12 @@ describe('gayaJenisNotifikasi', () => {
         'survey_response_created',
       ].sort(),
     );
+  });
+
+  it('cadangan gagal ditandai sebagai galat, bukan gaya cadangan', () => {
+    const gaya = gayaJenisNotifikasi('backup_failed');
+    expect(gaya.label).toBe('Cadangan gagal');
+    expect(gaya.kelasIkon).toMatch(/error/);
   });
 
   it('tiap jenis punya ikon yang berbeda satu sama lain', () => {

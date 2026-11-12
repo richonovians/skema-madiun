@@ -1,4 +1,12 @@
-import { Bell, ClipboardCheck, Inbox, MessageSquare, RefreshCw, Send } from 'lucide-react';
+import {
+  Bell,
+  ClipboardCheck,
+  DatabaseBackup,
+  Inbox,
+  MessageSquare,
+  RefreshCw,
+  Send,
+} from 'lucide-react';
 
 /**
  * Rupa tiap jenis notifikasi: ikon, warna lingkaran, dan label bagi pembaca
@@ -48,6 +56,14 @@ export const JENIS_NOTIFIKASI = {
     Ikon: ClipboardCheck,
     kelasIkon: 'bg-emerald-50 text-emerald-700',
     label: 'Jawaban survei',
+  },
+  // Cadangan harian terjadwal gagal (BUG-073, 12 November 2026). Satu-satunya
+  // jenis yang menandai GALAT sistem, jadi satu-satunya yang memakai rona
+  // galat; ikon basis data membedakannya dari notifikasi pengaduan.
+  backup_failed: {
+    Ikon: DatabaseBackup,
+    kelasIkon: 'bg-error-container text-on-error-container',
+    label: 'Cadangan gagal',
   },
 };
 

@@ -15,6 +15,7 @@ import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { CadanganModule } from './modules/cadangan-terjadwal/cadangan.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SessionRefreshInterceptor } from './modules/auth/session/session-refresh.interceptor';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
@@ -76,6 +77,7 @@ import { UsersModule } from './modules/users/users.module';
     DashboardModule,
     NotificationsModule,
     DokumentasiModule,
+    CadanganModule,
   ],
   controllers: [AppController],
   providers: [

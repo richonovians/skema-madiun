@@ -344,6 +344,36 @@ class EnvironmentVariables {
   SURVEY_PURGE_DAYS?: number;
 
   /**
+   * Folder tujuan cadangan harian terjadwal (BUG-073, 12 November 2026).
+   * Tanpa nilai ini cadangan terjadwal MATI, dan di produksi itu dicatat
+   * sebagai galat setiap boot. Mestinya penyimpanan di LUAR mesin ini (folder
+   * jaringan yang dipasang tim server); lihat `.env.example` dan
+   * docs/keamanan/enkripsi-at-rest.md §3.1.
+   */
+  @IsOptional()
+  @IsString()
+  BACKUP_DIR?: string;
+
+  /** Jam WIB (0-23) cadangan harian berjalan. Baku 2, jam sepi. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  BACKUP_JAM?: number;
+
+  /**
+   * Umur cadangan yang disimpan, dalam hari. Baku 14.
+   *
+   * Minimum 3, ditolak saat boot bila kurang: satu digit hilang mengubah 14
+   * menjadi 1, dan cadangan kemarin -- yang mungkin satu-satunya yang baik --
+   * ikut terpangkas pada giliran berikutnya.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(3)
+  BACKUP_RETENTION_DAYS?: number;
+
+  /**
    * Izin TERSURAT untuk umur Sampah di bawah `PEMUSNAHAN_MINIMUM_HARI`
    * (SurveiPemusnahanService). Palangnya ada sebab satu digit hilang mengubah
    * 365 menjadi 36, dan Sampah adalah tempat orang menaruh sesuatu justru

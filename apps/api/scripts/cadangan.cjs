@@ -116,6 +116,19 @@ async function utama() {
   const tujuan = path.join(akar, `skm-${stempel}`);
   fs.mkdirSync(tujuan, { recursive: true });
 
+  try {
+    await isiCadangan(tujuan, db, kunciCad);
+  } catch (err) {
+    // Folder setengah jadi DIBUANG (BUG-073, 12 November 2026). Sejak API
+    // menjalankan skrip ini terjadwal, tak ada operator yang menonton
+    // kegagalannya; folder `skm-*` yang tertinggal terbaca sebagai cadangan
+    // sah oleh siapa pun yang kelak memulihkan, dan retensi menghitungnya.
+    fs.rmSync(tujuan, { recursive: true, force: true });
+    throw err;
+  }
+}
+
+async function isiCadangan(tujuan, db, kunciCad) {
   const sumber = pilihSumber();
   console.log(
     `Sumber pg_dump : ${sumber === 'local' ? 'pg_dump di PATH' : `docker exec ${CONTAINER}`}`,
@@ -146,8 +159,22 @@ async function utama() {
     anak.on('close', (kode) => (kode === 0 ? resolve() : reject(new Error(galat.trim()))));
   });
 
-  const bita = await enkripsiAliran(anak.stdout, berkasDump, kunciCad, INFO_CADANGAN);
-  await selesai;
+  // DITUNGGU BERSAMAAN, bukan berurutan. Bila `pg_dump` tak dapat dijalankan
+  // sama sekali (ENOENT), `selesai` sudah ditolak sebelum ada yang
+  // menunggunya, dan Node mematikan proses sebagai unhandled rejection: pesan
+  // GAGAL tak pernah tercetak dan folder setengah jadi tertinggal (terukur
+  // 12 November 2026 lewat cadangan.spec.ts).
+  //
+  // `allSettled`, bukan `all`: `all` menolak begitu `selesai` gagal, selagi
+  // aliran enkripsi mungkin masih memegang `dump.sql.enc`, dan di Windows
+  // penghapusan folder di pemanggil lalu gagal EBUSY.
+  const [hasilAliran, hasilDump] = await Promise.allSettled([
+    enkripsiAliran(anak.stdout, berkasDump, kunciCad, INFO_CADANGAN),
+    selesai,
+  ]);
+  if (hasilDump.status === 'rejected') throw hasilDump.reason;
+  if (hasilAliran.status === 'rejected') throw hasilAliran.reason;
+  const bita = hasilAliran.value;
 
   if (bita === 0) {
     throw new Error('pg_dump tak menghasilkan satu bita pun. Cadangan dibatalkan.');

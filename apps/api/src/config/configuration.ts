@@ -130,6 +130,18 @@ export default () => ({
     // kelonggaran yang diam-diam berlaku.
     retentionAllowShort: process.env.AUDIT_RETENTION_ALLOW_SHORT === 'true',
   },
+  backup: {
+    // CADANGAN HARIAN TERJADWAL (BUG-073, 12 November 2026). `null` = MATI:
+    // tanpa folder tujuan tak ada yang dapat dicadangkan ke mana pun, dan di
+    // produksi ketiadaannya dicatat sebagai galat setiap boot
+    // (CadanganTerjadwalService). Bentuk nilainya dijaga env.validation.ts.
+    dir: process.env.BACKUP_DIR ? process.env.BACKUP_DIR : null,
+    // Jam WIB, bukan jam server -- lihat `jedaKeJamJalan`.
+    jam: process.env.BACKUP_JAM ? parseInt(process.env.BACKUP_JAM, 10) : 2,
+    retentionDays: process.env.BACKUP_RETENTION_DAYS
+      ? parseInt(process.env.BACKUP_RETENTION_DAYS, 10)
+      : 14,
+  },
   survey: {
     // PEMUSNAHAN OTOMATIS SURVEI DI SAMPAH (30 September 2026, permintaan
     // pengguna: setahun). Beda tajam dari `audit.retentionDays` di atas yang
