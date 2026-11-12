@@ -263,9 +263,63 @@ menemukan 0 notifikasi tanpa induk. `audit_logs` tidak disentuh.
   076, 079, 080, dan 081. Pagarnya ada di suite yang ikut lulus di §7.1,
   tetapi belum dicocokkan satu per satu ke berkas ujinya. Yang masih terbuka
   ada 16 temuan, tiga di antaranya Medium (BUG-073, 077, 078).
+  **Diperbarui 12 November 2026:** dikerjakan di §7.6, bersama tiga Medium
+  yang ditutup pada hari yang sama.
 - **SSO Helpdesk sungguhan dan sinkron OPD nyata** tidak dijalankan. Sinkron
   OPD masih ditolak Helpdesk (401 `invalid api key`) sejak 9 November.
 - **Uji beban** tidak diulang; lihat `TEST_BEBAN.md` §15.
 - Catatan §6 tentang Playwright di CI sudah usang: sejak 30 Oktober 2026 job
   `e2e-web` jalan pada setiap push dan PR, tetapi masih `continue-on-error`,
   jadi belum menjadi gerbang.
+
+### 7.6 Verifikasi perbaikan bug sesudah 28 Oktober
+
+Menjawab butir pertama §7.5. Caranya sama dengan §5: untuk tiap temuan, commit
+perbaikannya dicari di `main` lewat `git log --grep`, lalu berkas uji yang
+diubah commit itu dipastikan masih ada di `main` `d6b3beb`. Karena satu commit
+kadang memperbaiki beberapa temuan sekaligus (`f3d5659` lima, `938a4b0` tiga),
+tiap berkas dicocokkan lagi dengan keterangan penutupan di `BUG_REPORTS.md`
+dan dengan asersi di dalamnya. Pagar yang berupa pemindai seluruh kode (BUG-054,
+BUG-057) diperiksa memang membaca berkas yang diperbaiki.
+
+Sumber "lulus": 21 temuan pertama ditutup sebelum `6e84a4b`, jadi pagarnya ikut
+lulus di §7.1. BUG-073, 077, dan 078 ditutup sesudahnya; pagarnya lulus di CI
+3 dari 3 job pada `d6b3beb`.
+
+| Temuan | Severity | Pagar | Jumlah berkas | Hasil | Keterangan |
+| ------ | -------- | ----- | ------------- | ----- | ---------- |
+| [BUG-049](BUG_REPORTS.md#bug-049) | Medium | `ikm-export.service.spec.ts`, `CsvSatuPintu.test.js`, `unduh.test.js` | 3 | tetap tertutup |  |
+| [BUG-050](BUG_REPORTS.md#bug-050) | Low | `sqli-asap.e2e-spec.ts` | 1 | tetap tertutup | uji `startDate`/`endDate` |
+| [BUG-051](BUG_REPORTS.md#bug-051) | Low | `sqli-asap.e2e-spec.ts`, `pola-like.spec.ts`, `sso.service.spec.ts` | 3 | tetap tertutup |  |
+| [BUG-052](BUG_REPORTS.md#bug-052) | Medium | `csrf-origin.e2e-spec.ts` | 1 | tetap tertutup |  |
+| [BUG-053](BUG_REPORTS.md#bug-053) | Medium | `NilaiSurveiDiKartuDanRingkasan.test.jsx` | 1 | tetap tertutup | pagarnya suite itu sendiri: 0 penanda konflik di `main`, dan suitenya jalan |
+| [BUG-054](BUG_REPORTS.md#bug-054) | Medium | `tanpaMaxWTokenSpasi.test.js` | 1 | tetap tertutup | pemindai seluruh kode tampilan |
+| [BUG-055](BUG_REPORTS.md#bug-055) | Medium | `GerbangPengisianPublik.test.jsx` | 1 | tetap tertutup | asersi "nama, nomor HP, jenis kelamin, dan kelompok umur" |
+| [BUG-056](BUG_REPORTS.md#bug-056) | Low | `SurveyProgressJudul.test.jsx` | 1 | tetap tertutup |  |
+| [BUG-057](BUG_REPORTS.md#bug-057) | Low | `BadgeJarakBaris.test.js` | 1 | tetap tertutup | pemindai; ukuran di Chrome tak pernah diukur |
+| [BUG-058](BUG_REPORTS.md#bug-058) | Medium | `headerKeamananWeb.test.js` | 1 | tetap tertutup |  |
+| [BUG-059](BUG_REPORTS.md#bug-059) | Low | `all-exceptions.filter.spec.ts` | 1 | tetap tertutup |  |
+| [BUG-060](BUG_REPORTS.md#bug-060) | Low | — | 0 | tetap tertutup | **tanpa pagar otomatis.** `server_tokens off;` masih ada di `dev.conf` dan `prod.conf` (baris 40); header tidak diukur ulang |
+| [BUG-061](BUG_REPORTS.md#bug-061) | Low | `ConfirmStatusModalDialog.test.jsx`, `DropdownFokusSesudahMemilih.test.jsx`, `StatusFokusKembali.test.jsx` | 3 | tetap tertutup |  |
+| [BUG-062](BUG_REPORTS.md#bug-062) | Low | `ForwardComplaintModalDialog.test.jsx` | 1 | tetap tertutup |  |
+| [BUG-064](BUG_REPORTS.md#bug-064) | Low | `audit.interceptor.spec.ts`, `audit.e2e-spec.ts`, `auditLog.adapter.test.js`, `AuditChanges.test.jsx` | 4 | tetap tertutup |  |
+| [BUG-070](BUG_REPORTS.md#bug-070) | Medium | `session-auth.provider.spec.ts`, `redis-macet.e2e-spec.ts` | 2 | tetap tertutup | jalur cookie SSO tetap belum diuji |
+| [BUG-071](BUG_REPORTS.md#bug-071) | Medium | `klien-redis.spec.ts`, `redis-macet.e2e-spec.ts` | 2 | tetap tertutup |  |
+| [BUG-073](BUG_REPORTS.md#bug-073) | Medium | `cadangan-terjadwal.service.spec.ts`, `cadangan.spec.ts`, `notifications.service.spec.ts`, `notificationJenis.test.js` | 4 | tertutup 12 Nov | syarat server di luar kode, lihat seksinya |
+| [BUG-076](BUG_REPORTS.md#bug-076) | Medium | `AdminResolutionWorkspace.test.jsx` | 1 | tetap tertutup |  |
+| [BUG-077](BUG_REPORTS.md#bug-077) | Medium | `alihkan-pengaduan.e2e-spec.ts`, `complaints.service.spec.ts`, `ForwardComplaintModalLintasTingkat.test.jsx` | 3 | tertutup 12 Nov |  |
+| [BUG-078](BUG_REPORTS.md#bug-078) | Medium | `complaints-balapan.e2e-spec.ts`, `complaints.service.spec.ts` | 2 | tertutup 12 Nov |  |
+| [BUG-079](BUG_REPORTS.md#bug-079) | Medium | `CreateComplaintForm.test.jsx`, `ajukan-pengaduan.spec.js` | 2 | tetap tertutup |  |
+| [BUG-080](BUG_REPORTS.md#bug-080) | Medium | `CreateComplaintForm.test.jsx`, `AlihkanComplaintModal.test.jsx`, `api.test.js` | 3 | tetap tertutup |  |
+| [BUG-081](BUG_REPORTS.md#bug-081) | Low | `lencanaStatusPengaduan.test.jsx` | 1 | tetap tertutup |  |
+
+**Hasil: 24 dari 24 tetap tertutup. 23 punya pagar otomatis di `main`, dan
+semua berkasnya ada.** Satu-satunya tanpa pagar adalah BUG-060, perbaikan
+konfigurasi nginx yang dulu dibuktikan lewat header jawaban server hidup.
+Kalau `server_tokens off;` terhapus, tak ada uji yang memerah.
+
+Batas cara ini: ia membuktikan pagarnya ada dan lulus, bukan bahwa pagarnya
+masih akan memerah bila cacatnya kembali. Uji mutasi hanya dijalankan saat
+temuan ditutup (dicatat di seksi masing-masing), tidak diulang di sini.
+
+Sesudah §7.6, temuan terbuka tinggal 14, semuanya Low.
