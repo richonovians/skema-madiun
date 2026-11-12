@@ -1138,6 +1138,61 @@ describe('ComplaintsService', () => {
       );
     });
 
+    /**
+     * BUG-077: penerusan lintas tingkat mengikuti pola `alihkan` (keputusan
+     * pengguna 12 November 2026). Tingkat diturunkan dari NAMA OPD tujuan.
+     */
+    describe('lintas tingkat (BUG-077)', () => {
+      const tiketKecamatan = () =>
+        complaintRow({ opdId: null, tingkat: TingkatPengaduan.kecamatan, kategori: 'kec_lainnya' });
+      const DINKES = { id: 9, nama: 'Dinas Kesehatan', isActive: true };
+
+      it('tanpa kategori baru -> BadRequest, tak ada yang ditulis', async () => {
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tiketKecamatan());
+        (prisma.opd.findUnique as jest.Mock).mockResolvedValue(DINKES);
+
+        await expect(service.forward(1, { opdId: 9 }, kabupatenUser())).rejects.toThrow(
+          /kategori/i,
+        );
+        expect(prisma.complaint.update).not.toHaveBeenCalled();
+      });
+
+      it('kategori milik tingkat lama -> BadRequest', async () => {
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tiketKecamatan());
+        (prisma.opd.findUnique as jest.Mock).mockResolvedValue(DINKES);
+
+        await expect(
+          service.forward(1, { opdId: 9, kategori: 'kec_lainnya' }, kabupatenUser()),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.complaint.update).not.toHaveBeenCalled();
+      });
+
+      it('menulis tingkat dan kategori baru, dan mencatat keduanya di audit', async () => {
+        (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tiketKecamatan());
+        (prisma.opd.findUnique as jest.Mock).mockResolvedValue(DINKES);
+        (prisma.complaint.update as jest.Mock).mockResolvedValue(complaintRow({ opdId: 9 }));
+
+        await service.forward(1, { opdId: 9, kategori: 'kab_lainnya' }, kabupatenUser());
+
+        expect(prisma.complaint.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: { opdId: 9, tingkat: TingkatPengaduan.kabupaten, kategori: 'kab_lainnya' },
+          }),
+        );
+        expect(audit.record).toHaveBeenCalledWith(
+          2,
+          'forward',
+          'complaint',
+          expect.objectContaining({
+            tingkatLama: TingkatPengaduan.kecamatan,
+            tingkatBaru: TingkatPengaduan.kabupaten,
+            kategoriLama: 'kec_lainnya',
+            kategoriBaru: 'kab_lainnya',
+          }),
+        );
+      });
+    });
+
     it('kalah balapan -> Conflict, tanpa audit dan tanpa notifikasi', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9, nama: 'Dinas Kesehatan' });
