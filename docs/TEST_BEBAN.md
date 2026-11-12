@@ -890,7 +890,7 @@ Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesud
 
 ### 14.2 Catatan yang ikut pada penutupan
 
-1. **BUG-073 menjadi syarat sebelum GO-LIVE 23 November 2026.** Temuan ini tetap terbuka dan belum punya pemilik perbaikan. PRD §10 memintanya, dan kehilangan data tanpa cadangan harian tidak tertangani oleh kinerja yang baik.
+1. **BUG-073 menjadi syarat sebelum GO-LIVE 23 November 2026.** Temuan ini tetap terbuka dan belum punya pemilik perbaikan. PRD §10 memintanya, dan kehilangan data tanpa cadangan harian tidak tertangani oleh kinerja yang baik. **Diperbarui 12 November 2026:** BUG-073 ditutup lewat PR #37 (merge `d6b3beb`) dengan penjadwal di dalam API. Tiga syarat tetap milik tim server sebelum GO-LIVE: `pg_dump` 18 di server API, `BACKUP_DIR` di luar mesin, dan kedua kunci enkripsi.
 2. **Uptime dibawa ke tahap server.** Angkanya hanya dapat diukur di server sungguhan selama berminggu-minggu, jadi penutupan ini tidak menyatakan sasaran itu tercapai.
 3. **Jalur tulis tetap ditunda** (§11). Beban saat warga mengirim jawaban dan pengaduan, serta gangguan selagi menulis, belum diukur.
 4. **Angka di atas diukur sebelum PR #17 dan #18**, pada `main` `9e72abb` dan `5cda6fa`. PR #17 mengubah layanan `dashboard`, `opd`, dan `ikm`; di `dashboard` penyaring status belum tuntas kini memakai `STATUS_BELUM_TUNTAS`. Dampaknya pada waktu jawab belum diukur ulang. Yang berjalan terhadap `a1e3c1f` hanya uji fungsional, bukan uji beban. **Diperbarui 9 November 2026:** kini diukur ulang di §15.

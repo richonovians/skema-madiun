@@ -165,7 +165,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-070](#bug-070) | Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13) |
 | [BUG-071](#bug-071) | Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health` | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
 | [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.3) |
-| [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
+| [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
 | [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-069) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **71 ditutup, 15 terbuka** (Medium: BUG-073; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **72 ditutup, 14 terbuka** (Medium: tidak ada; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4256,6 +4256,31 @@ Bila go-live tanpa penjadwal, cadangan bergantung pada orang yang ingat menjalan
 
 Jadwalkan `pnpm cadangan` harian di server tujuan, salin hasilnya ke luar mesin itu seperti yang diminta `enkripsi-at-rest.md` §3, dan pasang peringatan bila cadangan gagal.
 
+**Status 12 November 2026: Ditutup, dengan catatan untuk tim server**
+
+Pemilik produk memilih penjadwal **di dalam API**, bukan cron di server, karena penggelaran dikerjakan tim lain dan cron yang harus mereka pasang sendiri mudah terlewat. Diperbaiki di `10a7900` dan masuk lewat PR #37, merge `main` `d6b3beb`. CI 3 dari 3 job hijau pada `10a7900` dan `d6b3beb`, termasuk E2E web.
+
+| Yang diminta | Sekarang | Pagar |
+| --- | --- | --- |
+| Terjadwal harian | `CadanganTerjadwalService` menjalankan `scripts/cadangan.cjs` tiap hari pada `BACKUP_JAM` **WIB** (bawaan 02.00) ke `BACKUP_DIR` | `cadangan-terjadwal.service.spec.ts` |
+| Tidak dobel bila API lebih dari satu instance | `pg_try_advisory_xact_lock`; giliran kedua dilewati | sama, ditambah jalan sungguhan di `skm_uji`: dua giliran serentak menghasilkan `berhasil` + `dilewati` |
+| Retensi | `BACKUP_RETENTION_DAYS` (bawaan 14, minimum 3). Pemangkasan hanya sesudah cadangan hari itu berhasil, dan hanya folder `skm-<stempel>` | `cadangan-terjadwal.service.spec.ts` |
+| Peringatan bila gagal | log galat + notifikasi `backup_failed` ke seluruh Admin Kabupaten | `notifications.service.spec.ts`, `notificationJenis.test.js`; jalan sungguhan tanpa `pg_dump`: 4 notifikasi tertulis, folder lama utuh |
+
+Dua cacat lama di `cadangan.cjs` ikut diperbaiki dan dipagari `scripts/cadangan.spec.ts`. Pertama, `pg_dump` yang tak dapat dijalankan (ENOENT) mematikan skrip sebagai *unhandled rejection* tanpa pesan `GAGAL`. Kedua, folder `skm-*` setengah jadi tertinggal dan bisa terbaca sebagai cadangan sah. Keduanya merah sebelum perbaikan.
+
+Di produksi tanpa `BACKUP_DIR`, API tetap menyala tetapi mencatat galat setiap kali boot (keputusan pemilik produk).
+
+**Yang tidak dapat diselesaikan kode, dan tetap menjadi syarat GO-LIVE:**
+
+1. `pg_dump` **18** terpasang di server API. Tanpanya cadangan gagal setiap malam, dan notifikasinya muncul.
+2. `BACKUP_DIR` menunjuk penyimpanan **di luar mesin** API.
+3. `BACKUP_ENCRYPTION_KEY` dan `DATA_ENCRYPTION_KEY` tersedia di server, dan salinannya disimpan terpisah dari cadangan.
+
+Ketiganya tertulis di `apps/api/.env.example`. Runbook `docs/keamanan/enkripsi-at-rest.md` §3.1 juga diperbarui, tetapi berkas itu tak dilacak git, jadi salinan milik tim perlu diperbarui terpisah.
+
+Belum diuji: jalan terjadwal yang benar-benar menunggu sampai pukul 02.00 WIB. Jam jalan dihitung lewat uji unit dengan waktu tiruan, dan jalur cadangannya dijalankan langsung.
+
 ---
 
 <a id="bug-074"></a>
@@ -8120,3 +8145,4 @@ hanya dibaca, tidak diubah.
 | 7.38 | 5 November 2026 | **BUG-076 dan BUG-081 ditutup: 85 temuan, 67 ditutup, 18 terbuka.** PR #19, merge `0bdb78b`. CI: lint, uji unit, build, dan E2E API lulus. Job Playwright yang belum menjadi gerbang tetap gagal pada `ajukan-pengaduan.spec.js:278`, sama seperti pada `a1e3c1f` sebelum perubahan ini; uji itu lulus di server dev lokal dan penyebabnya belum diselidiki. |
 | 7.39 | 9 November 2026 | **BUG-079 dan BUG-080 ditutup: 85 temuan, 69 ditutup, 16 terbuka.** PR #25, merge `f132c05`. CI pada `356c5c8` dan `f132c05`: lint, uji unit, build, E2E API, dan E2E web lulus. Job Playwright yang pada 5 November gagal di `ajukan-pengaduan.spec.js:278` kini hijau pada keduanya; sebabnya belum diselidiki, jadi ini dicatat sebagai pengamatan, bukan perbaikan. Medium yang tersisa: BUG-073, BUG-077, BUG-078. |
 | 7.40 | 12 November 2026 | **BUG-077 dan BUG-078 ditutup, BUG-086 dibuka: 86 temuan, 71 ditutup, 15 terbuka.** PR #35 (merge `47c07bf`) dan PR #36 (merge `a2e67a7`). CI 3 dari 3 job hijau pada `0440469`, `db4216f`, dan `a2e67a7`, termasuk E2E web. BUG-078 ternyata juga mengenai `forward()`, dan ikut diperbaiki. BUG-086 adalah gejala kedua BUG-077 (penerusan tanpa baris riwayat), dipisah atas keputusan pemilik produk karena perlu rancangan tersendiri. Medium yang tersisa tinggal BUG-073. |
+| 7.41 | 12 November 2026 | **BUG-073 ditutup dengan catatan: 86 temuan, 72 ditutup, 14 terbuka.** PR #37, merge `d6b3beb`. CI 3 dari 3 job hijau pada `10a7900` dan `d6b3beb`, termasuk E2E web. Cadangan harian kini dijadwalkan di dalam API, dengan retensi dan notifikasi `backup_failed` ke Admin Kabupaten bila gagal. Tiga syarat tetap milik tim server dan tetap menjadi syarat GO-LIVE: `pg_dump` 18 di server API, `BACKUP_DIR` di luar mesin, dan kedua kunci enkripsi. Tidak ada lagi temuan Medium yang terbuka. |
