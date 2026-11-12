@@ -630,7 +630,7 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-051 | Pindah tingkat mengosongkan tujuan dan kategori | Pilih tujuan, pindah tingkat | Tujuan dan kategori kembali ke penampung; judul, tanggal, lokasi bertahan. **Lulus:** `CreateComplaintForm.test.jsx:349,368` | P1 | Component | ✅ |
 | TC-CMP-052 | **Instansi belum dipilih menahan pengiriman** | Di `/complaints/new`, pilih kategori saja lalu kirim | Pengiriman tertahan. **Lulus 9 Nov 2026 di `f132c05`** (awalnya gagal: 201 dan `opdName=Instansi%20Terkait`, BUG-079, ditutup): tak ada `POST` dan pesan tampil di bawah dropdown; skenario persisnya di `CreateComplaintForm.test.jsx`, kedua dropdown kosong di Chrome | P1 | Manual | ✅ |
 | TC-CMP-053 | Kategori kosong diberi pesan yang jelas | Di `/complaints/new`, kosongkan kategori lalu kirim | Pesan berbahasa Indonesia yang menyebut kategori. **Lulus 9 Nov 2026 di `f132c05`** (awalnya gagal: `Validation failed`, BUG-080, ditutup): "Pilih kategori pengaduan." di Chrome dan `CreateComplaintForm.test.jsx` | P1 | Manual | ✅ |
-| TC-CMP-054 | **Penerusan menjaga kesepadanan tingkat** | Teruskan tiket kecamatan ke Dinas Kesehatan | Ditolak, atau tingkat dan kategori disesuaikan. **Gagal:** 200 dan datanya tak sepadan, lihat BUG-077 | P1 | Integ | ❌ |
+| TC-CMP-054 | **Penerusan menjaga kesepadanan tingkat** | Teruskan tiket kecamatan ke Dinas Kesehatan | Ditolak, atau tingkat dan kategori disesuaikan. **Lulus 12 Nov 2026 di `a2e67a7`** (awalnya gagal: 200 dan datanya tak sepadan, BUG-077, ditutup): tanpa kategori 400; dengan kategori tingkat tujuan 200 dan `tingkat: kabupaten`, `kategori: kab_kesehatan`; dibuktikan `alihkan-pengaduan.e2e-spec.ts` dan di Chrome. Riwayat penerusan dipisah ke BUG-086 | P1 | Integ | ✅ |
 | TC-CMP-055 | Dua "Lainnya" terbedakan di statistik | GET `/statistics` dengan `kab_lainnya` dan `kec_lainnya` | Label memuat pembeda tingkat. **Gagal:** keduanya `Lainnya`, lihat BUG-085 | P3 | Integ | ❌ |
 
 ### H.6 Alur Status Lima Tahap dan Riwayat (PR #17)
@@ -648,7 +648,7 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-068 | Catatan riwayat terenkripsi dan terbaca pelapor | Tulis catatan, baca kolom mentah dan GET detail | Kolom berawalan `enc:v1:`; pelapor membaca teks aslinya. **Lulus** | P0 | Integ | ✅ |
 | TC-CMP-069 | **Tombol "Selesaikan Pengaduan" muncul pada tahapnya** | Buka tiket Sedang Ditindaklanjuti sebagai Admin OPD | Tombol tampil. **Lulus 5 Nov 2026 di `0bdb78b`** (awalnya gagal, BUG-076, ditutup): tombol tampil dan tiket uji sampai `selesai` di Chrome | P1 | Manual | ✅ |
 | TC-CMP-070 | Lencana mengikuti warna status baru | Render keenam tampilan dengan tujuh status | Warna mengikuti `COMPLAINT_STATUS_BADGE_VARIANT`. **Lulus 5 Nov 2026 di `0bdb78b`** (awalnya gagal, BUG-081, ditutup): `lencanaStatusPengaduan.test.jsx` | P3 | Component | ✅ |
-| TC-CMP-071 | **Permintaan serentak tak menimpa status** | Kirim `selesai` dan `alihkan` serentak | Hanya satu yang menang. **Gagal:** keduanya 200 pada 3 dari 3 percobaan, lihat BUG-078 | P1 | Integ | ❌ |
+| TC-CMP-071 | **Permintaan serentak tak menimpa status** | Kirim `selesai` dan `alihkan` serentak | Hanya satu yang menang. **Lulus 12 Nov 2026 di `a2e67a7`** (awalnya gagal: keduanya 200 pada 3 dari 3 percobaan, BUG-078, ditutup): satu 200, yang kalah 409 atau 400, satu baris riwayat; lima putaran di `complaints-balapan.e2e-spec.ts` | P1 | Integ | ✅ |
 
 ### H.7 Alihkan Pengaduan (PR #18)
 

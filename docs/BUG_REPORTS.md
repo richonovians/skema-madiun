@@ -169,8 +169,8 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
 | [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-069) |
-| [BUG-077](#bug-077) | Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan | Medium | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-054) |
-| [BUG-078](#bug-078) | Permintaan serentak menimpa status: tiket `selesai` terbuka lagi menjadi `dialihkan` | Medium | Terkonfirmasi | Terbuka | QA PR #17 dan #18 (TC-CMP-071) |
+| [BUG-077](#bug-077) | Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-054) |
+| [BUG-078](#bug-078) | Permintaan serentak menimpa status: tiket `selesai` terbuka lagi menjadi `dialihkan` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 dan #18 (TC-CMP-071) |
 | [BUG-079](#bug-079) | Warga yang lupa memilih instansi tetap terkirim dan diberi tahu "Instansi Terkait" | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-052) |
 | [BUG-080](#bug-080) | Layar menampilkan `Validation failed` saat kategori kosong atau alasan pengalihan melebihi 1.000 karakter | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 dan #18 (TC-CMP-053, TC-CMP-091) |
 | [BUG-081](#bug-081) | Lencana status baru memakai warna cadangan di enam tampilan | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-070) |
@@ -178,8 +178,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-049) |
 | [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | QA PR #18 (TC-CMP-090) |
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
+| [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 85 temuan: **69 ditutup, 16 terbuka** (Medium: BUG-073, BUG-077, BUG-078; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085).
+**Rekap** — 86 temuan: **71 ditutup, 15 terbuka** (Medium: BUG-073; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4399,6 +4400,25 @@ Pengaduan tingkat kecamatan tanpa tujuan diteruskan ke Dinas Kesehatan. Jawabann
 
 Perlu keputusan pemilik produk: tolak penerusan lintas tingkat, atau turunkan tingkat dari OPD tujuan dan minta kategori baru seperti `alihkan()`.
 
+**Status 12 November 2026: Ditutup**
+
+Pemilik produk memilih arah kedua: penerusan lintas tingkat **diizinkan** dengan pola `alihkan()`. Diperbaiki di `109a311` dan masuk lewat PR #36, merge `main` `a2e67a7`.
+
+| Penerusan | Sekarang | Pagar |
+| --- | --- | --- |
+| Lintas tingkat tanpa kategori | 400, kalimatnya menyebut kedua tingkat; tujuan tetap kosong | `alihkan-pengaduan.e2e-spec.ts`, `complaints.service.spec.ts` |
+| Lintas tingkat dengan kategori tingkat tujuan | 200; `tingkat` dan `kategori` ikut berpindah | sama |
+| Lintas tingkat dengan kategori tingkat lama | 400 | sama |
+| Setingkat tanpa kategori | 200; kategori lama tak disentuh | sama |
+
+Audit `forward` kini mencatat tingkat dan kategori lama serta baru. Modal Teruskan menanyakan "Kategori tingkat ..." hanya saat tingkat OPD terpilih berbeda dari tingkat tiket (`ForwardComplaintModalLintasTingkat.test.jsx`).
+
+Diuji ulang di Chrome pada server dev, lebar 1280 dan 390: tiket kecamatan tanpa tujuan diteruskan ke Dinas Kesehatan dengan kategori Kesehatan, lalu tersimpan `tingkat: kabupaten`, `kategori: kab_kesehatan`.
+
+Satu uji e2e ("kategori milik tingkat LAMA ditolak 400") sudah 400 sebelum perbaikan, karena whitelist DTO menolak medan `kategori` yang waktu itu belum ada. Ia baru bermakna sesudah medannya ada.
+
+**Gejala kedua di laporan ini TIDAK ikut ditutup.** Penerusan masih tidak menambah baris riwayat. Atas keputusan pemilik produk, gejala itu dipisah menjadi [BUG-086](#bug-086).
+
 ---
 
 <a id="bug-078"></a>
@@ -4436,6 +4456,18 @@ Tambahkan status lama ke syarat `where` memakai `updateMany` di dalam transaksi,
 **Catatan**
 
 Seberapa sering ini terjadi pada pemakaian nyata belum diukur.
+
+**Status 12 November 2026: Ditutup**
+
+Arah perbaikan di atas dikerjakan, tanpa transaksi interaktif. Diperbaiki di `0440469` dan masuk lewat PR #35, merge `main` `47c07bf`. Syarat `where` kini memuat keadaan yang tadi diperiksa: status untuk `updateStatus`, status dan OPD lama untuk `alihkan`. Yang kalah balapan mendapat P2025 dan dijawab **409**: *"Pengaduan ini baru saja diubah oleh petugas lain. Muat ulang halaman untuk melihat statusnya sekarang."* Riwayat, notifikasi, dan audit tidak tertulis baginya.
+
+Prisma 6.19.3 menerjemahkan `update` bersyarat itu menjadi satu pernyataan `UPDATE ... WHERE id = ? AND status = ? RETURNING`. Ini diperiksa lewat log kueri, karena pasangan SELECT lalu UPDATE hanya akan memindahkan balapannya.
+
+**`forward()` ternyata punya cacat yang sama** dan ikut diperbaiki dengan syarat `opdId: null`, atas persetujuan pengguna. Laporan ini tidak menyebutnya.
+
+Pagar: `complaints-balapan.e2e-spec.ts`, empat skenario masing-masing lima putaran. Sebelum perbaikan keempatnya merah: `selesai` melawan `alihkan` `[200, 200]`, empat perpindahan ke `diverifikasi` `[200, 200, 200, 200]`, dua pengalihan berangkat dari OPD yang sama, dan dua penerusan `[200, 200]`. Sesudah perbaikan 4/4 hijau. Uji unit untuk syarat `where` dan jawaban 409 ada di `complaints.service.spec.ts`.
+
+Yang kalah boleh menjawab 400 alih-alih 409, bila ia baru membaca sesudah pemenangnya selesai. Keduanya benar, dan ujinya menerima keduanya.
 
 ---
 
@@ -4680,6 +4712,38 @@ Buat pengaduan `kab_lainnya` dan `kec_lainnya`, lalu baca `complaintCategories` 
 **Arah perbaikan (belum dicoba)**
 
 Tambahkan pembeda tingkat pada label kategori di statistik.
+
+---
+
+<a id="bug-086"></a>
+
+### BUG-086 — Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Gejala kedua [BUG-077](#bug-077), dipisah atas keputusan pemilik produk |
+| **Tanggal**  | 12 November 2026 |
+| **Lingkungan** | Dibaca dari kode `main` `a2e67a7`; gejalanya teramati pada `a1e3c1f` (laporan BUG-077) |
+| **Berkas**   | `apps/api/src/modules/complaints/complaints.service.ts:549` (`forward`) |
+| **Severity** | Low (usulan penguji) -- pelapor tetap menerima notifikasi penerusan, tetapi linimasa tiketnya tak mencatat kapan dan ke mana tiket itu diteruskan |
+
+**Gejala**
+
+Pengaduan tanpa tujuan yang diteruskan Admin Kabupaten tetap hanya memuat baris riwayat `terkirim`. Linimasa pelapor tak menunjukkan bahwa tiketnya sudah sampai di OPD tertentu. Teramati pada laporan BUG-077 (5 November 2026).
+
+**Akar masalah**
+
+`forward()` tidak menulis ke `complaint_status_history` sama sekali. Pada `a2e67a7`, badan fungsinya memuat nol rujukan ke `complaintStatusHistory`. `alihkan()` menulis baris `dialihkan` beserta `opdTujuanId`, tetapi penerusan tidak mengubah status, padahal riwayat dibangun per status.
+
+**Langkah reproduksi**
+
+1. Sebagai warga, kirim pengaduan dengan tujuan "Lainnya (belum tahu tujuannya)".
+2. Sebagai Admin Kabupaten, teruskan ke OPD mana pun.
+3. Buka detail tiket sebagai pelapor dan lihat linimasanya.
+
+**Arah perbaikan (belum dicoba)**
+
+Perlu rancangan tersendiri sebelum dikerjakan: bentuk baris riwayat untuk peristiwa yang tidak mengubah status, dan cara linimasa menampilkannya. Alasan inilah yang membuat gejala ini dipisah dari BUG-077.
 
 ---
 
@@ -8055,3 +8119,4 @@ hanya dibaca, tidak diubah.
 | 7.37 | 5 November 2026 | **BUG-076 dan BUG-081 diperbaiki di cabang, belum ditutup.** `fix/nama-status-lama-komponen` `08a2787`. BUG-081 ternyata mengenai enam tampilan, bukan empat. Angka temuan tetap: 85 temuan, 65 ditutup, 20 terbuka. |
 | 7.38 | 5 November 2026 | **BUG-076 dan BUG-081 ditutup: 85 temuan, 67 ditutup, 18 terbuka.** PR #19, merge `0bdb78b`. CI: lint, uji unit, build, dan E2E API lulus. Job Playwright yang belum menjadi gerbang tetap gagal pada `ajukan-pengaduan.spec.js:278`, sama seperti pada `a1e3c1f` sebelum perubahan ini; uji itu lulus di server dev lokal dan penyebabnya belum diselidiki. |
 | 7.39 | 9 November 2026 | **BUG-079 dan BUG-080 ditutup: 85 temuan, 69 ditutup, 16 terbuka.** PR #25, merge `f132c05`. CI pada `356c5c8` dan `f132c05`: lint, uji unit, build, E2E API, dan E2E web lulus. Job Playwright yang pada 5 November gagal di `ajukan-pengaduan.spec.js:278` kini hijau pada keduanya; sebabnya belum diselidiki, jadi ini dicatat sebagai pengamatan, bukan perbaikan. Medium yang tersisa: BUG-073, BUG-077, BUG-078. |
+| 7.40 | 12 November 2026 | **BUG-077 dan BUG-078 ditutup, BUG-086 dibuka: 86 temuan, 71 ditutup, 15 terbuka.** PR #35 (merge `47c07bf`) dan PR #36 (merge `a2e67a7`). CI 3 dari 3 job hijau pada `0440469`, `db4216f`, dan `a2e67a7`, termasuk E2E web. BUG-078 ternyata juga mengenai `forward()`, dan ikut diperbaiki. BUG-086 adalah gejala kedua BUG-077 (penerusan tanpa baris riwayat), dipisah atas keputusan pemilik produk karena perlu rancangan tersendiri. Medium yang tersisa tinggal BUG-073. |
