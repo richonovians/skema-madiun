@@ -123,60 +123,72 @@ export default function IsiSurveiPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fillData, perluGerbang]);
 
-  // Layout: background biru gelap penuh, card terpusat (seperti Sukma-e).
-  // Layar galat & loading ikut memakai latar yang sama supaya transisi tidak
-  // mengubah warna halaman secara kasar.
-  const bgLatar = 'min-h-screen bg-[#0d2240] flex flex-col items-center justify-center px-4 py-6';
+  // Layout: background gradasi modern sesuai color palette icon SKEMA
+  // (Navy #0E2647/#153969, Blue #4493CC, Cyan #58CFE3) dan floating card liquid glass.
+  const bgLatar =
+    'min-h-screen relative flex flex-col items-center justify-center px-4 py-8 sm:py-12 overflow-x-hidden';
+  const gayaLatar = {
+    background:
+      'radial-gradient(circle at 85% 15%, rgba(88, 207, 227, 0.25) 0%, transparent 45%), ' +
+      'radial-gradient(circle at 15% 85%, rgba(68, 147, 204, 0.3) 0%, transparent 50%), ' +
+      'linear-gradient(140deg, #0E2647 0%, #153969 35%, #2B6FA5 70%, #4493CC 95%, #58CFE3 100%)',
+  };
+
+  // Bingkai bening (stroke transparan / liquid glass model) mengelilingi kartu utama
+  const bingkaiKartu =
+    'rounded-[24px] sm:rounded-[28px] bg-white/35 p-2 sm:p-3 ring-1 ring-white/70 backdrop-blur-md shadow-2xl';
 
   if (ditandaiPeramban || fillData?.sudahMengisi) {
     return (
-      <main className={bgLatar}>
-        <div className="w-full max-w-[440px] px-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100/90 overflow-hidden">
-            {/* Header kartu: logo SKEMA Madiun */}
-            <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center">
-              <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
-                <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
-                  <Image
-                    src="/images/navbar/skema-logo.png"
-                    alt="Logo SKEMA"
-                    width={76}
-                    height={48}
-                    className="object-contain h-7 w-auto"
-                    priority
-                  />
-                </div>
-                <span className="text-sm font-bold text-primary tracking-tight">
-                  SKEMA Madiun
-                </span>
-              </Link>
-            </div>
-
-            <div className="p-6 sm:p-8 flex flex-col items-center gap-0">
-              {/* Ikon Sukses dengan Animasi */}
-              <div className="relative mb-5 group inline-flex items-center justify-center">
-                <div className="absolute inset-0 bg-emerald-400/25 rounded-full animate-ping pointer-events-none" />
-                <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border-2 border-emerald-100 ring-4 ring-emerald-50 transition-all duration-500 ease-out group-hover:scale-105 animate-in zoom-in-50 duration-500">
-                  <CheckCircle2 size={36} strokeWidth={2.5} className="sm:w-10 sm:h-10" />
-                </div>
+      <main className={bgLatar} style={gayaLatar}>
+        <div className="w-full max-w-[460px]">
+          <div className={bingkaiKartu}>
+            <div className="bg-white rounded-2xl shadow-[0_18px_45px_rgba(15,23,42,0.14)] border border-white/70 overflow-hidden">
+              {/* Header kartu: logo SKEMA Madiun */}
+              <div className="border-b border-slate-100 px-5 sm:px-6 py-4 flex items-center">
+                <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
+                  <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
+                    <Image
+                      src="/images/navbar/skema-logo.png"
+                      alt="Logo SKEMA"
+                      width={76}
+                      height={48}
+                      className="object-contain h-7 w-auto"
+                      priority
+                    />
+                  </div>
+                  <span className="text-sm font-bold text-primary tracking-tight">
+                    SKEMA Madiun
+                  </span>
+                </Link>
               </div>
 
-              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 text-center">
-                Anda Sudah Mengisi Survei Ini
-              </h2>
-              <p className="text-sm text-text-secondary leading-relaxed mb-6 text-center px-2">
-                Terima kasih atas partisipasi Anda. Survei ini hanya menerima satu jawaban dari perangkat ini.
-              </p>
+              <div className="p-6 sm:p-8 flex flex-col items-center gap-0">
+                {/* Ikon Sukses dengan Animasi */}
+                <div className="relative mb-5 group inline-flex items-center justify-center">
+                  <div className="absolute inset-0 bg-emerald-400/25 rounded-full animate-ping pointer-events-none" />
+                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border-2 border-emerald-100 ring-4 ring-emerald-50 transition-all duration-500 ease-out group-hover:scale-105 animate-in zoom-in-50 duration-500">
+                    <CheckCircle2 size={36} strokeWidth={2.5} className="sm:w-10 sm:h-10" />
+                  </div>
+                </div>
 
-              <Link
-                href="/"
-                className="w-full inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover shadow-sm transition-all active:scale-95"
-              >
-                Kembali ke Layanan
-              </Link>
+                <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 text-center">
+                  Anda Sudah Mengisi Survei Ini
+                </h2>
+                <p className="text-sm text-text-secondary leading-relaxed mb-6 text-center px-2">
+                  Terima kasih atas partisipasi Anda. Survei ini hanya menerima satu jawaban dari perangkat ini.
+                </p>
+
+                <Link
+                  href="/"
+                  className="w-full inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary-hover shadow-sm transition-all active:scale-95"
+                >
+                  Kembali ke Layanan
+                </Link>
+              </div>
             </div>
           </div>
-          <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
+          <p className="mt-3.5 text-center text-white/90 text-[11px] font-medium tracking-wide drop-shadow-xs">
             © {new Date().getFullYear()} · SKEMA Madiun · Pemerintah Kabupaten Madiun
           </p>
         </div>
@@ -186,9 +198,13 @@ export default function IsiSurveiPage() {
 
   if (isLoading) {
     return (
-      <main className={bgLatar}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[28rem] p-8">
-          <LoadingState label="Memuat survei..." />
+      <main className={bgLatar} style={gayaLatar}>
+        <div className="w-full max-w-[28rem]">
+          <div className={bingkaiKartu}>
+            <div className="bg-white rounded-2xl shadow-[0_18px_45px_rgba(15,23,42,0.14)] border border-white/70 p-8">
+              <LoadingState label="Memuat survei..." />
+            </div>
+          </div>
         </div>
       </main>
     );
@@ -199,20 +215,24 @@ export default function IsiSurveiPage() {
    */
   if (error) {
     return (
-      <main className={bgLatar}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[28rem] p-8 text-center">
-          <ErrorState
-            title="Survei tidak dapat ditemukan"
-            description={null}
-            action={
-              <Link
-                href="/"
-                className="inline-block px-6 py-2.5 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-primary-hover transition-colors"
-              >
-                Kembali ke Layanan
-              </Link>
-            }
-          />
+      <main className={bgLatar} style={gayaLatar}>
+        <div className="w-full max-w-[28rem]">
+          <div className={bingkaiKartu}>
+            <div className="bg-white rounded-2xl shadow-[0_18px_45px_rgba(15,23,42,0.14)] border border-white/70 p-8 text-center">
+              <ErrorState
+                title="Survei tidak dapat ditemukan"
+                description={null}
+                action={
+                  <Link
+                    href="/"
+                    className="inline-block px-6 py-2.5 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-primary-hover transition-colors"
+                  >
+                    Kembali ke Layanan
+                  </Link>
+                }
+              />
+            </div>
+          </div>
         </div>
       </main>
     );
@@ -224,15 +244,17 @@ export default function IsiSurveiPage() {
    */
   if (perluGerbang) {
     return (
-      <main className={bgLatar}>
-        <div className="w-full max-w-[620px]">
-          {adaSesi ? (
-            <GerbangPengisianBersesi onMulai={setPilihanBersesi} />
-          ) : (
-            <GerbangPengisianPublik onSetuju={setDataPublik} />
-          )}
+      <main className={bgLatar} style={gayaLatar}>
+        <div className="w-full max-w-[640px]">
+          <div className={bingkaiKartu}>
+            {adaSesi ? (
+              <GerbangPengisianBersesi onMulai={setPilihanBersesi} />
+            ) : (
+              <GerbangPengisianPublik onSetuju={setDataPublik} />
+            )}
+          </div>
           {/* Footer copyright */}
-          <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
+          <p className="mt-3.5 text-center text-white/90 text-[11px] font-medium tracking-wide drop-shadow-xs">
             © {new Date().getFullYear()} · SKEMA Madiun · Pemerintah Kabupaten Madiun
           </p>
         </div>
@@ -241,46 +263,48 @@ export default function IsiSurveiPage() {
   }
 
   return (
-    <main className={bgLatar}>
-      <div className="w-full max-w-[500px]">
-        {isCompleted ? (
-          <SurveyCompletion tampilkanTautanWarga={adaSesi} />
-        ) : (
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100/80 overflow-hidden">
-            {/* Header: logo SKEMA Madiun */}
-            <div className="border-b border-slate-100 px-5 pt-4 pb-3 flex items-center justify-between">
-              <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
-                <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
-                  <Image
-                    src="/images/navbar/skema-logo.png"
-                    alt="Logo SKEMA"
-                    width={76}
-                    height={48}
-                    className="object-contain h-7 w-auto"
-                    priority
-                  />
-                </div>
-                <span className="text-sm font-bold text-primary tracking-tight">
-                  SKEMA Madiun
-                </span>
-              </Link>
-            </div>
+    <main className={bgLatar} style={gayaLatar}>
+      <div className="w-full max-w-[520px]">
+        <div className={bingkaiKartu}>
+          {isCompleted ? (
+            <SurveyCompletion tampilkanTautanWarga={adaSesi} />
+          ) : (
+            <div className="bg-white rounded-2xl shadow-[0_18px_45px_rgba(15,23,42,0.14)] border border-white/70 overflow-hidden">
+              {/* Header: logo SKEMA Madiun */}
+              <div className="border-b border-slate-100 px-5 pt-4 pb-3 flex items-center justify-between">
+                <Link href="/" className="inline-flex items-center gap-2.5 group shrink-0">
+                  <div className="transition-transform duration-300 group-hover:scale-105 flex items-center">
+                    <Image
+                      src="/images/navbar/skema-logo.png"
+                      alt="Logo SKEMA"
+                      width={76}
+                      height={48}
+                      className="object-contain h-7 w-auto"
+                      priority
+                    />
+                  </div>
+                  <span className="text-sm font-bold text-primary tracking-tight">
+                    SKEMA Madiun
+                  </span>
+                </Link>
+              </div>
 
-            {/* Progres ringkas */}
-            <div className="px-5 pt-3 pb-1 border-b border-slate-50">
-              <SurveyProgress />
-            </div>
+              {/* Progres ringkas */}
+              <div className="px-5 pt-3 pb-1 border-b border-slate-50">
+                <SurveyProgress />
+              </div>
 
-            {/* Pertanyaan dan tombol navigasi */}
-            <div className="px-5 pt-3 pb-4">
-              <QuestionCard />
-              <SurveyNavigation />
+              {/* Pertanyaan dan tombol navigasi */}
+              <div className="px-5 pt-3 pb-4">
+                <QuestionCard />
+                <SurveyNavigation />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Footer copyright */}
-        <p className="mt-3.5 text-center text-white/50 text-[11px] font-medium tracking-wide">
+        <p className="mt-3.5 text-center text-white/90 text-[11px] font-medium tracking-wide drop-shadow-xs">
           © {new Date().getFullYear()} · SKEMA Madiun · Pemerintah Kabupaten Madiun
         </p>
       </div>
