@@ -408,6 +408,39 @@ export class NotificationsService {
   }
 
   /**
+   * Cadangan harian terjadwal GAGAL (BUG-073, 12 November 2026).
+   *
+   * Ke seluruh Admin Kabupaten, tanpa pengecualian: pelakunya pekerjaan latar
+   * `CadanganTerjadwalService`, bukan seorang pengguna. Waktunya ditulis dalam
+   * WIB, bukan jam server -- server produksi bisa berjalan dalam UTC, dan
+   * "pukul 19.00" untuk cadangan pukul 02.00 hanya membingungkan pembacanya.
+   *
+   * Tak pernah melempar (`notifyKabupaten` menangkap galatnya sendiri): yang
+   * memanggil adalah penjadwal, dan galat di sini tak boleh menjatuhkan API.
+   */
+  async notifyBackupFailed(waktu: Date): Promise<void> {
+    const tanggal = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(waktu);
+    const jam = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(waktu);
+    await this.notifyKabupaten(
+      null,
+      NotificationType.backup_failed,
+      'Cadangan harian gagal',
+      `Cadangan harian basis data gagal pada ${tanggal} pukul ${jam}. Periksa log server.`,
+      '/admin-kab/dashboard',
+    );
+  }
+
+  /**
    * Broadcast ke semua Admin Kabupaten aktif, kecuali pelaku aksi itu sendiri.
    *
    * `null` berarti pelakunya tak punya baris `users` sama sekali -- pengisi

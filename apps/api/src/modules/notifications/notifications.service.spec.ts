@@ -739,6 +739,50 @@ describe('NotificationsService', () => {
     });
   });
 
+  /**
+   * Cadangan harian GAGAL (BUG-073, 12 November 2026). Pelakunya pekerjaan
+   * latar, bukan seorang pengguna, jadi tak ada penerima yang dikecualikan.
+   */
+  describe('notifyBackupFailed', () => {
+    // 02.00 WIB, 13 November 2026.
+    const waktu = new Date('2026-11-12T19:00:00.000Z');
+
+    it('mengabari setiap Admin Kabupaten aktif dengan waktu WIB-nya', async () => {
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 7 }, { id: 8 }]);
+
+      await service.notifyBackupFailed(waktu);
+
+      const tertulis = semuaNotifikasi();
+      expect(tertulis).toHaveLength(2);
+      for (const userId of [7, 8]) {
+        expect(tertulis).toContainEqual(
+          expect.objectContaining({
+            userId,
+            untukPeran: Role.kabupaten,
+            type: NotificationType.backup_failed,
+            title: 'Cadangan harian gagal',
+            message: expect.stringContaining('13 November 2026 pukul 02.00') as unknown as string,
+          }),
+        );
+      }
+    });
+
+    it('tak ada yang dikecualikan: kueri penerima tanpa klausa id', async () => {
+      await service.notifyBackupFailed(waktu);
+
+      const kueri = (prisma.user.findMany as jest.Mock).mock.calls.map(([arg]) => arg.where);
+      expect(kueri).toHaveLength(1);
+      expect(kueri[0]).not.toHaveProperty('id');
+    });
+
+    it('gagal menulis TIDAK melempar: pekerjaan latar tak boleh ikut jatuh', async () => {
+      (prisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 7 }]);
+      (prisma.notification.createMany as jest.Mock).mockRejectedValueOnce(new Error('DB down'));
+
+      await expect(service.notifyBackupFailed(waktu)).resolves.toBeUndefined();
+    });
+  });
+
   describe('markAsRead', () => {
     it('tak ditemukan / bukan milik -> NotFound (satu jalur, tak bocorkan keberadaan)', async () => {
       (prisma.notification.findFirst as jest.Mock).mockResolvedValue(null);
