@@ -9,6 +9,9 @@ import useBodyScrollLock from '@/hooks/useBodyScrollLock';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { getOpdList } from '@/features/opd/services/opd.api';
 import { forwardComplaint } from '../../services/complaints.api';
+import { getComplaintCategories } from '../../services/reference.api';
+
+const LABEL_TINGKAT = { kabupaten: 'kabupaten', kecamatan: 'kecamatan' };
 
 /**
  * Meneruskan pengaduan yang belum bertujuan ke OPD yang berwenang
@@ -25,6 +28,7 @@ import { forwardComplaint } from '../../services/complaints.api';
  */
 export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
   const [opdId, setOpdId] = useState('');
+  const [kategori, setKategori] = useState('');
   const [galat, setGalat] = useState('');
   const [sedangKirim, setSedangKirim] = useState(false);
 
@@ -50,16 +54,53 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
   const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
   const { data: opdResponse } = useAsync(fetchOpd);
 
+  const daftarOpd = opdResponse?.data ?? [];
   const opdOptions = [
     { label: 'Pilih OPD', value: '' },
-    ...(opdResponse?.data ?? []).map((opd) => ({ label: opd.name, value: String(opd.id) })),
+    ...daftarOpd.map((opd) => ({ label: opd.name, value: String(opd.id) })),
   ];
+
+  /**
+   * PENERUSAN LINTAS TINGKAT (BUG-077, keputusan pengguna 12 November 2026).
+   * Tiket kecamatan yang diteruskan ke dinas pindah ke tingkat kabupaten, dan
+   * kategori `kec_*`-nya tak lagi sah di sana, jadi kategori baru ditanyakan.
+   * HANYA saat tingkatnya berubah: penerusan setingkat tetap satu pilihan.
+   *
+   * Tingkat OPD dibaca dari `OpdEntity.tingkat` kiriman backend, tidak dihitung
+   * ulang dari namanya di sini. Tingkat tiket yang tak diketahui (`null`) tak
+   * memunculkan isian; backend tetap menolak dengan kalimat yang menjelaskannya.
+   */
+  const opdTerpilih = daftarOpd.find((o) => String(o.id) === String(opdId)) ?? null;
+  const tingkatTujuan = opdTerpilih?.tingkat ?? null;
+  const pindahTingkat =
+    Boolean(complaint.tingkat) && Boolean(tingkatTujuan) && tingkatTujuan !== complaint.tingkat;
+
+  // Diambil SEKALI dan disaring di peramban, pola yang sama dengan
+  // AlihkanComplaintModal: memanggil ulang tiap kali OPD berganti hanya
+  // menampilkan "memuat" atas data yang sudah ada.
+  const ambilKategori = useCallback(() => getComplaintCategories(), []);
+  const { data: kategoriSemua, error: galatKategori } = useAsync(ambilKategori);
+  const kategoriOptions = [
+    { label: 'Pilih kategori', value: '' },
+    ...(kategoriSemua ?? [])
+      .filter((k) => k.tingkat === tingkatTujuan)
+      .map((k) => ({ label: k.nama, value: k.kode })),
+  ];
+
+  const gantiOpd = (nilai) => {
+    setOpdId(nilai);
+    // Dikosongkan begitu OPD berganti: kategori tingkat lama tak sah di
+    // tingkat yang baru, dan backend menolaknya 400 sesudah tombol ditekan.
+    setKategori('');
+  };
+
+  const siapKirim = Boolean(opdId) && (!pindahTingkat || Boolean(kategori));
 
   const kirim = async () => {
     setGalat('');
     setSedangKirim(true);
     try {
-      await forwardComplaint(complaint.id, Number(opdId));
+      await forwardComplaint(complaint.id, Number(opdId), pindahTingkat ? kategori : undefined);
       onDone();
     } catch (err) {
       // Modal SENGAJA dibiarkan terbuka: kegagalan yang paling mungkin di sini
@@ -123,7 +164,7 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
             id="forward-opd"
             options={opdOptions}
             value={opdId}
-            onChange={setOpdId}
+            onChange={gantiOpd}
             /* Petugas triase membuka modal ini sekali per pengaduan yang belum
                bertujuan, dan tiap kali menghadapi seluruh OPD aktif. Syarat
                `> 1` menutup keadaan daftarnya belum termuat, ketika isinya baru
@@ -137,6 +178,28 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
             menuMaxHeight="max-h-80"
           />
 
+          {pindahTingkat && (
+            <div className="space-y-2">
+              <p className="text-sm text-text-secondary">
+                {opdTerpilih.name} berada di tingkat {LABEL_TINGKAT[tingkatTujuan]}, sedangkan
+                pengaduan ini tingkat {LABEL_TINGKAT[complaint.tingkat]}. Pilih kategori yang sesuai
+                untuk tingkat {LABEL_TINGKAT[tingkatTujuan]}.
+              </p>
+              <Dropdown
+                label={`Kategori tingkat ${LABEL_TINGKAT[tingkatTujuan]}`}
+                id="forward-kategori"
+                options={kategoriOptions}
+                value={kategori}
+                onChange={setKategori}
+              />
+              {galatKategori && (
+                <p className="text-sm text-error font-semibold">
+                  Gagal memuat daftar kategori. Tutup lalu buka lagi jendela ini.
+                </p>
+              )}
+            </div>
+          )}
+
           <p className="text-xs text-text-secondary">
             Sesudah diteruskan, pengaduan menjadi tanggung jawab OPD itu dan tak dapat dialihkan
             lagi dari halaman ini.
@@ -147,7 +210,7 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
           <Button variant="secondary" onClick={onClose} disabled={sedangKirim}>
             Batal
           </Button>
-          <Button onClick={kirim} disabled={!opdId || sedangKirim}>
+          <Button onClick={kirim} disabled={!siapKirim || sedangKirim}>
             <span className="flex items-center gap-1.5">
               <Send size={14} />
               {sedangKirim ? 'Meneruskan...' : 'Teruskan'}

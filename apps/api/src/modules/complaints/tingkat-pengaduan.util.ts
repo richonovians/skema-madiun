@@ -54,3 +54,27 @@ export function assertOpdSesuaiTingkat(namaOpd: string, tingkat: TingkatPengadua
     );
   }
 }
+
+/**
+ * Penerusan yang MEMINDAHKAN tingkat menuntut kategori baru (BUG-077,
+ * keputusan pengguna 12 November 2026).
+ *
+ * Penerusan lintas tingkat diizinkan, mengikuti pola `alihkan()`: Admin
+ * Kabupaten adalah peran triase, dan warga yang tak tahu tujuannya sering juga
+ * salah memilih tingkat. Yang tak boleh adalah tiket yang pindah tingkat
+ * sambil membawa kategori tingkat lamanya.
+ */
+export function assertKategoriUntukPindahTingkat(
+  namaOpd: string,
+  tingkatLama: TingkatPengaduan,
+  tingkatBaru: TingkatPengaduan,
+  kategori: string | undefined,
+): void {
+  if (tingkatBaru !== tingkatLama && !kategori) {
+    throw new BadRequestException(
+      `"${namaOpd}" adalah instansi tingkat ${LABEL_TINGKAT[tingkatBaru]}, sedangkan pengaduan ini ` +
+        `tingkat ${LABEL_TINGKAT[tingkatLama]}. Pilih kategori tingkat ${LABEL_TINGKAT[tingkatBaru]} ` +
+        'untuk meneruskannya.',
+    );
+  }
+}

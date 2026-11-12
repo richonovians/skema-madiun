@@ -138,9 +138,15 @@ export async function addComplaintReply(complaintId, pesan, files = []) {
  *
  * Haknya (Admin Kabupaten) ditegakkan backend di dalam
  * ComplaintsService.forward, bukan di sini.
+ *
+ * `kategori` hanya dikirim bila ada (BUG-077, 12 November 2026): backend
+ * mewajibkannya saat tingkat OPD tujuan berbeda dari tingkat pengaduan, dan
+ * penerusan setingkat tak membawanya sama sekali.
  */
-export async function forwardComplaint(id, opdId) {
-  const response = await api.patch(`/complaints/${id}/opd`, { opdId: Number(opdId) });
+export async function forwardComplaint(id, opdId, kategori) {
+  const badan = { opdId: Number(opdId) };
+  if (kategori) badan.kategori = kategori;
+  const response = await api.patch(`/complaints/${id}/opd`, badan);
   return adaptComplaint(response.data);
 }
 

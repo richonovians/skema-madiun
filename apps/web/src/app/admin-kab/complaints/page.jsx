@@ -230,7 +230,12 @@ export default function AdminKabComplaintsPage() {
 
       {diteruskan && (
         <ForwardComplaintModal
-          complaint={{ id: diteruskan.numericId ?? diteruskan.id, ticketNo: diteruskan.id }}
+          complaint={{
+            id: diteruskan.numericId ?? diteruskan.id,
+            ticketNo: diteruskan.id,
+            // Untuk menanyakan kategori baru bila OPD tujuan beda tingkat (BUG-077).
+            tingkat: diteruskan.tingkat,
+          }}
           onClose={() => setDiteruskan(null)}
           onDone={() => {
             setDiteruskan(null);

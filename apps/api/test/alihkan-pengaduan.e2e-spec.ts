@@ -304,4 +304,73 @@ describe('Alihkan pengaduan (e2e)', () => {
     // Baris yang bukan pengalihan TIDAK membawa nama instansi.
     expect(riwayat.find((b) => b.status === ComplaintStatus.terkirim)?.opdTujuanNama).toBeNull();
   });
+
+  /**
+   * BUG-077 (5 November 2026, diputuskan pengguna 12 November 2026).
+   *
+   * Penerusan (`PATCH /complaints/:id/opd`) dulu hanya memeriksa OPD ada dan
+   * tujuan masih kosong, sehingga tiket kecamatan yang diteruskan ke dinas
+   * tersimpan sebagai `tingkat: kecamatan` + kategori `kec_*` + OPD tingkat
+   * kabupaten. Kini penerusan MENGIKUTI POLA PENGALIHAN: tingkat diturunkan
+   * dari OPD tujuan, dan bila tingkatnya berubah kategori baru wajib dikirim.
+   *
+   * Di berkas ini, bukan di `complaints.e2e-spec.ts`, karena OPD uji
+   * bertingkat kecamatan sudah ada di sini.
+   */
+  describe('teruskan lintas tingkat (BUG-077)', () => {
+    const teruskan = (id: number, body: Record<string, unknown>) =>
+      request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${id}/opd`)
+        .set(asKabupaten())
+        .send(body);
+
+    const tiketKecamatanTanpaTujuan = () =>
+      buatPengaduan({
+        opdId: null,
+        tingkat: TingkatPengaduan.kecamatan,
+        kategori: 'kec_lainnya',
+      });
+
+    it('tanpa kategori baru ditolak 400, dan tujuannya tetap kosong', async () => {
+      const tiket = await tiketKecamatanTanpaTujuan();
+
+      const res = await teruskan(tiket.id, { opdId: opdTujuanId }).expect(400);
+
+      expect(String(res.body.message)).toMatch(/kategori/i);
+      const sesudah = await prisma.complaint.findUnique({ where: { id: tiket.id } });
+      expect(sesudah?.opdId).toBeNull();
+    });
+
+    it('dengan kategori milik tingkat tujuan -> 200, tingkat dan kategori ikut berpindah', async () => {
+      const tiket = await tiketKecamatanTanpaTujuan();
+
+      await teruskan(tiket.id, { opdId: opdTujuanId, kategori: 'kab_lainnya' }).expect(200);
+
+      const sesudah = await prisma.complaint.findUnique({ where: { id: tiket.id } });
+      expect(sesudah).toMatchObject({
+        opdId: opdTujuanId,
+        tingkat: TingkatPengaduan.kabupaten,
+        kategori: 'kab_lainnya',
+      });
+    });
+
+    it('dengan kategori milik tingkat LAMA ditolak 400', async () => {
+      const tiket = await tiketKecamatanTanpaTujuan();
+
+      await teruskan(tiket.id, { opdId: opdTujuanId, kategori: 'kec_lainnya' }).expect(400);
+    });
+
+    it('penerusan setingkat tetap boleh tanpa kategori, dan kategorinya tak berubah', async () => {
+      const tiket = await tiketKecamatanTanpaTujuan();
+
+      await teruskan(tiket.id, { opdId: opdKecamatanId }).expect(200);
+
+      const sesudah = await prisma.complaint.findUnique({ where: { id: tiket.id } });
+      expect(sesudah).toMatchObject({
+        opdId: opdKecamatanId,
+        tingkat: TingkatPengaduan.kecamatan,
+        kategori: 'kec_lainnya',
+      });
+    });
+  });
 });

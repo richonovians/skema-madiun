@@ -55,7 +55,11 @@ import {
   TRANSISI_DIIZINKAN,
 } from './alur-status.util';
 import { ComplaintStatusHistoryEntity } from './entities/complaint-status-history.entity';
-import { assertKategoriSesuaiTingkat, assertOpdSesuaiTingkat } from './tingkat-pengaduan.util';
+import {
+  assertKategoriSesuaiTingkat,
+  assertKategoriUntukPindahTingkat,
+  assertOpdSesuaiTingkat,
+} from './tingkat-pengaduan.util';
 import { tingkatOpd } from '../opd/tingkat-opd.util';
 import { assertAllowedContent, safeFilename } from './attachment.util';
 import { ComplaintEntity } from './entities/complaint.entity';
@@ -561,21 +565,39 @@ export class ComplaintsService {
       throw new NotFoundException(`OPD dengan id ${dto.opdId} tidak ditemukan`);
     }
 
+    // Penerusan dulu membiarkan tiket kecamatan diteruskan ke dinas dengan
+    // tingkat dan kategori lamanya. Kini tingkat DITURUNKAN dari nama OPD
+    // tujuan seperti `alihkan()`, dan bila tingkatnya berubah kategori baru
+    // wajib dikirim (BUG-077, keputusan pengguna 12 November 2026).
+    const tingkatBaru = tingkatOpd(opd.nama);
+    assertKategoriUntukPindahTingkat(opd.nama, complaint.tingkat, tingkatBaru, dto.kategori);
+    if (dto.kategori) assertKategoriSesuaiTingkat(dto.kategori, tingkatBaru);
+
     const updated = await this.prisma.complaint
       .update({
         // `opdId: null` di syarat: dua penerusan serentak tak boleh saling
         // menimpa tujuan (BUG-078, lihat `PESAN_BERUBAH_SERENTAK`).
         where: { id, opdId: null },
-        data: { opdId: dto.opdId },
+        // Tanpa kategori, penerusannya setingkat (dijamin pemeriksaan di
+        // atas), jadi tingkat dan kategori lama memang tetap berlaku.
+        data: dto.kategori
+          ? { opdId: dto.opdId, tingkat: tingkatBaru, kategori: dto.kategori }
+          : { opdId: dto.opdId },
         include: { attachments: true },
       })
       .catch(sebagaiKonflikSerentak);
 
     // Tindakan administratif atas pengaduan orang lain -- harus berjejak.
+    // Tingkat dan kategori lama ikut dicatat: sesudah pembaruan nilainya sudah
+    // hilang, dan tanpa ini tak ada yang tahu bahwa penerusan mengubahnya.
     await this.audit.record(user.userId, 'forward', 'complaint', {
       complaintId: id,
       ticketNo: complaint.ticketNo,
       opdId: dto.opdId,
+      tingkatLama: complaint.tingkat,
+      tingkatBaru: dto.kategori ? tingkatBaru : complaint.tingkat,
+      kategoriLama: complaint.kategori,
+      kategoriBaru: dto.kategori ?? complaint.kategori,
     });
     // Bagi OPD tujuan, inilah saat tiket itu benar-benar masuk. Tanpa ini ia tak
     // akan pernah tahu ada tanggung jawab baru -- persis keluhan 6 Agustus 2026.
