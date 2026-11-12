@@ -94,6 +94,18 @@ const p2002 = () =>
   });
 
 /**
+ * Jawaban Prisma saat `update` bersyarat tak menemukan baris yang cocok --
+ * yaitu saat keadaan tiket sudah diubah permintaan lain (BUG-078).
+ */
+const p2025 = () =>
+  new Prisma.PrismaClientKnownRequestError('Record to update not found.', {
+    code: 'P2025',
+    clientVersion: 'test',
+  });
+
+const PESAN_BERUBAH_SERENTAK = /baru saja diubah oleh petugas lain/;
+
+/**
  * Kunci uji untuk enkripsi kolom. Bukan kunci sungguhan mana pun, dan tak
  * pernah menyentuh disk: suite ini hanya memeriksa apa yang DIKIRIM ke Prisma.
  */
@@ -684,6 +696,37 @@ describe('ComplaintsService', () => {
 
       expect(notificationsService.notifyComplaintStatusChanged).toHaveBeenCalledWith(updatedRow, 1);
     });
+
+    /**
+     * BUG-078. Penulisan bersyarat pada status yang TADI DIBACA: permintaan
+     * yang membaca status lama lalu kalah balapan tak boleh lagi menulis.
+     */
+    it('menulis hanya bila status masih sama dengan yang tadi diperiksa', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+      (prisma.$transaction as jest.Mock).mockResolvedValue([
+        complaintRow({ status: ComplaintStatus.diverifikasi }),
+        { id: 1 },
+      ]);
+
+      await service.updateStatus(1, { status: ComplaintStatus.diverifikasi }, opdUser(5));
+
+      expect(prisma.complaint.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 1, status: ComplaintStatus.menunggu_verifikasi },
+        }),
+      );
+    });
+
+    it('kalah balapan -> Conflict berkalimat jelas, tanpa notifikasi', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow());
+      (prisma.$transaction as jest.Mock).mockRejectedValueOnce(p2025());
+
+      const janji = service.updateStatus(1, { status: ComplaintStatus.diverifikasi }, opdUser(5));
+
+      await expect(janji).rejects.toThrow(ConflictException);
+      await expect(janji).rejects.toThrow(PESAN_BERUBAH_SERENTAK);
+      expect(notificationsService.notifyComplaintStatusChanged).not.toHaveBeenCalled();
+    });
   });
 
   describe('replies', () => {
@@ -1009,8 +1052,10 @@ describe('ComplaintsService', () => {
       const hasil = await service.forward(1, { opdId: 9 }, kabupatenUser());
 
       expect(hasil.opdId).toBe(9);
+      // `opdId: null` di syarat: penerusan hanya mengisi tujuan yang MASIH
+      // kosong, juga bila dua Admin Kabupaten menekannya bersamaan (BUG-078).
       expect(prisma.complaint.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 1 }, data: { opdId: 9 } }),
+        expect.objectContaining({ where: { id: 1, opdId: null }, data: { opdId: 9 } }),
       );
       expect(audit.record).toHaveBeenCalledWith(
         2,
@@ -1092,6 +1137,23 @@ describe('ComplaintsService', () => {
         NotFoundException,
       );
     });
+
+    it('kalah balapan -> Conflict, tanpa audit dan tanpa notifikasi', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9, nama: 'Dinas Kesehatan' });
+      // `Once`: `clearAllMocks` tak mencabut implementasi, dan penolakan yang
+      // menetap ikut terpanggil di uji sesudahnya sebagai janji yang tak
+      // ditunggu siapa pun -- jest lalu mati dengan unhandled rejection.
+      (prisma.complaint.update as jest.Mock).mockRejectedValueOnce(p2025());
+
+      const janji = service.forward(1, { opdId: 9 }, kabupatenUser());
+
+      await expect(janji).rejects.toThrow(ConflictException);
+      await expect(janji).rejects.toThrow(PESAN_BERUBAH_SERENTAK);
+      expect(audit.record).not.toHaveBeenCalled();
+      expect(notificationsService.notifyOpdTujuan).not.toHaveBeenCalled();
+      expect(notificationsService.notifyComplaintForwarded).not.toHaveBeenCalled();
+    });
   });
 
   /**
@@ -1132,7 +1194,9 @@ describe('ComplaintsService', () => {
 
       expect(prisma.complaint.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 1 },
+          // Status DAN pemilik yang tadi dibaca (BUG-078): pengalihan yang
+          // kalah balapan tak boleh menimpa pengalihan atau penutupan lain.
+          where: { id: 1, status: ComplaintStatus.menunggu_verifikasi, opdId: 5 },
           data: expect.objectContaining({
             opdId: 9,
             kategori: 'kab_lainnya',
@@ -1141,6 +1205,18 @@ describe('ComplaintsService', () => {
           }),
         }),
       );
+    });
+
+    it('kalah balapan -> Conflict, tanpa audit dan tanpa notifikasi', async () => {
+      siapkan();
+      (prisma.$transaction as jest.Mock).mockRejectedValueOnce(p2025());
+
+      const janji = service.alihkan(1, dto(), opdUser(5));
+
+      await expect(janji).rejects.toThrow(ConflictException);
+      await expect(janji).rejects.toThrow(PESAN_BERUBAH_SERENTAK);
+      expect(audit.record).not.toHaveBeenCalled();
+      expect(notificationsService.notifyComplaintAlihkan).not.toHaveBeenCalled();
     });
 
     it('menurunkan tingkat dari NAMA OPD tujuan, bukan dari badan permintaan', async () => {

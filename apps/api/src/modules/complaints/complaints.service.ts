@@ -75,6 +75,34 @@ import { ComplaintReplyEntity } from './entities/complaint-reply.entity';
  * Tak ada keterangan yang hilang: keduanya tergambar di halaman yang sama.
  */
 
+/**
+ * Penulisan BERSYARAT pada keadaan yang tadi diperiksa (BUG-078, 12 November 2026).
+ *
+ * `updateStatus`, `alihkan`, dan `forward` membaca tiket, memeriksa keadaannya,
+ * lalu menulis. Sampai BUG-078 tulisannya hanya bersyarat `where: { id }`, jadi
+ * dua permintaan serentak yang sama-sama membaca keadaan lama keduanya lolos:
+ * tiket `selesai` terbuka lagi menjadi `dialihkan`, riwayat memuat perpindahan
+ * ganda, dan pelapor dikabari berkali-kali.
+ *
+ * Kini syarat `where` ikut memuat keadaan yang tadi diperiksa. Prisma 6
+ * menerjemahkannya menjadi SATU pernyataan `UPDATE ... WHERE id = ? AND status = ?
+ * RETURNING` (terukur 12 November 2026, bukan pasangan SELECT lalu UPDATE), dan
+ * Postgres menilai ulang `WHERE` itu sesudah kunci baris dilepas pemenangnya.
+ * Yang kalah tak menemukan baris dan mendapat P2025, yang di sini menjadi 409.
+ *
+ * Di dalam `$transaction` berbentuk larik, P2025 juga membatalkan baris riwayat
+ * yang menyertainya -- jadi yang kalah tak meninggalkan jejak apa pun.
+ */
+const PESAN_BERUBAH_SERENTAK =
+  'Pengaduan ini baru saja diubah oleh petugas lain. Muat ulang halaman untuk melihat statusnya sekarang.';
+
+function sebagaiKonflikSerentak(err: unknown): never {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+    throw new ConflictException(PESAN_BERUBAH_SERENTAK);
+  }
+  throw err;
+}
+
 // Satu sumber dengan langit-langit multer (complaints.constants.ts).
 const MAX_FILE_SIZE_BYTES = BATAS_UKURAN_LAMPIRAN_BYTES;
 const MAX_FILES = 5;
@@ -349,27 +377,31 @@ export class ComplaintsService {
       );
     }
 
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.complaint.update({
-        where: { id },
-        data: { status: dto.status },
-        include: { attachments: true },
-      }),
-      // Satu baris riwayat per perpindahan. DI DALAM transaksi yang sama
-      // dengan perubahan statusnya: riwayat yang kehilangan satu baris karena
-      // penulisan kedua gagal akan memperlihatkan tiket yang melompati tahap,
-      // dan tak ada cara memulihkannya dari data yang tersisa.
-      this.prisma.complaintStatusHistory.create({
-        data: {
-          complaintId: id,
-          status: dto.status,
-          // Diperlakukan sama dengan `complaint_replies.pesan` -- teks bebas
-          // petugas tentang kasus seorang warga.
-          catatan: dto.catatan ? enkripsiKolom(dto.catatan, this.kunci) : null,
-          actorId: user.userId,
-        },
-      }),
-    ]);
+    const [updated] = await this.prisma
+      .$transaction([
+        this.prisma.complaint.update({
+          // `status` yang tadi diperiksa ikut di syarat: lihat
+          // `PESAN_BERUBAH_SERENTAK` (BUG-078).
+          where: { id, status: complaint.status },
+          data: { status: dto.status },
+          include: { attachments: true },
+        }),
+        // Satu baris riwayat per perpindahan. DI DALAM transaksi yang sama
+        // dengan perubahan statusnya: riwayat yang kehilangan satu baris karena
+        // penulisan kedua gagal akan memperlihatkan tiket yang melompati tahap,
+        // dan tak ada cara memulihkannya dari data yang tersisa.
+        this.prisma.complaintStatusHistory.create({
+          data: {
+            complaintId: id,
+            status: dto.status,
+            // Diperlakukan sama dengan `complaint_replies.pesan` -- teks bebas
+            // petugas tentang kasus seorang warga.
+            catatan: dto.catatan ? enkripsiKolom(dto.catatan, this.kunci) : null,
+            actorId: user.userId,
+          },
+        }),
+      ])
+      .catch(sebagaiKonflikSerentak);
     await this.notificationsService.notifyComplaintStatusChanged(updated, user.userId);
     return this.toEntity(updated as ComplaintWithAttachments, user.userId);
   }
@@ -529,11 +561,15 @@ export class ComplaintsService {
       throw new NotFoundException(`OPD dengan id ${dto.opdId} tidak ditemukan`);
     }
 
-    const updated = await this.prisma.complaint.update({
-      where: { id },
-      data: { opdId: dto.opdId },
-      include: { attachments: true },
-    });
+    const updated = await this.prisma.complaint
+      .update({
+        // `opdId: null` di syarat: dua penerusan serentak tak boleh saling
+        // menimpa tujuan (BUG-078, lihat `PESAN_BERUBAH_SERENTAK`).
+        where: { id, opdId: null },
+        data: { opdId: dto.opdId },
+        include: { attachments: true },
+      })
+      .catch(sebagaiKonflikSerentak);
 
     // Tindakan administratif atas pengaduan orang lain -- harus berjejak.
     await this.audit.record(user.userId, 'forward', 'complaint', {
@@ -621,34 +657,39 @@ export class ComplaintsService {
     const opdLamaId = complaint.opdId;
     const kategoriLama = complaint.kategori;
 
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.complaint.update({
-        where: { id },
-        data: {
-          opdId: dto.opdId,
-          kategori: dto.kategori,
-          tingkat: tingkatBaru,
-          status: ComplaintStatus.dialihkan,
-        },
-        include: { attachments: true },
-      }),
-      // DI DALAM transaksi yang sama dengan perpindahannya, alasan yang sama
-      // dengan `updateStatus`: riwayat yang kehilangan satu baris
-      // memperlihatkan tiket yang berpindah tangan tanpa sebab, dan tak ada
-      // cara memulihkannya dari data yang tersisa.
-      this.prisma.complaintStatusHistory.create({
-        data: {
-          complaintId: id,
-          status: ComplaintStatus.dialihkan,
-          catatan: enkripsiKolom(dto.catatan, this.kunci),
-          actorId: user.userId,
-          // Tujuan disimpan PER BARIS. `complaints.opd_id` hanya menyimpan
-          // pemilik terakhir, jadi tanpa kolom ini tiket yang dialihkan dua
-          // kali kehilangan tujuan pertamanya bagi pelapor.
-          opdTujuanId: dto.opdId,
-        },
-      }),
-    ]);
+    const [updated] = await this.prisma
+      .$transaction([
+        this.prisma.complaint.update({
+          // Status DAN pemilik yang tadi diperiksa ikut di syarat (BUG-078):
+          // pengalihan yang kalah balapan tak boleh menimpa penutupan tiket
+          // atau pengalihan lain. Lihat `PESAN_BERUBAH_SERENTAK`.
+          where: { id, status: complaint.status, opdId: opdLamaId },
+          data: {
+            opdId: dto.opdId,
+            kategori: dto.kategori,
+            tingkat: tingkatBaru,
+            status: ComplaintStatus.dialihkan,
+          },
+          include: { attachments: true },
+        }),
+        // DI DALAM transaksi yang sama dengan perpindahannya, alasan yang sama
+        // dengan `updateStatus`: riwayat yang kehilangan satu baris
+        // memperlihatkan tiket yang berpindah tangan tanpa sebab, dan tak ada
+        // cara memulihkannya dari data yang tersisa.
+        this.prisma.complaintStatusHistory.create({
+          data: {
+            complaintId: id,
+            status: ComplaintStatus.dialihkan,
+            catatan: enkripsiKolom(dto.catatan, this.kunci),
+            actorId: user.userId,
+            // Tujuan disimpan PER BARIS. `complaints.opd_id` hanya menyimpan
+            // pemilik terakhir, jadi tanpa kolom ini tiket yang dialihkan dua
+            // kali kehilangan tujuan pertamanya bagi pelapor.
+            opdTujuanId: dto.opdId,
+          },
+        }),
+      ])
+      .catch(sebagaiKonflikSerentak);
 
     await this.audit.record(user.userId, 'alihkan', 'complaint', {
       complaintId: id,
