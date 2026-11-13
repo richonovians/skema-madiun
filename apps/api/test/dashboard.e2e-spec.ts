@@ -7,6 +7,7 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PENYIMPAN_SINGGAHAN } from '../src/common/cache/penyimpan-singgahan.interface';
 import type { PenyimpanSinggahan } from '../src/common/cache/penyimpan-singgahan.interface';
+import { periodeFromDate } from '../src/modules/surveys/utils/periode.util';
 import { devHeaders } from './helpers/auth.helper';
 
 /**
@@ -545,6 +546,130 @@ describe('Dashboard & Statistics (e2e)', () => {
       // menyesatkan. Itu perilaku yang sudah ada, bukan yang diubah di sini;
       // yang diuji adalah bahwa respons survei Sampah tak lagi ikut.
       expect(dasborSesudah.respondentTrendPercent).toBeNull();
+    });
+  });
+
+  /**
+   * BUG-068 (4 November 2026, diperbaiki 13 November 2026). `GET /statistics`
+   * dulu memuat seluruh baris `complaints` ke Node untuk rata-rata waktu
+   * selesai dan kedua deret tren; kini Postgres mengagregasinya per bulan.
+   *
+   * UJI PENCOCOKAN, bukan uji angka tetap: harapannya dihitung DI SINI dengan
+   * cara lama -- memuat semua baris lalu membaginya dengan `Date#getMonth()` --
+   * atas SELURUH tabel di basis data uji, lalu dibandingkan dengan jawaban
+   * endpoint. Uji ini lulus pula sebelum perbaikan; tugasnya menjaga agar
+   * agregat SQL tak pernah berbeda dari bentuk lama.
+   *
+   * Tiga baris sengaja jatuh di batas zona waktu: pukul 17.30 dan 18.00 UTC
+   * pada hari terakhir bulan adalah tanggal 1 bulan berikutnya menurut WIB.
+   * Agregat yang lupa `AT TIME ZONE` memasukkannya ke bulan yang salah --
+   * dan pada baris 31 Desember, ke TAHUN yang salah.
+   */
+  describe('BUG-068 — agregat pengaduan di Postgres sama dengan hitungan baris lama', () => {
+    type Titik = { periode: string; value: number };
+
+    beforeAll(async () => {
+      const jam = 3_600_000;
+      const baris = [
+        {
+          ticketNo: 'PGDE2E068A',
+          status: ComplaintStatus.selesai,
+          createdAt: new Date('2020-03-31T17:30:00.000Z'), // 1 April 00.30 WIB
+          selangMs: 60 * jam,
+        },
+        {
+          ticketNo: 'PGDE2E068B',
+          status: ComplaintStatus.selesai,
+          createdAt: new Date('2020-06-15T03:00:00.000Z'),
+          selangMs: 6 * jam + 123, // pecahan detik ikut terhitung
+        },
+        {
+          ticketNo: 'PGDE2E068C',
+          status: ComplaintStatus.menunggu_verifikasi,
+          createdAt: new Date('2020-12-31T18:00:00.000Z'), // 1 Januari 2021 01.00 WIB
+          selangMs: 0,
+        },
+      ];
+      for (const b of baris) {
+        await prisma.complaint.create({
+          data: {
+            ticketNo: b.ticketNo,
+            userId: respondenId,
+            opdId,
+            kategori: 'kab_lainnya',
+            judul: 'Pengaduan E2E BUG-068',
+            uraian: 'Uraian pengaduan e2e BUG-068',
+            status: b.status,
+            createdAt: b.createdAt,
+            updatedAt: new Date(b.createdAt.getTime() + b.selangMs),
+          },
+        });
+      }
+    });
+
+    /** Cara lama, disalin dari `dashboard.service.ts` sebelum BUG-068 diperbaiki. */
+    const hitungCaraLama = async () => {
+      const semua = await prisma.complaint.findMany({
+        select: { createdAt: true, updatedAt: true, status: true },
+      });
+      const selesai = semua.filter((c) => c.status === ComplaintStatus.selesai);
+      const round = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
+
+      const triwulan = new Map<string, number>();
+      for (const c of semua) {
+        const p = periodeFromDate(c.createdAt);
+        triwulan.set(p, (triwulan.get(p) ?? 0) + 1);
+      }
+
+      const indeks = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+      const bulanan = new Map<number, number>();
+      for (const c of semua) {
+        const i = indeks(c.createdAt);
+        bulanan.set(i, (bulanan.get(i) ?? 0) + 1);
+      }
+      const deretBulanan: Titik[] = [];
+      if (bulanan.size > 0) {
+        const awal = Math.min(...bulanan.keys());
+        const akhir = Math.max(indeks(new Date()), ...bulanan.keys());
+        for (let i = awal; i <= akhir; i++) {
+          const periode = `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
+          deretBulanan.push({ periode, value: bulanan.get(i) ?? 0 });
+        }
+      }
+
+      return {
+        total: semua.length,
+        avgSlaDays:
+          selesai.length > 0
+            ? round(
+                selesai.reduce(
+                  (acc, c) => acc + (c.updatedAt.getTime() - c.createdAt.getTime()) / 86_400_000,
+                  0,
+                ) / selesai.length,
+                1,
+              )
+            : null,
+        completionRate: semua.length > 0 ? round((selesai.length / semua.length) * 100, 2) : null,
+        complaintTrend: Array.from(triwulan.entries())
+          .map(([periode, value]) => ({ periode, value }))
+          .sort((a, b) => a.periode.localeCompare(b.periode)),
+        complaintTrendBulanan: deretBulanan,
+      };
+    };
+
+    it('ringkasan dan kedua deret tren sama persis dengan cara lama', async () => {
+      await singgahan.hapus(KUNCI_SINGGAHAN_STATISTIK);
+      const res = await request(app.getHttpServer()).get('/api/v1/statistics');
+      expect(res.status).toBe(200);
+      const harapan = await hitungCaraLama();
+
+      // Kontrol: tanpa baris di atas, uji ini hanya membandingkan dua deret kosong.
+      expect(harapan.total).toBeGreaterThanOrEqual(3);
+      expect(res.body.data.summary.totalComplaints).toBe(harapan.total);
+      expect(res.body.data.summary.avgSlaDays).toBe(harapan.avgSlaDays);
+      expect(res.body.data.summary.completionRate).toBe(harapan.completionRate);
+      expect(res.body.data.complaintTrend).toEqual(harapan.complaintTrend);
+      expect(res.body.data.complaintTrendBulanan).toEqual(harapan.complaintTrendBulanan);
     });
   });
 });
