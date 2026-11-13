@@ -328,8 +328,23 @@ function matikanSesiDiServer() {
  * pasti dilewati semua jalur. Pemanggil yang sudah memanggil endpointnya sendiri
  * jadi mengirim dua kali; itu tak berakibat apa pun -- yang kedua tiba tanpa
  * cookie, dijawab 401, dan tak menghasilkan baris audit kedua.
+ *
+ * SATU pengecualian (BUG-063, 13 November 2026): `sesiServerSudahDitolak`.
+ * Interceptor 401 memakainya ketika permintaan yang ditolak tak membawa header
+ * Bearer. Backend membaca cookie `session` hanya bila Bearer tak ada
+ * (`SessionAuthProvider.extractToken`), dan permintaan logout juga tanpa
+ * Bearer -- jadi server baru saja menolak cookie yang persis sama, dan logout
+ * dengan cookie itu pasti 401. Sebelum pengecualian ini setiap pengunjung
+ * beranda yang belum masuk menembakkan satu logout sia-sia untuk setiap 401.
+ *
+ * Pengecualiannya sengaja diputuskan PEMANGGIL, bukan ditebak di sini dari
+ * ada-tidaknya artefak lokal: `AuthCallbackLoader` memanggil `clearSession()`
+ * justru ketika backend sudah menerbitkan cookie tetapi artefak lokalnya belum
+ * sempat ditulis, dan di sana logout-nya yang mencegah sesi hantu.
+ *
+ * @param {{ sesiServerSudahDitolak?: boolean }} [opsi]
  */
-export function clearSession() {
+export function clearSession({ sesiServerSudahDitolak = false } = {}) {
   if (typeof window === 'undefined') return;
   // Yang dimatikannya jalur SSO saja, dan itu memang lingkupnya: backend
   // menerima `Authorization: Bearer` (dev-login) ATAU cookie `session` (SSO),
@@ -337,7 +352,7 @@ export function clearSession() {
   // dipegang klien dan tak ada apa pun di server yang perlu dicabut, jadi 401
   // yang ditelan di sana bukan kegagalan -- sesi hantunya khas SSO, karena hanya
   // di sanalah ada cookie yang JavaScript tak dapat hapus.
-  matikanSesiDiServer();
+  if (!sesiServerSudahDitolak) matikanSesiDiServer();
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
   localStorage.removeItem(SSO_EXPIRES_KEY);

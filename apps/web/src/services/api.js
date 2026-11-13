@@ -120,7 +120,14 @@ api.interceptors.response.use(
           // "Autentikasi diperlukan" (sesi tak sah), sedangkan penolakan karena
           // peran/akses dikembalikan sebagai 403 -- lihat RolesGuard &
           // opd-scope.util.ts.
-          clearSession();
+          //
+          // Tanpa Bearer, yang baru ditolak server adalah cookie `session`
+          // (atau ketiadaannya) -- cookie yang sama yang akan dibawa logout.
+          // Mengirim logout di situ pasti 401 juga (BUG-063: pengunjung
+          // beranda menembakkan satu logout untuk setiap 401). Dengan Bearer,
+          // cookie-nya belum pernah diperiksa dan logout tetap dikirim.
+          const membawaBearer = Boolean(error.config?.headers?.Authorization);
+          clearSession({ sesiServerSudahDitolak: !membawaBearer });
         }
       }
     }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { useRouter } from 'next/navigation';
@@ -149,6 +149,44 @@ describe('SurveyForm — pesan menurut keadaan sesi', () => {
     expect(await screen.findByText(/masuk terlebih dahulu/i)).toBeInTheDocument();
     expect(screen.queryByText(/silakan pilih instansi \/ opd/i)).not.toBeInTheDocument();
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  /**
+   * BUG-063 (3 November 2026). `GET /opd` menuntut sesi, jadi tanpa sesi ia
+   * pasti 401 -- dan setiap 401 dulu ikut menembakkan `POST /auth/logout`.
+   * Jeda yang sama dipakai uji KONTROL di bawahnya, dan di sana permintaannya
+   * tercatat; itu yang membuat "tak tercatat" berarti tak dikirim.
+   */
+  describe('tidak memanggil endpoint bersesi (BUG-063)', () => {
+    let dicatat;
+    const catat = ({ request }) => dicatat.push(new URL(request.url).pathname);
+    beforeEach(() => {
+      dicatat = [];
+      server.events.on('request:start', catat);
+    });
+    afterEach(() => server.events.removeListener('request:start', catat));
+
+    // Di dalam `act`: jawaban `useAsync` yang tiba selama jeda ini mengubah
+    // keadaan komponen, dan di luar `act` React memperingatkannya.
+    const tungguPermintaanBerangkat = () => act(() => new Promise((r) => setTimeout(r, 100)));
+    const permintaanOpd = () => dicatat.filter((p) => /\/opd$/.test(p));
+
+    it('tanpa sesi, GET /opd tidak dikirim', async () => {
+      isAuthenticated.mockReturnValue(false);
+      render(<SurveyForm />);
+      await screen.findByText(/masuk untuk melihat daftar instansi/i);
+      await tungguPermintaanBerangkat();
+
+      expect(permintaanOpd()).toEqual([]);
+    });
+
+    it('KONTROL: dengan sesi, GET /opd dikirim dalam jeda yang sama', async () => {
+      isAuthenticated.mockReturnValue(true);
+      render(<SurveyForm />);
+      await tungguPermintaanBerangkat();
+
+      expect(permintaanOpd().length).toBeGreaterThan(0);
+    });
   });
 
   /**

@@ -144,9 +144,19 @@ export default function CreateComplaintForm() {
     hapusDrafPengaduan();
   }, []);
 
-  const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
+  // Keduanya menuntut sesi, jadi tanpa sesi tak dipanggil sama sekali (BUG-063):
+  // jawabannya pasti 401 dan penampung dropdown sudah menyuruh masuk. `adaSesi`
+  // ikut menjadi dependensi supaya daftar dimuat begitu sesi terbaca sesudah
+  // hidrasi, dan dikosongkan begitu sesi dinyatakan tak sah.
+  const fetchOpd = useCallback(
+    () => (adaSesi ? getOpdList({ limit: 100, isActive: true }) : Promise.resolve(null)),
+    [adaSesi],
+  );
   const { data: opdResponse, isLoading: memuatOpd, error: gagalOpd } = useAsync(fetchOpd);
-  const fetchCategories = useCallback(() => getComplaintCategories(), []);
+  const fetchCategories = useCallback(
+    () => (adaSesi ? getComplaintCategories() : Promise.resolve(null)),
+    [adaSesi],
+  );
   const {
     data: categories,
     isLoading: memuatKategori,

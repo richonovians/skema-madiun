@@ -151,6 +151,68 @@ describe('interceptor 401', () => {
     expect(localStorage.getItem('token')).toBeNull();
   });
 
+  /**
+   * BUG-063 (3 November 2026): pengunjung tanpa sesi memicu satu
+   * `POST /auth/logout` untuk setiap 401, padahal tak ada sesi yang dicabut.
+   *
+   * Dasarnya urutan pembacaan kredensial di backend
+   * (`SessionAuthProvider.extractToken`): header Bearer didahulukan, cookie
+   * `session` hanya dibaca bila header itu tak ada. Permintaan logout tak
+   * pernah membawa Bearer. Jadi bila permintaan yang ditolak pun tak membawa
+   * Bearer, yang baru saja ditolak server adalah cookie yang SAMA (atau
+   * ketiadaannya) -- logout dengan cookie itu pasti 401 juga.
+   *
+   * `fetch` diintip, bukan dihitung lewat handler MSW: `clearSession()`
+   * memanggilnya SINKRON di dalam interceptor, sehingga panggilannya sudah
+   * tercatat begitu `api.get` menolak, tanpa perlu menunggu jeda sembarang
+   * untuk membuktikan ketiadaannya. axios sendiri memakai XHR di jsdom, jadi
+   * intipan ini hanya melihat logout.
+   */
+  describe('logout ke server hanya bila masih mungkin berguna (BUG-063)', () => {
+    let intipFetch;
+    beforeEach(() => {
+      intipFetch = jest.spyOn(global, 'fetch');
+    });
+    afterEach(() => intipFetch.mockRestore());
+
+    const panggilanLogout = () =>
+      intipFetch.mock.calls.filter(([url]) => /\/auth\/logout$/.test(String(url)));
+
+    it('401 pada permintaan TANPA Bearer tidak menembakkan POST /auth/logout', async () => {
+      balas401('UNAUTHORIZED');
+
+      await expect(api.get('/auth/me')).rejects.toBeDefined();
+
+      expect(panggilanLogout()).toHaveLength(0);
+    });
+
+    it('artefak lokal sesi SSO tetap dibuang walau logout-nya dilewati', async () => {
+      localStorage.setItem('sso_expires_at', String(Math.floor(Date.now() / 1000) + 3600));
+      localStorage.setItem('role', 'responden');
+      balas401('UNAUTHORIZED');
+
+      await expect(api.get('/auth/me')).rejects.toBeDefined();
+
+      expect(panggilanLogout()).toHaveLength(0);
+      expect(localStorage.getItem('sso_expires_at')).toBeNull();
+      expect(localStorage.getItem('role')).toBeNull();
+    });
+
+    /**
+     * KONTROL. Yang ditolak di sini token Bearer; cookie `session` yang
+     * mungkin menempel di peramban belum pernah diperiksa server, dan bisa
+     * jadi sesi SSO yang masih hidup. Logout-nya tetap dikirim.
+     */
+    it('KONTROL: 401 pada permintaan BER-Bearer tetap menembakkan logout', async () => {
+      localStorage.setItem('token', 'token-basi');
+      balas401('UNAUTHORIZED');
+
+      await expect(api.get('/auth/me')).rejects.toBeDefined();
+
+      expect(panggilanLogout()).toHaveLength(1);
+    });
+  });
+
   it('403 tidak menyentuh sesi sama sekali', async () => {
     localStorage.setItem('token', 'token-sah');
     server.use(

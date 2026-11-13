@@ -34,7 +34,14 @@ export default function SurveyForm() {
   // lengkapnya di hooks/useSesiAktif.js.
   const adaSesi = useSesiAktif();
 
-  const fetchOpd = useCallback(() => getOpdList({ limit: 100, isActive: true }), []);
+  // Tanpa sesi tak dipanggil sama sekali (BUG-063): `GET /opd` menuntut sesi,
+  // jadi jawabannya pasti 401, dan penampung dropdown sudah menyuruh masuk.
+  // `adaSesi` menjadi dependensi supaya daftar dimuat begitu sesi terbaca
+  // sesudah hidrasi.
+  const fetchOpd = useCallback(
+    () => (adaSesi ? getOpdList({ limit: 100, isActive: true }) : Promise.resolve(null)),
+    [adaSesi],
+  );
   const { data: opdResponse, isLoading, error: gagalMuat } = useAsync(fetchOpd);
   const opdOptions = (opdResponse?.data ?? []).map((opd) => ({
     label: opd.name,
