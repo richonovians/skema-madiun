@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { setupServer } from 'msw/node';
 import { http } from 'msw';
 import { useRouter } from 'next/navigation';
@@ -711,6 +711,55 @@ describe('CreateComplaintForm — tanpa sesi', () => {
       await screen.findByText(/masuk terlebih dahulu untuk mengirim laporan/i),
     ).toBeInTheDocument();
     expect(dipanggil).toBe(false);
+  });
+
+  /**
+   * BUG-063 (3 November 2026). `GET /opd` dan `GET /ref/complaint-categories`
+   * menuntut sesi, jadi tanpa sesi keduanya pasti 401 -- dan setiap 401 dulu
+   * ikut menembakkan `POST /auth/logout`. Formulir sudah tahu tak ada sesi
+   * (penampungnya menyuruh masuk), jadi tak ada alasan memanggilnya.
+   *
+   * Jeda yang sama dipakai uji KONTROL di bawahnya, dan di sana permintaannya
+   * tercatat. Itu yang membuat "tak tercatat" di sini berarti tak dikirim,
+   * bukan belum sempat dikirim.
+   */
+  describe('tidak memanggil endpoint bersesi (BUG-063)', () => {
+    let dicatat;
+    const catat = ({ request }) => dicatat.push(new URL(request.url).pathname);
+    beforeEach(() => {
+      dicatat = [];
+      server.events.on('request:start', catat);
+    });
+    afterEach(() => server.events.removeListener('request:start', catat));
+
+    // Di dalam `act`: jawaban `useAsync` yang tiba selama jeda ini mengubah
+    // keadaan komponen, dan di luar `act` React memperingatkannya.
+    const tungguPermintaanBerangkat = () => act(() => new Promise((r) => setTimeout(r, 100)));
+    const endpointBersesi = () =>
+      dicatat.filter((p) => /\/opd$|\/ref\/complaint-categories$/.test(p));
+
+    it('tanpa sesi, GET /opd dan GET /ref/complaint-categories tidak dikirim', async () => {
+      isAuthenticated.mockReturnValue(false);
+      render(<CreateComplaintForm />);
+      await screen.findByText(/masuk untuk melihat daftar instansi/i);
+      await tungguPermintaanBerangkat();
+
+      expect(endpointBersesi()).toEqual([]);
+    });
+
+    it('KONTROL: dengan sesi, keduanya dikirim dalam jeda yang sama', async () => {
+      isAuthenticated.mockReturnValue(true);
+      render(<CreateComplaintForm />);
+      await screen.findByText('Pilih Instansi');
+      await tungguPermintaanBerangkat();
+
+      expect(endpointBersesi()).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/\/opd$/),
+          expect.stringMatching(/\/ref\/complaint-categories$/),
+        ]),
+      );
+    });
   });
 
   /**
