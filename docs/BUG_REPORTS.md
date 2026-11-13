@@ -155,7 +155,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-060](#bug-060) | nginx menyebut versinya di header `Server` | Low | Terkonfirmasi | **Ditutup** | — |
 | [BUG-061](#bug-061) | Modal Ubah Status Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, tombol tutup bernama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-O4 (gladi) |
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
-| [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | Terbuka | uji ulang TC-FE-034 |
+| [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | **Ditutup** | uji ulang TC-FE-034 |
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **74 ditutup, 12 terbuka** (Medium: tidak ada; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **75 ditutup, 11 terbuka** (Medium: tidak ada; Low: BUG-065, BUG-066, BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3651,6 +3651,32 @@ ada baris `audit_logs` yang tertulis. Karena itu Low.
 
 Lapis kedua yang menutup akar kelasnya: halaman publik lain yang kelak memanggil
 endpoint bersesi akan mengulang pola yang sama.
+
+**Status 13 November 2026: Ditutup**
+
+Diperbaiki di `17c2b85` dan masuk lewat PR #40, merge `main` `0e0858b`. CI 3 dari 3 job hijau pada `17c2b85`, termasuk E2E web. `main` tak bergerak di antara keduanya, jadi isi `0e0858b` sama persis dengan `17c2b85`.
+
+Lapis pertama dikerjakan seperti usulan di atas. `CreateComplaintForm` dan `SurveyForm` tak lagi memanggil `GET /opd` dan `GET /ref/complaint-categories` selagi `adaSesi` `false`. `adaSesi` menjadi dependensi pemuatnya, jadi daftar tetap dimuat begitu sesi terbaca sesudah hidrasi.
+
+Lapis kedua **tidak** dikerjakan seperti usulan. Melewati logout bila tak ada artefak sesi di klien akan merusak `AuthCallbackLoader`: ia memanggil `clearSession()` justru ketika backend sudah menerbitkan cookie `session` tetapi artefak lokalnya belum ditulis, dan di sana logout-nya yang mencegah sesi hantu. Yang dipakai adalah ada-tidaknya header Bearer pada permintaan yang ditolak. Backend membaca cookie `session` hanya bila Bearer tak ada (`SessionAuthProvider.extractToken`), dan permintaan logout tak pernah membawa Bearer. Jadi 401 pada permintaan tanpa Bearer berarti server baru saja menolak cookie yang sama, dan logout dengan cookie itu pasti 401. Interseptor kini memanggil `clearSession({ sesiServerSudahDitolak: true })` pada keadaan itu; artefak lokal tetap dibuang. Permintaan ber-Bearer tetap memicu logout, karena cookie-nya belum pernah diperiksa server.
+
+Pagar, 7 uji Jest. Empat uji inti merah sebelum perbaikan; tiga lainnya KONTROL:
+
+- `api.test.js`: 401 tanpa Bearer tidak menembakkan logout; artefak lokal sesi SSO tetap dibuang; KONTROL 401 ber-Bearer tetap menembakkan logout.
+- `CreateComplaintForm.test.jsx` dan `SurveyForm.test.jsx`: tanpa sesi, endpoint bersesi tidak dikirim. Masing-masing berpasangan dengan KONTROL berjeda sama yang mencatat permintaannya, jadi "tak tercatat" berarti tak dikirim.
+
+Diverifikasi di Chrome terpasang (Playwright, `next dev`), satu kali muat `/` tanpa sesi. Kode `main` diukur dengan perubahan di-stash sementara, pada server dan jam yang sama:
+
+| Permintaan | Sebelum | Sesudah |
+| --- | :---: | :---: |
+| `GET /opd` | 2x 401 | 0 |
+| `GET /ref/complaint-categories` | 2x 401 | 0 |
+| `POST /auth/logout` | 4x 401 | 0 |
+| `GET /statistics` | 2x 200 | 2x 200 |
+
+KONTROL warga ber-sesi dev-login (`responden`): `GET /opd` dan `GET /ref/complaint-categories` masing-masing 1x 200, tanpa logout, dan penampung "Masuk untuk melihat daftar instansi" tidak tampil.
+
+**Yang tersisa:** lapis kedua tak teramati lewat beranda, karena lapis pertama sudah menghilangkan 401-nya; ia hanya dijaga uji unit. Build produksi tidak diukur, baik sebelum maupun sesudah.
 
 ---
 
@@ -8189,3 +8215,4 @@ hanya dibaca, tidak diubah.
 | 7.41 | 12 November 2026 | **BUG-073 ditutup dengan catatan: 86 temuan, 72 ditutup, 14 terbuka.** PR #37, merge `d6b3beb`. CI 3 dari 3 job hijau pada `10a7900` dan `d6b3beb`, termasuk E2E web. Cadangan harian kini dijadwalkan di dalam API, dengan retensi dan notifikasi `backup_failed` ke Admin Kabupaten bila gagal. Tiga syarat tetap milik tim server dan tetap menjadi syarat GO-LIVE: `pg_dump` 18 di server API, `BACKUP_DIR` di luar mesin, dan kedua kunci enkripsi. Tidak ada lagi temuan Medium yang terbuka. |
 | 7.42 | 13 November 2026 | **BUG-069 ditutup: 86 temuan, 73 ditutup, 13 terbuka.** PR #38, merge `96a2692`. CI 3 dari 3 job hijau pada `6646ce2` dan `96a2692`. Indeks `complaints (created_at DESC)`; pada 62.000 pengaduan sintetis halaman pertama turun dari 35,8 ms (Seq Scan + Sort) ke 0,14 ms (Index Scan). Waktu jawab endpoint lewat pelari beban belum diukur ulang karena pembangun `--pengaduan` masih rusak. |
 | 7.43 | 13 November 2026 | **BUG-068 ditutup: 86 temuan, 74 ditutup, 12 terbuka.** PR #39, merge `48c25fe`. CI 3 dari 3 job hijau pada `50df63f` dan `48c25fe`. `GET /statistics` mengagregasi pengaduan per bulan di Postgres; permintaan pertama pada 310.000 pengaduan turun dari 4.320 / 4.384 ms ke 1.210 / 1.156 ms, diukur dengan pelari yang sama. Pembangun `--pengaduan` diperbaiki di PR yang sama (`280a814`). |
+| 7.44 | 13 November 2026 | **BUG-063 ditutup: 86 temuan, 75 ditutup, 11 terbuka.** PR #40, merge `0e0858b`. CI 3 dari 3 job hijau pada `17c2b85`. Formulir beranda berhenti memanggil endpoint bersesi tanpa sesi, dan interseptor 401 melewati logout bila permintaan yang ditolak tak membawa Bearer. Lapis kedua menyimpang dari usulan semula, yang akan merusak `AuthCallbackLoader`. Satu kali muat `/` tanpa sesi di Chrome: 4 logout 401 menjadi nol. |
