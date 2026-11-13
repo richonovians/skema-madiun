@@ -160,7 +160,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
 | [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
-| [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
+| [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-070](#bug-070) | Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13) |
 | [BUG-071](#bug-071) | Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health` | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **73 ditutup, 13 terbuka** (Medium: tidak ada; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **74 ditutup, 12 terbuka** (Medium: tidak ada; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4044,6 +4044,29 @@ angka itu hanya bahwa pengaduan satu-satunya yang berubah dari baris sebelumnya.
 Hitung rata-rata dan bucket triwulan di Postgres, lewat agregat, alih-alih di Node.
 Harus menghasilkan angka yang sama dengan bentuk sekarang (uji pencocokan pada
 dataset yang sama), lalu diukur ulang dengan pelari yang sama.
+
+**Status 13 November 2026: Ditutup**
+
+Arah perbaikan di atas dikerjakan apa adanya. Diperbaiki di `50df63f` dan masuk lewat PR #39, merge `main` `48c25fe`. CI 3 dari 3 job hijau pada `50df63f` dan `48c25fe`, termasuk E2E web. Satu kueri `GROUP BY` bulan kini mengembalikan jumlah pengaduan, jumlah `selesai`, dan total durasi selesai per bulan; deret bulanan, deret triwulan, dan rata-rata diturunkan dari baris itu. Rata-rata tetap total durasi dibagi total pengaduan selesai.
+
+Bulan dibagi dengan `AT TIME ZONE` zona proses Node, sama dengan `Date#getMonth()` di jalur lama; `created_at` tersimpan UTC tanpa zona. Perilaku lama dipertahankan. Apakah bulan semestinya selalu WIB, terlepas dari zona server, belum diputuskan dan bukan bagian temuan ini.
+
+Pagar:
+
+- Uji unit `BUG-068: tidak memuat baris pengaduan satu per satu` (`dashboard.service.spec.ts`): merah sebelum perbaikan, hijau sesudahnya.
+- Uji e2e pencocokan (`dashboard.e2e-spec.ts`): harapannya dihitung dengan cara lama atas seluruh tabel `skm_uji`, lalu dibandingkan dengan jawaban endpoint. Tiga baris jatuh di batas bulan dan tahun WIB. Lulus pula sebelum perbaikan, karena tugasnya menjaga kesamaan. Mutasi yang membuang `AT TIME ZONE` membuatnya merah di mesin WIB. CI tak menyetel `TZ`, jadi di pelari UTC baris batas itu tak membedakan apa pun.
+
+Diukur ulang pada `skm_beban`, kolom C §12.6 (148.800 respons, 100% teks, 310.000 pengaduan), dibangun ulang dengan pembangun yang diperbaiki di `280a814`:
+
+| | Lama | Baru |
+| --- | --- | --- |
+| Kueri saja, lima kali | 3.574-3.763 ms | 526-1.012 ms |
+| Heap Node saat kueri | +203 MB | +0,1 MB |
+| Pelari `--skenario=statistik --dingin --durasi=15`, permintaan pertama | 4.320 / 4.384 ms | 1.210 / 1.156 ms |
+
+Jumlah, selesai, rata-rata, dan 34 bulan identik antara kedua bentuk. Seluruh jawaban 2xx dan dataset tetap. Bentuk lama diukur dengan kode `main` `96a2692` yang dipulihkan sementara, pada dataset dan jam yang sama.
+
+**Yang tersisa:** sekitar 1,1 detik pada permintaan pertama bukan kueri ini; BUG-067 (`answer.groupBy`) tetap terbuka. Agregat bulanan masih memindai seluruh `complaints`, sekitar 0,5 detik pada 310.000 baris. Angkanya dari laptop ber-Docker Desktop, sah sebagai pembanding lama/baru.
 
 ### BUG-069 — `GET /complaints` memindai seluruh tabel di setiap permintaan
 
@@ -8165,3 +8188,4 @@ hanya dibaca, tidak diubah.
 | 7.40 | 12 November 2026 | **BUG-077 dan BUG-078 ditutup, BUG-086 dibuka: 86 temuan, 71 ditutup, 15 terbuka.** PR #35 (merge `47c07bf`) dan PR #36 (merge `a2e67a7`). CI 3 dari 3 job hijau pada `0440469`, `db4216f`, dan `a2e67a7`, termasuk E2E web. BUG-078 ternyata juga mengenai `forward()`, dan ikut diperbaiki. BUG-086 adalah gejala kedua BUG-077 (penerusan tanpa baris riwayat), dipisah atas keputusan pemilik produk karena perlu rancangan tersendiri. Medium yang tersisa tinggal BUG-073. |
 | 7.41 | 12 November 2026 | **BUG-073 ditutup dengan catatan: 86 temuan, 72 ditutup, 14 terbuka.** PR #37, merge `d6b3beb`. CI 3 dari 3 job hijau pada `10a7900` dan `d6b3beb`, termasuk E2E web. Cadangan harian kini dijadwalkan di dalam API, dengan retensi dan notifikasi `backup_failed` ke Admin Kabupaten bila gagal. Tiga syarat tetap milik tim server dan tetap menjadi syarat GO-LIVE: `pg_dump` 18 di server API, `BACKUP_DIR` di luar mesin, dan kedua kunci enkripsi. Tidak ada lagi temuan Medium yang terbuka. |
 | 7.42 | 13 November 2026 | **BUG-069 ditutup: 86 temuan, 73 ditutup, 13 terbuka.** PR #38, merge `96a2692`. CI 3 dari 3 job hijau pada `6646ce2` dan `96a2692`. Indeks `complaints (created_at DESC)`; pada 62.000 pengaduan sintetis halaman pertama turun dari 35,8 ms (Seq Scan + Sort) ke 0,14 ms (Index Scan). Waktu jawab endpoint lewat pelari beban belum diukur ulang karena pembangun `--pengaduan` masih rusak. |
+| 7.43 | 13 November 2026 | **BUG-068 ditutup: 86 temuan, 74 ditutup, 12 terbuka.** PR #39, merge `48c25fe`. CI 3 dari 3 job hijau pada `50df63f` dan `48c25fe`. `GET /statistics` mengagregasi pengaduan per bulan di Postgres; permintaan pertama pada 310.000 pengaduan turun dari 4.320 / 4.384 ms ke 1.210 / 1.156 ms, diukur dengan pelari yang sama. Pembangun `--pengaduan` diperbaiki di PR yang sama (`280a814`). |
