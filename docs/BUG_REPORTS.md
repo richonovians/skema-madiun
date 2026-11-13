@@ -161,7 +161,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
 | [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
 | [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
-| [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12.6) |
+| [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-070](#bug-070) | Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13) |
 | [BUG-071](#bug-071) | Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health` | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
 | [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.3) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **72 ditutup, 14 terbuka** (Medium: tidak ada; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-069, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **73 ditutup, 13 terbuka** (Medium: tidak ada; Low: BUG-063, BUG-065, BUG-066, BUG-067, BUG-068, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4101,6 +4101,24 @@ Kabupaten yang tak menyaring apa pun.
 
 Indeks `complaints (created_at DESC)` lewat migrasi tulis tangan. Bukti di atas baru
 untuk kueri itu sendiri; endpoint harus diukur ulang dengan pelari yang sama.
+
+**Status 13 November 2026: Ditutup**
+
+Arah perbaikan di atas dikerjakan apa adanya. Diperbaiki di `6646ce2` dan masuk lewat PR #38, merge `main` `96a2692`. CI 3 dari 3 job hijau pada `6646ce2` dan `96a2692`, termasuk E2E web. Migrasi tulis tangan `20261112150000_indeks_tanggal_pengaduan` membuat `complaints_created_at_idx` pada `("created_at" DESC)`. Kode aplikasi tidak berubah.
+
+Pagar: `indeks-pengaduan.e2e-spec.ts` memeriksa **rencana kueri** halaman pertama: tanpa Seq Scan, tanpa langkah Sort, dan memakai Index Scan. Syarat "tanpa Sort" ada karena indeks lain yang dipindai penuh lalu diurutkan sama mahalnya, dan akan lolos uji yang hanya memeriksa keberadaan indeks. Merah sebelum migrasi (Seq Scan + Sort), hijau sesudahnya.
+
+Diukur ulang pada 62.000 pengaduan sintetis di `skm_beban`, di dalam transaksi yang di-rollback (0 baris tersisa):
+
+| | Rencana | Waktu |
+| --- | --- | --- |
+| Tanpa indeks | Seq Scan + top-N heapsort | 35,8 ms |
+| Dengan indeks, halaman 1 | Index Scan | 0,14 ms |
+| Dengan indeks, halaman 50 | Index Scan | 0,58 ms |
+
+**Yang belum diukur:** waktu jawab endpoint lewat pelari beban yang sama dengan laporan ini, sebagaimana diminta arah perbaikannya. `skm_beban` kini tak berisi pengaduan, dan pembangun `--pengaduan` rusak sejak migrasi 4 November, jadi dataset 62.000 dan 310.000 tak dapat dibangun ulang. Ditutup atas dasar rencana kueri, dan selisih 36 ms per permintaan itulah yang tadi diukur sebagai bagian terbesar biaya endpoint.
+
+Jalur Admin OPD (`opd_id` = X lalu urut `created_at`) tidak ikut dipercepat secara khusus. Jalur itu tetap memakai indeks `opd_id` dan barisnya jauh lebih sedikit; belum diukur.
 
 ---
 
@@ -8146,3 +8164,4 @@ hanya dibaca, tidak diubah.
 | 7.39 | 9 November 2026 | **BUG-079 dan BUG-080 ditutup: 85 temuan, 69 ditutup, 16 terbuka.** PR #25, merge `f132c05`. CI pada `356c5c8` dan `f132c05`: lint, uji unit, build, E2E API, dan E2E web lulus. Job Playwright yang pada 5 November gagal di `ajukan-pengaduan.spec.js:278` kini hijau pada keduanya; sebabnya belum diselidiki, jadi ini dicatat sebagai pengamatan, bukan perbaikan. Medium yang tersisa: BUG-073, BUG-077, BUG-078. |
 | 7.40 | 12 November 2026 | **BUG-077 dan BUG-078 ditutup, BUG-086 dibuka: 86 temuan, 71 ditutup, 15 terbuka.** PR #35 (merge `47c07bf`) dan PR #36 (merge `a2e67a7`). CI 3 dari 3 job hijau pada `0440469`, `db4216f`, dan `a2e67a7`, termasuk E2E web. BUG-078 ternyata juga mengenai `forward()`, dan ikut diperbaiki. BUG-086 adalah gejala kedua BUG-077 (penerusan tanpa baris riwayat), dipisah atas keputusan pemilik produk karena perlu rancangan tersendiri. Medium yang tersisa tinggal BUG-073. |
 | 7.41 | 12 November 2026 | **BUG-073 ditutup dengan catatan: 86 temuan, 72 ditutup, 14 terbuka.** PR #37, merge `d6b3beb`. CI 3 dari 3 job hijau pada `10a7900` dan `d6b3beb`, termasuk E2E web. Cadangan harian kini dijadwalkan di dalam API, dengan retensi dan notifikasi `backup_failed` ke Admin Kabupaten bila gagal. Tiga syarat tetap milik tim server dan tetap menjadi syarat GO-LIVE: `pg_dump` 18 di server API, `BACKUP_DIR` di luar mesin, dan kedua kunci enkripsi. Tidak ada lagi temuan Medium yang terbuka. |
+| 7.42 | 13 November 2026 | **BUG-069 ditutup: 86 temuan, 73 ditutup, 13 terbuka.** PR #38, merge `96a2692`. CI 3 dari 3 job hijau pada `6646ce2` dan `96a2692`. Indeks `complaints (created_at DESC)`; pada 62.000 pengaduan sintetis halaman pertama turun dari 35,8 ms (Seq Scan + Sort) ke 0,14 ms (Index Scan). Waktu jawab endpoint lewat pelari beban belum diukur ulang karena pembangun `--pengaduan` masih rusak. |

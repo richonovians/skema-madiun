@@ -894,7 +894,7 @@ Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesud
 2. **Uptime dibawa ke tahap server.** Angkanya hanya dapat diukur di server sungguhan selama berminggu-minggu, jadi penutupan ini tidak menyatakan sasaran itu tercapai.
 3. **Jalur tulis tetap ditunda** (§11). Beban saat warga mengirim jawaban dan pengaduan, serta gangguan selagi menulis, belum diukur.
 4. **Angka di atas diukur sebelum PR #17 dan #18**, pada `main` `9e72abb` dan `5cda6fa`. PR #17 mengubah layanan `dashboard`, `opd`, dan `ikm`; di `dashboard` penyaring status belum tuntas kini memakai `STATUS_BELUM_TUNTAS`. Dampaknya pada waktu jawab belum diukur ulang. Yang berjalan terhadap `a1e3c1f` hanya uji fungsional, bukan uji beban. **Diperbarui 9 November 2026:** kini diukur ulang di §15.
-5. **Batas pada data besar tetap terbuka.** Permintaan pertama `/statistics` melewati 3 detik pada T3 (3.739 / 6.255 ms, BUG-067) dan pada 310.000 pengaduan (BUG-068). `GET /complaints` memindai seluruh tabel (BUG-069). Ketiganya Low dan berada di atas ukuran yang diminta QA-PERF.
+5. **Batas pada data besar tetap terbuka.** Permintaan pertama `/statistics` melewati 3 detik pada T3 (3.739 / 6.255 ms, BUG-067) dan pada 310.000 pengaduan (BUG-068). `GET /complaints` memindai seluruh tabel (BUG-069). Ketiganya Low dan berada di atas ukuran yang diminta QA-PERF. **Diperbarui 13 November 2026:** BUG-069 ditutup lewat PR #38 (merge `96a2692`) dengan indeks `created_at`; waktu jawab endpoint belum diukur ulang.
 6. **Temuan Low lain yang tetap terbuka:** BUG-072 (`/health` tetap 200 saat DB mati), BUG-074, dan BUG-075.
 7. **Yang belum diukur di §13.8 tetap belum diukur**, antara lain shutdown anggun, disk penuh, koneksi DB habis, dan soak lebih dari 30 menit.
 
