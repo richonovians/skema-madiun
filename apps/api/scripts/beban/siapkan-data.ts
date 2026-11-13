@@ -75,6 +75,7 @@ const JUMLAH_UNSUR = 9;
 const PETAK = 50;
 /** Sekitar 180 karakter, panjang saran yang wajar. */
 const SARAN_CONTOH = 'Pelayanan sudah cukup baik, tetapi antrean perlu dipercepat. '.repeat(3);
+const LOKASI_CONTOH = 'Jl. Contoh Beban No. 1, Kecamatan Contoh';
 
 interface BatasSurvei {
   min: number;
@@ -403,24 +404,38 @@ async function bangunJawabanTeks(
  * terukur lebih murah dari yang sebenarnya. Isinya hanya kalimat contoh, jadi
  * ciphertext yang sama tak mengurangi apa pun di basis data uji ini.
  *
- * Campuran statusnya ANGGAPAN, bukan data: 50% selesai, 20% diterima, 20%
- * diproses, 10% ditolak. `selesai` diberi porsi terbesar karena kueri itulah yang
- * memuat barisnya tanpa batas ke memori (`complaint.findMany` di dashboard).
+ * Campuran statusnya ANGGAPAN, bukan data: 50% selesai, 20% menunggu_verifikasi,
+ * 20% sedang_ditindaklanjuti, 10% ditolak. `selesai` diberi porsi terbesar karena
+ * hanya status itu yang masuk rata-rata waktu selesai di `GET /statistics`.
+ *
+ * Status dan kategori lama (`diterima`/`diproses`, `aduan`/`lapor`/`lainnya`)
+ * dibuang migrasi 4 November 2026; sejak itu sampai 13 November pembangun ini
+ * GAGAL pada setiap `--pengaduan=`. Kategorinya kini kode `kab_*`, sepadan dengan
+ * `tingkat` baku `kabupaten` dan OPD beban yang bukan kecamatan.
  */
 async function bangunPengaduan(prisma: PrismaClient, perOpd: number): Promise<void> {
-  const uraian = enkripsiKolom(
-    SARAN_CONTOH,
-    bacaKunci(process.env.DATA_ENCRYPTION_KEY ?? '', 'DATA_ENCRYPTION_KEY', 'development'),
+  const kunci = bacaKunci(
+    process.env.DATA_ENCRYPTION_KEY ?? '',
+    'DATA_ENCRYPTION_KEY',
+    'development',
   );
+  const uraian = enkripsiKolom(SARAN_CONTOH, kunci);
+  // Wajib di DTO sejak 4 November 2026; NULL hanya pada pengaduan yang lahir
+  // sebelum medannya ada, jadi dataset beban mengisinya seperti pengaduan baru.
+  const lokasi = enkripsiKolom(LOKASI_CONTOH, kunci);
   await prisma.$executeRawUnsafe(
-    `INSERT INTO complaints (ticket_no, user_id, opd_id, kategori, judul, uraian, status, created_at, updated_at)
+    `INSERT INTO complaints (ticket_no, user_id, opd_id, kategori, judul, uraian, status,
+                             tanggal_kejadian, lokasi_kejadian, created_at, updated_at)
      SELECT 'PGDBEBAN' || lpad((dasar.n + b.nomor)::text, 10, '0'),
             u.id, b.opd_id,
-            (ARRAY['aduan','lapor','lainnya'])[1 + (b.i % 3)],
+            (ARRAY['kab_kependudukan','kab_infrastruktur','kab_lainnya'])[1 + (b.i % 3)],
             'Pengaduan Beban ' || b.i,
             $1,
-            (ARRAY['selesai','diterima','selesai','diproses','selesai',
-                   'diterima','selesai','diproses','selesai','ditolak'])[1 + (b.i % 10)]::complaint_status,
+            (ARRAY['selesai','menunggu_verifikasi','selesai','sedang_ditindaklanjuti','selesai',
+                   'menunggu_verifikasi','selesai','sedang_ditindaklanjuti','selesai',
+                   'ditolak'])[1 + (b.i % 10)]::complaint_status,
+            b.dibuat::date,
+            $4,
             b.dibuat,
             b.dibuat + (random() * interval '72 hours')
      FROM (
@@ -435,6 +450,7 @@ async function bangunPengaduan(prisma: PrismaClient, perOpd: number): Promise<vo
     uraian,
     perOpd,
     IDENTITAS_ADMIN,
+    lokasi,
   );
   console.log(`  pengaduan  : ${perOpd.toLocaleString('id-ID')} per OPD`);
 }

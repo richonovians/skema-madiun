@@ -52,6 +52,9 @@ describe('DashboardService', () => {
     opd: { count: jest.fn().mockResolvedValue(0) },
     ikmResult: { findMany: jest.fn().mockResolvedValue([]) },
     user: { count: jest.fn().mockResolvedValue(0) },
+    // Agregat bulanan pengaduan untuk `getStatistics` (BUG-068). Satu-satunya
+    // kueri mentah di layanan ini, jadi bentuk barisnya cukup dimock langsung.
+    $queryRaw: jest.fn().mockResolvedValue([]),
   } as unknown as PrismaService;
   const ikmService = {
     getResults: jest.fn(),
@@ -347,15 +350,24 @@ describe('DashboardService', () => {
       ]);
     });
 
-    it('(D3) avgSlaDays & completionRate hanya menghitung status selesai dari query gabungan', async () => {
+    /**
+     * BUG-068 (4 November 2026): `getStatistics` dulu memuat SELURUH baris
+     * `complaints` ke Node demi satu rata-rata dan dua deret tren -- 4,6 detik
+     * pada 310.000 pengaduan. Kini Postgres yang mengagregasi per bulan dan
+     * yang menyeberang ke Node paling banyak satu baris per bulan.
+     */
+    it('BUG-068: tidak memuat baris pengaduan satu per satu', async () => {
+      await service.getStatistics();
+
+      expect(prisma.complaint.findMany).not.toHaveBeenCalled();
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('(D3) avgSlaDays & completionRate hanya menghitung status selesai dari agregat bulanan', async () => {
       (prisma.complaint.count as jest.Mock).mockResolvedValue(4); // totalComplaints
-      (prisma.complaint.findMany as jest.Mock).mockResolvedValue([
-        {
-          createdAt: new Date('2026-08-01T00:00:00.000Z'),
-          updatedAt: new Date('2026-08-03T00:00:00.000Z'), // 2 hari
-          status: 'selesai',
-        },
-        { createdAt: new Date(), updatedAt: new Date(), status: 'diterima' }, // belum selesai -- tak ikut dihitung
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
+        // Agustus: satu selesai dalam 2 hari, satu lagi belum selesai.
+        { bulan: '2026-08', jumlah: 2, selesai: 1, detikSelesai: 2 * 86_400 },
       ]);
 
       const result = await service.getStatistics();
@@ -364,11 +376,37 @@ describe('DashboardService', () => {
       expect(result.summary.completionRate).toBe(25); // 1 selesai / 4 total
     });
 
-    it('(D5) complaintTrend dibucket dari createdAt ke periode triwulan', async () => {
-      (prisma.complaint.findMany as jest.Mock).mockResolvedValue([
-        { createdAt: new Date(2026, 0, 10) }, // Q1
-        { createdAt: new Date(2026, 1, 10) }, // Q1
-        { createdAt: new Date(2026, 4, 10) }, // Q2
+    it('(D3) avgSlaDays = total waktu / total selesai lintas bulan, bukan rata-rata dari rata-rata', async () => {
+      (prisma.complaint.count as jest.Mock).mockResolvedValue(4);
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
+        { bulan: '2026-07', jumlah: 3, selesai: 3, detikSelesai: 3 * 86_400 }, // 1 hari masing-masing
+        { bulan: '2026-08', jumlah: 1, selesai: 1, detikSelesai: 5 * 86_400 }, // 5 hari
+      ]);
+
+      const result = await service.getStatistics();
+
+      // (3 + 5) / 4 = 2. Rata-rata dari rata-rata bulanan akan berbunyi 3.
+      expect(result.summary.avgSlaDays).toBe(2);
+      expect(result.summary.completionRate).toBe(100);
+    });
+
+    it('(D3) belum ada pengaduan selesai -> avgSlaDays null', async () => {
+      (prisma.complaint.count as jest.Mock).mockResolvedValue(2);
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
+        { bulan: '2026-08', jumlah: 2, selesai: 0, detikSelesai: 0 },
+      ]);
+
+      const result = await service.getStatistics();
+
+      expect(result.summary.avgSlaDays).toBeNull();
+      expect(result.summary.completionRate).toBe(0);
+    });
+
+    it('(D5) complaintTrend dijumlahkan dari agregat bulanan ke periode triwulan', async () => {
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
+        { bulan: '2026-01', jumlah: 1, selesai: 0, detikSelesai: 0 }, // Q1
+        { bulan: '2026-02', jumlah: 1, selesai: 0, detikSelesai: 0 }, // Q1
+        { bulan: '2026-05', jumlah: 1, selesai: 0, detikSelesai: 0 }, // Q2
       ]);
 
       const result = await service.getStatistics();
@@ -379,12 +417,11 @@ describe('DashboardService', () => {
       ]);
     });
 
-    it('complaintTrendBulanan dibucket dari createdAt per bulan sampai bulan ini', async () => {
+    it('complaintTrendBulanan dari agregat bulanan, sampai bulan ini', async () => {
       const kini = new Date();
       const bulanIni = `${kini.getFullYear()}-${String(kini.getMonth() + 1).padStart(2, '0')}`;
-      (prisma.complaint.findMany as jest.Mock).mockResolvedValue([
-        { createdAt: kini, updatedAt: kini, status: 'diterima' },
-        { createdAt: kini, updatedAt: kini, status: 'diterima' },
+      (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
+        { bulan: bulanIni, jumlah: 2, selesai: 0, detikSelesai: 0 },
       ]);
 
       const result = await service.getStatistics();

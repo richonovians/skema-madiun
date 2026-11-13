@@ -10,8 +10,7 @@ import type { CurrentUser } from '../../common/decorators/current-user.decorator
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
 import { COMPLAINT_CATEGORIES } from '../reference/reference.constants';
-import { periodeFromDate } from '../surveys/utils/periode.util';
-import { trenBulanan } from './tren-bulanan.util';
+import { type HitunganBulan, trenBulanan, trenTriwulan } from './tren-bulanan.util';
 import { TIDAK_DIBUANG } from '../surveys/survey-scope.util';
 import {
   OpdDashboardEntity,
@@ -322,7 +321,7 @@ export class DashboardService {
       closedIkmRows,
       totalRespondents,
       totalComplaints,
-      allComplaints,
+      pengaduanBulanan,
       activeOpd,
       activeUsers,
       complaintStatusRows,
@@ -348,11 +347,9 @@ export class DashboardService {
       }),
       this.prisma.surveyResponse.count({ where: { survey: TIDAK_DIBUANG } }),
       this.prisma.complaint.count(),
-      // Satu query dipakai utk DUA turunan (resolvedComplaints via filter status di
-      // bawah, DAN bucket tren per triwulan) -- hindari 2x full-table scan Complaint.
-      this.prisma.complaint.findMany({
-        select: { createdAt: true, updatedAt: true, status: true },
-      }),
+      // Satu agregat dipakai untuk TIGA turunan (rata-rata waktu selesai, tren
+      // triwulan, tren bulanan) -- satu pemindaian `complaints`, bukan tiga.
+      this.agregatPengaduanBulanan(),
       this.prisma.opd.count({ where: { isActive: true } }),
       this.prisma.user.count({ where: { deletedAt: null, isActive: true } }),
       this.prisma.complaint.groupBy({ by: ['status'], _count: { _all: true } }),
@@ -369,7 +366,8 @@ export class DashboardService {
         include: { opd: { select: { nama: true } } },
       }),
     ]);
-    const resolvedComplaints = allComplaints.filter((c) => c.status === ComplaintStatus.selesai);
+    const jumlahSelesai = pengaduanBulanan.reduce((acc, b) => acc + b.selesai, 0);
+    const detikSelesai = pengaduanBulanan.reduce((acc, b) => acc + b.detikSelesai, 0);
 
     // Survei AKTIF yg sudah punya responden ikut dihitung live (2026-08-05,
     // temuan audit: SEBELUMNYA statistik publik buta total thd survei yang
@@ -411,18 +409,12 @@ export class DashboardService {
       ikmResults.length > 0
         ? round(ikmResults.reduce((acc, r) => acc + Number(r.nilaiIkm), 0) / ikmResults.length, 2)
         : null;
-    const avgSlaDays =
-      resolvedComplaints.length > 0
-        ? round(
-            resolvedComplaints.reduce(
-              (acc, c) => acc + (c.updatedAt.getTime() - c.createdAt.getTime()) / 86_400_000,
-              0,
-            ) / resolvedComplaints.length,
-            1,
-          )
-        : null;
+    // Total waktu dibagi total pengaduan selesai, BUKAN rata-rata dari rata-rata
+    // bulanan -- bulan dengan satu pengaduan tak boleh berbobot sama dengan
+    // bulan dengan seratus.
+    const avgSlaDays = jumlahSelesai > 0 ? round(detikSelesai / 86_400 / jumlahSelesai, 1) : null;
     const completionRate =
-      totalComplaints > 0 ? round((resolvedComplaints.length / totalComplaints) * 100, 2) : null;
+      totalComplaints > 0 ? round((jumlahSelesai / totalComplaints) * 100, 2) : null;
 
     const summary = new StatisticsSummaryEntity({
       ikm,
@@ -437,16 +429,10 @@ export class DashboardService {
     const ikmTrend = this.bucketByPeriode(
       ikmResults.map((r) => ({ periode: r.periode, value: Number(r.nilaiIkm) })),
     );
-    const complaintTrend = this.bucketByPeriode(
-      allComplaints.map((c) => ({ periode: periodeFromDate(c.createdAt), value: 1 })),
-      'sum',
-    );
-    // Deret bulanan dari query `allComplaints` yang sama -- tak ada pemindaian
-    // tabel tambahan. Halaman statistik publik menyaringnya Bulanan/Tahunan.
-    const complaintTrendBulanan = trenBulanan(
-      allComplaints.map((c) => c.createdAt),
-      new Date(),
-    );
+    const complaintTrend = trenTriwulan(pengaduanBulanan);
+    // Deret bulanan dari agregat yang sama -- tak ada pemindaian tabel
+    // tambahan. Halaman statistik publik menyaringnya Bulanan/Tahunan.
+    const complaintTrendBulanan = trenBulanan(pengaduanBulanan, new Date());
 
     const complaintStatus = complaintStatusRows.map(
       (row) =>
@@ -489,11 +475,50 @@ export class DashboardService {
     });
   }
 
-  /** Rata-rata (default) atau jumlah nilai per periode triwulan, terurut kronologis (format kanonik = sortable). */
-  private bucketByPeriode(
-    rows: { periode: string; value: number }[],
-    mode: 'avg' | 'sum' = 'avg',
-  ): PeriodePointEntity[] {
+  /**
+   * Hitungan pengaduan per bulan kalender, beserta jumlah dan total durasi
+   * (detik, `created_at` -> `updated_at`) pengaduan berstatus `selesai`.
+   *
+   * BUG-068 (4 November 2026): sebelum ini `getStatistics` memuat SELURUH baris
+   * `complaints` ke Node lalu menghitung ketiga turunan itu di sana --
+   * permintaan pertama 1,8 detik pada 62.000 pengaduan dan 4,6 detik pada
+   * 310.000. Kini Postgres yang mengagregasi, dan yang menyeberang paling
+   * banyak satu baris per bulan.
+   *
+   * ZONA WAKTU SERVER dikirim ke kuerinya, bukan dibiarkan UTC. Jalur lama
+   * membagi bulan dengan `Date#getMonth()`, yaitu menurut zona proses Node;
+   * Postgres menyimpan `created_at` sebagai UTC tanpa zona, jadi tanpa
+   * `AT TIME ZONE` pengaduan pukul 00.00-06.59 WIB tanggal 1 jatuh ke bulan
+   * sebelumnya. Uji pencocokan di `test/dashboard.e2e-spec.ts` menjaga
+   * kesamaannya dengan bentuk lama.
+   *
+   * Rata-rata dibentuk pemanggil dari JUMLAH durasi dan JUMLAH pengaduan,
+   * bukan dari rata-rata bulanan, supaya bobot tiap pengaduan tetap sama.
+   */
+  private async agregatPengaduanBulanan(): Promise<
+    (HitunganBulan & { selesai: number; detikSelesai: number })[]
+  > {
+    const zona = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    return this.prisma.$queryRaw<(HitunganBulan & { selesai: number; detikSelesai: number })[]>`
+      SELECT
+        to_char(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${zona}, 'YYYY-MM') AS bulan,
+        count(*)::int AS jumlah,
+        (count(*) FILTER (
+          WHERE status = ${ComplaintStatus.selesai}::complaint_status
+        ))::int AS selesai,
+        coalesce(
+          sum(extract(epoch FROM updated_at - created_at)) FILTER (
+            WHERE status = ${ComplaintStatus.selesai}::complaint_status
+          ),
+          0
+        )::float8 AS "detikSelesai"
+      FROM complaints
+      GROUP BY 1
+    `;
+  }
+
+  /** Rata-rata nilai per periode triwulan, terurut kronologis (format kanonik = sortable). */
+  private bucketByPeriode(rows: { periode: string; value: number }[]): PeriodePointEntity[] {
     const buckets = new Map<string, number[]>();
     for (const row of rows) {
       const list = buckets.get(row.periode) ?? [];
@@ -502,10 +527,7 @@ export class DashboardService {
     }
     return Array.from(buckets.entries())
       .map(([periode, values]) => {
-        const value =
-          mode === 'sum'
-            ? values.length
-            : round(values.reduce((s, v) => s + v, 0) / values.length, 2);
+        const value = round(values.reduce((s, v) => s + v, 0) / values.length, 2);
         return new PeriodePointEntity({ periode, value });
       })
       .sort((a, b) => a.periode.localeCompare(b.periode));
