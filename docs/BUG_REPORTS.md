@@ -157,7 +157,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-062](#bug-062) | Modal Teruskan Pengaduan bukan dialog bagi pembaca layar — tanpa peran, nama, maupun kurungan fokus | Low | Terkonfirmasi | **Ditutup** | UAT-K2 (gladi) |
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | **Ditutup** | uji ulang TC-FE-034 |
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
-| [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | Terbuka | TC-CMP-003 |
+| [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | **Ditutup** | TC-CMP-003 |
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
 | [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
 | [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **75 ditutup, 11 terbuka** (Medium: tidak ada; Low: BUG-065, BUG-066, BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **76 ditutup, 10 terbuka** (Medium: tidak ada; Low: BUG-066, BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3856,6 +3856,32 @@ menjawab 502 untuk seluruh 90 permintaan, termasuk saat upstream sehat.
 Kandidat lain, misalnya menyebut alamat IPv4 tersurat atau
 `max_fails=0`, belum dicoba. Alamat tersurat tidak portabel antarmesin.
 Keputusannya milik pengelola `infra/`.
+
+**Status 16 November 2026: Ditutup**
+
+Diperbaiki di `08745d8` dan masuk lewat PR #41, merge `main` `bdcf24c`. CI 3 dari 3 job hijau pada `08745d8`, termasuk E2E web. `main` tak bergerak di antara keduanya, jadi isi `bdcf24c` sama persis dengan `08745d8`. CI tidak memuat `dev.conf`, jadi hijaunya hanya membuktikan tak ada yang lain patah.
+
+Yang dipakai kandidat `max_fails=0` pada `upstream skm_api` dan `upstream skm_web`. nginx tak lagi menandai peer mana pun mati. Permintaan yang jatuh ke peer IPv6 gagal seketika ("Network unreachable", bukan timeout) dan dialihkan ke IPv4 oleh `proxy_next_upstream` baku. Alamat IPv4 tersurat tidak dipakai karena tidak portabel antarmesin.
+
+Diukur dengan reproduksi terpisah yang sama bentuknya dengan di atas: kontainer `nginx:1.29-alpine` sekali pakai, `--add-host` memberi satu nama dua alamat (`192.168.65.254` dan `fdc4:f303:9324::254`), upstream Node di host. Upstream dimatikan, 40 permintaan serentak, upstream dinyalakan, tunggu 12 detik, lalu tiga ronde 10 permintaan serentak. Tiga kali jalan per konfigurasi:
+
+| Konfigurasi | C ronde 1 (tiga jalan) | C ronde 2-3 |
+| --- | --- | --- |
+| baku (sebelum) | 2/2/1× 200, sisanya 502 "no live upstreams" | 20× 200 |
+| `max_fails=0` | 10/10/10× 200 | 20× 200 |
+
+KONTROL dengan `max_fails=0` dan dua alamat: 30 POST serentak dijawab 30× 200. POST ikut dialihkan karena gagal sebelum terkirim ke upstream. Jabat tangan WebSocket ke upstream kecil yang menjawab 101: 60× 101 pada konfigurasi baku maupun `max_fails=0`.
+
+Percobaan pertama dengan `curl` beruntun dari Git Bash memberi 10× 200 pada konfigurasi baku juga. Proses `curl` di Windows lahir terlalu lambat untuk benar-benar serentak, sehingga balapannya tak terpicu. Klien Node dengan `Promise.all` memerahkannya. Ini dicatat supaya hasil hijau dari alat serupa tak dibaca sebagai bukti perbaikan.
+
+`skm-proxy` sudah dimuat ulang dengan berkas baru: `nginx -t` lulus, `/` dan `/api/v1/health` lewat `skema.local` menjawab 200.
+
+**Yang tersisa:**
+
+- Pada 16 November 2026 DNS Docker Desktop di mesin ini kembali menjawab `host.docker.internal` dengan SATU alamat (Engine 29.9.3; laporan ini dibuka pada 29.9.2). `getent ahosts` hanya memberi `192.168.65.254`, dan kueri AAAA ke `127.0.0.11` kosong. Gejalanya karena itu tak dapat direproduksi lewat `skm-proxy` sungguhan, dan merahnya hanya dibuktikan di kontainer uji dengan dua alamat buatan. Apa yang membuat Docker Desktop kadang mengembalikan AAAA belum diketahui.
+- Selama dua alamat, log `skm-proxy` mencatat satu baris "Network unreachable" per permintaan yang mengetuk IPv6.
+- Klaim `dev.conf` bahwa dua alamat mematikan HMR tidak terulang dalam uji WebSocket di atas. Uji itu tidak memakai Next.js sungguhan, jadi klaimnya tidak dibantah, hanya tidak terbukti.
+- Apakah BUG-065 menjelaskan sebagian kegoyahan E2E tetap belum diukur.
 
 ### BUG-066 — `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada
 
@@ -8216,3 +8242,4 @@ hanya dibaca, tidak diubah.
 | 7.42 | 13 November 2026 | **BUG-069 ditutup: 86 temuan, 73 ditutup, 13 terbuka.** PR #38, merge `96a2692`. CI 3 dari 3 job hijau pada `6646ce2` dan `96a2692`. Indeks `complaints (created_at DESC)`; pada 62.000 pengaduan sintetis halaman pertama turun dari 35,8 ms (Seq Scan + Sort) ke 0,14 ms (Index Scan). Waktu jawab endpoint lewat pelari beban belum diukur ulang karena pembangun `--pengaduan` masih rusak. |
 | 7.43 | 13 November 2026 | **BUG-068 ditutup: 86 temuan, 74 ditutup, 12 terbuka.** PR #39, merge `48c25fe`. CI 3 dari 3 job hijau pada `50df63f` dan `48c25fe`. `GET /statistics` mengagregasi pengaduan per bulan di Postgres; permintaan pertama pada 310.000 pengaduan turun dari 4.320 / 4.384 ms ke 1.210 / 1.156 ms, diukur dengan pelari yang sama. Pembangun `--pengaduan` diperbaiki di PR yang sama (`280a814`). |
 | 7.44 | 13 November 2026 | **BUG-063 ditutup: 86 temuan, 75 ditutup, 11 terbuka.** PR #40, merge `0e0858b`. CI 3 dari 3 job hijau pada `17c2b85`. Formulir beranda berhenti memanggil endpoint bersesi tanpa sesi, dan interseptor 401 melewati logout bila permintaan yang ditolak tak membawa Bearer. Lapis kedua menyimpang dari usulan semula, yang akan merusak `AuthCallbackLoader`. Satu kali muat `/` tanpa sesi di Chrome: 4 logout 401 menjadi nol. |
+| 7.45 | 16 November 2026 | **BUG-065 ditutup: 86 temuan, 76 ditutup, 10 terbuka.** PR #41, merge `bdcf24c`. CI 3 dari 3 job hijau pada `08745d8`. Upstream nginx dev memakai `max_fails=0`. Di kontainer uji dengan dua alamat buatan, ronde pertama sesudah upstream pulih naik dari 2/2/1× 200 (sisanya 502) menjadi 10/10/10× 200. Docker Desktop kini kembali menjawab satu alamat, jadi gejalanya tak dapat direproduksi lewat `skm-proxy` sungguhan. |
