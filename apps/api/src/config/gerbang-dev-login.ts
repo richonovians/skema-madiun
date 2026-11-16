@@ -27,3 +27,19 @@ export function periksaDevLogin(nodeEnv: string, nilai: string | undefined): voi
       'Hapus DEV_LOGIN_ENABLED dari lingkungan produksi.',
   );
 }
+
+/**
+ * SATU-SATUNYA definisi "dev-login hidup" (16 November 2026, BUG-066).
+ *
+ * Dipakai dua tempat yang dulu menulis ungkapannya masing-masing:
+ * `devLogin.enabled` di configuration.ts (dibaca `DevLoginGuard` dan log boot)
+ * dan `AppModule`, yang memutuskan apakah `DevLoginModule` DIDAFTARKAN.
+ * Keduanya harus sepakat; bila berbeda, rute bisa terdaftar tetapi ditolak
+ * penjaganya -- persis keadaan yang membocorkan keberadaannya.
+ *
+ * Mati kecuali `DEV_LOGIN_ENABLED` persis `'true'`, dan tak pernah hidup di
+ * produksi apa pun nilainya.
+ */
+export function devLoginAktif(env: NodeJS.ProcessEnv): boolean {
+  return (env.NODE_ENV ?? 'development') !== 'production' && env.DEV_LOGIN_ENABLED === 'true';
+}

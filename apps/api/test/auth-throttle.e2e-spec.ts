@@ -26,10 +26,11 @@ import { configureApp } from '../src/app.setup';
 
 /**
  * Angka-angka ini adalah PERILAKU yang diuji, bukan detail penyetelan; ia
- * disalin dari dekorator `@Throttle` di AuthController. Bila kelak diubah di
- * sana, berkas ini memang harus ikut berubah. Keduanya lebih ketat daripada
- * batas global 100/menit (THROTTLE_LIMIT), dan alasan angkanya ada di
- * AuthController.
+ * disalin dari dekorator `@Throttle` di AuthController (SSO) dan
+ * DevLoginController (dev-login, dipisah 16 November 2026 untuk BUG-066). Bila
+ * kelak diubah di sana, berkas ini memang harus ikut berubah. Keduanya lebih
+ * ketat daripada batas global 100/menit (THROTTLE_LIMIT), dan alasan angkanya
+ * ada di kedua controller itu.
  */
 const DEV_LOGIN_LIMIT = 30;
 const SSO_LIMIT = 60;

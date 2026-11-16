@@ -12,11 +12,13 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import configuration from './config/configuration';
+import { devLoginAktif } from './config/gerbang-dev-login';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { CadanganModule } from './modules/cadangan-terjadwal/cadangan.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DevLoginModule } from './modules/auth/dev-login/dev-login.module';
 import { SessionRefreshInterceptor } from './modules/auth/session/session-refresh.interceptor';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -64,6 +66,20 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     // Modul fondasi autentikasi (menyediakan RolesGuard global via APP_GUARD).
     AuthModule,
+    // `POST /auth/dev-login` DIDAFTARKAN hanya bila hidup (16 November 2026,
+    // BUG-066); alasannya di `DevLoginController`.
+    //
+    // Keputusannya diambil saat dekorator ini dievaluasi, dan URUTAN ITU
+    // PENTING: elemen larik dievaluasi berurutan, dan `ConfigModule.forRoot`
+    // di atas sudah memuat `.env` ke `process.env` secara sinkron sebelum baris
+    // ini terbaca. Tanpa itu `DEV_LOGIN_ENABLED` yang hanya ada di `.env`
+    // pengembang tak terlihat dan rutenya hilang di pengembangan. Jangan
+    // memindahkan keputusan ini ke dekorator `AuthModule`: berkas itu dimuat
+    // lewat `import` di kepala berkas ini, SEBELUM `.env` terbaca.
+    //
+    // Bukan `ConditionalModule.registerWhen` dari @nestjs/config: ia juga
+    // memutuskan sekali saat dimuat, dan hanya menambah satu `await`.
+    ...(devLoginAktif(process.env) ? [DevLoginModule] : []),
     // Modul bisnis (masih kosong — tanpa endpoint/logika).
     UsersModule,
     OpdModule,

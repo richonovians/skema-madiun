@@ -1,8 +1,6 @@
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
+import { nyalakanDenganEnv } from './helpers/aplikasi-ber-env.helper';
 
 /**
  * `dev-login` hanya hidup bila DINYALAKAN TERSURAT (7 November 2026, audit
@@ -22,20 +20,20 @@ import { configureApp } from '../src/app.setup';
  * Tak menyentuh basis data: pengenal yang dikirim sengaja tak ada, sehingga
  * saklar hidup menjawab 404 "pengguna tidak ditemukan" dan saklar mati menjawab
  * 404 tanpa pesan. Yang membedakan keduanya pesannya, bukan kodenya.
+ *
+ * Sejak 16 November 2026 (BUG-066) saklar mati berarti rutenya TIDAK
+ * DIDAFTARKAN, dan keputusan itu diambil saat `AppModule` dimuat. Karena itu
+ * aplikasinya dinyalakan lewat `nyalakanDenganEnv`, yang memuat ulang modulnya;
+ * dengan `AppModule` yang di-import sekali di kepala berkas, kasus "mati" di
+ * bawah tetap hijau tetapi hanya membuktikan lapis penjaga keduanya.
+ * Kesamaan penuh dengan rute karangan diuji di dev-login-tak-terdaftar.
  */
 describe('dev-login: saklar DEV_LOGIN_ENABLED (e2e)', () => {
   const envAsli = { NODE_ENV: process.env.NODE_ENV, SAKLAR: process.env.DEV_LOGIN_ENABLED };
   const PENGENAL = 'tak-ada-di-mana-pun@e2e.test';
 
-  const nyalakan = async (saklar: string): Promise<INestApplication> => {
-    process.env.NODE_ENV = 'development';
-    process.env.DEV_LOGIN_ENABLED = saklar;
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    const app = moduleRef.createNestApplication();
-    configureApp(app);
-    await app.init();
-    return app;
-  };
+  const nyalakan = (saklar: string): Promise<INestApplication> =>
+    nyalakanDenganEnv({ NODE_ENV: 'development', DEV_LOGIN_ENABLED: saklar });
 
   afterEach(() => {
     process.env.NODE_ENV = envAsli.NODE_ENV;
