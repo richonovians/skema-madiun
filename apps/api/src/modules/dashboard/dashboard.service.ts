@@ -354,13 +354,7 @@ export class DashboardService {
       this.prisma.user.count({ where: { deletedAt: null, isActive: true } }),
       this.prisma.complaint.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.complaint.groupBy({ by: ['kategori'], _count: { _all: true } }),
-      this.prisma.answer.groupBy({
-        by: ['nilai'],
-        // Jalurnya dua lapis di sini: `answer` tak mengenal survei langsung,
-        // ia menggapainya lewat `response`.
-        where: { nilai: { not: null }, response: { survey: TIDAK_DIBUANG } },
-        _count: { _all: true },
-      }),
+      this.distribusiNilaiTanpaSampah(),
       this.prisma.survey.findMany({
         where: { status: SurveyStatus.aktif },
         include: { opd: { select: { nama: true } } },
@@ -453,11 +447,7 @@ export class DashboardService {
     const serviceElements = this.aggregateServiceElements(ikmResults);
 
     const valueDistribution = scaleAnswerRows
-      .filter((row) => row.nilai != null)
-      .map(
-        (row) =>
-          new ValueDistributionEntity({ value: row.nilai as number, count: row._count._all }),
-      )
+      .map((row) => new ValueDistributionEntity(row))
       .sort((a, b) => a.value - b.value);
 
     const topOpd = this.topOpdByIkm(ikmResults);
@@ -473,6 +463,72 @@ export class DashboardService {
       valueDistribution,
       topOpd,
     });
+  }
+
+  /**
+   * Jumlah jawaban skala per nilai, tanpa jawaban milik survei di Sampah.
+   *
+   * BUG-067 (3 November 2026): penyaring Sampah BUG-013 semula ditulis
+   * `response: { survey: TIDAK_DIBUANG }`. `answer` menggapai survei lewat DUA
+   * relasi, dan Prisma menerjemahkannya menjadi dua join atas SELURUH tabel
+   * `answers` -- pada 6,7 juta jawaban kuerinya naik dari ~650 ms menjadi
+   * ~2.000-2.400 ms, dan biaya itu dibayar penuh walau Sampah kosong.
+   *
+   * Kini seluruh jawaban dihitung tanpa join, lalu jawaban milik survei di
+   * Sampah dikurangkan. Sampah yang kosong -- keadaan lazimnya -- tak
+   * menambah kueri jawaban apa pun. Hasilnya sama persis dengan bentuk lama;
+   * diukur pada dataset yang sama dengan nol, lima, dan 372 survei di Sampah.
+   *
+   * Survei Sampah dibaca sebagai DAFTAR ID, bukan disaring lewat relasi
+   * `response.survey.deletedAt`. Keduanya setara untuk Sampah kecil (puluhan
+   * milidetik), tetapi pada 372 survei di Sampah bentuk relasi berbalik ke
+   * hash join atas seluruh jawaban dan memakan ~1.960 ms, sementara daftar id
+   * ~840-960 ms. Jumlah survei dibatasi jadwal administratif OPD (744 dalam
+   * tiga tahun), jadi daftar itu tak pernah mendekati batas parameter kueri.
+   *
+   * Kueri-kuerinya tidak berbagi snapshot. Survei yang dibuang, dipulihkan,
+   * atau dimusnahkan TEPAT di antaranya dapat menggeser hitungan selama satu
+   * siklus singgahan; nilai yang jatuh ke nol atau di bawahnya karena itu
+   * dibuang alih-alih ditampilkan negatif.
+   */
+  private async distribusiNilaiTanpaSampah(): Promise<{ value: number; count: number }[]> {
+    const [semua, diSampah] = await Promise.all([
+      this.prisma.answer.groupBy({
+        by: ['nilai'],
+        where: { nilai: { not: null } },
+        _count: { _all: true },
+      }),
+      this.jawabanSurveiSampah(),
+    ]);
+    const kurang = new Map(diSampah.map((row) => [row.nilai, row._count._all]));
+    return semua
+      .filter((row) => row.nilai != null)
+      .map((row) => ({
+        value: row.nilai as number,
+        count: row._count._all - (kurang.get(row.nilai) ?? 0),
+      }))
+      .filter((row) => row.count > 0);
+  }
+
+  /** Jumlah jawaban skala per nilai milik survei di Sampah; lihat di atas. */
+  private async jawabanSurveiSampah(): Promise<
+    { nilai: number | null; _count: { _all: number } }[]
+  > {
+    const sampah = await this.prisma.survey.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true },
+    });
+    if (sampah.length === 0) {
+      return [];
+    }
+    // Ditampung dulu: `return` langsung membuat TypeScript menurunkan argumen
+    // generik `groupBy` dari tipe kembalian, dan tipenya runtuh (TS2345).
+    const baris = await this.prisma.answer.groupBy({
+      by: ['nilai'],
+      where: { nilai: { not: null }, response: { surveyId: { in: sampah.map((s) => s.id) } } },
+      _count: { _all: true },
+    });
+    return baris;
   }
 
   /**
