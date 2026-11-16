@@ -159,7 +159,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | **Ditutup** | TC-CMP-003 |
 | [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | **Ditutup** | TC-AUTH-010 |
-| [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
+| [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12) |
 | [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-070](#bug-070) | Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **77 ditutup, 9 terbuka** (Medium: tidak ada; Low: BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **78 ditutup, 8 terbuka** (Medium: tidak ada; Low: BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4056,6 +4056,48 @@ tabel besar: kueri survei-di-Sampah diukur 9,6 ms pada T3 (nol baris). Bentuk
 lain, misalnya penyaring `response: { surveyId: { notIn: idSampah } }`, belum
 diukur. Uji BUG-013 yang ada harus tetap hijau, dan perbaikannya harus diukur
 ulang dengan pelari yang sama pada T3.
+
+**Status 16 November 2026: Ditutup**
+
+Diperbaiki di `6b88c41`, masuk lewat PR #45, merge `main` `c790e94`. CI 3 dari 3 job hijau pada `6b88c41`. Isi `c790e94` sama persis dengan `6b88c41`.
+
+Arah perbaikan di atas dikerjakan, dengan satu penyimpangan. `DashboardService.distribusiNilaiTanpaSampah()` menghitung seluruh jawaban tanpa join, membaca id survei di Sampah lewat `surveys.deleted_at`, lalu mengurangkan jawaban milik survei itu (`response: { surveyId: { in: ids } }`). Bila Sampah kosong, kueri jawaban kedua tidak dijalankan. Nilai yang hitungannya jatuh ke nol atau di bawahnya tidak ditampilkan, sama seperti bentuk BUG-013 yang tak mengembalikan barisnya.
+
+Penyimpangannya: varian pertama menyaring jawaban Sampah lewat relasi `response.survey.deletedAt: { not: null }`, satu kueri tanpa langkah id. Untuk Sampah kecil keduanya setara, tetapi pada 372 survei di Sampah varian relasi beralih ke hash join atas seluruh jawaban (1.955-1.967 ms), sementara daftar id 840-956 ms. Varian relasi diganti sebelum commit.
+
+Kueri tunggal diukur lewat Prisma pada T3 yang dibangun ulang (744 survei, 744.000 respons, 6.696.000 jawaban), hanya baca:
+
+| Bentuk | Waktu |
+| --- | --- |
+| tanpa penyaring | 607 / 691 / 661 ms |
+| BUG-013, `response.survey.deletedAt: null` | 2.449 / 1.926 / 2.309 ms |
+| id Sampah, Sampah kosong | 2-4 ms (tanpa kueri jawaban) |
+| id Sampah, 5 survei di Sampah | 47-53 ms |
+
+Hasil pengurangan sama persis dengan bentuk BUG-013 pada nol, lima, dan 372 survei di Sampah. Survei-survei itu dibuang di dalam transaksi yang di-rollback, jadi dataset tidak berubah.
+
+Endpoint diukur dengan pelari yang sama, `--skenario=statistik --dingin --durasi=15`, server dev ikut hidup:
+
+| | Permintaan pertama | Maks |
+| --- | --- | --- |
+| sebelum, `main` `27f1bcb` | 3.358 / 2.872 / 3.067 / 2.942 ms | 3.313 / 2.840 / 2.773 / 2.798 ms |
+| sesudah | 2.532 / 2.021 / 1.705 / 1.605 / 1.638 ms | 1.818 / 1.978 / 1.536 / 1.576 / 1.533 ms |
+
+Dua sampel pertama sesudah perbaikan terganggu pemakaian laptop. Tiga sampel diambil ulang, dan dua sampel dasar diambil ulang pula dengan kode `main` yang dipulihkan sementara lewat stash, supaya pembandingnya setara. Angka 13 Oktober, sebelum BUG-013, 1.793 ms. Seluruh jawaban 2xx dan dataset tetap.
+
+Pagar:
+
+- Tiga uji unit `BUG-067: distribusi nilai tanpa join atas seluruh tabel jawaban` (`dashboard.service.spec.ts`): Sampah kosong cukup satu kueri, Sampah berisi hanya dihitung lewat id, dan pengurangan membuang nilai yang habis. Ketiganya merah terhadap kode lama dan hijau sesudahnya. Uji bentuk kueri dipakai karena bentuk itulah cacatnya; hasilnya sama sebelum dan sesudah.
+- Uji e2e BUG-013 (`valueDistribution` berhenti menghitung survei Sampah) tetap hijau terhadap Postgres sungguhan.
+
+Dua uji lama memakai `survey.findMany.mockResolvedValueOnce`, dan nilai sekali pakainya termakan kueri id Sampah yang jalan lebih dulu. Antrean `computeResult` yang tersisa lalu bocor ke uji berikutnya, jadi dua uji merah sekaligus. Keduanya kini memilah menurut `where`.
+
+**Yang tersisa:**
+
+- Kueri-kuerinya tidak berbagi snapshot. Survei yang dibuang, dipulihkan, atau dimusnahkan tepat di antaranya dapat menggeser hitungan selama satu siklus singgahan (60 detik).
+- Permintaan pertama tetap sekitar 1,6 detik pada T3. Kueri distribusi nilai sendiri kini ~650 ms; sisanya milik kueri lain di `Promise.all` yang sama, yang tidak diukur terpisah.
+- `skm_beban` kini memuat **T3**, bukan kolom C §12.6.
+- Angkanya dari laptop ber-Docker Desktop, sah sebagai pembanding lama/baru.
 
 ### BUG-068 — `GET /statistics` memuat seluruh pengaduan ke memori
 
@@ -8263,3 +8305,4 @@ hanya dibaca, tidak diubah.
 | 7.44 | 13 November 2026 | **BUG-063 ditutup: 86 temuan, 75 ditutup, 11 terbuka.** PR #40, merge `0e0858b`. CI 3 dari 3 job hijau pada `17c2b85`. Formulir beranda berhenti memanggil endpoint bersesi tanpa sesi, dan interseptor 401 melewati logout bila permintaan yang ditolak tak membawa Bearer. Lapis kedua menyimpang dari usulan semula, yang akan merusak `AuthCallbackLoader`. Satu kali muat `/` tanpa sesi di Chrome: 4 logout 401 menjadi nol. |
 | 7.45 | 16 November 2026 | **BUG-065 ditutup: 86 temuan, 76 ditutup, 10 terbuka.** PR #41, merge `bdcf24c`. CI 3 dari 3 job hijau pada `08745d8`. Upstream nginx dev memakai `max_fails=0`. Di kontainer uji dengan dua alamat buatan, ronde pertama sesudah upstream pulih naik dari 2/2/1× 200 (sisanya 502) menjadi 10/10/10× 200. Docker Desktop kini kembali menjawab satu alamat, jadi gejalanya tak dapat direproduksi lewat `skm-proxy` sungguhan. |
 | 7.46 | 16 November 2026 | **BUG-066 ditutup: 86 temuan, 77 ditutup, 9 terbuka.** PR #44, merge `27f1bcb`. CI 3 dari 3 job hijau pada `5b99192`; jalan pertama `6c7e7ee` merah karena kasus produksi uji barunya tak membawa `TURNSTILE_SECRET_KEY`. `dev-login` tidak didaftarkan di produksi maupun bila saklarnya mati, sehingga pesan, header batas laju, dan 429-nya kini sama dengan rute karangan. Dijaga e2e baru `dev-login-tak-terdaftar.e2e-spec.ts`. |
+| 7.47 | 16 November 2026 | **BUG-067 ditutup: 86 temuan, 78 ditutup, 8 terbuka.** PR #45, merge `c790e94`. CI 3 dari 3 job hijau pada `6b88c41`. Distribusi nilai `GET /statistics` tak lagi menyaring Sampah lewat dua join atas seluruh `answers`; jawaban survei di Sampah dibaca lewat daftar id dan dikurangkan. Pada T3 permintaan pertama turun dari 2.872-3.358 ms ke 1.605-1.705 ms, diukur dengan pelari yang sama. Varian relasi `deletedAt: { not: null }` diganti sebelum commit karena memburuk pada Sampah besar. |
