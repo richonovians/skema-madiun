@@ -68,7 +68,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = Array.isArray(rawMessage)
           ? 'Validation failed'
           : ((rawMessage as string) ?? exception.message);
-        details = rawMessage ?? record.error ?? null;
+        // `details` tersurat didahulukan (16 November 2026, BUG-072): tanpa
+        // itu `/health/siap` tak dapat menyebut komponen mana yang gagal.
+        // Exception yang tak menyebutnya tetap memakai urutan lama.
+        details = record.details ?? rawMessage ?? record.error ?? null;
         if (typeof record.code === 'string' && record.code) {
           code = record.code;
         }

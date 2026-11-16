@@ -64,6 +64,14 @@ export interface PenyimpanSesi {
 
   /** Sesi yang masih berlaku milik satu akun. Yang basi tidak ikut. */
   daftar(uid: number): Promise<SesiTerdaftar[]>;
+
+  /**
+   * Penyimpannya dapat menjawab sekarang? MELEMPAR bila tidak.
+   *
+   * Dipakai `GET /health/siap` (BUG-072). Tak menyentuh sesi siapa pun dan
+   * tak melewati singgahan `hidup()`, jadi jawabannya keadaan saat ini.
+   */
+  periksa(): Promise<void>;
 }
 
 /** Token terbitan lama tak punya `sid`; lihat catatan di SessionService. */

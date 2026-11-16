@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   HttpStatus,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
@@ -141,6 +142,25 @@ describe('AllExceptionsFilter', () => {
     expect(hasil.status).toBe(HttpStatus.BAD_REQUEST);
     expect(hasil.body.error.code).toBe('LIMIT_UNEXPECTED_FILE');
     expect(hasil.body.message).toContain('foto');
+  });
+
+  /**
+   * BUG-072 (16 November 2026): `/health/siap` menjawab 503 beserta keadaan
+   * tiap komponen. Tanpa `details` tersurat, filter ini mengisi rinciannya
+   * dengan `message` dan keadaan komponennya hilang.
+   */
+  it('`details` yang disebutkan exception diteruskan apa adanya', () => {
+    const hasil = tangkap(
+      new ServiceUnavailableException({
+        message: 'Layanan belum siap.',
+        code: 'TIDAK_SIAP',
+        details: { db: 'gagal', redis: 'ok' },
+      }),
+    );
+
+    expect(hasil.status).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+    expect(hasil.body.message).toBe('Layanan belum siap.');
+    expect(hasil.body.error).toEqual({ code: 'TIDAK_SIAP', details: { db: 'gagal', redis: 'ok' } });
   });
 
   it('`code` bukan string diabaikan, bukan diteruskan mentah', () => {
