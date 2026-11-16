@@ -218,6 +218,7 @@ describe('SessionAuthProvider — daftar pencabutan', () => {
       cabut: jest.fn(),
       cabutSemua: jest.fn(),
       daftar: jest.fn(),
+      periksa: jest.fn().mockRejectedValue(new Error('Redis tak terjangkau')),
     };
 
     await expect(buat(penyimpanMati).resolveUser(req('Bearer t'))).rejects.toMatchObject({

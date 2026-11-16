@@ -8,6 +8,7 @@ import { buatKlienRedis } from './common/redis/klien-redis';
 import { PenyimpanLajuRedis } from './common/guards/penyimpan-laju.redis';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { KesiapanService } from './kesiapan.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -98,6 +99,7 @@ import { UsersModule } from './modules/users/users.module';
   controllers: [AppController],
   providers: [
     AppService,
+    KesiapanService,
     // Rate limiting global (anti-DoS/brute-force dasar) — didaftarkan terpisah dari
     // RolesGuard (AuthModule) agar keduanya tetap berjalan independen sebagai guard global.
     //

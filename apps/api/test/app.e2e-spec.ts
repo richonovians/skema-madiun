@@ -32,6 +32,19 @@ describe('App (e2e)', () => {
     expect(response.body.meta).toHaveProperty('path', '/api/v1/health');
   });
 
+  /**
+   * BUG-072: `/health` tetap statis (liveness). Kesiapan -- basis data dan
+   * penyimpan sesi menjawab -- ditanyakan di `/health/siap`. Kasus gagalnya
+   * diuji di `redis-macet.e2e-spec.ts`, yang punya Redis macet sungguhan.
+   */
+  it('GET /api/v1/health/siap -> 200 dengan keadaan tiap komponen (Public)', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/health/siap');
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toEqual({ status: 'siap', db: 'ok', redis: 'ok' });
+  });
+
   it('GET /api/v1/tidak-ada -> 404 dengan envelope error', async () => {
     const response = await request(app.getHttpServer()).get('/api/v1/tidak-ada');
 

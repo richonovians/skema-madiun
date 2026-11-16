@@ -52,6 +52,7 @@ const { kabupaten: K, opd: O, responden: R } = Role;
 
 const MATRIKS: [string, string, Akses][] = [
   ['GET', '/health', 'publik'],
+  ['GET', '/health/siap', 'publik'],
   ['GET', '/audit-logs', [K]],
   ['GET', '/audit-logs/retensi', [K]],
   ['GET', '/audit-logs/:id', [K]],

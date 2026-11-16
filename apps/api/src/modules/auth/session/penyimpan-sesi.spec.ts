@@ -96,6 +96,12 @@ describe('PenyimpanSesi (memori)', () => {
     await expect(penyimpan.hidup('sid-basi')).resolves.toBe(false);
   });
 
+  it('periksa menjawab tanpa melempar selagi penyimpannya hidup', async () => {
+    // Dipakai `/health/siap` (BUG-072). Versi Redis melempar bila Redis tak
+    // menjawab; lihat `redis-macet.e2e-spec.ts`.
+    await expect(penyimpan.periksa()).resolves.toBeUndefined();
+  });
+
   it('sesi yang kedaluwarsa ikut hilang dari daftar akunnya', async () => {
     // Indeks per akun tak punya TTL per anggota, jadi anggota basi harus
     // dipangkas saat dibaca. Tanpa itu daftar perangkat menampilkan sesi mati.

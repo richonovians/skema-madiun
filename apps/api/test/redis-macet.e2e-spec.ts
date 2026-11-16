@@ -67,6 +67,21 @@ describe('API di atas Redis yang hang (e2e)', () => {
     expect(lama(mulai)).toBeLessThan(3_000);
   });
 
+  /**
+   * BUG-072. `/health` di atas tetap 200 -- penyelia tak boleh merestart API
+   * hanya karena Redis padam -- sedangkan `/health/siap` harus berkata jujur.
+   */
+  it('/health/siap menjawab 503 dan menyebut Redis, tidak menunggu tanpa batas', async () => {
+    const mulai = Date.now();
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/health/siap')
+      .timeout(BATAS_KLIEN_MS);
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toEqual({ code: 'TIDAK_SIAP', details: { db: 'ok', redis: 'gagal' } });
+    expect(lama(mulai)).toBeLessThan(5_000);
+  });
+
   it('/statistics dijawab dari basis data, singgahan dilewati', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/statistics')

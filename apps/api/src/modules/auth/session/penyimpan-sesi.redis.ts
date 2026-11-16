@@ -124,6 +124,11 @@ export class PenyimpanSesiRedis implements PenyimpanSesi, OnModuleDestroy {
     }
   }
 
+  /** `PING` menempuh `commandTimeout` yang sama dengan perintah lain. */
+  async periksa(): Promise<void> {
+    await this.redis.ping();
+  }
+
   async daftar(uid: number): Promise<SesiTerdaftar[]> {
     const kunciAkun = AWALAN_AKUN + uid;
     const daftarSid = await this.redis.smembers(kunciAkun);

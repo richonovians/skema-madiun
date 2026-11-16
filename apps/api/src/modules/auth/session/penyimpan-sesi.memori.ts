@@ -57,6 +57,9 @@ export class PenyimpanSesiMemori implements PenyimpanSesi {
     this.perAkun.delete(uid);
   }
 
+  /** Memori selalu dapat menjawab selagi prosesnya hidup. */
+  async periksa(): Promise<void> {}
+
   async daftar(uid: number): Promise<SesiTerdaftar[]> {
     const hasil: SesiTerdaftar[] = [];
     for (const sid of [...(this.perAkun.get(uid) ?? [])]) {
