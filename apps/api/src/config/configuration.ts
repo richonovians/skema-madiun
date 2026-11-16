@@ -4,6 +4,7 @@
  * `ConfigService.get('app.port')`, dsb. Nilai env sudah divalidasi oleh validateEnv.
  */
 import { BATAS_HARIAN_PENGADUAN_BAKU } from '../modules/complaints/complaints.constants';
+import { devLoginAktif } from './gerbang-dev-login';
 
 export default () => ({
   app: {
@@ -85,9 +86,10 @@ export default () => ({
     // dan di produksi tak dapat dinyalakan sama sekali (yang mencobanya
     // ditolak saat boot oleh `periksaDevLogin`). Pola yang sama dengan
     // `swagger.enabled` di atas.
-    enabled:
-      (process.env.NODE_ENV ?? 'development') !== 'production' &&
-      process.env.DEV_LOGIN_ENABLED === 'true',
+    //
+    // Ungkapannya kini di `devLoginAktif` (16 November 2026, BUG-066), karena
+    // `AppModule` memakai keputusan yang sama untuk tidak mendaftarkan rutenya.
+    enabled: devLoginAktif(process.env),
   },
   cors: {
     // Comma-separated di production (mis. dashboard OPD + kabupaten beda subdomain).

@@ -10,7 +10,6 @@ import {
   Query,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -31,15 +30,11 @@ import { AuditService } from '../audit/audit.service';
 import { AuthService } from './auth.service';
 import { perangkatDari } from './session/perangkat.util';
 import { ConsentService } from './consent.service';
-import { DevLoginDto } from './dto/dev-login.dto';
 import { SetActingRoleDto } from './dto/set-acting-role.dto';
 import { SsoCallbackQueryDto } from './dto/sso-callback-query.dto';
 import { kodeGalatSso, kodeKegagalanMasuk } from './sso-galat.util';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { MeEntity } from './entities/me.entity';
-import { SessionEntity } from './entities/session.entity';
-import { DevLoginGuard } from './guards/dev-login.guard';
-import { NonProductionGuard } from './guards/non-production.guard';
 import { SessionCookieService } from './session/session-cookie.service';
 import { SsoService } from './sso.service';
 
@@ -58,21 +53,6 @@ import { SsoService } from './sso.service';
  * apa pun) tanpa menghalangi lonjakan pemakaian yang wajar.
  */
 const SSO_PER_MINUTE = { default: { limit: 60, ttl: 60_000 } };
-/**
- * `dev-login` lebih ketat lagi, dan bukan karena bebannya: ia MENERBITKAN SESI
- * untuk email mana pun yang ada di basis data, tanpa kata sandi. Pada batas
- * global itu berarti 100 penebakan email per menit per IP. Ia memang 404 di
- * produksi (NonProductionGuard), tapi staging tetap memuat data sungguhan.
- *
- * 30, bukan 10 — dan angka itu dipilih setelah mencobanya: pengujian peran
- * berganti-ganti (dan skrip peramban milik proyek ini sendiri) rutin melakukan
- * belasan login dalam satu menit, sehingga 10/menit menjatuhkan 429 pada
- * pemakaian yang sah. Batas ketat yang menghalangi alat uji proyeknya sendiri
- * tak akan bertahan; ia hanya akan dicabut orang berikutnya. Yang sesungguhnya
- * menjaga endpoint ini adalah NonProductionGuard, bukan angka di sini —
- * throttle-nya polisi tidur, bukan pintu.
- */
-const DEV_LOGIN_PER_MINUTE = { default: { limit: 30, ttl: 60_000 } };
 
 @ApiTags('auth')
 @ApiBearerAuth()
@@ -88,24 +68,8 @@ export class AuthController {
     private readonly consentService: ConsentService,
   ) {}
 
-  /**
-   * Login sementara tanpa SSO (dev/staging) — 404 di production (lihat NonProductionGuard),
-   * dan 404 di mana pun selama `DEV_LOGIN_ENABLED` tidak persis `true` (DevLoginGuard,
-   * 7 November 2026).
-   * Digantikan callback SSO OAuth2 saat spec Helpdesk tersedia. Publik (tak perlu Bearer)
-   * karena tujuannya justru MENERBITKAN Bearer token itu sendiri.
-   */
-  @Public()
-  @UseGuards(NonProductionGuard, DevLoginGuard)
-  @Post('dev-login')
-  @ApiOperation({
-    summary: 'Login sementara tanpa SSO untuk dev/staging. Tidak tersedia di produksi.',
-  })
-  @Throttle(DEV_LOGIN_PER_MINUTE)
-  @ApiOkResponse({ type: SessionEntity })
-  devLogin(@Body() dto: DevLoginDto, @Req() req: Request): Promise<SessionEntity> {
-    return this.authService.devLogin(dto, perangkatDari(req));
-  }
+  // `POST /auth/dev-login` pindah ke `DevLoginController` (16 November 2026,
+  // BUG-066), supaya rutenya dapat tidak didaftarkan sama sekali.
 
   /**
    * Langkah 1 SSO: alihkan pengguna ke halaman login Helpdesk.
