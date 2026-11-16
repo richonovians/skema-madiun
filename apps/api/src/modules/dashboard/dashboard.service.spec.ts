@@ -80,7 +80,12 @@ describe('DashboardService', () => {
   // (mock) basis data dan seluruh assertion di bawah tetap menguji hitungannya.
   const service = new DashboardService(prisma, ikmService, new PenyimpanSinggahanNonaktif());
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // `clearAllMocks` tidak membuang implementasi; uji yang memilah
+    // `survey.findMany` menurut `where` tak boleh bocor ke uji sesudahnya.
+    (prisma.survey.findMany as jest.Mock).mockResolvedValue([]);
+  });
 
   describe('getOpdDashboard', () => {
     it('Admin Kabupaten -> Forbidden (keputusan user 2026-08-20)', async () => {
@@ -318,9 +323,24 @@ describe('DashboardService', () => {
     });
 
     it('(2026-08-05) survei AKTIF yg sudah punya responden ikut masuk summary.ikm/ikmTrend', async () => {
-      (prisma.survey.findMany as jest.Mock).mockResolvedValueOnce([
-        { id: 30, opdId: 4, periode: '2026-Q3', judul: 'Survei Aktif', opd: { nama: 'Dinas X' } },
-      ]);
+      // Dipilah menurut `where`, bukan `mockResolvedValueOnce`: sejak BUG-067
+      // `getStatistics` juga membaca id survei di Sampah lewat `survey.findMany`,
+      // dan nilai sekali-pakai termakan kueri mana pun yang lebih dulu jalan.
+      (prisma.survey.findMany as jest.Mock).mockImplementation(({ where }) =>
+        Promise.resolve(
+          where?.status === SurveyStatus.aktif
+            ? [
+                {
+                  id: 30,
+                  opdId: 4,
+                  periode: '2026-Q3',
+                  judul: 'Survei Aktif',
+                  opd: { nama: 'Dinas X' },
+                },
+              ]
+            : [],
+        ),
+      );
       (ikmService.computeResult as jest.Mock).mockResolvedValueOnce({
         nilaiIkm: 84,
         mutu: IkmMutu.B,
@@ -361,6 +381,75 @@ describe('DashboardService', () => {
 
       expect(prisma.complaint.findMany).not.toHaveBeenCalled();
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * BUG-067 (Low, QA-PERF 3 November 2026). Penyaring Sampah BUG-013 pada
+     * distribusi nilai menggapai survei lewat DUA relasi, dan Prisma
+     * menerjemahkannya menjadi dua join atas SELURUH tabel `answers`: pada
+     * 6,7 juta jawaban kuerinya naik dari ~650 ms menjadi ~2.000-2.400 ms,
+     * walau Sampah kosong. Kini seluruh jawaban dihitung tanpa join, lalu
+     * jawaban milik survei di Sampah -- yang lazimnya sedikit -- dikurangkan.
+     *
+     * Bentuk kueri diuji di sini karena bentuk itulah cacatnya: hasilnya
+     * sama persis sebelum dan sesudah, yang berubah hanya rencana eksekusinya.
+     * Bahwa survei Sampah benar-benar berhenti terhitung dijaga uji e2e
+     * BUG-013 (`valueDistribution`) terhadap Postgres sungguhan.
+     */
+    describe('BUG-067: distribusi nilai tanpa join atas seluruh tabel jawaban', () => {
+      const ID_SAMPAH = [9, 12];
+      const hanyaSampah = (where: { response?: { surveyId?: { in?: number[] } } }) =>
+        JSON.stringify(where.response?.surveyId?.in) === JSON.stringify(ID_SAMPAH);
+      const isiSampah = () =>
+        (prisma.survey.findMany as jest.Mock).mockImplementation(({ where }) =>
+          Promise.resolve(where?.deletedAt ? ID_SAMPAH.map((id) => ({ id })) : []),
+        );
+
+      // `clearAllMocks` di `beforeEach` tidak membuang implementasi, jadi mock
+      // di bawah akan bocor ke uji sesudahnya tanpa ini.
+      afterEach(() => (prisma.answer.groupBy as jest.Mock).mockResolvedValue([]));
+
+      it('Sampah kosong: satu kueri atas seluruh jawaban, tanpa menyentuh relasi respons', async () => {
+        await service.getStatistics();
+
+        const panggilan = (prisma.answer.groupBy as jest.Mock).mock.calls.map(([a]) => a.where);
+        expect(panggilan).toEqual([{ nilai: { not: null } }]);
+      });
+
+      it('Sampah berisi: jawaban survei itu saja yang dihitung lewat respons', async () => {
+        isiSampah();
+
+        await service.getStatistics();
+
+        const panggilan = (prisma.answer.groupBy as jest.Mock).mock.calls.map(([a]) => a.where);
+        expect(panggilan).toHaveLength(2);
+        expect(panggilan).toContainEqual({ nilai: { not: null } });
+        expect(panggilan).toContainEqual({
+          nilai: { not: null },
+          response: { surveyId: { in: ID_SAMPAH } },
+        });
+      });
+
+      it('mengurangkan jawaban survei Sampah, dan nilai yang habis tidak ditampilkan', async () => {
+        isiSampah();
+        (prisma.answer.groupBy as jest.Mock).mockImplementation(({ where }) =>
+          Promise.resolve(
+            hanyaSampah(where)
+              ? [
+                  { nilai: 2, _count: { _all: 5 } },
+                  { nilai: 1, _count: { _all: 3 } },
+                ]
+              : [
+                  { nilai: 1, _count: { _all: 10 } },
+                  { nilai: 2, _count: { _all: 5 } },
+                ],
+          ),
+        );
+
+        const result = await service.getStatistics();
+
+        expect(result.valueDistribution).toEqual([{ value: 1, count: 7 }]);
+      });
     });
 
     it('(D3) avgSlaDays & completionRate hanya menghitung status selesai dari agregat bulanan', async () => {
