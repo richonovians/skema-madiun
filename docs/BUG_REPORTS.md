@@ -164,7 +164,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-070](#bug-070) | Redis padam dijawab 401, dan frontend membuang sesi seluruh pengguna yang sedang aktif | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13) |
 | [BUG-071](#bug-071) | Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health` | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
-| [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.3) |
+| [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
 | [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **78 ditutup, 8 terbuka** (Medium: tidak ada; Low: BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **79 ditutup, 7 terbuka** (Medium: tidak ada; Low: BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4376,6 +4376,34 @@ Pemantau uptime yang memukul `/health` akan melaporkan 100% selama padam total D
 
 Pisahkan dua pertanyaan: liveness tetap statis, readiness memeriksa DB dan Redis dengan batas waktu pendek. Jangan menjadikan pemeriksaan DB syarat liveness, supaya penyelia tidak merestart API yang sehat hanya karena DB padam.
 
+**Status 16 November 2026: Ditutup**
+
+Diperbaiki di `5095029`, masuk lewat PR #46, merge `main` `54e837c`. CI 3 dari 3 job hijau pada `5095029`. Isi `54e837c` sama persis dengan `5095029`.
+
+Arah perbaikan di atas dikerjakan. `/health` sengaja tidak diubah dan tetap menjawab "prosesnya hidup", karena pelari beban menunggu server lewat endpoint itu dan `redis-macet.e2e-spec.ts` menuntutnya tetap 200 saat Redis macet. Endpoint baru `GET /api/v1/health/siap` (publik) memeriksa kesiapan lewat `KesiapanService`:
+
+| Keadaan | Jawaban |
+| --- | --- |
+| Basis data dan penyimpan sesi menjawab | 200, `data: { status: 'siap', db: 'ok', redis: 'ok' }` |
+| Salah satu gagal atau melewati batas waktu | 503, `error: { code: 'TIDAK_SIAP', details: { db, redis } }` |
+
+Basis data diperiksa dengan `SELECT 1`, Redis dengan `PING` pada koneksi penyimpan sesi lewat `PenyimpanSesi.periksa()` yang baru. Dari empat koneksi Redis aplikasi, hanya kegagalan koneksi itu yang menolak pengguna; singgahan dan penghitung laju gagal terbuka. Kedua pemeriksaan berjalan bersamaan dan masing-masing dibatasi 2 detik (`BATAS_PERIKSA_MS`). Basis data yang macet tidak melempar, dan tanpa batas itu jawaban baru tiba sesudah kolam koneksi Prisma menyerah, sekitar 10 detik. Nama jalur dan rincian per komponen diputuskan pemilik tugas; akibatnya siapa pun dapat mengetahui basis data sedang padam, dan itu dinilai sepadan dengan gunanya untuk diagnosis.
+
+`AllExceptionsFilter` kini mendahulukan `details` yang disebut tersurat pada exception. Tanpa itu rinciannya terisi `message` dan keadaan per komponen hilang dari jawaban 503. Exception yang tak menyebut `details` tetap memakai urutan lama.
+
+Pagar:
+
+- `kesiapan.service.spec.ts` (unit, 5 uji): merah terhadap stub yang meniru perilaku lama (selalu ok), hijau sesudahnya. Uji "berjalan bersamaan" semula lulus pada stub, lalu dipertajam menjadi "belum selesai pada batas - 1 ms, selesai tepat pada batas".
+- `db-padam.e2e-spec.ts` (baru): proksi TCP di dalam proses uji berdiri di antara API dan Postgres, lalu dimacetkan dan kemudian diputus. Basis data sungguhan tidak dimatikan. Di kedua keadaan `/health/siap` menjawab 503 dengan `db: 'gagal'`, dan `/health` tetap 200. Uji mutasi yang menganggap basis data selalu ok membuat kedua kasus basis data merah.
+- `redis-macet.e2e-spec.ts`: `/health/siap` menjawab 503 dengan `redis: 'gagal'` dalam kurang dari 5 detik.
+- `app.e2e-spec.ts` dan matriks RBAC `rbac-seluruh-endpoint.e2e-spec.ts` memuat rute baru; sebelum rute ada, ketiga e2e merah karena 404.
+
+**Yang tersisa:**
+
+- Saat basis data berubah dari macet ke mati, jawabannya tiba lewat batas waktu (~2,2 detik), bukan penolakan cepat, karena sambungan kolam Prisma yang tertahan belum dilepas. Hasilnya tetap benar.
+- Belum ada pemantau maupun penyeimbang beban yang memakai `/health/siap`. Begitu server ada, kesiapan diarahkan ke `/health/siap` dan liveness tetap ke `/health`.
+- Uji ketersediaan §13.3 belum diulang di rig sekali pakai; buktinya datang dari e2e di atas.
+
 ---
 
 <a id="bug-073"></a>
@@ -8306,3 +8334,4 @@ hanya dibaca, tidak diubah.
 | 7.45 | 16 November 2026 | **BUG-065 ditutup: 86 temuan, 76 ditutup, 10 terbuka.** PR #41, merge `bdcf24c`. CI 3 dari 3 job hijau pada `08745d8`. Upstream nginx dev memakai `max_fails=0`. Di kontainer uji dengan dua alamat buatan, ronde pertama sesudah upstream pulih naik dari 2/2/1× 200 (sisanya 502) menjadi 10/10/10× 200. Docker Desktop kini kembali menjawab satu alamat, jadi gejalanya tak dapat direproduksi lewat `skm-proxy` sungguhan. |
 | 7.46 | 16 November 2026 | **BUG-066 ditutup: 86 temuan, 77 ditutup, 9 terbuka.** PR #44, merge `27f1bcb`. CI 3 dari 3 job hijau pada `5b99192`; jalan pertama `6c7e7ee` merah karena kasus produksi uji barunya tak membawa `TURNSTILE_SECRET_KEY`. `dev-login` tidak didaftarkan di produksi maupun bila saklarnya mati, sehingga pesan, header batas laju, dan 429-nya kini sama dengan rute karangan. Dijaga e2e baru `dev-login-tak-terdaftar.e2e-spec.ts`. |
 | 7.47 | 16 November 2026 | **BUG-067 ditutup: 86 temuan, 78 ditutup, 8 terbuka.** PR #45, merge `c790e94`. CI 3 dari 3 job hijau pada `6b88c41`. Distribusi nilai `GET /statistics` tak lagi menyaring Sampah lewat dua join atas seluruh `answers`; jawaban survei di Sampah dibaca lewat daftar id dan dikurangkan. Pada T3 permintaan pertama turun dari 2.872-3.358 ms ke 1.605-1.705 ms, diukur dengan pelari yang sama. Varian relasi `deletedAt: { not: null }` diganti sebelum commit karena memburuk pada Sampah besar. |
+| 7.48 | 16 November 2026 | **BUG-072 ditutup: 86 temuan, 79 ditutup, 7 terbuka.** PR #46, merge `54e837c`. CI 3 dari 3 job hijau pada `5095029`. `/health` tetap statis sebagai liveness; endpoint baru `GET /health/siap` memeriksa basis data (`SELECT 1`) dan penyimpan sesi (`PING`), masing-masing dibatasi 2 detik, dan menjawab 503 `TIDAK_SIAP` dengan keadaan per komponen bila salah satunya gagal. Dijaga e2e baru `db-padam.e2e-spec.ts` yang memacetkan dan memutus proksi TCP di depan Postgres. |
