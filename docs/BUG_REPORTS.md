@@ -158,7 +158,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-063](#bug-063) | Pengunjung tanpa sesi memicu `POST /auth/logout` yang sia-sia di beranda — setiap 401 dari formulir membersihkan sesi yang tak pernah ada | Low | Terkonfirmasi | **Ditutup** | uji ulang TC-FE-034 |
 | [BUG-064](#bug-064) | Log audit perubahan status hanya mencatat status baru — draf→aktif tak dapat dibedakan dari ditutup→aktif | Low | Terkonfirmasi | **Ditutup** | TC-AUD-002 |
 | [BUG-065](#bug-065) | nginx dev menjawab 502 sesudah upstream pulih — `host.docker.internal` kini dua alamat (IPv4 + IPv6 tak terjangkau) | Low | Terkonfirmasi | **Ditutup** | TC-CMP-003 |
-| [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | Terbuka | TC-AUTH-010 |
+| [BUG-066](#bug-066) | `POST /auth/dev-login` di produksi tetap dapat dibedakan dari rute yang tak ada, walau dijawab 404 | Low | Terkonfirmasi | **Ditutup** | TC-AUTH-010 |
 | [BUG-067](#bug-067) | Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013 — `answer.groupBy` kini dua join atas seluruh tabel jawaban | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §12) |
 | [BUG-068](#bug-068) | `GET /statistics` memuat seluruh pengaduan ke memori untuk satu angka rata-rata dan satu tren — permintaan pertama melewati 3 detik pada 310.000 pengaduan | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
 | [BUG-069](#bug-069) | `GET /complaints` memindai seluruh tabel di setiap permintaan Admin Kabupaten karena `complaints` tak punya indeks `created_at` | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §12.6) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **76 ditutup, 10 terbuka** (Medium: tidak ada; Low: BUG-066, BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **77 ditutup, 9 terbuka** (Medium: tidak ada; Low: BUG-067, BUG-072, BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -3945,6 +3945,25 @@ langsung dapat dipakai.
 - Uji e2e permanen untuk mode produksi belum ada; TC-AUTH-010 hanya dijaga
   uji unit `non-production.guard.spec.ts:11`, yang tak melihat urutan
   penjaga maupun badan respons.
+
+**Status 16 November 2026: Ditutup**
+
+Diperbaiki di `6c7e7ee` dan `5b99192`, masuk lewat PR #44, merge `main` `27f1bcb`. CI 3 dari 3 job hijau pada `5b99192`. Isi `27f1bcb` sama persis dengan `5b99192`.
+
+Perbaikannya arah kedua di atas. `devLogin` pindah ke `DevLoginController` dalam `DevLoginModule`, dan `AppModule` hanya mengimpor modul itu bila `devLoginAktif(process.env)` benar. Di produksi, atau bila saklar `DEV_LOGIN_ENABLED` tidak persis `true`, rutenya tidak terdaftar sama sekali, sehingga tak satu pun penjaga berjalan. `NonProductionGuard` dan `DevLoginGuard` tetap terpasang sebagai lapis kedua. `devLoginAktif` kini satu-satunya definisi saklar itu, dipakai juga oleh `configuration.ts`.
+
+Laporan ini ditulis sebelum saklar `DEV_LOGIN_ENABLED` ada (7 November 2026). Saklar yang mati di pengembangan ditolak `DevLoginGuard` dengan cara yang sama dan bocor persis sama, jadi keadaan itu ikut diuji dan ikut tertutup.
+
+Uji e2e permanen yang diminta poin ketiga kini ada: `apps/api/test/dev-login-tak-terdaftar.e2e-spec.ts`. Ia membandingkan status, `message`, header `X-RateLimit-Limit`, dan jawaban 31 permintaan antara `dev-login` dan rute karangan di aplikasi yang sama, untuk produksi dan saklar mati. Sebelum perbaikan kedua keadaan merah dengan tiga pembeda yang sama dengan tabel di atas: `"Not Found"`, header `30`, dan 429 pada permintaan ke-31. Sesudahnya keduanya identik dengan rute karangan: `"Cannot POST /api/v1/auth/<jalur>"`, tanpa header, 31× 404. Kontrolnya, saklar `true` di pengembangan, tetap mendaftarkan rute itu.
+
+Uji itu memuat ulang `AppModule` lewat helper `nyalakanDenganEnv` (`jest.isolateModules`), karena keputusan pendaftaran diambil saat modul dimuat. `dev-login-saklar.e2e-spec.ts` dialihkan ke helper yang sama. Dengan `import` di kepala berkas, kasus "mati"-nya tetap hijau tetapi hanya membuktikan lapis penjaga.
+
+Jalan CI pertama (`6c7e7ee`) merah di "E2E API". Kasus produksi menyalakan aplikasi ber-`NODE_ENV=production`, dan `TurnstileService` menolak menyala tanpa `TURNSTILE_SECRET_KEY`. `.env` di mesin pengembang mengisinya, CI tidak. Kegagalannya direproduksi lokal dengan rahasia dikosongkan, lalu `5b99192` memberi kasus itu rahasia placeholder sendiri.
+
+**Yang tersisa:**
+
+- Uji ini memakai `Test.createTestingModule`, bukan `main.ts`. Gerbang boot di `main.ts` (`periksaPenyimpanan`, `periksaPenyimpanSesi`, `periksaDevLogin`) tidak ikut dijalankan. Tak satu pun memengaruhi pendaftaran rute.
+- Di produksi kedua penjaga kini tak pernah menerima permintaan. Uji unitnya tetap ada, dan keduanya hanya bekerja bila suatu saat modul ini didaftarkan tanpa syarat.
 
 ### BUG-067 — Jalan dingin `GET /statistics` mundur 2-3,5 kali sejak penyaring Sampah BUG-013
 
@@ -8243,3 +8262,4 @@ hanya dibaca, tidak diubah.
 | 7.43 | 13 November 2026 | **BUG-068 ditutup: 86 temuan, 74 ditutup, 12 terbuka.** PR #39, merge `48c25fe`. CI 3 dari 3 job hijau pada `50df63f` dan `48c25fe`. `GET /statistics` mengagregasi pengaduan per bulan di Postgres; permintaan pertama pada 310.000 pengaduan turun dari 4.320 / 4.384 ms ke 1.210 / 1.156 ms, diukur dengan pelari yang sama. Pembangun `--pengaduan` diperbaiki di PR yang sama (`280a814`). |
 | 7.44 | 13 November 2026 | **BUG-063 ditutup: 86 temuan, 75 ditutup, 11 terbuka.** PR #40, merge `0e0858b`. CI 3 dari 3 job hijau pada `17c2b85`. Formulir beranda berhenti memanggil endpoint bersesi tanpa sesi, dan interseptor 401 melewati logout bila permintaan yang ditolak tak membawa Bearer. Lapis kedua menyimpang dari usulan semula, yang akan merusak `AuthCallbackLoader`. Satu kali muat `/` tanpa sesi di Chrome: 4 logout 401 menjadi nol. |
 | 7.45 | 16 November 2026 | **BUG-065 ditutup: 86 temuan, 76 ditutup, 10 terbuka.** PR #41, merge `bdcf24c`. CI 3 dari 3 job hijau pada `08745d8`. Upstream nginx dev memakai `max_fails=0`. Di kontainer uji dengan dua alamat buatan, ronde pertama sesudah upstream pulih naik dari 2/2/1× 200 (sisanya 502) menjadi 10/10/10× 200. Docker Desktop kini kembali menjawab satu alamat, jadi gejalanya tak dapat direproduksi lewat `skm-proxy` sungguhan. |
+| 7.46 | 16 November 2026 | **BUG-066 ditutup: 86 temuan, 77 ditutup, 9 terbuka.** PR #44, merge `27f1bcb`. CI 3 dari 3 job hijau pada `5b99192`; jalan pertama `6c7e7ee` merah karena kasus produksi uji barunya tak membawa `TURNSTILE_SECRET_KEY`. `dev-login` tidak didaftarkan di produksi maupun bila saklarnya mati, sehingga pesan, header batas laju, dan 429-nya kini sama dengan rute karangan. Dijaga e2e baru `dev-login-tak-terdaftar.e2e-spec.ts`. |
