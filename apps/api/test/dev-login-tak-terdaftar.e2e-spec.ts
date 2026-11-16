@@ -26,7 +26,10 @@ import { nyalakanDenganEnv } from './helpers/aplikasi-ber-env.helper';
  * layanan, dan kontrolnya memakai pengenal yang tak ada.
  */
 describe('dev-login yang mati tak dapat dibedakan dari rute karangan (e2e, BUG-066)', () => {
-  const envAsli = { NODE_ENV: process.env.NODE_ENV, SAKLAR: process.env.DEV_LOGIN_ENABLED };
+  // Salinan UTUH, bukan dua kunci: kasus produksi ikut menyetel
+  // `TURNSTILE_SECRET_KEY`, dan nilai yang tertinggal akan mengubah perilaku
+  // berkas berikutnya di proses Jest yang sama.
+  const envAsli = { ...process.env };
   const PENGENAL = 'tak-ada-di-mana-pun@e2e.test';
   // Satu di atas batas `DEV_LOGIN_PER_MINUTE` (30): rute yang diam-diam masih
   // dihitung penjaga batas laju menjawab 429 pada permintaan ini.
@@ -48,9 +51,7 @@ describe('dev-login yang mati tak dapat dibedakan dari rute karangan (e2e, BUG-0
   afterEach(async () => {
     await app?.close();
     app = undefined;
-    process.env.NODE_ENV = envAsli.NODE_ENV;
-    if (envAsli.SAKLAR === undefined) delete process.env.DEV_LOGIN_ENABLED;
-    else process.env.DEV_LOGIN_ENABLED = envAsli.SAKLAR;
+    process.env = { ...envAsli };
   });
 
   const kirim = (jalur: string) =>
@@ -60,7 +61,19 @@ describe('dev-login yang mati tak dapat dibedakan dari rute karangan (e2e, BUG-0
       .send({ identifier: PENGENAL });
 
   it.each([
-    ['produksi', { NODE_ENV: 'production', DEV_LOGIN_ENABLED: 'false' }],
+    [
+      'produksi',
+      {
+        NODE_ENV: 'production',
+        DEV_LOGIN_ENABLED: 'false',
+        // `TurnstileService` menolak menyala di produksi tanpa rahasia. Di
+        // mesin pengembang `.env` kebetulan mengisinya, di CI tidak -- dan
+        // jalan CI pertama memerah karena itu (16 November 2026). Nilainya
+        // tak pernah dipakai: tak satu pun permintaan di sini menyentuh
+        // captcha.
+        TURNSTILE_SECRET_KEY: 'rahasia-uji-tak-pernah-dipakai',
+      },
+    ],
     ['pengembangan, saklar mati', { NODE_ENV: 'development', DEV_LOGIN_ENABLED: 'false' }],
   ])(
     '%s: status, pesan, header batas laju, dan 429 sama dengan rute karangan',
