@@ -124,6 +124,17 @@ jalankan satu BERKAS penuh dan biarkan sisanya ikut.
 
 **`--forceExit` wajib untuk Jest `apps/web`.** Tanpa itu prosesnya menggantung sesudah uji selesai ("Jest did not exit one second after the test run has completed"), dan menyalurkannya ke `tail` menyembunyikan seluruh keluaran sampai proses berakhir. Uji biasanya tuntas di bawah 10 detik; jika terlihat menggantung lebih lama, itu gejalanya, bukan ujinya yang lambat.
 
+**Uji konkurensi tidak memakai `curl ... &` dalam loop Git Bash.** Di Windows
+tiap proses `curl` lahir terlalu lambat, sehingga permintaan pertama sudah
+selesai sebelum yang lain tiba, dan uji balapan hijau walau cacatnya ada.
+Terukur 16 November 2026 saat menutup BUG-065: konfigurasi nginx lama yang
+cacat dijawab 10× 200 lewat `curl` beruntun, tetapi 2× 200 + 8× 502 lewat
+klien Node (`http.get` + `Promise.all`, `agent: false`). Pakai Node, dan
+buktikan dulu keadaan lama MERAH dengan alat yang sama sebelum menerima hijau
+keadaan baru. Di Git Bash juga, argumen berawalan `/` diubah menjadi jalur
+Windows (`/hmr` tiba sebagai `C:/Program Files/Git/hmr`, termasuk jalur di
+`docker exec`); awali perintahnya dengan `MSYS_NO_PATHCONV=1`.
+
 **Sesudah menjalankan suite E2E apa pun, bersihkan data uji:**
 
 ```bash
