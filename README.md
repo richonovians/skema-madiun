@@ -106,6 +106,7 @@ Dikembangkan sejak 20 Juli 2026 dan **masih dalam pengembangan**. Alur utamanya 
 - **Masuk lewat SSO Helpdesk.** Kredensialnya (`client_id` dan `client_secret`) sudah ada sejak 4 Oktober 2026, dan masuk dari ujung ke ujung sudah terbukti untuk akun warga. Pemetaan akun Admin Kabupaten dan Admin OPD masih menunggu keputusan di sisi Helpdesk.
 - **Sinkron daftar OPD.** Kunci API Helpdesk ditolak (401) saat dicek 9 November 2026. Sampai ada kunci baru, aplikasi tetap memakai daftar hasil sinkron terakhir (9 Oktober 2026).
 - **Captcha pengisian survei** (Cloudflare Turnstile) belum punya kunci produksi atas nama akun resmi Diskominfo.
+- **Cadangan harian di server.** Sejak 12 November 2026 backend menjadwalkan cadangan basis data sendiri. Agar jalan di produksi, tim server perlu memasang `pg_dump` 18 di server backend, mengarahkan `BACKUP_DIR` ke penyimpanan di luar mesin itu, dan menyimpan `DATA_ENCRYPTION_KEY` serta `BACKUP_ENCRYPTION_KEY`, karena pemulihan menuntut keduanya. Bila cadangan gagal, setiap Admin Kabupaten menerima notifikasi.
 - **Docker untuk aplikasi.** Yang berjalan di dalam kontainer baru basis data, Redis, dan reverse proxy. Backend dan frontend masih dijalankan langsung di komputer pengembang.
 
 Selama SSO belum dipakai penuh, lingkungan pengembangan punya jalur masuk sementara lewat akun contoh. Jalur itu hanya hidup bila `DEV_LOGIN_ENABLED=true`, dan di produksi nilai itu membuat aplikasi menolak menyala.
@@ -173,6 +174,8 @@ Tanpa `SESSION_JWT_SECRET` yang panjangnya cukup, aplikasi menolak menyala. Tanp
 **Kehilangan `DATA_ENCRYPTION_KEY` berarti kehilangan lampiran dan isi pengaduan secara permanen.** Tidak ada pintu belakang, dan cadangan tidak menolong karena isinya terenkripsi kunci yang sama. Simpan salinannya di luar komputer ini sebelum melanjutkan. Penjelasan lengkapnya ada di `docs/keamanan/enkripsi-at-rest.md`.
 
 `apps/api/.env.example` sudah memuat `DEV_LOGIN_ENABLED=true`, yang menyalakan jalur masuk lewat akun contoh tanpa SSO. Tanpa baris itu jalur tersebut menjawab 404. Jangan memakai nilai `true` di produksi, karena aplikasi akan menolak menyala.
+
+`BACKUP_DIR` boleh dibiarkan kosong di komputer sendiri. Isinya folder tujuan cadangan harian yang dijalankan backend sendiri pada jam `BACKUP_JAM` WIB (baku pukul 02.00), dengan umur simpan `BACKUP_RETENTION_DAYS` hari (baku 14). Kosong berarti cadangan terjadwal mati, dan di produksi keadaan itu dicatat sebagai galat setiap kali backend menyala.
 
 **3. Nyalakan basis data, Redis, dan proxy.**
 
@@ -275,7 +278,7 @@ Jangan menjalankan `pnpm build` selagi `pnpm dev` hidup. Keduanya menulis ke fol
 | `docs/Roadmap-Timeline-*.csv`                     | Rencana kerja dan lini masa, siap diimpor ke ClickUp                                      |
 | `docs/keamanan/enkripsi-at-rest.md`               | Apa yang terenkripsi dan apa yang tidak, kustodi kunci, rotasi, cadangan, dan pemulihan   |
 
-Perlu diketahui saat membaca PRD: dokumen itu masih menyebut peran **Superuser** sebagai peran tersendiri. Peran tersebut dilebur ke Admin Kabupaten pada 15 September 2026, jadi sekarang hanya ada tiga peran, yaitu Admin Kabupaten, Admin OPD, dan Responden.
+Perlu diketahui saat membaca PRD: dokumen itu masih menyebut peran **Superuser** sebagai peran tersendiri. Peran tersebut dilebur ke Admin Kabupaten pada 15 September 2026, jadi sekarang hanya ada tiga peran, yaitu Admin Kabupaten, Admin OPD, dan Responden. Kebutuhan lain yang berubah sesudah PRD ditulis, misalnya alur status pengaduan, tingkat pengaduan, dan masuk lewat SSO, dicatat di bab 18 PRD.
 
 ---
 
