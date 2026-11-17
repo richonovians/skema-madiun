@@ -152,122 +152,139 @@ export default function AlihkanComplaintModal({ complaint, onClose, onDone }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      {/* TANPA `overflow-hidden`, dan 640px: alasan yang sama dengan
-          ForwardComplaintModal — panel dropdown berdiri absolut di dalam kartu
-          ini, dan nama instansi terpanjang 97 karakter. */}
-      <div
-        ref={refDialog}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={idJudul}
-        className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px] focus:outline-none"
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-border relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full text-text-secondary hover:bg-surface-container transition-colors"
-            aria-label="Tutup"
-          >
-            <X size={18} />
-          </button>
-          <h3
-            id={idJudul}
-            className="font-bold text-text-primary text-lg leading-tight flex items-center gap-2"
-          >
-            <Forward size={18} className="shrink-0" />
-            Alihkan ke instansi berwenang
-          </h3>
-          <p className="text-sm text-text-secondary mt-1">
-            Pengaduan {complaint.ticketNo ? `#${complaint.ticketNo}` : 'ini'} akan berpindah ke
-            instansi lain. Pelapor diberi tahu, dan nomor tiketnya tetap sama.
-          </p>
-        </div>
+    // LATAR INILAH YANG MENGGULIR, bukan kartunya (BUG-084, 17 November 2026).
+    // `useBodyScrollLock` mengunci `body`, dan dulu latar ini memusatkan kartu
+    // tanpa wilayah gulir apa pun: kartu yang lebih tinggi daripada layar
+    // meluap rata ke atas dan ke bawah tanpa cara mencapainya. Terukur pada
+    // `b259ec4`, tepi atas judul -48 pada 320x568 dan -75 pada 640x360.
+    //
+    // Bukan pola `max-h-full` + badan `overflow-y-auto` milik
+    // QuestionOptionsModal: badan semacam itu ikut memotong panel dropdown
+    // absolut, dan pada 640x360 ia hanya menyisakan ~160px -- kolom cari
+    // instansi saja sudah 61px. Dengan latar yang menggulir, panel tetap
+    // mengapung bebas dan `useKeepInViewport` membatasinya pada layar.
+    //
+    // `min-h-full` + `items-center` di pembungkus dalam: di layar lapang kartu
+    // tetap di tengah, di layar pendek kartu berawal dari atas dan dapat
+    // digulir sampai tombolnya.
+    <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-slate-900/60 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center p-4">
+        {/* TANPA `overflow-hidden`, dan 640px: alasan yang sama dengan
+            ForwardComplaintModal — panel dropdown berdiri absolut di dalam kartu
+            ini, dan nama instansi terpanjang 97 karakter. */}
+        <div
+          ref={refDialog}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={idJudul}
+          className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px] focus:outline-none"
+        >
+          <div className="px-6 pt-6 pb-4 border-b border-border relative">
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-text-secondary hover:bg-surface-container transition-colors"
+              aria-label="Tutup"
+            >
+              <X size={18} />
+            </button>
+            <h3
+              id={idJudul}
+              className="font-bold text-text-primary text-lg leading-tight flex items-center gap-2"
+            >
+              <Forward size={18} className="shrink-0" />
+              Alihkan ke instansi berwenang
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              Pengaduan {complaint.ticketNo ? `#${complaint.ticketNo}` : 'ini'} akan berpindah ke
+              instansi lain. Pelapor diberi tahu, dan nomor tiketnya tetap sama.
+            </p>
+          </div>
 
-        <div className="px-6 py-5 space-y-4">
-          {(galat || galatMuat) && (
-            <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
-              {galat || `${galatMuat} Tutup lalu buka kembali untuk mencoba lagi.`}
-            </div>
-          )}
+          <div className="px-6 py-5 space-y-4">
+            {(galat || galatMuat) && (
+              <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
+                {galat || `${galatMuat} Tutup lalu buka kembali untuk mencoba lagi.`}
+              </div>
+            )}
 
-          <Dropdown
-            label="Instansi tujuan"
-            id="alihkan-opd"
-            options={opsiOpd}
-            value={opdId}
-            onChange={gantiOpd}
-            searchable={opsiOpd.length > 1}
-            searchPlaceholder="Cari nama instansi..."
-            emptySearchLabel="Tidak ada instansi yang cocok"
-            menuMaxHeight="max-h-80"
-          />
-
-          <div>
             <Dropdown
-              label="Kategori baru"
-              id="alihkan-kategori"
-              options={opsiKategori}
-              value={kategori}
-              onChange={setKategori}
-              searchable={opsiKategori.length > 1}
-              searchPlaceholder="Cari kategori..."
-              emptySearchLabel="Tidak ada kategori yang cocok"
+              label="Instansi tujuan"
+              id="alihkan-opd"
+              options={opsiOpd}
+              value={opdId}
+              onChange={gantiOpd}
+              searchable={opsiOpd.length > 1}
+              searchPlaceholder="Cari nama instansi..."
+              emptySearchLabel="Tidak ada instansi yang cocok"
               menuMaxHeight="max-h-80"
             />
-            <p className="text-xs text-text-secondary mt-1">
-              {opdTerpilih
-                ? `Kategori tingkat ${tingkatTujuan === 'kecamatan' ? 'kecamatan' : 'kabupaten'}, mengikuti instansi tujuan.`
-                : 'Pilih instansi tujuan lebih dahulu. Daftar kategorinya mengikuti tingkat instansi itu.'}
-            </p>
+
+            <div>
+              <Dropdown
+                label="Kategori baru"
+                id="alihkan-kategori"
+                options={opsiKategori}
+                value={kategori}
+                onChange={setKategori}
+                searchable={opsiKategori.length > 1}
+                searchPlaceholder="Cari kategori..."
+                emptySearchLabel="Tidak ada kategori yang cocok"
+                menuMaxHeight="max-h-80"
+              />
+              <p className="text-xs text-text-secondary mt-1">
+                {opdTerpilih
+                  ? `Kategori tingkat ${tingkatTujuan === 'kecamatan' ? 'kecamatan' : 'kabupaten'}, mengikuti instansi tujuan.`
+                  : 'Pilih instansi tujuan lebih dahulu. Daftar kategorinya mengikuti tingkat instansi itu.'}
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor={idCatatan}
+                className="block text-sm font-semibold text-text-primary mb-1"
+              >
+                Alasan pengalihan
+              </label>
+              <textarea
+                id={idCatatan}
+                rows={3}
+                value={catatan}
+                onChange={(e) => setCatatan(e.target.value)}
+                placeholder="Mis. Berkaitan dengan kewenangan infrastruktur."
+                // Batas yang SAMA dengan `@MaxLength(1000)` di
+                // `AlihkanComplaintDto.catatan` (BUG-080). Tanpanya alasan yang
+                // lebih panjang baru ditolak sesudah tombol ditekan, dengan pesan
+                // umum yang tak menyebut medan mana yang salah.
+                maxLength={BATAS_ALASAN}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              {/* Penghitungnya penjelasan bagi `maxLength`: tanpa itu ketikan
+                  berhenti di karakter ke-1.000, dan alasan yang ditempel
+                  terpotong, tanpa satu pun keterangan. */}
+              <p className="text-xs text-text-secondary mt-1 flex justify-between gap-3">
+                <span>Alasan ini ditampilkan kepada pelapor pada riwayat pengaduannya.</span>
+                <span className="shrink-0 tabular-nums">
+                  {catatan.length.toLocaleString('id-ID')}/{BATAS_ALASAN.toLocaleString('id-ID')}
+                </span>
+              </p>
+            </div>
           </div>
 
-          <div>
-            <label
-              htmlFor={idCatatan}
-              className="block text-sm font-semibold text-text-primary mb-1"
-            >
-              Alasan pengalihan
-            </label>
-            <textarea
-              id={idCatatan}
-              rows={3}
-              value={catatan}
-              onChange={(e) => setCatatan(e.target.value)}
-              placeholder="Mis. Berkaitan dengan kewenangan infrastruktur."
-              // Batas yang SAMA dengan `@MaxLength(1000)` di
-              // `AlihkanComplaintDto.catatan` (BUG-080). Tanpanya alasan yang
-              // lebih panjang baru ditolak sesudah tombol ditekan, dengan pesan
-              // umum yang tak menyebut medan mana yang salah.
-              maxLength={BATAS_ALASAN}
-              className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-            {/* Penghitungnya penjelasan bagi `maxLength`: tanpa itu ketikan
-                berhenti di karakter ke-1.000, dan alasan yang ditempel
-                terpotong, tanpa satu pun keterangan. */}
-            <p className="text-xs text-text-secondary mt-1 flex justify-between gap-3">
-              <span>Alasan ini ditampilkan kepada pelapor pada riwayat pengaduannya.</span>
-              <span className="shrink-0 tabular-nums">
-                {catatan.length.toLocaleString('id-ID')}/{BATAS_ALASAN.toLocaleString('id-ID')}
+          <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={sedangKirim}>
+              Batal
+            </Button>
+            {/* Tombol mati sampai ketiganya terisi: backend menolak 400, dan
+                mengetahuinya sesudah menekan tombol jauh lebih buruk daripada
+                melihat tombol yang belum dapat ditekan. */}
+            <Button onClick={kirim} disabled={!siapKirim || sedangKirim}>
+              <span className="flex items-center gap-1.5">
+                <Send size={14} />
+                {sedangKirim ? 'Mengalihkan...' : 'Alihkan Pengaduan'}
               </span>
-            </p>
+            </Button>
           </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={sedangKirim}>
-            Batal
-          </Button>
-          {/* Tombol mati sampai ketiganya terisi: backend menolak 400, dan
-              mengetahuinya sesudah menekan tombol jauh lebih buruk daripada
-              melihat tombol yang belum dapat ditekan. */}
-          <Button onClick={kirim} disabled={!siapKirim || sedangKirim}>
-            <span className="flex items-center gap-1.5">
-              <Send size={14} />
-              {sedangKirim ? 'Mengalihkan...' : 'Alihkan Pengaduan'}
-            </span>
-          </Button>
         </div>
       </div>
     </div>
