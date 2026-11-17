@@ -166,137 +166,153 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
   const isActive = survey.status === 'AKTIF';
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => e.target === e.currentTarget && onClose?.()}
-    >
+    // LATAR INILAH YANG MENGGULIR, bukan kartunya (BUG-087, 18 November 2026).
+    // Pola yang sama dengan AlihkanComplaintModal (BUG-084): `useBodyScrollLock`
+    // mengunci `body`, dan latar yang memusatkan kartu tanpa wilayah gulir
+    // membuat kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke
+    // bawah tanpa cara mencapainya. Terukur pada
+    // `7ea124f`: tepi atas judul -48 pada 320x568 dan -130 pada 568x320.
+    //
+    // `min-h-full` + `items-center` di pembungkus dalam: di layar lapang kartu
+    // tetap di tengah, di layar pendek kartu berawal dari atas dan dapat
+    // digulir sampai tombolnya.
+    //
+    // Klik latar menutup modal, dan penangannya ada di PEMBUNGKUS DALAM: area
+    // kosong di sekitar kartu kini pembungkus itu, sehingga
+    // `e.target === e.currentTarget` di lapisan luar tak pernah terpicu lagi.
+    <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        ref={refDialog}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={`${idLabel} ${idJudul}`}
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[460px] focus:outline-none"
+        className="flex min-h-full items-center justify-center p-4"
+        onClick={(e) => e.target === e.currentTarget && onClose?.()}
       >
-        <div className="px-6 pt-6 pb-4 border-b border-slate-100 relative">
-          {/* `aria-label`, sebab isinya hanya ikon silang: tanpa itu ia tombol
-              tanpa nama, dan satu-satunya jalan keluar yang tak dapat disebut. */}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Tutup"
-            className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
-          <p id={idLabel} className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Bagikan Survei
-          </p>
-          <h3
-            id={idJudul}
-            className="font-bold text-slate-800 text-lg leading-tight mt-1 pr-8"
-            title={survey.title}
-          >
-            {survey.title}
-          </h3>
-        </div>
+        <div
+          ref={refDialog}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`${idLabel} ${idJudul}`}
+          className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[460px] focus:outline-none"
+        >
+          <div className="px-6 pt-6 pb-4 border-b border-slate-100 relative">
+            {/* `aria-label`, sebab isinya hanya ikon silang: tanpa itu ia tombol
+                tanpa nama, dan satu-satunya jalan keluar yang tak dapat disebut. */}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Tutup"
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
+            <p id={idLabel} className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Bagikan Survei
+            </p>
+            <h3
+              id={idJudul}
+              className="font-bold text-slate-800 text-lg leading-tight mt-1 pr-8"
+              title={survey.title}
+            >
+              {survey.title}
+            </h3>
+          </div>
 
-        <div className="px-6 py-5 space-y-4">
-          {!isActive && (
-            <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-800 font-medium leading-relaxed">
-                {survey.status === 'DRAF'
-                  ? 'Survei masih berstatus draf, sehingga tautan ini belum dapat diisi. Publikasikan dulu sebelum membagikannya.'
-                  : 'Periode survei sudah ditutup, sehingga tautan ini tidak menerima jawaban baru.'}
-              </p>
-            </div>
-          )}
-
-          {/* QR */}
-          <div className="flex justify-center">
-            {qrError ? (
-              <div className="w-[200px] h-[200px] flex items-center justify-center text-center text-xs text-red-600 border border-red-200 bg-red-50 rounded-xl p-4">
-                Gagal membuat QR: {qrError}
+          <div className="px-6 py-5 space-y-4">
+            {!isActive && (
+              <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                  {survey.status === 'DRAF'
+                    ? 'Survei masih berstatus draf, sehingga tautan ini belum dapat diisi. Publikasikan dulu sebelum membagikannya.'
+                    : 'Periode survei sudah ditutup, sehingga tautan ini tidak menerima jawaban baru.'}
+                </p>
               </div>
-            ) : qrDataUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- data URL hasil generate di klien, bukan aset statis yang bisa dioptimasi next/image
-              <img
-                src={qrDataUrl}
-                alt={`QR code tautan pengisian survei ${survey.title}`}
-                className="w-[200px] h-[200px] rounded-xl border border-slate-200"
-              />
-            ) : (
-              <div className="w-[200px] h-[200px] rounded-xl bg-slate-100 animate-pulse" />
+            )}
+
+            {/* QR */}
+            <div className="flex justify-center">
+              {qrError ? (
+                <div className="w-[200px] h-[200px] flex items-center justify-center text-center text-xs text-red-600 border border-red-200 bg-red-50 rounded-xl p-4">
+                  Gagal membuat QR: {qrError}
+                </div>
+              ) : qrDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- data URL hasil generate di klien, bukan aset statis yang bisa dioptimasi next/image
+                <img
+                  src={qrDataUrl}
+                  alt={`QR code tautan pengisian survei ${survey.title}`}
+                  className="w-[200px] h-[200px] rounded-xl border border-slate-200"
+                />
+              ) : (
+                <div className="w-[200px] h-[200px] rounded-xl bg-slate-100 animate-pulse" />
+              )}
+            </div>
+
+            {/* Tautan */}
+            <div className="space-y-1.5">
+              <span className="block text-sm font-bold text-text-primary">Tautan pengisian</span>
+              <div className="flex gap-2">
+                <input
+                  ref={urlInputRef}
+                  readOnly
+                  value={url}
+                  onFocus={(e) => e.target.select()}
+                  className="flex-1 min-w-0 min-h-[44px] px-3 border border-outline-variant rounded-lg bg-surface-container-low text-sm font-mono text-text-secondary outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  onClick={handleCopy}
+                  className="shrink-0 min-h-[44px] px-4 rounded-lg bg-primary text-on-primary font-bold text-sm hover:bg-primary-hover transition-colors flex items-center gap-2"
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? 'Tersalin' : 'Salin'}
+                </button>
+              </div>
+            </div>
+
+            {/* HANYA saat survei aktif. Keterangan ini menggambarkan tautan yang
+                berfungsi ("dapat diisi tanpa login" / "perlu masuk lewat SSO");
+                pada survei draf maupun yang sudah ditutup ia terpasang tepat di
+                bawah spanduk kuning yang mengatakan tautannya belum/tidak dapat
+                diisi. Dua pernyataan berlawanan dalam satu layar, dan yang bawah
+                terdengar lebih meyakinkan karena berbicara soal cara kerja. */}
+            {isActive && (
+              <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                  {survey.izinkanAnonim
+                    ? 'Survei ini dapat diisi tanpa login. Satu tautan/QR berlaku untuk semua orang; responden yang sudah masuk tetap tercatat atas namanya.'
+                    : 'Responden perlu masuk lewat SSO terlebih dahulu; tautan ini akan mengarahkan mereka ke halaman masuk bila belum ada sesi.'}
+                </p>
+              </div>
             )}
           </div>
 
-          {/* Tautan */}
-          <div className="space-y-1.5">
-            <span className="block text-sm font-bold text-text-primary">Tautan pengisian</span>
-            <div className="flex gap-2">
-              <input
-                ref={urlInputRef}
-                readOnly
-                value={url}
-                onFocus={(e) => e.target.select()}
-                className="flex-1 min-w-0 min-h-[44px] px-3 border border-outline-variant rounded-lg bg-surface-container-low text-sm font-mono text-text-secondary outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                onClick={handleCopy}
-                className="shrink-0 min-h-[44px] px-4 rounded-lg bg-primary text-on-primary font-bold text-sm hover:bg-primary-hover transition-colors flex items-center gap-2"
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? 'Tersalin' : 'Salin'}
-              </button>
-            </div>
-          </div>
-
-          {/* HANYA saat survei aktif. Keterangan ini menggambarkan tautan yang
-              berfungsi ("dapat diisi tanpa login" / "perlu masuk lewat SSO");
-              pada survei draf maupun yang sudah ditutup ia terpasang tepat di
-              bawah spanduk kuning yang mengatakan tautannya belum/tidak dapat
-              diisi. Dua pernyataan berlawanan dalam satu layar, dan yang bawah
-              terdengar lebih meyakinkan karena berbicara soal cara kerja. */}
-          {isActive && (
-            <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-              <Info size={15} className="text-blue-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                {survey.izinkanAnonim
-                  ? 'Survei ini dapat diisi tanpa login. Satu tautan/QR berlaku untuk semua orang; responden yang sudah masuk tetap tercatat atas namanya.'
-                  : 'Responden perlu masuk lewat SSO terlebih dahulu; tautan ini akan mengarahkan mereka ke halaman masuk bila belum ada sesi.'}
+          {galatPoster && (
+            <div className="px-6 pb-1">
+              <p role="alert" className="text-xs text-red-600 font-medium leading-relaxed">
+                Gagal menyiapkan poster QR: {galatPoster}
               </p>
             </div>
           )}
-        </div>
 
-        {galatPoster && (
-          <div className="px-6 pb-1">
-            <p role="alert" className="text-xs text-red-600 font-medium leading-relaxed">
-              Gagal menyiapkan poster QR: {galatPoster}
-            </p>
+          <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 border-t border-slate-100 pt-4">
+            <a
+              href={url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+            >
+              <ExternalLink size={16} />
+              Buka Tautan
+            </a>
+            <button
+              type="button"
+              onClick={handleUnduh}
+              disabled={!qrDataUrl || sedangMenyusun}
+              className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download size={16} />
+              {sedangMenyusun ? 'Menyiapkan…' : 'Unduh QR'}
+            </button>
           </div>
-        )}
-
-        <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 border-t border-slate-100 pt-4">
-          <a
-            href={url || '#'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-          >
-            <ExternalLink size={16} />
-            Buka Tautan
-          </a>
-          <button
-            type="button"
-            onClick={handleUnduh}
-            disabled={!qrDataUrl || sedangMenyusun}
-            className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <Download size={16} />
-            {sedangMenyusun ? 'Menyiapkan…' : 'Unduh QR'}
-          </button>
         </div>
       </div>
     </div>
