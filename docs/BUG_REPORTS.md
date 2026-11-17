@@ -167,7 +167,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
 | [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.6) |
-| [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
+| [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.5) |
 | [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-069) |
 | [BUG-077](#bug-077) | Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-054) |
 | [BUG-078](#bug-078) | Permintaan serentak menimpa status: tiket `selesai` terbuka lagi menjadi `dialihkan` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 dan #18 (TC-CMP-071) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **80 ditutup, 6 terbuka** (Medium: tidak ada; Low: BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **81 ditutup, 5 terbuka** (Medium: tidak ada; Low: BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4562,6 +4562,20 @@ Warga melihat kalimat teknis berbahasa Inggris, tepat saat layanan sedang padam 
 
 Beri pesan cadangan berbahasa Indonesia di interceptor untuk jawaban tanpa amplop.
 
+**Status 17 November 2026: Ditutup**
+
+Diperbaiki di `27206cf`, masuk lewat PR #48, merge `main` `fd1df58`. CI 3 dari 3 job hijau pada `27206cf`. Isi `fd1df58` sama persis dengan `27206cf`.
+
+Perbaikannya mengikuti arah di atas, ditambah satu jalur yang tak tercakup laporan awal:
+
+- **Tanpa jawaban sama sekali.** Interceptor mengenalinya dari `error.code` axios, bukan dari bunyi pesannya. `ECONNABORTED` dan `ETIMEDOUT` menjadi "Server terlalu lama menjawab. Coba lagi dalam beberapa saat." Kode lain menjadi "Tidak dapat terhubung ke server. Periksa koneksi internet Anda, lalu coba lagi." Pembatalan (`ERR_CANCELED`) dibiarkan apa adanya.
+- **Jawaban tanpa amplop.** 5xx menjadi "Layanan sedang tidak dapat dihubungi. Coba lagi dalam beberapa saat.", dan 4xx menjadi "Permintaan tidak dapat diproses (kode N)." Pesan backend tetap didahulukan bila amplopnya ada.
+- **Permintaan Blob.** Ekspor hasil IKM memakai `responseType: 'blob'`, jadi amplop galat backend tiba terbungkus Blob. Tanpa penanganan, pesan cadangan 5xx akan menutupi sebab yang disebut backend. Blob berlabel JSON kini dibaca dan amplopnya menggantikan `error.response.data`.
+
+Dijaga sembilan uji baru di `apps/web/src/services/__tests__/api.test.js`. Lima uji perilaku baru dibuktikan merah sebelum perbaikan, satu uji jalur `blob.text()` dibuktikan merah lewat mutasi, dan tiga lainnya kontrol. Uji timeout dan Blob memakai adapter yang menolak dengan `AxiosError`, bukan MSW. Di jsdom pencegat XHR MSW tak memicu `ontimeout`, dan pada `responseType: 'blob'` ia memanggil `blob.stream()` yang tak dimiliki Blob jsdom sehingga uji menggantung.
+
+Diperiksa ulang di Chrome terpasang dengan cara yang sama seperti laporan awal. Di dasbor warga, 502 dan jaringan putus menampilkan kedua kalimat baru di ketiga widget. Di dasbor Admin Kabupaten, 502 menampilkan "Gagal memuat dashboard. Layanan sedang tidak dapat dihubungi…". Ekspor hasil survei dengan amplop 500 menampilkan pesan backend. Pesan timeout belum pernah dilihat di peramban; buktinya hanya uji komponen.
+
 ---
 
 <a id="bug-076"></a>
@@ -8363,3 +8377,4 @@ hanya dibaca, tidak diubah.
 | 7.47 | 16 November 2026 | **BUG-067 ditutup: 86 temuan, 78 ditutup, 8 terbuka.** PR #45, merge `c790e94`. CI 3 dari 3 job hijau pada `6b88c41`. Distribusi nilai `GET /statistics` tak lagi menyaring Sampah lewat dua join atas seluruh `answers`; jawaban survei di Sampah dibaca lewat daftar id dan dikurangkan. Pada T3 permintaan pertama turun dari 2.872-3.358 ms ke 1.605-1.705 ms, diukur dengan pelari yang sama. Varian relasi `deletedAt: { not: null }` diganti sebelum commit karena memburuk pada Sampah besar. |
 | 7.48 | 16 November 2026 | **BUG-072 ditutup: 86 temuan, 79 ditutup, 7 terbuka.** PR #46, merge `54e837c`. CI 3 dari 3 job hijau pada `5095029`. `/health` tetap statis sebagai liveness; endpoint baru `GET /health/siap` memeriksa basis data (`SELECT 1`) dan penyimpan sesi (`PING`), masing-masing dibatasi 2 detik, dan menjawab 503 `TIDAK_SIAP` dengan keadaan per komponen bila salah satunya gagal. Dijaga e2e baru `db-padam.e2e-spec.ts` yang memacetkan dan memutus proksi TCP di depan Postgres. |
 | 7.49 | 17 November 2026 | **BUG-074 ditutup: 86 temuan, 80 ditutup, 6 terbuka.** PR #47, merge `7fc36dd`. CI 3 dari 3 job hijau pada `33f42b9`. `pnpm pulihkan` membuat tujuan yang belum ada (kosong, dari basis data `DATABASE_URL`) dan mengalirkan dump ke stdin `psql` alih-alih memuatnya sebagai satu string. Dump sintetis 587.203.198 bita pulih utuh tanpa `--max-old-space-size`. Dijaga `scripts/pulihkan.spec.ts` dan e2e baru `pulihkan-tujuan-baru.e2e-spec.ts`. |
+| 7.50 | 17 November 2026 | **BUG-075 ditutup: 86 temuan, 81 ditutup, 5 terbuka.** PR #48, merge `fd1df58`. CI 3 dari 3 job hijau pada `27206cf`. Interceptor `api.js` memberi pesan berbahasa Indonesia untuk galat tanpa amplop backend (502 HTML, jaringan putus, timeout, 4xx tanpa amplop) dan membaca amplop JSON yang terbungkus Blob pada ekspor hasil IKM. Dijaga sembilan uji baru di `api.test.js`. |
