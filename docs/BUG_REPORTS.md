@@ -175,12 +175,12 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-080](#bug-080) | Layar menampilkan `Validation failed` saat kategori kosong atau alasan pengalihan melebihi 1.000 karakter | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 dan #18 (TC-CMP-053, TC-CMP-091) |
 | [BUG-081](#bug-081) | Lencana status baru memakai warna cadangan di enam tampilan | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-070) |
 | [BUG-082](#bug-082) | Catatan wajib lolos bila hanya berisi spasi pada `PATCH /complaints/:id/status` | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-063) |
-| [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-049) |
+| [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-049) |
 | [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | QA PR #18 (TC-CMP-090) |
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **82 ditutup, 4 terbuka** (Medium: tidak ada; Low: BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **83 ditutup, 3 terbuka** (Medium: tidak ada; Low: BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4917,6 +4917,28 @@ BUG-083 punya kelas akar yang sama, yaitu nilai tidak dipangkas sebelum divalida
 
 Pangkas lalu validasi, seperti `AlihkanComplaintDto.catatan`.
 
+**Status 17 November 2026: Ditutup**
+
+Diperbaiki di `9342a3f`, masuk lewat PR #50, merge `main` `b259ec4`. CI 3 dari 3 job hijau pada `9342a3f`. Isi `b259ec4` sama persis dengan `9342a3f`.
+
+`judul` ternyata punya cacat yang sama dan tidak disebut laporan ini. Atas persetujuan pemilik produk ia ikut diperbaiki di PR yang sama.
+
+Di backend, `judul`, `uraian`, dan `lokasiKejadian` pada `CreateComplaintDto` kini dipangkas lewat `@Transform` sebelum `@MinLength(1)`. Isian berisi spasi saja dijawab 400 dan tidak menyimpan baris. Spasi di tepi isian dipangkas sebelum disimpan dan dienkripsi, sedangkan baris baru di tengah uraian tetap utuh.
+
+Jalur formulir yang dulu hanya diturunkan dari kode ternyata memang terjangkau warga, karena `handleSubmit` hanya memeriksa kedua dropdown. Memperbaiki backend saja akan membuat warga melihat `Validation failed`, kelas cacat yang sama dengan BUG-080. Karena itu `CreateComplaintForm` kini memeriksa ketiga medan sesudah `trim()` dan tidak mengirim apa pun bila ada yang kosong. Pesannya, yang disetujui pemilik produk sebelum dikerjakan, tampil di bawah medan masing-masing.
+
+| Medan | Pesan |
+| --- | --- |
+| Judul Laporan | Tuliskan judul laporan. |
+| Lokasi Kejadian | Tuliskan lokasi kejadian. |
+| Uraian Detail Kejadian | Tuliskan uraian kejadian. |
+
+Pesan hilang begitu medannya diubah, sama seperti pesan dropdown. `Input` dan `Textarea` mendapat prop `error` opsional (markup di `PesanGalatMedan.jsx` yang baru) dengan bingkai merah, `aria-invalid`, dan `aria-describedby`. Warnanya token `error` (#ba1a1a, 6,46:1 di atas putih), karena `red-500` milik `Dropdown` tidak mencapai 4,5:1. Pemanggil lain tidak mengirim `error`, jadi tampilannya tidak berubah.
+
+Semua uji baru dibuktikan merah sebelum perbaikan. Spec `create-complaint.dto.spec.ts` gagal 7 uji. Tiga kasus e2e baru di `complaints.e2e-spec.ts`, satu per medan, gagal `Expected: 400, Received: 201`; kasus itu menghitung baris pengaduan milik pelapornya sebelum dan sesudah permintaan. `CreateComplaintForm.test.jsx` dan `InputTextareaGalat.test.jsx` (baru) gagal 8 uji, sementara dua uji KONTROL lulus di kedua sisi. Di Chrome lewat `skema.local` sebagai warga, ketiga pesan tampil, tidak ada `POST /complaints` yang terkirim, dan lebar 390 px tidak menggeser halaman.
+
+Satu sisa di luar cakupan. `CreateReplyDto.pesan` tidak dipangkas, sehingga balasan percakapan yang membawa lampiran tetap menyimpan pesan berisi spasi apa adanya. Balasan berisi spasi saja tanpa lampiran sudah ditolak service lewat `!dto.pesan?.trim()`.
+
 ---
 
 <a id="bug-084"></a>
@@ -8397,3 +8419,4 @@ hanya dibaca, tidak diubah.
 | 7.49 | 17 November 2026 | **BUG-074 ditutup: 86 temuan, 80 ditutup, 6 terbuka.** PR #47, merge `7fc36dd`. CI 3 dari 3 job hijau pada `33f42b9`. `pnpm pulihkan` membuat tujuan yang belum ada (kosong, dari basis data `DATABASE_URL`) dan mengalirkan dump ke stdin `psql` alih-alih memuatnya sebagai satu string. Dump sintetis 587.203.198 bita pulih utuh tanpa `--max-old-space-size`. Dijaga `scripts/pulihkan.spec.ts` dan e2e baru `pulihkan-tujuan-baru.e2e-spec.ts`. |
 | 7.50 | 17 November 2026 | **BUG-075 ditutup: 86 temuan, 81 ditutup, 5 terbuka.** PR #48, merge `fd1df58`. CI 3 dari 3 job hijau pada `27206cf`. Interceptor `api.js` memberi pesan berbahasa Indonesia untuk galat tanpa amplop backend (502 HTML, jaringan putus, timeout, 4xx tanpa amplop) dan membaca amplop JSON yang terbungkus Blob pada ekspor hasil IKM. Dijaga sembilan uji baru di `api.test.js`. |
 | 7.51 | 17 November 2026 | **BUG-082 ditutup: 86 temuan, 82 ditutup, 4 terbuka.** PR #49, merge `5f63cea`. CI 3 dari 3 job hijau pada `9b1056d`. `UpdateComplaintStatusDto.catatan` dipangkas sebelum divalidasi, sehingga catatan berisi spasi saja pada `ditolak` dan `perlu_perbaikan` dijawab 400 dengan pesan catatan wajib yang sudah ada, dan pada status lain tersimpan `null`. Dijaga spec baru `update-complaint-status.dto.spec.ts` dan satu kasus e2e baru di `complaints.e2e-spec.ts`. |
+| 7.52 | 17 November 2026 | **BUG-083 ditutup: 86 temuan, 83 ditutup, 3 terbuka.** PR #50, merge `b259ec4`. CI 3 dari 3 job hijau pada `9342a3f`. `CreateComplaintDto` memangkas `judul`, `uraian`, dan `lokasiKejadian` sebelum divalidasi; `judul` tak disebut laporan awal dan ikut diperbaiki atas persetujuan pemilik produk. Formulir pengaduan menahan isian berisi spasi saja dengan pesan di bawah medannya, lewat prop `error` baru di `Input` dan `Textarea`. Dijaga uji DTO, tiga kasus e2e, dan uji komponen baru. |
