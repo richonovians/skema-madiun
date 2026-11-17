@@ -422,6 +422,7 @@ Referensi: PRD §8.3 (FR-SVY-01 ~ FR-SVY-07), Routes §A.4
 | ---------- | ----------------------------------------- | ------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ | :-------: | :---: | :----: |
 | TC-SVY-030 | Duplikasi survei beserta pertanyaannya    | POST `/surveys/:id/duplicate`                    | ID survei dengan 9 pertanyaan | 201 Created; survei baru berstatus `draft`; judul "(Salinan)"; semua pertanyaan terduplikasi; jawaban/respons TIDAK ikut **Dipetakan + diuji penguji 3 Nov 2026:** `surveys.e2e-spec.ts:191` (201, draf, "Salinan"), `:232` (pertanyaan beserta opsinya tersalin, BUG-005), `questions.e2e-spec.ts:473` (survei SKM). Tak satu pun memeriksa bahwa respons tak ikut. Penguji: survei SKM uji ber-9 pertanyaan dan 1 respons digandakan -> "[judul] (Salinan)", draf, 9 pertanyaan, 0 respons, 0 jawaban; survei asli tetap 1 respons. Lulus di CI `40a20ce`. |    P1     | Integ |   ✅   |
 | TC-SVY-031 | Duplikasi survei milik OPD lain → ditolak | POST `/surveys/:id/duplicate` sebagai OPD Dinkes | ID survei milik Disdukcapil   | 403 Forbidden **Diuji penguji 3 Nov 2026** (matriks `rbac-seluruh-endpoint.e2e-spec.ts:114` hanya menguji peran, bukan kepemilikan OPD -- celah otomatisasi): Admin OPD DINKES menggandakan survei milik DINDIK -> 403 "Anda tidak memiliki akses ke data OPD ini", nol salinan tercipta. |    P0     | Integ |   ✅   |
+| TC-SVY-032 | Konfirmasi aksi survei dapat dipakai di layar pendek | Tekan Hapus pada kartu survei draf di `/admin-opd/surveys` pada 360x640, 320x568, 640x360, dan 568x320 | Judul survei uji panjang | Kartu konfirmasi utuh di dalam layar atau dapat digulir. **Gagal:** pada 568x320 kartu di y -4 sampai 324, lihat BUG-091 |    P2     | E2E   |   ❌   |
 
 ---
 
@@ -495,6 +496,7 @@ Referensi: PRD §8.4 (FR-FILL-01 ~ FR-FILL-04), Routes §A.5
 | TC-FILL-040 | Admin OPD lihat respons survei miliknya            | GET `/surveys/:id/responses` sebagai OPD Dinkes | Survei Dinkes      | 200 OK; daftar respons + jawaban **Dipetakan + diuji penguji 3 Nov 2026:** `responses.e2e-spec.ts:286` (200, `userId` tak ikut) dan `role-journeys.e2e-spec.ts:298` (2 respons, masing-masing 9 jawaban, tanpa identitas pengisi). Diuji penguji 3 Nov 2026: 200, `total` 1, 9 jawaban, tanpa `userId`. Lulus di CI `9e72abb`. |    P1     | Integ |   ✅   |
 | TC-FILL-041 | Admin OPD TIDAK bisa lihat respons survei OPD lain | GET `/surveys/:id/responses` sebagai OPD Dinkes | Survei Disdukcapil | 403 Forbidden **Dipetakan + diuji penguji 3 Nov 2026:** `responses.e2e-spec.ts:333` (403). Diuji penguji 3 Nov 2026: Admin OPD 1 pada survei OPD 2 -> 403 "Anda tidak memiliki akses ke data OPD ini". Lulus di CI `9e72abb`. |    P0     | Integ |   ✅   |
 | TC-FILL-042 | Admin Kabupaten bisa lihat respons semua OPD       | GET `/surveys/:id/responses` sebagai kabupaten  | Survei mana pun    | 200 OK **Diuji penguji 3 Nov 2026** (celah otomatisasi: tak ada e2e yang memanggil rute ini sebagai kabupaten): 200 pada survei OPD 1 maupun OPD 2, masing-masing `total` 1. |    P1     | Integ |   ✅   |
+| TC-FILL-043 | Modal kirim survei anonim menutupi layar dan dapat digulir | Tanpa sesi, isi `/isi/:id` sampai pertanyaan terakhir, tekan Selesaikan, pada keempat ukuran | Survei SKM `izinkanAnonim: true` | Latar menutupi seluruh layar; judul dan tombol kirim dapat digulir hingga utuh terlihat. **Gagal:** latar terkurung bingkai kartu, kartu terpotong pada 320x568, 640x360, dan 568x320, lihat BUG-090 |    P1     | E2E   |   ❌   |
 
 ---
 
@@ -2452,9 +2454,9 @@ sengaja membiarkannya `NULL`.
 | A — Auth & Akun          |    38     |   13   |   14    |   9    |   2   |
 | B — Manajemen OPD        |    12     |   2    |   7     |   3    |   0   |
 | C — Manajemen Akun Admin |    14     |   7    |   6     |   1    |   0   |
-| D — Survei SKM           |    22     |   5    |   14    |   3    |   0   |
+| D — Survei SKM           |    23     |   5    |   14    |   4    |   0   |
 | E — Pertanyaan Survei    |    13     |   2    |   9     |   2    |   0   |
-| F — Pengisian Survei     |    25     |   10   |   15    |   0    |   0   |
+| F — Pengisian Survei     |    26     |   10   |   16    |   0    |   0   |
 | G — IKM & Hasil          |    23     |   15   |   7     |   1    |   0   |
 | H — Pengaduan            |  **74**   |   28   |   33   |   11  |   2   |
 | I — Audit Log            |     7     |   0    |   0     |   7    |   0   |
@@ -2462,12 +2464,14 @@ sengaja membiarkannya `NULL`.
 | X — RBAC & Isolasi       |    31     |   13   |   3     |   1    |   0   |
 | Y — Frontend & E2E       |  **50**   |   8    |   23    |   16   |   3   |
 | Z — Fitur Okt–Nov 2026   |  **20**   |   4    |   10    |   6    |   0   |
-| **TOTAL**                |  **332**  | **107** | **141** | **61** | **9** |
+| **TOTAL**                |  **334**  | **107** | **142** | **62** | **9** |
 
 > **14 baris Modul X (TC-RBAC-001 s/d 014) tidak berkolom prioritas** — tabelnya
 > berbentuk matriks peran (Superuser · Kabupaten · Admin OPD · Responden), bukan
 > tabel skenario biasa. Jumlahnya tetap dihitung pada kolom "Jumlah TC", sehingga
 > 88+113+45+7 = 253, ditambah 14 = 267.
+>
+> **(18 November 2026, kedua) Modul D dan F masing-masing bertambah 1 kasus** (TC-SVY-032 P2 untuk BUG-091, TC-FILL-043 P1 untuk BUG-090). Totalnya kini 107+142+62+9 = 320, ditambah 14 baris matriks = **334**.
 >
 > **(18 November 2026) Modul H bertambah 3 kasus** (TC-CMP-094 s.d. 096, P2) untuk modal yang terpotong di layar pendek, BUG-087 s.d. BUG-089. Totalnya kini 107+141+61+9 = 318, ditambah 14 baris matriks = **332**.
 >
