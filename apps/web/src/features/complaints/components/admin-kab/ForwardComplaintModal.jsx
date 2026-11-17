@@ -113,109 +113,129 @@ export default function ForwardComplaintModal({ complaint, onClose, onDone }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      {/* TANPA `overflow-hidden` (14 September 2026). Panel daftar OPD berdiri
-          absolut di dalam kartu ini, sehingga pemotongan apa pun di sini
-          memenggalnya: terukur hanya 2 dari 63 pilihan yang muat, sisanya
-          terpotong 149px di bawah dasar kartu bersama tombol Batal/Teruskan.
-          Panelnya kini boleh melewati batas kartu seperti dropdown lazimnya,
-          dan menutup sendiri begitu satu OPD dipilih.
-
-          640px, bukan 480px: nama instansi terpanjang 97 karakter dan terpotong
-          pada lebar lama. */}
+    // LATAR INILAH YANG MENGGULIR, bukan kartunya (BUG-089, 18 November 2026).
+    // Pola yang sama dengan AlihkanComplaintModal (BUG-084): `useBodyScrollLock`
+    // mengunci `body`, dan latar yang memusatkan kartu tanpa wilayah gulir
+    // membuat kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke
+    // bawah tanpa cara mencapainya. Terukur pada
+    // `7ea124f`: pada 640x360 kartu hanya bersisa 1 px, dan pada 568x320 kedua
+    // tombolnya berakhir di y 322.
+    //
+    // `min-h-full` + `items-center` di pembungkus dalam: di layar lapang kartu
+    // tetap di tengah, di layar pendek kartu berawal dari atas dan dapat
+    // digulir sampai tombolnya.
+    //
+    // Bukan badan kartu yang menggulir: badan semacam itu ikut memotong panel
+    // daftar OPD yang berdiri absolut (lihat catatan 14 September di bawah).
+    // Dengan latar yang menggulir, panel tetap mengapung bebas dan
+    // `useKeepInViewport` membatasinya pada layar.
+    <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-slate-900/60 backdrop-blur-sm">
       <div
-        ref={refDialog}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={idJudul}
-        className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px] focus:outline-none"
+        className="flex min-h-full items-center justify-center p-4"
       >
-        <div className="px-6 pt-6 pb-4 border-b border-border relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full text-text-secondary hover:bg-surface-container transition-colors"
-            aria-label="Tutup"
-          >
-            <X size={18} />
-          </button>
-          <h3
-            id={idJudul}
-            className="font-bold text-text-primary text-lg leading-tight flex items-center gap-2"
-          >
-            <Building2 size={18} className="shrink-0" />
-            Teruskan ke OPD berwenang
-          </h3>
-          <p className="text-sm text-text-secondary mt-1">
-            Pengaduan {complaint.ticketNo ? `#${complaint.ticketNo}` : 'ini'} dikirim tanpa tujuan.
-            Pilih OPD yang berwenang menanganinya.
-          </p>
-        </div>
+        {/* TANPA `overflow-hidden` (14 September 2026). Panel daftar OPD berdiri
+            absolut di dalam kartu ini, sehingga pemotongan apa pun di sini
+            memenggalnya: terukur hanya 2 dari 63 pilihan yang muat, sisanya
+            terpotong 149px di bawah dasar kartu bersama tombol Batal/Teruskan.
+            Panelnya kini boleh melewati batas kartu seperti dropdown lazimnya,
+            dan menutup sendiri begitu satu OPD dipilih.
 
-        <div className="px-6 py-5 space-y-4">
-          {galat && (
-            <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
-              {galat}
-            </div>
-          )}
+            640px, bukan 480px: nama instansi terpanjang 97 karakter dan terpotong
+            pada lebar lama. */}
+        <div
+          ref={refDialog}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={idJudul}
+          className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[640px] focus:outline-none"
+        >
+          <div className="px-6 pt-6 pb-4 border-b border-border relative">
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-text-secondary hover:bg-surface-container transition-colors"
+              aria-label="Tutup"
+            >
+              <X size={18} />
+            </button>
+            <h3
+              id={idJudul}
+              className="font-bold text-text-primary text-lg leading-tight flex items-center gap-2"
+            >
+              <Building2 size={18} className="shrink-0" />
+              Teruskan ke OPD berwenang
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              Pengaduan {complaint.ticketNo ? `#${complaint.ticketNo}` : 'ini'} dikirim tanpa tujuan.
+              Pilih OPD yang berwenang menanganinya.
+            </p>
+          </div>
 
-          <Dropdown
-            label="OPD yang berwenang"
-            id="forward-opd"
-            options={opdOptions}
-            value={opdId}
-            onChange={gantiOpd}
-            /* Petugas triase membuka modal ini sekali per pengaduan yang belum
-               bertujuan, dan tiap kali menghadapi seluruh OPD aktif. Syarat
-               `> 1` menutup keadaan daftarnya belum termuat, ketika isinya baru
-               penampung "Pilih OPD". */
-            searchable={opdOptions.length > 1}
-            searchPlaceholder="Cari nama OPD..."
-            emptySearchLabel="Tidak ada OPD yang cocok"
-            /* 320px, bukan 240px bawaan: petugas yang belum tahu nama persis
-               instansinya menggulir daftar, dan delapan baris sekaligus lebih
-               mudah disapu mata daripada enam. */
-            menuMaxHeight="max-h-80"
-          />
+          <div className="px-6 py-5 space-y-4">
+            {galat && (
+              <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm font-semibold">
+                {galat}
+              </div>
+            )}
 
-          {pindahTingkat && (
-            <div className="space-y-2">
-              <p className="text-sm text-text-secondary">
-                {opdTerpilih.name} berada di tingkat {LABEL_TINGKAT[tingkatTujuan]}, sedangkan
-                pengaduan ini tingkat {LABEL_TINGKAT[complaint.tingkat]}. Pilih kategori yang sesuai
-                untuk tingkat {LABEL_TINGKAT[tingkatTujuan]}.
-              </p>
-              <Dropdown
-                label={`Kategori tingkat ${LABEL_TINGKAT[tingkatTujuan]}`}
-                id="forward-kategori"
-                options={kategoriOptions}
-                value={kategori}
-                onChange={setKategori}
-              />
-              {galatKategori && (
-                <p className="text-sm text-error font-semibold">
-                  Gagal memuat daftar kategori. Tutup lalu buka lagi jendela ini.
+            <Dropdown
+              label="OPD yang berwenang"
+              id="forward-opd"
+              options={opdOptions}
+              value={opdId}
+              onChange={gantiOpd}
+              /* Petugas triase membuka modal ini sekali per pengaduan yang belum
+                 bertujuan, dan tiap kali menghadapi seluruh OPD aktif. Syarat
+                 `> 1` menutup keadaan daftarnya belum termuat, ketika isinya baru
+                 penampung "Pilih OPD". */
+              searchable={opdOptions.length > 1}
+              searchPlaceholder="Cari nama OPD..."
+              emptySearchLabel="Tidak ada OPD yang cocok"
+              /* 320px, bukan 240px bawaan: petugas yang belum tahu nama persis
+                 instansinya menggulir daftar, dan delapan baris sekaligus lebih
+                 mudah disapu mata daripada enam. */
+              menuMaxHeight="max-h-80"
+            />
+
+            {pindahTingkat && (
+              <div className="space-y-2">
+                <p className="text-sm text-text-secondary">
+                  {opdTerpilih.name} berada di tingkat {LABEL_TINGKAT[tingkatTujuan]}, sedangkan
+                  pengaduan ini tingkat {LABEL_TINGKAT[complaint.tingkat]}. Pilih kategori yang sesuai
+                  untuk tingkat {LABEL_TINGKAT[tingkatTujuan]}.
                 </p>
-              )}
-            </div>
-          )}
+                <Dropdown
+                  label={`Kategori tingkat ${LABEL_TINGKAT[tingkatTujuan]}`}
+                  id="forward-kategori"
+                  options={kategoriOptions}
+                  value={kategori}
+                  onChange={setKategori}
+                />
+                {galatKategori && (
+                  <p className="text-sm text-error font-semibold">
+                    Gagal memuat daftar kategori. Tutup lalu buka lagi jendela ini.
+                  </p>
+                )}
+              </div>
+            )}
 
-          <p className="text-xs text-text-secondary">
-            Sesudah diteruskan, pengaduan menjadi tanggung jawab OPD itu dan tak dapat dialihkan
-            lagi dari halaman ini.
-          </p>
-        </div>
+            <p className="text-xs text-text-secondary">
+              Sesudah diteruskan, pengaduan menjadi tanggung jawab OPD itu dan tak dapat dialihkan
+              lagi dari halaman ini.
+            </p>
+          </div>
 
-        <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={sedangKirim}>
-            Batal
-          </Button>
-          <Button onClick={kirim} disabled={!siapKirim || sedangKirim}>
-            <span className="flex items-center gap-1.5">
-              <Send size={14} />
-              {sedangKirim ? 'Meneruskan...' : 'Teruskan'}
-            </span>
-          </Button>
+          <div className="px-6 py-4 border-t border-border flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={sedangKirim}>
+              Batal
+            </Button>
+            <Button onClick={kirim} disabled={!siapKirim || sedangKirim}>
+              <span className="flex items-center gap-1.5">
+                <Send size={14} />
+                {sedangKirim ? 'Meneruskan...' : 'Teruskan'}
+              </span>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

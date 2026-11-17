@@ -123,143 +123,160 @@ export default function ConfirmStatusModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={(e) => e.target === e.currentTarget && onCancel?.()}
-    >
-      {/* `width:100%` + `margin: 0 16px` (gaya inline sebelumnya) menempati
-          100% + 32px pada flex item -- di layar lebih sempit dari maxWidth (yaitu
-          hampir semua ponsel) sisi kanan modal terpotong. Jarak tepi kini dari
-          `p-4` induk, sehingga `w-full` benar-benar pas di dalamnya. */}
+    // LATAR INILAH YANG MENGGULIR, bukan kartunya (BUG-088, 18 November 2026).
+    // Pola yang sama dengan AlihkanComplaintModal (BUG-084): `useBodyScrollLock`
+    // mengunci `body`, dan latar yang memusatkan kartu tanpa wilayah gulir
+    // membuat kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke
+    // bawah tanpa cara mencapainya. Terukur pada
+    // `7ea124f`: tombol Batal berakhir di y 370 pada 640x360, judul di y -36
+    // pada 568x320.
+    //
+    // `min-h-full` + `items-center` di pembungkus dalam: di layar lapang kartu
+    // tetap di tengah, di layar pendek kartu berawal dari atas dan dapat
+    // digulir sampai tombolnya.
+    //
+    // Klik latar menutup modal, dan penangannya ada di PEMBUNGKUS DALAM: area
+    // kosong di sekitar kartu kini pembungkus itu, sehingga
+    // `e.target === e.currentTarget` di lapisan luar tak pernah terpicu lagi.
+    <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        ref={refDialog}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={idJudul}
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[440px] focus:outline-none"
+        className="flex min-h-full items-center justify-center p-4"
+        onClick={(e) => e.target === e.currentTarget && onCancel?.()}
       >
-        {/* Header berwarna sesuai jenis aksi */}
+        {/* `width:100%` + `margin: 0 16px` (gaya inline sebelumnya) menempati
+            100% + 32px pada flex item -- di layar lebih sempit dari maxWidth (yaitu
+            hampir semua ponsel) sisi kanan modal terpotong. Jarak tepi kini dari
+            `p-4` induk, sehingga `w-full` benar-benar pas di dalamnya. */}
         <div
-          className={`px-6 pt-6 pb-4 ${isDangerous ? 'bg-red-50' : 'bg-amber-50'} border-b ${isDangerous ? 'border-red-100' : 'border-amber-100'} relative`}
+          ref={refDialog}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={idJudul}
+          className="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 w-full max-w-[440px] focus:outline-none"
         >
-          <button
-            type="button"
-            onClick={onCancel}
-            aria-label="Tutup"
-            className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-all"
+          {/* Header berwarna sesuai jenis aksi */}
+          <div
+            className={`px-6 pt-6 pb-4 ${isDangerous ? 'bg-red-50' : 'bg-amber-50'} border-b ${isDangerous ? 'border-red-100' : 'border-amber-100'} relative`}
           >
-            <X size={18} />
-          </button>
-
-          <div className="flex items-center gap-3 mb-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDangerous ? 'bg-red-100' : 'bg-amber-100'}`}
+            <button
+              type="button"
+              onClick={onCancel}
+              aria-label="Tutup"
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-all"
             >
-              {isDangerous ? (
-                <ShieldAlert size={20} className="text-red-600" />
-              ) : (
-                <AlertTriangle size={20} className="text-amber-600" />
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Konfirmasi Perubahan
-              </p>
-              <h3 id={idJudul} className="font-bold text-slate-800 text-base leading-tight">
-                Ubah Status Pengaduan
-              </h3>
-            </div>
-          </div>
+              <X size={18} />
+            </button>
 
-          {/* Visualisasi status lama → baru */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <StatusBadge status={fromStatus} />
-            <ArrowRight size={16} className="text-slate-400 flex-shrink-0" />
-            <StatusBadge status={toStatus} />
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Anda akan mengubah status tiket ini dari{' '}
-            <span className="font-semibold text-slate-800">{fromStatus}</span> menjadi{' '}
-            <span className="font-semibold text-slate-800">{toStatus}</span>.{' '}
-            {isDangerous
-              ? 'Tindakan ini akan memberitahu pelapor bahwa pengaduannya ditolak.'
-              : 'Pelapor akan mendapat notifikasi atas perubahan status ini.'}
-          </p>
-
-          {requireReason && (
-            <div className={`transition-all ${shake ? 'animate-shake' : ''}`}>
-              {/* Kata-katanya MENGIKUTI status tujuan (4 November 2026). Dua
-                  status menuntut catatan dengan alasan yang berbeda: "Ditolak"
-                  memerlukan alasan penolakan, "Perlu Perbaikan" memerlukan
-                  daftar apa yang kurang. Satu label untuk keduanya menyuruh
-                  petugas menuliskan hal yang salah. */}
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                {isDangerous ? 'Alasan Penolakan' : 'Catatan untuk Pelapor'}{' '}
-                <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                ref={textareaRef}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder={
-                  isDangerous
-                    ? 'Tuliskan alasan penolakan pengaduan ini secara jelas...'
-                    : 'Tuliskan apa yang perlu dilengkapi pelapor...'
-                }
-                rows={3}
-                className={`w-full text-sm px-3.5 py-2.5 rounded-xl border bg-slate-50 focus:bg-white text-slate-800 placeholder-slate-400 outline-none transition-all resize-none
-                  ${!reason.trim() && shake
-                    ? 'border-red-400 ring-2 ring-red-200 focus:border-red-400 focus:ring-red-200'
-                    : 'border-slate-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100'
-                  }`}
-              />
-              {!reason.trim() && shake && (
-                <p className="text-xs text-red-500 mt-1 font-medium">
-                  {isDangerous
-                    ? 'Alasan penolakan wajib diisi.'
-                    : 'Catatan wajib diisi. Pelapor perlu tahu apa yang kurang.'}
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDangerous ? 'bg-red-100' : 'bg-amber-100'}`}
+              >
+                {isDangerous ? (
+                  <ShieldAlert size={20} className="text-red-600" />
+                ) : (
+                  <AlertTriangle size={20} className="text-amber-600" />
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Konfirmasi Perubahan
                 </p>
-              )}
+                <h3 id={idJudul} className="font-bold text-slate-800 text-base leading-tight">
+                  Ubah Status Pengaduan
+                </h3>
+              </div>
             </div>
-          )}
 
-          {!requireReason && (
-            <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-              <CheckCircle2 size={15} className="text-blue-500 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                Perubahan status tidak dapat dibatalkan setelah dikonfirmasi. Pastikan Anda sudah
-                yakin sebelum melanjutkan.
-              </p>
+            {/* Visualisasi status lama → baru */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusBadge status={fromStatus} />
+              <ArrowRight size={16} className="text-slate-400 flex-shrink-0" />
+              <StatusBadge status={toStatus} />
             </div>
-          )}
+          </div>
+
+          {/* Body */}
+          <div className="px-6 py-5 space-y-4">
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Anda akan mengubah status tiket ini dari{' '}
+              <span className="font-semibold text-slate-800">{fromStatus}</span> menjadi{' '}
+              <span className="font-semibold text-slate-800">{toStatus}</span>.{' '}
+              {isDangerous
+                ? 'Tindakan ini akan memberitahu pelapor bahwa pengaduannya ditolak.'
+                : 'Pelapor akan mendapat notifikasi atas perubahan status ini.'}
+            </p>
+
+            {requireReason && (
+              <div className={`transition-all ${shake ? 'animate-shake' : ''}`}>
+                {/* Kata-katanya MENGIKUTI status tujuan (4 November 2026). Dua
+                    status menuntut catatan dengan alasan yang berbeda: "Ditolak"
+                    memerlukan alasan penolakan, "Perlu Perbaikan" memerlukan
+                    daftar apa yang kurang. Satu label untuk keduanya menyuruh
+                    petugas menuliskan hal yang salah. */}
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  {isDangerous ? 'Alasan Penolakan' : 'Catatan untuk Pelapor'}{' '}
+                  <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  ref={textareaRef}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder={
+                    isDangerous
+                      ? 'Tuliskan alasan penolakan pengaduan ini secara jelas...'
+                      : 'Tuliskan apa yang perlu dilengkapi pelapor...'
+                  }
+                  rows={3}
+                  className={`w-full text-sm px-3.5 py-2.5 rounded-xl border bg-slate-50 focus:bg-white text-slate-800 placeholder-slate-400 outline-none transition-all resize-none
+                    ${!reason.trim() && shake
+                      ? 'border-red-400 ring-2 ring-red-200 focus:border-red-400 focus:ring-red-200'
+                      : 'border-slate-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100'
+                    }`}
+                />
+                {!reason.trim() && shake && (
+                  <p className="text-xs text-red-500 mt-1 font-medium">
+                    {isDangerous
+                      ? 'Alasan penolakan wajib diisi.'
+                      : 'Catatan wajib diisi. Pelapor perlu tahu apa yang kurang.'}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!requireReason && (
+              <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                <CheckCircle2 size={15} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-blue-700 font-medium leading-relaxed">
+                  Perubahan status tidak dapat dibatalkan setelah dikonfirmasi. Pastikan Anda sudah
+                  yakin sebelum melanjutkan.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 pb-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleConfirm}
+              className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shadow-md
+                ${isDangerous
+                  ? 'bg-red-600 hover:bg-red-700 shadow-red-200'
+                  : 'bg-primary hover:bg-primary-hover shadow-primary/20'
+                }`}
+            >
+              {isDangerous ? 'Ya, Tolak Pengaduan' : `Ya, Ubah ke "${toStatus}"`}
+            </button>
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 pb-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all"
-          >
-            Batal
-          </button>
-          <button
-            onClick={handleConfirm}
-            className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shadow-md
-              ${isDangerous
-                ? 'bg-red-600 hover:bg-red-700 shadow-red-200'
-                : 'bg-primary hover:bg-primary-hover shadow-primary/20'
-              }`}
-          >
-            {isDangerous ? 'Ya, Tolak Pengaduan' : `Ya, Ubah ke "${toStatus}"`}
-          </button>
-        </div>
       </div>
-
     </div>
   );
 }
