@@ -166,7 +166,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-071](#bug-071) | Koneksi Redis tanpa batas waktu: Redis macet membuat seluruh API tak menjawab, termasuk `/health` | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
 | [BUG-072](#bug-072) | `GET /health` tetap 200 selama basis data mati | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.3) |
 | [BUG-073](#bug-073) | Cadangan terjadwal harian yang diminta PRD belum ada | Medium | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.6) |
-| [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.6) |
+| [BUG-074](#bug-074) | `pnpm pulihkan` gagal pada tujuan yang belum ada, dan akan gagal pada dump di atas 512 MiB | Low | Terkonfirmasi | **Ditutup** | QA-PERF (`TEST_BEBAN.md` §13.6) |
 | [BUG-075](#bug-075) | Kalimat Inggris mentah axios tampil kepada pengguna saat API tak terjangkau | Low | Terkonfirmasi | Terbuka | QA-PERF (`TEST_BEBAN.md` §13.5) |
 | [BUG-076](#bug-076) | Tombol "Selesaikan Pengaduan" tidak pernah muncul karena syaratnya masih `'Diproses'` | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-069) |
 | [BUG-077](#bug-077) | Penerusan menghasilkan tiket dengan tingkat dan kategori yang tak sepadan dengan OPD tujuan | Medium | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-054) |
@@ -180,7 +180,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **79 ditutup, 7 terbuka** (Medium: tidak ada; Low: BUG-074, BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **80 ditutup, 6 terbuka** (Medium: tidak ada; Low: BUG-075, BUG-082, BUG-083, BUG-084, BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4499,6 +4499,33 @@ Kegagalan kedua terjadi sesudah dekripsi dan sebelum SQL apa pun dijalankan, jad
 
 Tulis di runbook bahwa tujuan harus dibuat lebih dulu, atau buat skripnya menawarkan itu. Alirkan dump ke `psql` lewat stdin alih-alih memuatnya ke memori.
 
+**Status 17 November 2026: Ditutup**
+
+Diperbaiki di `33f42b9`, masuk lewat PR #47, merge `main` `7fc36dd`. CI 3 dari 3 job hijau pada `33f42b9`. Isi `7fc36dd` sama persis dengan `33f42b9`.
+
+Akar masalahnya dua, sesuai gejala:
+
+1. Penjaga 3 ("tujuan tak boleh berisi tabel") menghitung tabel dengan menyambung ke basis data tujuan itu sendiri, jadi tujuan yang belum dibuat dijawab `FATAL: database "..." does not exist`.
+2. Dump hasil dekripsi dibaca utuh menjadi satu string (`readFileSync(..., 'utf8')`) lalu diserahkan ke `spawnSync({ input })`.
+
+Keduanya dikerjakan menurut arah perbaikan di atas:
+
+- **Tujuan yang belum ada dibuat kosong.** Skrip memeriksa `pg_database` dan menjalankan `CREATE DATABASE` dari basis data `DATABASE_URL`, bukan dari `postgres` yang hak aksesnya tak selalu dimiliki. Ia mencetak `Basis data "<nama>" belum ada; dibuat kosong.` Basis data baru tak berisi apa pun untuk ditimpa, jadi ketiga penjaga tetap utuh. Tanpa hak `CREATEDB` skrip berhenti dengan pesan yang menyebutnya.
+- **Dump dialirkan ke stdin `psql`** lewat `spawn` + `pipeline`, tidak lagi dimuat ke memori. stdout `psql` dibuang. Bila `psql` berhenti di tengah, yang dilaporkan stderr-nya, bukan EPIPE.
+
+Pagar, keduanya merah terhadap kode lama dengan alasan yang benar:
+
+- `scripts/pulihkan.spec.ts` (unit): berkas `MAX_STRING_LENGTH + 1` bita (536.870.889) disuapkan ke proses Node yang menghitung bita di stdin. Sebelum perbaikan: `Cannot create a string longer than 0x1fffffe8 characters`.
+- `test/pulihkan-tujuan-baru.e2e-spec.ts` (e2e): pemulihan ke basis data sekali pakai `skm_pulih_uji_<stempel>` yang dipastikan belum ada, lalu dibuang dengan `DROP DATABASE ... WITH (FORCE)`. Sebelum perbaikan: FATAL yang sama persis dengan gejala 1.
+
+Di luar suite, diuji sekali jalan dengan `psql` sungguhan di `skm-db`: dump sintetis **587.203.198 bita** ke basis data sekali pakai pulih 582.653 baris dalam 52 detik, **tanpa `--max-old-space-size`**, lalu basis data itu dibuang. Penjaga 3 masih menolak tujuan berisi (`"skm_beban" sudah berisi 16 tabel`).
+
+**Yang tersisa:**
+
+- Runbook `docs/keamanan/enkripsi-at-rest.md` §4 sudah diperbarui, tetapi hanya di mesin pengembang: `docs/keamanan/` tidak dilacak git sejak `4a5d77c`.
+- Pemulihan T3 (437 MB) belum diulang dengan skrip baru. Bukti dump besar datang dari dump sintetis di atas, bukan dari data T3.
+- Pemulihan yang gagal di tengah tetap meninggalkan tujuan terisi sebagian, karena `psql` berjalan tanpa `--single-transaction`. Perilaku ini sudah ada sebelumnya dan tidak diubah.
+
 ---
 
 <a id="bug-075"></a>
@@ -8335,3 +8362,4 @@ hanya dibaca, tidak diubah.
 | 7.46 | 16 November 2026 | **BUG-066 ditutup: 86 temuan, 77 ditutup, 9 terbuka.** PR #44, merge `27f1bcb`. CI 3 dari 3 job hijau pada `5b99192`; jalan pertama `6c7e7ee` merah karena kasus produksi uji barunya tak membawa `TURNSTILE_SECRET_KEY`. `dev-login` tidak didaftarkan di produksi maupun bila saklarnya mati, sehingga pesan, header batas laju, dan 429-nya kini sama dengan rute karangan. Dijaga e2e baru `dev-login-tak-terdaftar.e2e-spec.ts`. |
 | 7.47 | 16 November 2026 | **BUG-067 ditutup: 86 temuan, 78 ditutup, 8 terbuka.** PR #45, merge `c790e94`. CI 3 dari 3 job hijau pada `6b88c41`. Distribusi nilai `GET /statistics` tak lagi menyaring Sampah lewat dua join atas seluruh `answers`; jawaban survei di Sampah dibaca lewat daftar id dan dikurangkan. Pada T3 permintaan pertama turun dari 2.872-3.358 ms ke 1.605-1.705 ms, diukur dengan pelari yang sama. Varian relasi `deletedAt: { not: null }` diganti sebelum commit karena memburuk pada Sampah besar. |
 | 7.48 | 16 November 2026 | **BUG-072 ditutup: 86 temuan, 79 ditutup, 7 terbuka.** PR #46, merge `54e837c`. CI 3 dari 3 job hijau pada `5095029`. `/health` tetap statis sebagai liveness; endpoint baru `GET /health/siap` memeriksa basis data (`SELECT 1`) dan penyimpan sesi (`PING`), masing-masing dibatasi 2 detik, dan menjawab 503 `TIDAK_SIAP` dengan keadaan per komponen bila salah satunya gagal. Dijaga e2e baru `db-padam.e2e-spec.ts` yang memacetkan dan memutus proksi TCP di depan Postgres. |
+| 7.49 | 17 November 2026 | **BUG-074 ditutup: 86 temuan, 80 ditutup, 6 terbuka.** PR #47, merge `7fc36dd`. CI 3 dari 3 job hijau pada `33f42b9`. `pnpm pulihkan` membuat tujuan yang belum ada (kosong, dari basis data `DATABASE_URL`) dan mengalirkan dump ke stdin `psql` alih-alih memuatnya sebagai satu string. Dump sintetis 587.203.198 bita pulih utuh tanpa `--max-old-space-size`. Dijaga `scripts/pulihkan.spec.ts` dan e2e baru `pulihkan-tujuan-baru.e2e-spec.ts`. |

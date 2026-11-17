@@ -747,7 +747,7 @@ Diukur pada `main` `5cda6fa`. Sasaran dari PRD §10: "target uptime ≥ 99%; bac
 | Sesi selamat dari restart API dan restart Redis | **Lulus di server.** Token yang sama tetap dijawab 200. Di peramban tidak selamat bila Redis padam lebih dari 5 detik ([BUG-070](BUG_REPORTS.md#bug-070)). |
 | Ketahanan saat Redis gangguan | **Gagal.** Redis mati mengeluarkan pengguna; Redis macet membuat seluruh API tak menjawab ([BUG-070](BUG_REPORTS.md#bug-070), [BUG-071](BUG_REPORTS.md#bug-071)). Diperbaiki hari yang sama, §13.9. |
 | `/health` mewakili keadaan layanan | **Gagal.** Tetap 200 selama DB mati ([BUG-072](BUG_REPORTS.md#bug-072)). **Diperbarui 16 November 2026:** BUG-072 ditutup lewat PR #46 (merge `54e837c`); `/health` tetap liveness, kesiapan kini dijawab `/health/siap` (503 bila DB atau penyimpan sesi gagal). Uji §13.3 belum diulang di rig. |
-| Cadangan dapat dipulihkan | **Lulus**, dengan dua catatan ([BUG-074](BUG_REPORTS.md#bug-074)). |
+| Cadangan dapat dipulihkan | **Lulus**, dengan dua catatan ([BUG-074](BUG_REPORTS.md#bug-074)). **Diperbarui 17 November 2026:** BUG-074 ditutup lewat PR #47 (merge `7fc36dd`); kedua catatan tak berlaku lagi. Tujuan yang belum ada dibuat kosong, dan dump dialirkan ke `psql`. Pemulihan T3 belum diulang. |
 | Cadangan terjadwal harian | **Belum ada** ([BUG-073](BUG_REPORTS.md#bug-073)). |
 | Soak 30 menit jalur baca | **Lulus.** 276.370 permintaan, 0 gagal. Belum cukup panjang untuk menyatakan bebas kebocoran memori. |
 
@@ -827,6 +827,8 @@ Masuk sungguhan lewat antarmuka di server dev (`warga`, Admin Kabupaten), lalu j
 
 **Catatan cara:** jalan T3 memakai `node --max-old-space-size=4096`, yang tidak dipakai `pnpm pulihkan`. Tanpa flag itu belum diuji. Lampiran ikut tersalin ke cadangan tetapi tidak dipulihkan, sesuai rancangan skripnya. Waktu menyalin lampiran dan menyalakan API tak termasuk 114 detik itu.
 
+**Diperbarui 17 November 2026:** BUG-074 ditutup lewat PR #47 (merge `7fc36dd`). `pnpm pulihkan` kini membuat tujuan yang belum ada dan mengalirkan dump ke stdin `psql` alih-alih memuatnya ke memori. Dump sintetis 587.203.198 bita, di atas batas string Node, pulih 582.653 baris dalam 52 detik tanpa `--max-old-space-size`. Pemulihan T3 sendiri belum diulang dengan skrip baru.
+
 ### 13.7 Soak
 
 10 pekerja berputar pada tujuh jalur baca, tanpa jeda, 30 menit.
@@ -884,7 +886,7 @@ Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesud
 | API pulih sendiri sesudah DB dan Redis kembali | **Lulus.** Tanpa restart; paling lama 2,5 detik sesudah DB dinyalakan, 0,3 detik sesudah Redis | §13.1 |
 | Tahan gangguan Redis | **Lulus sesudah perbaikan.** BUG-070 dan BUG-071 sudah ditutup | §13.9 |
 | Soak 30 menit jalur baca | **Lulus.** 276.370 permintaan, 0 gagal | §13.7 |
-| Cadangan dapat dipulihkan | **Lulus, dengan dua catatan** dari BUG-074 | §13.6 |
+| Cadangan dapat dipulihkan | **Lulus, dengan dua catatan** dari BUG-074. **Diperbarui 17 November 2026:** BUG-074 ditutup (PR #47) | §13.6 |
 | Uptime ≥ 99% | **Belum dapat dinyatakan.** Belum ada server maupun pemantau | §13.1 |
 | Cadangan terjadwal harian | **Belum ada** (BUG-073, Medium) | §13.6 |
 
@@ -895,7 +897,7 @@ Pada kolom "sebelum" untuk Redis macet, 200 berarti jawaban yang baru tiba sesud
 3. **Jalur tulis tetap ditunda** (§11). Beban saat warga mengirim jawaban dan pengaduan, serta gangguan selagi menulis, belum diukur.
 4. **Angka di atas diukur sebelum PR #17 dan #18**, pada `main` `9e72abb` dan `5cda6fa`. PR #17 mengubah layanan `dashboard`, `opd`, dan `ikm`; di `dashboard` penyaring status belum tuntas kini memakai `STATUS_BELUM_TUNTAS`. Dampaknya pada waktu jawab belum diukur ulang. Yang berjalan terhadap `a1e3c1f` hanya uji fungsional, bukan uji beban. **Diperbarui 9 November 2026:** kini diukur ulang di §15.
 5. **Batas pada data besar tetap terbuka.** Permintaan pertama `/statistics` melewati 3 detik pada T3 (3.739 / 6.255 ms, BUG-067) dan pada 310.000 pengaduan (BUG-068). `GET /complaints` memindai seluruh tabel (BUG-069). Ketiganya Low dan berada di atas ukuran yang diminta QA-PERF. **Diperbarui 13 November 2026:** BUG-069 ditutup lewat PR #38 (merge `96a2692`) dengan indeks `created_at`; waktu jawab endpoint belum diukur ulang. **Diperbarui lagi 13 November 2026:** BUG-068 ditutup lewat PR #39 (merge `48c25fe`); pada kolom C §12.6 permintaan pertama `/statistics` turun dari 4.320 / 4.384 ms ke 1.210 / 1.156 ms. BUG-067 tetap terbuka. **Diperbarui 16 November 2026:** BUG-067 ditutup lewat PR #45 (merge `c790e94`); pada T3 permintaan pertama `/statistics` turun dari 2.872-3.358 ms ke 1.605-1.705 ms, dengan pelari yang sama. `skm_beban` kini memuat T3.
-6. **Temuan Low lain yang tetap terbuka:** BUG-072 (`/health` tetap 200 saat DB mati), BUG-074, dan BUG-075. **Diperbarui 16 November 2026:** BUG-072 ditutup lewat PR #46 (merge `54e837c`) dengan endpoint kesiapan `/health/siap`; BUG-074 dan BUG-075 tetap terbuka.
+6. **Temuan Low lain yang tetap terbuka:** BUG-072 (`/health` tetap 200 saat DB mati), BUG-074, dan BUG-075. **Diperbarui 16 November 2026:** BUG-072 ditutup lewat PR #46 (merge `54e837c`) dengan endpoint kesiapan `/health/siap`; BUG-074 dan BUG-075 tetap terbuka. **Diperbarui 17 November 2026:** BUG-074 ditutup lewat PR #47 (merge `7fc36dd`): `pnpm pulihkan` membuat tujuan yang belum ada dan mengalirkan dump ke `psql`. BUG-075 tetap terbuka.
 7. **Yang belum diukur di §13.8 tetap belum diukur**, antara lain shutdown anggun, disk penuh, koneksi DB habis, dan soak lebih dari 30 menit.
 
 ## 15. Pengukuran ulang sesudah PR #17 dan #18 (9 November 2026)
