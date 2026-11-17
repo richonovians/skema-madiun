@@ -12,6 +12,7 @@ import ErrorState from '@/components/ui/ErrorState';
 import { downloadTablePdf } from '@/utils/pdf';
 import { unduhCsv } from '@/utils/unduh';
 import { KOLOM_MONITORING_PENGADUAN } from '@/utils/pdfKolom';
+import { labelKategoriBertingkat } from '@/utils/enumLabels';
 import { useAsync } from '@/hooks/useAsync';
 import { getComplaints } from '@/features/complaints/services/complaints.api';
 import { getComplaintCategories } from '@/features/complaints/services/reference.api';
@@ -69,7 +70,7 @@ export default function AdminKabComplaintsPage() {
       { value: '', label: 'Semua Kategori' },
       ...(categories ?? []).map((c) => ({
         value: c.kode,
-        label: c.tingkat ? `${c.nama} (${c.tingkat === 'kecamatan' ? 'Kec.' : 'Kab.'})` : c.nama,
+        label: labelKategoriBertingkat(c.nama, c.tingkat),
       })),
     ],
     [categories],

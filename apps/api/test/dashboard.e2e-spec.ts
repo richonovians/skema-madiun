@@ -189,12 +189,21 @@ describe('Dashboard & Statistics (e2e)', () => {
       // Kodenya 'kab_lainnya', bukan 'lainnya': taksonomi per tingkat
       // (4 November 2026) memberi kedua tingkat sebuah "Lainnya" bernama sama,
       // dan hanya awalan kodenya yang membedakan keduanya.
+      //
+      // Singgahan dibuang lebih dulu (BUG-085, 18 November 2026). Tanpanya
+      // pemeriksaan `tingkat` di bawah membaca muatan jalan sebelumnya:
+      // terukur, jalan pertama sesudah perbaikan tetap merah `undefined`
+      // karena singgahan 60 detik masih memuat bentuk lama.
+      await singgahan.hapus(KUNCI_SINGGAHAN_STATISTIK);
       const res = await request(app.getHttpServer()).get('/api/v1/statistics');
       const lainnya = res.body.data.complaintCategories.find(
         (c: { kode: string }) => c.kode === 'kab_lainnya',
       );
       expect(lainnya).toBeDefined();
       expect(lainnya.nama).toBe('Lainnya');
+      // BUG-085: `tingkat` harus sampai ke klien, melewati serializer global.
+      // Tanpanya dua "Lainnya" di statistik tak terbedakan.
+      expect(lainnya.tingkat).toBe('kabupaten');
       expect(lainnya.count).toBeGreaterThan(0);
     });
 

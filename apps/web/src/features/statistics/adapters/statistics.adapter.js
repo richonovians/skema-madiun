@@ -1,4 +1,5 @@
 import { formatPeriodeLabel } from '@/features/surveys/adapters/survey.adapter';
+import { labelKategoriBertingkat } from '@/utils/enumLabels';
 
 /**
  * Terjemahkan StatisticsEntity backend (GET /statistics, INT-14, PUBLIK) ke
@@ -15,8 +16,10 @@ export function adaptStatistics(statistics) {
   return {
     summary: statistics.summary,
     ikmTrend: statistics.ikmTrend.map((p) => ({ month: formatPeriodeLabel(p.periode), value: p.value })),
+    // Label BERTINGKAT (BUG-085): kedua tingkat punya "Lainnya", dan tanpa
+    // akhiran kartu kategori menampilkan dua baris yang berbunyi sama.
     complaintCategories: statistics.complaintCategories.map((c) => ({
-      category: c.nama,
+      category: labelKategoriBertingkat(c.nama, c.tingkat),
       count: c.count,
     })),
     complaintStatus: adaptComplaintStatus(statistics.complaintStatus),
