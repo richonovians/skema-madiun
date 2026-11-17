@@ -179,8 +179,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | QA PR #18 (TC-CMP-090) |
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
+| [BUG-087](#bug-087) | Modal Bagikan survei terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | Pemindaian modal BUG-084 (TC-CMP-094) |
+| [BUG-088](#bug-088) | Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | Pemindaian modal BUG-084 (TC-CMP-095) |
+| [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | Terbuka | Pemindaian modal BUG-084 (TC-CMP-096) |
 
-**Rekap** — 86 temuan: **84 ditutup, 2 terbuka** (Medium: tidak ada; Low: BUG-085, BUG-086).
+**Rekap** — 89 temuan: **84 ditutup, 5 terbuka** (Medium: tidak ada; Low: BUG-085, BUG-086, BUG-087, BUG-088, BUG-089).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5059,6 +5062,117 @@ Perlu rancangan tersendiri sebelum dikerjakan: bentuk baris riwayat untuk perist
 
 ---
 
+<a id="bug-087"></a>
+
+### BUG-087 — Modal Bagikan survei terpotong dan tak dapat digulir di layar pendek
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pemindaian modal sesudah BUG-084, `main` `7ea124f` |
+| **Tanggal**  | 18 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang, ukuran layar diatur Playwright |
+| **Berkas**   | `apps/web/src/features/surveys/components/ShareSurveyModal.jsx:170` |
+| **Severity** | Low (usulan penguji) -- terpotong di keempat ukuran yang diukur, termasuk 360x640; tombol Tutup dan Unduh QR tak terjangkau |
+
+**Gejala**
+
+Modal Bagikan (QR dan tautan survei) dibuka dari menu aksi survei aktif di `/admin-kab/surveys`. Kartunya setinggi 620-754 px tergantung lebar layar.
+
+| Layar | Tepi atas judul | Tepi atas tombol Tutup | Tepi bawah tombol Unduh QR |
+| --- | ---: | ---: | ---: |
+| 360x640 | utuh | -19 | 651 |
+| 320x568 | -48 | -76 | 636 |
+| 640x360 | -85 | -113 | 465 |
+| 568x320 | -130 | -158 | 470 |
+
+**Akar masalah**
+
+Sama dengan [BUG-084](#bug-084). `useBodyScrollLock` mengunci `body`, sedangkan latar `fixed inset-0 flex items-center` memusatkan kartu tanpa wilayah gulir. Kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke bawah, dan tak ada yang dapat digulir untuk mencapainya.
+
+**Langkah reproduksi**
+
+1. Sebagai Admin Kabupaten, buka `/admin-kab/surveys` pada ukuran layar 320x568.
+2. Buka menu aksi survei aktif, pilih **Bagikan**.
+
+**Arah perbaikan (belum dicoba)**
+
+Pola yang sama dengan perbaikan BUG-084, yaitu latar yang menggulir. Modal ini menutup lewat klik latar (`e.target === e.currentTarget`), jadi penangannya harus ikut pindah ke pembungkus dalam.
+
+---
+
+<a id="bug-088"></a>
+
+### BUG-088 — Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pemindaian modal sesudah BUG-084, `main` `7ea124f` |
+| **Tanggal**  | 18 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang, ukuran layar diatur Playwright |
+| **Berkas**   | `apps/web/src/components/ui/ConfirmStatusModal.jsx:127` |
+| **Severity** | Low (usulan penguji) -- hanya pada layar mendatar; tombol konfirmasi penolakan tak terjangkau |
+
+**Gejala**
+
+Modal konfirmasi perubahan status dengan kolom catatan wajib, misalnya ke **Ditolak**, dibuka dari Kontrol Status di halaman detail pengaduan Admin Kabupaten maupun Admin OPD.
+
+| Layar | Tepi atas judul | Tepi bawah tombol Batal | Tepi bawah tombol Ya, Tolak Pengaduan |
+| --- | ---: | ---: | ---: |
+| 360x640 | utuh | utuh | utuh |
+| 320x568 | utuh | utuh | utuh |
+| 640x360 | utuh | 370 | 370 |
+| 568x320 | -36 | 326 | 374 |
+
+Pada 320x568 kartunya sendiri berawal di y -5, tetapi bantalannya menyembunyikan potongan itu dan tak ada isian yang terpotong.
+
+**Akar masalah**
+
+Sama dengan [BUG-084](#bug-084). `useBodyScrollLock` mengunci `body`, sedangkan latar `fixed inset-0 flex items-center` memusatkan kartu tanpa wilayah gulir. Kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke bawah, dan tak ada yang dapat digulir untuk mencapainya.
+
+**Langkah reproduksi**
+
+1. Buka detail pengaduan yang belum tuntas pada ukuran layar 640x360.
+2. Pada Kontrol Status, pilih **Ditolak**.
+
+**Arah perbaikan (belum dicoba)**
+
+Sama dengan BUG-087, termasuk memindahkan penangan klik latar.
+
+---
+
+<a id="bug-089"></a>
+
+### BUG-089 — Modal Teruskan pengaduan terpotong di ponsel kecil mendatar
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pemindaian modal sesudah BUG-084, `main` `7ea124f` |
+| **Tanggal**  | 18 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang, ukuran layar diatur Playwright |
+| **Berkas**   | `apps/web/src/features/complaints/components/admin-kab/ForwardComplaintModal.jsx:116` |
+| **Severity** | Low (usulan penguji) -- pada tiga ukuran BUG-084 masih muat; terpotong hanya pada 568x320, atau begitu spanduk galatnya tampil |
+
+**Gejala**
+
+Kode modal ini identik dengan modal alihkan sebelum perbaikan BUG-084, dan dipisah dari BUG-084 atas keputusan pemilik produk. Pada 360x640 dan 320x568 kartunya muat. Pada 640x360 kartu berada di y 1 sampai 359, hanya bersisa 1 px. Pada 568x320 kedua tombol (Batal dan Teruskan) berakhir di y 322, di luar layar setinggi 320.
+
+Spanduk galat (misalnya instansi tujuan yang baru dinonaktifkan) menambah tinggi kartu, sehingga pada 640x360 pun ia akan terpotong. Kondisi itu tidak diukur.
+
+**Akar masalah**
+
+Sama dengan [BUG-084](#bug-084). `useBodyScrollLock` mengunci `body`, sedangkan latar `fixed inset-0 flex items-center` memusatkan kartu tanpa wilayah gulir. Kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke bawah, dan tak ada yang dapat digulir untuk mencapainya.
+
+**Langkah reproduksi**
+
+1. Sebagai Admin Kabupaten, buka `/admin-kab/complaints` pada ukuran layar 568x320.
+2. Tekan **Teruskan** pada pengaduan tanpa tujuan.
+
+**Arah perbaikan (belum dicoba)**
+
+Pola latar yang menggulir dari BUG-084. Badan kartu yang menggulir tidak cocok di sini, karena badan semacam itu memotong panel daftar OPD yang berdiri absolut.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -8445,3 +8559,4 @@ hanya dibaca, tidak diubah.
 | 7.51 | 17 November 2026 | **BUG-082 ditutup: 86 temuan, 82 ditutup, 4 terbuka.** PR #49, merge `5f63cea`. CI 3 dari 3 job hijau pada `9b1056d`. `UpdateComplaintStatusDto.catatan` dipangkas sebelum divalidasi, sehingga catatan berisi spasi saja pada `ditolak` dan `perlu_perbaikan` dijawab 400 dengan pesan catatan wajib yang sudah ada, dan pada status lain tersimpan `null`. Dijaga spec baru `update-complaint-status.dto.spec.ts` dan satu kasus e2e baru di `complaints.e2e-spec.ts`. |
 | 7.52 | 17 November 2026 | **BUG-083 ditutup: 86 temuan, 83 ditutup, 3 terbuka.** PR #50, merge `b259ec4`. CI 3 dari 3 job hijau pada `9342a3f`. `CreateComplaintDto` memangkas `judul`, `uraian`, dan `lokasiKejadian` sebelum divalidasi; `judul` tak disebut laporan awal dan ikut diperbaiki atas persetujuan pemilik produk. Formulir pengaduan menahan isian berisi spasi saja dengan pesan di bawah medannya, lewat prop `error` baru di `Input` dan `Textarea`. Dijaga uji DTO, tiga kasus e2e, dan uji komponen baru. |
 | 7.53 | 18 November 2026 | **BUG-084 ditutup: 86 temuan, 84 ditutup, 2 terbuka.** PR #51, merge `7ea124f`. CI 3 dari 3 job hijau pada `12f1229`. Latar modal alihkan kini yang menggulir, sehingga kartu yang lebih tinggi daripada layar dapat digulir sampai judul dan tombolnya, tanpa memotong panel dropdown instansi. Dijaga spec Playwright baru `modal-alihkan-layar-pendek.spec.js` pada 360x640, 320x568, dan 640x360. Pemindaian modal lain mendapati `ShareSurveyModal` dan `ConfirmStatusModal` ikut terpotong; keduanya belum dicatat sebagai bug. |
+| 7.54 | 18 November 2026 | **BUG-087, BUG-088, dan BUG-089 dicatat: 89 temuan, 84 ditutup, 5 terbuka.** Ketiganya ditemukan saat memindai modal lain sesudah BUG-084 dan berakar sama: `body` terkunci, latar memusatkan kartu tanpa wilayah gulir. Modal Bagikan survei terpotong di keempat ukuran yang diukur, modal Ubah Status pada 640x360 dan 568x320, dan modal Teruskan pada 568x320. Diukur dengan spec Playwright `modal-layar-pendek.spec.js` pada `7ea124f`. |

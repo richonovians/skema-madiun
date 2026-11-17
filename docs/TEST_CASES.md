@@ -668,6 +668,9 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-091 | Alasan terlalu panjang diberi pesan jelas | Isi alasan 1.001 karakter lalu kirim | Dibatasi, atau diberi pesan berbahasa Indonesia. **Lulus 9 Nov 2026 di `f132c05`** (awalnya gagal: `Validation failed`, BUG-080, ditutup): `maxLength` 1000 dan penghitung, dibuktikan `AlihkanComplaintModal.test.jsx` saja, belum di peramban | P2 | Manual | ✅ |
 | TC-CMP-092 | Riwayat mempertahankan setiap tujuan | Alihkan dua kali, baca riwayat | Kedua baris `dialihkan` memuat tujuannya sendiri. **Lulus** (dibuktikan pada percobaan serentak TC-CMP-071) | P2 | Integ | ✅ |
 | TC-CMP-093 | OPD nonaktif ditolak | PATCH `alihkan` ke OPD nonaktif | 400. **Lulus:** `alihkan-pengaduan.e2e-spec.ts:235` menuntut 400 dan lulus pada jalan e2e 5 November 2026 di `a1e3c1f`. `skm_db` lokal tak punya OPD nonaktif, jadi tidak diuji lewat server dev | P1 | Integ | ✅ |
+| TC-CMP-094 | Modal Bagikan survei dapat dipakai di layar pendek | Buka modal Bagikan pada 360x640, 320x568, 640x360, dan 568x320 | Judul dan tombol dapat digulir hingga utuh terlihat; klik latar tetap menutup. **Gagal:** terpotong di keempat ukuran, lihat BUG-087 | P2 | E2E | ❌ |
+| TC-CMP-095 | Modal Ubah Status dapat dipakai di layar pendek | Pilih Ditolak pada Kontrol Status di keempat ukuran | Judul, kolom catatan, dan kedua tombol dapat digulir hingga utuh terlihat; klik latar tetap menutup. **Gagal:** terpotong pada 640x360 dan 568x320, lihat BUG-088 | P2 | E2E | ❌ |
+| TC-CMP-096 | Modal Teruskan dapat dipakai di layar pendek | Buka modal Teruskan di keempat ukuran | Judul dan kedua tombol dapat digulir hingga utuh terlihat; daftar OPD tetap dapat dipilih. **Gagal:** tombol terpotong pada 568x320, lihat BUG-089 | P2 | E2E | ❌ |
 
 ---
 
@@ -2453,18 +2456,20 @@ sengaja membiarkannya `NULL`.
 | E — Pertanyaan Survei    |    13     |   2    |   9     |   2    |   0   |
 | F — Pengisian Survei     |    25     |   10   |   15    |   0    |   0   |
 | G — IKM & Hasil          |    23     |   15   |   7     |   1    |   0   |
-| H — Pengaduan            |  **71**   |   28   |   33   |   8   |   2   |
+| H — Pengaduan            |  **74**   |   28   |   33   |   11  |   2   |
 | I — Audit Log            |     7     |   0    |   0     |   7    |   0   |
 | J — Parameter Boolean    |     3     |   0    |   0     |   1    |   2   |
 | X — RBAC & Isolasi       |    31     |   13   |   3     |   1    |   0   |
 | Y — Frontend & E2E       |  **50**   |   8    |   23    |   16   |   3   |
 | Z — Fitur Okt–Nov 2026   |  **20**   |   4    |   10    |   6    |   0   |
-| **TOTAL**                |  **329**  | **107** | **141** | **58** | **9** |
+| **TOTAL**                |  **332**  | **107** | **141** | **61** | **9** |
 
 > **14 baris Modul X (TC-RBAC-001 s/d 014) tidak berkolom prioritas** — tabelnya
 > berbentuk matriks peran (Superuser · Kabupaten · Admin OPD · Responden), bukan
 > tabel skenario biasa. Jumlahnya tetap dihitung pada kolom "Jumlah TC", sehingga
 > 88+113+45+7 = 253, ditambah 14 = 267.
+>
+> **(18 November 2026) Modul H bertambah 3 kasus** (TC-CMP-094 s.d. 096, P2) untuk modal yang terpotong di layar pendek, BUG-087 s.d. BUG-089. Totalnya kini 107+141+61+9 = 318, ditambah 14 baris matriks = **332**.
 >
 > **(5 November 2026) Modul H bertambah 42 kasus** untuk PR #17 dan #18 (H.5 s.d. H.7). Totalnya kini 107+141+58+9 = 315, ditambah 14 baris matriks = **329**.
 >
