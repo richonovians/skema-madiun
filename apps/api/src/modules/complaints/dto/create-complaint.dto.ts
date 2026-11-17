@@ -17,6 +17,17 @@ import { COMPLAINT_CATEGORIES } from '../../reference/reference.constants';
 
 const KATEGORI_KODE = COMPLAINT_CATEGORIES.map((k) => k.kode);
 
+/**
+ * Pemangkas untuk `judul`, `uraian`, dan `lokasiKejadian` (17 November 2026,
+ * BUG-083). `@MinLength(1)` sendirian meloloskan `'   '`, karena panjangnya
+ * tiga; dipangkas lebih dahulu, isian yang kosong secara makna ikut ditolak.
+ * Hanya tepinya yang dipangkas, jadi baris baru di tengah uraian tetap utuh.
+ * Pola yang sama dengan `AlihkanComplaintDto.catatan` dan
+ * `UpdateComplaintStatusDto.catatan` (BUG-082).
+ */
+const pangkas = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
+
 export class CreateComplaintDto {
   /**
    * OPSIONAL sejak 6 September 2026 (permintaan pengguna): pengirim yang tak
@@ -61,12 +72,14 @@ export class CreateComplaintDto {
   kategori: string;
 
   @ApiProperty({ maxLength: 255 })
+  @Transform(pangkas)
   @IsString()
   @MinLength(1)
   @MaxLength(255)
   judul: string;
 
   @ApiProperty({ maxLength: 5000, description: 'Uraian pengaduan' })
+  @Transform(pangkas)
   @IsString()
   @MinLength(1)
   @MaxLength(5000)
@@ -101,6 +114,7 @@ export class CreateComplaintDto {
    * `uraian`: lokasi kejadian lazim menunjuk alamat rumah seseorang.
    */
   @ApiProperty({ maxLength: 255, example: 'Jl. Raya Dolopo No. 12, Desa Bangunsari' })
+  @Transform(pangkas)
   @IsString()
   @MinLength(1)
   @MaxLength(255)

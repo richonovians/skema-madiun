@@ -643,6 +643,87 @@ describe('CreateComplaintForm — kedua dropdown wajib dipilih', () => {
 });
 
 /**
+ * ISIAN BERISI SPASI SAJA (17 November 2026, BUG-083).
+ *
+ * Atribut `required` peramban menerima '   ', jadi tanpa pemeriksaan sendiri
+ * formulir mengirimnya. Backend kini menolaknya dengan `Validation failed`,
+ * dan kalimat Inggris itu tak boleh sampai ke warga: permintaannya harus
+ * tertahan di sini dengan pesan per medan.
+ */
+describe('CreateComplaintForm — isian berisi spasi saja', () => {
+  const pantauKirim = () => {
+    const dikirim = jest.fn();
+    server.use(
+      http.post(`${API_BASE}/complaints`, () => {
+        dikirim();
+        return ok({ id: 99, ticketNo: 'PGD20261117AAAA', opdId: 1 }, '/complaints');
+      }),
+    );
+    return dikirim;
+  };
+
+  const siapkan = async (isian) => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Instansi');
+    fireEvent.click(screen.getByLabelText(/^opd \/ instansi tujuan/i));
+    fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Kesehatan'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
+      target: { value: isian.judul ?? 'Judul' },
+    });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: isian.uraian ?? 'Uraian pengaduan yang cukup panjang' },
+    });
+    isiKejadian();
+    if (isian.lokasi !== undefined) {
+      fireEvent.change(screen.getByLabelText(/lokasi kejadian/i), {
+        target: { value: isian.lokasi },
+      });
+    }
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+  };
+
+  it.each([
+    ['judul', /judul laporan/i, 'Tuliskan judul laporan.'],
+    ['lokasi', /lokasi kejadian/i, 'Tuliskan lokasi kejadian.'],
+    ['uraian', /uraian/i, 'Tuliskan uraian kejadian.'],
+  ])('%s berisi spasi saja: tidak mengirim, pesannya tampil di medannya', async (kunci, label, pesan) => {
+    const dikirim = pantauKirim();
+    await siapkan({ [kunci]: '   ' });
+
+    expect(await screen.findByText(pesan)).toBeInTheDocument();
+    const medan = screen.getByLabelText(label);
+    expect(medan).toHaveAttribute('aria-invalid', 'true');
+    expect(medan).toHaveAccessibleDescription(pesan);
+    expect(dikirim).not.toHaveBeenCalled();
+    expect(screen.queryByText('Validation failed')).not.toBeInTheDocument();
+  });
+
+  it('pesan sebuah medan hilang begitu medan itu diisi', async () => {
+    pantauKirim();
+    await siapkan({ judul: '   ', uraian: '  ' });
+    await screen.findByText('Tuliskan judul laporan.');
+
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Jalan rusak' } });
+
+    await waitFor(() =>
+      expect(screen.queryByText('Tuliskan judul laporan.')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText(/judul laporan/i)).not.toHaveAttribute('aria-invalid', 'true');
+    // Hanya pesan milik medan yang disentuh yang hilang.
+    expect(screen.getByText('Tuliskan uraian kejadian.')).toBeInTheDocument();
+  });
+
+  it('KONTROL: isian dengan spasi di tepi tetap terkirim', async () => {
+    const dikirim = pantauKirim();
+    await siapkan({ judul: '  Jalan rusak  ', lokasi: ' Balai Desa ' });
+
+    await waitFor(() => expect(dikirim).toHaveBeenCalled());
+  });
+});
+
+/**
  * KEADAAN TANPA SESI (permintaan pengguna 8 September 2026).
  *
  * Formulir ini dirender di dua tempat, dan hanya satu di antaranya boleh dibuka
