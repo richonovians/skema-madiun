@@ -640,7 +640,7 @@ Referensi: PRD §8.6 (FR-CMP-01 ~ FR-CMP-08), Routes §A.6
 | TC-CMP-060 | **Pengaduan baru: status dan riwayat berbeda dengan sah** | POST, lalu GET detail | Status `menunggu_verifikasi`, riwayat `[terkirim]`. **Lulus** | P0 | Integ | ✅ |
 | TC-CMP-061 | `perlu_perbaikan` wajib catatan | PATCH status tanpa `catatan` | 400 yang menyebut statusnya. **Lulus** | P0 | Integ | ✅ |
 | TC-CMP-062 | `ditolak` wajib catatan | PATCH status tanpa `catatan` | 400 yang menyebut statusnya. **Lulus** | P0 | Integ | ✅ |
-| TC-CMP-063 | Catatan hanya spasi ditolak | PATCH `perlu_perbaikan` dan `ditolak` dengan `catatan: "   "` | 400. **Gagal:** keduanya 200, lihat BUG-082 | P2 | Integ | ❌ |
+| TC-CMP-063 | Catatan hanya spasi ditolak | PATCH `perlu_perbaikan` dan `ditolak` dengan `catatan: "   "` | 400. **Lulus 17 Nov 2026 di `5f63cea`** (awalnya gagal: keduanya 200, BUG-082, ditutup): keduanya 400 dengan pesan catatan wajib, status tak berubah; `complaints.e2e-spec.ts` | P2 | Integ | ✅ |
 | TC-CMP-064 | Admin mengembalikan `perlu_perbaikan` ke verifikasi | `perlu_perbaikan` lalu `menunggu_verifikasi` | Keduanya 200. **Lulus** | P1 | Integ | ✅ |
 | TC-CMP-065 | Target `terkirim` dan `dialihkan` ditolak | PATCH status ke salah satunya | 400. **Lulus** | P0 | Integ | ✅ |
 | TC-CMP-066 | Melompati tahap ditolak | `menunggu_verifikasi` ke `selesai` | 400. **Lulus:** "Transisi status ... tidak diizinkan" | P0 | Integ | ✅ |
