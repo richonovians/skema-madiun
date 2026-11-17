@@ -176,11 +176,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-081](#bug-081) | Lencana status baru memakai warna cadangan di enam tampilan | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-070) |
 | [BUG-082](#bug-082) | Catatan wajib lolos bila hanya berisi spasi pada `PATCH /complaints/:id/status` | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-063) |
 | [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-049) |
-| [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | QA PR #18 (TC-CMP-090) |
+| [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | QA PR #18 (TC-CMP-090) |
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
 
-**Rekap** — 86 temuan: **83 ditutup, 3 terbuka** (Medium: tidak ada; Low: BUG-084, BUG-085, BUG-086).
+**Rekap** — 86 temuan: **84 ditutup, 2 terbuka** (Medium: tidak ada; Low: BUG-085, BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -4971,6 +4971,30 @@ Buka modal alihkan pada ukuran layar 320x568 atau 640x360.
 
 Beri `max-h` dan `overflow-y-auto` pada bagian isi, tanpa memotong panel dropdown yang berposisi absolut.
 
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `12f1229`, masuk lewat PR #51, merge `main` `7ea124f`. CI 3 dari 3 job hijau pada `12f1229`. Isi `7ea124f` sama persis dengan `12f1229`.
+
+Akar masalahnya sesuai gejala laporan ini. `useBodyScrollLock` mengunci `body`, sedangkan latar `fixed inset-0 flex items-center` memusatkan kartu tanpa wilayah gulir, sehingga kartu yang lebih tinggi daripada layar meluap rata ke atas dan ke bawah.
+
+Arah perbaikan di laporan ini tidak dipakai, atas persetujuan pemilik produk. Bagian isi yang diberi `max-h` dan `overflow-y-auto` ikut memotong panel dropdown instansi. Pada 640x360 bagian itu hanya bersisa sekitar 160 px, padahal kolom cari instansi saja 61 px. Yang menggulir kini latarnya (`overflow-y-auto overscroll-contain`), dengan pembungkus dalam `flex min-h-full items-center justify-center p-4`. Kartunya tidak diubah. Di layar lapang kartu tetap di tengah. Di layar pendek kartu berawal dari atas dan dapat digulir sampai tombolnya, sementara panel dropdown tetap mengapung bebas dan dibatasi `useKeepInViewport` pada layar.
+
+Pagar regresinya spec Playwright baru `e2e/modal-alihkan-layar-pendek.spec.js`, karena jsdom tidak menata letak apa pun. Spec ini memeriksa bahwa judul dan kedua tombol dapat digulir hingga utuh terlihat, dan bahwa satu pilihan instansi dapat dibuka lalu ditekan. Pada `b259ec4` spec ini merah di ketiga ukuran, dengan tepi atas judul -4 pada 360x640, -48 pada 320x568, dan -75 pada 640x360. Sesudah perbaikan ketiganya lulus. Di Chrome terpasang lewat `skema.local`, spec dijalankan tiga kali tanpa ulangan sesudah commit. Hasilnya 3/3, 2/3, dan 3/3. Satu-satunya kegagalan adalah habis waktu di `masukSebagai`, sebelum modal dibuka.
+
+Spec ini menulis satu pengaduan `[UJI BUG-084]` bila belum ada, lalu memakai ulang yang tersisa. Versi pertamanya membuat pengaduan baru di tiap `beforeAll`, yang diulang Playwright setiap kali uji gagal. Bersama probe pengukuran, versi itu menghabiskan jatah harian akun warga (10 pengaduan) dalam satu sore.
+
+Modal lain yang dipindai dengan cara yang sama belum diperbaiki dan belum dicatat sebagai bug:
+
+| Modal | 360x640 | 320x568 | 640x360 |
+| --- | --- | --- | --- |
+| `ShareSurveyModal` | terpotong (-36/676) | terpotong (-93/661) | terpotong (-130/490) |
+| `ConfirmStatusModal` (catatan Ditolak) | muat | terpotong (-5/573) | terpotong (-35/395) |
+| `ForwardComplaintModal` | muat | muat | muat, sisa 1 px (1/359) |
+| `ConfirmDialog` (survei dan pengguna) | muat | muat | muat |
+| `ConfirmTypeToDeleteModal` | tidak terukur | muat | muat |
+
+`ForwardComplaintModal` kodenya identik dengan modal alihkan sebelum perbaikan. Ia dipisah atas keputusan pemilik produk, dan akan terpotong begitu spanduk galatnya tampil. Lima modal belum diukur: `ModalKirimSurvei`, `ConfirmActionModal`, `ExitConfirmationModal`, `GantiJenisModal`, dan modal peringatan di `(respondent)/surveys/[id]`.
+
 ---
 
 <a id="bug-085"></a>
@@ -8420,3 +8444,4 @@ hanya dibaca, tidak diubah.
 | 7.50 | 17 November 2026 | **BUG-075 ditutup: 86 temuan, 81 ditutup, 5 terbuka.** PR #48, merge `fd1df58`. CI 3 dari 3 job hijau pada `27206cf`. Interceptor `api.js` memberi pesan berbahasa Indonesia untuk galat tanpa amplop backend (502 HTML, jaringan putus, timeout, 4xx tanpa amplop) dan membaca amplop JSON yang terbungkus Blob pada ekspor hasil IKM. Dijaga sembilan uji baru di `api.test.js`. |
 | 7.51 | 17 November 2026 | **BUG-082 ditutup: 86 temuan, 82 ditutup, 4 terbuka.** PR #49, merge `5f63cea`. CI 3 dari 3 job hijau pada `9b1056d`. `UpdateComplaintStatusDto.catatan` dipangkas sebelum divalidasi, sehingga catatan berisi spasi saja pada `ditolak` dan `perlu_perbaikan` dijawab 400 dengan pesan catatan wajib yang sudah ada, dan pada status lain tersimpan `null`. Dijaga spec baru `update-complaint-status.dto.spec.ts` dan satu kasus e2e baru di `complaints.e2e-spec.ts`. |
 | 7.52 | 17 November 2026 | **BUG-083 ditutup: 86 temuan, 83 ditutup, 3 terbuka.** PR #50, merge `b259ec4`. CI 3 dari 3 job hijau pada `9342a3f`. `CreateComplaintDto` memangkas `judul`, `uraian`, dan `lokasiKejadian` sebelum divalidasi; `judul` tak disebut laporan awal dan ikut diperbaiki atas persetujuan pemilik produk. Formulir pengaduan menahan isian berisi spasi saja dengan pesan di bawah medannya, lewat prop `error` baru di `Input` dan `Textarea`. Dijaga uji DTO, tiga kasus e2e, dan uji komponen baru. |
+| 7.53 | 18 November 2026 | **BUG-084 ditutup: 86 temuan, 84 ditutup, 2 terbuka.** PR #51, merge `7ea124f`. CI 3 dari 3 job hijau pada `12f1229`. Latar modal alihkan kini yang menggulir, sehingga kartu yang lebih tinggi daripada layar dapat digulir sampai judul dan tombolnya, tanpa memotong panel dropdown instansi. Dijaga spec Playwright baru `modal-alihkan-layar-pendek.spec.js` pada 360x640, 320x568, dan 640x360. Pemindaian modal lain mendapati `ShareSurveyModal` dan `ConfirmStatusModal` ikut terpotong; keduanya belum dicatat sebagai bug. |
