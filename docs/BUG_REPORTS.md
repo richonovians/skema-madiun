@@ -177,13 +177,13 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-082](#bug-082) | Catatan wajib lolos bila hanya berisi spasi pada `PATCH /complaints/:id/status` | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-063) |
 | [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-049) |
 | [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | QA PR #18 (TC-CMP-090) |
-| [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | Terbuka | QA PR #17 (TC-CMP-055) |
+| [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-055) |
 | [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
-| [BUG-087](#bug-087) | Modal Bagikan survei terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | Pemindaian modal BUG-084 (TC-CMP-094) |
-| [BUG-088](#bug-088) | Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | Terbuka | Pemindaian modal BUG-084 (TC-CMP-095) |
-| [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | Terbuka | Pemindaian modal BUG-084 (TC-CMP-096) |
+| [BUG-087](#bug-087) | Modal Bagikan survei terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-094) |
+| [BUG-088](#bug-088) | Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-095) |
+| [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-096) |
 
-**Rekap** — 89 temuan: **84 ditutup, 5 terbuka** (Medium: tidak ada; Low: BUG-085, BUG-086, BUG-087, BUG-088, BUG-089).
+**Rekap** — 89 temuan: **88 ditutup, 1 terbuka** (Medium: tidak ada; Low: BUG-086).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5028,6 +5028,16 @@ Buat pengaduan `kab_lainnya` dan `kec_lainnya`, lalu baca `complaintCategories` 
 
 Tambahkan pembeda tingkat pada label kategori di statistik.
 
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `86d38d8`, masuk lewat PR #52, merge `main` `0a5903c`. CI 3 dari 3 job hijau pada `86d38d8`. Perubahan yang dibawa `0a5903c` sama persis dengan `86d38d8`; induk pertamanya merge PR #53 (`69fb642`).
+
+Akar masalahnya sesuai laporan ini. `dashboard.service.ts` hanya memetakan kode ke nama, dan `ComplaintCategoryDistributionEntity` tidak membawa tingkat. Pada data lokal saat diperbaiki hanya `kab_lainnya` yang ada (7 pengaduan), dan bahkan satu baris "Lainnya" itu tak menyebut tingkatnya.
+
+`GET /statistics` kini mengirim `tingkat` (`kabupaten` | `kecamatan`) pada setiap kategori, diambil dari `COMPLAINT_CATEGORIES`. `nama` tetap nama baku. Akhiran "(Kab.)" atau "(Kec.)" dipasang adapter statistik pada SEMUA kategori, atas keputusan pemilik produk, sehingga bunyinya seragam dengan penyaring kategori Admin Kabupaten. Aturannya kini satu fungsi, `labelKategoriBertingkat` di `apps/web/src/utils/enumLabels.js`, dan penyaring itu ikut memakainya. Tanpa `tingkat`, nama dikembalikan apa adanya.
+
+Semua uji baru dibuktikan merah sebelum perbaikan: dua kasus `dashboard.service.spec.ts`, satu kasus `statistics.adapter.test.js`, dan satu pemeriksaan baru di `dashboard.e2e-spec.ts` (`Expected: "kabupaten", Received: undefined`) yang menjaga `tingkat` lolos serializer global. Pemeriksaan e2e itu sempat tetap merah sesudah perbaikan, karena singgahan 60 detik `statistik-publik` di Redis uji masih memuat bentuk lama; ujinya kini membuang singgahan sebelum membaca. Di Chrome lewat `skema.local/statistics`, kartu "Top Kategori Pengaduan" menampilkan "Lainnya (Kab.)" dan nol baris "Lainnya" polos.
+
 ---
 
 <a id="bug-086"></a>
@@ -5098,6 +5108,17 @@ Sama dengan [BUG-084](#bug-084). `useBodyScrollLock` mengunci `body`, sedangkan 
 
 Pola yang sama dengan perbaikan BUG-084, yaitu latar yang menggulir. Modal ini menutup lewat klik latar (`e.target === e.currentTarget`), jadi penangannya harus ikut pindah ke pembungkus dalam.
 
+
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `d3a403c` bersama BUG-087, BUG-088, dan BUG-089, masuk lewat PR #53, merge `main` `69fb642`. CI 3 dari 3 job hijau pada `d3a403c`. Isi `69fb642` sama persis dengan `d3a403c`.
+
+Ketiga modal memakai pola perbaikan BUG-084: yang menggulir kini latarnya (`overflow-y-auto overscroll-contain`), dengan pembungkus dalam `flex min-h-full items-center justify-center p-4`. Kartunya tidak diubah.
+
+Pagar regresinya `e2e/modal-layar-pendek.spec.js` pada 360x640, 320x568, 640x360, dan 568x320. Pada `7ea124f` ketiga ujinya merah dengan angka di tabel Gejala, dan sesudah perbaikan ketiganya lulus, termasuk saat dijalankan ulang sesudah commit. Pembantu gulirnya memakai `scrollIntoView({ block: 'center' })`, bukan `scrollIntoViewIfNeeded()`: cara yang terakhir berhenti dengan kolom catatan modal Ubah Status masih menjorok 1,25 px di bawah layar 568x320, sehingga kartu yang sebenarnya dapat digulir ikut dinilai merah. Pembuktian merah diulang dengan pembantu yang baru.
+
+Modal ini menutup lewat klik latar. Penangannya dipindah ke pembungkus dalam, karena area kosong di sekitar kartu kini pembungkus itu; tanpa pemindahan itu klik latar berhenti menutup modal tanpa satu pun galat. Spec yang sama memeriksa klik latar tetap menutup, dan pemeriksaan itu lulus di kedua sisi: ia penjaga perbaikannya, bukan cacatnya.
+
 ---
 
 <a id="bug-088"></a>
@@ -5138,6 +5159,17 @@ Sama dengan [BUG-084](#bug-084). `useBodyScrollLock` mengunci `body`, sedangkan 
 
 Sama dengan BUG-087, termasuk memindahkan penangan klik latar.
 
+
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `d3a403c` bersama BUG-087, BUG-088, dan BUG-089, masuk lewat PR #53, merge `main` `69fb642`. CI 3 dari 3 job hijau pada `d3a403c`. Isi `69fb642` sama persis dengan `d3a403c`.
+
+Ketiga modal memakai pola perbaikan BUG-084: yang menggulir kini latarnya (`overflow-y-auto overscroll-contain`), dengan pembungkus dalam `flex min-h-full items-center justify-center p-4`. Kartunya tidak diubah.
+
+Pagar regresinya `e2e/modal-layar-pendek.spec.js` pada 360x640, 320x568, 640x360, dan 568x320. Pada `7ea124f` ketiga ujinya merah dengan angka di tabel Gejala, dan sesudah perbaikan ketiganya lulus, termasuk saat dijalankan ulang sesudah commit. Pembantu gulirnya memakai `scrollIntoView({ block: 'center' })`, bukan `scrollIntoViewIfNeeded()`: cara yang terakhir berhenti dengan kolom catatan modal Ubah Status masih menjorok 1,25 px di bawah layar 568x320, sehingga kartu yang sebenarnya dapat digulir ikut dinilai merah. Pembuktian merah diulang dengan pembantu yang baru.
+
+Modal ini menutup lewat klik latar. Penangannya dipindah ke pembungkus dalam, karena area kosong di sekitar kartu kini pembungkus itu; tanpa pemindahan itu klik latar berhenti menutup modal tanpa satu pun galat. Spec yang sama memeriksa klik latar tetap menutup, dan pemeriksaan itu lulus di kedua sisi: ia penjaga perbaikannya, bukan cacatnya.
+
 ---
 
 <a id="bug-089"></a>
@@ -5170,6 +5202,17 @@ Sama dengan [BUG-084](#bug-084). `useBodyScrollLock` mengunci `body`, sedangkan 
 **Arah perbaikan (belum dicoba)**
 
 Pola latar yang menggulir dari BUG-084. Badan kartu yang menggulir tidak cocok di sini, karena badan semacam itu memotong panel daftar OPD yang berdiri absolut.
+
+
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `d3a403c` bersama BUG-087, BUG-088, dan BUG-089, masuk lewat PR #53, merge `main` `69fb642`. CI 3 dari 3 job hijau pada `d3a403c`. Isi `69fb642` sama persis dengan `d3a403c`.
+
+Ketiga modal memakai pola perbaikan BUG-084: yang menggulir kini latarnya (`overflow-y-auto overscroll-contain`), dengan pembungkus dalam `flex min-h-full items-center justify-center p-4`. Kartunya tidak diubah.
+
+Pagar regresinya `e2e/modal-layar-pendek.spec.js` pada 360x640, 320x568, 640x360, dan 568x320. Pada `7ea124f` ketiga ujinya merah dengan angka di tabel Gejala, dan sesudah perbaikan ketiganya lulus, termasuk saat dijalankan ulang sesudah commit. Pembantu gulirnya memakai `scrollIntoView({ block: 'center' })`, bukan `scrollIntoViewIfNeeded()`: cara yang terakhir berhenti dengan kolom catatan modal Ubah Status masih menjorok 1,25 px di bawah layar 568x320, sehingga kartu yang sebenarnya dapat digulir ikut dinilai merah. Pembuktian merah diulang dengan pembantu yang baru.
+
+Di modal ini badan kartu yang menggulir sengaja tidak dipakai, karena memotong panel daftar OPD yang berdiri absolut. Spec memeriksa satu pilihan OPD tetap dapat dibuka, utuh terlihat, dan ditekan di keempat ukuran.
 
 ---
 
@@ -8560,3 +8603,4 @@ hanya dibaca, tidak diubah.
 | 7.52 | 17 November 2026 | **BUG-083 ditutup: 86 temuan, 83 ditutup, 3 terbuka.** PR #50, merge `b259ec4`. CI 3 dari 3 job hijau pada `9342a3f`. `CreateComplaintDto` memangkas `judul`, `uraian`, dan `lokasiKejadian` sebelum divalidasi; `judul` tak disebut laporan awal dan ikut diperbaiki atas persetujuan pemilik produk. Formulir pengaduan menahan isian berisi spasi saja dengan pesan di bawah medannya, lewat prop `error` baru di `Input` dan `Textarea`. Dijaga uji DTO, tiga kasus e2e, dan uji komponen baru. |
 | 7.53 | 18 November 2026 | **BUG-084 ditutup: 86 temuan, 84 ditutup, 2 terbuka.** PR #51, merge `7ea124f`. CI 3 dari 3 job hijau pada `12f1229`. Latar modal alihkan kini yang menggulir, sehingga kartu yang lebih tinggi daripada layar dapat digulir sampai judul dan tombolnya, tanpa memotong panel dropdown instansi. Dijaga spec Playwright baru `modal-alihkan-layar-pendek.spec.js` pada 360x640, 320x568, dan 640x360. Pemindaian modal lain mendapati `ShareSurveyModal` dan `ConfirmStatusModal` ikut terpotong; keduanya belum dicatat sebagai bug. |
 | 7.54 | 18 November 2026 | **BUG-087, BUG-088, dan BUG-089 dicatat: 89 temuan, 84 ditutup, 5 terbuka.** Ketiganya ditemukan saat memindai modal lain sesudah BUG-084 dan berakar sama: `body` terkunci, latar memusatkan kartu tanpa wilayah gulir. Modal Bagikan survei terpotong di keempat ukuran yang diukur, modal Ubah Status pada 640x360 dan 568x320, dan modal Teruskan pada 568x320. Diukur dengan spec Playwright `modal-layar-pendek.spec.js` pada `7ea124f`. |
+| 7.55 | 18 November 2026 | **BUG-085, BUG-087, BUG-088, dan BUG-089 ditutup: 89 temuan, 88 ditutup, 1 terbuka.** BUG-085 lewat PR #52, merge `0a5903c`, CI 3 dari 3 job hijau pada `86d38d8`: `GET /statistics` membawa `tingkat` per kategori dan label statistik berakhiran "(Kab.)"/"(Kec.)" lewat `labelKategoriBertingkat`, yang juga dipakai penyaring Admin Kabupaten. BUG-087 s.d. 089 lewat PR #53, merge `69fb642`, CI 3 dari 3 job hijau pada `d3a403c`: latar modal Bagikan, Ubah Status, dan Teruskan kini menggulir, dan penangan klik latar dipindah ke pembungkus dalam. Dijaga uji unit, adapter, dan e2e API untuk BUG-085, serta spec Playwright `modal-layar-pendek.spec.js` untuk ketiga modal. |
