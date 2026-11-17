@@ -17,6 +17,9 @@
  *      `--paksa` yang tersurat.
  *   3. MENOLAK bila basis data tujuan sudah berisi tabel, juga tanpa `--paksa`.
  *
+ * TUJUAN YANG BELUM ADA DIBUAT KOSONG (BUG-074, 17 November 2026). Basis data
+ * baru tak berisi apa pun untuk ditimpa, jadi ketiga penjaga tetap utuh.
+ *
  * DUMP DIVERIFIKASI SAMPAI TUNTAS SEBELUM SATU PERNYATAAN SQL PUN DIJALANKAN.
  * `dekripsiAliran` tak pernah membuat berkas tujuan kecuali tag GCM-nya cocok,
  * jadi `psql` tak pernah melihat berkas yang belum terbukti utuh.
@@ -29,8 +32,9 @@
  *   pnpm pulihkan -- --dari cadangan/skm-20260923-093000 --db skm_db_uji_pulih
  *   pnpm pulihkan -- --dari <dir> --db <nama> --paksa
  */
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const { pipeline } = require('node:stream/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { dekripsiAliran } = require('./lib/aliran-kripto.cjs');
@@ -63,20 +67,105 @@ function modeSumber() {
   return spawnSync('psql', ['--version'], { encoding: 'utf8' }).status === 0 ? 'local' : 'docker';
 }
 
+/**
+ * Perintah untuk menjalankan `psql` pada basis data `db`: `[perintah, argumen, env]`.
+ * Satu tempat untuk kedua mode, supaya pemeriksaan dan pemulihan tak pernah
+ * menyambung ke server yang berbeda.
+ */
+function perintahPsql(db, kredensial, mode, argTambahan) {
+  const arg = ['-U', kredensial.user, '-d', db, ...argTambahan];
+  return mode === 'local'
+    ? [
+        'psql',
+        ['-h', kredensial.host, '-p', kredensial.port, ...arg],
+        { ...process.env, PGPASSWORD: kredensial.sandi },
+      ]
+    : ['docker', ['exec', '-i', CONTAINER, 'psql', ...arg], process.env];
+}
+
 /** Menjalankan satu perintah psql pada basis data `db`, mengembalikan stdout. */
 function psql(db, sql, kredensial, mode) {
-  const arg = ['-U', kredensial.user, '-d', db, '-tAc', sql];
-  const hasil =
-    mode === 'local'
-      ? spawnSync('psql', ['-h', kredensial.host, '-p', kredensial.port, ...arg], {
-          env: { ...process.env, PGPASSWORD: kredensial.sandi },
-          encoding: 'utf8',
-        })
-      : spawnSync('docker', ['exec', '-i', CONTAINER, 'psql', ...arg], { encoding: 'utf8' });
+  const [perintah, arg, env] = perintahPsql(db, kredensial, mode, ['-tAc', sql]);
+  const hasil = spawnSync(perintah, arg, { env, encoding: 'utf8' });
   if (hasil.status !== 0) {
     throw new Error(`psql gagal pada "${db}": ${String(hasil.stderr).trim()}`);
   }
   return String(hasil.stdout).trim();
+}
+
+/**
+ * Memastikan basis data `db` ada, dan MEMBUATNYA KOSONG bila belum (BUG-074).
+ * Mengembalikan `true` bila basis datanya baru dibuat.
+ *
+ * Pemeriksaan dan `CREATE DATABASE` dijalankan dari basis data DATABASE_URL,
+ * bukan dari `db` itu sendiri: menyambung ke tujuan yang belum ada dijawab
+ * `FATAL: database "..." does not exist`, dan sampai 17 November 2026 itulah
+ * yang membuat skrip ini menolak pemulihan ke tempat baru -- bentuk pemulihan
+ * yang paling wajar. Basis data `postgres` sengaja tak dipakai: hak akses ke
+ * sana tak selalu dimiliki, sedangkan basis data aplikasi pasti ada.
+ *
+ * Membuat tujuan tak melemahkan penjaga mana pun. Basis data yang baru lahir
+ * tak berisi apa pun untuk ditimpa, dan namanya tetap diketik operator lewat
+ * `--db`.
+ */
+function pastikanTujuanAda(db, kredensial, mode) {
+  const literal = `'${db.replace(/'/g, "''")}'`;
+  const ada = psql(
+    kredensial.db,
+    `SELECT 1 FROM pg_database WHERE datname = ${literal}`,
+    kredensial,
+    mode,
+  );
+  if (ada === '1') {
+    return false;
+  }
+  try {
+    psql(kredensial.db, `CREATE DATABASE "${db.replace(/"/g, '""')}"`, kredensial, mode);
+  } catch (err) {
+    throw new Error(
+      `"${db}" belum ada dan tak dapat dibuat oleh pengguna "${kredensial.user}".\n` +
+        `Buat dulu dengan CREATE DATABASE, lalu ulangi.\n${err.message}`,
+    );
+  }
+  return true;
+}
+
+/**
+ * Mengalirkan berkas `berkas` ke stdin proses `perintah` (BUG-074).
+ *
+ * TIDAK PERNAH DIMUAT UTUH KE MEMORI. Sampai 17 November 2026 dump dibaca
+ * menjadi satu string lalu diserahkan ke `spawnSync({ input })`; batas string
+ * Node 64-bit `536.870.888` karakter, jadi dump di atas ~512 MiB ditolak
+ * `ERR_STRING_TOO_LONG` sesudah dekripsi -- persis pada hari pemulihan.
+ *
+ * stdout DIBUANG: `psql` mencetak satu tanda perintah per pernyataan, dan tak
+ * satu pun dipakai. stderr dikumpulkan untuk pesan galat.
+ *
+ * `allSettled`, bukan `all`, dan galat PROSES didahulukan. Bila `psql` berhenti
+ * di tengah (ON_ERROR_STOP), penulisan ke stdin-nya gagal EPIPE; pesan yang
+ * berguna bagi operator adalah stderr `psql`, bukan EPIPE itu.
+ */
+async function alirkanKeProses(berkas, perintah, arg, env) {
+  const anak = spawn(perintah, arg, { env, stdio: ['pipe', 'ignore', 'pipe'] });
+
+  let galat = '';
+  anak.stderr.on('data', (d) => {
+    galat += String(d);
+  });
+
+  const selesai = new Promise((resolve, reject) => {
+    anak.on('error', reject);
+    anak.on('close', (kode) =>
+      kode === 0 ? resolve() : reject(new Error(`psql gagal memulihkan: ${galat.trim()}`)),
+    );
+  });
+
+  const [hasilAliran, hasilProses] = await Promise.allSettled([
+    pipeline(fs.createReadStream(berkas), anak.stdin),
+    selesai,
+  ]);
+  if (hasilProses.status === 'rejected') throw hasilProses.reason;
+  if (hasilAliran.status === 'rejected') throw hasilAliran.reason;
 }
 
 async function utama() {
@@ -105,6 +194,12 @@ async function utama() {
         'Memulihkan ke sana akan MENIMPA data yang berlaku sekarang.\n' +
         'Bila memang itu yang Anda maksud, ulangi dengan --paksa.',
     );
+  }
+
+  // Tujuan yang belum ada dibuat kosong, supaya penjaga 3 dapat menyambung ke
+  // sana. Basis data baru lolos penjaga 3 dengan sendirinya: 0 tabel.
+  if (pastikanTujuanAda(dbTujuan, kredensial, mode)) {
+    console.log(`Basis data "${dbTujuan}" belum ada; dibuat kosong.`);
   }
 
   // PENJAGA 3: tujuan yang tak kosong.
@@ -141,50 +236,11 @@ async function utama() {
   console.log(`Terverifikasi utuh: ${fs.statSync(sementara).size} bita.`);
 
   console.log(`Memulihkan ke "${dbTujuan}"...`);
-  const isi = fs.readFileSync(sementara, 'utf8');
-  const jalankan =
-    mode === 'local'
-      ? spawnSync(
-          'psql',
-          [
-            '-h',
-            kredensial.host,
-            '-p',
-            kredensial.port,
-            '-U',
-            kredensial.user,
-            '-d',
-            dbTujuan,
-            '-v',
-            'ON_ERROR_STOP=1',
-          ],
-          {
-            env: { ...process.env, PGPASSWORD: kredensial.sandi },
-            input: isi,
-            encoding: 'utf8',
-          },
-        )
-      : spawnSync(
-          'docker',
-          [
-            'exec',
-            '-i',
-            CONTAINER,
-            'psql',
-            '-U',
-            kredensial.user,
-            '-d',
-            dbTujuan,
-            '-v',
-            'ON_ERROR_STOP=1',
-          ],
-          { input: isi, encoding: 'utf8' },
-        );
-
-  fs.rmSync(path.dirname(sementara), { recursive: true, force: true });
-
-  if (jalankan.status !== 0) {
-    throw new Error(`psql gagal memulihkan: ${String(jalankan.stderr).trim()}`);
+  const [perintah, arg, env] = perintahPsql(dbTujuan, kredensial, mode, ['-v', 'ON_ERROR_STOP=1']);
+  try {
+    await alirkanKeProses(sementara, perintah, arg, env);
+  } finally {
+    fs.rmSync(path.dirname(sementara), { recursive: true, force: true });
   }
 
   console.log('');
@@ -199,8 +255,12 @@ async function utama() {
   }
 }
 
-utama().catch((err) => {
-  console.error('');
-  console.error(`GAGAL: ${err.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  utama().catch((err) => {
+    console.error('');
+    console.error(`GAGAL: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { alirkanKeProses };
