@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ComplaintStatus } from '@prisma/client';
+import { ComplaintStatus, TingkatPengaduan } from '@prisma/client';
 import { BaseEntity } from '../../../common/entities/base.entity';
 
 export class StatisticsSummaryEntity extends BaseEntity<StatisticsSummaryEntity> {
@@ -51,11 +51,20 @@ export class ComplaintStatusDistributionEntity extends BaseEntity<ComplaintStatu
 }
 
 export class ComplaintCategoryDistributionEntity extends BaseEntity<ComplaintCategoryDistributionEntity> {
-  @ApiProperty({ example: 'aduan' })
+  @ApiProperty({ example: 'kab_lainnya' })
   kode: string;
 
-  @ApiProperty({ example: 'Aduan' })
+  @ApiProperty({ example: 'Lainnya' })
   nama: string;
+
+  /**
+   * Tingkat kategori (BUG-085). Kedua tingkat punya "Lainnya" bernama sama,
+   * jadi `nama` saja tak cukup bagi pembaca statistik. `null` hanya untuk
+   * kode yang tak ada di taksonomi, yang sejak migrasi
+   * `20261104090000_tingkat_pengaduan` tak tersisa di basis data.
+   */
+  @ApiPropertyOptional({ enum: TingkatPengaduan, nullable: true })
+  tingkat: TingkatPengaduan | null;
 
   @ApiProperty()
   count: number;

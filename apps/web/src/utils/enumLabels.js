@@ -89,6 +89,25 @@ export const COMPLAINT_STATUS_ALTERNATIF = ['Ditolak', 'Perlu Perbaikan', 'Diali
  */
 export const COMPLAINT_STATUS_TUNTAS = ['Selesai', 'Ditolak'];
 
+/**
+ * Label kategori pengaduan beserta tingkatnya, mis. "Lainnya (Kab.)".
+ *
+ * Kedua tingkat punya kategori bernama "Lainnya", jadi di mana pun kedua
+ * tingkat tampil berdampingan namanya saja tak cukup. Dipakai penyaring
+ * kategori Admin Kabupaten (4 November 2026) dan kartu "Top Kategori
+ * Pengaduan" di statistik (BUG-085, 18 November 2026), supaya keduanya tak
+ * berselisih bunyi.
+ *
+ * Tanpa `tingkat`, nama dikembalikan apa adanya: tingkat tak dikarang.
+ *
+ * @param {string} nama nama baku kategori
+ * @param {'kabupaten'|'kecamatan'|null|undefined} tingkat
+ */
+export function labelKategoriBertingkat(nama, tingkat) {
+  if (!tingkat) return nama;
+  return `${nama} (${tingkat === 'kecamatan' ? 'Kec.' : 'Kab.'})`;
+}
+
 export const ROLE_LABEL = {
   ADMIN_OPD: 'Admin OPD',
   ADMIN_KABUPATEN: 'Admin Kabupaten',

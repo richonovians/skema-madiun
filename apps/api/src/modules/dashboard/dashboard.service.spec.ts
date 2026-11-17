@@ -650,8 +650,38 @@ describe('DashboardService', () => {
       const result = await service.getStatistics();
 
       expect(result.complaintCategories).toEqual([
-        { kode: 'kec_administrasi', nama: 'Pelayanan Administrasi Kecamatan', count: 7 },
-        { kode: 'kab_kesehatan', nama: 'Kesehatan', count: 3 },
+        {
+          kode: 'kec_administrasi',
+          nama: 'Pelayanan Administrasi Kecamatan',
+          tingkat: 'kecamatan',
+          count: 7,
+        },
+        { kode: 'kab_kesehatan', nama: 'Kesehatan', tingkat: 'kabupaten', count: 3 },
+      ]);
+    });
+
+    /**
+     * BUG-085 (18 November 2026). Kedua tingkat punya kategori bernama
+     * "Lainnya", dan tanpa `tingkat` dua baris itu tak terbedakan bagi
+     * pembaca statistik -- `nama` keduanya sama persis. `nama` sengaja tetap
+     * nama baku; akhiran "(Kab.)"/"(Kec.)" urusan tampilan di frontend.
+     */
+    it('(BUG-085) complaintCategories membawa tingkat, sehingga dua "Lainnya" terbedakan', async () => {
+      (prisma.complaint.groupBy as jest.Mock).mockImplementation(({ by }: { by: string[] }) => {
+        if (by[0] === 'kategori') {
+          return Promise.resolve([
+            { kategori: 'kab_lainnya', _count: { _all: 5 } },
+            { kategori: 'kec_lainnya', _count: { _all: 2 } },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await service.getStatistics();
+
+      expect(result.complaintCategories).toEqual([
+        { kode: 'kab_lainnya', nama: 'Lainnya', tingkat: 'kabupaten', count: 5 },
+        { kode: 'kec_lainnya', nama: 'Lainnya', tingkat: 'kecamatan', count: 2 },
       ]);
     });
   });

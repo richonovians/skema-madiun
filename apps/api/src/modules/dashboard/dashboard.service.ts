@@ -28,9 +28,12 @@ import {
   ValueDistributionEntity,
 } from './entities/statistics.entity';
 
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
-  COMPLAINT_CATEGORIES.map((c) => [c.kode, c.nama]),
-);
+/**
+ * Kategori per kode, lengkap dengan `tingkat` (BUG-085, 18 November 2026).
+ * Dulu hanya `kode -> nama`, sehingga `kab_lainnya` dan `kec_lainnya` sampai
+ * ke statistik sebagai dua "Lainnya" yang tak terbedakan.
+ */
+const KATEGORI_PER_KODE = new Map(COMPLAINT_CATEGORIES.map((c) => [c.kode, c]));
 const TOP_OPD_LIMIT = 5;
 
 /**
@@ -438,7 +441,8 @@ export class DashboardService {
         (row) =>
           new ComplaintCategoryDistributionEntity({
             kode: row.kategori,
-            nama: CATEGORY_LABEL[row.kategori] ?? row.kategori,
+            nama: KATEGORI_PER_KODE.get(row.kategori)?.nama ?? row.kategori,
+            tingkat: KATEGORI_PER_KODE.get(row.kategori)?.tingkat ?? null,
             count: row._count._all,
           }),
       )
