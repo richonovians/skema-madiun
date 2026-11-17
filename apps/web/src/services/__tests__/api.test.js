@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import api from '../api';
@@ -336,6 +337,199 @@ describe('api — galat validasi DTO', () => {
 
     await expect(api.post('/apa-saja', {})).rejects.toMatchObject({
       message: 'Kategori tidak sesuai dengan tingkat pengaduan.',
+    });
+  });
+});
+
+/**
+ * Jawaban TANPA amplop backend (BUG-075, 17 November 2026).
+ *
+ * Interseptor hanya menyalin pesan bila jawaban membawa amplop `{ message }`.
+ * Halaman 502/503/504 nginx berisi HTML, dan jaringan putus atau timeout tak
+ * membawa jawaban sama sekali; pada keduanya `error.message` bawaan axios --
+ * "Request failed with status code 502", "Network Error", "timeout of 10000ms
+ * exceeded" -- sampai ke layar warga lewat `<ErrorState description=...>`,
+ * persis saat layanan padam.
+ *
+ * Pesan backend tetap didahulukan: kontrol 500 beramplop di bawah menjaganya.
+ */
+describe('api — galat tanpa amplop backend', () => {
+  it('502 berisi HTML nginx menjadi kalimat bahasa Indonesia', async () => {
+    server.use(
+      http.get(`${API_BASE}/apa-saja`, () =>
+        new HttpResponse('<html><body><h1>502 Bad Gateway</h1></body></html>', {
+          status: 502,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      ),
+    );
+
+    await expect(api.get('/apa-saja')).rejects.toMatchObject({
+      message: 'Layanan sedang tidak dapat dihubungi. Coba lagi dalam beberapa saat.',
+    });
+  });
+
+  it('jaringan putus menjadi kalimat bahasa Indonesia', async () => {
+    server.use(http.get(`${API_BASE}/apa-saja`, () => HttpResponse.error()));
+
+    await expect(api.get('/apa-saja')).rejects.toMatchObject({
+      message: 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda, lalu coba lagi.',
+    });
+  });
+
+  /**
+   * Timeout TIDAK dibangkitkan lewat MSW. Dicoba lebih dulu dengan `delay(500)`
+   * dan `timeout: 20`: permintaannya malah SELESAI, karena pencegat XHR MSW di
+   * jsdom tak pernah memicu `ontimeout`. Jadi adapter-nya diganti satu yang
+   * menolak dengan galat yang sama persis dibuat adapter XHR axios saat
+   * timeout -- `AxiosError` berkode `ECONNABORTED` -- dan interseptornya tetap
+   * yang diuji.
+   */
+  it('timeout menjadi kalimat bahasa Indonesia', async () => {
+    const adapterTimeout = (config) =>
+      Promise.reject(
+        new AxiosError(
+          `timeout of ${config.timeout}ms exceeded`,
+          AxiosError.ECONNABORTED,
+          config,
+        ),
+      );
+
+    await expect(
+      api.get('/apa-saja', { timeout: 20, adapter: adapterTimeout }),
+    ).rejects.toMatchObject({
+      message: 'Server terlalu lama menjawab. Coba lagi dalam beberapa saat.',
+    });
+  });
+
+  it('4xx tanpa amplop menyebut kodenya', async () => {
+    server.use(
+      http.post(`${API_BASE}/apa-saja`, () =>
+        new HttpResponse('<html><body>413 Request Entity Too Large</body></html>', {
+          status: 413,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      ),
+    );
+
+    await expect(api.post('/apa-saja', {})).rejects.toMatchObject({
+      message: 'Permintaan tidak dapat diproses (kode 413).',
+    });
+  });
+
+  it('KONTROL: 500 beramplop tetap membawa pesan backend', async () => {
+    server.use(
+      http.get(`${API_BASE}/apa-saja`, () =>
+        HttpResponse.json(
+          { success: false, statusCode: 500, message: 'Terjadi kesalahan pada server.' },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    await expect(api.get('/apa-saja')).rejects.toMatchObject({
+      message: 'Terjadi kesalahan pada server.',
+    });
+  });
+});
+
+/**
+ * Galat pada permintaan ber-`responseType: 'blob'` (BUG-075).
+ *
+ * Ekspor hasil IKM meminta Blob, jadi jawaban galat backend juga tiba sebagai
+ * Blob: amplop JSON-nya ada, tetapi terbungkus. Tanpa membacanya, pesan
+ * cadangan "tanpa amplop" akan menyebut layanan tak dapat dihubungi padahal
+ * backend menjawab dengan sebab yang jelas.
+ *
+ * Jawabannya TIDAK dibangkitkan lewat MSW. Pencegat XHR MSW membangun
+ * `Response` dari Blob jsdom lewat undici, yang memanggil `blob.stream()`;
+ * Blob jsdom tak punya metode itu, galatnya tertelan di dalam pencegat, dan
+ * permintaannya tak pernah selesai -- uji menggantung sampai batas waktu Jest.
+ * Adapter di bawah menolak dengan `AxiosError` yang sama bentuknya dengan
+ * buatan adapter XHR axios untuk status di luar 2xx, sehingga interseptornya
+ * tetap yang diuji.
+ */
+function adapterGalatBlob(status, isi, contentType) {
+  return (config) => {
+    const response = {
+      status,
+      statusText: '',
+      headers: { 'content-type': contentType },
+      config,
+      data: new Blob([isi], { type: contentType }),
+    };
+    return Promise.reject(
+      new AxiosError(
+        `Request failed with status code ${status}`,
+        status >= 500 ? AxiosError.ERR_BAD_RESPONSE : AxiosError.ERR_BAD_REQUEST,
+        config,
+        null,
+        response,
+      ),
+    );
+  };
+}
+
+describe('api — galat pada permintaan Blob', () => {
+  it('amplop JSON di dalam Blob tetap terbaca pesannya', async () => {
+    const adapter = adapterGalatBlob(
+      500,
+      JSON.stringify({ success: false, statusCode: 500, message: 'Laporan gagal dibuat.' }),
+      'application/json; charset=utf-8',
+    );
+
+    await expect(
+      api.get('/unduh', { responseType: 'blob', adapter }),
+    ).rejects.toMatchObject({ message: 'Laporan gagal dibuat.' });
+  });
+
+  /**
+   * Blob jsdom tak punya `text()`, jadi uji di atas melewati jalur
+   * `FileReader`. Peramban sungguhan punya `text()`; uji ini memasangnya pada
+   * Blob supaya jalur itu ikut teruji.
+   */
+  it('amplop JSON di dalam Blob terbaca lewat blob.text() bila tersedia', async () => {
+    const isi = JSON.stringify({ success: false, statusCode: 404, message: 'Survei tidak ditemukan.' });
+    const data = new Blob([isi], { type: 'application/json' });
+    data.text = jest.fn(async () => isi);
+    const adapter = (config) =>
+       Promise.reject(
+        new AxiosError('Request failed with status code 404', AxiosError.ERR_BAD_REQUEST, config, null, {
+          status: 404,
+          statusText: '',
+          headers: { 'content-type': 'application/json' },
+          config,
+          data,
+        }),
+      );
+
+    const galat = await api.get('/unduh', { responseType: 'blob', adapter }).catch((e) => e);
+    expect(galat.message).toBe('Survei tidak ditemukan.');
+    expect(galat.response.data.message).toBe('Survei tidak ditemukan.');
+    expect(data.text).toHaveBeenCalled();
+  });
+
+  it('KONTROL: halaman HTML nginx pada permintaan Blob memakai pesan cadangan', async () => {
+    const adapter = adapterGalatBlob(
+      502,
+      '<html><body>502 Bad Gateway</body></html>',
+      'text/html',
+    );
+
+    await expect(
+      api.get('/unduh', { responseType: 'blob', adapter }),
+    ).rejects.toMatchObject({
+      message: 'Layanan sedang tidak dapat dihubungi. Coba lagi dalam beberapa saat.',
+    });
+  });
+
+  it('KONTROL: Blob berlabel JSON yang rusak memakai pesan cadangan', async () => {
+    const adapter = adapterGalatBlob(500, '{bukan json', 'application/json');
+
+    await expect(
+      api.get('/unduh', { responseType: 'blob', adapter }),
+    ).rejects.toMatchObject({
+      message: 'Layanan sedang tidak dapat dihubungi. Coba lagi dalam beberapa saat.',
     });
   });
 });

@@ -62,6 +62,65 @@ function serapPerpanjanganSesi(response) {
   perbaruiMasaBerlakuSesi(Number(nilai));
 }
 
+/**
+ * Pesan untuk galat yang TAK membawa amplop backend (BUG-075, 17 November 2026).
+ *
+ * Halaman 502/503/504 nginx berisi HTML, dan jaringan putus atau timeout tak
+ * membawa jawaban sama sekali. Tanpa pesan cadangan, `error.message` bawaan
+ * axios -- "Request failed with status code 502", "Network Error",
+ * "timeout of 10000ms exceeded" -- tampil kepada warga lewat `ErrorState`,
+ * justru saat layanan padam.
+ *
+ * Dikenali dari `error.code` axios, bukan dari bunyi pesannya. Pembatalan
+ * (`ERR_CANCELED`) dibiarkan apa adanya: itu keputusan kode, bukan kegagalan.
+ */
+function pesanTanpaJawaban(error) {
+  if (error.code === 'ERR_CANCELED') return null;
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+    return 'Server terlalu lama menjawab. Coba lagi dalam beberapa saat.';
+  }
+  return 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda, lalu coba lagi.';
+}
+
+function pesanTanpaAmplop(status) {
+  if (status >= 500) {
+    return 'Layanan sedang tidak dapat dihubungi. Coba lagi dalam beberapa saat.';
+  }
+  return `Permintaan tidak dapat diproses (kode ${status}).`;
+}
+
+/**
+ * Buka amplop JSON yang terbungkus Blob (BUG-075).
+ *
+ * Permintaan ber-`responseType: 'blob'` -- ekspor hasil IKM -- menerima
+ * jawaban galatnya sebagai Blob juga, sehingga amplop backend tak terlihat
+ * sebagai objek dan pesan cadangan "layanan tak dapat dihubungi" tampil
+ * padahal backend menyebut sebabnya. Hanya Blob berlabel JSON yang dibaca;
+ * halaman HTML nginx dan JSON rusak mengembalikan `null` dan jatuh ke pesan
+ * cadangan.
+ *
+ * `FileReader` dipakai bila `blob.text()` tak ada (Blob jsdom).
+ */
+async function bacaAmplopBlob(data) {
+  if (typeof Blob === 'undefined' || !(data instanceof Blob)) return null;
+  if (!/json/i.test(data.type)) return null;
+  try {
+    const teks =
+      typeof data.text === 'function'
+        ? await data.text()
+        : await new Promise((selesai, gagal) => {
+            const pembaca = new FileReader();
+            pembaca.onload = () => selesai(pembaca.result);
+            pembaca.onerror = () => gagal(pembaca.error);
+            pembaca.readAsText(data);
+          });
+    const amplop = JSON.parse(teks);
+    return amplop && typeof amplop === 'object' ? amplop : null;
+  } catch {
+    return null;
+  }
+}
+
 api.interceptors.response.use(
   (response) => {
     serapPerpanjanganSesi(response);
@@ -72,13 +131,22 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
+  async (error) => {
+    if (!error.response) {
+      error.message = pesanTanpaJawaban(error) ?? error.message;
+    }
     if (error.response) {
+      // Amplop dari Blob menggantikan `data` supaya `kodeGalat()` dan cabang
+      // 400/401 di bawah membacanya sama seperti jawaban JSON biasa.
+      const amplopBlob = await bacaAmplopBlob(error.response.data);
+      if (amplopBlob) error.response.data = amplopBlob;
       const envelope = error.response.data;
       // Sematkan pesan error dari backend ke error.message agar catch(err) langsung
       // dapat pesan yang relevan (default axios cuma "Request failed with status code 4xx").
       if (envelope && typeof envelope === 'object' && 'message' in envelope) {
         error.message = envelope.message;
+      } else {
+        error.message = pesanTanpaAmplop(error.response.status);
       }
       // Penolakan `ValidationPipe` (BUG-080, 9 November 2026). Backend
       // menjawabnya dengan pesan tetap 'Validation failed' dan daftar kalimat
