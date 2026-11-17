@@ -861,6 +861,37 @@ describe('Complaints (e2e)', () => {
     expect(riwayat[1].catatan).toBeNull();
   });
 
+  it.each(['judul', 'uraian', 'lokasiKejadian'])(
+    'POST /complaints dengan %s berisi spasi saja -> 400, tak ada baris tersimpan (BUG-083)',
+    async (medan) => {
+      const isian: Record<string, string> = {
+        judul: 'Isian spasi BUG-083',
+        uraian: 'Uraian isian spasi',
+        lokasiKejadian: 'Balai Desa Bangunsari',
+        [medan]: '   ',
+      };
+      const sebelum = await prisma.complaint.count({ where: { userId: respondenId } });
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/complaints')
+        .set(asResponden(respondenId))
+        .field('opdId', opdId)
+        .field('kategori', 'kab_infrastruktur')
+        .field('tingkat', 'kabupaten')
+        .field('tanggalKejadian', '2026-11-01')
+        .field('lokasiKejadian', isian.lokasiKejadian)
+        .field('judul', isian.judul)
+        .field('uraian', isian.uraian);
+
+      expect(res.status).toBe(400);
+      // Detail class-validator menyebut medan yang ditolak.
+      expect(JSON.stringify(res.body.error.details)).toContain(medan);
+      // Dihitung sebelum dan sesudah, bukan dicari menurut judul: jalan merah
+      // sebelum perbaikan menyimpan baris berjudul sama di `skm_uji`, dan
+      // baris itu menetap di sana.
+      expect(await prisma.complaint.count({ where: { userId: respondenId } })).toBe(sebelum);
+    },
+  );
+
   it('PATCH status oleh Responden -> 403 (hanya OPD)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/complaints')

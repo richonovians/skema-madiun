@@ -136,3 +136,20 @@ describe('CreateComplaintDto — flag anonim', () => {
     expect(instance.isAnonim).toBe(harapan);
   });
 });
+
+describe('CreateComplaintDto — isian berisi spasi saja (BUG-083)', () => {
+  it.each(['judul', 'uraian', 'lokasiKejadian'])('menolak %s berisi spasi saja', async (medan) => {
+    // `@MinLength(1)` sendirian meloloskan '   ': panjangnya tiga. Nilainya
+    // harus dipangkas lebih dahulu supaya isian yang kosong secara makna
+    // ikut ditolak.
+    expect(await medanGalat({ [medan]: '   ' })).toContain(medan);
+  });
+
+  it.each(['judul', 'uraian', 'lokasiKejadian'])('memangkas spasi di tepi %s', (medan) => {
+    expect((dto({ [medan]: '  Isi  ' }) as unknown as Record<string, string>)[medan]).toBe('Isi');
+  });
+
+  it('mempertahankan baris baru di tengah uraian', () => {
+    expect(dto({ uraian: '\nBaris satu.\nBaris dua.\n' }).uraian).toBe('Baris satu.\nBaris dua.');
+  });
+});

@@ -43,6 +43,13 @@ const KODE_BATAS_HARIAN = 'BATAS_HARIAN_PENGADUAN';
  */
 const TINGKAT_BAKU = 'kabupaten';
 
+/**
+ * Isian yang kosong atau hanya berisi spasi (BUG-083). `String(... ?? '')`
+ * karena `formData` dapat dipulihkan dari draf `sessionStorage`, dan draf
+ * lama atau rusak tak menjamin medannya berupa string.
+ */
+const kosongSesudahDipangkas = (nilai) => String(nilai ?? '').trim() === '';
+
 export default function CreateComplaintForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,7 +72,18 @@ export default function CreateComplaintForm() {
    * mengikuti tingkat terpilih ("instansi" atau "kecamatan/kelurahan"), jadi
    * ia disusun saat render.
    */
-  const [galatMedan, setGalatMedan] = useState({ department: false, category: false });
+  //
+  // Judul, lokasi, dan uraian ikut sejak 17 November 2026 (BUG-083): atribut
+  // `required` peramban menerima isian berisi spasi saja, jadi ketiganya
+  // diperiksa sesudah `trim()`. Kuncinya sama dengan `id` medannya supaya
+  // `handleChange` dapat menghapus galatnya tanpa daftar tersendiri.
+  const [galatMedan, setGalatMedan] = useState({
+    department: false,
+    category: false,
+    title: false,
+    incidentLocation: false,
+    description: false,
+  });
 
   // Beranda dirender di server, yang tak dapat melihat localStorage. Sesi
   // karenanya dibaca lewat useSesiAktif, bukan inisialisasi useState: yang
@@ -256,6 +274,8 @@ export default function CreateComplaintForm() {
   const handleChange = (e) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
+    // Sama dengan dropdown: pesan sebuah medan hilang begitu medan itu diubah.
+    setGalatMedan((prev) => (prev[id] ? { ...prev, [id]: false } : prev));
   };
 
   const handleCategoryChange = (value) => {
@@ -303,12 +323,19 @@ export default function CreateComplaintForm() {
     // '' berarti BELUM MEMILIH. Pengirim yang memang tak tahu tujuannya punya
     // pilihannya sendiri (`TANPA_TUJUAN`), jadi kosong tak boleh lagi lolos
     // sebagai pengaduan tanpa tujuan (BUG-079).
-    const belumDipilih = {
+    //
+    // Medan teks yang hanya berisi spasi lolos `required`, lalu ditolak
+    // backend dengan `Validation failed` yang tak berarti bagi warga (BUG-083).
+    // Isian dikirim apa adanya; backend yang memangkas tepinya.
+    const belumDiisi = {
       department: formData.department === '',
       category: formData.category === '',
+      title: kosongSesudahDipangkas(formData.title),
+      incidentLocation: kosongSesudahDipangkas(formData.incidentLocation),
+      description: kosongSesudahDipangkas(formData.description),
     };
-    setGalatMedan(belumDipilih);
-    if (belumDipilih.department || belumDipilih.category) return;
+    setGalatMedan(belumDiisi);
+    if (Object.values(belumDiisi).some(Boolean)) return;
     setIsSubmitting(true);
     try {
       const result = await createComplaint(
@@ -483,6 +510,7 @@ export default function CreateComplaintForm() {
           placeholder="Ringkasan singkat keluhan Anda"
           value={formData.title}
           onChange={handleChange}
+          error={galatMedan.title ? 'Tuliskan judul laporan.' : null}
           required
         />
 
@@ -515,6 +543,7 @@ export default function CreateComplaintForm() {
             value={formData.incidentLocation}
             onChange={handleChange}
             maxLength={255}
+            error={galatMedan.incidentLocation ? 'Tuliskan lokasi kejadian.' : null}
             required
           />
         </div>
@@ -529,6 +558,7 @@ export default function CreateComplaintForm() {
           rows={6}
           value={formData.description}
           onChange={handleChange}
+          error={galatMedan.description ? 'Tuliskan uraian kejadian.' : null}
           required
         />
 
