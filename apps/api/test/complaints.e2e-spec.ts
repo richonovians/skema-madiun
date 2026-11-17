@@ -818,6 +818,49 @@ describe('Complaints (e2e)', () => {
     expect(afterTerminal.status).toBe(400);
   });
 
+  it('catatan berisi spasi saja tidak memenuhi syarat catatan wajib (BUG-082)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set(asResponden(respondenId))
+      .field('opdId', opdId)
+      .field('kategori', 'kab_infrastruktur')
+      .field('tingkat', 'kabupaten')
+      .field('tanggalKejadian', '2026-11-01')
+      .field('lokasiKejadian', 'Balai Desa Bangunsari')
+      .field('judul', 'Catatan spasi')
+      .field('uraian', 'Uraian catatan spasi');
+    const id = created.body.data.id;
+
+    // Status yang TIDAK mewajibkan catatan: spasi saja tetap diterima, tetapi
+    // tersimpan sebagai ketiadaan catatan, bukan tiga spasi yang tampil
+    // sebagai blok "Catatan Petugas" kosong.
+    const diverifikasi = await request(app.getHttpServer())
+      .patch(`/api/v1/complaints/${id}/status`)
+      .set(asOpd())
+      .send({ status: 'diverifikasi', catatan: '   ' });
+    expect(diverifikasi.status).toBe(200);
+
+    // Kedua status wajib-catatan menolak spasi saja dengan pesan yang sama
+    // seperti catatan yang tidak dikirim sama sekali.
+    for (const status of ['ditolak', 'perlu_perbaikan']) {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${id}/status`)
+        .set(asOpd())
+        .send({ status, catatan: '   ' });
+      expect(res.status).toBe(400);
+      expect(String(res.body.message)).toMatch(/catatan wajib diisi/i);
+    }
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/complaints/${created.body.data.ticketNo}`)
+      .set(asResponden(respondenId));
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.status).toBe('diverifikasi');
+    const riwayat = detail.body.data.statusHistory as { status: string; catatan: string | null }[];
+    expect(riwayat.map((r) => r.status)).toEqual(['terkirim', 'diverifikasi']);
+    expect(riwayat[1].catatan).toBeNull();
+  });
+
   it('PATCH status oleh Responden -> 403 (hanya OPD)', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/complaints')
