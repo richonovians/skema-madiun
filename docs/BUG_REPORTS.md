@@ -185,9 +185,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-090](#bug-090) | Modal kirim survei anonim terkurung di dalam kartu survei: latarnya tak menutupi layar dan kartunya terpotong | Medium | Terkonfirmasi | **Ditutup** | Pemindaian modal sesudah BUG-089 (TC-FILL-043) |
 | [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
 | [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
-| [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | Terbuka | Temuan sampingan BUG-086 (TC-AUD-008) |
+| [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-086 (TC-AUD-008) |
 
-**Rekap** — 93 temuan: **91 ditutup, 1 ditolak, 1 terbuka** (Medium: tidak ada; Low: BUG-093). Ditolak: BUG-091.
+**Rekap** — 93 temuan: **92 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5434,6 +5434,28 @@ Penerusan dicatat di dua lapis. `AuditInterceptor` mencatat setiap handler berta
 
 Lepas `@Audit('complaint', 'forward')` dari controller, sama seperti rute `alihkan`. Baris bentuk service lebih lengkap karena memuat tingkat dan kategori lama. Tambahkan uji e2e yang menuntut tepat satu baris `forward` per penerusan, meniru uji `alihkan`. Baris kembar yang sudah ada tidak dihapus, sebab `audit_logs` tak boleh dihapus menurut rancangan.
 
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `248bd99`, masuk lewat PR #58, merge `main` `92baaa7`. Isi `92baaa7` sama persis dengan `248bd99`. CI cabang pada `248bd99` hijau 3 dari 3 job, dengan E2E web 175 lulus dan 1 dilewati, sama dengan CI `main` `dd18af7`. CI `main` pada `92baaa7` masih berjalan saat bagian ini ditulis.
+
+Arah perbaikan di atas dipakai apa adanya. `@Audit('complaint', 'forward')` dilepas dari `ComplaintsController.forward`, dan baris dari `ComplaintsService.forward()` dipertahankan karena hanya baris itu yang memuat tingkat dan kategori lama. Polanya kini sama dengan `alihkan`. Baris kembar yang sudah tercatat tidak dihapus.
+
+Sebelum kode diubah, setiap pemakai baris bentuk dekorator diperiksa. Penyaring aksi di Log Audit tidak terpengaruh, karena nilai `aksi` tetap `forward`. Migrasi isi ulang BUG-086 (`20261118090100_isi_ulang_riwayat_diteruskan`) memang hanya membaca bentuk service. Satu pemakai ternyata bergantung padanya, yaitu halaman detail Log Audit.
+
+**Batasan yang diketahui, diterima pemilik produk.** Halaman detail Log Audit hanya menampilkan `detail.params` (blok objek) dan `detail.body` atau `detail.sebelum` (blok payload permintaan), lihat `auditLog.adapter.js`. Baris bentuk service tidak membawa ketiganya. Akibatnya detail penerusan yang tercatat sesudah perbaikan ini hanya memuat pelaku, aksi, dan waktu, tanpa nomor tiket maupun OPD tujuan. Baris `alihkan` sudah begitu sejak 5 November 2026. Pemilik produk memilih mencatatnya di sini saja, tanpa nomor temuan baru dan tanpa perbaikan di PR ini. Isi lengkapnya tetap ada di kolom `detail` basis data.
+
+Pembuktian merahnya dijalankan sebelum perbaikan ditulis.
+
+| Uji | Sebelum | Sesudah |
+| --- | --- | --- |
+| Unit `complaints.controller.spec.ts` (baru), `forward` tanpa metadata `AUDIT_KEY` | merah, `Received: {"aksi": "forward", "entitas": "complaint", ...}` | lulus |
+| Unit yang sama, `alihkan` tanpa metadata `AUDIT_KEY` | lulus | lulus |
+| E2E `complaints.e2e-spec.ts`, tepat satu baris `forward` per penerusan yang memuat `tingkatLama` dan `kategoriLama` | merah, `Expected length: 1, Received length: 2` | lulus |
+
+Uji `alihkan` sengaja lulus di kedua sisi karena fungsinya penjaga, supaya dekoratornya tidak terpasang kelak. Uji e2e-nya menghitung kedua bentuk baris, yaitu `detail.complaintId` dan `detail.params.id`. Kalau yang disaring hanya `complaintId`, uji itu akan lulus walau baris kembarnya masih tercatat. Dua baris yang dilaporkan uji itu sebelum perbaikan sama persis dengan bentuk dalam laporan ini.
+
+Verifikasi penuh pada `248bd99` menghasilkan unit `apps/api` 105 suite dan 1643 uji lulus, e2e `apps/api` 58 suite dan 807 uji lulus, komponen `apps/web` 271 suite dan 2253 uji lulus, serta ESLint dan Prettier bersih.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -8832,3 +8854,4 @@ hanya dibaca, tidak diubah.
 | 7.61 | 18 November 2026 | **Kode mati `DashboardNavbar` dan `ExitConfirmationModal` dihapus; rekap tetap 92 temuan, 90 ditutup, 1 ditolak, 1 terbuka.** PR #56, merge `main` `8be378d` (`da0286b`), CI cabang 3 dari 3 hijau. Ditemukan saat mengukur lima modal sesudah BUG-089 (riwayat 7.56). BUG-043 diberi catatan: komponen yang diperbaikinya tak pernah dirender. Uji TC-FE-005 untuk navigasi warga ternyata juga merender `DashboardNavbar`; kini ia membuka menu akun `ProfileAvatarDropdown`, tempat tautan warga sesungguhnya tinggal, dan terbukti dapat merah lewat uji mutasi. |
 | 7.62 | 18 November 2026 | **BUG-086 ditutup: 92 temuan, 91 ditutup, 1 ditolak, 0 terbuka.** PR #57, merge `main` `dd18af7` (`1254f70`). CI cabang dan CI `main` `dd18af7` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). Penerusan kini menulis baris riwayat `diteruskan`, status khusus riwayat seperti `terkirim`, yang membawa `opd_tujuan_id`. Linimasa menulisnya "Diteruskan ke <instansi>". Penerusan lama diisi ulang dari `audit_logs` lewat migrasi tersendiri. Pagarnya ada di unit, e2e API, Jest, dan `e2e/riwayat-penerusan.spec.js`, semuanya merah di `8be378d` dan lulus sesudahnya. Temuan sampingan, belum bernomor: setiap penerusan tercatat dua kali di `audit_logs`. |
 | 7.63 | 18 November 2026 | **BUG-093 dicatat: 93 temuan, 91 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-086: setiap penerusan pengaduan menulis dua baris `forward` di `audit_logs`, satu dari `@Audit` di controller dan satu dari `audit.record` di service. Direproduksi pada `dd18af7` dengan selisih 18 ms antarbaris. `alihkan` sudah memakai pola yang benar, yaitu tanpa dekorator. TC-AUD-008 ditambahkan. |
+| 7.64 | 18 November 2026 | **BUG-093 ditutup: 93 temuan, 92 ditutup, 1 ditolak, 0 terbuka.** PR #58, merge `main` `92baaa7` (`248bd99`). CI cabang hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati); CI `main` `92baaa7` masih berjalan saat dicatat. `@Audit('complaint', 'forward')` dilepas dari controller, sehingga penerusan tercatat sekali oleh service beserta tingkat dan kategori lamanya, sama seperti `alihkan`. Baris kembar lama tidak dihapus. Pagarnya unit `complaints.controller.spec.ts` dan e2e `complaints.e2e-spec.ts`, keduanya merah di `dd18af7` dan lulus sesudahnya. Batasan yang diterima pemilik produk: halaman detail Log Audit tak menampilkan isi baris bentuk service, jadi detail penerusan baru hanya memuat pelaku, aksi, dan waktu, sama seperti `alihkan`. Tak ada temuan terbuka. |
