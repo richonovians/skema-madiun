@@ -182,11 +182,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-087](#bug-087) | Modal Bagikan survei terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-094) |
 | [BUG-088](#bug-088) | Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-095) |
 | [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-096) |
-| [BUG-090](#bug-090) | Modal kirim survei anonim terkurung di dalam kartu survei: latarnya tak menutupi layar dan kartunya terpotong | Medium | Terkonfirmasi | Terbuka | Pemindaian modal sesudah BUG-089 (TC-FILL-043) |
+| [BUG-090](#bug-090) | Modal kirim survei anonim terkurung di dalam kartu survei: latarnya tak menutupi layar dan kartunya terpotong | Medium | Terkonfirmasi | **Ditutup** | Pemindaian modal sesudah BUG-089 (TC-FILL-043) |
 | [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
 | [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 
-**Rekap** — 92 temuan: **89 ditutup, 1 ditolak, 2 terbuka** (Medium: BUG-090; Low: BUG-086). Ditolak: BUG-091.
+**Rekap** — 92 temuan: **90 ditutup, 1 ditolak, 1 terbuka** (Medium: tidak ada; Low: BUG-086). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5258,6 +5258,18 @@ Di atasnya, latar ini juga memusatkan kartu tanpa wilayah gulir seperti BUG-084,
 
 Render modal lewat portal ke `document.body`, sehingga `fixed` kembali diukur dari layar, lalu pakai pola latar yang menggulir dari BUG-084. Klik latar menutup modal ini (`onBatal`), jadi penangannya ikut pindah ke pembungkus dalam.
 
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `f40fd52`, masuk lewat PR #54, merge `main` `4edadeb`. Isi ketiga berkas yang diubah di `4edadeb` sama persis dengan `f40fd52`, dan berkas BUG-092 dari `2eb255f` ikut utuh.
+
+CI pertama pada `f40fd52` merah di job E2E web, tetapi bukan karena perubahan ini: yang merah uji BUG-089 `modal-layar-pendek.spec.js`, yang ternyata [BUG-092](#bug-092) dan sudah goyah sejak `d3a403c`. Jalan ulang job yang sama pada `f40fd52` hijau, 173 lulus dan 1 dilewati. Jumlahnya menunjukkan jalan ulang itu belum memuat perbaikan BUG-092, jadi uji BUG-089 lulus karena kebetulan waktu, bukan karena cacatnya sudah hilang. Cacat itu baru hilang di `main` lewat `2eb255f`.
+
+`ModalKirimSurvei` kini dirender lewat `createPortal` ke `document.body`, sehingga `fixed inset-0` kembali diukur dari layar dan tidak lagi dari bingkai kartu ber-`backdrop-filter`. Yang menggulir latarnya, dengan pembungkus dalam `flex min-h-full items-center justify-center p-4`, dan penangan klik latar dipindah ke pembungkus itu.
+
+Pagar regresinya `e2e/modal-kirim-survei-layar-pendek.spec.js` pada 360x640, 320x568, 640x360, dan 568x320. Pada `0a5903c` ketiga pemeriksaannya merah di keempat ukuran: latar tidak menutupi layar (misalnya 288x632 di y -124 pada 320x568), judul dan tombol tak dapat digulir hingga utuh terlihat, dan klik latar tidak menutup modal. Sesudah perbaikan semuanya lulus, termasuk saat dijalankan ulang sesudah commit.
+
+Pemeriksaan gulirnya baru merah setelah `e2e/support/tata-letak.js` diperketat. `scrollIntoView` tetap menggulir `body` yang dikunci `overflow: hidden`, padahal pengguna tak dapat menggulirnya, sehingga versi pertama spec ini meluluskan modal yang sebenarnya tak dapat digulir. Gulir yang menggeser halaman terkunci kini dihitung gagal, dan `modal-layar-pendek.spec.js` tetap hijau dengan pembantu yang baru.
+
 ---
 
 <a id="bug-091"></a>
@@ -8748,3 +8760,4 @@ hanya dibaca, tidak diubah.
 | 7.57 | 18 November 2026 | **BUG-091 ditolak: 91 temuan, 88 ditutup, 1 ditolak, 2 terbuka.** Uji merah yang ditulis untuknya lulus pada `0a5903c` di keempat ukuran: judul dan kedua tombol `ConfirmActionModal` utuh di dalam layar, dan yang keluar pada 568x320 hanya 4 px tepi kartu di dalam bantalannya. Pengukuran awal membaca tepi kartu, bukan isinya. Atas keputusan pemilik produk modal itu tidak diubah. |
 | 7.58 | 18 November 2026 | **BUG-092 dicatat: 92 temuan, 88 ditutup, 1 ditolak, 3 terbuka.** Job CI "E2E web" pada `f40fd52` merah di uji BUG-089 `modal-layar-pendek.spec.js`, yang sudah goyah sejak `d3a403c` dan tak berhubungan dengan BUG-090. Direproduksi di lokal dengan membatasi daftar OPD ke tiga OPD seed: `useKeepInViewport` mengosongkan batas tinggi panel pada setiap peristiwa gulir, termasuk gulir daftarnya sendiri, sehingga daftar yang pendek kehilangan posisi gulirnya dan pilihan terbawah tak dapat dicapai. |
 | 7.59 | 18 November 2026 | **BUG-092 ditutup: 92 temuan, 89 ditutup, 1 ditolak, 2 terbuka.** PR #55, merge `main` `2eb255f` (`7f6b6d9` + `f7b2105`), CI 3 dari 3 hijau. `useKeepInViewport` mengabaikan gulir dari dalam panel dan memulihkan posisi gulir di dalamnya sesudah mengukur ulang. Pagarnya `e2e/dropdown-gulir-terbatas.spec.js` dengan tiga OPD tiruan, merah di `0a5903c` dan lulus sesudahnya. Uji BUG-089 yang memerahkan CI kini lulus dalam keadaan tiga OPD. |
+| 7.60 | 18 November 2026 | **BUG-090 ditutup: 92 temuan, 90 ditutup, 1 ditolak, 1 terbuka.** PR #54, merge `main` `4edadeb` (`f40fd52`). Modal kirim survei anonim dirender lewat portal ke `document.body` dan latarnya menggulir. Pagarnya `e2e/modal-kirim-survei-layar-pendek.spec.js`, merah di `0a5903c` dan lulus sesudahnya. Merah CI pertama pada PR ini berasal dari BUG-092, bukan dari perubahan ini. Satu-satunya temuan terbuka kini BUG-086. |
