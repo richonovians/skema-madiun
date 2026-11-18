@@ -643,6 +643,121 @@ describe('CreateComplaintForm — kedua dropdown wajib dipilih', () => {
 });
 
 /**
+ * ANTI KIRIM GANDA (18 November 2026, TC-FE-008).
+ *
+ * Sampai hari ini hanya sisi survei (`SurveyNavigation`) yang beruji; formulir
+ * pengaduan dijaga `disabled={isSubmitting}` pada tombol Kirim tanpa satu uji
+ * pun. Warga yang menekan dua kali pada jaringan lambat akan membuat dua tiket
+ * untuk satu keluhan, dan pembatas harian backend ikut termakan.
+ *
+ * Jawaban `POST /complaints` DITAHAN sampai uji melepasnya, supaya klik kedua
+ * dan ketiga jatuh SELAGI permintaan pertama masih berjalan -- keadaan yang
+ * benar-benar dialami warga. Tanpa penahan, permintaan pertama sudah selesai
+ * sebelum klik berikutnya, dan uji hijau walau penjaganya tak ada.
+ *
+ * Hitungannya diperiksa SEBELUM keadaan tombol, dengan sengaja: bila tombolnya
+ * diperiksa lebih dulu, mutasi yang membuang `disabled` memerahkan asersi
+ * tombol dan asersi hitungan tak pernah dijalankan pada jalan merah itu.
+ *
+ * "Form disable" pada harapan TC-FE-008 dibaca sebagai tombol Kirim yang
+ * nonaktif, sama dengan sisi survei (keputusan pengguna 18 November 2026).
+ * Medan lain tetap dapat disunting selama mengirim; isinya sudah terambil saat
+ * tombol ditekan, jadi suntingan sesudahnya tidak ikut terkirim.
+ */
+describe('CreateComplaintForm — anti kirim ganda', () => {
+  const opdDropdown = () =>
+    screen.getByLabelText(/^(opd \/ instansi|kecamatan \/ kelurahan) tujuan/i);
+
+  const tahanKirim = (jawab) => {
+    const dikirim = jest.fn();
+    let lepas;
+    const tertahan = new Promise((r) => {
+      lepas = r;
+    });
+    server.use(
+      http.post(`${API_BASE}/complaints`, async () => {
+        dikirim();
+        await tertahan;
+        return jawab();
+      }),
+    );
+    return { dikirim, lepas: () => lepas() };
+  };
+
+  const isiLengkap = async () => {
+    await screen.findByText('Pilih Instansi');
+    fireEvent.click(opdDropdown());
+    fireEvent.click(await screen.findByRole('button', { name: 'Dinas Kesehatan' }));
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Kesehatan'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), { target: { value: 'Judul' } });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Uraian pengaduan yang cukup panjang' },
+    });
+    isiKejadian();
+  };
+
+  /**
+   * Elemen tombolnya diambil SEKALI sebelum klik pertama dan dipakai ulang.
+   * Mencarinya lagi lewat `/kirim/i` selagi mengirim tidak menemukan apa pun:
+   * labelnya berganti "Mengirim...", dan "kirim" bukan potongan dari
+   * "mengirim" karena k-nya luluh. Versi pertama uji ini tersandung persis di
+   * situ, merah pada jalan mutasi karena alasan yang salah.
+   */
+  const tombolKirim = () => screen.getByRole('button', { name: /^kirim laporan$/i });
+
+  it('klik berulang selagi mengirim: POST /complaints berangkat SEKALI', async () => {
+    const { dikirim, lepas } = tahanKirim(() =>
+      ok({ id: 'PGD20261118AAAA', ticketNo: 'PGD20261118AAAA', opdId: 1 }, '/complaints', 201),
+    );
+    render(<CreateComplaintForm />);
+    await isiLengkap();
+
+    const tombol = tombolKirim();
+    fireEvent.click(tombol);
+    await waitFor(() => expect(dikirim).toHaveBeenCalledTimes(1));
+    fireEvent.click(tombol);
+    fireEvent.click(tombol);
+    // Beri waktu permintaan kedua untuk berangkat bila penjaganya bocor.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(dikirim).toHaveBeenCalledTimes(1);
+
+    expect(tombol).toBeDisabled();
+    expect(tombol).toHaveTextContent('Mengirim...');
+
+    lepas();
+    await waitFor(() => expect(useRouter().push).toHaveBeenCalledTimes(1));
+    expect(dikirim).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * KONTROL. Penjaga yang mengunci tombol SELAMANYA juga meluluskan uji di
+   * atas; padahal sesudah gagal, warga harus dapat mencoba lagi.
+   */
+  it('KONTROL: sesudah gagal, tombol pulih dan kirim ulang berangkat lagi', async () => {
+    const { dikirim, lepas } = tahanKirim(() =>
+      failWithCode(500, 'Server sedang bermasalah', 'INTERNAL_ERROR'),
+    );
+    render(<CreateComplaintForm />);
+    await isiLengkap();
+
+    const tombol = tombolKirim();
+    fireEvent.click(tombol);
+    await waitFor(() => expect(dikirim).toHaveBeenCalledTimes(1));
+    lepas();
+
+    expect(await screen.findByText('Server sedang bermasalah')).toBeInTheDocument();
+    await waitFor(() => expect(tombol).toBeEnabled());
+    expect(tombol).toHaveTextContent('Kirim Laporan');
+
+    fireEvent.click(tombol);
+    await waitFor(() => expect(dikirim).toHaveBeenCalledTimes(2));
+  });
+});
+
+/**
  * ISIAN BERISI SPASI SAJA (17 November 2026, BUG-083).
  *
  * Atribut `required` peramban menerima '   ', jadi tanpa pemeriksaan sendiri
