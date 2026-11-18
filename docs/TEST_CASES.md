@@ -689,6 +689,7 @@ Referensi: PRD NFR (Auditabilitas), Routes §A.7
 | TC-AUD-005 | Daftar audit log (Admin Kabupaten)   | GET `/audit-logs` sebagai kabupaten   | —          | 200 OK; daftar log dengan pagination **Dipetakan + diuji penguji 3 Nov 2026:** `audit.e2e-spec.ts:94` (200 bagi kabupaten); paginasinya tak diperiksa di sana. Penguji: `page=1&limit=10` -> 10 baris, `meta.pagination.total` 2669 = hitungan `audit_logs` di `skm_db` saat itu, 267 halaman. |    P2     | Integ |   ✅   |
 | TC-AUD-006 | Admin OPD TIDAK bisa akses audit log | GET `/audit-logs` sebagai admin OPD   | —          | 403 Forbidden **Dipetakan 3 Nov 2026:** `audit.e2e-spec.ts:216` "GET /audit-logs (Admin OPD) -> 403". Lulus di CI `40a20ce`. |    P2     | Integ |   ✅   |
 | TC-AUD-007 | Responden TIDAK bisa akses audit log | GET `/audit-logs` sebagai responden   | —          | 403 Forbidden **Dipetakan 3 Nov 2026:** `audit.e2e-spec.ts:221`, pesan menyebut `kabupaten`. Lulus di CI `40a20ce`. |    P2     | Integ |   ✅   |
+| TC-AUD-008 | Penerusan pengaduan tercatat tepat sekali | PATCH `/complaints/:id/opd` → cek audit | Pengaduan tanpa tujuan | Tepat satu baris `aksi = forward` per penerusan, memuat tingkat dan kategori lama. **Gagal 18 Nov 2026 di `dd18af7`:** dua baris, satu dari `@Audit` di controller dan satu dari service, lihat [BUG-093](BUG_REPORTS.md#bug-093) |    P2     | Integ |   ❌   |
 
 ---
 
@@ -2460,17 +2461,19 @@ sengaja membiarkannya `NULL`.
 | F — Pengisian Survei     |    26     |   10   |   16    |   0    |   0   |
 | G — IKM & Hasil          |    23     |   15   |   7     |   1    |   0   |
 | H — Pengaduan            |  **74**   |   28   |   33   |   11  |   2   |
-| I — Audit Log            |     7     |   0    |   0     |   7    |   0   |
+| I — Audit Log            |     8     |   0    |   0     |   8    |   0   |
 | J — Parameter Boolean    |     3     |   0    |   0     |   1    |   2   |
 | X — RBAC & Isolasi       |    31     |   13   |   3     |   1    |   0   |
 | Y — Frontend & E2E       |  **51**   |   8    |   24    |   16   |   3   |
 | Z — Fitur Okt–Nov 2026   |  **20**   |   4    |   10    |   6    |   0   |
-| **TOTAL**                |  **335**  | **107** | **143** | **62** | **9** |
+| **TOTAL**                |  **336**  | **107** | **143** | **63** | **9** |
 
 > **14 baris Modul X (TC-RBAC-001 s/d 014) tidak berkolom prioritas** — tabelnya
 > berbentuk matriks peran (Superuser · Kabupaten · Admin OPD · Responden), bukan
 > tabel skenario biasa. Jumlahnya tetap dihitung pada kolom "Jumlah TC", sehingga
 > 88+113+45+7 = 253, ditambah 14 = 267.
+>
+> **(18 November 2026, keempat) Modul I bertambah 1 kasus** (TC-AUD-008 P2 untuk BUG-093). Totalnya kini 107+143+63+9 = 322, ditambah 14 baris matriks = **336**.
 >
 > **(18 November 2026, ketiga) Modul Y bertambah 1 kasus** (TC-FE-052 P1 untuk BUG-092). Totalnya kini 107+143+62+9 = 321, ditambah 14 baris matriks = **335**.
 >
