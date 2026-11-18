@@ -184,9 +184,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-096) |
 | [BUG-090](#bug-090) | Modal kirim survei anonim terkurung di dalam kartu survei: latarnya tak menutupi layar dan kartunya terpotong | Medium | Terkonfirmasi | Terbuka | Pemindaian modal sesudah BUG-089 (TC-FILL-043) |
 | [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
-| [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | Terbuka | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
+| [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 
-**Rekap** — 92 temuan: **88 ditutup, 1 ditolak, 3 terbuka** (Medium: BUG-090, BUG-092; Low: BUG-086). Ditolak: BUG-091.
+**Rekap** — 92 temuan: **89 ditutup, 1 ditolak, 2 terbuka** (Medium: BUG-090; Low: BUG-086). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5340,6 +5340,20 @@ Di CI pilihan "Dinas Kesehatan" terukur di y 332-370 pada layar setinggi 360. Uj
 
 Abaikan peristiwa gulir yang berasal dari dalam panel, sebab posisi panel tak berubah ketika isinya sendiri digulir. Simpan posisi gulir di dalam panel sebelum batasnya dikosongkan dan pulihkan sesudah batas dipasang lagi, untuk gulir latar atau halaman yang terjadi selagi daftar sudah tergulir.
 
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `7f6b6d9`, dengan `f7b2105` yang menstabilkan ujinya, masuk lewat PR #55, merge `main` `2eb255f`. CI 3 dari 3 job hijau pada `f7b2105`; E2E web 173 lulus, 1 dilewati, tanpa uji goyah. Isi ketiga berkas yang diubah di `2eb255f` sama persis dengan `f7b2105`.
+
+`useKeepInViewport` kini mengabaikan peristiwa gulir yang berasal dari dalam panel, dan menyimpan posisi gulir di dalam panel sebelum batas tingginya dikosongkan lalu memulihkannya sesudah batas dipasang lagi.
+
+Pagar regresinya `e2e/dropdown-gulir-terbatas.spec.js`, yang membatasi jawaban `GET /opd` ke tiga OPD lewat `page.route` untuk meniru basis data CI. Spec itu memeriksa lebih dulu bahwa panel memang dibatasi dan daftarnya memang meluap. Pada `0a5903c` ia merah ("daftar OPD tak bergerak oleh roda tetikus", `scrollTop` 0). Dengan perubahan pertama saja ia tetap merah di langkah gulir latar, yang mengembalikan daftar ke atas. Dengan kedua perubahan ia lulus.
+
+Uji BUG-089 yang semula memerahkan CI, dijalankan dengan tiga OPD: pilihan "Dinas Kesehatan" di y 335-375 pada layar setinggi 360 sebelum perbaikan, dan di y 273-313 sesudahnya. Uji itu kini juga menunggu animasi `zoom-in-95` panel selesai sebelum mengukur.
+
+Spec barunya sendiri sempat goyah sekali pada jalan pascacommit: pemicu dropdown sudah aktif sebelum `GET /opd` dijawab, dan panel yang dibuka lebih dulu tak pernah dibatasi. Dengan jawaban `/opd` ditunda 1,5 detik versi lama spec merah dengan pesan yang sama, dan versi di `f7b2105` lulus. Versi itu tetap merah pada kait lama dan lulus 3 dari 3 dengan perbaikannya.
+
+Sisa yang tidak dicatat sebagai bug: panel yang dibuka sebelum datanya tiba lalu membesar tidak diukur ulang, karena kait ini hanya mengukur saat panel dibuka, saat layar berubah ukuran, dan saat ada gulir. Ini hanya terjadi bila dropdown dibuka pada saat-saat pertama modal tampil.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -8733,3 +8747,4 @@ hanya dibaca, tidak diubah.
 | 7.56 | 18 November 2026 | **BUG-090 dan BUG-091 dicatat: 91 temuan, 88 ditutup, 3 terbuka.** Hasil pengukuran lima modal yang tersisa sesudah BUG-089, pada `0a5903c`. BUG-090 (Medium): latar modal kirim survei anonim terkurung bingkai kartu ber-`backdrop-filter` di `app/survei/[id]/page.jsx`, sehingga tak menutupi layar dan kartunya terpotong di tiga ukuran. BUG-091 (Low): `ConfirmActionModal` terpotong 4 px pada 568x320. `GantiJenisModal`, `GantiJenisKeSkmModal`, dan modal peringatan halaman isi survei muat di keempat ukuran. `ExitConfirmationModal` tidak diukur karena tak terjangkau: satu-satunya pemakainya `DashboardNavbar`, yang tak diimpor di mana pun. Dugaan laci menu ponsel tertutup kartu survei dibatalkan: tangkapan layarnya diambil di tengah animasi masuk laci, dan pengukuran ulang menunjukkan laci utuh di atas. |
 | 7.57 | 18 November 2026 | **BUG-091 ditolak: 91 temuan, 88 ditutup, 1 ditolak, 2 terbuka.** Uji merah yang ditulis untuknya lulus pada `0a5903c` di keempat ukuran: judul dan kedua tombol `ConfirmActionModal` utuh di dalam layar, dan yang keluar pada 568x320 hanya 4 px tepi kartu di dalam bantalannya. Pengukuran awal membaca tepi kartu, bukan isinya. Atas keputusan pemilik produk modal itu tidak diubah. |
 | 7.58 | 18 November 2026 | **BUG-092 dicatat: 92 temuan, 88 ditutup, 1 ditolak, 3 terbuka.** Job CI "E2E web" pada `f40fd52` merah di uji BUG-089 `modal-layar-pendek.spec.js`, yang sudah goyah sejak `d3a403c` dan tak berhubungan dengan BUG-090. Direproduksi di lokal dengan membatasi daftar OPD ke tiga OPD seed: `useKeepInViewport` mengosongkan batas tinggi panel pada setiap peristiwa gulir, termasuk gulir daftarnya sendiri, sehingga daftar yang pendek kehilangan posisi gulirnya dan pilihan terbawah tak dapat dicapai. |
+| 7.59 | 18 November 2026 | **BUG-092 ditutup: 92 temuan, 89 ditutup, 1 ditolak, 2 terbuka.** PR #55, merge `main` `2eb255f` (`7f6b6d9` + `f7b2105`), CI 3 dari 3 hijau. `useKeepInViewport` mengabaikan gulir dari dalam panel dan memulihkan posisi gulir di dalamnya sesudah mengukur ulang. Pagarnya `e2e/dropdown-gulir-terbatas.spec.js` dengan tiga OPD tiruan, merah di `0a5903c` dan lulus sesudahnya. Uji BUG-089 yang memerahkan CI kini lulus dalam keadaan tiga OPD. |
