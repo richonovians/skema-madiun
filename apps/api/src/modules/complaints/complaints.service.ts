@@ -573,18 +573,35 @@ export class ComplaintsService {
     assertKategoriUntukPindahTingkat(opd.nama, complaint.tingkat, tingkatBaru, dto.kategori);
     if (dto.kategori) assertKategoriSesuaiTingkat(dto.kategori, tingkatBaru);
 
-    const updated = await this.prisma.complaint
-      .update({
-        // `opdId: null` di syarat: dua penerusan serentak tak boleh saling
-        // menimpa tujuan (BUG-078, lihat `PESAN_BERUBAH_SERENTAK`).
-        where: { id, opdId: null },
-        // Tanpa kategori, penerusannya setingkat (dijamin pemeriksaan di
-        // atas), jadi tingkat dan kategori lama memang tetap berlaku.
-        data: dto.kategori
-          ? { opdId: dto.opdId, tingkat: tingkatBaru, kategori: dto.kategori }
-          : { opdId: dto.opdId },
-        include: { attachments: true },
-      })
+    const [updated] = await this.prisma
+      .$transaction([
+        this.prisma.complaint.update({
+          // `opdId: null` di syarat: dua penerusan serentak tak boleh saling
+          // menimpa tujuan (BUG-078, lihat `PESAN_BERUBAH_SERENTAK`).
+          where: { id, opdId: null },
+          // Tanpa kategori, penerusannya setingkat (dijamin pemeriksaan di
+          // atas), jadi tingkat dan kategori lama memang tetap berlaku.
+          data: dto.kategori
+            ? { opdId: dto.opdId, tingkat: tingkatBaru, kategori: dto.kategori }
+            : { opdId: dto.opdId },
+          include: { attachments: true },
+        }),
+        // BUG-086 (18 November 2026). Tanpa baris ini linimasa pelapor tetap
+        // berbunyi "Terkirim" saja dan tak pernah menyebut instansi yang kini
+        // memegang tiketnya. `diteruskan` status KHUSUS RIWAYAT seperti
+        // `terkirim`: statusnya sendiri tak bergeser, jadi kolom `status`
+        // pengaduan tidak disentuh di atas. Di dalam transaksi yang sama
+        // dengan alasan `alihkan()`: penerusan yang kalah balapan tak boleh
+        // meninggalkan baris riwayat bagi tujuan yang tak pernah tersimpan.
+        this.prisma.complaintStatusHistory.create({
+          data: {
+            complaintId: id,
+            status: ComplaintStatus.diteruskan,
+            actorId: user.userId,
+            opdTujuanId: dto.opdId,
+          },
+        }),
+      ])
       .catch(sebagaiKonflikSerentak);
 
     // Tindakan administratif atas pengaduan orang lain -- harus berjejak.
@@ -1015,7 +1032,7 @@ export class ComplaintsService {
             catatan: baris.catatan ? dekripsiKolom(baris.catatan, this.kunci) : null,
             // `null` = sistem. Lihat entitasnya.
             actorNama: baris.actor?.nama ?? null,
-            // Terisi HANYA pada baris dialihkan; null pada yang lain.
+            // Terisi HANYA pada baris dialihkan dan diteruskan; null pada yang lain.
             opdTujuanNama: baris.opdTujuan?.nama ?? null,
             createdAt: baris.createdAt,
           }),

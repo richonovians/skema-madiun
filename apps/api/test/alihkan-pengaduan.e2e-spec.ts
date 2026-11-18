@@ -373,4 +373,90 @@ describe('Alihkan pengaduan (e2e)', () => {
       });
     });
   });
+
+  /**
+   * BUG-086 (12 November 2026, dipisah dari BUG-077; dirancang 18 November
+   * 2026). Penerusan dulu hanya mengisi `opd_id`, sehingga linimasa pelapor
+   * tetap berbunyi "Terkirim" saja dan tak menyebut instansi yang kini
+   * memegang tiketnya.
+   *
+   * Barisnya berstatus `diteruskan`, status KHUSUS RIWAYAT seperti `terkirim`:
+   * statusnya sendiri tak bergeser, jadi lencananya tetap "Menunggu
+   * Verifikasi" sementara baris terakhir riwayatnya "Diteruskan".
+   */
+  describe('riwayat penerusan (BUG-086)', () => {
+    const teruskan = (id: number, body: Record<string, unknown>) =>
+      request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${id}/opd`)
+        .set(asKabupaten())
+        .send(body);
+
+    it('menambah tepat satu baris diteruskan bertujuan, tanpa menggeser status', async () => {
+      const tiket = await buatPengaduan({ opdId: null });
+
+      await teruskan(tiket.id, { opdId: opdTujuanId }).expect(200);
+
+      const riwayat = await prisma.complaintStatusHistory.findMany({
+        where: { complaintId: tiket.id },
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(riwayat.map((b) => b.status)).toEqual([ComplaintStatus.terkirim, 'diteruskan']);
+      expect(riwayat[1]).toMatchObject({ opdTujuanId, actorId: adminKabId, catatan: null });
+      const sesudah = await prisma.complaint.findUnique({ where: { id: tiket.id } });
+      expect(sesudah?.status).toBe(ComplaintStatus.menunggu_verifikasi);
+    });
+
+    it('pelapor membaca baris Diteruskan beserta nama instansinya di detail tiket', async () => {
+      const tiket = await buatPengaduan({ opdId: null });
+      await teruskan(tiket.id, { opdId: opdTujuanId }).expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/complaints/${tiket.ticketNo}`)
+        .set(asRespondenPelapor())
+        .expect(200);
+
+      const riwayat = res.body.data.statusHistory as {
+        status: string;
+        label: string;
+        opdTujuanNama: string | null;
+      }[];
+      expect(riwayat.at(-1)).toMatchObject({
+        status: 'diteruskan',
+        label: 'Diteruskan',
+        opdTujuanNama: 'Dinas E2E Alihkan Tujuan',
+      });
+      expect(res.body.data.status).toBe(ComplaintStatus.menunggu_verifikasi);
+    });
+
+    it('penerusan yang ditolak tidak menambah baris riwayat', async () => {
+      const tiket = await buatPengaduan({
+        opdId: null,
+        tingkat: TingkatPengaduan.kecamatan,
+        kategori: 'kec_lainnya',
+      });
+
+      await teruskan(tiket.id, { opdId: opdTujuanId }).expect(400);
+
+      const jumlah = await prisma.complaintStatusHistory.count({
+        where: { complaintId: tiket.id },
+      });
+      expect(jumlah).toBe(1);
+    });
+
+    /**
+     * PENJAGA, BUKAN PEMBUKTI CACAT: lulus sebelum dan sesudah perbaikan.
+     * Sebelumnya `@IsEnum` menolak nilai yang belum ada; sesudahnya
+     * `TRANSISI_DIIZINKAN` yang menolaknya, karena tak satu pun status boleh
+     * berpindah ke `diteruskan` -- persis seperti `terkirim`.
+     */
+    it('PATCH status ke diteruskan ditolak 400', async () => {
+      const tiket = await buatPengaduan();
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/complaints/${tiket.id}/status`)
+        .set(asKabupaten())
+        .send({ status: 'diteruskan' })
+        .expect(400);
+    });
+  });
 });

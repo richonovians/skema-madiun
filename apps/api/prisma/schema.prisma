@@ -155,6 +155,15 @@ enum ComplaintStatus {
   /// tak dapat mencapainya, sebab ia bukan target pada kunci mana pun di
   /// `TRANSISI_DIIZINKAN`.
   dialihkan
+  /// Pengaduan tanpa tujuan diteruskan Admin Kabupaten ke OPD (BUG-086,
+  /// 18 November 2026). KHUSUS RIWAYAT, seperti `terkirim`: TIDAK PERNAH
+  /// MENETAP di `complaints.status`, sebab penerusan hanya mengisi tujuan dan
+  /// tak menggeser status. Barisnya membawa `opd_tujuan_id`, sehingga linimasa
+  /// pelapor menyebut instansi yang kini memegang tiketnya.
+  ///
+  /// Hanya `ComplaintsService.forward()` yang menuliskannya, dan ia bukan
+  /// target pada kunci mana pun di `TRANSISI_DIIZINKAN`.
+  diteruskan
 
   @@map("complaint_status")
 }
@@ -638,7 +647,8 @@ model ComplaintStatusHistory {
   /// baris `terkirim` tak punya petugas, dan baris warisan hasil migrasi pun
   /// tak pernah mencatat pelakunya.
   actorId     Int?            @map("actor_id")
-  /// OPD tujuan pengalihan. Terisi HANYA pada baris berstatus `dialihkan`;
+  /// OPD tujuan pengalihan atau penerusan. Terisi HANYA pada baris berstatus
+  /// `dialihkan` dan `diteruskan` (yang kedua sejak 18 November 2026, BUG-086);
   /// NULL pada setiap baris lain, sebab hanya perpindahan antar-instansi yang
   /// punya tujuan.
   ///

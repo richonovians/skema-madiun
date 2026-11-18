@@ -113,10 +113,16 @@ export default function ComplaintStatusTimeline({ riwayat, currentStatus }) {
                         tiket yang dialihkan dua kali akan menampilkan tujuan
                         yang sama dua kali. `null` pada setiap baris yang bukan
                         pengalihan -- barisnya tak digambar sama sekali, bukan
-                        digambar dengan tanda hubung. */}
+                        digambar dengan tanda hubung.
+
+                        Baris penerusan (`diteruskan`, BUG-086, 18 November
+                        2026) juga membawa tujuannya. Katanya mengikuti
+                        peristiwanya: tiket yang baru mendapat tujuan tidak
+                        dialihkan dari instansi mana pun. */}
                     {item.opdTujuanNama && (
                       <p className="text-sm font-semibold text-text-primary mt-1.5 break-words">
-                        Dialihkan ke {item.opdTujuanNama}
+                        {item.status === 'diteruskan' ? 'Diteruskan' : 'Dialihkan'} ke{' '}
+                        {item.opdTujuanNama}
                       </p>
                     )}
                     {item.catatan && (
