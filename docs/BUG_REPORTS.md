@@ -178,7 +178,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-083](#bug-083) | Lokasi kejadian dan uraian lolos bila hanya berisi spasi | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-049) |
 | [BUG-084](#bug-084) | Modal alihkan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | QA PR #18 (TC-CMP-090) |
 | [BUG-085](#bug-085) | Dua kategori "Lainnya" tak terbedakan pada data statistik | Low | Terkonfirmasi | **Ditutup** | QA PR #17 (TC-CMP-055) |
-| [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | Terbuka | Dipisah dari BUG-077 (TC-CMP-054) |
+| [BUG-086](#bug-086) | Penerusan tidak menambah baris riwayat, sehingga linimasa pelapor tak memperlihatkannya | Low | Terkonfirmasi | **Ditutup** | Dipisah dari BUG-077 (TC-CMP-054) |
 | [BUG-087](#bug-087) | Modal Bagikan survei terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-094) |
 | [BUG-088](#bug-088) | Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-095) |
 | [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-096) |
@@ -186,7 +186,7 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
 | [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 
-**Rekap** — 92 temuan: **90 ditutup, 1 ditolak, 1 terbuka** (Medium: tidak ada; Low: BUG-086). Ditolak: BUG-091.
+**Rekap** — 92 temuan: **91 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5075,6 +5075,30 @@ Pengaduan tanpa tujuan yang diteruskan Admin Kabupaten tetap hanya memuat baris 
 
 Perlu rancangan tersendiri sebelum dikerjakan: bentuk baris riwayat untuk peristiwa yang tidak mengubah status, dan cara linimasa menampilkannya. Alasan inilah yang membuat gejala ini dipisah dari BUG-077.
 
+**Status 18 November 2026: Ditutup**
+
+Diperbaiki di `1254f70`, masuk lewat PR #57, merge `main` `dd18af7`. Isi `dd18af7` sama persis dengan `1254f70`. CI cabang pada `1254f70` hijau 3 dari 3 job, dengan E2E web 175 lulus dan 1 dilewati. Run `main` sebelumnya (`8be378d`) mencatat 174 lulus dan 1 dilewati, jadi spec baru ikut lulus di basis data CI. Pada `dd18af7`, job lint, uji unit, build, dan E2E API hijau. Job E2E web masih berjalan saat catatan ini ditulis.
+
+Rancangannya disetujui pemilik produk sebelum kode ditulis. Penerusan kini menulis baris riwayat berstatus `diteruskan`, yaitu status khusus riwayat dengan perlakuan yang sama seperti `terkirim`. Nilai itu tak pernah menetap di `complaints.status` dan bukan target pada kunci mana pun di `TRANSISI_DIIZINKAN`, sehingga `PATCH /status` ke `diteruskan` dijawab 400. Barisnya membawa `opd_tujuan_id` seperti baris `dialihkan`, jadi tak ada kolom baru. `forward()` menulis pembaruan tujuan dan baris riwayatnya dalam satu transaksi, sehingga penerusan yang kalah balapan (BUG-078) tak meninggalkan baris riwayat. Status pengaduannya sendiri tidak bergeser, jadi lencana tetap berbunyi "Menunggu Verifikasi" sementara baris terakhir linimasa berbunyi "Diteruskan".
+
+Linimasa menulis "Diteruskan ke <instansi>" untuk baris penerusan dan tetap "Dialihkan ke <instansi>" untuk baris pengalihan. Komponennya dipakai pelapor, Admin OPD, dan Admin Kabupaten.
+
+Ada dua migrasi tulisan tangan. Migrasi `20261118090000_riwayat_diteruskan` menambah nilai enumnya. Migrasi `20261118090100_isi_ulang_riwayat_diteruskan` mengisi ulang baris untuk penerusan lama dari `audit_logs`, yang hanya dibaca, atas keputusan pemilik produk. Keduanya harus terpisah karena nilai hasil `ADD VALUE` belum dapat dipakai di dalam transaksi yang menambahkannya. Di `skm_db` lokal, tiket 320 yang diteruskan 7 November mendapat baris `diteruskan` pada urutan waktu yang benar di antara baris riwayatnya yang lain.
+
+Pembuktian merahnya dijalankan sebelum perbaikan ditulis.
+
+| Uji | Sebelum | Sesudah |
+| --- | --- | --- |
+| Unit `complaints.service.spec.ts`, baris `diteruskan` ditulis di dalam transaksi | merah, `create` tak dipanggil | lulus |
+| E2E `alihkan-pengaduan.e2e-spec.ts`, tepat satu baris bertujuan tanpa menggeser status | merah | lulus |
+| E2E yang sama, detail tiket pelapor memuat label "Diteruskan" dan nama instansinya | merah | lulus |
+| Jest `ComplaintStatusTimeline.test.jsx`, dua uji | merah | lulus |
+| Playwright `e2e/riwayat-penerusan.spec.js` | merah pada "Diteruskan", kontrol "Terkirim" lulus | lulus |
+
+Dua uji e2e lain lulus di kedua sisi, dan itu disengaja karena keduanya penjaga. Yang satu memeriksa bahwa penerusan yang ditolak tidak menulis riwayat. Yang lain memeriksa bahwa `PATCH /status` ke `diteruskan` dijawab 400. Sebelum perbaikan penolakan itu datang dari `@IsEnum`, sesudahnya dari tabel transisi.
+
+Satu temuan sampingan tidak diperbaiki di sini. Setiap penerusan tercatat dua kali di `audit_logs`, sekali oleh `@Audit('complaint', 'forward')` di controller dan sekali oleh `audit.record` di service. Di `skm_db` lokal tercatat 17 baris dari masing-masing bentuk. `alihkan` sengaja tak memasang dekoratornya karena alasan ini. Temuan ini belum diberi nomor.
+
 ---
 
 <a id="bug-087"></a>
@@ -8764,3 +8788,4 @@ hanya dibaca, tidak diubah.
 | 7.59 | 18 November 2026 | **BUG-092 ditutup: 92 temuan, 89 ditutup, 1 ditolak, 2 terbuka.** PR #55, merge `main` `2eb255f` (`7f6b6d9` + `f7b2105`), CI 3 dari 3 hijau. `useKeepInViewport` mengabaikan gulir dari dalam panel dan memulihkan posisi gulir di dalamnya sesudah mengukur ulang. Pagarnya `e2e/dropdown-gulir-terbatas.spec.js` dengan tiga OPD tiruan, merah di `0a5903c` dan lulus sesudahnya. Uji BUG-089 yang memerahkan CI kini lulus dalam keadaan tiga OPD. |
 | 7.60 | 18 November 2026 | **BUG-090 ditutup: 92 temuan, 90 ditutup, 1 ditolak, 1 terbuka.** PR #54, merge `main` `4edadeb` (`f40fd52`). Modal kirim survei anonim dirender lewat portal ke `document.body` dan latarnya menggulir. Pagarnya `e2e/modal-kirim-survei-layar-pendek.spec.js`, merah di `0a5903c` dan lulus sesudahnya. Merah CI pertama pada PR ini berasal dari BUG-092, bukan dari perubahan ini. Satu-satunya temuan terbuka kini BUG-086. |
 | 7.61 | 18 November 2026 | **Kode mati `DashboardNavbar` dan `ExitConfirmationModal` dihapus; rekap tetap 92 temuan, 90 ditutup, 1 ditolak, 1 terbuka.** PR #56, merge `main` `8be378d` (`da0286b`), CI cabang 3 dari 3 hijau. Ditemukan saat mengukur lima modal sesudah BUG-089 (riwayat 7.56). BUG-043 diberi catatan: komponen yang diperbaikinya tak pernah dirender. Uji TC-FE-005 untuk navigasi warga ternyata juga merender `DashboardNavbar`; kini ia membuka menu akun `ProfileAvatarDropdown`, tempat tautan warga sesungguhnya tinggal, dan terbukti dapat merah lewat uji mutasi. |
+| 7.62 | 18 November 2026 | **BUG-086 ditutup: 92 temuan, 91 ditutup, 1 ditolak, 0 terbuka.** PR #57, merge `main` `dd18af7` (`1254f70`). CI cabang hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). Penerusan kini menulis baris riwayat `diteruskan`, status khusus riwayat seperti `terkirim`, yang membawa `opd_tujuan_id`. Linimasa menulisnya "Diteruskan ke <instansi>". Penerusan lama diisi ulang dari `audit_logs` lewat migrasi tersendiri. Pagarnya ada di unit, e2e API, Jest, dan `e2e/riwayat-penerusan.spec.js`, semuanya merah di `8be378d` dan lulus sesudahnya. Temuan sampingan, belum bernomor: setiap penerusan tercatat dua kali di `audit_logs`. |
