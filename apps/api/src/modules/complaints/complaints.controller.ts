@@ -129,11 +129,17 @@ export class ComplaintsController {
    * Daftarnya PERSIS `FULL_ACCESS_ROLES`, jadi tak ada perubahan siapa yang
    * boleh: yang berubah hanya lapis mana yang menolak lebih dahulu. Pemeriksaan
    * di service tetap ada, dengan pesan yang lebih spesifik.
+   *
+   * TANPA `@Audit` sejak BUG-093 (18 November 2026), dengan alasan yang sama
+   * seperti `alihkan` di bawah: `ComplaintsService.forward()` sudah mencatat
+   * penerusannya sendiri, lengkap dengan tingkat dan kategori lama yang sudah
+   * hilang saat dekorator berjalan. Selama keduanya terpasang, setiap
+   * penerusan tercatat dua kali. Baris kembar yang sudah ada tidak dihapus,
+   * sebab `audit_logs` wajib utuh.
    */
   @Patch(':id/opd')
   @ApiOperation({ summary: 'Teruskan pengaduan yang belum bertujuan ke OPD yang berwenang.' })
   @Roles(Role.kabupaten)
-  @Audit('complaint', 'forward')
   @ApiOkResponse({ type: ComplaintEntity })
   forward(
     @Param('id', ParseIntPipe) id: number,

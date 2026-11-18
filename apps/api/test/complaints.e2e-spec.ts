@@ -1214,6 +1214,35 @@ describe('Complaints (e2e)', () => {
       expect(res.body.data.opdId).toBe(opdId);
     });
 
+    /**
+     * BUG-093 (18 November 2026), TC-AUD-008. Penerusan dulu tercatat dua
+     * kali: sekali oleh `@Audit('complaint', 'forward')` di controller
+     * (`{params, body}`, id pengaduannya STRING di `params.id`) dan sekali oleh
+     * `ComplaintsService.forward()` (`{complaintId, ...}`). Kedua bentuk
+     * dihitung di sini; menyaring `complaintId` saja akan meluluskan baris
+     * kembarnya tanpa pernah melihatnya.
+     */
+    it('penerusan tercatat TEPAT SATU baris forward di audit_logs, memuat tingkat & kategori lama', async () => {
+      const baris = await prisma.auditLog.findMany({
+        where: { aksi: 'forward', entitas: 'complaint', actorId: adminKabId },
+      });
+      const untukTiketIni = baris.filter((b) => {
+        const detail = b.detail as {
+          complaintId?: number;
+          params?: { id?: string };
+        } | null;
+        return detail?.complaintId === tiketId || detail?.params?.id === String(tiketId);
+      });
+
+      expect(untukTiketIni).toHaveLength(1);
+      expect(untukTiketIni[0].detail).toMatchObject({
+        complaintId: tiketId,
+        opdId,
+        tingkatLama: 'kabupaten',
+        kategoriLama: 'kab_lainnya',
+      });
+    });
+
     it('sesudah diteruskan, Admin OPD tujuan MELIHATNYA', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/complaints?limit=100')
