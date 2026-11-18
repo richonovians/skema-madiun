@@ -1,6 +1,5 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import DashboardNavbar from '../DashboardNavbar';
 import Navbar from '../Navbar';
 
 jest.mock('next/navigation', () => ({
@@ -29,9 +28,12 @@ jest.mock('@/components/ui/NotificationDropdown', () => ({
  * berganti Buka/Tutup tetapi tanpa `aria-expanded`/`aria-controls`. Laci
  * keduanya hanya dirender selagi terbuka, jadi `aria-controls` diperiksa
  * sesudah dibuka.
+ *
+ * Kasus DashboardNavbar dibuang 18 November 2026 bersama komponennya: tak
+ * satu halaman pun mengimpornya, jadi ujinya hanya menjaga kode mati. Warga
+ * yang masuk melihat `Navbar` yang sama dengan halaman publik.
  */
 describe.each([
-  ['DashboardNavbar (dashboard warga)', DashboardNavbar, /buka menu navigasi/i],
   ['Navbar (halaman publik)', Navbar, /menu navigasi/i],
 ])('%s — tombol hamburger', (_, Komponen, nama) => {
   it('bernama, dan aria-expanded mengikuti laci', () => {

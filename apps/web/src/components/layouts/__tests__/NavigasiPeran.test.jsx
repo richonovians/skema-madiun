@@ -1,10 +1,10 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { http } from 'msw';
 import { setupServer } from 'msw/node';
 import { handlers, ok, userFixture } from '@/mocks/handlers';
 import AdminKabSidebar from '../AdminKabSidebar';
-import DashboardNavbar from '../DashboardNavbar';
+import ProfileAvatarDropdown from '@/features/profile/components/ProfileAvatarDropdown';
 import { AdminKabLayoutProvider } from '../AdminKabLayoutProvider';
 
 /**
@@ -131,9 +131,20 @@ describe('Sidebar Admin Kabupaten (TC-FE-005)', () => {
   });
 });
 
+/**
+ * MENU WARGA YANG SUNGGUH DIRENDER (18 November 2026). Sampai hari ini uji ini
+ * merender `DashboardNavbar`, padahal komponen itu tak pernah diimpor halaman
+ * mana pun: kerangka `(respondent)` memakai `Navbar`, dan tautan pekerjaan
+ * warga di sana tinggal di menu akun `ProfileAvatarDropdown`. Uji lama hijau
+ * atas kode mati dan tak menjaga apa pun yang dilihat warga. `DashboardNavbar`
+ * dihapus, dan uji ini kini membuka menu akun yang memang dipakai.
+ */
 describe('Navbar warga (TC-FE-005)', () => {
-  it('menawarkan seluruh tautan warga dan tak satu pun tautan admin', () => {
-    render(<DashboardNavbar />);
+  it('menawarkan seluruh tautan warga dan tak satu pun tautan admin', async () => {
+    sebagai('responden');
+    render(<ProfileAvatarDropdown />);
+    fireEvent.click(await screen.findByLabelText(/menu akun saya/i));
+    await screen.findByRole('link', { name: /pengaduan saya/i });
 
     const href = Array.from(document.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     for (const wajib of ['/dashboard', '/complaints', '/surveys']) {

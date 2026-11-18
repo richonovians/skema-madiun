@@ -14,7 +14,8 @@ import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
 
 /**
- * Menu akun di navbar warga (Navbar.jsx & DashboardNavbar.jsx).
+ * Menu akun di navbar warga (Navbar.jsx). DashboardNavbar.jsx, pemanggil kedua
+ * yang tak pernah diimpor halaman mana pun, dihapus 18 November 2026.
  *
  * Profil diambil SENDIRI di sini lewat GET /auth/me. Sebelumnya komponen ini
  * bergantung pada prop `user` yang default-nya `DUMMY_CURRENT_USER` -- dan KEDUA
@@ -23,9 +24,8 @@ import { clearSession } from '@/features/authentication/services/authStorage';
  * "Responden / Masyarakat", di setiap halaman. Bukan sekadar default yang tak
  * terpakai -- itu satu-satunya nilai yang pernah dirender.
  *
- * Aman memanggil /auth/me di sini: kedua pemanggil hanya merender komponen ini
- * setelah sesi dipastikan ada (Navbar menjaganya dengan isAuthenticated(),
- * halaman dashboard sendiri sudah di balik proxy.js).
+ * Aman memanggil /auth/me di sini: Navbar hanya merender komponen ini setelah
+ * sesi dipastikan ada, lewat isAuthenticated().
  */
 export default function ProfileAvatarDropdown() {
   const [isOpen, setIsOpen] = useState(false);

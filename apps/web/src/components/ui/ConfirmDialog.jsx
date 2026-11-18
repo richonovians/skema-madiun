@@ -9,8 +9,9 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 /**
  * Dialog konfirmasi serbaguna -- pengganti `window.confirm` (dialog bawaan
  * browser tak bisa digaya, tak seragam antar-sistem operasi, dan memblokir
- * thread). Gaya visualnya mengikuti ExitConfirmationModal.jsx yang sudah ada
- * (bulatan ikon + judul + keterangan + tombol), tapi teks & warnanya
+ * thread). Gaya visualnya mengikuti ExitConfirmationModal.jsx (bulatan ikon +
+ * judul + keterangan + tombol; berkas itu dihapus sebagai kode mati
+ * 18 November 2026), tapi teks & warnanya
  * ditentukan pemanggil sehingga bisa dipakai lintas fitur -- beda dari
  * ConfirmStatusModal.jsx yang teksnya terkunci untuk status pengaduan.
  *
