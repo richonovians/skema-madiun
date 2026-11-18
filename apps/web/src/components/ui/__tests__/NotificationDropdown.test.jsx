@@ -255,7 +255,8 @@ describe('NotificationDropdown', () => {
 
     /**
      * Bakunya rute warga: `Navbar` dipakai juga di halaman publik, dan
-     * DashboardNavbar.jsx (kini tak terpakai) tak meneruskan prop apa pun.
+     * DashboardNavbar.jsx, yang dulu juga tak meneruskan prop apa pun, sudah
+     * dihapus sebagai kode mati (18 November 2026).
      */
     it('tanpa prop, mengarah ke rute notifikasi warga', async () => {
       givenNotifications([BELUM_DIBACA], 1);
