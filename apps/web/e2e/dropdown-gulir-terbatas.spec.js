@@ -72,12 +72,20 @@ test.describe('Dropdown yang dibatasi tinggi (BUG-092)', () => {
     await page.setViewportSize(LAYAR);
     const teruskan = baris.getByRole('button', { name: /Teruskan/ });
     await teruskan.scrollIntoViewIfNeeded();
+    // Daftar OPD dimuat asinkron, dan pemicunya sudah aktif sebelum itu. Panel
+    // yang dibuka sebelum daftarnya tiba hanya berisi "Pilih OPD", muat di
+    // bawah pemicu, dan tak pernah dibatasi -- terukur sekali pada jalan
+    // pascacommit 18 November 2026, ditangkap prasyarat di bawah.
+    const opdDimuat = page.waitForResponse((r) => /\/api\/v1\/opd(\?|$)/.test(r.url()));
     await teruskan.click();
+    await opdDimuat;
 
     const dialog = page.getByRole('dialog', { name: 'Teruskan ke OPD berwenang' });
     const pemicu = dialog.getByRole('button', { name: /OPD yang berwenang|Pilih OPD/ });
     await expect(pemicu).toBeEnabled();
     await pemicu.click();
+    // Daftar yang sudah tiba membuat dropdown dapat dicari.
+    await expect(dialog.getByRole('textbox', { name: /Cari/ })).toBeVisible();
 
     const daftar = dialog.locator('ul').first();
     const opsi = daftar.getByRole('button');
