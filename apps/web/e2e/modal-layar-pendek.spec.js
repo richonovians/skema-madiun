@@ -227,6 +227,9 @@ test.describe('Modal di layar pendek (BUG-087, BUG-088, BUG-089)', () => {
         .filter({ hasNotText: /Pilih OPD/ })
         .nth(1);
       await pilihan.waitFor();
+      // Panel beranimasi `zoom-in-95` 200 ms. Di CI kotaknya pernah terukur
+      // pada skala 0,97 di tengah animasi (BUG-092, 18 November 2026).
+      await page.waitForTimeout(400);
       const namaPilihan = (await pilihan.textContent()).trim();
       const kotakPilihan = await kotakSesudahGulir(pilihan);
       expect
