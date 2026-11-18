@@ -184,8 +184,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-096) |
 | [BUG-090](#bug-090) | Modal kirim survei anonim terkurung di dalam kartu survei: latarnya tak menutupi layar dan kartunya terpotong | Medium | Terkonfirmasi | Terbuka | Pemindaian modal sesudah BUG-089 (TC-FILL-043) |
 | [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
+| [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | Terbuka | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 
-**Rekap** — 91 temuan: **88 ditutup, 1 ditolak, 2 terbuka** (Medium: BUG-090; Low: BUG-086). Ditolak: BUG-091.
+**Rekap** — 92 temuan: **88 ditutup, 1 ditolak, 3 terbuka** (Medium: BUG-090, BUG-092; Low: BUG-086). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5307,6 +5308,40 @@ Bila judul survei kelak cukup panjang untuk mendorong tombol keluar layar, gejal
 
 ---
 
+<a id="bug-092"></a>
+
+### BUG-092 — Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Kegagalan job CI "E2E web" pada `f40fd52` (PR BUG-090): `modal-layar-pendek.spec.js` uji BUG-089 merah di ketiga percobaan. Uji yang sama sudah goyah di CI pada `d3a403c` |
+| **Tanggal**  | 18 November 2026 |
+| **Lingkungan** | Server dev, Chrome terpasang, jawaban `GET /opd` dibatasi ke 3 OPD seed (meniru basis data CI) lewat `page.route` |
+| **Berkas**   | `apps/web/src/hooks/useKeepInViewport.js:90-126`, `:273` |
+| **Severity** | Medium (usulan penguji) -- pilihan di bagian bawah daftar tak dapat dicapai sama sekali; terjadi pada setiap dropdown yang memakai kait ini bila panelnya dibatasi tinggi dekat tepi bawah layar dan daftarnya pendek |
+
+**Gejala**
+
+Di modal Teruskan pada 640x360 dengan tiga OPD, panel daftar OPD dibatasi `max-height: 147px` dan daftar di dalamnya hanya menampilkan 84 dari 168 px. Tiga kali gulir roda tetikus sungguhan di atas daftar: `scrollTop` daftar tetap 0. OPD ketiga tak dapat dicapai. Menyetel `scrollTop = 40` lewat kode terbaca 40 seketika dan 0 sesudah 200 ms.
+
+Di CI pilihan "Dinas Kesehatan" terukur di y 332-370 pada layar setinggi 360. Uji itu lulus di lokal karena `skm_db` lokal punya 62 OPD: daftar sepanjang itu tetap meluap tanpa batas tinggi panel, sehingga posisi gulirnya tak terpangkas.
+
+**Akar masalah**
+
+`reposition` mendengarkan SETIAP peristiwa `scroll` pada fase tangkap, termasuk gulir di dalam panelnya sendiri. Setiap kali terpanggil, ia mengosongkan `maxHeight` dan `overflowY` panel, mengukur, lalu memasang batasnya lagi. Selama batas itu kosong, isi daftar (168 px) lebih pendek daripada `max-h-80`-nya, jadi daftar tak lagi meluap dan peramban memangkas `scrollTop`-nya ke 0. Batas yang dipasang kembali tak mengembalikan posisi itu. Terukur dengan meniru langkah reset itu secara serempak: `scrollTop` 40 sebelum, 0 sesudah.
+
+**Langkah reproduksi**
+
+1. Sebagai Admin Kabupaten dengan hanya tiga OPD aktif (basis data seed), buka `/admin-kab/complaints` pada 640x360.
+2. Tekan **Teruskan** pada pengaduan tanpa tujuan, lalu buka dropdown "OPD yang berwenang".
+3. Gulir daftar OPD dengan roda tetikus atau jari.
+
+**Arah perbaikan (belum dicoba)**
+
+Abaikan peristiwa gulir yang berasal dari dalam panel, sebab posisi panel tak berubah ketika isinya sendiri digulir. Simpan posisi gulir di dalam panel sebelum batasnya dikosongkan dan pulihkan sesudah batas dipasang lagi, untuk gulir latar atau halaman yang terjadi selagi daftar sudah tergulir.
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -8697,3 +8732,4 @@ hanya dibaca, tidak diubah.
 | 7.55 | 18 November 2026 | **BUG-085, BUG-087, BUG-088, dan BUG-089 ditutup: 89 temuan, 88 ditutup, 1 terbuka.** BUG-085 lewat PR #52, merge `0a5903c`, CI 3 dari 3 job hijau pada `86d38d8`: `GET /statistics` membawa `tingkat` per kategori dan label statistik berakhiran "(Kab.)"/"(Kec.)" lewat `labelKategoriBertingkat`, yang juga dipakai penyaring Admin Kabupaten. BUG-087 s.d. 089 lewat PR #53, merge `69fb642`, CI 3 dari 3 job hijau pada `d3a403c`: latar modal Bagikan, Ubah Status, dan Teruskan kini menggulir, dan penangan klik latar dipindah ke pembungkus dalam. Dijaga uji unit, adapter, dan e2e API untuk BUG-085, serta spec Playwright `modal-layar-pendek.spec.js` untuk ketiga modal. |
 | 7.56 | 18 November 2026 | **BUG-090 dan BUG-091 dicatat: 91 temuan, 88 ditutup, 3 terbuka.** Hasil pengukuran lima modal yang tersisa sesudah BUG-089, pada `0a5903c`. BUG-090 (Medium): latar modal kirim survei anonim terkurung bingkai kartu ber-`backdrop-filter` di `app/survei/[id]/page.jsx`, sehingga tak menutupi layar dan kartunya terpotong di tiga ukuran. BUG-091 (Low): `ConfirmActionModal` terpotong 4 px pada 568x320. `GantiJenisModal`, `GantiJenisKeSkmModal`, dan modal peringatan halaman isi survei muat di keempat ukuran. `ExitConfirmationModal` tidak diukur karena tak terjangkau: satu-satunya pemakainya `DashboardNavbar`, yang tak diimpor di mana pun. Dugaan laci menu ponsel tertutup kartu survei dibatalkan: tangkapan layarnya diambil di tengah animasi masuk laci, dan pengukuran ulang menunjukkan laci utuh di atas. |
 | 7.57 | 18 November 2026 | **BUG-091 ditolak: 91 temuan, 88 ditutup, 1 ditolak, 2 terbuka.** Uji merah yang ditulis untuknya lulus pada `0a5903c` di keempat ukuran: judul dan kedua tombol `ConfirmActionModal` utuh di dalam layar, dan yang keluar pada 568x320 hanya 4 px tepi kartu di dalam bantalannya. Pengukuran awal membaca tepi kartu, bukan isinya. Atas keputusan pemilik produk modal itu tidak diubah. |
+| 7.58 | 18 November 2026 | **BUG-092 dicatat: 92 temuan, 88 ditutup, 1 ditolak, 3 terbuka.** Job CI "E2E web" pada `f40fd52` merah di uji BUG-089 `modal-layar-pendek.spec.js`, yang sudah goyah sejak `d3a403c` dan tak berhubungan dengan BUG-090. Direproduksi di lokal dengan membatasi daftar OPD ke tiga OPD seed: `useKeepInViewport` mengosongkan batas tinggi panel pada setiap peristiwa gulir, termasuk gulir daftarnya sendiri, sehingga daftar yang pendek kehilangan posisi gulirnya dan pilihan terbawah tak dapat dicapai. |
