@@ -183,9 +183,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-088](#bug-088) | Modal Ubah Status pengaduan terpotong dan tak dapat digulir di layar pendek | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-095) |
 | [BUG-089](#bug-089) | Modal Teruskan pengaduan terpotong di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditutup** | Pemindaian modal BUG-084 (TC-CMP-096) |
 | [BUG-090](#bug-090) | Modal kirim survei anonim terkurung di dalam kartu survei: latarnya tak menutupi layar dan kartunya terpotong | Medium | Terkonfirmasi | Terbuka | Pemindaian modal sesudah BUG-089 (TC-FILL-043) |
-| [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | Terbuka | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
+| [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
 
-**Rekap** — 91 temuan: **88 ditutup, 3 terbuka** (Medium: BUG-090; Low: BUG-086, BUG-091).
+**Rekap** — 91 temuan: **88 ditutup, 1 ditolak, 2 terbuka** (Medium: BUG-090; Low: BUG-086). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5297,6 +5297,14 @@ Sama dengan [BUG-084](#bug-084): `body` terkunci, sedangkan latar memusatkan kar
 
 Pola latar yang menggulir dari BUG-084, termasuk memindahkan penangan klik latar bila ada.
 
+**Status 18 November 2026: Ditolak (bukan cacat)**
+
+Pengukuran awal laporan ini membaca tepi KARTU, bukan isinya. Saat uji merahnya ditulis (spec yang kemudian menjadi `e2e/modal-kirim-survei-layar-pendek.spec.js`), pemeriksaannya sama dengan BUG-087 s.d. BUG-089: judul dan setiap tombol harus dapat digulir hingga utuh terlihat. Pada `0a5903c`, dengan judul survei uji yang lebih panjang (`[UJI MODAL-SURVEI] Survei kepuasan layanan perizinan terpadu satu pintu (draf)`), uji itu LULUS di keempat ukuran, termasuk 568x320: judul "Pindahkan Survei ke Sampah", tombol **Batal**, dan tombol **Ya, Pindahkan ke Sampah** utuh di dalam layar.
+
+Yang keluar layar pada 568x320 hanya 4 px tepi kartu di tiap sisi, dan itu berada di dalam bantalan 24 px kartu. Tak ada teks maupun tombol yang terpotong, dan tak ada yang tak dapat dicapai. Atas keputusan pemilik produk laporan ini ditolak, dan `ConfirmActionModal` tidak diubah. Uji BUG-091 dibuang dari spec sebelum di-commit, sebab ia hijau di kedua sisi dan tak menjaga apa pun.
+
+Bila judul survei kelak cukup panjang untuk mendorong tombol keluar layar, gejalanya akan sama dengan BUG-087 dan perbaikannya pola yang sama.
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -8688,3 +8696,4 @@ hanya dibaca, tidak diubah.
 | 7.54 | 18 November 2026 | **BUG-087, BUG-088, dan BUG-089 dicatat: 89 temuan, 84 ditutup, 5 terbuka.** Ketiganya ditemukan saat memindai modal lain sesudah BUG-084 dan berakar sama: `body` terkunci, latar memusatkan kartu tanpa wilayah gulir. Modal Bagikan survei terpotong di keempat ukuran yang diukur, modal Ubah Status pada 640x360 dan 568x320, dan modal Teruskan pada 568x320. Diukur dengan spec Playwright `modal-layar-pendek.spec.js` pada `7ea124f`. |
 | 7.55 | 18 November 2026 | **BUG-085, BUG-087, BUG-088, dan BUG-089 ditutup: 89 temuan, 88 ditutup, 1 terbuka.** BUG-085 lewat PR #52, merge `0a5903c`, CI 3 dari 3 job hijau pada `86d38d8`: `GET /statistics` membawa `tingkat` per kategori dan label statistik berakhiran "(Kab.)"/"(Kec.)" lewat `labelKategoriBertingkat`, yang juga dipakai penyaring Admin Kabupaten. BUG-087 s.d. 089 lewat PR #53, merge `69fb642`, CI 3 dari 3 job hijau pada `d3a403c`: latar modal Bagikan, Ubah Status, dan Teruskan kini menggulir, dan penangan klik latar dipindah ke pembungkus dalam. Dijaga uji unit, adapter, dan e2e API untuk BUG-085, serta spec Playwright `modal-layar-pendek.spec.js` untuk ketiga modal. |
 | 7.56 | 18 November 2026 | **BUG-090 dan BUG-091 dicatat: 91 temuan, 88 ditutup, 3 terbuka.** Hasil pengukuran lima modal yang tersisa sesudah BUG-089, pada `0a5903c`. BUG-090 (Medium): latar modal kirim survei anonim terkurung bingkai kartu ber-`backdrop-filter` di `app/survei/[id]/page.jsx`, sehingga tak menutupi layar dan kartunya terpotong di tiga ukuran. BUG-091 (Low): `ConfirmActionModal` terpotong 4 px pada 568x320. `GantiJenisModal`, `GantiJenisKeSkmModal`, dan modal peringatan halaman isi survei muat di keempat ukuran. `ExitConfirmationModal` tidak diukur karena tak terjangkau: satu-satunya pemakainya `DashboardNavbar`, yang tak diimpor di mana pun. Dugaan laci menu ponsel tertutup kartu survei dibatalkan: tangkapan layarnya diambil di tengah animasi masuk laci, dan pengukuran ulang menunjukkan laci utuh di atas. |
+| 7.57 | 18 November 2026 | **BUG-091 ditolak: 91 temuan, 88 ditutup, 1 ditolak, 2 terbuka.** Uji merah yang ditulis untuknya lulus pada `0a5903c` di keempat ukuran: judul dan kedua tombol `ConfirmActionModal` utuh di dalam layar, dan yang keluar pada 568x320 hanya 4 px tepi kartu di dalam bantalannya. Pengukuran awal membaca tepi kartu, bukan isinya. Atas keputusan pemilik produk modal itu tidak diubah. |
