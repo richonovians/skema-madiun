@@ -2916,6 +2916,8 @@ tombol apa itu, bukan sekadar keadaannya.
 
 **Pagar.** `HamburgerAria.test.jsx` (bersama Navbar publik), merah lebih dulu.
 
+**Catatan 18 November 2026: komponennya kode mati.** `DashboardNavbar` tak pernah diimpor halaman mana pun. Kerangka `(respondent)` memakai `Navbar`, sama dengan halaman publik, jadi cacat ini tak pernah sampai ke warga, dan perbaikannya pun tidak. Hamburger yang sungguh dilihat warga ialah milik `Navbar`, yang dijaga kasus kedua `HamburgerAria.test.jsx` ([BUG-044](#bug-044)). `DashboardNavbar` dan kedua kasus ujinya dihapus lewat PR #56, merge `main` `8be378d` (`da0286b`). Status Ditutup tetap, sebab komponennya kini tak ada.
+
 ---
 
 <a id="bug-044"></a>
@@ -4999,7 +5001,7 @@ Modal lain yang dipindai dengan cara yang sama belum diperbaiki dan belum dicata
 | `ConfirmDialog` (survei dan pengguna) | muat | muat | muat |
 | `ConfirmTypeToDeleteModal` | tidak terukur | muat | muat |
 
-`ForwardComplaintModal` kodenya identik dengan modal alihkan sebelum perbaikan. Ia dipisah atas keputusan pemilik produk, dan akan terpotong begitu spanduk galatnya tampil. Lima modal belum diukur: `ModalKirimSurvei`, `ConfirmActionModal`, `ExitConfirmationModal`, `GantiJenisModal`, dan modal peringatan di `(respondent)/surveys/[id]`.
+`ForwardComplaintModal` kodenya identik dengan modal alihkan sebelum perbaikan. Ia dipisah atas keputusan pemilik produk, dan akan terpotong begitu spanduk galatnya tampil. Lima modal belum diukur: `ModalKirimSurvei`, `ConfirmActionModal`, `ExitConfirmationModal`, `GantiJenisModal`, dan modal peringatan di `(respondent)/surveys/[id]`. (Hasilnya ada di baris riwayat 7.56. `ExitConfirmationModal` ternyata kode mati dan dihapus lewat PR #56, 18 November 2026.)
 
 ---
 
@@ -8761,3 +8763,4 @@ hanya dibaca, tidak diubah.
 | 7.58 | 18 November 2026 | **BUG-092 dicatat: 92 temuan, 88 ditutup, 1 ditolak, 3 terbuka.** Job CI "E2E web" pada `f40fd52` merah di uji BUG-089 `modal-layar-pendek.spec.js`, yang sudah goyah sejak `d3a403c` dan tak berhubungan dengan BUG-090. Direproduksi di lokal dengan membatasi daftar OPD ke tiga OPD seed: `useKeepInViewport` mengosongkan batas tinggi panel pada setiap peristiwa gulir, termasuk gulir daftarnya sendiri, sehingga daftar yang pendek kehilangan posisi gulirnya dan pilihan terbawah tak dapat dicapai. |
 | 7.59 | 18 November 2026 | **BUG-092 ditutup: 92 temuan, 89 ditutup, 1 ditolak, 2 terbuka.** PR #55, merge `main` `2eb255f` (`7f6b6d9` + `f7b2105`), CI 3 dari 3 hijau. `useKeepInViewport` mengabaikan gulir dari dalam panel dan memulihkan posisi gulir di dalamnya sesudah mengukur ulang. Pagarnya `e2e/dropdown-gulir-terbatas.spec.js` dengan tiga OPD tiruan, merah di `0a5903c` dan lulus sesudahnya. Uji BUG-089 yang memerahkan CI kini lulus dalam keadaan tiga OPD. |
 | 7.60 | 18 November 2026 | **BUG-090 ditutup: 92 temuan, 90 ditutup, 1 ditolak, 1 terbuka.** PR #54, merge `main` `4edadeb` (`f40fd52`). Modal kirim survei anonim dirender lewat portal ke `document.body` dan latarnya menggulir. Pagarnya `e2e/modal-kirim-survei-layar-pendek.spec.js`, merah di `0a5903c` dan lulus sesudahnya. Merah CI pertama pada PR ini berasal dari BUG-092, bukan dari perubahan ini. Satu-satunya temuan terbuka kini BUG-086. |
+| 7.61 | 18 November 2026 | **Kode mati `DashboardNavbar` dan `ExitConfirmationModal` dihapus; rekap tetap 92 temuan, 90 ditutup, 1 ditolak, 1 terbuka.** PR #56, merge `main` `8be378d` (`da0286b`), CI cabang 3 dari 3 hijau. Ditemukan saat mengukur lima modal sesudah BUG-089 (riwayat 7.56). BUG-043 diberi catatan: komponen yang diperbaikinya tak pernah dirender. Uji TC-FE-005 untuk navigasi warga ternyata juga merender `DashboardNavbar`; kini ia membuka menu akun `ProfileAvatarDropdown`, tempat tautan warga sesungguhnya tinggal, dan terbukti dapat merah lewat uji mutasi. |
