@@ -39,14 +39,27 @@ export const STATUS_TUNTAS: readonly ComplaintStatus[] = [
   ComplaintStatus.ditolak,
 ];
 
+/**
+ * Status yang HANYA hidup di `complaint_status_history`, tak pernah menetap di
+ * `complaints.status`. `terkirim` adalah peristiwa pengirimannya; `diteruskan`
+ * (BUG-086, 18 November 2026) peristiwa penerusan oleh Admin Kabupaten, yang
+ * mengisi tujuan tanpa menggeser status. Keduanya bukan target pada kunci mana
+ * pun di `TRANSISI_DIIZINKAN`.
+ */
+export const STATUS_KHUSUS_RIWAYAT: readonly ComplaintStatus[] = [
+  ComplaintStatus.terkirim,
+  ComplaintStatus.diteruskan,
+];
+
 export const STATUS_BELUM_TUNTAS: readonly ComplaintStatus[] = Object.values(
   ComplaintStatus,
 ).filter(
   (s) =>
     !STATUS_TUNTAS.includes(s) &&
-    // `terkirim` tak pernah menetap di kolom `status`, jadi memasukkannya ke
-    // penyaring hanya memperpanjang klausa `IN` tanpa pernah cocok.
-    s !== ComplaintStatus.terkirim,
+    // `terkirim` dan `diteruskan` tak pernah menetap di kolom `status`, jadi
+    // memasukkannya ke penyaring hanya memperpanjang klausa `IN` tanpa pernah
+    // cocok.
+    !STATUS_KHUSUS_RIWAYAT.includes(s),
 );
 
 /**
@@ -98,6 +111,9 @@ export const TRANSISI_DIIZINKAN: Record<ComplaintStatus, readonly ComplaintStatu
   ],
   [ComplaintStatus.selesai]: [],
   [ComplaintStatus.ditolak]: [],
+  // Kosong dengan alasan yang sama dengan `terkirim`: ia hanya baris riwayat.
+  // Hanya `ComplaintsService.forward()` yang menuliskannya.
+  [ComplaintStatus.diteruskan]: [],
 };
 
 /**
@@ -144,6 +160,7 @@ export const LABEL_STATUS: Record<ComplaintStatus, string> = {
   [ComplaintStatus.ditolak]: 'Ditolak',
   [ComplaintStatus.perlu_perbaikan]: 'Perlu Perbaikan',
   [ComplaintStatus.dialihkan]: 'Dialihkan',
+  [ComplaintStatus.diteruskan]: 'Diteruskan',
 };
 
 export function labelStatus(status: ComplaintStatus | string): string {

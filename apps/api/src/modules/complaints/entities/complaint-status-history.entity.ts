@@ -33,8 +33,9 @@ export class ComplaintStatusHistoryEntity extends BaseEntity<ComplaintStatusHist
   actorNama: string | null;
 
   /**
-   * Nama instansi TUJUAN pengalihan (5 November 2026). `null` pada setiap
-   * baris yang bukan `dialihkan` — termasuk seluruh baris yang lahir sebelum
+   * Nama instansi TUJUAN pengalihan (5 November 2026) atau penerusan
+   * (18 November 2026, BUG-086). `null` pada setiap baris yang bukan
+   * `dialihkan` atau `diteruskan` — termasuk seluruh baris yang lahir sebelum
    * fitur ini ada.
    *
    * NAMA, bukan id: halaman detail pelapor tak punya cara menerjemahkan id

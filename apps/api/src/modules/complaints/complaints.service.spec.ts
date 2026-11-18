@@ -1043,6 +1043,49 @@ describe('ComplaintsService', () => {
   describe('meneruskan pengaduan ke OPD (forward)', () => {
     const tanpaTujuan = () => complaintRow({ opdId: null });
 
+    // Transaksi tiruan MENERUSKAN hasil tiap operasinya apa adanya, supaya
+    // uji yang menyiapkan `complaint.update` (berhasil maupun P2025) tetap
+    // berlaku sesudah penerusan menulis riwayatnya di dalam transaksi (BUG-086).
+    beforeEach(() => {
+      (prisma.$transaction as jest.Mock).mockImplementation((ops: Promise<unknown>[]) =>
+        Promise.all(ops),
+      );
+    });
+
+    /**
+     * BUG-086 (12 November 2026, dipisah dari BUG-077). Penerusan dulu hanya
+     * mengisi `opd_id`, sehingga linimasa pelapor tetap berbunyi "Terkirim"
+     * saja dan tak pernah menyebut instansi yang kini memegang tiketnya.
+     *
+     * Barisnya berstatus `diteruskan` -- status KHUSUS RIWAYAT seperti
+     * `terkirim`, yang tak pernah menetap di `complaints.status` -- dan
+     * membawa `opdTujuanId` seperti baris `dialihkan`.
+     */
+    it('menulis baris riwayat diteruskan beserta OPD tujuannya, di dalam transaksi', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9, nama: 'Dinas Kesehatan' });
+      (prisma.complaint.update as jest.Mock).mockResolvedValue(complaintRow({ opdId: 9 }));
+
+      await service.forward(1, { opdId: 9 }, kabupatenUser());
+
+      expect(prisma.complaintStatusHistory.create).toHaveBeenCalledWith({
+        data: { complaintId: 1, status: 'diteruskan', actorId: 2, opdTujuanId: 9 },
+      });
+      // Satu transaksi dengan pembaruan tujuannya: tiket yang berpindah tangan
+      // tanpa barisnya tak dapat dipulihkan dari data yang tersisa.
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect((prisma.$transaction as jest.Mock).mock.calls[0][0]).toHaveLength(2);
+    });
+
+    it('penerusan yang ditolak tidak menulis riwayat apa pun', async () => {
+      (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(complaintRow({ opdId: 5 }));
+
+      await expect(service.forward(1, { opdId: 9 }, kabupatenUser())).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.complaintStatusHistory.create).not.toHaveBeenCalled();
+    });
+
     it('Admin Kabupaten berhasil: opdId terisi, audit tercatat, OPD tujuan diberi tahu', async () => {
       (prisma.complaint.findUnique as jest.Mock).mockResolvedValue(tanpaTujuan());
       (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 9, nama: 'Dinas Kesehatan' });

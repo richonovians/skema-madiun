@@ -1,0 +1,12 @@
+-- Penerusan pengaduan tercatat di riwayat (BUG-086, 18 November 2026).
+--
+-- `diteruskan` adalah status KHUSUS RIWAYAT, satu perlakuan dengan
+-- `terkirim`: ia TIDAK PERNAH MENETAP di `complaints.status`. Penerusan oleh
+-- Admin Kabupaten hanya mengisi `opd_id` pengaduan yang belum bertujuan dan
+-- tak menggeser statusnya, padahal `complaint_status_history.status` wajib
+-- diisi. Barisnya membawa `opd_tujuan_id` seperti baris `dialihkan`.
+--
+-- Berdiri sendiri, tanpa pengisian ulang: nilai hasil `ADD VALUE` belum dapat
+-- dipakai di dalam transaksi yang menambahkannya. Pengisian ulang dari
+-- `audit_logs` ada di migrasi sesudahnya.
+ALTER TYPE "complaint_status" ADD VALUE 'diteruskan';

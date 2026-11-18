@@ -179,4 +179,52 @@ describe('ComplaintStatusTimeline', () => {
       expect(screen.queryByText(/Dialihkan ke/i)).not.toBeInTheDocument();
     });
   });
+
+  /**
+   * BUG-086 (18 November 2026). Penerusan oleh Admin Kabupaten kini punya
+   * barisnya sendiri, berstatus `diteruskan`, dan membawa `opdTujuanNama`
+   * seperti baris pengalihan. Kalimatnya harus mengikuti peristiwanya:
+   * tiket "Lainnya" yang baru mendapat tujuan TIDAK dialihkan dari mana pun.
+   */
+  describe('baris penerusan', () => {
+    const BARIS_DITERUSKAN = {
+      id: 7,
+      status: 'diteruskan',
+      label: 'Diteruskan',
+      catatan: null,
+      actorNama: 'Admin Kabupaten (Contoh)',
+      opdTujuanNama: 'Dinas Kesehatan',
+      createdAt: '2026-11-03T03:00:00.000Z',
+    };
+
+    it('menyebut instansi tujuan sebagai "Diteruskan ke", bukan "Dialihkan ke"', () => {
+      render(<ComplaintStatusTimeline riwayat={[RIWAYAT[0], BARIS_DITERUSKAN]} />);
+
+      expect(screen.getByText('Diteruskan ke Dinas Kesehatan')).toBeInTheDocument();
+      expect(screen.queryByText(/Dialihkan ke/i)).not.toBeInTheDocument();
+    });
+
+    it('penerusan lalu pengalihan menyebut kedua instansi dengan kata masing-masing', () => {
+      render(
+        <ComplaintStatusTimeline
+          riwayat={[
+            RIWAYAT[0],
+            BARIS_DITERUSKAN,
+            {
+              id: 8,
+              status: 'dialihkan',
+              label: 'Dialihkan',
+              catatan: 'Kewenangan infrastruktur.',
+              actorNama: 'Admin OPD (Contoh)',
+              opdTujuanNama: 'Kecamatan Wungu',
+              createdAt: '2026-11-04T03:00:00.000Z',
+            },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText('Diteruskan ke Dinas Kesehatan')).toBeInTheDocument();
+      expect(screen.getByText('Dialihkan ke Kecamatan Wungu')).toBeInTheDocument();
+    });
+  });
 });
