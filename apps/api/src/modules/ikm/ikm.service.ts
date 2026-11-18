@@ -40,8 +40,14 @@ const round = (value: number, decimals: number): number => {
   return Math.round(value * factor) / factor;
 };
 
-/** Kategori mutu sesuai tabel konversi PermenPANRB 14/2017 (Lampiran A PRD). */
-function mutuFromNilai(nilaiIkm: number): IkmMutu {
+/**
+ * Kategori mutu sesuai tabel konversi PermenPANRB 14/2017 (Lampiran A PRD).
+ *
+ * Diekspor hanya supaya batasnya dapat diuji langsung (TC-IKM-011/012,
+ * `ikm-mutu.spec.ts`). Pemanggilnya selalu menyerahkan nilai yang SUDAH
+ * dibulatkan dua desimal, jadi tak ada nilai di antara 76,60 dan 76,61.
+ */
+export function mutuFromNilai(nilaiIkm: number): IkmMutu {
   if (nilaiIkm <= 64.99) return IkmMutu.D;
   if (nilaiIkm <= 76.6) return IkmMutu.C;
   if (nilaiIkm <= 88.3) return IkmMutu.B;
