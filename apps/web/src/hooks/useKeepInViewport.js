@@ -116,6 +116,19 @@ export default function useKeepInViewport(ref, isOpen) {
     const transisiSemula = el.style.transition;
     el.style.transition = 'none';
 
+    /**
+     * POSISI GULIR DI DALAM PANEL DISIMPAN LALU DIPULIHKAN (BUG-092,
+     * 18 November 2026). Mengosongkan `maxHeight` di bawah membuat daftar yang
+     * lebih pendek daripada batas tingginya sendiri berhenti meluap, dan
+     * peramban memangkas `scrollTop`-nya ke 0; memasang batasnya kembali tak
+     * mengembalikan posisi itu. Gulir di dalam panel sudah tak memicu kait ini,
+     * tetapi gulir latar modal atau halaman tetap memicunya -- tanpa
+     * pemulihan ini daftar yang sudah digulir pengguna melompat ke atas.
+     */
+    const gulirTersimpan = [el, ...el.querySelectorAll('*')]
+      .filter((simpul) => simpul.scrollTop > 0)
+      .map((simpul) => [simpul, simpul.scrollTop]);
+
     el.style.translate = '';
     el.style.top = '';
     el.style.bottom = '';
@@ -248,6 +261,9 @@ export default function useKeepInViewport(ref, isOpen) {
       }
     }
 
+    // Peramban memangkas sendiri nilai yang kini melebihi jangkauan gulirnya.
+    for (const [simpul, posisi] of gulirTersimpan) simpul.scrollTop = posisi;
+
     // Nilai baru sudah tercatat tanpa animasi; transisi milik komponen
     // dipulihkan pada bingkai berikutnya.
     requestAnimationFrame(() => {
@@ -267,14 +283,25 @@ export default function useKeepInViewport(ref, isOpen) {
 
     reposition();
 
+    // GULIR DI DALAM PANEL DIABAIKAN (BUG-092, 18 November 2026). Posisi panel
+    // tak berubah ketika isinya sendiri digulir, dan mengukur ulang pada saat
+    // itu justru merusak: `reposition` mengosongkan batas tinggi panel dulu,
+    // sehingga daftar yang pendek berhenti meluap dan `scrollTop`-nya dipangkas
+    // ke 0. Terukur di modal Teruskan pada 640x360 dengan tiga OPD: tiga kali
+    // gulir roda tetikus, daftarnya tak bergerak sedikit pun.
+    const padaGulir = (e) => {
+      if (el && e.target instanceof Node && el.contains(e.target)) return;
+      reposition();
+    };
+
     window.addEventListener('resize', reposition);
     // `true` -- fase tangkap, supaya gulir di wadah dalam mana pun ikut
     // terdengar; peristiwa `scroll` tidak menggelembung dari elemen.
-    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('scroll', padaGulir, true);
 
     return () => {
       window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('scroll', padaGulir, true);
       if (el) {
         el.style.translate = '';
         el.style.top = '';
