@@ -110,6 +110,26 @@ describe('QuestionCard', () => {
       fireEvent.click(screen.getAllByRole('radio')[3]);
       expect(setAnswer).toHaveBeenCalledWith('q1', '4');
     });
+
+    // BUG-094 (19 November 2026). Jawaban dulu dibaca dari `e.target.value`,
+    // yaitu atribut `value` radio di DOM saat itu. Mengubahnya lewat DevTools
+    // menjadi "5" atau "-1" membuat nilai itu ikut terkirim ke POST /responses.
+    // Yang disimpan harus skor dari data komponen, apa pun isi atributnya.
+    it.each(['5', '-1'])(
+      'tetap menyimpan skor asli walau atribut value radionya diubah menjadi %s (BUG-094)',
+      (nilaiPalsu) => {
+        const setAnswer = givenQuestion({ id: 'q1', text: 'Pelayanan?', type: 'scale_1_to_4' });
+        render(<QuestionCard />);
+
+        const radioPertama = screen.getAllByRole('radio')[0];
+        radioPertama.setAttribute('value', nilaiPalsu);
+        expect(radioPertama.value).toBe(nilaiPalsu);
+
+        fireEvent.click(radioPertama);
+        expect(setAnswer).toHaveBeenCalledTimes(1);
+        expect(setAnswer).toHaveBeenCalledWith('q1', '1');
+      },
+    );
   });
 
   describe('Tipe uraian', () => {
@@ -172,6 +192,22 @@ describe('QuestionCard', () => {
       expect(radios.map((r) => r.getAttribute('value'))).toEqual(['21', '22', '23']);
 
       fireEvent.click(radios[1]);
+      expect(setAnswer).toHaveBeenCalledWith('q3', '22');
+    });
+
+    // BUG-094: pilihan ganda memakai `handleChange` yang sama, sehingga id
+    // opsi pun dulu diambil dari DOM. Id opsi milik pertanyaan lain (999) tak
+    // boleh terkirim hanya karena atributnya diubah.
+    it('tetap menyimpan id opsi asli walau atribut value radionya diubah (BUG-094)', () => {
+      const setAnswer = givenQuestion(PILIHAN);
+      render(<QuestionCard />);
+
+      const radioKedua = screen.getAllByRole('radio')[1];
+      radioKedua.setAttribute('value', '999');
+      expect(radioKedua.value).toBe('999');
+
+      fireEvent.click(radioKedua);
+      expect(setAnswer).toHaveBeenCalledTimes(1);
       expect(setAnswer).toHaveBeenCalledWith('q3', '22');
     });
 

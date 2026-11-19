@@ -51,8 +51,19 @@ export default function QuestionCard() {
   const currentAnswer = answers[currentQuestion.id];
   const radioName = `question_${currentQuestion.id}`;
 
-  const handleChange = (e) => {
+  // Hanya untuk textarea: di sana teks yang diketik memang nilainya.
+  const handleTextChange = (e) => {
     setAnswer(currentQuestion.id, e.target.value);
+  };
+
+  // Radio (skala dan pilihan ganda) menyimpan nilai dari DATA komponen lewat
+  // closure, BUKAN dari `e.target.value` (BUG-094, 19 November 2026). Atribut
+  // `value` di DOM dapat diubah siapa pun lewat DevTools; dulu nilai "5" atau
+  // "-1" hasil ubahan itu ikut terkirim ke POST /responses dan ditolak backend
+  // dengan "Validation failed". Atribut `value` tetap dirender untuk
+  // aksesibilitas dan formulir, tetapi tidak lagi menentukan apa yang disimpan.
+  const pilihNilai = (nilai) => () => {
+    setAnswer(currentQuestion.id, nilai);
   };
 
   const renderAnswerInput = () => {
@@ -62,7 +73,7 @@ export default function QuestionCard() {
           <textarea
             rows={5}
             value={currentAnswer ?? ''}
-            onChange={handleChange}
+            onChange={handleTextChange}
             maxLength={MAX_TEXT_LENGTH}
             placeholder="Tuliskan jawaban Anda di sini..."
             className="w-full p-4 rounded-lg border-2 border-outline-variant/50 bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-body-md resize-y"
@@ -97,7 +108,7 @@ export default function QuestionCard() {
               label={option.label}
               numberIcon={String.fromCharCode(65 + index)}
               checked={currentAnswer === String(option.id)}
-              onChange={handleChange}
+              onChange={pilihNilai(String(option.id))}
             />
           ))}
         </div>
@@ -120,7 +131,7 @@ export default function QuestionCard() {
               label={step.label}
               icon={getScaleIcon(step.value)}
               checked={currentAnswer === step.value}
-              onChange={handleChange}
+              onChange={pilihNilai(step.value)}
             />
           ))}
         </div>
