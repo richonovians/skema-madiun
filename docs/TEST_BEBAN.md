@@ -6,6 +6,7 @@
 **Ketersediaan:** diukur 4 November 2026 pada `main` `5cda6fa` — §13.
 **QA-PERF ditutup dengan catatan:** 5 November 2026 — §14.
 **Diukur ulang sesudah PR #17 dan #18:** 9 November 2026 pada `main` `50175c7` — §15. Tak ada kemunduran yang dapat dikaitkan ke kedua PR; pada T1 syarat "< 3 detik" tetap terpenuhi.
+**Jalur tulis:** diukur 19 November 2026 (`main` `d7ea442`, pelari `76014c2`) — §16. Batas harian pengaduan jebol di bawah kiriman serentak ([BUG-096](BUG_REPORTS.md#bug-096)); tak ada tulisan hilang atau berganda.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -418,7 +419,7 @@ pola yang pantas diingat: pada pekerjaan pengukuran, alat ukurnya yang paling
 sering salah lebih dulu, dan satu-satunya yang menangkapnya adalah pemeriksaan
 yang dipasang justru untuk tidak dipercaya.
 
-## 11. Rancangan jalur tulis (29 Oktober 2026) — BELUM DIJALANKAN
+## 11. Rancangan jalur tulis (29 Oktober 2026) — dijalankan 19 November 2026, hasilnya di §16
 
 Disusun sebagai lanjutan §8 lalu **ditunda atas permintaan pengguna**
 sebelum satu baris kode pun ditulis. Disimpan di sini supaya dapat dipakai
@@ -1070,3 +1071,165 @@ tetap memakai baku `kabupaten`. Terbukti jalan: kolom C (`--survei=744
   sesudah 15.3 diperbaiki.
 - Tak ada temuan BUG baru. Angka BUG_REPORTS tetap.
 - Catatan §14.2 lainnya tetap berlaku apa adanya.
+
+## 16. Jalur tulis (19 November 2026)
+
+Menjalankan rancangan §11. Kode aplikasi `main` `d7ea442`; pelari di cabang
+`test/beban-jalur-tulis` `76014c2` (dicabangkan dari `origin/main`, belum
+push), tanpa perubahan kode aplikasi. Dataset T1 (`beban:data -- --survei=744
+--respons=20`), dibangun ulang sebelum pengukuran dan sesudahnya. Server dev
+**ikut hidup** selama pengukuran (porta 3000 dan 3001), tetapi tidak dipakai.
+
+### 16.1 Kesimpulan
+
+- **Batas harian pengaduan jebol di bawah kiriman serentak.** 50 dari 50
+  pengaduan serentak diterima ketika batasnya 10, pada tiga jalan. Dicatat
+  sebagai [BUG-096](BUG_REPORTS.md#bug-096) (Medium, terbuka).
+- **Tidak ada tulisan yang hilang atau berganda** pada keempat skenario.
+  Setiap selisih baris sama dengan jumlah jawaban 2xx, dan 1.002 lampiran
+  semuanya amplop terenkripsi yang terbuka menjadi PNG asli.
+- **Ketiga jalur kecepatan menjawab 2xx seluruhnya**, dengan p99 di bawah
+  0,5 detik pada 10 koneksi. Angka ini pembanding, bukan ramalan kapasitas
+  (§3 butir 1).
+
+### 16.2 Fakta §11.2 yang diperiksa ulang pada `d7ea442`
+
+| Fakta §11.2 | Keadaan 19 November |
+| --- | --- |
+| `POST /surveys/:id/responses` ber-`@Throttle` 10/menit | Tetap. Penghitungnya per pengguna (`throttle-pengguna.guard.ts`, `pengguna:<id>`), jadi pemutaran sesi memang menolong |
+| `@@unique([surveyId, dedupeUserId])`, `allowMultipleSubmit` | Tetap. Survei multi-kirim menyimpan `dedupe_user_id` NULL |
+| `POST /complaints` tanpa `@Throttle` per rute | Tetap. Hanya penahan global yang berlaku |
+| `BATAS_HARIAN_PENGADUAN_BAKU` = 10, hitung lalu tulis | Tetap. `complaint.count` sejak tengah malam waktu server, lalu `insertWithUniqueTicket`, tanpa kunci |
+| `insertWithUniqueTicket` lima coba ulang P2002 | Tetap. Nomor tiket `PGD` + tanggal + 4 karakter base36 acak |
+| Lampiran dienkripsi AES-256-GCM ke `UPLOAD_DIR` | Tetap, dan ditulis SEBELUM baris dibuat. Berkasnya dihapus bila penulisan basis data gagal |
+
+Yang bergeser sejak §11 ditulis:
+
+1. `CreateComplaintDto` kini mewajibkan `tingkat`, `tanggalKejadian`, dan
+   `lokasiKejadian` (4 November). Tubuh permintaan memuat ketiganya, dengan
+   kategori `kab_infrastruktur` dan OPD beban pertama.
+2. `dev-login` hanya hidup bila `DEV_LOGIN_ENABLED=true` (7 November). Pelari
+   mewarisinya dari `apps/api/.env`.
+3. `dev-login` ber-`@Throttle` 30/menit per IP, yang tak disebut §11. Seratus
+   sesi responden menabraknya, jadi pelari menunggu `Retry-After`.
+   Akibatnya `kirim-jawaban` butuh sekitar empat menit sebelum bebannya mulai.
+
+### 16.3 Cara mengukur
+
+```bash
+pnpm --filter @skm-spm/api beban:data -- --survei=744 --respons=20
+pnpm --filter @skm-spm/api beban -- --skenario=<nama>
+pnpm --filter @skm-spm/api beban -- --semua-tulis
+pnpm --filter @skm-spm/api beban -- --skenario=batas-harian-serentak --beruntun
+```
+
+`--semua` tetap hanya membaca. Skenario tulis ada di daftar terpisah.
+
+| Skenario | Bentuk | Jumlah |
+| --- | --- | --- |
+| `kirim-pengaduan` | multipart tanpa lampiran, akun admin beban (peran `responden`), batas harian dilonggarkan | 1.000 |
+| `kirim-pengaduan-lampiran` | sama, dengan PNG sah 1.048.576+ bita ke `UPLOAD_DIR=uploads-beban` | 500 |
+| `kirim-jawaban` | JSON sembilan jawaban skala ke survei `allow_multiple_submit`, sesi bergiliran di 100 akun responden | 999 |
+| `batas-harian-serentak` | 50 multipart lewat `http.request` `agent: false` + `Promise.all`, akun `beban-batas-harian`, server tersendiri dengan batas baku 10 | 50 |
+
+Ketiga skenario kecepatan memakai 10 koneksi dan **jumlah tetap**, bukan
+durasi (alasannya di 16.6), ditambah satu permintaan penyelidik sebelum beban.
+`kirim-jawaban` dibatasi 100 akun x 10 permintaan per menit, dikurangi satu
+untuk penyelidik.
+
+### 16.4 Hasil kecepatan
+
+Dua jalan. Jalan pertama per skenario, jalan kedua lewat `--semua-tulis`.
+Angka ganda berarti jalan pertama / jalan kedua.
+
+| Skenario | Pertama | p50 | p97,5 | p99 | Maks | req/s | Non-2xx |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| kirim-pengaduan | 190 / 104 ms | 103 / 101 ms | 153 / 267 ms | 163 / 309 ms | 298 / 352 ms | 91 / 83 | 0 / 0 |
+| kirim-pengaduan-lampiran | 125 / 92 ms | 182 / 197 ms | 448 / 366 ms | 465 / 495 ms | 502 / 549 ms | 45 / 45 | 0 / 0 |
+| kirim-jawaban | 104 / 92 ms | 149 / 140 ms | 259 / 282 ms | 286 / 305 ms | 340 / 355 ms | 62 / 62 | 0 / 0 |
+
+Semua jawaban 201. Pada setiap jalan, jumlah terkirim sama dengan jumlah
+terjawab, dan tidak ada galat jaringan maupun habis waktu.
+
+Pembacaan:
+
+- **Lampiran 1 MB menaikkan p50 sekitar 80-100 ms dan memotong laju menjadi
+  separuh** (45 lawan 83-91 req/s). Biayanya datang dari pembacaan isi,
+  enkripsi AES-256-GCM, dan penulisan ke disk per permintaan.
+  Satu jalan menulis sekitar 500 MB.
+- **`kirim-jawaban` lebih lambat per permintaan daripada `kirim-pengaduan`**
+  (p50 140-149 lawan 101-103 ms). Ia menulis sepuluh baris (satu respons dan
+  sembilan jawaban), membatalkan singgahan IKM survei itu, menyiarkan
+  notifikasi, dan menyalin data diri dari akun (dekripsi nomor HP).
+- **p97,5 `kirim-pengaduan` naik dari 153 ke 267 ms pada jalan kedua.**
+  Dugaan: semua pengaduan skenario ini milik satu akun, dan penghitungan batas
+  harian memindai pengaduan akun itu hari ini. Akun itu sudah memegang sekitar
+  2.200 pengaduan sebelum jalan pertama dan sekitar 3.700 sebelum jalan kedua.
+  Dugaan ini belum dibuktikan. Dengan batas asli, satu akun tak pernah melewati
+  10 pengaduan sehari, kecuali lewat [BUG-096](BUG_REPORTS.md#bug-096).
+
+### 16.5 Hasil ketepatan
+
+| Skenario | Pemeriksaan | Jalan 1 | Jalan 2 |
+| --- | --- | --- | --- |
+| kirim-pengaduan | selisih `complaints` = 2xx | 1.001 = 1.001 | 1.001 = 1.001 |
+| kirim-pengaduan-lampiran | selisih `complaints` = 2xx | 501 = 501 | 501 = 501 |
+| | selisih `complaint_attachments` = 2xx | 501 = 501 | 501 = 501 |
+| | berkas baru di `uploads-beban/` = baris lampiran baru | 501 = 501 | 501 = 501 |
+| | berkas yang terbuka menjadi PNG asli, bita demi bita | 501 dari 501 | 501 dari 501 |
+| kirim-jawaban | selisih `survey_responses` = 2xx | 1.000 = 1.000 | 1.000 = 1.000 |
+| | selisih `answers` = 9 x 2xx | 9.000 = 9.000 | 9.000 = 9.000 |
+| | respons per akun (kumulatif) | 100 akun, 10 tiap akun | 100 akun, 20 tiap akun |
+| batas-harian-serentak | selisih `complaints` = 201 | 50 = 50 | 50 = 50 |
+| | diterima paling banyak 10 | **50, JEBOL** | **50, JEBOL** |
+
+Pemeriksaan amplop memakai `dekripsi` penuh dengan kunci yang sama, bukan
+hanya kepala `SKM1`. Tag GCM yang gagal atau isi yang berbeda dihitung tidak
+sah. Sebaran respons per akun membuktikan pemutaran sesi dari sisi server.
+Bila autocannon menyusun permintaan sekali saja, satu akun akan memegang
+semuanya dan 429 muncul. Yang terjadi 0 jawaban 429.
+
+**Batas harian.** Kiriman beruntun pada server yang sama menjawab 201 x 10 dan
+429 x 40 (pembukti alat). Kiriman serentak menjawab 201 x 50 pada tiga jalan,
+dengan puncak 50 permintaan terbang bersamaan. Permintaan terakhir berangkat
+11-30 ms sesudah yang pertama, sedangkan yang pertama baru selesai 537-856 ms
+kemudian. Rinciannya di [BUG-096](BUG_REPORTS.md#bug-096).
+
+### 16.6 Cacat pada alat ukurnya sendiri
+
+Seperti §10, alatnya salah lebih dulu sebelum aplikasinya.
+
+5. **Durasi meninggalkan permintaan yang masih terbang.** Versi pertama
+   `kirim-pengaduan` memakai durasi 10 detik dan melaporkan 1.117 baris untuk
+   1.109 jawaban 2xx, yang terbaca seperti tulisan berganda. Sebelum menyebutnya
+   temuan, pelari diberi hitungan `requests.sent`, dan jalan ulang menjawab
+   1.113 terkirim, 1.103 terjawab, dan 1.113 baris untuk 1.104 jawaban 2xx.
+   autocannon berhenti menghitung saat durasi habis sementara sepuluh permintaan
+   (satu per koneksi) masih terbang, dan server tetap menulis sebagian besar
+   darinya. Skenario tulis kini memakai jumlah tetap. Pelari juga memperingatkan
+   bila terkirim tak sama dengan terjawab, dan dijaga uji di `skenario.spec.ts`.
+
+Kedua jalan kecepatan berdurasi itu dibuang dan tidak masuk 16.4.
+
+### 16.7 Kebersihan
+
+- `skm_beban` dibangun ulang ke T1 bersih sesudah pengukuran: 744 survei,
+  14.880 respons, 133.920 jawaban, 0 pengaduan.
+- `uploads-beban/` dihapus pelari sebelum dan sesudah setiap jalan, dan tidak
+  ada lagi di disk.
+- `skm_db` tidak tersentuh. Sebelas hitungan tabel (pengaduan 7, lampiran 1,
+  riwayat 23, survei 15, respons 44, jawaban 294, pengguna 7, notifikasi 420,
+  audit 3.571) sama persis sebelum dan sesudah. `apps/api/uploads/complaints`
+  tetap satu berkas.
+- `audit_logs` di `skm_beban` ikut terkosongkan oleh `TRUNCATE ... opd
+  CASCADE` saat pembangunan ulang, seperti setiap pembangunan sebelumnya. Itu
+  basis data uji beban, bukan jejak pengguna.
+
+### 16.8 Yang belum diukur
+
+- Balasan pengaduan (`POST /complaints/:id/replies`) dan perubahan status.
+- Jalur publik tanpa akun (`POST /survei/:id`), sengaja, karena
+  `@BatasPerSurvei` menahannya per survei (§11.3).
+- Beban tulis dan baca bersamaan.
+- Pengulangan sesudah BUG-096 diperbaiki. Skenario `batas-harian-serentak`
+  adalah pagar ukurnya.

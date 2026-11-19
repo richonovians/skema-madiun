@@ -188,8 +188,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-086 (TC-AUD-008) |
 | [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
 | [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | **Ditutup** | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
+| [BUG-096](#bug-096) | Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak | Medium | Terkonfirmasi | **Terbuka** | Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
 
-**Rekap** — 95 temuan: **94 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 96 temuan: **94 ditutup, 1 ditolak, 1 terbuka** (BUG-096, Medium). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5600,6 +5601,60 @@ Bukti kegoyahan lokal masih satu jalan Playwright penuh (176 lulus, 0 goyah, 13,
 
 ---
 
+<a id="bug-096"></a>
+
+### BUG-096 — Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Uji beban jalur tulis 19 November 2026, skenario `batas-harian-serentak` ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
+| **Tanggal**  | 19 November 2026 |
+| **Lingkungan** | `main` `d7ea442` (kode aplikasi), pelari `test/beban-jalur-tulis` `76014c2`, API hasil `tsc` di porta 3002 terhadap `skm_beban`, Postgres 18 di Docker Desktop, Windows 11 |
+| **Berkas**   | [complaints.service.ts:223](../apps/api/src/modules/complaints/complaints.service.ts#L223) (pemanggilan) dan [:767](../apps/api/src/modules/complaints/complaints.service.ts#L767) (`assertBelumMelewatiBatasHarian`), [:243](../apps/api/src/modules/complaints/complaints.service.ts#L243) (penulisan) |
+| **Severity** | Medium (keputusan pengguna). Penahan anti-spam yang tertulis tidak berlaku di bawah kiriman serentak, dan memicunya hanya butuh satu sesi responden. Tidak ada data yang bocor atau rusak |
+
+**Gejala**
+
+Lima puluh `POST /api/v1/complaints` serentak dari satu akun responden, dengan `COMPLAINT_DAILY_LIMIT` baku 10 dan akun yang belum mengirim apa pun hari itu, **dijawab 201 semuanya**. Basis data memuat 50 pengaduan baru untuk akun itu. Hasil yang sama pada tiga jalan terpisah:
+
+| Jalan | Per kode | Puncak serentak | Di basis data |
+| --- | --- | ---: | ---: |
+| 1 | 201 x 50 | 50 dari 50 | 50 |
+| 2 | 201 x 50 | 50 dari 50 | 50 |
+| 3 (dalam `--semua-tulis`) | 201 x 50 | 50 dari 50 | 50 |
+
+Tidak ada tulisan yang hilang atau berganda: selisih baris `complaints` sama dengan jumlah 201 pada ketiganya.
+
+**Alat ukurnya dibuktikan lebih dulu.** Server yang sama dengan pengiriman yang sama, tetapi satu per satu (`--beruntun`), menjawab **201 x 10 dan 429 x 40**. Jadi batas yang berlaku memang 10, dan selisihnya hanya datang dari keserentakan. Puncak serentak dihitung dari waktu berangkat dan selesai tiap permintaan. Permintaan terakhir berangkat 11 sampai 30 ms sesudah yang pertama, sedangkan yang pertama baru selesai 537 sampai 856 ms kemudian. Permintaan dikirim lewat `http.request` dengan `agent: false` dan `Promise.all`, bukan `curl &`.
+
+**Akar masalah**
+
+`create()` memanggil `assertBelumMelewatiBatasHarian`, yang menghitung pengaduan akun itu sejak tengah malam (`complaint.count`) lalu menolak bila hasilnya sudah 10. Pengaduannya baru ditulis dua puluh baris kemudian di `insertWithUniqueTicket`, dengan pemeriksaan isi, lampiran, dan OPD di antaranya. Tidak ada kunci, transaksi berisolasi serializable, atau kendala basis data di antara hitung dan tulis. Lima puluh permintaan yang tiba bersamaan semuanya menghitung 0, semuanya lolos, lalu semuanya menulis.
+
+Uji yang ada, `pengaduan-batas-harian.e2e-spec.ts`, hanya mengirim beruntun. Karena itu ia lulus dan tidak dapat menangkap cacat ini.
+
+**Dampak**
+
+- Satu akun dapat mengirim jauh lebih dari 10 pengaduan sehari dengan skrip sederhana, dan setiap pengaduan menyiarkan notifikasi ke admin.
+- Penahan laju global (`THROTTLE_LIMIT`, baku 100 per menit per pengguna) tetap berlaku, jadi batas atasnya kira-kira 100 per menit, bukan tanpa batas. Dalam uji ini penahan global dilonggarkan supaya yang terukur adalah batas harian.
+- Lampiran ikut tertulis ke disk untuk setiap pengaduan yang lolos.
+
+**Langkah reproduksi**
+
+1. `pnpm --filter @skm-spm/api beban:data -- --survei=744 --respons=20` (membuat akun `beban-batas-harian`).
+2. `pnpm --filter @skm-spm/api beban -- --skenario=batas-harian-serentak --beruntun`. Hasilnya harus `201 x 10, 429 x 40`.
+3. `pnpm --filter @skm-spm/api beban -- --skenario=batas-harian-serentak`. Hasilnya `201 x 50` dan baris `JEBOL`.
+
+Pelari menghapus pengaduan akun batas dari jalan sebelumnya (di `skm_beban` saja) sebelum mengirim, jadi langkah 2 dan 3 dapat diulang pada hari yang sama.
+
+**Perbaikan**
+
+Belum dirancang dan sengaja tidak dikerjakan di sesi pengukuran. Pilihannya perlu dibahas dulu, misalnya kunci per pengguna (`pg_advisory_xact_lock`) yang membungkus hitung dan tulis dalam satu transaksi, atau penghitung harian di Redis yang dinaikkan secara atomik sebelum lampiran ditulis. Pagarnya sebaiknya uji e2e serentak yang memerah pada kode hari ini.
+
+**Status 19 November 2026 (malam): Terbuka**
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -9001,3 +9056,4 @@ hanya dibaca, tidak diubah.
 | 7.66 | 19 November 2026 | **BUG-094 ditutup: 94 temuan, 93 ditutup, 1 ditolak, 0 terbuka.** PR #61, merge `main` `0401009` (`c47f585`). CI `main` `0401009` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). `QuestionCard` menyimpan nilai radio dari data komponen, bukan dari atribut DOM; pilihan ganda terbukti punya cacat yang sama dan ikut diperbaiki. Pagarnya tiga uji di `QuestionCard.test.jsx`, merah di `7f1cd74` pada asersi nilai tersimpan dan lulus sesudahnya. Uji ulang TC-FE-003 di Chrome pada `0401009` lulus, jadi baris itu kini ✅. Tak ada temuan terbuka. |
 | 7.67 | 19 November 2026 | **BUG-095 dicatat: 95 temuan, 93 ditutup, 1 ditolak, 1 terbuka.** Kegoyahan Playwright lokal pada regresi §8 (6 goyah dan 1 gagal, 23 menit) berakar di penerusan Docker Desktop yang sesekali menelan sambungan TCP baru dari `skm-proxy` ke host, lalu nginx menunggu 60 detik dan menjawab 504. Probe 300 detik pada `0401009` mencatat 30 permintaan lewat nginx lebih dari 3 detik dan 6x 504, sedangkan permintaan langsung tidak pernah gagal. Perbaikan `99e8ed5` di `fix/nginx-dev-sambungan-goyah` (keepalive, batas sambung 1 detik, peer tiga kali) menurunkannya menjadi 0 dan 0. Playwright penuh satu jalan menghasilkan 176 lulus, 0 goyah, 13,4 menit. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya sebagai BUG keputusan pengguna. |
 | 7.68 | 19 November 2026 | **BUG-095 ditutup: 95 temuan, 94 ditutup, 1 ditolak, 0 terbuka.** PR #62, merge `main` `018b3ba` (`99e8ed5`). CI cabang dan CI `main` `018b3ba` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati), sama dengan CI `main` `0401009`. Upstream nginx dev kini memakai keepalive, batas sambung 1 detik, dan peer yang sama tiga kali. Bukti kegoyahan lokal masih satu jalan Playwright penuh (176 lulus, 0 goyah, 13,4 menit). Tak ada temuan terbuka. |
+| 7.69 | 19 November 2026 | **BUG-096 dicatat: 96 temuan, 94 ditutup, 1 ditolak, 1 terbuka.** Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) pada `main` `d7ea442`, pelari `test/beban-jalur-tulis` `76014c2`. 50 pengaduan serentak dari satu akun diterima semuanya padahal batas hariannya 10, pada tiga jalan, dengan puncak 50 permintaan terbang bersamaan. Kiriman beruntun pada server yang sama menerima tepat 10, jadi alat ukurnya benar. Sebabnya hitung lalu tulis tanpa kunci di `assertBelumMelewatiBatasHarian`. Medium, keputusan pengguna. Perbaikan belum dirancang. |
