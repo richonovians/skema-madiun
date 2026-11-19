@@ -323,3 +323,111 @@ masih akan memerah bila cacatnya kembali. Uji mutasi hanya dijalankan saat
 temuan ditutup (dicatat di seksi masing-masing), tidak diulang di sini.
 
 Sesudah §7.6, temuan terbuka tinggal 14, semuanya Low.
+
+---
+
+## 8. Regresi ulang 19 November 2026 (QA-FINAL-UAT)
+
+**Kode yang diuji:** `main` di `0401009` (sama dengan `origin/main`), pohon
+kerja bersih. Alasan diulang: 28 merge masuk ke `main` sesudah §7, dari
+`faeaee8` (#34, `fix/survey-ui`) sampai `0401009` (#61, BUG-094). Isinya
+perbaikan temuan yang ditutup sesudah §7 beserta pagarnya, cadangan harian terjadwal,
+`GET /health/siap`, indeks dan agregasi statistik, serta uji baru TC-IKM-011/012
+dan TC-FE-008. Daftar lengkapnya:
+`git log --merges --first-parent 6e84a4b..0401009`.
+
+### 8.1 Hasil
+
+**Tidak ada regresi.** Enam dari tujuh langkah lulus. Langkah Playwright keluar
+dengan kode 1 karena satu uji gagal pada kedua percobaannya, tetapi uji itu
+lulus ketika berkasnya dijalankan ulang sendiri (§8.3), jadi ia dinilai goyah,
+bukan regresi.
+
+| Lapisan                         | Suite | Uji   | Hasil                                             | 12 Nov (§7) |
+| ------------------------------- | ----- | ----- | ------------------------------------------------- | ----------- |
+| Unit API (Jest)                 | 106   | 1.649 | 1.649 lulus                                       | 99 / 1.584  |
+| e2e API (Postgres sungguhan)    | 58    | 807   | 807 lulus                                         | 53 / 777    |
+| Komponen web (Jest + RTL + MSW) | 271   | 2.258 | 2.258 lulus                                       | 269 / 2.219 |
+| E2E web (Playwright, Chrome)    | 29    | 176   | 168 lulus, 6 goyah, 1 dilewati, **1 gagal**       | 24 / 167    |
+| ESLint seluruh repo             | —     | —     | kode 0                                            | kode 0      |
+| Prettier                        | —     | —     | kode 0 (tidak berlaku untuk `apps/web`)           | kode 0      |
+
+Durasi: unit API 70 dtk, e2e API 273 dtk, komponen web 150 dtk, Playwright
+23 menit. Perintahnya sama dengan §1 dan §7:
+
+```bash
+E2E_IDENTIFIER=seed-admin-kabupaten \
+  node .claude/skills/verifikasi-penuh/scripts/verifikasi.mjs --e2e-api --e2e-web
+```
+
+Satu uji Playwright dilewati. Reporter `list` yang berjalan tanpa terminal
+tidak mencetak penanda per uji, jadi uji mana yang dilewati tidak tercatat di
+keluaran. CI `main` `0401009` juga mencatat tepat satu dilewati.
+
+### 8.2 Lingkungan
+
+Sama dengan §7.2. Sebelum menulis apa pun: `DATABASE_URL` menunjuk
+`localhost:5432/skm_db`, dan yang menjawab Postgres 18.4 di kontainer `skm-db`.
+Ketiga kontainer hidup (`skm-db` dan `skm-redis` sehat). Akun
+`seed-admin-kabupaten` (id 1) memegang `{kabupaten,responden,opd}`, ber-OPD,
+aktif, tidak terhapus. Server dev menjawab 200 di `http://skema.local` dan
+`/api/v1/health`.
+
+### 8.3 Uji yang gagal
+
+| Uji | Sebab |
+| --- | ----- |
+| `nilai-survei-alur.spec.ts:256` — membuat survei custom lewat UI builder | `locator.click` habis waktu 30 detik menunggu pemilih jenis survei (`radiogroup` "jenis survei") di `/admin-opd/surveys/builder/new`. Tak ada cuplikan halaman yang terekam |
+
+Berkasnya dijalankan ulang sendiri sesudah suite penuh selesai:
+
+```bash
+E2E_IDENTIFIER=seed-admin-kabupaten \
+  pnpm --filter @skm-spm/web exec playwright test e2e/nilai-survei-alur.spec.ts
+```
+
+Hasilnya **6 dari 6 lulus dalam 22,9 detik, tanpa percobaan ulang.** Uji lain di
+berkas yang sama (`:175`) juga goyah pada jalan penuh. Polanya sama dengan §4
+dan §7.3: halaman lambat siap di tengah suite penuh, bukan asersi yang salah.
+Bukti ini terbatas pada satu jalan ulang; ia tidak menyingkirkan kemungkinan
+uji itu goyah lagi di jalan berikutnya.
+
+### 8.4 Uji goyah
+
+Keenamnya gagal pada percobaan pertama lalu lulus saat diulang.
+
+| Uji | Sebab percobaan pertama |
+| --- | ----------------------- |
+| `dokumentasi-api.spec.ts:124` — unduh dokumen OpenAPI | peristiwa `download` tak datang dalam 90 detik |
+| `nilai-survei-alur.spec.ts:175` — panel Nilai Survei di builder | `page.goto` habis waktu 30 detik |
+| `pengaduan-tata-letak.spec.js:97` — kasus terburuk sidebar lebar | `beforeEach` habis waktu 30 detik |
+| `proteksi-route.spec.js:158` — matriks admin OPD | server menjawab `HTTP 504` untuk `/admin-kab/dashboard` di tengah sapuan; spec menghentikan dirinya karena hasil sapuan tak dapat dipercaya |
+| `responsif-komponen.spec.ts:447` — sasaran sentuh beranda 390px | navbar masih menampilkan tombol masuk sesudah 10 detik walau token dan peran sudah ada di penyimpanan |
+| `sso-galat.spec.js:85` — fragment berteks bebas | `page.goto` habis waktu 30 detik |
+
+Lima dari enam berpola waktu habis. Yang keenam, `504` dari proxy, juga
+waktu habis tetapi di sisi nginx. Jumlah goyah naik dari tiga (§7.3) menjadi
+enam, dan suite tumbuh dari 167 menjadi 176 uji. Sebabnya belum diselidiki.
+
+### 8.5 Data uji
+
+Dibersihkan dua kali dengan `bersihkan-data-uji.mjs` (sasaran `skm_db`, lolos
+palang). Sesudah suite penuh: 10 pengaduan, 8 survei, 4 respons, dan 40
+notifikasi. Sesudah jalan ulang §8.3: 3 survei, 1 respons, dan 3 notifikasi.
+Penyapuan `--tanpa-induk` sesudahnya menemukan 0 notifikasi tanpa induk.
+`audit_logs` tidak disentuh.
+
+### 8.6 Yang tidak dicakup
+
+- **Tabel verifikasi perbaikan bug seperti §7.6 tidak diulang** untuk temuan
+  yang ditutup sesudah 12 November. Pagarnya ikut lulus di §8.1, tetapi belum
+  dicocokkan satu per satu ke berkas ujinya.
+- **SSO Helpdesk sungguhan** tidak dijalankan di sini; hasil login sungguhan
+  dicatat di charter C-09 (`TEST_EXPLORATORY.md`).
+- **Sinkron OPD nyata** tidak dijalankan. Helpdesk masih menolak token API
+  (401 `invalid api key`) per 18 November.
+- **Uji beban** tidak diulang; lihat `TEST_BEBAN.md` §15.
+- **UAT stakeholder dan sign-off go-live** di luar dokumen ini dan belum pernah
+  dijalankan (`TEST_KEAMANAN.md` §6).
+
+Temuan terbuka per 19 November: 0 dari 94.
