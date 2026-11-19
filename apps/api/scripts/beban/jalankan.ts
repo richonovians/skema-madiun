@@ -32,16 +32,48 @@
  * terukur jalur DINGIN. Lihat `buatPenyapu`.
  *
  *   pnpm --filter @skm-spm/api beban -- --skenario=statistik --dingin
+ *
+ * JALUR TULIS (§11 `docs/TEST_BEBAN.md`, 19 November 2026) memakai daftarnya
+ * sendiri, `SKENARIO_TULIS`, dan TIDAK ikut `--semua`. Pemeriksaannya juga lain:
+ * bukan "dataset tetap" melainkan "selisih baris = jawaban 2xx". Lihat
+ * `jalankanTulis`.
+ *
+ *   pnpm --filter @skm-spm/api beban -- --skenario=kirim-pengaduan
+ *   pnpm --filter @skm-spm/api beban -- --semua-tulis
+ *   pnpm --filter @skm-spm/api beban -- --skenario=batas-harian-serentak --beruntun
  */
 import { spawn, type ChildProcess } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as http from 'node:http';
 import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { PrismaClient } from '@prisma/client';
 import autocannon from 'autocannon';
 import * as dotenv from 'dotenv';
 import Redis from 'ioredis';
 import { AWALAN_SINGGAHAN } from '../../src/common/cache/penyimpan-singgahan.redis';
+import { INFO_LAMPIRAN, dekripsi, terenkripsi } from '../../src/common/crypto/envelope';
+import { bacaKunci } from '../../src/common/crypto/kunci';
+import { BATAS_HARIAN_PENGADUAN_BAKU } from '../../src/modules/complaints/complaints.constants';
 import { jalankanCli } from '../lib/jalankan-cli';
-import { IDENTITAS_ADMIN, PERAN_BEBAN, type PeranBeban } from './lib/akun-beban';
+import {
+  IDENTITAS_ADMIN,
+  IDENTITAS_BATAS_HARIAN,
+  JUMLAH_RESPONDEN_BEBAN,
+  PERAN_BEBAN,
+  identitasResponden,
+  type PeranBeban,
+} from './lib/akun-beban';
+import {
+  bacaTungguUlang,
+  buatPemutar,
+  nilaiKetepatan,
+  puncakSerentak,
+  ringkasKode,
+  type Ketepatan,
+} from './lib/ketepatan-tulis';
+import { susunMultipart, type BerkasMultipart } from './lib/multipart';
+import { buatPng } from './lib/png-beban';
 import { HITUNGAN_DATASET, ringkasDataset, type HitunganDataset } from './lib/opsi-dataset';
 import {
   NAMA_DB_BEBAN,
@@ -51,12 +83,25 @@ import {
   sasaranDbBeban,
 } from './lib/sasaran-beban';
 import { sapuAwalan } from './lib/sapu-singgahan';
-import { SKENARIO, type Skenario } from './skenario';
+import { SKENARIO, SKENARIO_TULIS, type Skenario, type SkenarioTulis } from './skenario';
 
 const AKAR_API = path.resolve(__dirname, '..', '..');
 const PORTA = 3002;
 const ASAL = `http://127.0.0.1:${PORTA}`;
 const KELUARAN = 'dist-beban';
+/**
+ * `UPLOAD_DIR` server beban. Relatif terhadap `apps/api`, seperti bakunya
+ * `uploads` milik server dev -- dan justru karena itu harus berbeda: lampiran
+ * beban di `uploads/` bercampur dengan lampiran pengembangan pengguna dan tak
+ * dapat dipilah lagi. Dihapus sesudah jalan (`hapusUnggahanBeban`).
+ */
+const UNGGAHAN_BEBAN = 'uploads-beban';
+/** Ukuran lampiran skenario `kirim-pengaduan-lampiran` (§11.3). */
+const UKURAN_LAMPIRAN = 1024 * 1024;
+/** Jumlah permintaan serentak skenario `batas-harian-serentak` (§11.3). */
+const JUMLAH_SERENTAK = 50;
+/** Batas per pengguna `@Throttle` pada `POST /surveys/:id/responses`. */
+const BATAS_JAWABAN_PER_MENIT = 10;
 
 function angkaArgumen(nama: string, baku: number): number {
   const awalan = `--${nama}=`;
@@ -80,13 +125,22 @@ async function utama(): Promise<void> {
   const dingin = process.argv.includes('--dingin');
 
   const diminta = process.argv.find((a) => a.startsWith('--skenario='))?.slice(11);
+  const tulis = process.argv.includes('--semua-tulis')
+    ? SKENARIO_TULIS
+    : SKENARIO_TULIS.filter((s) => s.nama === diminta);
+  if (tulis.length > 0) {
+    await jalankanTulis(url, tulis, { durasi, koneksi });
+    return;
+  }
+
   const dipilih = process.argv.includes('--semua')
     ? SKENARIO
     : SKENARIO.filter((s) => s.nama === diminta);
   if (dipilih.length === 0) {
     throw new Error(
-      `Skenario '${diminta ?? ''}' tak dikenal. Yang ada: ${SKENARIO.map((s) => s.nama).join(', ')}. ` +
-        'Atau pakai --semua.',
+      `Skenario '${diminta ?? ''}' tak dikenal. Yang ada: ` +
+        `${[...SKENARIO, ...SKENARIO_TULIS].map((s) => s.nama).join(', ')}. ` +
+        'Atau pakai --semua (baca) / --semua-tulis.',
     );
   }
 
@@ -163,15 +217,29 @@ async function utama(): Promise<void> {
  * Diterbitkan sekali saja. Kalau tiap permintaan masuk lebih dulu, yang terukur
  * adalah penerbitan sesinya, bukan endpoint yang dituju.
  */
-async function masuk(peran: PeranBeban): Promise<string> {
-  const jawab = await fetch(`${ASAL}/api/v1/auth/dev-login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ identifier: IDENTITAS_ADMIN, role: peran }),
-  });
+async function masuk(peran: PeranBeban, identitas: string = IDENTITAS_ADMIN): Promise<string> {
+  let jawab: Response;
+  for (;;) {
+    jawab = await fetch(`${ASAL}/api/v1/auth/dev-login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ identifier: identitas, role: peran }),
+    });
+    // `dev-login` ber-`@Throttle` 30/menit per IP, tak ikut dilonggarkan
+    // `THROTTLE_LIMIT`. Seratus sesi responden pasti menabraknya, jadi 429
+    // DITUNGGU, bukan dilempar. Hitungannya tersimpan di Redis logis 1, sehingga
+    // jalan yang menyusul dalam semenit ikut kena.
+    if (jawab.status !== 429) {
+      break;
+    }
+    const tunggu = bacaTungguUlang(jawab.headers.get('retry-after'));
+    process.stdout.write(`
+  dev-login 429, menunggu ${Math.round(tunggu / 1000)} s ...`);
+    await tidur(tunggu);
+  }
   if (!jawab.ok) {
     throw new Error(
-      `dev-login sebagai '${IDENTITAS_ADMIN}' peran '${peran}' menjawab ${jawab.status}. ` +
+      `dev-login sebagai '${identitas}' peran '${peran}' menjawab ${jawab.status}. ` +
         'Bangun dulu datasetnya: pnpm --filter @skm-spm/api beban:data. ' +
         `Jawabannya: ${(await jawab.text()).slice(0, 300)}`,
     );
@@ -262,7 +330,10 @@ async function buatPenyapu(
   };
 }
 
-async function nyalakanServer(url: string): Promise<ChildProcess> {
+async function nyalakanServer(
+  url: string,
+  envTambahan: Record<string, string> = {},
+): Promise<ChildProcess> {
   console.log(`Mengompilasi ke ${KELUARAN}/ ...`);
   const kode = jalankanCli('typescript', ['-p', 'tsconfig.build.json', '--outDir', KELUARAN], {
     cwd: AKAR_API,
@@ -290,6 +361,7 @@ async function nyalakanServer(url: string): Promise<ChildProcess> {
       // harian pengaduan dengan alasan yang sama persis.
       THROTTLE_LIMIT: '1000000',
       COMPLAINT_DAILY_LIMIT: '1000000',
+      ...envTambahan,
     },
   });
 
@@ -387,6 +459,527 @@ async function ukur(
       ? `  semua jawaban 2xx (${hasil.requests.total} permintaan)\n`
       : `  PERINGATAN: ${nonDuaRatus} dari ${hasil.requests.total} jawaban BUKAN 2xx — angka di atas tak berarti\n`,
   );
+}
+
+// ===========================================================================
+// JALUR TULIS (§11 `docs/TEST_BEBAN.md`), 19 November 2026.
+// ===========================================================================
+
+interface HitunganTulis {
+  complaints: number;
+  complaint_attachments: number;
+  survey_responses: number;
+  answers: number;
+}
+
+interface KonteksTulis {
+  idSurveiMulti: number;
+  idPertanyaan: number[];
+  idOpd: number;
+  idAkunBatas: number;
+}
+
+/**
+ * Menjalankan skenario tulis. Dua kelompok server, bukan satu: skenario
+ * kecepatan butuh batas harian dilonggarkan (kalau tidak, pengaduan ke-11
+ * dijawab 429 dan yang terukur hanya penolakan), sedangkan
+ * `batas-harian-serentak` justru menguji batas ASLI. Batasnya dibaca sekali
+ * saat boot (konstruktor `ComplaintsService`), jadi keduanya tak dapat hidup
+ * di satu proses.
+ */
+async function jalankanTulis(
+  url: string,
+  dipilih: SkenarioTulis[],
+  opsi: { durasi: number; koneksi: number },
+): Promise<void> {
+  const konteks = await bacaKonteksTulis(url);
+  const kunci = bacaKunci(
+    process.env.DATA_ENCRYPTION_KEY ?? '',
+    'DATA_ENCRYPTION_KEY',
+    'development',
+  );
+  console.log(`Basis data : ${NAMA_DB_BEBAN}`);
+  console.log(`Beban      : ${opsi.koneksi} koneksi, jumlah permintaan tetap per skenario`);
+  console.log(`Unggahan   : ${UNGGAHAN_BEBAN}/ (dihapus sesudah jalan)\n`);
+
+  const longgar = dipilih.filter((s) => s.batasHarianAsli !== true);
+  const asli = dipilih.filter((s) => s.batasHarianAsli === true);
+  const hasil: { nama: string; ketepatan: Ketepatan[] }[] = [];
+
+  hapusUnggahanBeban();
+  try {
+    if (longgar.length > 0) {
+      const server = await nyalakanServer(url, { UPLOAD_DIR: UNGGAHAN_BEBAN });
+      try {
+        const bearerAdmin = await masuk('responden');
+        for (const s of longgar) {
+          hasil.push({
+            nama: s.nama,
+            ketepatan: await ukurTulis(s, url, konteks, kunci, bearerAdmin, opsi),
+          });
+        }
+      } finally {
+        server.kill();
+      }
+    }
+    if (asli.length > 0) {
+      const server = await nyalakanServer(url, {
+        UPLOAD_DIR: UNGGAHAN_BEBAN,
+        COMPLAINT_DAILY_LIMIT: String(BATAS_HARIAN_PENGADUAN_BAKU),
+      });
+      try {
+        for (const s of asli) {
+          hasil.push({ nama: s.nama, ketepatan: await ukurBatasHarian(s, url, konteks) });
+        }
+      } finally {
+        server.kill();
+      }
+    }
+  } finally {
+    hapusUnggahanBeban();
+  }
+
+  console.log('RINGKASAN KETEPATAN');
+  let semuaCocok = true;
+  for (const h of hasil) {
+    for (const k of h.ketepatan) {
+      semuaCocok &&= k.cocok;
+      console.log(
+        `  ${k.cocok ? 'cocok ' : 'TIDAK '} ${h.nama.padEnd(26)} ${k.tabel.padEnd(36)} ` +
+          `selisih ${k.selisih}, diharapkan ${k.diharapkan}`,
+      );
+    }
+  }
+  console.log(
+    semuaCocok
+      ? 'Semua tulisan sampai tepat sekali.'
+      : 'PERINGATAN: ada pemeriksaan yang TIDAK cocok; lihat baris di atas.',
+  );
+}
+
+async function denganPrismaBeban<T>(
+  url: string,
+  kerja: (p: PrismaClient) => Promise<T>,
+): Promise<T> {
+  const prisma = new PrismaClient({ datasources: { db: { url } } });
+  try {
+    const [tersambung] = await prisma.$queryRaw<{ db: string }[]>`
+      SELECT current_database() AS db
+    `;
+    pastikanSasaranBeban(tersambung.db);
+    return await kerja(prisma);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function bacaKonteksTulis(url: string): Promise<KonteksTulis> {
+  return denganPrismaBeban(url, async (prisma) => {
+    const [survei] = await prisma.$queryRaw<{ id: number }[]>`
+      SELECT id::int AS id FROM surveys
+      WHERE allow_multiple_submit AND status = 'aktif'::survey_status ORDER BY id LIMIT 1
+    `;
+    const [opd] = await prisma.$queryRaw<{ id: number }[]>`
+      SELECT id::int AS id FROM opd WHERE kode LIKE 'BEBAN%' ORDER BY id LIMIT 1
+    `;
+    const [akun] = await prisma.$queryRaw<{ id: number }[]>`
+      SELECT id::int AS id FROM users WHERE sso_subject = ${IDENTITAS_BATAS_HARIAN}
+    `;
+    if (!survei || !opd || !akun) {
+      throw new Error(
+        'Dataset beban belum memuat survei multi-kirim, OPD beban, atau akun batas harian. ' +
+          'Bangun ulang: pnpm --filter @skm-spm/api beban:data -- --survei=744 --respons=20',
+      );
+    }
+    const pertanyaan = await prisma.$queryRaw<{ id: number }[]>`
+      SELECT id::int AS id FROM questions WHERE survey_id = ${survei.id} ORDER BY urutan
+    `;
+    return {
+      idSurveiMulti: survei.id,
+      idPertanyaan: pertanyaan.map((q) => q.id),
+      idOpd: opd.id,
+      idAkunBatas: akun.id,
+    };
+  });
+}
+
+async function hitungTulis(url: string): Promise<HitunganTulis> {
+  return denganPrismaBeban(url, async (prisma) => {
+    const [b] = await prisma.$queryRaw<Record<string, bigint>[]>`
+      SELECT (SELECT count(*) FROM complaints)            AS complaints,
+             (SELECT count(*) FROM complaint_attachments) AS complaint_attachments,
+             (SELECT count(*) FROM survey_responses)      AS survey_responses,
+             (SELECT count(*) FROM answers)               AS answers
+    `;
+    return {
+      complaints: Number(b.complaints),
+      complaint_attachments: Number(b.complaint_attachments),
+      survey_responses: Number(b.survey_responses),
+      answers: Number(b.answers),
+    };
+  });
+}
+
+/** Medan pengaduan yang sah sejak 4 November 2026 (`tingkat`, tanggal, lokasi wajib). */
+function medanPengaduan(idOpd: number): Record<string, string> {
+  // Tanggal kemarin MENURUT WIB: `parseTanggalKejadian` menolak tanggal yang
+  // melampaui hari ini menurut WIB, sedangkan jam mesin bisa berbeda tanggal.
+  const kemarin = new Date(Date.now() + 7 * 3600_000 - 86_400_000).toISOString().slice(0, 10);
+  return {
+    tingkat: 'kabupaten',
+    kategori: 'kab_infrastruktur',
+    opdId: String(idOpd),
+    judul: '[UJI BEBAN] Jalan berlubang di depan pasar',
+    uraian: 'Lubang selebar satu meter, sudah dua minggu belum ditambal. '.repeat(4),
+    tanggalKejadian: kemarin,
+    lokasiKejadian: 'Jl. Contoh Beban No. 1, Kecamatan Contoh',
+  };
+}
+
+function berkasUnggahan(): string[] {
+  const dir = path.join(AKAR_API, UNGGAHAN_BEBAN, 'complaints');
+  return fs.existsSync(dir) ? fs.readdirSync(dir).map((f) => path.join(dir, f)) : [];
+}
+
+/**
+ * Menghapus `uploads-beban/`, dan HANYA itu. Jalurnya disusun dari tetapan,
+ * lalu diperiksa sekali lagi sebelum dihapus: salah ketik yang menunjuk
+ * `uploads/` akan memusnahkan lampiran pengembangan pengguna, dan itu tak dapat
+ * dipulihkan karena lampirannya terenkripsi dan tak ada salinannya di mana pun.
+ */
+function hapusUnggahanBeban(): void {
+  const dir = path.resolve(AKAR_API, UNGGAHAN_BEBAN);
+  if (path.basename(dir) !== 'uploads-beban' || path.dirname(dir) !== AKAR_API) {
+    throw new Error(`Menolak menghapus '${dir}': bukan direktori unggahan beban.`);
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+function cetakLatensi(hasil: autocannon.Result): void {
+  const kode = Object.fromEntries(
+    Object.entries(hasil.statusCodeStats ?? {}).map(([k, v]) => [k, v.count]),
+  );
+  console.log(
+    `  p50 ${hasil.latency.p50} ms | p97,5 ${hasil.latency.p97_5} ms | p99 ${hasil.latency.p99} ms | ` +
+      `maks ${hasil.latency.max} ms | ${Math.round(hasil.requests.average)} req/s`,
+  );
+  console.log(
+    `  ${hasil.requests.sent} terkirim, ${hasil.requests.total} terjawab; 2xx ${hasil['2xx']}; per kode ${JSON.stringify(kode)}; ` +
+      `galat jaringan ${hasil.errors}; habis waktu ${hasil.timeouts}`,
+  );
+}
+
+async function ukurTulis(
+  skenario: SkenarioTulis,
+  url: string,
+  konteks: KonteksTulis,
+  kunci: Buffer,
+  bearerAdmin: string,
+  opsi: { durasi: number; koneksi: number },
+): Promise<Ketepatan[]> {
+  const jalur = skenario.jalur.replace(':survei', String(konteks.idSurveiMulti));
+  console.log(`${skenario.nama}  ${skenario.method} ${jalur}`);
+  console.log(`  ${skenario.alasan}`);
+
+  let tubuh: Buffer;
+  let contentType: string;
+  let ambilBearer: () => string = () => bearerAdmin;
+  let png: Buffer | undefined;
+  let jumlah: number;
+
+  if (skenario.jenis === 'jawaban') {
+    tubuh = Buffer.from(
+      JSON.stringify({
+        answers: konteks.idPertanyaan.map((questionId, i) => ({ questionId, nilai: 1 + (i % 4) })),
+      }),
+    );
+    contentType = 'application/json';
+    process.stdout.write(`  menerbitkan ${JUMLAH_RESPONDEN_BEBAN} sesi responden`);
+    const sesi: string[] = [];
+    for (let i = 1; i <= JUMLAH_RESPONDEN_BEBAN; i += 1) {
+      sesi.push(await masuk('responden', identitasResponden(i)));
+      if (i % 10 === 0) process.stdout.write('.');
+    }
+    console.log(' selesai');
+    ambilBearer = buatPemutar(sesi);
+    // JUMLAH TETAP, bukan durasi: N akun x 10 per menit adalah batas atas yang
+    // tak menyentuh `@Throttle`, dikurangi satu untuk permintaan penyelidik.
+    jumlah = JUMLAH_RESPONDEN_BEBAN * BATAS_JAWABAN_PER_MENIT - 1;
+  } else {
+    const berkas: BerkasMultipart[] = [];
+    if (skenario.jenis === 'pengaduan-lampiran') {
+      png = buatPng(UKURAN_LAMPIRAN);
+      berkas.push({
+        medan: 'lampiran',
+        namaBerkas: 'bukti-beban.png',
+        tipe: 'image/png',
+        isi: png,
+      });
+    }
+    ({ isi: tubuh, contentType } = susunMultipart(medanPengaduan(konteks.idOpd), berkas));
+    jumlah = angkaArgumen('jumlah', skenario.jumlahBaku ?? 1000);
+  }
+
+  const berkasSebelum = new Set(berkasUnggahan());
+  const sebelum = await hitungTulis(url);
+
+  const mulai = Date.now();
+  const jawab = await fetch(`${ASAL}${jalur}`, {
+    method: 'POST',
+    headers: { 'content-type': contentType, authorization: ambilBearer() },
+    body: new Uint8Array(tubuh),
+  });
+  const msPertama = Date.now() - mulai;
+  if (!jawab.ok) {
+    throw new Error(
+      `${skenario.nama}: penyelidik menjawab ${jawab.status}, bukan 2xx. Beban tidak dijalankan. ` +
+        `Jawabannya: ${(await jawab.text()).slice(0, 300)}`,
+    );
+  }
+
+  const hasil = await autocannon({
+    url: `${ASAL}${jalur}`,
+    connections: opsi.koneksi,
+    amount: jumlah,
+    timeout: 120,
+    requests: [
+      {
+        method: 'POST',
+        body: tubuh,
+        // Dipanggil setiap kali permintaan disusun, jadi sesi berganti per
+        // permintaan. Bila autocannon ternyata menyusunnya sekali saja, satu
+        // akun menerima semuanya dan 429 muncul di baris "per kode" -- itulah
+        // yang membuktikan pemutarannya, bukan anggapan atas pustakanya.
+        setupRequest: (req) => ({
+          ...req,
+          headers: { ...req.headers, 'content-type': contentType, authorization: ambilBearer() },
+        }),
+      },
+    ],
+  });
+
+  console.log(`  pertama ${msPertama} ms (satu permintaan sebelum beban)`);
+  cetakLatensi(hasil);
+
+  // Permintaan yang terkirim tanpa pernah terjawab menulis baris tanpa 2xx
+  // pasangannya. Dengan jumlah tetap seharusnya nol; bila tidak, pemeriksaan
+  // ketepatan di bawah tak dapat dibaca sebagai bukti tulisan berganda.
+  if (hasil.requests.sent !== hasil.requests.total) {
+    console.log(
+      `  PERINGATAN: ${hasil.requests.sent - hasil.requests.total} permintaan terkirim tanpa jawaban`,
+    );
+  }
+  const sesudah = await hitungTulis(url);
+  const duaRatus = hasil['2xx'] + 1;
+  const ketepatan: Ketepatan[] = [];
+
+  if (skenario.jenis === 'jawaban') {
+    ketepatan.push(
+      nilaiKetepatan(
+        'survey_responses',
+        sebelum.survey_responses,
+        sesudah.survey_responses,
+        duaRatus,
+      ),
+      nilaiKetepatan(
+        'answers',
+        sebelum.answers,
+        sesudah.answers,
+        duaRatus * konteks.idPertanyaan.length,
+      ),
+      nilaiKetepatan('complaints (harus tetap)', sebelum.complaints, sesudah.complaints, 0),
+    );
+    await cetakSebaranAkun(url, konteks.idSurveiMulti);
+  } else {
+    const berLampiran = skenario.jenis === 'pengaduan-lampiran' ? 1 : 0;
+    ketepatan.push(
+      nilaiKetepatan('complaints', sebelum.complaints, sesudah.complaints, duaRatus),
+      nilaiKetepatan(
+        'complaint_attachments',
+        sebelum.complaint_attachments,
+        sesudah.complaint_attachments,
+        duaRatus * berLampiran,
+      ),
+    );
+    const baru = berkasUnggahan().filter((f) => !berkasSebelum.has(f));
+    ketepatan.push(
+      nilaiKetepatan(
+        `berkas ${UNGGAHAN_BEBAN}/ = baris lampiran`,
+        0,
+        baru.length,
+        sesudah.complaint_attachments - sebelum.complaint_attachments,
+      ),
+    );
+    if (png !== undefined) {
+      ketepatan.push(periksaAmplop(baru, png, kunci));
+    }
+  }
+  console.log('');
+  return ketepatan;
+}
+
+/**
+ * SETIAP berkas baru harus amplop SKM1 DAN terbuka menjadi PNG yang dikirim,
+ * bita demi bita. `terenkripsi` saja hanya membaca kepalanya; dekripsi penuh
+ * yang membuktikan isinya utuh (tag GCM) dan kuncinya kunci yang sama.
+ */
+function periksaAmplop(berkas: string[], png: Buffer, kunci: Buffer): Ketepatan {
+  let sah = 0;
+  for (const f of berkas) {
+    const isi = fs.readFileSync(f);
+    try {
+      if (terenkripsi(isi) && dekripsi(isi, kunci, INFO_LAMPIRAN).equals(png)) {
+        sah += 1;
+      }
+    } catch {
+      // Tag GCM gagal atau versi tak dikenal: tak dihitung sah.
+    }
+  }
+  return nilaiKetepatan('berkas amplop sah = PNG asli', 0, sah, berkas.length);
+}
+
+/**
+ * Bukti pemutaran sesi dari sisi SERVER: respons per akun pada survei
+ * multi-kirim. Maksimal di atas 10 berarti ada akun yang melewati batas
+ * `@Throttle`-nya -- yang hanya mungkin bila pemutar tidak bergiliran.
+ */
+async function cetakSebaranAkun(url: string, idSurvei: number): Promise<void> {
+  await denganPrismaBeban(url, async (prisma) => {
+    const [b] = await prisma.$queryRaw<{ akun: bigint; min: bigint; maks: bigint }[]>`
+      SELECT count(*) AS akun, min(n) AS min, max(n) AS maks FROM (
+        SELECT count(*) AS n FROM survey_responses
+        WHERE survey_id = ${idSurvei} AND user_id IS NOT NULL GROUP BY user_id
+      ) t
+    `;
+    console.log(
+      `  sebaran respons per akun (kumulatif, survei ${idSurvei}): ${Number(b.akun)} akun, ` +
+        `min ${Number(b.min)}, maks ${Number(b.maks)}`,
+    );
+  });
+}
+
+interface JawabanMentah {
+  kode: number | null;
+  mulai: number;
+  selesai: number;
+}
+
+/**
+ * Satu permintaan lewat `http.request` dengan `agent: false`: SATU soket baru
+ * per permintaan, tanpa kolam yang dapat mengantrikannya diam-diam. `fetch`
+ * (undici) tidak dipakai karena kolam sambungannya membatasi soket per asal.
+ */
+function kirimMentah(tubuh: Buffer, contentType: string, bearer: string): Promise<JawabanMentah> {
+  return new Promise((resolve) => {
+    const mulai = performance.now();
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: PORTA,
+        path: '/api/v1/complaints',
+        method: 'POST',
+        agent: false,
+        headers: {
+          'content-type': contentType,
+          'content-length': tubuh.length,
+          authorization: bearer,
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on('end', () =>
+          resolve({ kode: res.statusCode ?? null, mulai, selesai: performance.now() }),
+        );
+      },
+    );
+    req.on('error', () => resolve({ kode: null, mulai, selesai: performance.now() }));
+    req.end(tubuh);
+  });
+}
+
+/**
+ * KETEPATAN BATAS HARIAN di bawah kiriman serentak.
+ *
+ * `assertBelumMelewatiBatasHarian` menghitung pengaduan hari ini, lalu
+ * `insertWithUniqueTicket` menulis, tanpa kunci di antara keduanya. Yang diuji:
+ * berapa dari 50 kiriman serentak yang lolos ketika batasnya 10.
+ *
+ * `--beruntun` mengirim yang sama satu per satu. Itu PEMBUKTI ALATNYA, bukan
+ * skenario: hasilnya harus tepat 10 diterima. Bila beruntun pun menerima lebih
+ * dari 10, yang salah adalah server ini (batasnya bukan 10), bukan balapannya.
+ *
+ * Pengaduan akun batas yang tersisa dari jalan sebelumnya DIHAPUS lebih dulu,
+ * di `skm_beban` saja (palang `denganPrismaBeban`). Tanpanya jalan kedua di hari
+ * yang sama mulai dari 10 dan menjawab 50 x 429.
+ */
+async function ukurBatasHarian(
+  skenario: SkenarioTulis,
+  url: string,
+  konteks: KonteksTulis,
+): Promise<Ketepatan[]> {
+  const beruntun = process.argv.includes('--beruntun');
+  console.log(
+    `${skenario.nama}  ${skenario.method} ${skenario.jalur}${beruntun ? '  [BERUNTUN]' : ''}`,
+  );
+  console.log(`  ${skenario.alasan}`);
+
+  const dihapus = await denganPrismaBeban(
+    url,
+    (prisma) => prisma.$executeRaw`DELETE FROM complaints WHERE user_id = ${konteks.idAkunBatas}`,
+  );
+  console.log(`  pengaduan akun batas dari jalan sebelumnya dihapus: ${dihapus}`);
+
+  const bearer = await masuk('responden', IDENTITAS_BATAS_HARIAN);
+  const { isi, contentType } = susunMultipart(medanPengaduan(konteks.idOpd));
+  const sebelum = await hitungTulis(url);
+
+  let jawaban: JawabanMentah[];
+  if (beruntun) {
+    jawaban = [];
+    for (let i = 0; i < JUMLAH_SERENTAK; i += 1) {
+      jawaban.push(await kirimMentah(isi, contentType, bearer));
+    }
+  } else {
+    jawaban = await Promise.all(
+      Array.from({ length: JUMLAH_SERENTAK }, () => kirimMentah(isi, contentType, bearer)),
+    );
+  }
+
+  const sesudah = await hitungTulis(url);
+  const [milikAkun] = await denganPrismaBeban(
+    url,
+    (prisma) => prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT count(*) AS n FROM complaints WHERE user_id = ${konteks.idAkunBatas}
+    `,
+  );
+  const kode = jawaban.map((j) => j.kode);
+  const diterima = kode.filter((k) => k !== null && k >= 200 && k < 300).length;
+  const awal = Math.min(...jawaban.map((j) => j.mulai));
+  const rentang = jawaban.map((j) => ({ mulai: j.mulai - awal, selesai: j.selesai - awal }));
+
+  console.log(`  per kode ${JSON.stringify(ringkasKode(kode))}`);
+  console.log(
+    `  puncak serentak ${puncakSerentak(rentang)} dari ${JUMLAH_SERENTAK}; ` +
+      `berangkat terakhir +${Math.max(...rentang.map((r) => r.mulai)).toFixed(1)} ms, ` +
+      `selesai pertama +${Math.min(...rentang.map((r) => r.selesai)).toFixed(1)} ms, ` +
+      `selesai terakhir +${Math.max(...rentang.map((r) => r.selesai)).toFixed(1)} ms`,
+  );
+  console.log(`  pengaduan akun batas di basis data: ${Number(milikAkun.n)}`);
+  console.log(
+    diterima > BATAS_HARIAN_PENGADUAN_BAKU
+      ? `  JEBOL: ${diterima} diterima, batasnya ${BATAS_HARIAN_PENGADUAN_BAKU}\n`
+      : `  ditahan: ${diterima} diterima, batasnya ${BATAS_HARIAN_PENGADUAN_BAKU}\n`,
+  );
+
+  return [
+    nilaiKetepatan('complaints', sebelum.complaints, sesudah.complaints, diterima),
+    nilaiKetepatan(
+      'diterima <= batas harian',
+      0,
+      Math.min(diterima, BATAS_HARIAN_PENGADUAN_BAKU),
+      diterima,
+    ),
+  ];
 }
 
 function tidur(ms: number): Promise<void> {

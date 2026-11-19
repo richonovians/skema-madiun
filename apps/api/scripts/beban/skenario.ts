@@ -97,3 +97,82 @@ export const SKENARIO: Skenario[] = [
     peran: 'opd',
   },
 ];
+
+/**
+ * SKENARIO TULIS (§11 `docs/TEST_BEBAN.md`, dijalankan 19 November 2026).
+ *
+ * DAFTAR TERPISAH dari `SKENARIO`, dan itu dijaga uji. `--semua` sudah tercatat
+ * di dokumen sebagai perintah pengukuran baca dengan syarat selisih baris nol;
+ * menyatukannya membuat perintah lama diam-diam menulis ribuan baris. Skenario
+ * tulis dipilih lewat `--skenario=` atau `--semua-tulis`.
+ *
+ * Bentuk permintaannya disusun pelari menurut `jenis`, karena tak satu pun dari
+ * keempatnya muat di tubuh statis: lampiran butuh multipart berisi PNG, jawaban
+ * butuh id pertanyaan dari basis data dan sesi yang diputar, dan batas harian
+ * bukan autocannon sama sekali melainkan 50 permintaan `Promise.all`.
+ */
+export interface SkenarioTulis {
+  nama: string;
+  alasan: string;
+  method: 'POST';
+  /** `:survei` diganti id survei `allow_multiple_submit` di basis data beban. */
+  jalur: string;
+  jenis: 'pengaduan' | 'pengaduan-lampiran' | 'jawaban' | 'batas-harian';
+  /**
+   * `true` = server dinyalakan dengan `COMPLAINT_DAILY_LIMIT` BAKU (10), bukan
+   * yang dilonggarkan. Hanya skenario ketepatan batas harian yang memakainya.
+   */
+  batasHarianAsli?: boolean;
+  /**
+   * Jumlah permintaan autocannon, menggantikan durasi. Lihat uji "jumlah tetap
+   * skenario tulis": durasi meninggalkan permintaan yang masih terbang saat
+   * berhenti, dan baris yang ditulisnya tak punya jawaban 2xx pasangannya.
+   * Dapat ditimpa `--jumlah=`. `kirim-jawaban` tak memakainya; jumlahnya
+   * ditentukan batas `@Throttle` (akun x 10).
+   */
+  jumlahBaku?: number;
+}
+
+export const SKENARIO_TULIS: SkenarioTulis[] = [
+  {
+    nama: 'kirim-pengaduan',
+    alasan:
+      'POST /complaints multipart tanpa lampiran, satu akun, batas harian dilonggarkan. ' +
+      'Dua kolom dienkripsi, satu baris riwayat, notifikasi, dan audit per permintaan.',
+    method: 'POST',
+    jalur: '/api/v1/complaints',
+    jenis: 'pengaduan',
+    jumlahBaku: 1000,
+  },
+  {
+    nama: 'kirim-pengaduan-lampiran',
+    alasan:
+      'Sama, dengan satu PNG 1 MB yang diperiksa isinya, dienkripsi AES-256-GCM, lalu ' +
+      'ditulis ke UPLOAD_DIR khusus beban.',
+    method: 'POST',
+    jalur: '/api/v1/complaints',
+    jenis: 'pengaduan-lampiran',
+    // 500 x 1 MB terenkripsi = sekitar 500 MB di `uploads-beban/` sebelum dihapus.
+    jumlahBaku: 500,
+  },
+  {
+    nama: 'kirim-jawaban',
+    alasan:
+      'POST /surveys/:id/responses atas survei allow_multiple_submit, sembilan jawaban ' +
+      'skala; sesi diputar di antara akun responden beban supaya @Throttle 10/menit ' +
+      'per pengguna tak tersentuh.',
+    method: 'POST',
+    jalur: '/api/v1/surveys/:survei/responses',
+    jenis: 'jawaban',
+  },
+  {
+    nama: 'batas-harian-serentak',
+    alasan:
+      'KETEPATAN, bukan kecepatan: 50 pengaduan serentak dari satu akun dengan batas ' +
+      'harian ASLI 10. Batasnya dihitung lalu ditulis; lebih dari 10 diterima = temuan.',
+    method: 'POST',
+    jalur: '/api/v1/complaints',
+    jenis: 'batas-harian',
+    batasHarianAsli: true,
+  },
+];

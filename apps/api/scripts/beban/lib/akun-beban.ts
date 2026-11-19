@@ -38,3 +38,26 @@ export const PERAN_BEBAN = ['kabupaten', 'responden', 'opd'] as const;
 export const OPD_BEBAN = 'BEBAN0001';
 
 export type PeranBeban = (typeof PERAN_BEBAN)[number];
+
+/**
+ * AKUN RESPONDEN BEBAN untuk skenario `kirim-jawaban` (§11.3).
+ *
+ * `POST /surveys/:id/responses` ber-`@Throttle` 10/menit PER PENGGUNA, dan
+ * batas itu tertulis di dekoratornya, tak ikut dilonggarkan `THROTTLE_LIMIT`.
+ * Satu sesi yang dipukul autocannon karena itu mengukur 429, bukan aplikasinya.
+ * Seratus akun memberi 1.000 permintaan dalam semenit tanpa satu pun menyentuh
+ * batasnya.
+ */
+export const JUMLAH_RESPONDEN_BEBAN = 100;
+
+export function identitasResponden(nomor: number): string {
+  return `beban-responden-${String(nomor).padStart(3, '0')}`;
+}
+
+/**
+ * Akun TERSENDIRI untuk `batas-harian-serentak`. Bukan akun admin beban: akun
+ * itu sudah menulis ribuan pengaduan hari ini lewat `kirim-pengaduan`, sehingga
+ * batas hariannya sudah lewat sebelum balapan dimulai dan semua 50 permintaan
+ * dijawab 429 -- "nol diterima" yang terbaca seperti penahan bekerja sempurna.
+ */
+export const IDENTITAS_BATAS_HARIAN = 'beban-batas-harian';
