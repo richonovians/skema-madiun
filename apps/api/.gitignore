@@ -6,3 +6,5 @@ node_modules
 
 # Lampiran pengaduan (storage lokal dev) — lihat UPLOAD_DIR di .env.example
 /uploads
+# Lampiran uji beban jalur tulis (scripts/beban/jalankan.ts), dihapus pelarinya sesudah jalan
+/uploads-beban

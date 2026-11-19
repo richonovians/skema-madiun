@@ -55,7 +55,14 @@ import * as dotenv from 'dotenv';
 import { enkripsiKolom } from '../../src/common/crypto/kolom';
 import { bacaKunci } from '../../src/common/crypto/kunci';
 import { jalankanCli } from '../lib/jalankan-cli';
-import { IDENTITAS_ADMIN, OPD_BEBAN, PERAN_BEBAN } from './lib/akun-beban';
+import {
+  IDENTITAS_ADMIN,
+  IDENTITAS_BATAS_HARIAN,
+  JUMLAH_RESPONDEN_BEBAN,
+  OPD_BEBAN,
+  PERAN_BEBAN,
+  identitasResponden,
+} from './lib/akun-beban';
 import { angkaArgumen, bacaIsiTambahan } from './lib/opsi-dataset';
 import {
   NAMA_DB_BEBAN,
@@ -127,7 +134,9 @@ async function utama(): Promise<void> {
       const mulai = Date.now();
       await bangunOpd(prisma);
       await bangunPengguna(prisma);
+      await bangunAkunResponden(prisma);
       const batas = await bangunSurvei(prisma, jumlahSurvei);
+      await tandaiSurveiMultiKirim(prisma, batas);
       await bangunPertanyaan(prisma, batas);
       await bangunRespons(prisma, batas, responsPerSurvei);
       await bangunJawaban(prisma, batas);
@@ -258,6 +267,36 @@ async function bangunPengguna(prisma: PrismaClient): Promise<void> {
   }
 }
 
+/**
+ * AKUN RESPONDEN BEBAN dan akun batas harian (§11.3, 19 November 2026).
+ *
+ * Seratus akun berperan `responden` saja, ditambah satu akun khusus
+ * `batas-harian-serentak`. Alasan jumlahnya ada di `JUMLAH_RESPONDEN_BEBAN`,
+ * alasan akun tersendiri di `IDENTITAS_BATAS_HARIAN`. `consent_at` diisi karena
+ * kedua jalur tulis menolak responden tanpa persetujuan PDP (403) sebelum satu
+ * kueri pun -- tanpa itu yang terukur hanya penolakan.
+ *
+ * Tanpa `opd_id`: tak satu pun berperan `opd`. Ikut terhapus `TRUNCATE ... opd
+ * CASCADE` bersama seluruh tabel `users` (lihat `bangunPengguna`), jadi
+ * disisipkan ulang setiap pembangunan.
+ */
+async function bangunAkunResponden(prisma: PrismaClient): Promise<void> {
+  const identitas = [
+    ...Array.from({ length: JUMLAH_RESPONDEN_BEBAN }, (_, i) => identitasResponden(i + 1)),
+    IDENTITAS_BATAS_HARIAN,
+  ];
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO users (sso_subject, nama, email, roles, is_active, consent_at, created_at, updated_at)
+     SELECT s, 'Responden Beban ' || s, s || '@contoh.test', ARRAY['responden']::user_role[],
+            true, now(), now(), now()
+     FROM unnest($1::text[]) AS s
+     ON CONFLICT (sso_subject)
+       DO UPDATE SET roles = EXCLUDED.roles, consent_at = EXCLUDED.consent_at, updated_at = now()`,
+    identitas,
+  );
+  console.log(`  responden  : ${JUMLAH_RESPONDEN_BEBAN} akun + 1 akun batas harian`);
+}
+
 async function bangunOpd(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
     `INSERT INTO opd (kode, nama, is_active, created_at, updated_at)
@@ -302,6 +341,23 @@ async function bangunSurvei(prisma: PrismaClient, jumlah: number): Promise<Batas
   const batas: BatasSurvei = { min: Math.min(...id), max: Math.max(...id) };
   console.log(`  survei     : ${jumlah.toLocaleString('id-ID')} (id ${batas.min}..${batas.max})`);
   return batas;
+}
+
+/**
+ * SATU survei, yang pertama dibangun, dibuka untuk kiriman berulang.
+ *
+ * Bukan survei tambahan: jumlah survei T1-T3 (744) tercatat di dokumen dan
+ * dibaca setiap skenario baca, jadi survei ke-745 menggeser angka yang
+ * dibandingkan antarjalan. Menandai yang sudah ada tak mengubah hitungan apa
+ * pun. Tanpa penanda ini satu akun hanya boleh sekali per survei
+ * (`@@unique([surveyId, dedupeUserId])`) dan `kirim-jawaban` mengukur 409.
+ */
+async function tandaiSurveiMultiKirim(prisma: PrismaClient, s: BatasSurvei): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    'UPDATE surveys SET allow_multiple_submit = true WHERE id = $1',
+    s.min,
+  );
+  console.log(`  multi-kirim: survei id ${s.min}`);
 }
 
 async function bangunPertanyaan(prisma: PrismaClient, s: BatasSurvei): Promise<void> {
