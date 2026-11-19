@@ -31,8 +31,8 @@
 |                        |                                                         |
 | ---------------------- | ------------------------------------------------------- |
 | **Dokumen Pendamping** | TEST_PLAN.md · TEST_CASES.md                            |
-| **Versi**              | 2.9                                                     |
-| **Tanggal**            | 15 September 2026 (v2.9 — **C-09 TIDAK LAGI TERKUNCI**: kredensial SSO Helpdesk sudah turun, charter dijalankan sebagian (separuh pertama alur terverifikasi, BUG-019 ditemukan); sisanya menunggu akun pengguna Helpdesk, bukan kredensial aplikasi; v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi tanpa induk yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
+| **Versi**              | 3.0                                                     |
+| **Tanggal**            | 19 November 2026 (v3.0 — **C-09 diperbarui**: login SSO akun masyarakat sungguhan dicatat, dicocokkan dengan `skm_db`; charter tetap 🟡 karena akun ASN biasa dan pencabutan peran `opd` belum dijalankan) · 15 September 2026 (v2.9 — **C-09 TIDAK LAGI TERKUNCI**: kredensial SSO Helpdesk sudah turun, charter dijalankan sebagian (separuh pertama alur terverifikasi, BUG-019 ditemukan); sisanya menunggu akun pengguna Helpdesk, bukan kredensial aplikasi; v2.8 — CAT-014 diperbaiki: `pnpm db:seed` dapat dijalankan lagi, beserta peringatan bahwa seed menimpa `roles` superuser bila dijalankan di atas dev; v2.7 — **charter C-18 & C-19 dijalankan**: teruskan pengaduan antar-OPD (BUG-018) dan tiga menu ekspor (nihil cacat, CAT-019); seluruh charter baru sesudah tarikan main kini tuntas; v2.6 — **charter C-17 dijalankan**: riwayat notifikasi, 1 temuan (BUG-017); v2.5 — **charter C-16 dijalankan**: rute publik tanpa sesi & captcha; BUG-016 (Medium) dan CAT-018 (jalur publik terhalang lingkungan); v2.4 — **charter C-15 dijalankan**: berpindah peran dalam satu sesi, nihil cacat, 2 catatan (CAT-016, CAT-017); v2.3 — **charter C-14 dijalankan**: Sampah survei & hapus permanen; 3 temuan (BUG-013 High, BUG-014 & BUG-015 Medium) dari 12 hal yang ditelusuri; v2.2 — `pnpm db:seed` rusak terhadap skema peran jamak ([CAT-014](BUG_REPORTS.md#cat-014)); alamat container Docker tak lagi dipakai sebagai tanda pengenal basis data; sisa rujukan sub-kategori di C-07 dikoreksi; v2.1 — skrip pembersih dipindah ke `apps/web/e2e/support/bersihkan-data-uji.mjs` agar bertahan dan dapat dipakai tim; v2.0 — putaran pembersihan ketiga: 7.986 notifikasi tanpa induk yang menunjuk tiket lenyap; aturan menyaring notifikasi lewat `link` sebelum induknya dihapus; v1.9 — penghapusan paksa tiga survei uji tersisa; basis data dev nol baris bertanda `[UJI `; §3.1 baru: data uji tak boleh menyentuh basis data produksi, beserta palang keselamatannya; v1.8 — pembersihan data uji dari basis data dev dicatat beserta tiga jebakannya; v1.7 — formulir C-13 dijalankan, charter tuntas; v1.6 — C-05, C-06, C-07 & C-08 dijalankan; seluruh charter yang tak terhalang pihak lain kini selesai; v1.5 — C-12 dijalankan; v1.4 — C-13 dijalankan sebagian; v1.3 — C-04 & C-11 dijalankan, charter C-12 & C-13 baru; v1.2 — status sesi & C-09 terkunci; v1.1 — penyesuaian; v1.0 — 11 Agu 2026) |
 | **Lingkup**            | Frontend (`apps/web`) — dijalankan manual lewat browser |
 
 ---
@@ -480,7 +480,37 @@ Sejak itu setiap probe menghitung permintaan yang benar-benar terkirim, lalu
 
 ---
 
-### C-09 — Masuk lewat SSO Helpdesk & persetujuan PDP `P0` — 🟡 dijalankan sebagian 15 September 2026
+### C-09 — Masuk lewat SSO Helpdesk & persetujuan PDP `P0` — 🟡 dijalankan sebagian 15 September 2026, diperbarui 19 November 2026
+
+**Pembaruan 19 November 2026: akun masyarakat masuk lewat SSO.** Hambatan di
+bawah ("penguji tidak memiliki akun pengguna Helpdesk") sudah tak berlaku untuk
+akun masyarakat. Satu akun Helpdesk sungguhan milik anggota tim, berjenis
+`masyarakat`, terbukti masuk dari ujung ke ujung. Keadaannya dibaca dari `skm_db`
+lokal pada 19 November 2026 tanpa menampilkan isi identitasnya:
+
+| Yang diperiksa | Hasil |
+| -------------- | ----- |
+| Akun (`users` id 4) | `roles {responden}`, `jenis_pengguna = masyarakat` (disalin dari klaim `identity.user_type`), `opd_id` kosong, aktif. Dibuat 8 Oktober 2026 |
+| Jejak masuk | Baris `login` `{via: sso}` di `audit_logs`, yang paling awal tercatat 2 November 2026 dan yang terakhir 19 November 2026 pukul 08.16 WIB |
+| Identitas dari klaim | `nik`, `nomor_hp`, dan `alamat` terisi dan berawalan `enc:v1:`; `jenis_kelamin` terisi |
+| Persetujuan PDP | `consent_at` terisi 8 Oktober 2026, sama dengan tanggal akun dibuat. Layar persetujuannya sendiri tidak diamati penguji |
+| Sesi sesudah masuk (TC-FE-015, 19 November) | ✅ Tak ada JWT yang terbaca JavaScript, cookie `session` HttpOnly, `GET /auth/me` 200. Flag `Secure` bernilai false karena dev memakai HTTP; penjaganya di produksi adalah uji unit |
+| Pemakaian sungguhan | Lima respons survei terkirim lewat sesi SSO akun ini, pada 2 dan 10 November 2026 |
+| Pencabutan peran | Tak ada baris `sso_cabut_peran_opd`. Akun ini tak pernah memegang peran `opd`, jadi jalur pencabutan belum teruji |
+
+Peran `responden` dan jenis `masyarakat` adalah dua hal berbeda. `responden`
+adalah peran aplikasi yang juga dipegang akun ASN, sedangkan `masyarakat` adalah
+klaim Helpdesk. Yang dicatat di sini adalah akun yang klaimnya `masyarakat`.
+
+Yang masih belum dijalankan untuk charter ini:
+
+- akun ASN biasa yang bukan admin Helpdesk;
+- pencabutan peran `opd` saat akun yang memegangnya masuk dengan klaim
+  `masyarakat` (`sinkron-peran-opd.ts`);
+- layar persetujuan PDP bagi responden baru, diamati langsung;
+- sesi sesudah peramban ditutup dan sesudah `expiresAt` lewat, pada sesi SSO;
+- tombol Keluar beserta halaman yang mungkin tertinggal di cache;
+- berganti akun dalam satu peramban.
 
 > **TIDAK LAGI TERKUNCI.** Kredensialnya sudah turun: `HELPDESK_SSO_CLIENT_ID`,
 > `HELPDESK_SSO_CLIENT_SECRET`, `HELPDESK_SSO_ISSUER`, dan
