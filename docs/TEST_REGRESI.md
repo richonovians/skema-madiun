@@ -420,6 +420,42 @@ Playwright penuh dengan konfigurasi itu: 176 lulus, 0 goyah, 13,4 menit.
 Itu satu jalan dan belum tren. Tabel di atas tetap rekaman regresi pada
 `0401009`.
 
+**Jalan kedua, 19 November 2026 (sore), `main` `018b3ba`:** 174 lulus, 1
+goyah, 1 gagal, 15,3 menit. Sebelum jalan, `skm-proxy` dipastikan memuat
+konfigurasi baru: `grep -c 'keepalive 16'` di dalam kontainer menjawab 2,
+tetapi worker nginx lebih tua dari berkas konfigurasinya, jadi pengguna
+menjalankan `nginx -s reload` dan worker baru berumur 30 detik saat suite
+dimulai.
+
+| Jalan                   | Goyah | Gagal | Durasi     |
+| ----------------------- | ----- | ----- | ---------- |
+| §8.1, sebelum perbaikan | 6     | 1     | 23 menit   |
+| Pertama sesudah BUG-095 | 0     | 0     | 13,4 menit |
+| Kedua sesudah BUG-095   | 1     | 1     | 15,3 menit |
+
+Kedua uji yang tidak lulus berada di `xss-tersimpan.spec.js`, spec terakhir,
+yang berjalan `serial`. `:168` (Admin Kabupaten) gagal pada percobaan pertama
+karena data pengaduan tak pernah tiba di halaman, lalu seluruh grup diulang;
+ulangan `:142` (warga) gagal karena `POST /auth/dev-login` dijawab `HTTP 502`.
+Karena `:142` lulus pada percobaan pertama, Playwright menghitungnya goyah.
+
+**Sebabnya bukan pola BUG-095.** Sepanjang 15 menit log `skm-proxy` tidak
+memuat satu pun `504` atau `upstream timed out`. Kesepuluh jawaban 5xx jatuh
+di 07:10:14 sampai 07:10:21 UTC, semuanya `connect() failed (111: Connection
+refused)` ke `:3001`: proses API berhenti mendengarkan, bukan sambungannya yang
+tertelan. Sampai 07:10:12 API masih menjawab 200. `nest start --watch` tetap
+hidup dan menyalakan proses API baru pada 07:11:19 UTC; Nest CLI 11.0.24 hanya
+melakukannya sesudah kompilasi ulang berhasil. Tidak ada berkas di repo (di
+luar `node_modules`, `.next`, dan `.git`) yang berubah antara 14:09:30 dan
+14:11:30 WIB, dan log peristiwa Windows kosong.
+Keluaran terminal `pnpm dev` pada jam itu tidak terbaca, jadi **sebab API
+berhenti belum diketahui** dan tidak dicatat sebagai temuan. Bila terulang,
+baca terminal `pnpm dev` lebih dulu.
+
+Dengan begitu dua jalan sesudah perbaikan sama-sama tanpa jejak BUG-095. Itu
+masih dua sampel, belum tren. Data uji sesudah jalan ini dibersihkan: 10
+pengaduan, 9 survei, 3 respons, 37 notifikasi; `--tanpa-induk` menemukan 0.
+
 ### 8.5 Data uji
 
 Dibersihkan dua kali dengan `bersihkan-data-uji.mjs` (sasaran `skm_db`, lolos
@@ -441,4 +477,4 @@ Penyapuan `--tanpa-induk` sesudahnya menemukan 0 notifikasi tanpa induk.
 - **UAT stakeholder dan sign-off go-live** di luar dokumen ini dan belum pernah
   dijalankan (`TEST_KEAMANAN.md` §6).
 
-Temuan terbuka per 19 November: 0 dari 94.
+Temuan terbuka per 19 November (sore): 0 dari 95.
