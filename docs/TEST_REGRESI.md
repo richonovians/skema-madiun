@@ -456,6 +456,31 @@ Dengan begitu dua jalan sesudah perbaikan sama-sama tanpa jejak BUG-095. Itu
 masih dua sampel, belum tren. Data uji sesudah jalan ini dibersihkan: 10
 pengaduan, 9 survei, 3 respons, 37 notifikasi; `--tanpa-induk` menemukan 0.
 
+**Jalan ketiga, 19 November 2026 (sore), `main` `018b3ba`:** 176 lulus, 0
+goyah, 0 gagal, 14,5 menit. Jalan ini disiapkan khusus untuk menangkap sebab
+API berhenti bila kejadiannya terulang. `pnpm dev` dinyalakan ulang di luar
+terminal IDE dengan seluruh keluarannya ditulis ke berkas log, dan sebuah skrip
+mencatat setiap detik PID pemegang `:3001` serta jawaban `/api/v1/health`.
+Selama 15 menit PID API tidak berganti (PID yang sama sejak 07:59:32 UTC sampai
+suite selesai), log `skm-proxy` tidak memuat satu pun `[error]` atau `timed
+out`, dan log API hanya berisi peringatan yang disengaja (dev-login hidup, dua
+callback SSO galat dari `sso-galat.spec.js`).
+
+| Jalan sesudah BUG-095 | Lulus | Goyah | Gagal | Durasi     |
+| --------------------- | ----- | ----- | ----- | ---------- |
+| Pertama               | 176   | 0     | 0     | 13,4 menit |
+| Kedua                 | 174   | 1     | 1     | 15,3 menit |
+| Ketiga                | 176   | 0     | 0     | 14,5 menit |
+
+**Berhentinya API pada jalan kedua tidak terulang, jadi sebabnya tetap tidak
+diketahui**, dan belum dapat dikatakan cacat aplikasi maupun gangguan
+lingkungan. Satu pengukuran mendukung urutan yang diduga di atas: kompilasi
+awal `nest start --watch` butuh 23 detik dan boot 12 detik, sebanding dengan
+jeda 66 detik antara API berhenti dan proses barunya lahir. Pemicu kompilasi
+ulang itu tetap tidak ditemukan. Tidak satu pun dari tiga jalan menunjukkan pola
+BUG-095. Data uji sesudah jalan ketiga dibersihkan: 10 pengaduan, 8 survei, 3
+respons, 37 notifikasi; `--tanpa-induk` menemukan 0.
+
 ### 8.5 Data uji
 
 Dibersihkan dua kali dengan `bersihkan-data-uji.mjs` (sasaran `skm_db`, lolos
