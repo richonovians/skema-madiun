@@ -409,6 +409,16 @@ Lima dari enam berpola waktu habis. Yang keenam, `504` dari proxy, juga
 waktu habis tetapi di sisi nginx. Jumlah goyah naik dari tiga (§7.3) menjadi
 enam, dan suite tumbuh dari 167 menjadi 176 uji. Sebabnya belum diselidiki.
 
+**Pembaruan 19 November 2026 (sore):** sebabnya kini diselidiki dan dicatat
+sebagai [BUG-095](BUG_REPORTS.md#bug-095). Penerusan Docker Desktop sesekali
+menelan sambungan TCP baru dari `skm-proxy` ke server dev, dan nginx menunggu
+60 detik sebelum menjawab 504. Ini juga menjelaskan `504` pada
+`proteksi-route.spec.js:158`. Perbaikannya commit `99e8ed5` di cabang
+`fix/nginx-dev-sambungan-goyah`, hanya `infra/nginx/dev.conf`, dan belum
+di-merge. Playwright penuh dengan konfigurasi itu: 176 lulus, 0 goyah,
+13,4 menit. Itu satu jalan dan belum tren. Tabel di atas tetap rekaman
+regresi pada `0401009`.
+
 ### 8.5 Data uji
 
 Dibersihkan dua kali dengan `bersihkan-data-uji.mjs` (sasaran `skm_db`, lolos

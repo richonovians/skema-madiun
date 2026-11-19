@@ -187,8 +187,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 | [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-086 (TC-AUD-008) |
 | [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
+| [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | Terbuka | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
 
-**Rekap** — 94 temuan: **93 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 95 temuan: **93 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-095.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5525,6 +5526,72 @@ Koreksi atas laporan di atas: endpointnya `POST /surveys/:id/responses`, bukan `
 
 ---
 
+<a id="bug-095"></a>
+
+### BUG-095 — Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Regresi ulang 19 November 2026 pada `main` `0401009`, [TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah): 6 uji goyah dan 1 gagal, padahal CI pada 13 push `main` berturut tidak goyah sama sekali |
+| **Tanggal**  | 19 November 2026 |
+| **Lingkungan** | Docker Desktop 4.99.0 (WSL2), `nginx:1.29-alpine` (`skm-proxy`), server dev di host, Windows 11 |
+| **Berkas**   | `infra/nginx/dev.conf` (`upstream skm_api`, `upstream skm_web`, `map $http_upgrade`) |
+| **Severity** | Low (usulan penguji). Hanya lingkungan pengembangan: `prod.conf` menunjuk kontainer compose dan tidak lewat penerusan ini, dan CI menjalankan nginx `--network host`. Yang rusak adalah kepercayaan pada hasil E2E lokal |
+
+**Gejala**
+
+Regresi penuh lokal menghasilkan 6 uji goyah dan 1 gagal dalam 23 menit. Uji yang gagal lulus ketika berkasnya diulang sendirian, dan lima dari enam uji goyah berpola waktu habis. Satu di antaranya menerima `HTTP 504` dari nginx. Log `skm-proxy` selama regresi memuat 504 `upstream timed out (110) while connecting to upstream` ke `192.168.65.254:3000` sesudah menunggu 60 detik, dan 27 jawaban 499.
+
+Probe Node 300 detik saat diam (`http.get`, `agent: false`, koneksi baru tiap permintaan, 6 pekerja, satu berkas statis Next) pada `skm-proxy`:
+
+| Jalur | n | p50 | maks | >3 dtk | bukan 200 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| langsung `localhost:3000` | 2.917 | 12 ms | 83 ms | 0 | 0 |
+| lewat nginx | 2.917 | 288 ms | 60.063 ms | 30 | 6 (504) |
+
+Permintaan yang tersangkut datang berkelompok, beberapa pekerja sekaligus, dan lamanya 5 sampai 60 detik.
+
+**Akar masalah**
+
+Penerusan Docker Desktop dari kontainer ke host sesekali tidak pernah menyelesaikan sambungan TCP baru. `wget` dari dalam kontainer tanpa nginx ke `192.168.65.254:3000` juga tersangkut (2 dari 984 lebih dari 10 detik), jadi nginx dan server dev bukan penyebabnya. `dev.conf` memperparahnya dengan dua hal. Upstream-nya hanya punya satu peer dengan `proxy_connect_timeout` baku 60 detik, sehingga nginx tidak punya tujuan percobaan ulang. Selain itu `map $http_upgrade` mengirim `Connection: close` untuk setiap permintaan biasa, sehingga setiap permintaan membuka sambungan baru melewati jalur rawan itu.
+
+**Langkah reproduksi**
+
+1. Nyalakan `pnpm dev` dan `skm-proxy` dengan `dev.conf` pada `0401009`.
+2. Jalankan probe di atas selama 300 detik terhadap `http://127.0.0.1` (Host `skema.local`) dan `http://127.0.0.1:3000` berselang-seling.
+3. Hitung permintaan lewat nginx yang lebih dari 3 detik. Ledakannya tidak selalu muncul dalam 90 detik pertama.
+
+**Perbaikan (19 November 2026, belum merge)**
+
+Commit `99e8ed5` di cabang `fix/nginx-dev-sambungan-goyah`, hanya `infra/nginx/dev.conf`:
+
+- `keepalive 16` dan `keepalive_timeout 4s` di kedua upstream. Permintaan biasa mengirim `Connection` kosong, sedangkan jabat tangan WebSocket HMR tetap `upgrade`.
+- `proxy_connect_timeout 1s`.
+- Peer yang sama ditulis tiga kali, supaya `proxy_next_upstream` punya sambungan baru untuk dicoba ulang. `max_fails=0` dari [BUG-065](#bug-065) tetap ada.
+
+Varian tanpa keepalive (batas 1 detik dan peer dua kali) sempat diuji dan tidak cukup. Gantungan 60 detik hilang, tetapi 39 dari 204 percobaan ulangnya tertelan lagi sehingga berakhir 504.
+
+| Konfigurasi (probe sama, 300 dtk) | >3 dtk | bukan 200 | maks | p50 lewat nginx |
+| --- | ---: | ---: | ---: | ---: |
+| Lama | 30 | 6 | 60.063 ms | 288 ms |
+| Tanpa keepalive | 0 | 39 | 2.017 ms | 281 ms |
+| Akhir | 0 | 0 | 2.224 ms | 320 ms |
+
+Pagar yang diukur di kontainer nginx uji dengan upstream palsu:
+
+- POST dan PATCH yang sudah terkirim tetap 1 ketukan; GET dikirim ulang sampai 3 kali bila upstream memutus di tengah jalan.
+- BUG-065 tetap tertutup: 10 permintaan serentak sesudah upstream pulih dijawab 10x 200.
+- POST pertama sesudah upstream restart 20 dari 20 kali 200.
+- HMR `/_next/hmr` tetap 101.
+
+Playwright penuh sesudah `skm-proxy` di-reload: **176 lulus, 0 goyah, 13,4 menit**, dibandingkan 6 goyah, 1 gagal, 23 menit sebelumnya. Itu satu jalan dan belum tren. CI cabang belum diperiksa. Perubahannya ikut berlaku di CI lewat `sed`, jadi job E2E web harus hijau sebelum merge.
+
+Penyebab di dalam Docker Desktop sendiri tidak diperbaiki. Perubahan ini membuat nginx dev tahan terhadapnya.
+
+**Status 19 November 2026: Terbuka** (perbaikan siap di cabang, menunggu PR dan CI)
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -8924,3 +8991,4 @@ hanya dibaca, tidak diubah.
 | 7.64 | 18 November 2026 | **BUG-093 ditutup: 93 temuan, 92 ditutup, 1 ditolak, 0 terbuka.** PR #58, merge `main` `92baaa7` (`248bd99`). CI cabang dan CI `main` `92baaa7` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). `@Audit('complaint', 'forward')` dilepas dari controller, sehingga penerusan tercatat sekali oleh service beserta tingkat dan kategori lamanya, sama seperti `alihkan`. Baris kembar lama tidak dihapus. Pagarnya unit `complaints.controller.spec.ts` dan e2e `complaints.e2e-spec.ts`, keduanya merah di `dd18af7` dan lulus sesudahnya. Batasan yang diterima pemilik produk: halaman detail Log Audit tak menampilkan isi baris bentuk service, jadi detail penerusan baru hanya memuat pelaku, aksi, dan waktu, sama seperti `alihkan`. Tak ada temuan terbuka. |
 | 7.65 | 19 November 2026 | **BUG-094 dicatat: 94 temuan, 92 ditutup, 1 ditolak, 1 terbuka.** Uji ulang TC-FE-003 di Chrome pada `main` `7f1cd74`: nilai radio skala yang diubah lewat DOM menjadi 5 atau -1 ikut terkirim karena `QuestionCard` membaca `e.target.value`. Backend menolak keduanya 400 dan tak ada yang tercatat; layar menampilkan `Validation failed`. Kiriman kontrol tanpa manipulasi diterima 201. Low, usulan penguji; pencatatannya keputusan pengguna. |
 | 7.66 | 19 November 2026 | **BUG-094 ditutup: 94 temuan, 93 ditutup, 1 ditolak, 0 terbuka.** PR #61, merge `main` `0401009` (`c47f585`). CI `main` `0401009` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). `QuestionCard` menyimpan nilai radio dari data komponen, bukan dari atribut DOM; pilihan ganda terbukti punya cacat yang sama dan ikut diperbaiki. Pagarnya tiga uji di `QuestionCard.test.jsx`, merah di `7f1cd74` pada asersi nilai tersimpan dan lulus sesudahnya. Uji ulang TC-FE-003 di Chrome pada `0401009` lulus, jadi baris itu kini ✅. Tak ada temuan terbuka. |
+| 7.67 | 19 November 2026 | **BUG-095 dicatat: 95 temuan, 93 ditutup, 1 ditolak, 1 terbuka.** Kegoyahan Playwright lokal pada regresi §8 (6 goyah dan 1 gagal, 23 menit) berakar di penerusan Docker Desktop yang sesekali menelan sambungan TCP baru dari `skm-proxy` ke host, lalu nginx menunggu 60 detik dan menjawab 504. Probe 300 detik pada `0401009` mencatat 30 permintaan lewat nginx lebih dari 3 detik dan 6x 504, sedangkan permintaan langsung tidak pernah gagal. Perbaikan `99e8ed5` di `fix/nginx-dev-sambungan-goyah` (keepalive, batas sambung 1 detik, peer tiga kali) menurunkannya menjadi 0 dan 0. Playwright penuh satu jalan menghasilkan 176 lulus, 0 goyah, 13,4 menit. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya sebagai BUG keputusan pengguna. |
