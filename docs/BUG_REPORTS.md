@@ -186,9 +186,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-091](#bug-091) | Modal konfirmasi aksi survei terpotong 4 px di ponsel kecil mendatar | Low | Terkonfirmasi | **Ditolak** | Pemindaian modal sesudah BUG-089 (TC-SVY-032) |
 | [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 | [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-086 (TC-AUD-008) |
-| [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | Terbuka | Uji ulang TC-FE-003 |
+| [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
 
-**Rekap** — 94 temuan: **92 ditutup, 1 ditolak, 1 terbuka** (Medium: tidak ada; Low: BUG-094). Ditolak: BUG-091.
+**Rekap** — 94 temuan: **93 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5504,7 +5504,24 @@ Simpan nilai dari data komponen, bukan dari DOM: `onChange={() => setAnswer(curr
 
 Pesan `Validation failed` hanya terlihat oleh orang yang mengutak-atik DOM sesudah perbaikan itu, jadi ia tidak diusulkan sebagai temuan terpisah.
 
-**Status 19 November 2026: Terbuka**
+**Status 19 November 2026 (pagi): Terbuka**
+
+**Perbaikan (19 November 2026)**
+
+PR #61, merge `main` `0401009` (`c47f585`). Arah perbaikan di atas dipakai apa adanya: radio skala menyimpan `step.value` dan radio pilihan ganda menyimpan `String(option.id)`, keduanya lewat closure di `onChange`. Atribut `value` tetap dirender tetapi tak lagi menentukan apa yang disimpan. Textarea uraian tetap membaca `e.target.value`, karena di sana teks yang diketik memang nilainya.
+
+Bagian pilihan ganda kini **terbukti**, bukan lagi dibaca dari kode: uji komponennya merah di `7f1cd74` dengan `"999"` tersimpan menggantikan `"22"`.
+
+Bukti:
+
+- Tiga uji baru di `QuestionCard.test.jsx` (skala `"5"`, skala `"-1"`, pilihan ganda `"999"`) merah di `7f1cd74` pada asersi `toHaveBeenCalledWith`, bukan pada pencarian elemen, lalu lulus sesudah perbaikan.
+- Chrome lewat Playwright di `http://skema.local`, akun warga, survei uji yang dibuat dan dimusnahkan per jalan, dijalankan di cabang perbaikan lalu diulang di `main` `0401009`. Atribut skala diubah menjadi 5 dan -1, opsi pilihan ganda menjadi 999999. Payload berangkat `"nilai": 1` dan `selectedOptionId` asli, ketiganya termasuk kiriman kontrol dijawab `201`, dan `Validation failed` tidak muncul.
+- Jest `apps/web` penuh 271 suite / 2258 uji lulus; ESLint `apps/web` 115 masalah, sama persis dengan `main` sebelum perubahan.
+- CI `main` `0401009` hijau (lihat riwayat 7.66).
+
+Koreksi atas laporan di atas: endpointnya `POST /surveys/:id/responses`, bukan `POST /responses`. Jalur publik tanpa sesi (`/survei/:id`) memakai `QuestionCard` yang sama sehingga ikut tertutup, tetapi jalur itu tidak diuji di peramban.
+
+**Status 19 November 2026 (siang): Ditutup**
 
 ---
 
@@ -8906,3 +8923,4 @@ hanya dibaca, tidak diubah.
 | 7.63 | 18 November 2026 | **BUG-093 dicatat: 93 temuan, 91 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-086: setiap penerusan pengaduan menulis dua baris `forward` di `audit_logs`, satu dari `@Audit` di controller dan satu dari `audit.record` di service. Direproduksi pada `dd18af7` dengan selisih 18 ms antarbaris. `alihkan` sudah memakai pola yang benar, yaitu tanpa dekorator. TC-AUD-008 ditambahkan. |
 | 7.64 | 18 November 2026 | **BUG-093 ditutup: 93 temuan, 92 ditutup, 1 ditolak, 0 terbuka.** PR #58, merge `main` `92baaa7` (`248bd99`). CI cabang dan CI `main` `92baaa7` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). `@Audit('complaint', 'forward')` dilepas dari controller, sehingga penerusan tercatat sekali oleh service beserta tingkat dan kategori lamanya, sama seperti `alihkan`. Baris kembar lama tidak dihapus. Pagarnya unit `complaints.controller.spec.ts` dan e2e `complaints.e2e-spec.ts`, keduanya merah di `dd18af7` dan lulus sesudahnya. Batasan yang diterima pemilik produk: halaman detail Log Audit tak menampilkan isi baris bentuk service, jadi detail penerusan baru hanya memuat pelaku, aksi, dan waktu, sama seperti `alihkan`. Tak ada temuan terbuka. |
 | 7.65 | 19 November 2026 | **BUG-094 dicatat: 94 temuan, 92 ditutup, 1 ditolak, 1 terbuka.** Uji ulang TC-FE-003 di Chrome pada `main` `7f1cd74`: nilai radio skala yang diubah lewat DOM menjadi 5 atau -1 ikut terkirim karena `QuestionCard` membaca `e.target.value`. Backend menolak keduanya 400 dan tak ada yang tercatat; layar menampilkan `Validation failed`. Kiriman kontrol tanpa manipulasi diterima 201. Low, usulan penguji; pencatatannya keputusan pengguna. |
+| 7.66 | 19 November 2026 | **BUG-094 ditutup: 94 temuan, 93 ditutup, 1 ditolak, 0 terbuka.** PR #61, merge `main` `0401009` (`c47f585`). CI `main` `0401009` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). `QuestionCard` menyimpan nilai radio dari data komponen, bukan dari atribut DOM; pilihan ganda terbukti punya cacat yang sama dan ikut diperbaiki. Pagarnya tiga uji di `QuestionCard.test.jsx`, merah di `7f1cd74` pada asersi nilai tersimpan dan lulus sesudahnya. Uji ulang TC-FE-003 di Chrome pada `0401009` lulus, jadi baris itu kini ✅. Tak ada temuan terbuka. |
