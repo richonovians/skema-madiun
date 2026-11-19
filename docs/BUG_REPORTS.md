@@ -187,9 +187,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-092](#bug-092) | Daftar pilihan dropdown yang tingginya dibatasi tak dapat digulir: posisi gulirnya kembali ke 0 | Medium | Terkonfirmasi | **Ditutup** | Kegagalan CI e2e-web pada `f40fd52` (TC-FE-052) |
 | [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-086 (TC-AUD-008) |
 | [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
-| [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | Terbuka | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
+| [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | **Ditutup** | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
 
-**Rekap** — 95 temuan: **93 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-095.
+**Rekap** — 95 temuan: **94 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5588,7 +5588,15 @@ Playwright penuh sesudah `skm-proxy` di-reload: **176 lulus, 0 goyah, 13,4 menit
 
 Penyebab di dalam Docker Desktop sendiri tidak diperbaiki. Perubahan ini membuat nginx dev tahan terhadapnya.
 
-**Status 19 November 2026: Terbuka** (perbaikan siap di cabang, menunggu PR dan CI)
+**Status 19 November 2026 (siang): Terbuka** (perbaikan siap di cabang, menunggu PR dan CI)
+
+**Penutupan (19 November 2026)**
+
+PR #62, merge `main` `018b3ba` (`99e8ed5`). Isi `infra/nginx/dev.conf` di `018b3ba` sama persis dengan `99e8ed5`. CI cabang pada `99e8ed5` hijau 3 dari 3 job, dengan E2E web 175 lulus dan 1 dilewati dalam 8,7 menit. CI `main` pada `018b3ba` juga hijau 3 dari 3 job, dengan E2E web 175 lulus dan 1 dilewati dalam 9,0 menit. Hasil itu sama dengan CI `main` `0401009`, jadi konfigurasi baru yang ikut berlaku di CI lewat `sed` tidak mengubah apa pun di sana.
+
+Bukti kegoyahan lokal masih satu jalan Playwright penuh (176 lulus, 0 goyah, 13,4 menit). Regresi lokal berikutnya yang akan menunjukkan apakah hasil itu bertahan.
+
+**Status 19 November 2026 (sore): Ditutup**
 
 ---
 
@@ -8992,3 +9000,4 @@ hanya dibaca, tidak diubah.
 | 7.65 | 19 November 2026 | **BUG-094 dicatat: 94 temuan, 92 ditutup, 1 ditolak, 1 terbuka.** Uji ulang TC-FE-003 di Chrome pada `main` `7f1cd74`: nilai radio skala yang diubah lewat DOM menjadi 5 atau -1 ikut terkirim karena `QuestionCard` membaca `e.target.value`. Backend menolak keduanya 400 dan tak ada yang tercatat; layar menampilkan `Validation failed`. Kiriman kontrol tanpa manipulasi diterima 201. Low, usulan penguji; pencatatannya keputusan pengguna. |
 | 7.66 | 19 November 2026 | **BUG-094 ditutup: 94 temuan, 93 ditutup, 1 ditolak, 0 terbuka.** PR #61, merge `main` `0401009` (`c47f585`). CI `main` `0401009` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati). `QuestionCard` menyimpan nilai radio dari data komponen, bukan dari atribut DOM; pilihan ganda terbukti punya cacat yang sama dan ikut diperbaiki. Pagarnya tiga uji di `QuestionCard.test.jsx`, merah di `7f1cd74` pada asersi nilai tersimpan dan lulus sesudahnya. Uji ulang TC-FE-003 di Chrome pada `0401009` lulus, jadi baris itu kini ✅. Tak ada temuan terbuka. |
 | 7.67 | 19 November 2026 | **BUG-095 dicatat: 95 temuan, 93 ditutup, 1 ditolak, 1 terbuka.** Kegoyahan Playwright lokal pada regresi §8 (6 goyah dan 1 gagal, 23 menit) berakar di penerusan Docker Desktop yang sesekali menelan sambungan TCP baru dari `skm-proxy` ke host, lalu nginx menunggu 60 detik dan menjawab 504. Probe 300 detik pada `0401009` mencatat 30 permintaan lewat nginx lebih dari 3 detik dan 6x 504, sedangkan permintaan langsung tidak pernah gagal. Perbaikan `99e8ed5` di `fix/nginx-dev-sambungan-goyah` (keepalive, batas sambung 1 detik, peer tiga kali) menurunkannya menjadi 0 dan 0. Playwright penuh satu jalan menghasilkan 176 lulus, 0 goyah, 13,4 menit. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya sebagai BUG keputusan pengguna. |
+| 7.68 | 19 November 2026 | **BUG-095 ditutup: 95 temuan, 94 ditutup, 1 ditolak, 0 terbuka.** PR #62, merge `main` `018b3ba` (`99e8ed5`). CI cabang dan CI `main` `018b3ba` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati), sama dengan CI `main` `0401009`. Upstream nginx dev kini memakai keepalive, batas sambung 1 detik, dan peer yang sama tiga kali. Bukti kegoyahan lokal masih satu jalan Playwright penuh (176 lulus, 0 goyah, 13,4 menit). Tak ada temuan terbuka. |

@@ -414,10 +414,11 @@ sebagai [BUG-095](BUG_REPORTS.md#bug-095). Penerusan Docker Desktop sesekali
 menelan sambungan TCP baru dari `skm-proxy` ke server dev, dan nginx menunggu
 60 detik sebelum menjawab 504. Ini juga menjelaskan `504` pada
 `proteksi-route.spec.js:158`. Perbaikannya commit `99e8ed5` di cabang
-`fix/nginx-dev-sambungan-goyah`, hanya `infra/nginx/dev.conf`, dan belum
-di-merge. Playwright penuh dengan konfigurasi itu: 176 lulus, 0 goyah,
-13,4 menit. Itu satu jalan dan belum tren. Tabel di atas tetap rekaman
-regresi pada `0401009`.
+`fix/nginx-dev-sambungan-goyah`, hanya `infra/nginx/dev.conf`. Ia masuk
+`main` lewat PR #62 (merge `018b3ba`), dan CI `main` hijau 3 dari 3 job.
+Playwright penuh dengan konfigurasi itu: 176 lulus, 0 goyah, 13,4 menit.
+Itu satu jalan dan belum tren. Tabel di atas tetap rekaman regresi pada
+`0401009`.
 
 ### 8.5 Data uji
 
