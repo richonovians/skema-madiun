@@ -33,6 +33,7 @@ import {
 import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
 import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
 import { samarkanNik } from '../../common/identitas/nik';
+import { awalHariWib } from '../../common/waktu/hari-wib';
 import { kunciData } from '../../common/crypto/kunci';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
@@ -766,20 +767,26 @@ export class ComplaintsService {
    * itu hidup di memori dan hilang setiap proses dimulai ulang, sehingga batas
    * yang bersandar padanya dapat disetel ulang cukup dengan menunggu deploy.
    *
-   * Batas HARI KALENDER menurut waktu server, bukan 24 jam bergulir. Pilihan
-   * ini demi pesannya: "silakan kirim lagi besok" dapat dimengerti siapa pun,
-   * sedangkan "tunggu 7 jam 12 menit lagi" menuntut pelapornya mengingat kapan
-   * ia mengirim yang pertama.
+   * Batas HARI KALENDER menurut WIB, bukan 24 jam bergulir. Pilihan ini demi
+   * pesannya: "silakan kirim lagi besok" dapat dimengerti siapa pun, sedangkan
+   * "tunggu 7 jam 12 menit lagi" menuntut pelapornya mengingat kapan ia
+   * mengirim yang pertama.
+   *
+   * WIB, bukan waktu server (23 November 2026). Sampai tanggal itu awal harinya
+   * `setHours(0, 0, 0, 0)`, yaitu tengah malam zona proses; di server UTC batas
+   * itu berganti pukul 07.00 WIB dan pengaduan 00.00-06.59 WIB terhitung ke
+   * hari kemarin. "Besok" pada pesan penolakan kini berarti besok WIB.
    *
    * `db` dapat berupa klien transaksi (BUG-096): hitungan yang mengikat harus
-   * berjalan di transaksi yang sama dengan kunci dan INSERT-nya.
+   * berjalan di transaksi yang sama dengan kunci dan INSERT-nya. `sekarang`
+   * hanya disuntikkan oleh uji.
    */
   private async assertBelumMelewatiBatasHarian(
     userId: number,
     db: Pick<Prisma.TransactionClient, 'complaint'> = this.prisma,
+    sekarang: Date = new Date(),
   ): Promise<void> {
-    const awalHari = new Date();
-    awalHari.setHours(0, 0, 0, 0);
+    const awalHari = awalHariWib(sekarang);
 
     const batas = this.batasHarianPengaduan;
 

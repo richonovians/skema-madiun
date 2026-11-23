@@ -227,6 +227,42 @@ describe('ComplaintsService', () => {
   });
 
   /**
+   * Hari batas harian adalah hari WIB, bukan hari menurut jam server
+   * (23 November 2026). Server produksi bisa berjalan dalam UTC, dan di sana
+   * `setHours(0, 0, 0, 0)` menggeser pergantian hari ke 07.00 WIB: pengaduan
+   * pukul 00.00-06.59 WIB terhitung ke hari kemarin.
+   *
+   * `sekarang` disuntikkan, bukan dipalsukan lewat jam Jest: di mesin berzona
+   * WIB logika lama justru benar, sehingga hanya masukan tersurat yang membuat
+   * uji ini bermakna di zona mana pun. Pagar zonanya ada di
+   * `common/waktu/hari-wib.spec.ts`.
+   *
+   * TANGGALNYA SENGAJA BUKAN HARI INI. Versi pertama memakai 23 November 2026,
+   * hari uji ini ditulis, dan lulus terhadap kode lama yang mengabaikan
+   * `sekarang`: awal hari dari jam sungguhan kebetulan sama persis dengan
+   * harapannya. Tanggal Maret membuat kode yang mengabaikan suntikan memerah.
+   */
+  describe('batas harian -- hari dihitung menurut WIB', () => {
+    const awalHariYangDihitung = async (sekarang: Date) => {
+      await service['assertBelumMelewatiBatasHarian'](10, prisma as never, sekarang);
+      const [{ where }] = (prisma.complaint.count as jest.Mock).mock.calls[0];
+      return where.createdAt.gte as Date;
+    };
+
+    it('06.59 WIB (23.59 UTC kemarin) menghitung sejak 00.00 WIB hari ini', async () => {
+      expect(await awalHariYangDihitung(new Date('2026-03-14T23:59:00.000Z'))).toEqual(
+        new Date('2026-03-14T17:00:00.000Z'),
+      );
+    });
+
+    it('23.59 WIB masih menghitung sejak 00.00 WIB hari yang sama', async () => {
+      expect(await awalHariYangDihitung(new Date('2026-03-15T16:59:00.000Z'))).toEqual(
+        new Date('2026-03-14T17:00:00.000Z'),
+      );
+    });
+  });
+
+  /**
    * BUG-096 (19 November 2026): batas harian dihitung lalu ditulis tanpa kunci,
    * sehingga kiriman serentak dari satu akun semuanya lolos. Perilaku balapannya
    * sendiri dibuktikan e2e (`pengaduan-batas-harian.e2e-spec.ts`); di sini yang
