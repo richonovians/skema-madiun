@@ -2,6 +2,7 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import { ALAMAT_SITUS } from "@/constants/situs";
 import PeringatanSesiBerakhir from "@/features/authentication/components/PeringatanSesiBerakhir";
+import SapuDrafKedaluwarsa from "@/components/layouts/SapuDrafKedaluwarsa";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -42,6 +43,7 @@ export default function RootLayout({ children }) {
             Admin Kabupaten sama-sama dapat kehilangan pekerjaan saat sesinya
             habis. Tak merender apa pun selama sesinya jauh dari berakhir. */}
         <PeringatanSesiBerakhir />
+        <SapuDrafKedaluwarsa />
       </body>
     </html>
   );
