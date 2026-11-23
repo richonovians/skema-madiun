@@ -64,7 +64,15 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
     }).compile();
     app = moduleRef.createNestApplication({ logger: false });
     configureApp(app);
-    await app.init();
+    // LISTEN SEKALI DI SINI, bukan membiarkan supertest yang melakukannya
+    // (23 November 2026, CI merah `read ECONNRESET` pada uji BUG-096). Supertest
+    // 7 memanggil `listen(0)` pada server yang belum mendengarkan lalu MENUTUPNYA
+    // begitu permintaan pemiliknya selesai -- dan dalam gelombang serentak,
+    // pemilik itu sering yang pertama selesai karena 429 kalah kunci dijawab
+    // seketika. Di Linux + Node 22 penutupan itu memutus kiriman lain yang masih
+    // berjalan: terukur 17 dari 20 ECONNRESET di node:22-alpine, nol di Windows,
+    // dan nol di kedua platform bila server sudah mendengarkan lebih dulu.
+    await app.listen(0, '127.0.0.1');
 
     prisma = app.get(PrismaService);
 
