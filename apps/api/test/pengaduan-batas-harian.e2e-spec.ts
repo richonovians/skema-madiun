@@ -25,6 +25,8 @@ import { devHeaders } from './helpers/auth.helper';
  */
 const SSO_PELAPOR = 'e2e-batas-harian-1';
 const SSO_PELAPOR_LAIN = 'e2e-batas-harian-2';
+const SSO_PELAPOR_SERENTAK = 'e2e-batas-harian-3';
+const SEMUA_SSO = [SSO_PELAPOR, SSO_PELAPOR_LAIN, SSO_PELAPOR_SERENTAK];
 
 describe('Batas harian pengaduan per akun (e2e)', () => {
   let app: INestApplication;
@@ -32,6 +34,9 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
   let opdId: number;
   let pelaporId: number;
   let pelaporLainId: number;
+  // Diisi oleh ujinya sendiri; -1 supaya penyapu di afterAll tak menyentuh
+  // siapa pun bila uji itu gagal sebelum akunnya dibuat.
+  let pelaporSerentakId = -1;
 
   const buatPengaduanLangsung = (userId: number, kapan: Date, urutan: number) =>
     prisma.complaint.create({
@@ -59,7 +64,15 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
     }).compile();
     app = moduleRef.createNestApplication({ logger: false });
     configureApp(app);
-    await app.init();
+    // LISTEN SEKALI DI SINI, bukan membiarkan supertest yang melakukannya
+    // (23 November 2026, CI merah `read ECONNRESET` pada uji BUG-096). Supertest
+    // 7 memanggil `listen(0)` pada server yang belum mendengarkan lalu MENUTUPNYA
+    // begitu permintaan pemiliknya selesai -- dan dalam gelombang serentak,
+    // pemilik itu sering yang pertama selesai karena 429 kalah kunci dijawab
+    // seketika. Di Linux + Node 22 penutupan itu memutus kiriman lain yang masih
+    // berjalan: terukur 17 dari 20 ECONNRESET di node:22-alpine, nol di Windows,
+    // dan nol di kedua platform bila server sudah mendengarkan lebih dulu.
+    await app.listen(0, '127.0.0.1');
 
     prisma = app.get(PrismaService);
 
@@ -92,11 +105,11 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
   }, 30000);
 
   afterAll(async () => {
-    await prisma.complaint.deleteMany({ where: { userId: { in: [pelaporId, pelaporLainId] } } });
-    await bersihkanAuditAkunUji(prisma, [SSO_PELAPOR, SSO_PELAPOR_LAIN]);
-    await prisma.user.deleteMany({
-      where: { ssoSubject: { in: [SSO_PELAPOR, SSO_PELAPOR_LAIN] } },
+    await prisma.complaint.deleteMany({
+      where: { userId: { in: [pelaporId, pelaporLainId, pelaporSerentakId] } },
     });
+    await bersihkanAuditAkunUji(prisma, SEMUA_SSO);
+    await prisma.user.deleteMany({ where: { ssoSubject: { in: SEMUA_SSO } } });
     await prisma.opd.deleteMany({ where: { kode: 'E2EBH' } });
     await app.close();
   }, 30000);
@@ -151,4 +164,80 @@ describe('Batas harian pengaduan per akun (e2e)', () => {
 
     expect(res.status).toBe(201);
   });
+
+  /**
+   * BUG-096 (19 November 2026): kiriman SERENTAK menembus batasnya.
+   *
+   * Penghitungnya membaca jumlah lalu menulis tanpa kunci, jadi kiriman yang
+   * sama-sama membaca angka lama keduanya lolos. Uji beban `batas-harian-
+   * serentak` mengukurnya 50 dari 50 diterima pada tiga jalan; uji di atas tak
+   * pernah menangkapnya karena kirimannya berurutan.
+   *
+   * Sesudah perbaikan, kiriman yang kalah berebut kunci ditolak SEKETIKA (429
+   * `PENGIRIMAN_SEDANG_DIPROSES`), sehingga satu gelombang hanya meloloskan
+   * sedikit. Yang diuji karena itu bukan "gelombang pertama tepat sepuluh",
+   * melainkan JUMLAH AKHIRNYA: beberapa gelombang serentak, lalu kiriman
+   * berurutan sampai batasnya menolak. Tak pernah melewati batas, dan batasnya
+   * tetap dapat dicapai penuh.
+   *
+   * JUMLAH PERMINTAAN DIJAGA DI BAWAH 100. Batas laju global 100/menit per akun
+   * ikut menjawab 429 (`TOO_MANY_REQUESTS`), dan jawaban itu tak boleh
+   * menyamar sebagai batas harian. Versi pertama uji ini mengulang gelombang
+   * sampai lima belas kali, menabrak batas laju itu, dan menyimpulkan "batas
+   * tercapai" dari penolakan yang salah.
+   */
+  it('kiriman serentak tak pernah meloloskan lebih dari batasnya (BUG-096)', async () => {
+    const serentak = await prisma.user.create({
+      data: {
+        ssoSubject: SSO_PELAPOR_SERENTAK,
+        nama: 'Pelapor Serentak',
+        email: 'batas-harian-serentak@e2e.test',
+        roles: [Role.responden],
+        consentAt: new Date(),
+      },
+    });
+    pelaporSerentakId = serentak.id;
+
+    const SEGELOMBANG = 20;
+    const GELOMBANG = 3;
+    let diterima = 0;
+    const kodeDitolak = new Set<string>();
+    const catat = (r: request.Response) => {
+      // Hanya dua jawaban yang sah. 500 dari transaksi yang patah, atau 400
+      // dari validasi, berarti ujinya mengukur hal lain.
+      expect([201, 429]).toContain(r.status);
+      if (r.status === 201) {
+        diterima += 1;
+      } else {
+        kodeDitolak.add(r.body.error.code);
+      }
+    };
+
+    for (let g = 0; g < GELOMBANG; g++) {
+      const hasil = await Promise.all(
+        Array.from({ length: SEGELOMBANG }, () => kirim(pelaporSerentakId)),
+      );
+      hasil.forEach(catat);
+    }
+
+    // Berurutan sampai ditolak. Paling banyak batas + 1 kiriman; lebih dari
+    // itu berarti penolakannya tak pernah datang.
+    let terakhir: request.Response | undefined;
+    for (let i = 0; i <= BATAS_HARIAN_PENGADUAN_BAKU; i++) {
+      terakhir = await kirim(pelaporSerentakId);
+      catat(terakhir);
+      if (terakhir.status === 429) {
+        break;
+      }
+    }
+
+    expect(diterima).toBe(BATAS_HARIAN_PENGADUAN_BAKU);
+    // Jawaban 201 dan baris yang tertulis harus sepadan: 201 tanpa baris
+    // berarti tulisan hilang, baris tanpa 201 berarti tulisan berganda.
+    expect(await prisma.complaint.count({ where: { userId: pelaporSerentakId } })).toBe(
+      BATAS_HARIAN_PENGADUAN_BAKU,
+    );
+    expect(terakhir?.body.error.code).toBe('BATAS_HARIAN_PENGADUAN');
+    expect(kodeDitolak).not.toContain('TOO_MANY_REQUESTS');
+  }, 60000);
 });

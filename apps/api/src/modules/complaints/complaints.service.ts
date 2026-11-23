@@ -17,6 +17,8 @@ import {
   BATAS_HARIAN_TERCAPAI,
   BATAS_UKURAN_LAMPIRAN_BYTES,
   BATAS_UKURAN_LAMPIRAN_LABEL,
+  KUNCI_ADVISORY_PENGIRIMAN,
+  PENGIRIMAN_SEDANG_DIPROSES,
 } from './complaints.constants';
 import {
   Complaint,
@@ -220,6 +222,11 @@ export class ComplaintsService {
     await this.consent.assertConsented(user);
 
     // Sebelum lampiran ditulis, dengan alasan yang sama seperti di atas.
+    //
+    // Sejak BUG-096 ini hanya SARINGAN CEPAT: akun yang jelas sudah penuh
+    // ditolak tanpa menulis berkas apa pun. Ia tak dapat menahan kiriman
+    // serentak -- semuanya membaca angka yang sama -- jadi keputusan yang
+    // mengikat diulang di bawah kunci per akun, di `insertWithUniqueTicket`.
     await this.assertBelumMelewatiBatasHarian(user.userId);
 
     // Pemisahan tingkat (4 November 2026). SEBELUM lampiran ditulis ke disk,
@@ -763,14 +770,20 @@ export class ComplaintsService {
    * ini demi pesannya: "silakan kirim lagi besok" dapat dimengerti siapa pun,
    * sedangkan "tunggu 7 jam 12 menit lagi" menuntut pelapornya mengingat kapan
    * ia mengirim yang pertama.
+   *
+   * `db` dapat berupa klien transaksi (BUG-096): hitungan yang mengikat harus
+   * berjalan di transaksi yang sama dengan kunci dan INSERT-nya.
    */
-  private async assertBelumMelewatiBatasHarian(userId: number): Promise<void> {
+  private async assertBelumMelewatiBatasHarian(
+    userId: number,
+    db: Pick<Prisma.TransactionClient, 'complaint'> = this.prisma,
+  ): Promise<void> {
     const awalHari = new Date();
     awalHari.setHours(0, 0, 0, 0);
 
     const batas = this.batasHarianPengaduan;
 
-    const jumlah = await this.prisma.complaint.count({
+    const jumlah = await db.complaint.count({
       where: { userId, createdAt: { gte: awalHari } },
     });
     if (jumlah < batas) {
@@ -841,45 +854,17 @@ export class ComplaintsService {
       sizeBytes,
     }));
 
+    // SATU TRANSAKSI PER PERCOBAAN, bukan satu transaksi untuk seluruh putaran:
+    // P2002 di dalam transaksi interaktif membatalkan transaksinya di Postgres,
+    // dan setiap pernyataan berikutnya di sana ditolak. Kunci dan hitungannya
+    // karena itu diambil ulang pada percobaan berikutnya.
     for (let attempt = 0; attempt < 5; attempt++) {
       const ticketNo = this.generateTicketNo();
       try {
-        return await this.prisma.complaint.create({
-          data: {
-            ticketNo,
-            userId,
-            // `?? null` EKSPLISIT, bukan `dto.opdId` apa adanya: undefined akan
-            // membuat Prisma menghilangkan kolomnya dari INSERT, dan meski
-            // hasilnya kebetulan sama (default NULL), yang tersurat di sini
-            // adalah "belum bertujuan" -- bukan "lupa diisi".
-            opdId: dto.opdId ?? null,
-            tingkat: dto.tingkat,
-            kategori: dto.kategori,
-            judul: dto.judul,
-            uraian: enkripsiKolom(dto.uraian, this.kunci),
-            tanggalKejadian,
-            // SATU PERLAKUAN dengan `uraian` di atas. Lokasi kejadian lazim
-            // menunjuk alamat rumah seseorang -- kalau isi pengaduannya
-            // terenkripsi sementara tempatnya tidak, janji "isi pengaduan
-            // terenkripsi" hanya setengah ditepati.
-            lokasiKejadian: enkripsiKolom(dto.lokasiKejadian, this.kunci),
-            isAnonim: dto.isAnonim ?? false,
-            attachments: { create: attachmentData },
-            // Baris pertama riwayat: peristiwa pengirimannya (4 November
-            // 2026). Statusnya `terkirim` meski kolom `status` pengaduannya
-            // sudah `menunggu_verifikasi` sejak detik ini -- keduanya benar,
-            // lihat enum ComplaintStatus.
-            //
-            // DITULIS DI SINI, dalam `create` yang sama, bukan sesudahnya:
-            // penulisan kedua yang gagal akan meninggalkan pengaduan tanpa
-            // riwayat sama sekali, dan tak ada yang dapat merekonstruksinya.
-            // `actorId` sengaja tak diisi: yang mengirim pengaduan adalah
-            // pelapornya, dan baris ini mencatat tindakan SISTEM menerimanya.
-            statusHistory: {
-              create: { status: ComplaintStatus.terkirim, actorId: null },
-            },
-          },
-          include: { attachments: true },
+        return await this.prisma.$transaction(async (tx) => {
+          await this.kunciPengirimanAkun(tx, userId);
+          await this.assertBelumMelewatiBatasHarian(userId, tx);
+          return this.tulisPengaduan(tx, dto, tanggalKejadian, userId, ticketNo, attachmentData);
         });
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -889,6 +874,85 @@ export class ComplaintsService {
       }
     }
     throw new ConflictException('Gagal membuat nomor tiket unik, silakan coba lagi');
+  }
+
+  /**
+   * Kunci pengiriman per akun (BUG-096, 23 November 2026).
+   *
+   * Batas harian dulu dihitung lalu ditulis tanpa kunci, sehingga kiriman
+   * serentak dari satu akun semuanya membaca angka lama dan semuanya lolos --
+   * terukur 50 dari 50 diterima dengan batas 10. Kunci ini menjadikan hitung
+   * dan tulis satu langkah bagi setiap akun.
+   *
+   * TINGKAT TRANSAKSI, bukan sesi, dengan alasan yang sama seperti di
+   * cadangan-terjadwal.service.ts: Prisma memakai pool koneksi, dan kunci sesi
+   * yang diambil di satu koneksi dapat dilepas di koneksi lain.
+   *
+   * `try`, TIDAK MENUNGGU (keputusan pengguna): lihat
+   * `PENGIRIMAN_SEDANG_DIPROSES` untuk sebabnya. Kunci hanya mengikat akun yang
+   * sama; akun lain tak pernah saling menunggu.
+   */
+  private async kunciPengirimanAkun(tx: Prisma.TransactionClient, userId: number): Promise<void> {
+    const [baris] = await tx.$queryRaw<{ dapat: boolean }[]>`
+      SELECT pg_try_advisory_xact_lock(${KUNCI_ADVISORY_PENGIRIMAN}::int, ${userId}::int) AS dapat`;
+    if (baris?.dapat) {
+      return;
+    }
+    throw new HttpException(
+      {
+        message:
+          'Pengaduan Anda sebelumnya masih diproses. Periksa daftar pengaduan Anda sebelum mengirim lagi.',
+        code: PENGIRIMAN_SEDANG_DIPROSES,
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+
+  private tulisPengaduan(
+    tx: Prisma.TransactionClient,
+    dto: CreateComplaintDto,
+    tanggalKejadian: Date,
+    userId: number,
+    ticketNo: string,
+    attachmentData: { fileUrl: string; mimeType: string; sizeBytes: number }[],
+  ): Promise<ComplaintWithAttachments> {
+    return tx.complaint.create({
+      data: {
+        ticketNo,
+        userId,
+        // `?? null` EKSPLISIT, bukan `dto.opdId` apa adanya: undefined akan
+        // membuat Prisma menghilangkan kolomnya dari INSERT, dan meski
+        // hasilnya kebetulan sama (default NULL), yang tersurat di sini
+        // adalah "belum bertujuan" -- bukan "lupa diisi".
+        opdId: dto.opdId ?? null,
+        tingkat: dto.tingkat,
+        kategori: dto.kategori,
+        judul: dto.judul,
+        uraian: enkripsiKolom(dto.uraian, this.kunci),
+        tanggalKejadian,
+        // SATU PERLAKUAN dengan `uraian` di atas. Lokasi kejadian lazim
+        // menunjuk alamat rumah seseorang -- kalau isi pengaduannya
+        // terenkripsi sementara tempatnya tidak, janji "isi pengaduan
+        // terenkripsi" hanya setengah ditepati.
+        lokasiKejadian: enkripsiKolom(dto.lokasiKejadian, this.kunci),
+        isAnonim: dto.isAnonim ?? false,
+        attachments: { create: attachmentData },
+        // Baris pertama riwayat: peristiwa pengirimannya (4 November
+        // 2026). Statusnya `terkirim` meski kolom `status` pengaduannya
+        // sudah `menunggu_verifikasi` sejak detik ini -- keduanya benar,
+        // lihat enum ComplaintStatus.
+        //
+        // DITULIS DI SINI, dalam `create` yang sama, bukan sesudahnya:
+        // penulisan kedua yang gagal akan meninggalkan pengaduan tanpa
+        // riwayat sama sekali, dan tak ada yang dapat merekonstruksinya.
+        // `actorId` sengaja tak diisi: yang mengirim pengaduan adalah
+        // pelapornya, dan baris ini mencatat tindakan SISTEM menerimanya.
+        statusHistory: {
+          create: { status: ComplaintStatus.terkirim, actorId: null },
+        },
+      },
+      include: { attachments: true },
+    });
   }
 
   /**
