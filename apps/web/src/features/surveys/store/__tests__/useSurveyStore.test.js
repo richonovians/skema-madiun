@@ -1,6 +1,8 @@
 import useSurveyStore from '../useSurveyStore';
 import { submitSurveyResponse, submitPublicSurveyResponse } from '../../services/surveys.api';
 import { tandaiSudahMengisi } from '@/utils/surveyFillMarker';
+import { IDBFactory } from 'fake-indexeddb';
+import { ambilDrafSurvei, simpanDrafSurvei } from '@/utils/drafSurvei';
 
 jest.mock('../../services/surveys.api', () => ({
   submitSurveyResponse: jest.fn().mockResolvedValue({ id: 1 }),
@@ -151,16 +153,16 @@ describe('useSurveyStore — pilihan gerbang bersesi diteruskan', () => {
 });
 
 /**
- * Draf jawaban saat sesi berakhir (23 November 2026).
+ * Draf jawaban saat sesi berakhir (23 November 2026; IndexedDB sejak hari
+ * yang sama).
  *
- * Sebelumnya 401 pada pengiriman hanya menyisakan pesan galat, dan jawaban
- * yang hanya ada di memori store hilang begitu responden masuk ulang. Kini
- * jawaban disimpan ke sessionStorage dengan id akun pemiliknya, dan dituangkan
- * kembali saat survei yang sama dimulai oleh akun yang sama.
+ * 401 pada pengiriman menyimpan jawaban dengan id akun pemiliknya, dan survei
+ * yang sama dimulai lagi oleh akun yang sama menuangkannya kembali. Karena
+ * pembacaannya kini async, dua hal baru dikunci: jawaban yang sempat diisi
+ * sebelum draf terbaca tidak ditimpa, dan survei yang sudah ditinggalkan
+ * tidak menerima draf yang terlambat datang.
  */
 describe('useSurveyStore — draf saat sesi berakhir (401)', () => {
-  const KUNCI = 'skema:draf-survei:5';
-  const draf = () => JSON.parse(sessionStorage.getItem(KUNCI) ?? 'null');
   const galat401 = () =>
     Object.assign(new Error('Autentikasi diperlukan'), { response: { status: 401 } });
   const surveiTiga = {
@@ -175,94 +177,139 @@ describe('useSurveyStore — draf saat sesi berakhir (401)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    sessionStorage.clear();
+    global.indexedDB = new IDBFactory();
     useSurveyStore.getState().resetSurvey();
   });
 
-  it('401 menyimpan jawaban beserta id akun pemiliknya', async () => {
+  it('401 menyimpan jawaban beserta id akun pemiliknya, dan menyebut peramban ini', async () => {
     submitSurveyResponse.mockRejectedValueOnce(galat401());
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
     useSurveyStore.getState().setAnswer(1, '4');
     useSurveyStore.getState().setAnswer(2, 'Cepat');
 
     await useSurveyStore.getState().submitSurvey();
 
-    expect(draf()).toEqual({ answers: { 1: '4', 2: 'Cepat' }, pemilik: 10 });
+    expect(await ambilDrafSurvei(5)).toEqual({ answers: { 1: '4', 2: 'Cepat' }, pemilik: 10 });
     expect(useSurveyStore.getState().submitError).toMatch(/sesi anda sudah berakhir/i);
-    expect(useSurveyStore.getState().submitError).toMatch(/disimpan sementara/i);
+    expect(useSurveyStore.getState().submitError).toMatch(/disimpan di peramban ini selama 2 jam/i);
   });
 
   it('401 tanpa pemilik yang diketahui TIDAK menyimpan apa pun', async () => {
     submitSurveyResponse.mockRejectedValueOnce(galat401());
-    useSurveyStore.getState().initSurvey(surveiTiga);
+    await useSurveyStore.getState().initSurvey(surveiTiga);
     useSurveyStore.getState().setAnswer(1, '4');
 
     await useSurveyStore.getState().submitSurvey();
 
-    expect(draf()).toBeNull();
-    expect(useSurveyStore.getState().submitError).toMatch(/sesi anda sudah berakhir/i);
+    expect(await ambilDrafSurvei(5)).toBeNull();
+    expect(useSurveyStore.getState().submitError).toMatch(/masuk kembali untuk mengirim jawaban/i);
+  });
+
+  /** Layar tidak boleh mengaku menyimpan ketika penyimpanannya menolak. */
+  it('401 saat IndexedDB tak tersedia tidak mengaku menyimpan', async () => {
+    submitSurveyResponse.mockRejectedValueOnce(galat401());
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    useSurveyStore.getState().setAnswer(1, '4');
+    global.indexedDB = undefined;
+
+    await useSurveyStore.getState().submitSurvey();
+
+    expect(useSurveyStore.getState().submitError).toMatch(/masuk kembali untuk mengirim jawaban/i);
+    expect(useSurveyStore.getState().submitError).not.toMatch(/disimpan/i);
   });
 
   it('galat selain 401 TIDAK menyimpan apa pun', async () => {
     submitSurveyResponse.mockRejectedValueOnce(
       Object.assign(new Error('Terjadi kesalahan pada server.'), { response: { status: 500 } }),
     );
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
     useSurveyStore.getState().setAnswer(1, '4');
 
     await useSurveyStore.getState().submitSurvey();
 
-    expect(draf()).toBeNull();
+    expect(await ambilDrafSurvei(5)).toBeNull();
   });
 
-  it('survei yang dimulai lagi oleh akun yang sama memulihkan jawabannya', () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ answers: { 1: '4', 2: 'Cepat' }, pemilik: 10 }));
+  it('survei yang dimulai lagi oleh akun yang sama memulihkan jawabannya', async () => {
+    await simpanDrafSurvei(5, { 1: '4', 2: 'Cepat' }, 10);
 
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
 
     const keadaan = useSurveyStore.getState();
     expect(keadaan.answers).toEqual({ 1: '4', 2: 'Cepat' });
     expect(keadaan.jawabanDipulihkan).toBe(true);
     // Diantar ke pertanyaan terakhir, tempat ia menekan Kirim sebelumnya.
     expect(keadaan.currentStepIndex).toBe(2);
-    expect(draf()).toBeNull();
+    expect(await ambilDrafSurvei(5)).toBeNull();
   });
 
-  /**
-   * Admin dapat mengubah kuesioner di antara dua waktu itu. Jawaban untuk
-   * pertanyaan yang sudah tiada akan ditolak backend sebagai id tak dikenal.
-   */
-  it('hanya jawaban untuk pertanyaan yang masih ada yang dipulihkan', () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ answers: { 1: '4', 99: 'Lama' }, pemilik: 10 }));
+  it('hanya jawaban untuk pertanyaan yang masih ada yang dipulihkan', async () => {
+    await simpanDrafSurvei(5, { 1: '4', 99: 'Lama' }, 10);
 
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
 
     expect(useSurveyStore.getState().answers).toEqual({ 1: '4' });
   });
 
-  it('draf milik akun LAIN dibuang tanpa dituangkan', () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ answers: { 1: '4' }, pemilik: 10 }));
+  it('draf milik akun LAIN dibuang tanpa dituangkan', async () => {
+    await simpanDrafSurvei(5, { 1: '4' }, 10);
 
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 11 });
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 11 });
 
     expect(useSurveyStore.getState().answers).toEqual({});
     expect(useSurveyStore.getState().jawabanDipulihkan).toBe(false);
-    expect(draf()).toBeNull();
+    expect(await ambilDrafSurvei(5)).toBeNull();
+  });
+
+  it('jawaban yang diisi sebelum draf terbaca tidak ditimpa', async () => {
+    await simpanDrafSurvei(5, { 1: '4', 2: 'Lama' }, 10);
+
+    const janji = useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    useSurveyStore.getState().setAnswer(2, 'Baru');
+    await janji;
+
+    const keadaan = useSurveyStore.getState();
+    expect(keadaan.answers).toEqual({ 1: '4', 2: 'Baru' });
+    // Responden sudah mulai menjawab, jadi posisinya tidak dipindah.
+    expect(keadaan.currentStepIndex).toBe(0);
+  });
+
+  it('survei yang direset selagi draf dibaca tidak menerima draf itu', async () => {
+    await simpanDrafSurvei(5, { 1: '4' }, 10);
+
+    const janji = useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    useSurveyStore.getState().resetSurvey();
+    await janji;
+
+    expect(useSurveyStore.getState().answers).toEqual({});
+    expect(useSurveyStore.getState().jawabanDipulihkan).toBe(false);
+    // Draf dibiarkan, supaya masih ada saat survei itu dibuka lagi.
+    expect(await ambilDrafSurvei(5)).not.toBeNull();
+  });
+
+  it('survei yang selesai dikirim selagi draf dibaca tidak menerima draf itu', async () => {
+    await simpanDrafSurvei(5, { 1: '4' }, 10);
+
+    const janji = useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    useSurveyStore.getState().setCompleted();
+    await janji;
+
+    expect(useSurveyStore.getState().answers).toEqual({});
+    expect(useSurveyStore.getState().jawabanDipulihkan).toBe(false);
   });
 
   it('pengiriman yang berhasil membuang draf survei itu', async () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ answers: { 1: '4' }, pemilik: 10 }));
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
-    sessionStorage.setItem(KUNCI, JSON.stringify({ answers: { 1: '3' }, pemilik: 10 }));
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    await simpanDrafSurvei(5, { 1: '3' }, 10);
 
     await useSurveyStore.getState().submitSurvey();
 
-    expect(draf()).toBeNull();
+    expect(await ambilDrafSurvei(5)).toBeNull();
   });
 
-  it('resetSurvey mengembalikan tanda pemulihan dan pemilik', () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ answers: { 1: '4' }, pemilik: 10 }));
-    useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+  it('resetSurvey mengembalikan tanda pemulihan dan pemilik', async () => {
+    await simpanDrafSurvei(5, { 1: '4' }, 10);
+    await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
 
     useSurveyStore.getState().resetSurvey();
 

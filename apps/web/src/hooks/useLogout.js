@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
+import { hapusSemuaDraf } from '@/utils/drafLokal';
 
 /**
  * Logout bersama (2026-08-06) -- sebelumnya dipakai hanya di ProfileActions.jsx,
@@ -26,6 +27,10 @@ export function useLogout() {
     } catch {
       // Logout stateless di backend -- tetap hapus sesi lokal walau request gagal.
     }
+    // Draf di peramban ikut dihapus pada logout yang DISENGAJA (23 November
+    // 2026), dan hanya di sini serta di ProfileAvatarDropdown. Bukan di
+    // clearSession(): interseptor 401 memanggilnya tepat saat draf dibutuhkan.
+    await hapusSemuaDraf();
     clearSession();
     router.push('/');
   };

@@ -1,48 +1,40 @@
-const AWALAN = 'skema:draf-survei:';
-const kunci = (surveyId) => `${AWALAN}${surveyId}`;
+import { ambilDraf, hapusDraf, simpanDraf, ttlDuaJam } from './drafLokal';
+
+const kunci = (surveyId) => `survei:${surveyId}`;
+const objek = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
  * Draf jawaban survei bersesi yang tertahan karena sesi berakhir saat dikirim
  * (23 November 2026). Pasangan `drafPengaduan.js`.
  *
- * KENAPA sessionStorage: jawaban uraian dapat memuat data pribadi, dan
- * sessionStorage ikut mati saat tabnya ditutup. Perjalanan yang dilindungi
- * cukup satu tab, yaitu masuk kembali lalu membuka survei yang sama.
+ * PINDAH KE IndexedDB pada hari yang sama, keputusan pengguna: draf selamat
+ * saat tab ditutup, dengan harga jawaban polos di disk sampai TTL habis.
+ * Alasan dan batasnya ada di `drafLokal.js`. TTL-nya 2 jam, karena
+ * perjalanannya hanya masuk kembali lalu membuka survei yang sama.
  *
- * SELALU BERPEMILIK. Satu-satunya keadaan yang menyimpan draf ini melewati
- * keluar-masuk akun, jadi di komputer bersama orang lain dapat masuk di tab
- * yang sama. Tanpa id pemilik, tidak ada yang disimpan; draf semacam itu akan
- * dituangkan ke akun siapa pun yang masuk berikutnya.
+ * SELALU BERPEMILIK. Tanpa id pemilik, tidak ada yang disimpan; draf semacam
+ * itu akan dituangkan ke akun siapa pun yang masuk berikutnya.
  */
-export function simpanDrafSurvei(surveyId, answers, pemilik) {
-  if (pemilik == null) return;
-  try {
-    sessionStorage.setItem(kunci(surveyId), JSON.stringify({ answers: answers ?? {}, pemilik }));
-  } catch {
-    // Penyimpanan diblokir (mode privat, kebijakan situs). Draf yang gagal
-    // disimpan bukan alasan menjatuhkan halaman survei.
-  }
+export function simpanDrafSurvei(surveyId, answers, pemilik, { sekarang = Date.now() } = {}) {
+  if (pemilik == null) return Promise.resolve(false);
+  return simpanDraf(kunci(surveyId), {
+    pemilik,
+    kedaluwarsa: ttlDuaJam(sekarang),
+    isi: { answers: answers ?? {} },
+  });
 }
 
-/** @returns {{answers: object, pemilik: number}|null} `null` bila tak ada atau isinya tak masuk akal. */
-export function ambilDrafSurvei(surveyId) {
-  try {
-    const mentah = sessionStorage.getItem(kunci(surveyId));
-    if (!mentah) return null;
-
-    const isi = JSON.parse(mentah);
-    const objek = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
-    if (!objek(isi) || !objek(isi.answers) || isi.pemilik == null) return null;
-    return { answers: isi.answers, pemilik: isi.pemilik };
-  } catch {
+/** @returns {Promise<{answers: object, pemilik: number}|null>} */
+export async function ambilDrafSurvei(surveyId, { sekarang } = {}) {
+  const entri = await ambilDraf(kunci(surveyId), { sekarang });
+  if (!entri) return null;
+  if (!objek(entri.isi.answers)) {
+    await hapusDraf(kunci(surveyId));
     return null;
   }
+  return { answers: entri.isi.answers, pemilik: entri.pemilik };
 }
 
 export function hapusDrafSurvei(surveyId) {
-  try {
-    sessionStorage.removeItem(kunci(surveyId));
-  } catch {
-    // Sama seperti di atas: tak ada yang perlu digagalkan karena ini.
-  }
+  return hapusDraf(kunci(surveyId));
 }

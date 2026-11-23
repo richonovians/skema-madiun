@@ -83,3 +83,23 @@ global.ResizeObserver = class {
   unobserve() {}
   disconnect() {}
 };
+
+/**
+ * IndexedDB untuk uji draf lintas tab (23 November 2026). jsdom tidak
+ * menyediakan IndexedDB sama sekali, sedangkan `utils/drafLokal.js` menyimpan
+ * draf pengaduan dan survei di sana.
+ *
+ * `structuredClone` diisi lebih dulu bila belum ada: `fake-indexeddb` memakai
+ * fungsi itu untuk menyalin setiap nilai yang disimpan, dan lingkungan jsdom
+ * jest tidak selalu menyediakannya. Cadangannya serialisasi V8, yang
+ * menangani objek biasa dan ArrayBuffer, yaitu semua yang disimpan draf.
+ *
+ * Uji yang memakai IndexedDB mengganti `global.indexedDB` dengan
+ * `new IDBFactory()` di `beforeEach`, supaya draf sisa satu uji tidak
+ * mengisi uji berikutnya.
+ */
+if (typeof global.structuredClone !== 'function') {
+  const v8 = require('node:v8');
+  global.structuredClone = (nilai) => v8.deserialize(v8.serialize(nilai));
+}
+require('fake-indexeddb/auto');

@@ -1,10 +1,15 @@
 import React from 'react';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { setupServer } from 'msw/node';
-import { http } from 'msw';
+import { http, delay } from 'msw';
 import { useRouter } from 'next/navigation';
 import { handlers, ok, failWithCode, userFixture } from '@/mocks/handlers';
-import { isAuthenticated } from '@/features/authentication/services/authStorage';
+import {
+  isAuthenticated,
+  SESSION_CHANGED_EVENT,
+} from '@/features/authentication/services/authStorage';
+import { IDBFactory } from 'fake-indexeddb';
+import { ambilDrafPengaduan, simpanDrafPengaduan } from '@/utils/drafPengaduan';
 import CreateComplaintForm from '../CreateComplaintForm';
 
 /**
@@ -38,6 +43,15 @@ jest.mock('@/features/authentication/services/authStorage', () => ({
   isAuthenticated: jest.fn(),
 }));
 
+/**
+ * `ambilDrafPengaduan` dibungkus `jest.fn` yang memanggil aslinya, supaya satu
+ * uji dapat menahan pembacaan draf. Perilaku bakunya tidak berubah.
+ */
+jest.mock('@/utils/drafPengaduan', () => {
+  const asli = jest.requireActual('@/utils/drafPengaduan');
+  return { ...asli, ambilDrafPengaduan: jest.fn(asli.ambilDrafPengaduan) };
+});
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 const server = setupServer(...handlers);
 
@@ -48,12 +62,13 @@ afterAll(() => server.close());
 beforeEach(() => {
   useRouter.mockReturnValue({ push: jest.fn() });
   isAuthenticated.mockReturnValue(true);
-  // Sejak formulir ini memulihkan draf dari sessionStorage (14 September 2026),
-  // draf sisa satu uji akan mengisi formulir uji BERIKUTNYA. Gejalanya menyesatkan:
-  // kategori yang terlanjur terisi membuat pemicu dropdown dan opsinya
-  // sama-sama berbunyi "Lainnya", dan yang terlihat cuma "Found multiple
-  // elements" pada uji yang sama sekali tak berurusan dengan draf.
-  sessionStorage.clear();
+  // Draf sisa satu uji akan mengisi formulir uji BERIKUTNYA. Gejalanya
+  // menyesatkan: kategori yang terlanjur terisi membuat pemicu dropdown dan
+  // opsinya sama-sama berbunyi "Lainnya", dan yang terlihat cuma "Found
+  // multiple elements" pada uji yang sama sekali tak berurusan dengan draf.
+  // Sejak draf pindah ke IndexedDB (23 November 2026), yang dikosongkan
+  // adalah basis datanya.
+  global.indexedDB = new IDBFactory();
 });
 
 const kategoriDropdown = () => screen.getByLabelText(/kategori pengaduan/i);
@@ -1094,259 +1109,18 @@ describe('CreateComplaintForm — pencarian instansi', () => {
 });
 
 /**
- * Penyelamatan draf (permintaan pengguna 14 September 2026).
+ * Draf pengaduan di peramban (14 September 2026; IndexedDB dan lampiran sejak
+ * 23 November 2026, keputusan pengguna).
  *
- * Cakupannya sempit dengan sengaja, dan batasnya disepakati: disimpan HANYA
- * saat ditolak karena persetujuan PDP, dan LAMPIRAN DIKECUALIKAN -- objek File
- * tak dapat disimpan di sessionStorage, dan memindahkannya ke IndexedDB berarti
- * menaruh berkas milik warga di disk peramban.
+ * Disimpan HANYA pada tiga penolakan yang menuntut pelapor pergi lalu
+ * kembali: persetujuan PDP, batas harian, dan sesi berakhir. Draf menetap di
+ * disk sampai TTL habis, jadi setiap draf berpemilik, hanya dituangkan bagi
+ * akun yang sama, dan layar menyebut di mana serta sampai kapan draf
+ * disimpan. Lampiran ikut dan dipulihkan.
  */
-describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
+describe('CreateComplaintForm — draf di peramban', () => {
   const PESAN_PDP =
     'Anda perlu memberikan persetujuan pemrosesan data pribadi sebelum mengirim data.';
-
-  const isiDanKirim = async () => {
-    render(<CreateComplaintForm />);
-    await screen.findByText('Pilih Kategori');
-
-    await pilihTanpaTujuan();
-    fireEvent.click(kategoriDropdown());
-    fireEvent.click(await screen.findByText('Lainnya'));
-    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
-      target: { value: 'Lampu jalan mati' },
-    });
-    fireEvent.change(screen.getByLabelText(/uraian/i), {
-      target: { value: 'Sudah tiga malam lampu di depan balai desa tidak menyala.' },
-    });
-    isiKejadian();
-    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
-  };
-
-  const draf = () => JSON.parse(sessionStorage.getItem('skema:draf-pengaduan') ?? 'null');
-
-  it('menyimpan isian saat ditolak karena persetujuan', async () => {
-    server.use(
-      http.post(`${API_BASE}/complaints`, () => failWithCode(403, PESAN_PDP, 'CONSENT_REQUIRED')),
-    );
-
-    await isiDanKirim();
-
-    await waitFor(() => expect(draf()).not.toBeNull());
-    expect(draf().title).toBe('Lampu jalan mati');
-    expect(draf().category).toBe('kab_lainnya');
-    expect(draf().level).toBe('kabupaten');
-  });
-
-  /**
-   * PASANGAN yang membuat uji di atas berarti. Menyimpan pada galat APA PUN
-   * berarti isi pengaduan warga menetap di peramban karena jaringan sempat
-   * putus -- persis yang tak diinginkan.
-   */
-  it('galat biasa TIDAK menyimpan apa pun', async () => {
-    server.use(
-      http.post(`${API_BASE}/complaints`, () =>
-        failWithCode(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR'),
-      ),
-    );
-
-    await isiDanKirim();
-
-    await screen.findByText(/kesalahan pada server/i);
-    expect(draf()).toBeNull();
-  });
-
-  /**
-   * Batas harian per akun (14 September 2026). Penolakannya 429 dengan kode
-   * sendiri, bukan 403 -- dan isian yang sudah diketik warga tak boleh hilang
-   * hanya karena ia mengadu terlalu sering hari itu. Besok ia akan kembali.
-   */
-  it('menyimpan isian saat ditolak karena batas harian', async () => {
-    server.use(
-      http.post(`${API_BASE}/complaints`, () =>
-        failWithCode(
-          429,
-          'Anda sudah mengirim 10 pengaduan hari ini. Silakan kirim lagi besok.',
-          'BATAS_HARIAN_PENGADUAN',
-        ),
-      ),
-    );
-
-    await isiDanKirim();
-
-    await screen.findByText(/10 pengaduan hari ini/i);
-    await waitFor(() => expect(draf()).not.toBeNull());
-    expect(draf().title).toBe('Lampu jalan mati');
-  });
-
-  it('memulihkan isian saat formulir dibuka kembali', async () => {
-    sessionStorage.setItem(
-      'skema:draf-pengaduan',
-      JSON.stringify({
-        level: 'kabupaten',
-        department: '',
-        category: 'kab_lainnya',
-        title: 'Lampu jalan mati',
-        description: 'Sudah tiga malam lampu di depan balai desa tidak menyala.',
-        incidentDate: '2026-11-01',
-        incidentLocation: 'Balai Desa Bangunsari',
-        isAnonim: false,
-      }),
-    );
-
-    render(<CreateComplaintForm />);
-
-    await waitFor(() =>
-      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
-    );
-    expect(screen.getByLabelText(/uraian/i)).toHaveValue(
-      'Sudah tiga malam lampu di depan balai desa tidak menyala.',
-    );
-    // Tanggal & lokasi kejadian IKUT dipulihkan (4 November 2026). Keduanya ada
-    // di daftar putih `drafPengaduan.js`; tanpa itu pelapor yang kembali dari
-    // halaman persetujuan harus mengetiknya lagi tanpa diberi tahu.
-    expect(screen.getByLabelText(/tanggal kejadian/i)).toHaveValue('2026-11-01');
-    expect(screen.getByLabelText(/lokasi kejadian/i)).toHaveValue('Balai Desa Bangunsari');
-  });
-
-  it('memulihkan tingkat yang dipilih, bukan jatuh kembali ke kabupaten', async () => {
-    // `level` ikut daftar putih dengan alasan yang tersurat: tujuan & kategori
-    // yang dipulihkan MILIK tingkat itu. Tanpa `level`, formulir terbuka di
-    // tingkat kabupaten membawa kategori kecamatan -- lalu ditolak 400 oleh
-    // `assertKategoriSesuaiTingkat` tepat saat Kirim ditekan.
-    sessionStorage.setItem(
-      'skema:draf-pengaduan',
-      JSON.stringify({
-        level: 'kecamatan',
-        department: '',
-        category: 'kec_administrasi',
-        title: 'Lampu jalan mati',
-        description: 'Uraian',
-        incidentDate: '2026-11-01',
-        incidentLocation: 'Balai Desa Bangunsari',
-      }),
-    );
-
-    render(<CreateComplaintForm />);
-
-    await waitFor(() =>
-      expect(screen.getByRole('radio', { name: /tingkat kecamatan/i })).toBeChecked(),
-    );
-    expect(
-      screen.getByLabelText(new RegExp('kecamatan / kelurahan tujuan', 'i')),
-    ).toHaveTextContent('Pilih Kecamatan/Kelurahan');
-  });
-
-  /**
-   * Kehilangan yang DIBERITAHUKAN. Lampiran memang tak ikut terselamatkan, dan
-   * membiarkan pelapor menekan Kirim tanpa tahu itu berarti pengaduannya
-   * terkirim tanpa bukti yang ia kira masih terpasang.
-   */
-  it('memberi tahu bahwa lampirannya perlu dipilih ulang', async () => {
-    sessionStorage.setItem(
-      'skema:draf-pengaduan',
-      JSON.stringify({ category: 'kab_lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
-    );
-
-    render(<CreateComplaintForm />);
-
-    // `/lampiran/i` saja TIDAK cukup: formulirnya sudah punya label "Lampiran"
-    // untuk kotak unggahnya, sehingga uji itu hijau bahkan tanpa pemberitahuan
-    // apa pun. Yang dicari kalimat pemberitahuannya sendiri.
-    expect(await screen.findByText(/perlu dipilih ulang/i)).toBeInTheDocument();
-  });
-
-  it('formulir tanpa draf TIDAK menampilkan pemberitahuan itu', async () => {
-    render(<CreateComplaintForm />);
-    await screen.findByText('Pilih Kategori');
-
-    expect(screen.queryByText(/perlu dipilih ulang/i)).not.toBeInTheDocument();
-  });
-
-  it('draf dibuang begitu dipulihkan, jadi tak muncul lagi di formulir berikutnya', async () => {
-    sessionStorage.setItem(
-      'skema:draf-pengaduan',
-      JSON.stringify({ category: 'kab_lainnya', title: 'Lampu jalan mati', description: 'Uraian' }),
-    );
-
-    render(<CreateComplaintForm />);
-    await waitFor(() =>
-      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
-    );
-
-    expect(sessionStorage.getItem('skema:draf-pengaduan')).toBeNull();
-  });
-
-  /**
-   * Urutan yang benar-benar terjadi: ditolak persetujuan (draf tersimpan),
-   * pelapor menyetujui, lalu menekan Kirim lagi pada formulir yang SAMA. Draf
-   * yang tertinggal di situ akan mengisi pengaduan berikutnya dengan kalimat
-   * yang sudah terkirim.
-   *
-   * Versi pertama uji ini menaruh draf lalu langsung mengirim, dan itu HAMPA:
-   * formulirnya memulihkan draf itu saat mount dan menghapusnya di sana, jadi
-   * jalur suksesnya tak pernah tersentuh. Mutasinya lolos hijau karena itu.
-   */
-  it('pengiriman yang berhasil membuang draf dari penolakan sebelumnya', async () => {
-    server.use(
-      http.post(`${API_BASE}/complaints`, () => failWithCode(403, PESAN_PDP, 'CONSENT_REQUIRED')),
-    );
-
-    await isiDanKirim();
-    await waitFor(() => expect(draf()).not.toBeNull());
-
-    // Pelapor menyetujui, lalu menekan Kirim lagi tanpa meninggalkan formulir.
-    server.use(
-      http.post(`${API_BASE}/complaints`, () =>
-        ok({ id: 99, ticketNo: 'PGD20260914AAAA', opdId: null }, '/complaints'),
-      ),
-    );
-    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
-
-    await waitFor(() => expect(sessionStorage.getItem('skema:draf-pengaduan')).toBeNull());
-  });
-});
-
-/**
- * Draf saat sesi berakhir di tengah pengisian (23 November 2026).
- *
- * Sebelumnya 401 pada pengiriman hanya menampilkan galat, dan isian tertahan di
- * memori halaman. Begitu pelapor masuk ulang lewat SSO, halamannya berpindah
- * dan isian itu hilang.
- *
- * Berbeda dari draf PDP, perjalanan ini MELEWATI keluar-masuk akun. Di
- * komputer bersama orang lain dapat masuk di tab yang sama, jadi draf ini
- * diikat ke id akun dari `GET /auth/me` dan hanya dituangkan untuk akun yang
- * sama. Draf tanpa pemilik yang pasti tidak disimpan sama sekali.
- */
-describe('CreateComplaintForm — draf saat sesi berakhir (401)', () => {
-  const KUNCI = 'skema:draf-pengaduan';
-  const draf = () => JSON.parse(sessionStorage.getItem(KUNCI) ?? 'null');
-  const akunAdalah = (id) =>
-    server.use(http.get(`${API_BASE}/auth/me`, () => ok(userFixture({ id }), '/auth/me')));
-  const sesiBerakhir = () =>
-    server.use(
-      http.post(`${API_BASE}/complaints`, () =>
-        failWithCode(401, 'Autentikasi diperlukan', 'UNAUTHORIZED'),
-      ),
-    );
-
-  const isiDanKirim = async () => {
-    render(<CreateComplaintForm />);
-    await screen.findByText('Pilih Kategori');
-
-    await pilihTanpaTujuan();
-    fireEvent.click(kategoriDropdown());
-    fireEvent.click(await screen.findByText('Lainnya'));
-    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
-      target: { value: 'Lampu jalan mati' },
-    });
-    fireEvent.change(screen.getByLabelText(/uraian/i), {
-      target: { value: 'Sudah tiga malam lampu di depan balai desa tidak menyala.' },
-    });
-    isiKejadian();
-    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
-  };
-
   const ISI_DRAF = {
     level: 'kabupaten',
     department: '',
@@ -1357,84 +1131,367 @@ describe('CreateComplaintForm — draf saat sesi berakhir (401)', () => {
     incidentLocation: 'Balai Desa Bangunsari',
     isAnonim: false,
   };
+  const foto = (nama = 'bukti.png', type = 'image/png') =>
+    new File([new Uint8Array([137, 80, 78, 71])], nama, { type });
+  const akunAdalah = (id) =>
+    server.use(http.get(`${API_BASE}/auth/me`, () => ok(userFixture({ id }), '/auth/me')));
+  const tolakDengan = (status, pesan, kode) =>
+    server.use(http.post(`${API_BASE}/complaints`, () => failWithCode(status, pesan, kode)));
 
-  it('401 menyimpan isian beserta id akun pemiliknya', async () => {
-    akunAdalah(10);
-    sesiBerakhir();
-
-    await isiDanKirim();
-
-    await waitFor(() => expect(draf()).not.toBeNull());
-    expect(draf().title).toBe('Lampu jalan mati');
-    expect(draf().pemilik).toBe(10);
-  });
-
-  it('401 menyebut sesi berakhir dan cara melanjutkannya', async () => {
-    akunAdalah(10);
-    sesiBerakhir();
-
-    await isiDanKirim();
-
-    expect(await screen.findByText(/sesi anda sudah berakhir/i)).toBeInTheDocument();
-    expect(screen.getByText(/masuk kembali/i)).toBeInTheDocument();
-  });
-
-  /**
-   * Tanpa id akun yang pasti, draf tak dapat diikat ke siapa pun. Menyimpannya
-   * berarti menuangkannya ke akun mana pun yang masuk berikutnya.
-   */
-  it('401 TIDAK menyimpan draf bila akun pemiliknya tak diketahui', async () => {
-    server.use(
-      http.get(`${API_BASE}/auth/me`, () =>
-        failWithCode(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR'),
-      ),
-    );
-    sesiBerakhir();
-
-    await isiDanKirim();
-
-    await screen.findByText(/sesi anda sudah berakhir/i);
-    expect(draf()).toBeNull();
-  });
-
-  it('draf milik akun yang sama dipulihkan sesudah masuk kembali', async () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ ...ISI_DRAF, pemilik: 10 }));
-    akunAdalah(10);
-
+  const isiFormulir = async ({ lampiran = [] } = {}) => {
     render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
 
-    await waitFor(() =>
-      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
-    );
-    expect(screen.getByText(/perlu dipilih ulang/i)).toBeInTheDocument();
-    expect(sessionStorage.getItem(KUNCI)).toBeNull();
+    await pilihTanpaTujuan();
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Lainnya'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
+      target: { value: 'Lampu jalan mati' },
+    });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Sudah tiga malam lampu di depan balai desa tidak menyala.' },
+    });
+    isiKejadian();
+    if (lampiran.length > 0) {
+      fireEvent.change(document.querySelector('input[type="file"]'), {
+        target: { files: lampiran },
+      });
+    }
+  };
+  const kirim = () => fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+  const drafTersimpan = async () => {
+    let draf = null;
+    await waitFor(async () => {
+      draf = await ambilDrafPengaduan();
+      expect(draf).not.toBeNull();
+    });
+    return draf;
+  };
+
+  describe('menyimpan', () => {
+    it('PDP menyimpan isian, lampiran, dan pemiliknya', async () => {
+      tolakDengan(403, PESAN_PDP, 'CONSENT_REQUIRED');
+
+      await isiFormulir({ lampiran: [foto()] });
+      kirim();
+
+      const draf = await drafTersimpan();
+      expect(draf.pemilik).toBe(1); // id baku handler `/auth/me` di mocks/handlers.ts
+      expect(draf.medan.title).toBe('Lampu jalan mati');
+      expect(draf.medan.category).toBe('kab_lainnya');
+      expect(draf.medan.level).toBe('kabupaten');
+      expect(draf.files.map((f) => f.name)).toEqual(['bukti.png']);
+      expect(
+        await screen.findByText(/isian dan lampiran anda disimpan di peramban ini selama 2 jam/i),
+      ).toBeInTheDocument();
+      // Catatan draf berdiri sendiri, bukan di dalam kotak galat merah.
+      const catatan = screen.getByText(/disimpan di peramban ini/i);
+      expect(catatan.closest('.bg-error-container')).toBeNull();
+    });
+
+    /**
+     * PASANGAN yang membuat uji di atas berarti. Menyimpan pada galat APA PUN
+     * berarti isi pengaduan warga menetap di disk karena jaringan sempat putus.
+     */
+    it('galat biasa TIDAK menyimpan apa pun', async () => {
+      tolakDengan(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR');
+
+      await isiFormulir();
+      kirim();
+
+      await screen.findByText(/kesalahan pada server/i);
+      expect(await ambilDrafPengaduan()).toBeNull();
+      expect(screen.queryByText(/disimpan di peramban/i)).not.toBeInTheDocument();
+    });
+
+    it('batas harian menyimpan sampai akhir hari besok', async () => {
+      tolakDengan(
+        429,
+        'Anda sudah mengirim 10 pengaduan hari ini. Silakan kirim lagi besok.',
+        'BATAS_HARIAN_PENGADUAN',
+      );
+
+      await isiFormulir();
+      kirim();
+
+      await screen.findByText(/10 pengaduan hari ini/i);
+      expect(
+        await screen.findByText(/isian anda disimpan di peramban ini sampai akhir hari besok/i),
+      ).toBeInTheDocument();
+      expect((await drafTersimpan()).medan.title).toBe('Lampu jalan mati');
+    });
+
+    it('401 menyimpan dengan id akun pemiliknya dan menyebut cara melanjutkan', async () => {
+      akunAdalah(10);
+      tolakDengan(401, 'Autentikasi diperlukan', 'UNAUTHORIZED');
+
+      await isiFormulir();
+      kirim();
+
+      expect(
+        await screen.findByText(
+          'Sesi Anda sudah berakhir. Masuk kembali, lalu buka lagi formulir pengaduan.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/disimpan di peramban ini selama 2 jam/i)).toBeInTheDocument();
+      expect((await drafTersimpan()).pemilik).toBe(10);
+    });
+
+    /**
+     * Pemasangan yang menyimpan draf sudah memegang isinya di memori. Sesi yang
+     * hidup lagi (masuk ulang di tab lain) tidak boleh membuatnya membaca drafnya
+     * SENDIRI lalu menambahkan lampiran yang sama sekali lagi.
+     */
+    it('sesi yang hidup lagi tidak menuangkan draf yang baru disimpan pemasangan ini', async () => {
+      akunAdalah(10);
+      tolakDengan(401, 'Autentikasi diperlukan', 'UNAUTHORIZED');
+
+      await isiFormulir({ lampiran: [foto()] });
+      kirim();
+      await drafTersimpan();
+      await screen.findByText(/disimpan di peramban ini/i);
+
+      isAuthenticated.mockReturnValue(false);
+      await act(async () => {
+        window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+      });
+      isAuthenticated.mockReturnValue(true);
+      await act(async () => {
+        window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+      });
+      await act(() => new Promise((r) => setTimeout(r, 100)));
+
+      expect(screen.getAllByText(/bukti\.png/)).toHaveLength(1);
+      expect(screen.queryByText(/sebelumnya dipulihkan/i)).not.toBeInTheDocument();
+    });
+
+    /** Tanpa id akun yang pasti, draf tak dapat diikat ke siapa pun. */
+    it('401 TIDAK menyimpan dan tidak mengaku menyimpan bila akun tak diketahui', async () => {
+      server.use(
+        http.get(`${API_BASE}/auth/me`, () =>
+          failWithCode(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR'),
+        ),
+      );
+      tolakDengan(401, 'Autentikasi diperlukan', 'UNAUTHORIZED');
+
+      await isiFormulir();
+      kirim();
+
+      expect(
+        await screen.findByText('Sesi Anda sudah berakhir. Masuk kembali untuk mengirim pengaduan.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/disimpan di peramban/i)).not.toBeInTheDocument();
+      expect(await ambilDrafPengaduan()).toBeNull();
+    });
+
+    it('401 saat IndexedDB menolak tidak mengaku menyimpan', async () => {
+      akunAdalah(10);
+      tolakDengan(401, 'Autentikasi diperlukan', 'UNAUTHORIZED');
+
+      await isiFormulir();
+      global.indexedDB = undefined;
+      kirim();
+
+      expect(
+        await screen.findByText('Sesi Anda sudah berakhir. Masuk kembali untuk mengirim pengaduan.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/disimpan di peramban/i)).not.toBeInTheDocument();
+    });
+
+    /**
+     * Urutan yang benar-benar terjadi: ditolak persetujuan (draf tersimpan),
+     * pelapor menyetujui, lalu menekan Kirim lagi pada formulir yang SAMA.
+     */
+    it('pengiriman yang berhasil membuang draf dari penolakan sebelumnya', async () => {
+      tolakDengan(403, PESAN_PDP, 'CONSENT_REQUIRED');
+      await isiFormulir();
+      kirim();
+      await drafTersimpan();
+
+      server.use(
+        http.post(`${API_BASE}/complaints`, () =>
+          ok({ id: 99, ticketNo: 'PGD20260914AAAA', opdId: null }, '/complaints'),
+        ),
+      );
+      kirim();
+
+      await waitFor(async () => expect(await ambilDrafPengaduan()).toBeNull());
+    });
   });
 
-  it('draf milik akun LAIN dibuang tanpa ditampilkan', async () => {
-    sessionStorage.setItem(KUNCI, JSON.stringify({ ...ISI_DRAF, pemilik: 10 }));
-    akunAdalah(11);
+  describe('memulihkan', () => {
+    it('isian dan lampiran milik akun yang sama dipulihkan, lalu draf dibuang', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 10, keadaan: 'sesi' });
+      akunAdalah(10);
 
-    render(<CreateComplaintForm />);
+      render(<CreateComplaintForm />);
 
-    await waitFor(() => expect(sessionStorage.getItem(KUNCI)).toBeNull());
-    expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
-    expect(screen.queryByText(/perlu dipilih ulang/i)).not.toBeInTheDocument();
-  });
+      await waitFor(() =>
+        expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
+      );
+      expect(screen.getByLabelText(/uraian/i)).toHaveValue(
+        'Sudah tiga malam lampu di depan balai desa tidak menyala.',
+      );
+      expect(screen.getByLabelText(/tanggal kejadian/i)).toHaveValue('2026-11-01');
+      expect(screen.getByLabelText(/lokasi kejadian/i)).toHaveValue('Balai Desa Bangunsari');
+      expect(screen.getByText(/bukti\.png/)).toBeInTheDocument();
+      expect(
+        screen.getByText('Isian dan 1 lampiran Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.'),
+      ).toBeInTheDocument();
+      await waitFor(async () => expect(await ambilDrafPengaduan()).toBeNull());
+    });
 
-  /**
-   * Pelapor yang belum masuk lagi harus tetap menemukan drafnya sesudah masuk.
-   * Membuangnya di sini berarti draf hilang hanya karena formulir sempat
-   * dibuka sebelum login.
-   */
-  it('tanpa sesi, draf berpemilik dibiarkan dan tidak dituangkan', async () => {
-    isAuthenticated.mockReturnValue(false);
-    sessionStorage.setItem(KUNCI, JSON.stringify({ ...ISI_DRAF, pemilik: 10 }));
+    it('draf tanpa lampiran menyebut isian saja', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [], { pemilik: 1, keadaan: 'persetujuan' });
 
-    render(<CreateComplaintForm />);
-    await act(() => new Promise((r) => setTimeout(r, 100)));
+      render(<CreateComplaintForm />);
 
-    expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
-    expect(draf()?.pemilik).toBe(10);
+      expect(
+        await screen.findByText('Isian Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.'),
+      ).toBeInTheDocument();
+    });
+
+    it('memulihkan tingkat yang dipilih, bukan jatuh kembali ke kabupaten', async () => {
+      // `level` ikut daftar putih dengan alasan yang tersurat: tujuan & kategori
+      // yang dipulihkan MILIK tingkat itu. Tanpa `level`, formulir terbuka di
+      // tingkat kabupaten membawa kategori kecamatan -- lalu ditolak 400 oleh
+      // `assertKategoriSesuaiTingkat` tepat saat Kirim ditekan.
+      await simpanDrafPengaduan(
+        { ...ISI_DRAF, level: 'kecamatan', category: 'kec_administrasi' },
+        [],
+        { pemilik: 1, keadaan: 'persetujuan' },
+      );
+
+      render(<CreateComplaintForm />);
+
+      await waitFor(() =>
+        expect(screen.getByRole('radio', { name: /tingkat kecamatan/i })).toBeChecked(),
+      );
+      expect(
+        screen.getByLabelText(new RegExp('kecamatan / kelurahan tujuan', 'i')),
+      ).toHaveTextContent('Pilih Kecamatan/Kelurahan');
+    });
+
+    /**
+     * Berkas pulihan melewati aturan yang sama dengan unggahan baru. Yang tidak
+     * lolos dibuang dan DISEBUT, supaya pelapor tidak mengirim pengaduan tanpa
+     * bukti yang ia kira masih terpasang.
+     */
+    it('lampiran pulihan yang tidak lolos validasi dibuang dan disebut namanya', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto(), foto('arsip.zip', 'application/zip')], {
+        pemilik: 1,
+        keadaan: 'sesi',
+      });
+
+      render(<CreateComplaintForm />);
+
+      expect(
+        await screen.findByText(/isian dan 1 lampiran anda sebelumnya dipulihkan/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText('arsip.zip')).toBeInTheDocument();
+      expect(screen.getByText(/tidak dapat dipulihkan dan perlu dipilih ulang/i)).toBeInTheDocument();
+    });
+
+    it('draf milik akun LAIN dibuang tanpa ditampilkan', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 10, keadaan: 'sesi' });
+      akunAdalah(11);
+
+      render(<CreateComplaintForm />);
+
+      await waitFor(async () => expect(await ambilDrafPengaduan()).toBeNull());
+      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
+      expect(screen.queryByText(/sebelumnya dipulihkan/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/bukti\.png/)).not.toBeInTheDocument();
+    });
+
+    /**
+     * Pelapor yang belum masuk lagi harus tetap menemukan drafnya sesudah masuk.
+     */
+    it('tanpa sesi, draf dibiarkan dan tidak dituangkan', async () => {
+      isAuthenticated.mockReturnValue(false);
+      await simpanDrafPengaduan(ISI_DRAF, [], { pemilik: 10, keadaan: 'sesi' });
+
+      render(<CreateComplaintForm />);
+      await act(() => new Promise((r) => setTimeout(r, 100)));
+
+      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
+      expect((await ambilDrafPengaduan())?.pemilik).toBe(10);
+    });
+
+    /**
+     * Jendela sebelum `/auth/me` selesai singkat, tetapi berkas bukti yang
+     * sudah dipilih pelapor tidak boleh hilang karena pemulihan.
+     */
+    it('berkas yang sudah dipilih tetap ada dan lampiran pulihan ditambahkan', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 1, keadaan: 'sesi' });
+      server.use(
+        http.get(`${API_BASE}/auth/me`, async () => {
+          await delay(150);
+          return ok(userFixture({ id: 1 }), '/auth/me');
+        }),
+      );
+
+      render(<CreateComplaintForm />);
+      await screen.findByText('Pilih Kategori');
+      fireEvent.change(document.querySelector('input[type="file"]'), {
+        target: { files: [foto('lain.png')] },
+      });
+      expect(screen.getByText(/lain\.png/)).toBeInTheDocument();
+
+      expect(
+        await screen.findByText(/isian dan 1 lampiran anda sebelumnya dipulihkan/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/lain\.png/)).toBeInTheDocument();
+      expect(screen.getByText(/bukti\.png/)).toBeInTheDocument();
+    });
+
+    /** Pemulihan berlaku sekali per pemasangan, juga di bawah StrictMode. */
+    it('di StrictMode lampiran pulihan tidak ganda', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 1, keadaan: 'sesi' });
+
+      render(
+        <React.StrictMode>
+          <CreateComplaintForm />
+        </React.StrictMode>,
+      );
+
+      expect(
+        await screen.findByText('Isian dan 1 lampiran Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.'),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText(/bukti\.png/)).toHaveLength(1);
+    });
+
+    /**
+     * Dilepas sebelum pembacaan selesai: draf TIDAK boleh sudah terhapus,
+     * sebab belum pernah dituangkan ke mana pun.
+     */
+    it('dilepas sebelum pembacaan selesai, draf tetap ada', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 1, keadaan: 'sesi' });
+      const asli = jest.requireActual('@/utils/drafPengaduan').ambilDrafPengaduan;
+      let lepas;
+      const tertahan = new Promise((r) => {
+        lepas = r;
+      });
+      const mata = ambilDrafPengaduan.mockImplementationOnce(async (...a) => {
+        await tertahan;
+        return asli(...a);
+      });
+
+      const { unmount } = render(<CreateComplaintForm />);
+      await waitFor(() => expect(mata).toHaveBeenCalled());
+      unmount();
+      lepas();
+      await act(() => new Promise((r) => setTimeout(r, 50)));
+
+      expect((await ambilDrafPengaduan())?.pemilik).toBe(1);
+    });
+
+    it('formulir tanpa draf TIDAK menampilkan pemberitahuan pemulihan', async () => {
+      render(<CreateComplaintForm />);
+      await screen.findByText('Pilih Kategori');
+
+      expect(screen.queryByText(/sebelumnya dipulihkan/i)).not.toBeInTheDocument();
+    });
   });
 });
 

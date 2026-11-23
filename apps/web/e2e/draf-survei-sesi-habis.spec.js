@@ -10,6 +10,7 @@ import {
 } from './support/api';
 import { panaskanRute } from './support/pemanasan';
 import { masukSebagai } from './support/masuk';
+import { bacaDrafIdb, tanamDrafIdb } from './support/drafIdb';
 
 /**
  * Draf jawaban survei saat sesi berakhir di tengah pengisian (23 November 2026).
@@ -27,9 +28,8 @@ const opsi = (page, label) =>
   page.locator('label').filter({ has: page.getByText(label, { exact: true }) });
 const tombolLanjut = (page) => page.getByRole('button', { name: 'Pertanyaan Selanjutnya' });
 const tombolKirim = (page) => page.getByRole('button', { name: 'Kirim Survei' });
-const kunciDraf = (id) => `skema:draf-survei:${id}`;
-const bacaDraf = (page, id) =>
-  page.evaluate((k) => JSON.parse(sessionStorage.getItem(k) ?? 'null'), kunciDraf(id));
+const kunciDraf = (id) => `survei:${id}`;
+const bacaDraf = (page, id) => bacaDrafIdb(page, kunciDraf(id));
 
 async function bukaSurvei(page, surveyId) {
   await page.goto(`/surveys/${surveyId}`);
@@ -86,7 +86,7 @@ test.describe('Draf jawaban survei saat sesi berakhir', () => {
     await expect(page.getByText(/sesi anda sudah berakhir/i)).toBeVisible();
     const draf = await bacaDraf(page, surveyId);
     expect(draf?.pemilik).toBe(user.id);
-    expect(Object.values(draf?.answers ?? {})).toContain(saran);
+    expect(Object.values(draf?.isi.answers ?? {})).toContain(saran);
 
     // Masuk kembali di TAB YANG SAMA, lalu buka survei yang sama.
     await masukSebagai(page, AKUN.warga, '/dashboard');
@@ -95,7 +95,7 @@ test.describe('Draf jawaban survei saat sesi berakhir', () => {
     await expect(page.getByText(/jawaban anda sebelumnya dipulihkan/i)).toBeVisible();
     await expect(page.getByRole('heading', { name: `3. ${KE_3.teks}` })).toBeVisible();
     await expect(page.getByPlaceholder('Tuliskan jawaban Anda di sini...')).toHaveValue(saran);
-    expect(await bacaDraf(page, surveyId)).toBeNull();
+    await expect.poll(() => bacaDraf(page, surveyId)).toBeNull();
 
     // Yang menentukan: jawaban yang dipulihkan benar-benar sampai ke backend.
     await tombolKirim(page).click();
@@ -113,14 +113,12 @@ test.describe('Draf jawaban survei saat sesi berakhir', () => {
   test('draf milik akun lain tidak dituangkan dan dibuang', async ({ page }) => {
     await masukSebagai(page, AKUN.warga, '/dashboard');
     const { questions } = await bacaSurveiUji(surveyId);
-    await page.evaluate(
-      ([k, idPertama]) =>
-        sessionStorage.setItem(
-          k,
-          JSON.stringify({ answers: { [idPertama]: '[UJI E2E] orang lain' }, pemilik: 999999 }),
-        ),
-      [kunciDraf(surveyId), questions[0].id],
-    );
+    await tanamDrafIdb(page, {
+      kunci: kunciDraf(surveyId),
+      pemilik: 999999,
+      kedaluwarsa: Date.now() + 60 * 60 * 1000,
+      isi: { answers: { [questions[0].id]: '[UJI E2E] orang lain' } },
+    });
 
     await bukaSurvei(page, surveyId);
 

@@ -1,72 +1,57 @@
+import { IDBFactory } from 'fake-indexeddb';
 import { ambilDrafSurvei, hapusDrafSurvei, simpanDrafSurvei } from '../drafSurvei';
 
 /**
- * Draf jawaban survei saat sesi berakhir (23 November 2026).
- *
- * Pasangan `drafPengaduan.js` untuk pengisian survei bersesi. Sama-sama di
- * sessionStorage, sebab jawaban uraian dapat memuat data pribadi dan tab yang
- * ditutup harus ikut membuangnya. Berbeda dalam satu hal: draf ini SELALU
- * berpemilik, karena satu-satunya keadaan yang menyimpannya melewati
- * keluar-masuk akun.
+ * Draf jawaban survei saat sesi berakhir (23 November 2026; pindah ke
+ * IndexedDB hari yang sama). Pasangan `drafPengaduan.js`, tanpa lampiran dan
+ * selalu ber-TTL 2 jam. SELALU berpemilik.
  */
+
+const T = Date.parse('2026-11-23T08:00:00Z');
+const DUA_JAM = 2 * 60 * 60 * 1000;
 const JAWABAN = { 1: '4', 2: 'Pelayanannya cepat', 3: '17' };
 
 beforeEach(() => {
-  sessionStorage.clear();
+  global.indexedDB = new IDBFactory();
 });
 
 describe('drafSurvei', () => {
-  it('jawaban dan pemiliknya dapat diambil kembali utuh', () => {
-    simpanDrafSurvei(5, JAWABAN, 10);
+  it('jawaban dan pemiliknya dapat diambil kembali utuh', async () => {
+    expect(await simpanDrafSurvei(5, JAWABAN, 10, { sekarang: T })).toBe(true);
 
-    expect(ambilDrafSurvei(5)).toEqual({ answers: JAWABAN, pemilik: 10 });
+    expect(await ambilDrafSurvei(5, { sekarang: T })).toEqual({ answers: JAWABAN, pemilik: 10 });
   });
 
-  it('draf terpisah per survei', () => {
-    simpanDrafSurvei(5, JAWABAN, 10);
+  it('draf terpisah per survei', async () => {
+    await simpanDrafSurvei(5, JAWABAN, 10, { sekarang: T });
 
-    expect(ambilDrafSurvei(6)).toBeNull();
+    expect(await ambilDrafSurvei(6, { sekarang: T })).toBeNull();
   });
 
-  /** Draf tanpa pemilik akan dituangkan ke akun siapa pun yang masuk berikutnya. */
-  it('tanpa pemilik, tidak ada yang disimpan', () => {
-    simpanDrafSurvei(5, JAWABAN, null);
-    simpanDrafSurvei(5, JAWABAN, undefined);
+  it('tanpa pemilik, tidak ada yang disimpan', async () => {
+    expect(await simpanDrafSurvei(5, JAWABAN, null, { sekarang: T })).toBe(false);
+    expect(await simpanDrafSurvei(5, JAWABAN, undefined, { sekarang: T })).toBe(false);
 
-    expect(ambilDrafSurvei(5)).toBeNull();
+    expect(await ambilDrafSurvei(5, { sekarang: T })).toBeNull();
   });
 
-  it('draf yang dihapus tak dapat diambil lagi', () => {
-    simpanDrafSurvei(5, JAWABAN, 10);
-    hapusDrafSurvei(5);
+  it('kedaluwarsa tepat dua jam sesudah disimpan', async () => {
+    await simpanDrafSurvei(5, JAWABAN, 10, { sekarang: T });
 
-    expect(ambilDrafSurvei(5)).toBeNull();
+    expect(await ambilDrafSurvei(5, { sekarang: T + DUA_JAM - 1 })).not.toBeNull();
+    expect(await ambilDrafSurvei(5, { sekarang: T + DUA_JAM })).toBeNull();
   });
 
-  it('isi rusak diperlakukan sebagai tak ada draf', () => {
-    sessionStorage.setItem('skema:draf-survei:5', '{bukan json');
-    expect(ambilDrafSurvei(5)).toBeNull();
+  it('draf yang dihapus tak dapat diambil lagi', async () => {
+    await simpanDrafSurvei(5, JAWABAN, 10, { sekarang: T });
+    await hapusDrafSurvei(5);
 
-    sessionStorage.setItem('skema:draf-survei:5', JSON.stringify({ answers: 'teks', pemilik: 10 }));
-    expect(ambilDrafSurvei(5)).toBeNull();
-
-    sessionStorage.setItem('skema:draf-survei:5', JSON.stringify({ answers: JAWABAN }));
-    expect(ambilDrafSurvei(5)).toBeNull();
+    expect(await ambilDrafSurvei(5, { sekarang: T })).toBeNull();
   });
 
-  it('penyimpanan yang diblokir tidak menjatuhkan apa pun', () => {
-    const asli = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
-    Object.defineProperty(window, 'sessionStorage', {
-      configurable: true,
-      get() {
-        throw new Error('akses ditolak');
-      },
-    });
+  it('jawaban yang bukan objek diperlakukan sebagai tak ada draf', async () => {
+    await simpanDrafSurvei(5, 'teks', 10, { sekarang: T });
 
-    expect(() => simpanDrafSurvei(5, JAWABAN, 10)).not.toThrow();
-    expect(() => hapusDrafSurvei(5)).not.toThrow();
-    expect(ambilDrafSurvei(5)).toBeNull();
-
-    Object.defineProperty(window, 'sessionStorage', asli);
+    expect(await ambilDrafSurvei(5, { sekarang: T })).toBeNull();
   });
 });

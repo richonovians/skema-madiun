@@ -12,6 +12,7 @@ import { isUnauthorizedError } from '@/services/api';
 import { getMyProfile } from '../services/profile.api';
 import { authApi } from '@/features/authentication/services/sso.api';
 import { clearSession } from '@/features/authentication/services/authStorage';
+import { hapusSemuaDraf } from '@/utils/drafLokal';
 
 /**
  * Menu akun di navbar warga (Navbar.jsx). DashboardNavbar.jsx, pemanggil kedua
@@ -71,6 +72,9 @@ export default function ProfileAvatarDropdown() {
     } catch {
       // Logout stateless di backend — tetap hapus sesi lokal walau request gagal.
     }
+    // Pasangan `hooks/useLogout.js`: berkas ini menyalin logika logout sendiri,
+    // jadi penghapusan draf harus ditulis di kedua tempat (23 November 2026).
+    await hapusSemuaDraf();
     clearSession();
     router.push('/');
   };

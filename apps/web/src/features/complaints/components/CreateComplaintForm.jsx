@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn } from 'lucide-react';
 import Input from '@/components/ui/Input';
@@ -21,7 +21,9 @@ import {
   ambilDrafPengaduan,
   hapusDrafPengaduan,
   simpanDrafPengaduan,
+  teksDrafTersimpan,
 } from '@/utils/drafPengaduan';
+import { saringBerkas } from '@/utils/lampiran';
 import { getComplaintCategories } from '../services/reference.api';
 import { createComplaint } from '../services/complaints.api';
 import PemilihTingkatPengaduan from './PemilihTingkatPengaduan';
@@ -46,7 +48,7 @@ const TINGKAT_BAKU = 'kabupaten';
 
 /**
  * Isian yang kosong atau hanya berisi spasi (BUG-083). `String(... ?? '')`
- * karena `formData` dapat dipulihkan dari draf `sessionStorage`, dan draf
+ * karena `formData` dapat dipulihkan dari draf di peramban, dan draf
  * lama atau rusak tak menjamin medannya berupa string.
  */
 const kosongSesudahDipangkas = (nilai) => String(nilai ?? '').trim() === '';
@@ -59,6 +61,9 @@ export default function CreateComplaintForm() {
   // jalan keluar yang tepat tanpa mencocokkan bunyi pesan -- yang akan berhenti
   // bekerja pada penyuntingan teks berikutnya tanpa ada uji yang memerah.
   const [submitErrorCode, setSubmitErrorCode] = useState(null);
+  // Pemberitahuan bahwa isian tersimpan di peramban, sampai kapan, dan cara
+  // menghapusnya (23 November 2026). Hanya diisi bila penyimpanan BERHASIL.
+  const [catatanDraf, setCatatanDraf] = useState(null);
   const [files, setFiles] = useState([]);
   /**
    * Dropdown yang belum dipilih saat Kirim ditekan (BUG-079, BUG-080;
@@ -145,48 +150,64 @@ export default function CreateComplaintForm() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
-  // Draf yang tertahan karena persetujuan PDP belum diberikan (14 September
-  // 2026). Dibaca di EFEK, bukan saat inisialisasi state: halaman ini dirender
-  // di server, yang tak dapat melihat sessionStorage -- alasan yang sama
-  // dengan useSesiAktif di atas.
+  // Pemulihan draf (14 September 2026; IndexedDB dan lampiran sejak
+  // 23 November 2026). Dibaca di efek, bukan saat render, karena IndexedDB
+  // tidak terlihat oleh render di server.
+  //
+  // Setiap draf kini berpemilik, jadi pemulihan selalu menunggu akun yang
+  // sedang masuk diketahui. Tanpa sesi draf dibiarkan utuh, supaya masih ada
+  // sesudah pelapornya masuk. Untuk akun lain ia dibuang tanpa ditampilkan,
+  // sebab isinya data pribadi milik orang yang berbeda.
   //
   // Dibuang begitu dipulihkan. Draf yang bertahan sesudah dituangkan akan
   // muncul lagi pada pengaduan BERIKUTNYA, mengisi formulir kosong dengan
   // kalimat yang sudah lama terkirim.
   //
-  // Draf BERPEMILIK (sesi berakhir, 23 November 2026) menunggu akun yang
-  // sedang masuk diketahui. Tanpa sesi ia dibiarkan utuh, supaya masih ada
-  // sesudah pelapornya masuk. Untuk akun lain ia dibuang tanpa ditampilkan,
-  // sebab isinya data pribadi milik orang yang berbeda.
-  const [drafDipulihkan, setDrafDipulihkan] = useState(false);
+  // Lampiran pulihan melewati `saringBerkas`, aturan yang sama dengan unggahan
+  // baru. Yang tidak lolos dibuang dan disebut namanya di pemberitahuan.
+  //
+  // `drafDipulihkan`: `null`, atau `{ jumlahLampiran, ditolak: string[] }`.
+  const [drafDipulihkan, setDrafDipulihkan] = useState(null);
+  // Satu draf dituangkan paling banyak sekali per pemasangan. Efek di bawah
+  // berjalan ulang saat `akun` berganti identitas, dan pembacaan kedua yang
+  // menyusul sebelum draf sempat dihapus akan menuangkannya lagi (lampiran
+  // ganda). Penghapusan sengaja TIDAK dipindah ke sebelum penuangan: dilepas
+  // di antara keduanya akan menghilangkan draf yang belum pernah tampil.
+  const drafSudahDituang = useRef(false);
+  // Daftar berkas terkini untuk efek di bawah, yang tak boleh bergantung pada
+  // `files` (berjalan ulang tiap berkas dipilih) tetapi perlu melihatnya.
+  const berkasSekarang = useRef(files);
   useEffect(() => {
-    const tersimpan = ambilDrafPengaduan();
-    if (!tersimpan) return;
-    const { pemilik, ...draf } = tersimpan;
-    if (pemilik != null) {
-      if (!adaSesi || memuatAkun || !akun) return;
-      if (akun.id !== pemilik) {
-        hapusDrafPengaduan();
+    berkasSekarang.current = files;
+  }, [files]);
+  useEffect(() => {
+    if (!adaSesi || memuatAkun || !akun || drafSudahDituang.current) return undefined;
+    // Pembacaannya async. Bila komponen dilepas atau akun berubah sebelum
+    // selesai, hasilnya diabaikan; jalan efek yang baru yang memutuskan.
+    let batal = false;
+    (async () => {
+      const draf = await ambilDrafPengaduan();
+      if (batal || !draf) return;
+      if (draf.pemilik !== akun.id) {
+        await hapusDrafPengaduan();
         return;
       }
-    }
-    /* eslint-disable react-hooks/set-state-in-effect --
-       `set-state-in-effect` menyarankan menurunkan nilainya saat render, dan
-       itu memang benar untuk keadaan yang dapat DIHITUNG dari props/state.
-       Di sini sumbernya `sessionStorage`, yang tak terlihat oleh render di
-       server: membacanya saat render menghasilkan render pertama klien yang
-       berbeda dari HTML server. Pembacaannya pun sekali dan berefek samping
-       (drafnya dibuang di baris terakhir), sehingga `useSyncExternalStore`
-       pun tak cocok -- getSnapshot-nya wajib murni.
-
-       Pola yang sama dipakai `useSesiAktif` dengan alasan yang sama. */
-    setFormData((prev) => ({ ...prev, ...draf }));
-    setDrafDipulihkan(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
-    hapusDrafPengaduan();
-    // Berjalan ulang begitu sesi atau akun berubah, demi draf berpemilik yang
-    // menunggu keduanya. Draf tanpa pemilik sudah dibuang pada jalan pertama,
-    // jadi tak dituangkan dua kali.
+      if (drafSudahDituang.current) return;
+      drafSudahDituang.current = true;
+      // Isian teks ditimpa draf, seperti sejak 14 September: jendela sebelum
+      // `/auth/me` selesai singkat. Berkas bukti yang sudah dipilih tidak
+      // ditimpa, sebab kehilangannya lebih buruk; lampiran pulihan ditambahkan
+      // dan disaring terhadap daftar yang sedang ada (jenis, ukuran, batas
+      // jumlah). Duplikat TIDAK disaring.
+      const { diterima, ditolak } = saringBerkas(draf.files, berkasSekarang.current);
+      setFormData((prev) => ({ ...prev, ...draf.medan }));
+      setFiles((prev) => [...prev, ...diterima]);
+      setDrafDipulihkan({ jumlahLampiran: diterima.length, ditolak: ditolak.map((d) => d.nama) });
+      await hapusDrafPengaduan();
+    })();
+    return () => {
+      batal = true;
+    };
   }, [adaSesi, akun, memuatAkun]);
 
   // Keduanya menuntut sesi, jadi tanpa sesi tak dipanggil sama sekali (BUG-063):
@@ -340,6 +361,7 @@ export default function CreateComplaintForm() {
     e.preventDefault();
     setSubmitError(null);
     setSubmitErrorCode(null);
+    setCatatanDraf(null);
     // Ditahan SEBELUM permintaan dikirim. Tanpa sesi, `POST /complaints`
     // menjawab 401 dan pengirim hanya melihat pesan galat teknis, padahal
     // sebabnya sederhana dan dapat ia perbaiki sendiri.
@@ -382,7 +404,7 @@ export default function CreateComplaintForm() {
       );
       // Sudah terkirim: draf sisa apa pun kehilangan gunanya, dan membiarkannya
       // berarti pengaduan berikutnya dibuka dengan kalimat yang sudah dikirim.
-      hapusDrafPengaduan();
+      await hapusDrafPengaduan();
       if (formData.department === TANPA_TUJUAN) {
         // Tanpa `opdId`/`opdName` di URL: halaman sukses menampilkan tujuan
         // pengaduan, dan mengarang nama instansi di sini berarti memberi tahu
@@ -405,23 +427,39 @@ export default function CreateComplaintForm() {
       // berarti isi pengaduan warga menetap di peramban demi masalah yang tak
       // pernah menuntutnya pergi ke mana-mana.
       //
-      // Dua keadaan itu: persetujuan PDP (pergi ke halaman persetujuan) dan
-      // batas harian (kembali besok).
-      if (kode === KODE_PERSETUJUAN_DIBUTUHKAN || kode === KODE_BATAS_HARIAN) {
-        simpanDrafPengaduan(formData);
-      }
-      // Keadaan ketiga, sesi berakhir (23 November 2026). Pelapor harus masuk
-      // lagi, dan masuk lewat SSO memindahkan halaman. Drafnya diikat ke id
-      // akun; tanpa id yang pasti ia tidak disimpan, karena draf tanpa pemilik
-      // akan dituangkan ke akun siapa pun yang masuk berikutnya di tab ini.
-      if (isUnauthorizedError(err)) {
-        const tersimpan = akun?.id != null;
-        if (tersimpan) simpanDrafPengaduan(formData, { pemilik: akun.id });
-        setSubmitError(
-          tersimpan
-            ? 'Sesi Anda sudah berakhir. Isian Anda disimpan sementara di tab ini. Masuk kembali, lalu buka lagi formulir pengaduan. Lampiran perlu dipilih ulang.'
-            : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim pengaduan.',
-        );
+      // Tiga keadaan itu: persetujuan PDP (pergi ke halaman persetujuan),
+      // batas harian (kembali besok), dan sesi berakhir (masuk lagi lewat SSO,
+      // yang memindahkan halaman). Ketiganya diikat ke id akun; tanpa id yang
+      // pasti draf tidak disimpan, karena akan dituangkan ke akun siapa pun
+      // yang masuk berikutnya.
+      //
+      // Pesannya dipilih dari HASIL penyimpanan. IndexedDB dapat menolak (mode
+      // privat, kuota), dan layar tidak boleh mengaku menyimpan saat itu.
+      let keadaan = null;
+      if (kode === KODE_PERSETUJUAN_DIBUTUHKAN) keadaan = 'persetujuan';
+      else if (kode === KODE_BATAS_HARIAN) keadaan = 'batas_harian';
+      else if (isUnauthorizedError(err)) keadaan = 'sesi';
+
+      if (keadaan) {
+        const tersimpan = await simpanDrafPengaduan(formData, files, {
+          pemilik: akun?.id,
+          keadaan,
+        });
+        if (tersimpan) {
+          setCatatanDraf(teksDrafTersimpan(keadaan, files.length > 0));
+          // Pemasangan ini sudah memegang isinya di memori. Tanpa penanda,
+          // sesi yang hidup lagi (masuk ulang di tab lain) membuat efek
+          // pemulihan membaca draf BUATAN SENDIRI dan menambahkan lampirannya
+          // sekali lagi ke berkas yang sudah ada.
+          drafSudahDituang.current = true;
+        }
+        if (keadaan === 'sesi') {
+          setSubmitError(
+            tersimpan
+              ? 'Sesi Anda sudah berakhir. Masuk kembali, lalu buka lagi formulir pengaduan.'
+              : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim pengaduan.',
+          );
+        }
       }
       setIsSubmitting(false);
     }
@@ -455,16 +493,20 @@ export default function CreateComplaintForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-        {/* Kehilangan yang DIBERITAHUKAN. Lampiran memang tak ikut
-            terselamatkan -- objek File tak dapat disimpan di sessionStorage,
-            dan memindahkannya ke IndexedDB berarti menaruh berkas milik warga
-            di disk peramban. Membiarkan pelapor menekan Kirim tanpa tahu itu
-            berarti pengaduannya terkirim tanpa bukti yang ia kira masih
-            terpasang. */}
         {drafDipulihkan && (
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
-            Isian Anda sebelumnya dipulihkan. Berkas lampiran{' '}
-            <span className="font-semibold">perlu dipilih ulang</span> karena tidak ikut tersimpan.
+          <div
+            role="status"
+            className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm"
+          >
+            {drafDipulihkan.jumlahLampiran > 0
+              ? `Isian dan ${drafDipulihkan.jumlahLampiran} lampiran Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.`
+              : 'Isian Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.'}
+            {drafDipulihkan.ditolak.length > 0 && (
+              <p className="mt-2">
+                Lampiran <span className="font-semibold">{drafDipulihkan.ditolak.join(', ')}</span>{' '}
+                tidak dapat dipulihkan dan perlu dipilih ulang.
+              </p>
+            )}
           </div>
         )}
 
@@ -481,6 +523,15 @@ export default function CreateComplaintForm() {
               </div>
             )}
           </div>
+        )}
+
+        {catatanDraf && (
+          <p
+            role="status"
+            className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm"
+          >
+            {catatanDraf}
+          </p>
         )}
 
         {/* DI ATAS kedua dropdown, sesuai permintaan pengguna 4 November 2026
