@@ -68,26 +68,43 @@ const useSurveyStore = create((set, get) => ({
       pemilik,
       jawabanDipulihkan: false,
     });
-    if (anonim || pemilik == null || !data) return;
+    if (anonim || pemilik == null || !data) return Promise.resolve();
 
     // Draf dari sesi yang berakhir saat dikirim (23 November 2026). Milik akun
     // lain dibuang tanpa dituangkan, sebab isinya jawaban orang yang berbeda.
-    const draf = ambilDrafSurvei(data.id);
-    if (!draf) return;
-    hapusDrafSurvei(data.id);
-    if (draf.pemilik !== pemilik) return;
+    //
+    // Async sejak draf pindah ke IndexedDB. Selama pembacaan, responden bisa
+    // sudah mulai menjawab, atau sudah meninggalkan survei. Yang pertama tidak
+    // boleh ditimpa; yang kedua tidak boleh menerima draf, dan drafnya
+    // dibiarkan supaya masih ada saat survei itu dibuka lagi.
+    return ambilDrafSurvei(data.id).then(async (draf) => {
+      if (!draf) return;
+      if (draf.pemilik !== pemilik) {
+        await hapusDrafSurvei(data.id);
+        return;
+      }
+      const kini = get();
+      if (kini.surveyData !== data || kini.pemilik !== pemilik) return;
 
-    // Hanya pertanyaan yang masih ada: admin dapat mengubah kuesioner di antara
-    // dua waktu itu, dan backend menolak id pertanyaan yang tak dikenalnya.
-    const idAda = new Set((data.questions ?? []).map((q) => String(q.id)));
-    const answers = Object.fromEntries(
-      Object.entries(draf.answers).filter(([id]) => idAda.has(String(id))),
-    );
-    set({
-      answers,
-      jawabanDipulihkan: true,
-      // Ke pertanyaan terakhir, tempat responden menekan Kirim sebelumnya.
-      currentStepIndex: Math.max(0, (data.questions?.length ?? 1) - 1),
+      // Hanya pertanyaan yang masih ada: admin dapat mengubah kuesioner di antara
+      // dua waktu itu, dan backend menolak id pertanyaan yang tak dikenalnya.
+      const idAda = new Set((data.questions ?? []).map((q) => String(q.id)));
+      const dariDraf = Object.fromEntries(
+        Object.entries(draf.answers).filter(([id]) => idAda.has(String(id))),
+      );
+      set((state) => {
+        const sudahMenjawab = Object.keys(state.answers).length > 0;
+        return {
+          answers: { ...dariDraf, ...state.answers },
+          jawabanDipulihkan: true,
+          // Ke pertanyaan terakhir, tempat responden menekan Kirim sebelumnya,
+          // kecuali ia sudah mulai menjawab lagi.
+          currentStepIndex: sudahMenjawab
+            ? state.currentStepIndex
+            : Math.max(0, (data.questions?.length ?? 1) - 1),
+        };
+      });
+      await hapusDrafSurvei(data.id);
     });
   },
 
@@ -156,7 +173,7 @@ const useSurveyStore = create((set, get) => ({
       if (isAnonimMode) {
         tandaiSudahMengisi(surveyData.id);
       }
-      hapusDrafSurvei(surveyData.id);
+      await hapusDrafSurvei(surveyData.id);
       set({ isCompleted: true, isSurveyInProgress: false, isSubmitting: false });
       return { success: true };
     } catch (err) {
@@ -169,11 +186,13 @@ const useSurveyStore = create((set, get) => ({
       // diketahui; jalur publik tak bersesi sehingga tak pernah sampai sini.
       if (!isAnonimMode && isUnauthorizedError(err)) {
         const { pemilik } = get();
-        simpanDrafSurvei(surveyData.id, answers, pemilik);
-        pesan =
-          pemilik != null
-            ? 'Sesi Anda sudah berakhir. Jawaban Anda disimpan sementara di tab ini. Masuk kembali, lalu buka lagi survei ini.'
-            : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim jawaban.';
+        // Pesannya dipilih dari HASIL penyimpanan, bukan dari ada-tidaknya
+        // pemilik: IndexedDB dapat menolak (mode privat, kuota), dan layar
+        // tidak boleh mengaku menyimpan ketika itu terjadi.
+        const tersimpan = await simpanDrafSurvei(surveyData.id, answers, pemilik);
+        pesan = tersimpan
+          ? 'Sesi Anda sudah berakhir. Jawaban Anda disimpan di peramban ini selama 2 jam. Masuk kembali, lalu buka lagi survei ini. Keluar dari akun akan menghapusnya.'
+          : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim jawaban.';
       }
       set({ isSubmitting: false, submitError: pesan, submitErrorCode: kodeGalat(err) });
       return { success: false, error: pesan };
