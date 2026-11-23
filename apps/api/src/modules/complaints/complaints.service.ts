@@ -33,7 +33,7 @@ import {
 import { enkripsi, INFO_LAMPIRAN } from '../../common/crypto/envelope';
 import { dekripsiKolom, enkripsiKolom } from '../../common/crypto/kolom';
 import { samarkanNik } from '../../common/identitas/nik';
-import { awalHariWib } from '../../common/waktu/hari-wib';
+import { awalHariWib, tanggalWib } from '../../common/waktu/hari-wib';
 import { kunciData } from '../../common/crypto/kunci';
 import { assertOpdAccess } from '../../common/auth/opd-scope.util';
 import { hasFullAccess } from '../../common/auth/role.util';
@@ -836,12 +836,16 @@ export class ComplaintsService {
     return complaint;
   }
 
-  /** Ticket publik ber-format `PGD{YYYYMMDD}{4 acak}` — retry saat tabrakan (unique constraint). */
-  private generateTicketNo(): string {
-    const now = new Date();
-    const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
-      now.getDate(),
-    ).padStart(2, '0')}`;
+  /**
+   * Ticket publik ber-format `PGD{YYYYMMDD}{4 acak}` — retry saat tabrakan (unique constraint).
+   *
+   * Tanggalnya tanggal WIB (23 November 2026), bukan tanggal zona proses: di
+   * server UTC pengaduan 00.00-06.59 WIB dulu bertiket tanggal kemarin.
+   * `sekarang` hanya disuntikkan oleh uji.
+   */
+  private generateTicketNo(sekarang: Date = new Date()): string {
+    const { tahun, bulan, tanggal } = tanggalWib(sekarang);
+    const datePart = `${tahun}${String(bulan).padStart(2, '0')}${String(tanggal).padStart(2, '0')}`;
     const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase();
     return `PGD${datePart}${randomPart}`;
   }

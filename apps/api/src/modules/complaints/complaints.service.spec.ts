@@ -263,6 +263,24 @@ describe('ComplaintsService', () => {
   });
 
   /**
+   * Tanggal pada nomor tiket `PGD{YYYYMMDD}{4 acak}` adalah tanggal WIB
+   * (23 November 2026). Sebelumnya `getFullYear/getMonth/getDate`, sehingga di
+   * server UTC pengaduan 00.00-06.59 WIB bertiket tanggal kemarin. Tanggal
+   * ujinya bukan hari ini, dengan alasan yang sama seperti uji batas harian.
+   */
+  describe('nomor tiket -- tanggal menurut WIB', () => {
+    const buatTiket = (sekarang: Date) => service['generateTicketNo'](sekarang);
+
+    it('06.59 WIB 15 Maret (23.59 UTC 14 Maret) bertanggal 20260315', () => {
+      expect(buatTiket(new Date('2026-03-14T23:59:00.000Z'))).toMatch(/^PGD20260315/);
+    });
+
+    it('23.59 WIB 15 Maret masih bertanggal 20260315', () => {
+      expect(buatTiket(new Date('2026-03-15T16:59:00.000Z'))).toMatch(/^PGD20260315/);
+    });
+  });
+
+  /**
    * BUG-096 (19 November 2026): batas harian dihitung lalu ditulis tanpa kunci,
    * sehingga kiriman serentak dari satu akun semuanya lolos. Perilaku balapannya
    * sendiri dibuktikan e2e (`pengaduan-batas-harian.e2e-spec.ts`); di sini yang

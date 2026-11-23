@@ -1,4 +1,4 @@
-import { awalHariWib } from './hari-wib';
+import { awalHariWib, awalTanggalWib, tanggalWib } from './hari-wib';
 
 /**
  * AWAL HARI MENURUT WIB (23 November 2026, batas harian pengaduan).
@@ -37,6 +37,34 @@ describe('awalHariWib', () => {
     expect(sekarang.toISOString()).toBe('2026-11-22T23:59:00.000Z');
   });
 
+  describe('awalTanggalWib (tanggal kalender WIB -> instan awal harinya)', () => {
+    it('23 November 2026 dimulai 2026-11-22T17:00Z', () => {
+      expect(awalTanggalWib(2026, 11, 23)).toEqual(AWAL_23_NOV_WIB);
+    });
+
+    it('bulan ditulis 1-12, dan pergantian tahun tetap benar', () => {
+      expect(awalTanggalWib(2027, 1, 1)).toEqual(new Date('2026-12-31T17:00:00.000Z'));
+    });
+  });
+
+  describe('tanggalWib (instan -> tanggal kalender WIB)', () => {
+    it('06.59 WIB (= 23.59 UTC hari sebelumnya) sudah bertanggal WIB berikutnya', () => {
+      expect(tanggalWib(new Date('2026-03-14T23:59:00.000Z'))).toEqual({
+        tahun: 2026,
+        bulan: 3,
+        tanggal: 15,
+      });
+    });
+
+    it('00.00 WIB 1 Januari sudah tahun baru, padahal UTC masih 31 Desember', () => {
+      expect(tanggalWib(new Date('2026-12-31T17:00:00.000Z'))).toEqual({
+        tahun: 2027,
+        bulan: 1,
+        tanggal: 1,
+      });
+    });
+  });
+
   describe('pagar zona waktu proses', () => {
     const METODE_WAKTU_LOKAL = [
       'getFullYear',
@@ -61,6 +89,8 @@ describe('awalHariWib', () => {
       const mata = METODE_WAKTU_LOKAL.map((m) => [m, jest.spyOn(Date.prototype, m)] as const);
 
       awalHariWib(new Date('2026-11-22T23:59:00.000Z'));
+      awalTanggalWib(2026, 11, 23);
+      tanggalWib(new Date('2026-11-22T23:59:00.000Z'));
 
       const terpanggil = mata.filter(([, s]) => s.mock.calls.length > 0).map(([m]) => m);
       expect(terpanggil).toEqual([]);
