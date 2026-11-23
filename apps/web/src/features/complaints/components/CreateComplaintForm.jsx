@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, LogIn } from 'lucide-react';
 import Input from '@/components/ui/Input';
@@ -168,8 +168,20 @@ export default function CreateComplaintForm() {
   //
   // `drafDipulihkan`: `null`, atau `{ jumlahLampiran, ditolak: string[] }`.
   const [drafDipulihkan, setDrafDipulihkan] = useState(null);
+  // Satu draf dituangkan paling banyak sekali per pemasangan. Efek di bawah
+  // berjalan ulang saat `akun` berganti identitas, dan pembacaan kedua yang
+  // menyusul sebelum draf sempat dihapus akan menuangkannya lagi (lampiran
+  // ganda). Penghapusan sengaja TIDAK dipindah ke sebelum penuangan: dilepas
+  // di antara keduanya akan menghilangkan draf yang belum pernah tampil.
+  const drafSudahDituang = useRef(false);
+  // Daftar berkas terkini untuk efek di bawah, yang tak boleh bergantung pada
+  // `files` (berjalan ulang tiap berkas dipilih) tetapi perlu melihatnya.
+  const berkasSekarang = useRef(files);
   useEffect(() => {
-    if (!adaSesi || memuatAkun || !akun) return undefined;
+    berkasSekarang.current = files;
+  }, [files]);
+  useEffect(() => {
+    if (!adaSesi || memuatAkun || !akun || drafSudahDituang.current) return undefined;
     // Pembacaannya async. Bila komponen dilepas atau akun berubah sebelum
     // selesai, hasilnya diabaikan; jalan efek yang baru yang memutuskan.
     let batal = false;
@@ -180,9 +192,15 @@ export default function CreateComplaintForm() {
         await hapusDrafPengaduan();
         return;
       }
-      const { diterima, ditolak } = saringBerkas(draf.files, []);
+      if (drafSudahDituang.current) return;
+      drafSudahDituang.current = true;
+      // Isian teks ditimpa draf, seperti sejak 14 September: jendela sebelum
+      // `/auth/me` selesai singkat. Berkas bukti yang sudah dipilih tidak
+      // ditimpa, sebab kehilangannya lebih buruk; lampiran pulihan ditambahkan
+      // dan disaring terhadap daftar yang sedang ada (batas jumlah, duplikat).
+      const { diterima, ditolak } = saringBerkas(draf.files, berkasSekarang.current);
       setFormData((prev) => ({ ...prev, ...draf.medan }));
-      setFiles(diterima);
+      setFiles((prev) => [...prev, ...diterima]);
       setDrafDipulihkan({ jumlahLampiran: diterima.length, ditolak: ditolak.map((d) => d.nama) });
       await hapusDrafPengaduan();
     })();
@@ -496,6 +514,8 @@ export default function CreateComplaintForm() {
                 <ConsentRequiredAction />
               </div>
             )}
+          </div>
+        )}
 
         {catatanDraf && (
           <p
@@ -504,8 +524,6 @@ export default function CreateComplaintForm() {
           >
             {catatanDraf}
           </p>
-        )}
-          </div>
         )}
 
         {/* DI ATAS kedua dropdown, sesuai permintaan pengguna 4 November 2026

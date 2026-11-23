@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { setupServer } from 'msw/node';
-import { http } from 'msw';
+import { http, delay } from 'msw';
 import { useRouter } from 'next/navigation';
 import { handlers, ok, failWithCode, userFixture } from '@/mocks/handlers';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
@@ -39,6 +39,15 @@ jest.mock('@/features/authentication/services/authStorage', () => ({
   ...jest.requireActual('@/features/authentication/services/authStorage'),
   isAuthenticated: jest.fn(),
 }));
+
+/**
+ * `ambilDrafPengaduan` dibungkus `jest.fn` yang memanggil aslinya, supaya satu
+ * uji dapat menahan pembacaan draf. Perilaku bakunya tidak berubah.
+ */
+jest.mock('@/utils/drafPengaduan', () => {
+  const asli = jest.requireActual('@/utils/drafPengaduan');
+  return { ...asli, ambilDrafPengaduan: jest.fn(asli.ambilDrafPengaduan) };
+});
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 const server = setupServer(...handlers);
@@ -1172,6 +1181,9 @@ describe('CreateComplaintForm — draf di peramban', () => {
       expect(
         await screen.findByText(/isian dan lampiran anda disimpan di peramban ini selama 2 jam/i),
       ).toBeInTheDocument();
+      // Catatan draf berdiri sendiri, bukan di dalam kotak galat merah.
+      const catatan = screen.getByText(/disimpan di peramban ini/i);
+      expect(catatan.closest('.bg-error-container')).toBeNull();
     });
 
     /**
@@ -1373,6 +1385,74 @@ describe('CreateComplaintForm — draf di peramban', () => {
 
       expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
       expect((await ambilDrafPengaduan())?.pemilik).toBe(10);
+    });
+
+    /**
+     * Jendela sebelum `/auth/me` selesai singkat, tetapi berkas bukti yang
+     * sudah dipilih pelapor tidak boleh hilang karena pemulihan.
+     */
+    it('berkas yang sudah dipilih tetap ada dan lampiran pulihan ditambahkan', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 1, keadaan: 'sesi' });
+      server.use(
+        http.get(`${API_BASE}/auth/me`, async () => {
+          await delay(150);
+          return ok(userFixture({ id: 1 }), '/auth/me');
+        }),
+      );
+
+      render(<CreateComplaintForm />);
+      await screen.findByText('Pilih Kategori');
+      fireEvent.change(document.querySelector('input[type="file"]'), {
+        target: { files: [foto('lain.png')] },
+      });
+      expect(screen.getByText(/lain\.png/)).toBeInTheDocument();
+
+      expect(
+        await screen.findByText(/isian dan 1 lampiran anda sebelumnya dipulihkan/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/lain\.png/)).toBeInTheDocument();
+      expect(screen.getByText(/bukti\.png/)).toBeInTheDocument();
+    });
+
+    /** Pemulihan berlaku sekali per pemasangan, juga di bawah StrictMode. */
+    it('di StrictMode lampiran pulihan tidak ganda', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 1, keadaan: 'sesi' });
+
+      render(
+        <React.StrictMode>
+          <CreateComplaintForm />
+        </React.StrictMode>,
+      );
+
+      expect(
+        await screen.findByText('Isian dan 1 lampiran Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.'),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText(/bukti\.png/)).toHaveLength(1);
+    });
+
+    /**
+     * Dilepas sebelum pembacaan selesai: draf TIDAK boleh sudah terhapus,
+     * sebab belum pernah dituangkan ke mana pun.
+     */
+    it('dilepas sebelum pembacaan selesai, draf tetap ada', async () => {
+      await simpanDrafPengaduan(ISI_DRAF, [foto()], { pemilik: 1, keadaan: 'sesi' });
+      const asli = jest.requireActual('@/utils/drafPengaduan').ambilDrafPengaduan;
+      let lepas;
+      const tertahan = new Promise((r) => {
+        lepas = r;
+      });
+      const mata = ambilDrafPengaduan.mockImplementationOnce(async (...a) => {
+        await tertahan;
+        return asli(...a);
+      });
+
+      const { unmount } = render(<CreateComplaintForm />);
+      await waitFor(() => expect(mata).toHaveBeenCalled());
+      unmount();
+      lepas();
+      await act(() => new Promise((r) => setTimeout(r, 50)));
+
+      expect((await ambilDrafPengaduan())?.pemilik).toBe(1);
     });
 
     it('formulir tanpa draf TIDAK menampilkan pemberitahuan pemulihan', async () => {
