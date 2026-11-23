@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { tandaiSudahMengisi } from '@/utils/surveyFillMarker';
 import { submitPublicSurveyResponse, submitSurveyResponse } from '../services/surveys.api';
-import { kodeGalat } from '@/services/api';
+import { isUnauthorizedError, kodeGalat } from '@/services/api';
+import { ambilDrafSurvei, hapusDrafSurvei, simpanDrafSurvei } from '@/utils/drafSurvei';
 
 const useSurveyStore = create((set, get) => ({
   surveyData: null,
@@ -12,6 +13,12 @@ const useSurveyStore = create((set, get) => ({
   isSubmitting: false,
   submitError: null,
   submitErrorCode: null,
+  // Id akun yang mengisi (23 November 2026). Mengikat draf yang disimpan saat
+  // sesi berakhir, dan memastikan draf itu hanya dituangkan bagi akun yang
+  // sama. `null` pada jalur publik dan selama akunnya belum diketahui.
+  pemilik: null,
+  // Jawaban dari draf sesi berakhir sudah dituangkan; layar memberitahukannya.
+  jawabanDipulihkan: false,
   // Pengisian tanpa sesi (rute /survei/:id). Menentukan endpoint pengiriman, bukan
   // tampilan.
   isAnonimMode: false,
@@ -45,7 +52,10 @@ const useSurveyStore = create((set, get) => ({
    * tengah pengisian berisiko berpindah jalur di tengah jalan bila sesi
    * kedaluwarsa -- responden akan kehilangan jawabannya tanpa sebab yang jelas.
    */
-  initSurvey: (data, { anonim = false, dataPublik = null, tanpaDataDiri = false } = {}) => {
+  initSurvey: (
+    data,
+    { anonim = false, dataPublik = null, tanpaDataDiri = false, pemilik = null } = {},
+  ) => {
     set({
       surveyData: data,
       currentStepIndex: 0,
@@ -55,6 +65,29 @@ const useSurveyStore = create((set, get) => ({
       isAnonimMode: anonim,
       dataPublik,
       tanpaDataDiri,
+      pemilik,
+      jawabanDipulihkan: false,
+    });
+    if (anonim || pemilik == null || !data) return;
+
+    // Draf dari sesi yang berakhir saat dikirim (23 November 2026). Milik akun
+    // lain dibuang tanpa dituangkan, sebab isinya jawaban orang yang berbeda.
+    const draf = ambilDrafSurvei(data.id);
+    if (!draf) return;
+    hapusDrafSurvei(data.id);
+    if (draf.pemilik !== pemilik) return;
+
+    // Hanya pertanyaan yang masih ada: admin dapat mengubah kuesioner di antara
+    // dua waktu itu, dan backend menolak id pertanyaan yang tak dikenalnya.
+    const idAda = new Set((data.questions ?? []).map((q) => String(q.id)));
+    const answers = Object.fromEntries(
+      Object.entries(draf.answers).filter(([id]) => idAda.has(String(id))),
+    );
+    set({
+      answers,
+      jawabanDipulihkan: true,
+      // Ke pertanyaan terakhir, tempat responden menekan Kirim sebelumnya.
+      currentStepIndex: Math.max(0, (data.questions?.length ?? 1) - 1),
     });
   },
 
@@ -123,14 +156,27 @@ const useSurveyStore = create((set, get) => ({
       if (isAnonimMode) {
         tandaiSudahMengisi(surveyData.id);
       }
+      hapusDrafSurvei(surveyData.id);
       set({ isCompleted: true, isSurveyInProgress: false, isSubmitting: false });
       return { success: true };
     } catch (err) {
       // Kodenya disimpan terpisah dari pesannya supaya layar dapat menawarkan
       // jalan keluar yang tepat -- mis. tombol menuju halaman persetujuan --
       // tanpa mencocokkan bunyi pesan yang dapat berubah kapan saja.
-      set({ isSubmitting: false, submitError: err.message, submitErrorCode: kodeGalat(err) });
-      return { success: false, error: err.message };
+      let pesan = err.message;
+      // Sesi berakhir (23 November 2026). Jawaban hanya ada di memori, dan
+      // masuk ulang memindahkan halaman. Disimpan hanya bila pemiliknya
+      // diketahui; jalur publik tak bersesi sehingga tak pernah sampai sini.
+      if (!isAnonimMode && isUnauthorizedError(err)) {
+        const { pemilik } = get();
+        simpanDrafSurvei(surveyData.id, answers, pemilik);
+        pesan =
+          pemilik != null
+            ? 'Sesi Anda sudah berakhir. Jawaban Anda disimpan sementara di tab ini. Masuk kembali, lalu buka lagi survei ini.'
+            : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim jawaban.';
+      }
+      set({ isSubmitting: false, submitError: pesan, submitErrorCode: kodeGalat(err) });
+      return { success: false, error: pesan };
     }
   },
 
@@ -148,6 +194,8 @@ const useSurveyStore = create((set, get) => ({
       dataPublik: null,
       captchaToken: null,
       tanpaDataDiri: false,
+      pemilik: null,
+      jawabanDipulihkan: false,
     });
   },
 }));
