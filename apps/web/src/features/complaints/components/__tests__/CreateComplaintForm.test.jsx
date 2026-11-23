@@ -3,7 +3,7 @@ import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { setupServer } from 'msw/node';
 import { http } from 'msw';
 import { useRouter } from 'next/navigation';
-import { handlers, ok, failWithCode } from '@/mocks/handlers';
+import { handlers, ok, failWithCode, userFixture } from '@/mocks/handlers';
 import { isAuthenticated } from '@/features/authentication/services/authStorage';
 import CreateComplaintForm from '../CreateComplaintForm';
 
@@ -1303,6 +1303,138 @@ describe('CreateComplaintForm — draf saat ditolak persetujuan', () => {
     fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
 
     await waitFor(() => expect(sessionStorage.getItem('skema:draf-pengaduan')).toBeNull());
+  });
+});
+
+/**
+ * Draf saat sesi berakhir di tengah pengisian (23 November 2026).
+ *
+ * Sebelumnya 401 pada pengiriman hanya menampilkan galat, dan isian tertahan di
+ * memori halaman. Begitu pelapor masuk ulang lewat SSO, halamannya berpindah
+ * dan isian itu hilang.
+ *
+ * Berbeda dari draf PDP, perjalanan ini MELEWATI keluar-masuk akun. Di
+ * komputer bersama orang lain dapat masuk di tab yang sama, jadi draf ini
+ * diikat ke id akun dari `GET /auth/me` dan hanya dituangkan untuk akun yang
+ * sama. Draf tanpa pemilik yang pasti tidak disimpan sama sekali.
+ */
+describe('CreateComplaintForm — draf saat sesi berakhir (401)', () => {
+  const KUNCI = 'skema:draf-pengaduan';
+  const draf = () => JSON.parse(sessionStorage.getItem(KUNCI) ?? 'null');
+  const akunAdalah = (id) =>
+    server.use(http.get(`${API_BASE}/auth/me`, () => ok(userFixture({ id }), '/auth/me')));
+  const sesiBerakhir = () =>
+    server.use(
+      http.post(`${API_BASE}/complaints`, () =>
+        failWithCode(401, 'Autentikasi diperlukan', 'UNAUTHORIZED'),
+      ),
+    );
+
+  const isiDanKirim = async () => {
+    render(<CreateComplaintForm />);
+    await screen.findByText('Pilih Kategori');
+
+    await pilihTanpaTujuan();
+    fireEvent.click(kategoriDropdown());
+    fireEvent.click(await screen.findByText('Lainnya'));
+    fireEvent.change(screen.getByLabelText(/judul laporan/i), {
+      target: { value: 'Lampu jalan mati' },
+    });
+    fireEvent.change(screen.getByLabelText(/uraian/i), {
+      target: { value: 'Sudah tiga malam lampu di depan balai desa tidak menyala.' },
+    });
+    isiKejadian();
+    fireEvent.click(screen.getByRole('button', { name: /kirim/i }));
+  };
+
+  const ISI_DRAF = {
+    level: 'kabupaten',
+    department: '',
+    category: 'kab_lainnya',
+    title: 'Lampu jalan mati',
+    description: 'Sudah tiga malam lampu di depan balai desa tidak menyala.',
+    incidentDate: '2026-11-01',
+    incidentLocation: 'Balai Desa Bangunsari',
+    isAnonim: false,
+  };
+
+  it('401 menyimpan isian beserta id akun pemiliknya', async () => {
+    akunAdalah(10);
+    sesiBerakhir();
+
+    await isiDanKirim();
+
+    await waitFor(() => expect(draf()).not.toBeNull());
+    expect(draf().title).toBe('Lampu jalan mati');
+    expect(draf().pemilik).toBe(10);
+  });
+
+  it('401 menyebut sesi berakhir dan cara melanjutkannya', async () => {
+    akunAdalah(10);
+    sesiBerakhir();
+
+    await isiDanKirim();
+
+    expect(await screen.findByText(/sesi anda sudah berakhir/i)).toBeInTheDocument();
+    expect(screen.getByText(/masuk kembali/i)).toBeInTheDocument();
+  });
+
+  /**
+   * Tanpa id akun yang pasti, draf tak dapat diikat ke siapa pun. Menyimpannya
+   * berarti menuangkannya ke akun mana pun yang masuk berikutnya.
+   */
+  it('401 TIDAK menyimpan draf bila akun pemiliknya tak diketahui', async () => {
+    server.use(
+      http.get(`${API_BASE}/auth/me`, () =>
+        failWithCode(500, 'Terjadi kesalahan pada server.', 'INTERNAL_SERVER_ERROR'),
+      ),
+    );
+    sesiBerakhir();
+
+    await isiDanKirim();
+
+    await screen.findByText(/sesi anda sudah berakhir/i);
+    expect(draf()).toBeNull();
+  });
+
+  it('draf milik akun yang sama dipulihkan sesudah masuk kembali', async () => {
+    sessionStorage.setItem(KUNCI, JSON.stringify({ ...ISI_DRAF, pemilik: 10 }));
+    akunAdalah(10);
+
+    render(<CreateComplaintForm />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('Lampu jalan mati'),
+    );
+    expect(screen.getByText(/perlu dipilih ulang/i)).toBeInTheDocument();
+    expect(sessionStorage.getItem(KUNCI)).toBeNull();
+  });
+
+  it('draf milik akun LAIN dibuang tanpa ditampilkan', async () => {
+    sessionStorage.setItem(KUNCI, JSON.stringify({ ...ISI_DRAF, pemilik: 10 }));
+    akunAdalah(11);
+
+    render(<CreateComplaintForm />);
+
+    await waitFor(() => expect(sessionStorage.getItem(KUNCI)).toBeNull());
+    expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
+    expect(screen.queryByText(/perlu dipilih ulang/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Pelapor yang belum masuk lagi harus tetap menemukan drafnya sesudah masuk.
+   * Membuangnya di sini berarti draf hilang hanya karena formulir sempat
+   * dibuka sebelum login.
+   */
+  it('tanpa sesi, draf berpemilik dibiarkan dan tidak dituangkan', async () => {
+    isAuthenticated.mockReturnValue(false);
+    sessionStorage.setItem(KUNCI, JSON.stringify({ ...ISI_DRAF, pemilik: 10 }));
+
+    render(<CreateComplaintForm />);
+    await act(() => new Promise((r) => setTimeout(r, 100)));
+
+    expect(screen.getByLabelText(/judul laporan/i)).toHaveValue('');
+    expect(draf()?.pemilik).toBe(10);
   });
 });
 

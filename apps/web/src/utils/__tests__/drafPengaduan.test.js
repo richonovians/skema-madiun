@@ -95,4 +95,35 @@ describe('drafPengaduan', () => {
 
     Object.defineProperty(window, 'sessionStorage', asli);
   });
+
+  /**
+   * Draf karena sesi berakhir (23 November 2026). Berbeda dari draf PDP, draf
+   * ini menyeberangi keluar-masuk akun, jadi di komputer bersama orang lain
+   * bisa masuk di tab yang sama. Draf itu karena itu membawa id pemiliknya,
+   * dan formulir hanya menuangkannya untuk akun yang sama.
+   */
+  describe('pemilik draf', () => {
+    it('pemilik yang disebut saat menyimpan ikut kembali saat diambil', () => {
+      simpanDrafPengaduan(ISI, { pemilik: 10 });
+
+      expect(ambilDrafPengaduan()).toEqual({ ...ISI, pemilik: 10 });
+    });
+
+    it('tanpa pemilik, draf tidak membawa medan pemilik sama sekali', () => {
+      simpanDrafPengaduan(ISI);
+
+      expect(ambilDrafPengaduan()).not.toHaveProperty('pemilik');
+    });
+
+    /**
+     * Pemilik hanya boleh datang dari pemanggil yang mengetahuinya, bukan dari
+     * isi formulir. Kalau tidak, medan yang kebetulan bernama `pemilik` di
+     * formData dapat menyamar sebagai akun lain.
+     */
+    it('medan pemilik di dalam isi formulir diabaikan', () => {
+      simpanDrafPengaduan({ ...ISI, pemilik: 99 });
+
+      expect(ambilDrafPengaduan()).not.toHaveProperty('pemilik');
+    });
+  });
 });

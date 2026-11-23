@@ -15,7 +15,8 @@ import { useSesiAktif } from '@/features/authentication/hooks/useSesiAktif';
 import ConsentRequiredAction, {
   KODE_PERSETUJUAN_DIBUTUHKAN,
 } from '@/features/authentication/components/ConsentRequiredAction';
-import { kodeGalat } from '@/services/api';
+import { isUnauthorizedError, kodeGalat } from '@/services/api';
+import { getMyProfile } from '@/features/profile/services/profile.api';
 import {
   ambilDrafPengaduan,
   hapusDrafPengaduan,
@@ -91,6 +92,16 @@ export default function CreateComplaintForm() {
   // yang sudah masuk. Alasan lengkapnya di hooks/useSesiAktif.js.
   const adaSesi = useSesiAktif();
 
+  // Id akun yang sedang mengisi (23 November 2026). Dipakai untuk mengikat
+  // draf yang disimpan saat sesi berakhir, dan untuk memastikan draf semacam
+  // itu hanya dituangkan kembali bagi akun yang sama. Diambil selagi sesi
+  // masih hidup, sebab sesudah 401 `GET /auth/me` pun ditolak.
+  const fetchAkun = useCallback(
+    () => (adaSesi ? getMyProfile() : Promise.resolve(null)),
+    [adaSesi],
+  );
+  const { data: akun, isLoading: memuatAkun } = useAsync(fetchAkun);
+
   const [formData, setFormData] = useState({
     level: TINGKAT_BAKU,
     department: '',
@@ -142,10 +153,23 @@ export default function CreateComplaintForm() {
   // Dibuang begitu dipulihkan. Draf yang bertahan sesudah dituangkan akan
   // muncul lagi pada pengaduan BERIKUTNYA, mengisi formulir kosong dengan
   // kalimat yang sudah lama terkirim.
+  //
+  // Draf BERPEMILIK (sesi berakhir, 23 November 2026) menunggu akun yang
+  // sedang masuk diketahui. Tanpa sesi ia dibiarkan utuh, supaya masih ada
+  // sesudah pelapornya masuk. Untuk akun lain ia dibuang tanpa ditampilkan,
+  // sebab isinya data pribadi milik orang yang berbeda.
   const [drafDipulihkan, setDrafDipulihkan] = useState(false);
   useEffect(() => {
-    const draf = ambilDrafPengaduan();
-    if (!draf) return;
+    const tersimpan = ambilDrafPengaduan();
+    if (!tersimpan) return;
+    const { pemilik, ...draf } = tersimpan;
+    if (pemilik != null) {
+      if (!adaSesi || memuatAkun || !akun) return;
+      if (akun.id !== pemilik) {
+        hapusDrafPengaduan();
+        return;
+      }
+    }
     /* eslint-disable react-hooks/set-state-in-effect --
        `set-state-in-effect` menyarankan menurunkan nilainya saat render, dan
        itu memang benar untuk keadaan yang dapat DIHITUNG dari props/state.
@@ -160,7 +184,10 @@ export default function CreateComplaintForm() {
     setDrafDipulihkan(true);
     /* eslint-enable react-hooks/set-state-in-effect */
     hapusDrafPengaduan();
-  }, []);
+    // Berjalan ulang begitu sesi atau akun berubah, demi draf berpemilik yang
+    // menunggu keduanya. Draf tanpa pemilik sudah dibuang pada jalan pertama,
+    // jadi tak dituangkan dua kali.
+  }, [adaSesi, akun, memuatAkun]);
 
   // Keduanya menuntut sesi, jadi tanpa sesi tak dipanggil sama sekali (BUG-063):
   // jawabannya pasti 401 dan penampung dropdown sudah menyuruh masuk. `adaSesi`
@@ -382,6 +409,19 @@ export default function CreateComplaintForm() {
       // batas harian (kembali besok).
       if (kode === KODE_PERSETUJUAN_DIBUTUHKAN || kode === KODE_BATAS_HARIAN) {
         simpanDrafPengaduan(formData);
+      }
+      // Keadaan ketiga, sesi berakhir (23 November 2026). Pelapor harus masuk
+      // lagi, dan masuk lewat SSO memindahkan halaman. Drafnya diikat ke id
+      // akun; tanpa id yang pasti ia tidak disimpan, karena draf tanpa pemilik
+      // akan dituangkan ke akun siapa pun yang masuk berikutnya di tab ini.
+      if (isUnauthorizedError(err)) {
+        const tersimpan = akun?.id != null;
+        if (tersimpan) simpanDrafPengaduan(formData, { pemilik: akun.id });
+        setSubmitError(
+          tersimpan
+            ? 'Sesi Anda sudah berakhir. Isian Anda disimpan sementara di tab ini. Masuk kembali, lalu buka lagi formulir pengaduan. Lampiran perlu dipilih ulang.'
+            : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim pengaduan.',
+        );
       }
       setIsSubmitting(false);
     }
