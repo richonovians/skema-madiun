@@ -189,11 +189,11 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
 | [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | **Ditutup** | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
 | [BUG-096](#bug-096) | Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak | Medium | Terkonfirmasi | **Ditutup** | Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
-| [BUG-097](#bug-097) | Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-096 |
-| [BUG-098](#bug-098) | Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-097 |
-| [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-097 |
+| [BUG-097](#bug-097) | Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-096 |
+| [BUG-098](#bug-098) | Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
+| [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
 
-**Rekap** — 99 temuan: **95 ditutup, 1 ditolak, 3 terbuka** (BUG-097, BUG-098, dan BUG-099, ketiganya Low). Ditolak: BUG-091.
+**Rekap** — 99 temuan: **98 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5731,6 +5731,12 @@ Pola zona proses yang sama masih ada di `generateTicketNo` (tanggal pada nomor t
 
 **Status 23 November 2026: Terbuka**
 
+**Penutupan (23 November 2026)**
+
+`9a8e84e` masuk `main` lebih dulu, tanpa PR dan tanpa simpul merge. Cabangnya dibuat dengan `git switch -c fix/batas-harian-wib origin/main`, yang memasang upstream ke `origin/main`, sehingga push pertama dari cabang itu ikut mendorong commit tersebut ke `main` sebagai fast-forward. CI `main` pada `9a8e84e` hijau 3 dari 3 job. Dua commit sesudahnya masuk lewat pR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`), di-push pengguna. Pohon `c5d3d42` identik dengan `fab345e`. CI cabang pada `fab345e` dan CI `main` pada `c5d3d42` sama-sama hijau 3 dari 3 job; E2E web `main` selesai dalam 8,8 menit.
+
+**Status 23 November 2026 (siang): Ditutup**
+
 ---
 
 <a id="bug-098"></a>
@@ -5769,6 +5775,12 @@ Pagar zona itu punya satu batas. Ia tidak dapat menangkap konstruktor `new Date(
 Verifikasi penuh sebelum commit menghasilkan unit api 111 suite / 1.702 uji, e2e api 58 suite / 808 uji, dan uji komponen web 2.258 uji, semuanya lulus. Belum push, belum PR, belum merge.
 
 **Status 23 November 2026: Terbuka**
+
+**Penutupan (23 November 2026)**
+
+PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`), di-push pengguna. Pohon `c5d3d42` identik dengan `fab345e`. CI cabang pada `fab345e` dan CI `main` pada `c5d3d42` sama-sama hijau 3 dari 3 job; E2E web `main` selesai dalam 8,8 menit.
+
+**Status 23 November 2026 (siang): Ditutup**
 
 ---
 
@@ -5822,6 +5834,12 @@ Atas keputusan pengguna, DTO diperketat. `startDate` dan `endDate` kini hanya me
 Tiga uji service di `audit.service.spec.ts` merah di laptop WIB, dengan `gte` `2026-11-23T00:00Z` padahal yang diharapkan `2026-11-22T17:00Z`. Spec DTO baru `list-audit-log-query.dto.spec.ts` merah pada enam uji, yaitu bentuk berjam, 31 Februari, dan 29 Februari tahun biasa untuk kedua medan. Sesudah perbaikan semuanya hijau di zona laptop, UTC, dan America/New_York. Verifikasi penuhnya sama dengan BUG-098. Prettier sempat menolak `audit.service.spec.ts` pada jalan pertama, lalu lulus sesudah dirapikan dan spec audit diulang (48 uji lulus). Belum push, belum PR, belum merge.
 
 **Status 23 November 2026: Terbuka**
+
+**Penutupan (23 November 2026)**
+
+PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`), di-push pengguna. Pohon `c5d3d42` identik dengan `fab345e`. CI cabang pada `fab345e` dan CI `main` pada `c5d3d42` sama-sama hijau 3 dari 3 job; E2E web `main` selesai dalam 8,8 menit. Sejak merge ini `GET /audit-logs` menolak `startDate`/`endDate` berjam dan tanggal yang tak ada di kalender dengan 400.
+
+**Status 23 November 2026 (siang): Ditutup**
 
 ---
 
@@ -9230,3 +9248,4 @@ hanya dibaca, tidak diubah.
 | 7.70 | 23 November 2026 | **BUG-096 ditutup: 96 temuan, 95 ditutup, 1 ditolak, 0 terbuka.** PR #64, merge lokal `main` `73025b0` (`71eabcf` + `2ff2c89`). Hitung dan tulis kini satu transaksi di bawah `pg_try_advisory_xact_lock` per akun, dan kiriman yang kalah kunci ditolak seketika dengan 429 `PENGIRIMAN_SEDANG_DIPROSES`. Uji e2e serentak merah pada kode lama (20 diterima) dan hijau pada kode baru. Uji beban `batas-harian-serentak` mencatat 4 dari 50 diterima, sebelumnya 50 dari 50. CI cabang pada `2ff2c89` hijau 3 dari 3 job. CI pertama sempat merah karena supertest menutup server di tengah gelombang serentak di Linux + Node 22. CI `main` `73025b0` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati); diperiksa sesudah push, menggantikan catatan "CI `main` belum diperiksa" pada hari yang sama. |
 | 7.71 | 23 November 2026 | **BUG-097 dicatat: 97 temuan, 95 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-096. Batas harian pengaduan dihitung sejak tengah malam zona proses (`setHours(0, 0, 0, 0)`), sehingga di server UTC hari barunya dimulai pukul 07.00 WIB. Di laptop berzona Asia/Jakarta cacatnya tak terlihat. Perbaikan `9a8e84e` di `fix/batas-harian-wib` memakai helper `awalHariWib`, dengan uji pagar zona yang merah di zona laptop. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya keputusan pengguna. |
 | 7.72 | 23 November 2026 | **BUG-098 dan BUG-099 dicatat: 99 temuan, 95 ditutup, 1 ditolak, 3 terbuka.** Keduanya temuan sampingan BUG-097. BUG-098 (Low): `generateTicketNo` membaca tanggal dari zona proses, sehingga di server UTC tiket pengaduan 00.00-06.59 WIB bertanggal kemarin. BUG-099 (Low): batas mulai penyaring Log Audit adalah `new Date(startDate)`, yaitu 07.00 WIB di server mana pun, sehingga log 00.00-06.59 WIB pada tanggal mulai tak pernah tampil, termasuk di laptop. Batas akhirnya mengikuti zona proses, dan DTO-nya meloloskan 31 Februari. Perbaikan `86a602f` dan `fab345e` di `fix/batas-harian-wib`, DTO audit kini hanya menerima `YYYY-MM-DD` (keputusan pengguna). Belum push, belum PR, belum merge. Severity usulan penguji; pencatatannya keputusan pengguna. Cabang yang memuat perbaikan BUG-097 sudah di-push, dan CI pada `9a8e84e` hijau 3 dari 3 job. |
+| 7.73 | 23 November 2026 | **BUG-097, BUG-098, dan BUG-099 ditutup: 99 temuan, 98 ditutup, 1 ditolak, 0 terbuka.** PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`). `9a8e84e` (BUG-097) sudah masuk `main` lebih dulu sebagai fast-forward tanpa PR, karena cabangnya dibuat dengan upstream `origin/main`; CI `main` pada commit itu hijau 3 dari 3 job. CI cabang `fab345e` dan CI `main` `c5d3d42` hijau 3 dari 3 job, E2E web `main` 8,8 menit. Batas harian, nomor tiket, dan penyaring Log Audit kini menurut WIB lewat helper `common/waktu/hari-wib.ts`. Tak ada temuan terbuka. |
