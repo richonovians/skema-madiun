@@ -15,6 +15,31 @@ export const BATAS_HARIAN_PENGADUAN_BAKU = 10;
 export const BATAS_HARIAN_TERCAPAI = 'BATAS_HARIAN_PENGADUAN';
 
 /**
+ * Kode penolakan bagi kiriman yang tiba selagi kiriman lain DARI AKUN YANG SAMA
+ * masih diproses (BUG-096, 23 November 2026).
+ *
+ * Ditolak seketika, tidak diantrekan, atas keputusan pengguna: menunggu giliran
+ * berarti setiap permintaan yang menunggu memegang satu koneksi dari pool
+ * Prisma, dan satu akun yang mengirim puluhan permintaan serentak dapat
+ * menghabiskan pool itu bagi seluruh pengguna lain. Bagi warga, yang terkena
+ * hanyalah klik ganda -- dan klik ganda memang tak semestinya menghasilkan dua
+ * pengaduan.
+ */
+export const PENGIRIMAN_SEDANG_DIPROSES = 'PENGIRIMAN_SEDANG_DIPROSES';
+
+/**
+ * Ruang nama kunci advisory pengiriman pengaduan, untuk bentuk dua argumen
+ * `pg_try_advisory_xact_lock(int4, int4)` dengan id pengguna sebagai argumen
+ * kedua (BUG-096). Diturunkan dari huruf "ADUA"; muat dalam int4 bertanda.
+ *
+ * Tak bertabrakan dengan `KUNCI_ADVISORY` cadangan terjadwal: bentuk satu
+ * argumen bigint berbagi ruang kunci dengan bentuk dua argumen sebagai
+ * (32 bit atas, 32 bit bawah), dan 32 bit atas kunci cadangan adalah 0x534b,
+ * bukan angka ini.
+ */
+export const KUNCI_ADVISORY_PENGIRIMAN = 0x41445541;
+
+/**
  * Batas ukuran satu lampiran, dipakai BERSAMA oleh multer (controller) dan
  * pemeriksaan bisnis (service) -- 14 September 2026.
  *

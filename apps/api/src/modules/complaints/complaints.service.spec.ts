@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -10,7 +11,11 @@ import { ComplaintStatus, Prisma, Role, TingkatPengaduan } from '@prisma/client'
 import type { CreateComplaintDto } from './dto/create-complaint.dto';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
-import { BATAS_HARIAN_PENGADUAN_BAKU } from './complaints.constants';
+import {
+  BATAS_HARIAN_PENGADUAN_BAKU,
+  BATAS_HARIAN_TERCAPAI,
+  PENGIRIMAN_SEDANG_DIPROSES,
+} from './complaints.constants';
 import type { AuditService } from '../audit/audit.service';
 import type { ConsentService } from '../auth/consent.service';
 import type { NotificationsService } from '../notifications/notifications.service';
@@ -124,6 +129,7 @@ describe('ComplaintsService', () => {
     complaintReply: { create: jest.fn(), findMany: jest.fn() },
     complaintStatusHistory: { create: jest.fn() },
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   } as unknown as PrismaService;
   /**
    * Dijawab PER KUNCI, bukan satu nilai untuk semua (14 September 2026).
@@ -209,6 +215,83 @@ describe('ComplaintsService', () => {
     // false -- SETIAP uji `create` di bawah lalu gagal dengan 429, bukan dengan
     // galat yang sedang diujinya.
     (prisma.complaint.count as jest.Mock).mockResolvedValue(0);
+    // Pembuatan pengaduan berjalan di dalam transaksi interaktif yang memegang
+    // kunci advisory per akun (BUG-096). Tiruannya menjalankan panggilan balik
+    // itu dengan tiruan Prisma yang sama sebagai `tx`, dan kuncinya selalu
+    // didapat kecuali uji yang bersangkutan menyatakan lain. Bentuk larik tetap
+    // dilayani untuk `findAll`, yang menimpanya per uji.
+    (prisma.$transaction as jest.Mock).mockImplementation(async (arg: unknown) =>
+      typeof arg === 'function' ? (arg as (tx: unknown) => unknown)(prisma) : arg,
+    );
+    (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ dapat: true }]);
+  });
+
+  /**
+   * BUG-096 (19 November 2026): batas harian dihitung lalu ditulis tanpa kunci,
+   * sehingga kiriman serentak dari satu akun semuanya lolos. Perilaku balapannya
+   * sendiri dibuktikan e2e (`pengaduan-batas-harian.e2e-spec.ts`); di sini yang
+   * diuji adalah keputusan service atas hasil kunci dan hitungan ulangnya.
+   */
+  describe('create -- batas harian di bawah kunci per akun (BUG-096)', () => {
+    const kodeGalat = async (janji: Promise<unknown>) => {
+      const galat = await janji.then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(galat).toBeInstanceOf(HttpException);
+      const h = galat as HttpException;
+      return { status: h.getStatus(), code: (h.getResponse() as { code?: string }).code };
+    };
+
+    it('kunci akun sedang dipegang kiriman lain -> 429 PENGIRIMAN_SEDANG_DIPROSES, tak menulis', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
+      (prisma.$queryRaw as jest.Mock).mockResolvedValue([{ dapat: false }]);
+
+      expect(await kodeGalat(service.create(dtoPengaduan(), undefined, respondenUser()))).toEqual({
+        status: 429,
+        code: PENGIRIMAN_SEDANG_DIPROSES,
+      });
+      expect(prisma.complaint.create).not.toHaveBeenCalled();
+    });
+
+    it('hitungan ULANG di dalam kunci sudah mencapai batas -> 429 BATAS_HARIAN, tak menulis', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
+      // Saringan cepat di luar kunci masih melihat ruang; kiriman lain mengisi
+      // slot terakhir sebelum kunci ini didapat.
+      (prisma.complaint.count as jest.Mock)
+        .mockResolvedValueOnce(BATAS_HARIAN_PENGADUAN_BAKU - 1)
+        .mockResolvedValueOnce(BATAS_HARIAN_PENGADUAN_BAKU);
+
+      expect(await kodeGalat(service.create(dtoPengaduan(), undefined, respondenUser()))).toEqual({
+        status: 429,
+        code: BATAS_HARIAN_TERCAPAI,
+      });
+      expect(prisma.complaint.create).not.toHaveBeenCalled();
+    });
+
+    it('kunci diambil per akun: id pengguna ikut dalam kueri kuncinya', async () => {
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
+      (prisma.complaint.create as jest.Mock).mockResolvedValue(complaintRow());
+
+      await service.create(dtoPengaduan(), undefined, respondenUser());
+
+      const [potongan, ...nilai] = (prisma.$queryRaw as jest.Mock).mock.calls[0];
+      expect((potongan as string[]).join('?')).toMatch(/pg_try_advisory_xact_lock/);
+      expect(nilai).toContain(respondenUser().userId);
+    });
+
+    it('tabrakan nomor tiket (P2002) -> percobaan berikutnya TRANSAKSI BARU', async () => {
+      // P2002 di dalam transaksi interaktif membatalkan seluruh transaksinya di
+      // Postgres; mencoba ulang di dalam transaksi yang sama selalu gagal.
+      (prisma.opd.findUnique as jest.Mock).mockResolvedValue({ id: 5, nama: 'Dinas Kesehatan' });
+      (prisma.complaint.create as jest.Mock)
+        .mockRejectedValueOnce(p2002())
+        .mockResolvedValueOnce(complaintRow());
+
+      await service.create(dtoPengaduan(), undefined, respondenUser());
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('create', () => {
