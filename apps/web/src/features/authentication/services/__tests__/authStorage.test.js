@@ -1,4 +1,12 @@
-import { clearSession, isAuthenticated, saveSession, saveSsoSession } from '../authStorage';
+import {
+  clearSession,
+  isAuthenticated,
+  MASA_SESI_BERUBAH_EVENT,
+  perbaruiMasaBerlakuSesi,
+  saveSession,
+  saveSsoSession,
+  waktuBerakhirSesiMs,
+} from '../authStorage';
 
 /**
  * SESI HANTU (laporan pengguna 8 September 2026).
@@ -161,5 +169,63 @@ describe('penanda persetujuan tidak mendahului pilihan peran', () => {
     saveSsoSession('kabupaten', detikDepan(), false);
 
     expect(localStorage.getItem('consent')).toBe('1');
+  });
+});
+
+/**
+ * Waktu berakhir sesi untuk peringatan sebelum sesi habis (23 November 2026).
+ *
+ * Dibaca dari sumber yang sudah dimiliki frontend: `exp` token pada jalur
+ * dev-login, `sso_expires_at` pada jalur SSO. Pembacaannya tidak boleh
+ * membersihkan apa pun, sebab ia dipanggil berulang oleh hook yang berlangganan.
+ */
+describe('waktuBerakhirSesiMs', () => {
+  const tokenBerexp = (exp) =>
+    `${b64urlPenanda({ alg: 'HS256', typ: 'JWT' })}.${b64urlPenanda({ sub: '21', exp })}.uji`;
+
+  it('jalur dev-login: exp token dalam milidetik', () => {
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    localStorage.setItem('token', tokenBerexp(exp));
+    expect(waktuBerakhirSesiMs()).toBe(exp * 1000);
+  });
+
+  it('jalur SSO: sso_expires_at dalam milidetik', () => {
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    localStorage.setItem('sso_expires_at', String(exp));
+    expect(waktuBerakhirSesiMs()).toBe(exp * 1000);
+  });
+
+  it('null tanpa sesi', () => {
+    expect(waktuBerakhirSesiMs()).toBeNull();
+  });
+
+  it('null untuk token cacat, tanpa membersihkan sesi', () => {
+    localStorage.setItem('token', 'bukan-jwt');
+    expect(waktuBerakhirSesiMs()).toBeNull();
+    expect(localStorage.getItem('token')).toBe('bukan-jwt');
+    expect(panggilanLogout()).toHaveLength(0);
+  });
+});
+
+describe('perbaruiMasaBerlakuSesi memberi kabar', () => {
+  it('menembakkan MASA_SESI_BERUBAH_EVENT sesudah nilainya ditulis', () => {
+    localStorage.setItem('sso_expires_at', String(Math.floor(Date.now() / 1000) + 60));
+    const baru = Math.floor(Date.now() / 1000) + 3600;
+    let terbaca = null;
+    const dengar = () => {
+      terbaca = localStorage.getItem('sso_expires_at');
+    };
+    window.addEventListener(MASA_SESI_BERUBAH_EVENT, dengar);
+    perbaruiMasaBerlakuSesi(baru);
+    window.removeEventListener(MASA_SESI_BERUBAH_EVENT, dengar);
+    expect(terbaca).toBe(String(baru));
+  });
+
+  it('tidak menembakkannya bila tak ada sesi SSO', () => {
+    const dengar = jest.fn();
+    window.addEventListener(MASA_SESI_BERUBAH_EVENT, dengar);
+    perbaruiMasaBerlakuSesi(Math.floor(Date.now() / 1000) + 3600);
+    window.removeEventListener(MASA_SESI_BERUBAH_EVENT, dengar);
+    expect(dengar).not.toHaveBeenCalled();
   });
 });

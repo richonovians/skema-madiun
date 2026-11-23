@@ -1,6 +1,7 @@
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { ALAMAT_SITUS } from "@/constants/situs";
+import PeringatanSesiBerakhir from "@/features/authentication/components/PeringatanSesiBerakhir";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -37,6 +38,10 @@ export default function RootLayout({ children }) {
     <html lang="id" className={`${poppins.variable} ${poppins.className} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-poppins bg-background text-text-primary">
         {children}
+        {/* Satu untuk seluruh area (23 November 2026): warga, Admin OPD, dan
+            Admin Kabupaten sama-sama dapat kehilangan pekerjaan saat sesinya
+            habis. Tak merender apa pun selama sesinya jauh dari berakhir. */}
+        <PeringatanSesiBerakhir />
       </body>
     </html>
   );
