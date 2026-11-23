@@ -189,8 +189,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
 | [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | **Ditutup** | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
 | [BUG-096](#bug-096) | Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak | Medium | Terkonfirmasi | **Ditutup** | Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
+| [BUG-097](#bug-097) | Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-096 |
 
-**Rekap** — 96 temuan: **95 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 97 temuan: **95 ditutup, 1 ditolak, 1 terbuka** (BUG-097, Low). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5678,6 +5679,58 @@ Di luar lingkup dan belum disentuh: batas hari dihitung dengan `setHours(0,0,0,0
 
 ---
 
+<a id="bug-097"></a>
+
+### BUG-097 — Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Temuan sampingan saat merancang perbaikan BUG-096, sengaja di luar lingkup PR #64 |
+| **Tanggal**  | 23 November 2026 |
+| **Lingkungan** | `main` `73025b0`, Windows 11 berzona Asia/Jakarta, Node 25.2.1, Jest 29 |
+| **Berkas**   | [complaints.service.ts:777](../apps/api/src/modules/complaints/complaints.service.ts#L777) (`assertBelumMelewatiBatasHarian`), dipanggil di [:230](../apps/api/src/modules/complaints/complaints.service.ts#L230) dan di dalam transaksi berkunci [:866](../apps/api/src/modules/complaints/complaints.service.ts#L866) |
+| **Severity** | Low (usulan penguji). Hanya terjadi bila zona waktu proses server bukan WIB, dan hanya mengenai akun yang sudah mencapai 10 pengaduan sehari. Tidak ada data yang bocor atau rusak |
+
+**Gejala**
+
+Batas 10 pengaduan per akun per hari dihitung sejak tengah malam menurut jam server, bukan menurut WIB. Di server yang berjalan dalam UTC, hari baru untuk batas itu baru dimulai pukul 07.00 WIB. Pengaduan yang dikirim pukul 00.00 sampai 06.59 WIB terhitung ke hari kemarin, jadi warga yang sudah mengirim sepuluh pengaduan kemarin sore tetap ditolak "Silakan kirim lagi besok" sampai pukul 07.00.
+
+Di laptop pengembang yang berzona Asia/Jakarta cacat ini tidak terlihat sama sekali, karena tengah malam server kebetulan sama dengan tengah malam WIB.
+
+**Akar masalah**
+
+Awal hari dihitung dengan `new Date()` lalu `setHours(0, 0, 0, 0)`. Metode itu memakai zona waktu proses. Docblock fungsinya pun menulis "Batas HARI KALENDER menurut waktu server". Pola WIB yang benar sudah ada di repo, misalnya `tanggal-kejadian.util.ts` yang memaku selisih +7 jam, tetapi tidak dipakai di sini.
+
+**Pembuktian**
+
+Instan `2026-11-22T23:59:00Z` adalah pukul 06.59 WIB tanggal 23 November. Awal hari yang benar adalah `2026-11-22T17:00:00Z`.
+
+| Zona proses | Hasil `setHours(0, 0, 0, 0)` | Benar? |
+| --- | --- | --- |
+| Asia/Jakarta (laptop) | `2026-11-22T17:00:00Z` | ya |
+| UTC | `2026-11-22T00:00:00Z` | tidak, mundur 17 jam ke hari WIB sebelumnya |
+
+Dua hal tentang cara mengujinya terukur di Jest 29 Windows. Mengubah `process.env.TZ` dari dalam uji diabaikan, dan hasilnya tetap `17:00Z`. `TZ=UTC npx jest` yang disetel sebelum proses mulai berlaku, karena worker mewarisinya.
+
+**Langkah reproduksi**
+
+1. `TZ=UTC node -e "const d=new Date('2026-11-22T23:59:00Z'); d.setHours(0,0,0,0); console.log(d.toISOString())"`
+2. Hasilnya `2026-11-22T00:00:00.000Z`, padahal awal hari WIB untuk instan itu `2026-11-22T17:00:00.000Z`.
+
+**Perbaikan (23 November 2026)**
+
+Commit `9a8e84e` di cabang `fix/batas-harian-wib` (dari `origin/main` `73025b0`). Helper baru `awalHariWib(sekarang)` di `apps/api/src/common/waktu/hari-wib.ts` memaku selisih +7 jam dan hanya memakai metode `getUTC*`. `assertBelumMelewatiBatasHarian` menerima `sekarang` sebagai parameter ketiga, sedangkan `db` tetap di urutan kedua sehingga pemanggilan di transaksi berkunci BUG-096 tidak berubah.
+
+Pagarnya ada dua. Uji pagar zona di `hari-wib.spec.ts` menuntut tak satu pun metode `Date` berwaktu lokal terpanggil, dan uji itu merah terhadap salinan logika lama di zona laptop. Ketiga uji nilai (23.59, 00.00, dan 06.59 WIB) merah di bawah `TZ=UTC`. Dua uji service di `complaints.service.spec.ts` menyuntikkan `sekarang` dan memeriksa `gte` pada `complaint.count`. Versi pertamanya memakai tanggal 23 November 2026 dan lulus palsu terhadap kode lama, sebab hari itu juga hari uji ditulis. Setelah diganti tanggal Maret, uji itu merah. Sesudah perbaikan semuanya hijau di zona laptop, UTC, dan America/New_York.
+
+Verifikasi penuh sebelum commit menghasilkan unit api 110 suite / 1.683 uji, e2e api 58 suite / 808 uji (termasuk `pengaduan-batas-harian.e2e-spec.ts`), dan uji komponen web 2.258 uji, semuanya lulus. Belum push, belum PR, belum merge.
+
+Pola zona proses yang sama masih ada di `generateTicketNo` (tanggal pada nomor tiket) dan penyaring tanggal `audit.service.ts`. Keduanya sedang ditelaah terpisah.
+
+**Status 23 November 2026: Terbuka**
+
+---
+
 ## 4. Ringkasan sesi eksploratori
 
 ### Sesi C-01 — Survei kustom bertipe teks & pilihan ganda
@@ -9081,3 +9134,4 @@ hanya dibaca, tidak diubah.
 | 7.68 | 19 November 2026 | **BUG-095 ditutup: 95 temuan, 94 ditutup, 1 ditolak, 0 terbuka.** PR #62, merge `main` `018b3ba` (`99e8ed5`). CI cabang dan CI `main` `018b3ba` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati), sama dengan CI `main` `0401009`. Upstream nginx dev kini memakai keepalive, batas sambung 1 detik, dan peer yang sama tiga kali. Bukti kegoyahan lokal masih satu jalan Playwright penuh (176 lulus, 0 goyah, 13,4 menit). Tak ada temuan terbuka. |
 | 7.69 | 19 November 2026 | **BUG-096 dicatat: 96 temuan, 94 ditutup, 1 ditolak, 1 terbuka.** Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) pada `main` `d7ea442`, pelari `test/beban-jalur-tulis` `76014c2`. 50 pengaduan serentak dari satu akun diterima semuanya padahal batas hariannya 10, pada tiga jalan, dengan puncak 50 permintaan terbang bersamaan. Kiriman beruntun pada server yang sama menerima tepat 10, jadi alat ukurnya benar. Sebabnya hitung lalu tulis tanpa kunci di `assertBelumMelewatiBatasHarian`. Medium, keputusan pengguna. Perbaikan belum dirancang. |
 | 7.70 | 23 November 2026 | **BUG-096 ditutup: 96 temuan, 95 ditutup, 1 ditolak, 0 terbuka.** PR #64, merge lokal `main` `73025b0` (`71eabcf` + `2ff2c89`). Hitung dan tulis kini satu transaksi di bawah `pg_try_advisory_xact_lock` per akun, dan kiriman yang kalah kunci ditolak seketika dengan 429 `PENGIRIMAN_SEDANG_DIPROSES`. Uji e2e serentak merah pada kode lama (20 diterima) dan hijau pada kode baru. Uji beban `batas-harian-serentak` mencatat 4 dari 50 diterima, sebelumnya 50 dari 50. CI cabang pada `2ff2c89` hijau 3 dari 3 job. CI pertama sempat merah karena supertest menutup server di tengah gelombang serentak di Linux + Node 22. CI `main` `73025b0` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati); diperiksa sesudah push, menggantikan catatan "CI `main` belum diperiksa" pada hari yang sama. |
+| 7.71 | 23 November 2026 | **BUG-097 dicatat: 97 temuan, 95 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-096. Batas harian pengaduan dihitung sejak tengah malam zona proses (`setHours(0, 0, 0, 0)`), sehingga di server UTC hari barunya dimulai pukul 07.00 WIB. Di laptop berzona Asia/Jakarta cacatnya tak terlihat. Perbaikan `9a8e84e` di `fix/batas-harian-wib` memakai helper `awalHariWib`, dengan uji pagar zona yang merah di zona laptop. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya keputusan pengguna. |
