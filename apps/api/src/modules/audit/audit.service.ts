@@ -7,6 +7,7 @@ import { lolosPolaLike } from '../../prisma/pola-like';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ListAuditLogQueryDto } from './dto/list-audit-log-query.dto';
 import { AuditLogEntity } from './entities/audit-log.entity';
+import { awalTanggalWib } from '../../common/waktu/hari-wib';
 
 type AuditLogRow = {
   id: number;
@@ -110,15 +111,17 @@ export class AuditService {
         { entitas: { contains: q, mode: 'insensitive' } },
       ];
     }
+    // Tanggal penyaring adalah hari WIB (23 November 2026). Sebelumnya batas
+    // mulainya `new Date(startDate)`, tengah malam UTC = 07.00 WIB, di server
+    // mana pun; batas akhirnya `setHours(23, 59, 59, 999)` mengikuti zona proses.
+    // Batas akhir kini `lt` awal hari WIB berikutnya, bukan `lte` 23.59.59,999.
     if (startDate || endDate) {
       where.timestamp = {};
       if (startDate) {
-        where.timestamp.gte = new Date(startDate);
+        where.timestamp.gte = awalHariDariTeks(startDate, 0);
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        where.timestamp.lte = end;
+        where.timestamp.lt = awalHariDariTeks(endDate, 1);
       }
     }
 
@@ -165,4 +168,15 @@ export class AuditService {
       timestamp: row.timestamp,
     });
   }
+}
+
+/**
+ * Awal hari WIB dari teks `YYYY-MM-DD`, digeser `tambahHari` hari.
+ * Bentuk dan keabsahan kalendernya sudah dijamin `ListAuditLogQueryDto`;
+ * `Date.UTC` menggulung tanggal 32 menjadi tanggal 1 bulan berikutnya, jadi
+ * `tambahHari` aman melewati akhir bulan dan akhir tahun.
+ */
+function awalHariDariTeks(teks: string, tambahHari: number): Date {
+  const [tahun, bulan, tanggal] = teks.split('-').map(Number);
+  return awalTanggalWib(tahun, bulan, tanggal + tambahHari);
 }

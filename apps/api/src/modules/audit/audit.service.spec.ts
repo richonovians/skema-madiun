@@ -136,6 +136,41 @@ describe('AuditService', () => {
         expect.objectContaining({ where: { entitas: 'survey', actorId: 5 } }),
       );
     });
+
+    /**
+     * Penyaring tanggal adalah hari WIB (23 November 2026). Sebelumnya
+     * `new Date('2026-11-23')` -- tengah malam UTC, yaitu 07.00 WIB -- untuk
+     * batas mulai, sehingga log 00.00-06.59 WIB pada tanggal mulai hilang di
+     * server MANA PUN, termasuk laptop berzona WIB. Batas akhirnya
+     * `setHours(23, 59, 59, 999)` yang memakai zona proses: di server UTC log
+     * sampai 06.59 WIB hari berikutnya ikut terbawa.
+     */
+    describe('penyaring tanggal menurut WIB', () => {
+      const timestampDiminta = async (q: { startDate?: string; endDate?: string }) => {
+        (prisma.$transaction as jest.Mock).mockResolvedValue([[], 0]);
+        await service.findAll({ page: 1, limit: 20, ...q }, KABUPATEN);
+        return (prisma.auditLog.findMany as jest.Mock).mock.calls.at(-1)[0].where.timestamp;
+      };
+
+      it('startDate dimulai 00.00 WIB tanggal itu, bukan 07.00 WIB', async () => {
+        expect(await timestampDiminta({ startDate: '2026-11-23' })).toEqual({
+          gte: new Date('2026-11-22T17:00:00.000Z'),
+        });
+      });
+
+      it('endDate berhenti SEBELUM 00.00 WIB hari berikutnya', async () => {
+        expect(await timestampDiminta({ endDate: '2026-11-23' })).toEqual({
+          lt: new Date('2026-11-23T17:00:00.000Z'),
+        });
+      });
+
+      it('rentang satu hari mencakup tepat 24 jam WIB', async () => {
+        expect(await timestampDiminta({ startDate: '2026-12-31', endDate: '2026-12-31' })).toEqual({
+          gte: new Date('2026-12-30T17:00:00.000Z'),
+          lt: new Date('2026-12-31T17:00:00.000Z'),
+        });
+      });
+    });
   });
 
   // LAPIS KEDUA, di bawah `@Roles(Role.kabupaten)` di controller. Ia tetap
