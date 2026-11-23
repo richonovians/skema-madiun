@@ -190,8 +190,10 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | **Ditutup** | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
 | [BUG-096](#bug-096) | Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak | Medium | Terkonfirmasi | **Ditutup** | Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
 | [BUG-097](#bug-097) | Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-096 |
+| [BUG-098](#bug-098) | Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-097 |
+| [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-097 |
 
-**Rekap** — 97 temuan: **95 ditutup, 1 ditolak, 1 terbuka** (BUG-097, Low). Ditolak: BUG-091.
+**Rekap** — 99 temuan: **95 ditutup, 1 ditolak, 3 terbuka** (BUG-097, BUG-098, dan BUG-099, ketiganya Low). Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5723,9 +5725,101 @@ Commit `9a8e84e` di cabang `fix/batas-harian-wib` (dari `origin/main` `73025b0`)
 
 Pagarnya ada dua. Uji pagar zona di `hari-wib.spec.ts` menuntut tak satu pun metode `Date` berwaktu lokal terpanggil, dan uji itu merah terhadap salinan logika lama di zona laptop. Ketiga uji nilai (23.59, 00.00, dan 06.59 WIB) merah di bawah `TZ=UTC`. Dua uji service di `complaints.service.spec.ts` menyuntikkan `sekarang` dan memeriksa `gte` pada `complaint.count`. Versi pertamanya memakai tanggal 23 November 2026 dan lulus palsu terhadap kode lama, sebab hari itu juga hari uji ditulis. Setelah diganti tanggal Maret, uji itu merah. Sesudah perbaikan semuanya hijau di zona laptop, UTC, dan America/New_York.
 
-Verifikasi penuh sebelum commit menghasilkan unit api 110 suite / 1.683 uji, e2e api 58 suite / 808 uji (termasuk `pengaduan-batas-harian.e2e-spec.ts`), dan uji komponen web 2.258 uji, semuanya lulus. Belum push, belum PR, belum merge.
+Verifikasi penuh sebelum commit menghasilkan unit api 110 suite / 1.683 uji, e2e api 58 suite / 808 uji (termasuk `pengaduan-batas-harian.e2e-spec.ts`), dan uji komponen web 2.258 uji, semuanya lulus. Cabangnya sudah di-push pengguna, dan CI pada `9a8e84e` hijau 3 dari 3 job. Belum PR, belum merge.
 
-Pola zona proses yang sama masih ada di `generateTicketNo` (tanggal pada nomor tiket) dan penyaring tanggal `audit.service.ts`. Keduanya sedang ditelaah terpisah.
+Pola zona proses yang sama masih ada di `generateTicketNo` (tanggal pada nomor tiket) dan penyaring tanggal `audit.service.ts`. Keduanya dicatat sebagai [BUG-098](#bug-098) dan [BUG-099](#bug-099), dan perbaikannya masuk cabang yang sama.
+
+**Status 23 November 2026: Terbuka**
+
+---
+
+<a id="bug-098"></a>
+
+### BUG-098 — Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Temuan sampingan BUG-097, saat menyisir pemakaian zona waktu proses di `complaints.service.ts` |
+| **Tanggal**  | 23 November 2026 |
+| **Lingkungan** | `main` `73025b0`, Windows 11 berzona Asia/Jakarta, Node 25.2.1, Jest 29 |
+| **Berkas**   | [complaints.service.ts:833](../apps/api/src/modules/complaints/complaints.service.ts#L833) (`generateTicketNo`) |
+| **Severity** | Low (usulan penguji). Nomor tiket tetap unik dan tetap dapat dipakai melacak pengaduan. Yang salah hanya tanggal yang tertulis di dalamnya, dan hanya bila zona waktu proses server bukan WIB |
+
+**Gejala**
+
+Nomor tiket berbentuk `PGD{YYYYMMDD}{4 acak}`. Di server yang berjalan dalam UTC, pengaduan yang dikirim pukul 00.00 sampai 06.59 WIB mendapat tanggal kemarin di nomor tiketnya, misalnya pengaduan pukul 06.30 WIB tanggal 15 Maret bertiket `PGD20260314...`. Warga dan petugas yang membaca tanggal dari nomor tiket akan mengira pengaduan itu dikirim sehari lebih awal. Di laptop berzona Asia/Jakarta cacat ini tidak terlihat.
+
+**Akar masalah**
+
+Bagian tanggal dibentuk dari `getFullYear()`, `getMonth()`, dan `getDate()`. Ketiga metode itu membaca zona waktu proses, sama seperti `setHours` pada BUG-097.
+
+**Langkah reproduksi**
+
+1. `TZ=UTC node -e "const d=new Date('2026-03-14T23:30:00Z'); console.log(d.getFullYear(), d.getMonth()+1, d.getDate())"`
+2. Hasilnya `2026 3 14`, padahal instan itu pukul 06.30 WIB tanggal 15 Maret.
+
+**Perbaikan (23 November 2026)**
+
+Commit `86a602f` di cabang `fix/batas-harian-wib`. Tanggalnya kini diambil dari `tanggalWib(sekarang)` di `apps/api/src/common/waktu/hari-wib.ts`, yang hanya memakai metode `getUTC*` dengan selisih +7 jam yang dipaku. Bagian acaknya tidak berubah.
+
+Dua uji di `complaints.service.spec.ts` menyuntikkan `sekarang` pada tanggal Maret dan merah terhadap kode lama, yang mengabaikan suntikan itu dan menghasilkan `PGD20261123...` dari jam sungguhan. Uji pagar zona di `hari-wib.spec.ts` kini juga memanggil `tanggalWib`. Terhadap stub berlogika waktu lokal ia merah di zona laptop, dan uji nilainya merah di bawah `TZ=UTC`. Sesudah perbaikan semuanya hijau di zona laptop, UTC, dan America/New_York.
+
+Pagar zona itu punya satu batas. Ia tidak dapat menangkap konstruktor `new Date(tahun, bulan, tanggal)`, karena konstruktor tidak memanggil metode prototipe. Yang menjaga `awalTanggalWib` dari bentuk itu hanya uji nilai di bawah `TZ=UTC`.
+
+Verifikasi penuh sebelum commit menghasilkan unit api 111 suite / 1.702 uji, e2e api 58 suite / 808 uji, dan uji komponen web 2.258 uji, semuanya lulus. Belum push, belum PR, belum merge.
+
+**Status 23 November 2026: Terbuka**
+
+---
+
+<a id="bug-099"></a>
+
+### BUG-099 — Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Temuan sampingan BUG-097, saat menyisir pemakaian `setHours` di `apps/api` |
+| **Tanggal**  | 23 November 2026 |
+| **Lingkungan** | `main` `73025b0`, Windows 11 berzona Asia/Jakarta, Node 25.2.1, Jest 29 |
+| **Berkas**   | [audit.service.ts:113](../apps/api/src/modules/audit/audit.service.ts#L113) (`findAll`, penyaring `startDate`/`endDate`), [list-audit-log-query.dto.ts](../apps/api/src/modules/audit/dto/list-audit-log-query.dto.ts) |
+| **Severity** | Low (usulan penguji). Log tidak hilang dari basis data. Yang salah adalah rentang yang ditampilkan halaman Log Audit Admin Kabupaten, dan log yang terlewat masih dapat dilihat dengan memundurkan tanggal mulai sehari |
+
+**Gejala**
+
+Ada dua gejala dengan sebab yang berbeda.
+
+1. **Batas mulai salah di server mana pun, termasuk laptop berzona WIB.** Menyaring Log Audit dengan tanggal mulai 23 November tidak menampilkan log pukul 00.00 sampai 06.59 WIB tanggal 23 November.
+2. **Batas akhir salah bila server berjalan dalam UTC.** Menyaring dengan tanggal akhir 23 November ikut menampilkan log sampai pukul 06.59 WIB tanggal 24 November.
+
+Selain itu `@IsDateString()` tanpa `strict` meloloskan tanggal yang tidak ada. `startDate=2026-02-31` diterima, lalu `new Date` menggulungnya diam-diam menjadi 3 Maret. Bentuk berjam seperti `2026-11-23T10:00:00Z` juga lolos, padahal deskripsi medannya "YYYY-MM-DD" dan satu-satunya klien, `<input type="date">` di halaman Log Audit, hanya mengirim bentuk itu.
+
+**Akar masalah**
+
+Batas mulai dihitung `new Date(startDate)`. Untuk teks `YYYY-MM-DD`, JavaScript membacanya sebagai tengah malam UTC, yaitu pukul 07.00 WIB, tanpa bergantung pada zona proses. Batas akhir dihitung `new Date(endDate)` lalu `setHours(23, 59, 59, 999)`, dan `setHours` memakai zona proses. Di laptop WIB hasilnya kebetulan benar, `16:59:59.999Z`, sedangkan di server UTC hasilnya `23:59:59.999Z`.
+
+**Pembuktian**
+
+Diukur di Node pada laptop berzona Asia/Jakarta untuk tanggal `2026-11-23`.
+
+| Batas | Kode lama | Seharusnya |
+| --- | --- | --- |
+| mulai (laptop maupun server UTC) | `2026-11-23T00:00:00Z` = 07.00 WIB | `2026-11-22T17:00:00Z` = 00.00 WIB |
+| akhir, laptop WIB | `2026-11-23T16:59:59.999Z` | sebelum `2026-11-23T17:00:00Z` |
+| akhir, `TZ=UTC` | `2026-11-23T23:59:59.999Z` = 06.59 WIB esoknya | sebelum `2026-11-23T17:00:00Z` |
+
+**Langkah reproduksi**
+
+1. Masuk sebagai Admin Kabupaten dan buka Log Audit.
+2. Pilih tanggal mulai yang memuat aktivitas antara pukul 00.00 dan 06.59 WIB.
+3. Aktivitas pada jam itu tidak tampil. Aktivitas yang sama tampil bila tanggal mulai dimundurkan sehari.
+
+**Perbaikan (23 November 2026)**
+
+Commit `fab345e` di cabang `fix/batas-harian-wib`. Batas mulai kini `gte` awal hari WIB tanggal mulai, dan batas akhir `lt` awal hari WIB sesudah tanggal akhir. Keduanya dihitung dengan `awalTanggalWib`. Tanggal akhir tetap inklusif bagi pengguna.
+
+Atas keputusan pengguna, DTO diperketat. `startDate` dan `endDate` kini hanya menerima `YYYY-MM-DD` lewat `@Matches`, dan `@IsDateString({ strict: true })` menolak tanggal yang tidak ada di kalender dengan 400. Uji `sqli-asap.e2e-spec.ts` tetap mendapat 400.
+
+Tiga uji service di `audit.service.spec.ts` merah di laptop WIB, dengan `gte` `2026-11-23T00:00Z` padahal yang diharapkan `2026-11-22T17:00Z`. Spec DTO baru `list-audit-log-query.dto.spec.ts` merah pada enam uji, yaitu bentuk berjam, 31 Februari, dan 29 Februari tahun biasa untuk kedua medan. Sesudah perbaikan semuanya hijau di zona laptop, UTC, dan America/New_York. Verifikasi penuhnya sama dengan BUG-098. Prettier sempat menolak `audit.service.spec.ts` pada jalan pertama, lalu lulus sesudah dirapikan dan spec audit diulang (48 uji lulus). Belum push, belum PR, belum merge.
 
 **Status 23 November 2026: Terbuka**
 
@@ -9135,3 +9229,4 @@ hanya dibaca, tidak diubah.
 | 7.69 | 19 November 2026 | **BUG-096 dicatat: 96 temuan, 94 ditutup, 1 ditolak, 1 terbuka.** Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) pada `main` `d7ea442`, pelari `test/beban-jalur-tulis` `76014c2`. 50 pengaduan serentak dari satu akun diterima semuanya padahal batas hariannya 10, pada tiga jalan, dengan puncak 50 permintaan terbang bersamaan. Kiriman beruntun pada server yang sama menerima tepat 10, jadi alat ukurnya benar. Sebabnya hitung lalu tulis tanpa kunci di `assertBelumMelewatiBatasHarian`. Medium, keputusan pengguna. Perbaikan belum dirancang. |
 | 7.70 | 23 November 2026 | **BUG-096 ditutup: 96 temuan, 95 ditutup, 1 ditolak, 0 terbuka.** PR #64, merge lokal `main` `73025b0` (`71eabcf` + `2ff2c89`). Hitung dan tulis kini satu transaksi di bawah `pg_try_advisory_xact_lock` per akun, dan kiriman yang kalah kunci ditolak seketika dengan 429 `PENGIRIMAN_SEDANG_DIPROSES`. Uji e2e serentak merah pada kode lama (20 diterima) dan hijau pada kode baru. Uji beban `batas-harian-serentak` mencatat 4 dari 50 diterima, sebelumnya 50 dari 50. CI cabang pada `2ff2c89` hijau 3 dari 3 job. CI pertama sempat merah karena supertest menutup server di tengah gelombang serentak di Linux + Node 22. CI `main` `73025b0` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati); diperiksa sesudah push, menggantikan catatan "CI `main` belum diperiksa" pada hari yang sama. |
 | 7.71 | 23 November 2026 | **BUG-097 dicatat: 97 temuan, 95 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-096. Batas harian pengaduan dihitung sejak tengah malam zona proses (`setHours(0, 0, 0, 0)`), sehingga di server UTC hari barunya dimulai pukul 07.00 WIB. Di laptop berzona Asia/Jakarta cacatnya tak terlihat. Perbaikan `9a8e84e` di `fix/batas-harian-wib` memakai helper `awalHariWib`, dengan uji pagar zona yang merah di zona laptop. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya keputusan pengguna. |
+| 7.72 | 23 November 2026 | **BUG-098 dan BUG-099 dicatat: 99 temuan, 95 ditutup, 1 ditolak, 3 terbuka.** Keduanya temuan sampingan BUG-097. BUG-098 (Low): `generateTicketNo` membaca tanggal dari zona proses, sehingga di server UTC tiket pengaduan 00.00-06.59 WIB bertanggal kemarin. BUG-099 (Low): batas mulai penyaring Log Audit adalah `new Date(startDate)`, yaitu 07.00 WIB di server mana pun, sehingga log 00.00-06.59 WIB pada tanggal mulai tak pernah tampil, termasuk di laptop. Batas akhirnya mengikuti zona proses, dan DTO-nya meloloskan 31 Februari. Perbaikan `86a602f` dan `fab345e` di `fix/batas-harian-wib`, DTO audit kini hanya menerima `YYYY-MM-DD` (keputusan pengguna). Belum push, belum PR, belum merge. Severity usulan penguji; pencatatannya keputusan pengguna. Cabang yang memuat perbaikan BUG-097 sudah di-push, dan CI pada `9a8e84e` hijau 3 dari 3 job. |
