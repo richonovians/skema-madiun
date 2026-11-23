@@ -35,13 +35,20 @@ const MEDAN = [
  * setab sudah cukup.
  *
  * DISIMPAN HANYA saat penolakan itu terjadi, bukan pada tiap ketikan.
+ *
+ * `pemilik` (23 November 2026) adalah id akun yang mengetik draf ini, dan
+ * wajib untuk draf karena sesi berakhir. Perjalanan itu melewati keluar-masuk
+ * akun, sehingga di komputer bersama orang lain dapat masuk di tab yang sama;
+ * formulir hanya menuangkan draf berpemilik untuk akun yang sama. Nilainya
+ * datang dari argumen ini saja, tidak pernah dari isi formulir.
  */
-export function simpanDrafPengaduan(formData) {
+export function simpanDrafPengaduan(formData, { pemilik } = {}) {
   try {
     const isi = {};
     for (const medan of MEDAN) {
       if (medan in (formData ?? {})) isi[medan] = formData[medan];
     }
+    if (pemilik != null) isi.pemilik = pemilik;
     sessionStorage.setItem(KUNCI, JSON.stringify(isi));
   } catch {
     // Penyimpanan diblokir (mode privat, kebijakan situs). Draf yang gagal

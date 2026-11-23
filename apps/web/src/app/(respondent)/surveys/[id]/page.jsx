@@ -16,11 +16,12 @@ import EmptyState from '@/components/ui/EmptyState';
 import { useAsync } from '@/hooks/useAsync';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { getSurveyFill } from '@/features/surveys/services/surveys.api';
+import { getMyProfile } from '@/features/profile/services/profile.api';
 
 export default function SurveyWizardPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { isCompleted, initSurvey, resetSurvey, surveyData } = useSurveyStore();
+  const { isCompleted, initSurvey, resetSurvey, surveyData, jawabanDipulihkan } = useSurveyStore();
 
   const fetchFill = useCallback(() => getSurveyFill(id), [id]);
   const { data: fillData, isLoading, error, refetch } = useAsync(fetchFill);
@@ -45,19 +46,31 @@ export default function SurveyWizardPage() {
   // saat modal terbuka bisa kehilangan posisi pertanyaan yang sedang diisinya.
   useBodyScrollLock(showWarning);
 
+  // Id akun pengisi (23 November 2026). Mengikat draf jawaban yang disimpan
+  // bila sesi berakhir saat dikirim, dan memastikan draf itu hanya dituangkan
+  // bagi akun yang sama (lihat utils/drafSurvei.js). Diambil selagi sesi masih
+  // hidup, sebab sesudah 401 `GET /auth/me` pun ditolak.
+  const { data: akun, isLoading: memuatAkun } = useAsync(getMyProfile);
+
   useEffect(() => {
-    if (fillData && !fillData.sudahMengisi && !perluGerbang) {
+    // Menunggu akun diketahui (atau gagal diketahui) lebih dulu. Memulai lebih
+    // awal lalu memulai ulang begitu akunnya tiba akan mengosongkan jawaban
+    // yang mungkin sudah mulai diisi.
+    if (fillData && !fillData.sudahMengisi && !perluGerbang && !memuatAkun) {
       // SATU pilihan saja yang diteruskan dari gerbang (1 Oktober 2026,
       // petang). `nomorHp` tak lagi ada di sini: seluruh data diri -- nama,
       // nomor HP, jenis kelamin -- disalin backend dari akun pengirim, jadi tak
       // satu pun dapat dikarang dari klien.
-      initSurvey(fillData, { tanpaDataDiri: pilihanBersesi?.anonim === true });
+      initSurvey(fillData, {
+        tanpaDataDiri: pilihanBersesi?.anonim === true,
+        pemilik: akun?.id ?? null,
+      });
     }
     return () => {
       resetSurvey();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fillData, perluGerbang]);
+  }, [fillData, perluGerbang, memuatAkun]);
 
   // Handle prevention of leaving page when survey is active.
   //
@@ -158,6 +171,19 @@ export default function SurveyWizardPage() {
       ) : (
         <div className="w-full max-w-[800px] mx-auto">
           <SurveyProgress />
+
+          {/* Pemberitahuan pemulihan (23 November 2026). Responden diantar
+              ke pertanyaan terakhir, jadi tanpa kalimat ini ia akan mengira
+              halamannya melompat sendiri. Warnanya sama dengan pemberitahuan
+              draf di formulir pengaduan. */}
+          {jawabanDipulihkan && (
+            <div
+              role="status"
+              className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm"
+            >
+              Jawaban Anda sebelumnya dipulihkan. Periksa kembali, lalu kirim.
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-5 sm:p-8 md:p-10 border border-outline-variant/20">
             <QuestionCard />

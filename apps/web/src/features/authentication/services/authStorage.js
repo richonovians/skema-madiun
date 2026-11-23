@@ -231,6 +231,41 @@ export function perbaruiMasaBerlakuSesi(epochDetik) {
 
   localStorage.setItem(SSO_EXPIRES_KEY, String(epochDetik));
   selaraskanCookieSesi();
+  // Kabar bagi peringatan sesi berakhir (23 November 2026): perpanjangan yang
+  // menumpang pada panggilan API mana pun harus menutup peringatannya, dan
+  // tanpa kabar ini ia baru tahu ketika dihitung ulang dengan cara lain.
+  window.dispatchEvent(new Event(MASA_SESI_BERUBAH_EVENT));
+}
+
+/**
+ * Event yang ditembakkan setiap kali masa berlaku sesi bergeser
+ * (23 November 2026). Terpisah dari `SESSION_CHANGED_EVENT` karena artinya
+ * berbeda: sesinya tetap sama, hanya waktu berakhirnya yang maju. Menumpang ke
+ * event itu akan membuat navbar menghitung ulang status masuk pada setiap
+ * perpanjangan.
+ */
+export const MASA_SESI_BERUBAH_EVENT = 'skema:masa-sesi-berubah';
+
+/**
+ * Waktu berakhir sesi yang sedang berjalan, dalam milidetik epoch
+ * (23 November 2026, untuk peringatan sebelum sesi berakhir).
+ *
+ * Sumbernya sama dengan `sisaUmurSesi()`: `exp` token pada jalur dev-login,
+ * `sso_expires_at` pada jalur SSO. Berbeda dari `isAuthenticated()`, fungsi ini
+ * HANYA MEMBACA. Ia dipanggil berulang oleh hook yang berlangganan, dan
+ * membersihkan sesi dari sana akan menembakkan event yang memicu pembacaan
+ * berikutnya.
+ *
+ * @returns {number|null} `null` bila tak ada sesi atau nilainya tak masuk akal.
+ */
+export function waktuBerakhirSesiMs() {
+  if (typeof window === 'undefined') return null;
+  const token = localStorage.getItem(TOKEN_KEY);
+  const detik = token
+    ? decodeJwtPayload(token)?.exp
+    : Number(localStorage.getItem(SSO_EXPIRES_KEY));
+  if (typeof detik !== 'number' || !Number.isFinite(detik) || detik <= 0) return null;
+  return detik * 1000;
 }
 
 export function saveConsentFlag(sudahMenyetujui) {
