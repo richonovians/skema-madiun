@@ -84,7 +84,9 @@ const useSurveyStore = create((set, get) => ({
         return;
       }
       const kini = get();
-      if (kini.surveyData !== data || kini.pemilik !== pemilik) return;
+      // `isCompleted`: pengiriman selesai sebelum pembacaan ini kembali, jadi
+      // jawaban pulihan tak punya layar yang menampungnya.
+      if (kini.surveyData !== data || kini.pemilik !== pemilik || kini.isCompleted) return;
 
       // Hanya pertanyaan yang masih ada: admin dapat mengubah kuesioner di antara
       // dua waktu itu, dan backend menolak id pertanyaan yang tak dikenalnya.

@@ -1,5 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import {
+  BATAS_WAKTU_BUKA_MS,
   DUA_JAM_MS,
   akhirHariWibBerikutnya,
   ambilDraf,
@@ -203,5 +204,59 @@ describe('penyimpanan tak tersedia', () => {
 
     expect(await simpanDraf('k', { pemilik: 10, kedaluwarsa: T + 1000, isi: {} })).toBe(false);
     expect(await ambilDraf('k', { sekarang: T })).toBeNull();
+  });
+});
+
+/**
+ * Pembukaan pertama IndexedDB di WebKit dapat menggantung tanpa pernah
+ * memanggil onsuccess maupun onerror. Tanpa batas waktu, logout (yang
+ * menunggu `hapusSemuaDraf`) dan putaran Kirim (yang menunggu simpan draf)
+ * ikut menggantung selamanya.
+ */
+describe('pembukaan yang macet', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('open() yang tak pernah menjawab ditolak setelah batas waktu, tanpa melempar', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick'] });
+    global.indexedDB = { open: () => ({}) };
+    expect(BATAS_WAKTU_BUKA_MS).toBe(2000);
+
+    const simpan = simpanDraf('k', { pemilik: 10, kedaluwarsa: T + 1000, isi: {} });
+    const hapus = hapusSemuaDraf();
+    await jest.advanceTimersByTimeAsync(BATAS_WAKTU_BUKA_MS);
+
+    await expect(simpan).resolves.toBe(false);
+    await expect(hapus).resolves.toBeUndefined();
+  });
+
+  it('onsuccess yang datang sesudah onblocked menutup koneksinya', async () => {
+    const close = jest.fn();
+    const permintaan = {};
+    global.indexedDB = { open: () => permintaan };
+
+    const simpan = simpanDraf('k', { pemilik: 10, kedaluwarsa: T + 1000, isi: {} });
+    permintaan.onblocked();
+    await expect(simpan).resolves.toBe(false);
+    permintaan.result = { close };
+    permintaan.onsuccess();
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('onsuccess yang datang sesudah batas waktu menutup koneksinya', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'nextTick'] });
+    const close = jest.fn();
+    const permintaan = {};
+    global.indexedDB = { open: () => permintaan };
+
+    const simpan = simpanDraf('k', { pemilik: 10, kedaluwarsa: T + 1000, isi: {} });
+    await jest.advanceTimersByTimeAsync(BATAS_WAKTU_BUKA_MS);
+    await expect(simpan).resolves.toBe(false);
+    permintaan.result = { close };
+    permintaan.onsuccess();
+
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });

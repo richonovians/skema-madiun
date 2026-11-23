@@ -4,7 +4,10 @@ import { setupServer } from 'msw/node';
 import { http, delay } from 'msw';
 import { useRouter } from 'next/navigation';
 import { handlers, ok, failWithCode, userFixture } from '@/mocks/handlers';
-import { isAuthenticated } from '@/features/authentication/services/authStorage';
+import {
+  isAuthenticated,
+  SESSION_CHANGED_EVENT,
+} from '@/features/authentication/services/authStorage';
 import { IDBFactory } from 'fake-indexeddb';
 import { ambilDrafPengaduan, simpanDrafPengaduan } from '@/utils/drafPengaduan';
 import CreateComplaintForm from '../CreateComplaintForm';
@@ -1232,6 +1235,34 @@ describe('CreateComplaintForm — draf di peramban', () => {
       ).toBeInTheDocument();
       expect(screen.getByText(/disimpan di peramban ini selama 2 jam/i)).toBeInTheDocument();
       expect((await drafTersimpan()).pemilik).toBe(10);
+    });
+
+    /**
+     * Pemasangan yang menyimpan draf sudah memegang isinya di memori. Sesi yang
+     * hidup lagi (masuk ulang di tab lain) tidak boleh membuatnya membaca drafnya
+     * SENDIRI lalu menambahkan lampiran yang sama sekali lagi.
+     */
+    it('sesi yang hidup lagi tidak menuangkan draf yang baru disimpan pemasangan ini', async () => {
+      akunAdalah(10);
+      tolakDengan(401, 'Autentikasi diperlukan', 'UNAUTHORIZED');
+
+      await isiFormulir({ lampiran: [foto()] });
+      kirim();
+      await drafTersimpan();
+      await screen.findByText(/disimpan di peramban ini/i);
+
+      isAuthenticated.mockReturnValue(false);
+      await act(async () => {
+        window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+      });
+      isAuthenticated.mockReturnValue(true);
+      await act(async () => {
+        window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+      });
+      await act(() => new Promise((r) => setTimeout(r, 100)));
+
+      expect(screen.getAllByText(/bukti\.png/)).toHaveLength(1);
+      expect(screen.queryByText(/sebelumnya dipulihkan/i)).not.toBeInTheDocument();
     });
 
     /** Tanpa id akun yang pasti, draf tak dapat diikat ke siapa pun. */

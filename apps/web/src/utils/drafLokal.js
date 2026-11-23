@@ -52,12 +52,30 @@ export function akhirHariWibBerikutnya(sekarang) {
   return awalHariIniWib + 2 * SEHARI_MS - OFFSET_WIB_MS;
 }
 
+/**
+ * Batas menunggu `indexedDB.open`. Pembukaan pertama di WebKit dapat
+ * menggantung tanpa pernah memanggil onsuccess atau onerror; tanpa batas,
+ * logout dan putaran Kirim yang menunggu penyimpanan ikut menggantung.
+ */
+export const BATAS_WAKTU_BUKA_MS = 2000;
+
 function bukaDb() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined' || indexedDB === null) {
       reject(new Error('IndexedDB tidak tersedia'));
       return;
     }
+    // Janji ini dituntaskan paling banyak sekali. Koneksi yang baru jadi
+    // sesudahnya (onsuccess menyusul onblocked atau batas waktu) tak punya
+    // pemanggil lagi, jadi ditutup di sini supaya tidak menggantung terbuka.
+    let pewaktu;
+    let tuntas = false;
+    const tolak = (galat) => {
+      if (tuntas) return;
+      tuntas = true;
+      clearTimeout(pewaktu);
+      reject(galat);
+    };
     const permintaan = indexedDB.open(NAMA_DB, VERSI_DB);
     permintaan.onupgradeneeded = () => {
       const db = permintaan.result;
@@ -65,9 +83,22 @@ function bukaDb() {
         db.createObjectStore(STORE, { keyPath: 'kunci' });
       }
     };
-    permintaan.onsuccess = () => resolve(permintaan.result);
-    permintaan.onerror = () => reject(permintaan.error);
-    permintaan.onblocked = () => reject(new Error('IndexedDB terblokir'));
+    permintaan.onsuccess = () => {
+      if (tuntas) {
+        permintaan.result?.close();
+        return;
+      }
+      tuntas = true;
+      clearTimeout(pewaktu);
+      resolve(permintaan.result);
+    };
+    permintaan.onerror = () => tolak(permintaan.error);
+    permintaan.onblocked = () => tolak(new Error('IndexedDB terblokir'));
+    // Sesudah open(): bila open() melempar, tak ada pewaktu yang tertinggal.
+    pewaktu = setTimeout(
+      () => tolak(new Error('IndexedDB tidak menjawab')),
+      BATAS_WAKTU_BUKA_MS,
+    );
   });
 }
 

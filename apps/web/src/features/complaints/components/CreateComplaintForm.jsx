@@ -197,7 +197,8 @@ export default function CreateComplaintForm() {
       // Isian teks ditimpa draf, seperti sejak 14 September: jendela sebelum
       // `/auth/me` selesai singkat. Berkas bukti yang sudah dipilih tidak
       // ditimpa, sebab kehilangannya lebih buruk; lampiran pulihan ditambahkan
-      // dan disaring terhadap daftar yang sedang ada (batas jumlah, duplikat).
+      // dan disaring terhadap daftar yang sedang ada (jenis, ukuran, batas
+      // jumlah). Duplikat TIDAK disaring.
       const { diterima, ditolak } = saringBerkas(draf.files, berkasSekarang.current);
       setFormData((prev) => ({ ...prev, ...draf.medan }));
       setFiles((prev) => [...prev, ...diterima]);
@@ -444,7 +445,14 @@ export default function CreateComplaintForm() {
           pemilik: akun?.id,
           keadaan,
         });
-        if (tersimpan) setCatatanDraf(teksDrafTersimpan(keadaan, files.length > 0));
+        if (tersimpan) {
+          setCatatanDraf(teksDrafTersimpan(keadaan, files.length > 0));
+          // Pemasangan ini sudah memegang isinya di memori. Tanpa penanda,
+          // sesi yang hidup lagi (masuk ulang di tab lain) membuat efek
+          // pemulihan membaca draf BUATAN SENDIRI dan menambahkan lampirannya
+          // sekali lagi ke berkas yang sudah ada.
+          drafSudahDituang.current = true;
+        }
         if (keadaan === 'sesi') {
           setSubmitError(
             tersimpan

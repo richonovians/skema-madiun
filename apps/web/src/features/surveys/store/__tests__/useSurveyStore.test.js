@@ -287,6 +287,17 @@ describe('useSurveyStore — draf saat sesi berakhir (401)', () => {
     expect(await ambilDrafSurvei(5)).not.toBeNull();
   });
 
+  it('survei yang selesai dikirim selagi draf dibaca tidak menerima draf itu', async () => {
+    await simpanDrafSurvei(5, { 1: '4' }, 10);
+
+    const janji = useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
+    useSurveyStore.getState().setCompleted();
+    await janji;
+
+    expect(useSurveyStore.getState().answers).toEqual({});
+    expect(useSurveyStore.getState().jawabanDipulihkan).toBe(false);
+  });
+
   it('pengiriman yang berhasil membuang draf survei itu', async () => {
     await useSurveyStore.getState().initSurvey(surveiTiga, { pemilik: 10 });
     await simpanDrafSurvei(5, { 1: '3' }, 10);
