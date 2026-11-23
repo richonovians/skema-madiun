@@ -188,9 +188,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-093](#bug-093) | Setiap penerusan pengaduan tercatat dua kali di log audit | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-086 (TC-AUD-008) |
 | [BUG-094](#bug-094) | Nilai skala yang diubah lewat DOM ikut terkirim, dan penolakannya tampil sebagai "Validation failed" | Low | Terkonfirmasi | **Ditutup** | Uji ulang TC-FE-003 |
 | [BUG-095](#bug-095) | Playwright lokal goyah karena sambungan nginx dev ke host sesekali tertelan penerusan Docker Desktop | Low | Terkonfirmasi | **Ditutup** | Regresi ulang 19 November ([TEST_REGRESI §8.4](TEST_REGRESI.md#84-uji-goyah)) |
-| [BUG-096](#bug-096) | Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak | Medium | Terkonfirmasi | **Terbuka** | Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
+| [BUG-096](#bug-096) | Batas harian 10 pengaduan per akun jebol bila pengaduan dikirim serentak | Medium | Terkonfirmasi | **Ditutup** | Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) |
 
-**Rekap** — 96 temuan: **94 ditutup, 1 ditolak, 1 terbuka** (BUG-096, Medium). Ditolak: BUG-091.
+**Rekap** — 96 temuan: **95 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5653,6 +5653,29 @@ Belum dirancang dan sengaja tidak dikerjakan di sesi pengukuran. Pilihannya perl
 
 **Status 19 November 2026 (malam): Terbuka**
 
+**Perbaikan (23 November 2026)**
+
+Pilihan yang dipakai adalah kunci per pengguna. Penghitung di Redis tidak dipilih. Commit `71eabcf` di cabang `fix/batas-harian-serentak`:
+
+- Hitung ulang dan INSERT kini satu transaksi interaktif yang lebih dulu mengambil `pg_try_advisory_xact_lock(KUNCI_ADVISORY_PENGIRIMAN, userId)`. Kuncinya hanya mengikat akun yang sama.
+- Kiriman yang kalah berebut kunci ditolak seketika dengan 429 berkode `PENGIRIMAN_SEDANG_DIPROSES`, tidak diantrekan (keputusan pengguna). Bila diantrekan, setiap permintaan yang menunggu memegang satu koneksi pool Prisma, sehingga satu akun dapat menghabiskan pool bagi pengguna lain.
+- Pemeriksaan `count` lama di awal `create()` tetap ada sebagai saringan cepat. Akun yang sudah penuh tetap ditolak sebelum lampirannya ditulis ke disk.
+- Penanganan tabrakan nomor tiket pindah ke luar transaksi, satu transaksi per percobaan. P2002 di dalam transaksi interaktif membatalkan transaksinya di Postgres, jadi percobaan ulang di dalamnya selalu gagal.
+
+Pagarnya uji e2e baru di `pengaduan-batas-harian.e2e-spec.ts`. Uji itu mengirim tiga gelombang 20 kiriman serentak, lalu kiriman berurutan sampai ditolak. Pada kode lama ia merah (20 diterima, diharapkan 10), dan pada kode baru hijau. Versi pertama uji itu salah. Ia mengulang gelombang sampai 15 kali, menabrak batas laju 100/menit, lalu membaca `TOO_MANY_REQUESTS` sebagai tanda batas harian tercapai. Kini jumlah permintaannya dijaga di bawah 100, dan `TOO_MANY_REQUESTS` dilarang tersurat. Empat uji unit baru di `complaints.service.spec.ts` memerah lebih dulu sebelum implementasinya ditulis.
+
+Skenario beban `batas-harian-serentak` diulang terhadap `skm_beban`: **4 dari 50 diterima** (sebelumnya 50 dari 50), dengan puncak serentak 50. Angkanya di bawah 10 karena kiriman yang kalah kunci ditolak, bukan diantrekan. Batasnya tetap dapat dicapai penuh lewat kiriman berurutan, dan itu dibuktikan uji e2e di atas.
+
+CI cabang pada `71eabcf` merah di job E2E API dengan `read ECONNRESET` pada uji baru tersebut. Supertest 7 memanggil `listen(0)` pada server yang belum mendengarkan, lalu menutupnya begitu permintaan pemiliknya selesai, dan dalam gelombang serentak pemilik itu sering yang pertama selesai. Di Linux + Node 22 penutupan itu memutus kiriman lain yang masih berjalan. Probe yang meniru logika itu mencatat 17 dari 20 `ECONNRESET` di `node:22-alpine`, dan nol di Windows. Commit `2ff2c89` menyalakan server di `beforeAll` tanpa mengubah kode aplikasi.
+
+**Penutupan (23 November 2026)**
+
+PR #64, merge lokal `main` `73025b0` (`71eabcf` + `2ff2c89`). Isinya sama persis dengan `2ff2c89`. CI cabang pada `2ff2c89` hijau 3 dari 3 job. Verifikasi lokal sebelum PR: unit api 109 suite / 1.676 uji, e2e api 58 suite / 808 uji, dan uji komponen web 2.207 uji, semuanya lulus. CI `main` belum diperiksa karena `73025b0` belum di-push saat status ini diubah.
+
+Di luar lingkup dan belum disentuh: batas hari dihitung dengan `setHours(0,0,0,0)`, yaitu jam server, bukan WIB.
+
+**Status 23 November 2026: Ditutup**
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -9057,3 +9080,4 @@ hanya dibaca, tidak diubah.
 | 7.67 | 19 November 2026 | **BUG-095 dicatat: 95 temuan, 93 ditutup, 1 ditolak, 1 terbuka.** Kegoyahan Playwright lokal pada regresi §8 (6 goyah dan 1 gagal, 23 menit) berakar di penerusan Docker Desktop yang sesekali menelan sambungan TCP baru dari `skm-proxy` ke host, lalu nginx menunggu 60 detik dan menjawab 504. Probe 300 detik pada `0401009` mencatat 30 permintaan lewat nginx lebih dari 3 detik dan 6x 504, sedangkan permintaan langsung tidak pernah gagal. Perbaikan `99e8ed5` di `fix/nginx-dev-sambungan-goyah` (keepalive, batas sambung 1 detik, peer tiga kali) menurunkannya menjadi 0 dan 0. Playwright penuh satu jalan menghasilkan 176 lulus, 0 goyah, 13,4 menit. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya sebagai BUG keputusan pengguna. |
 | 7.68 | 19 November 2026 | **BUG-095 ditutup: 95 temuan, 94 ditutup, 1 ditolak, 0 terbuka.** PR #62, merge `main` `018b3ba` (`99e8ed5`). CI cabang dan CI `main` `018b3ba` hijau 3 dari 3 job (E2E web 175 lulus, 1 dilewati), sama dengan CI `main` `0401009`. Upstream nginx dev kini memakai keepalive, batas sambung 1 detik, dan peer yang sama tiga kali. Bukti kegoyahan lokal masih satu jalan Playwright penuh (176 lulus, 0 goyah, 13,4 menit). Tak ada temuan terbuka. |
 | 7.69 | 19 November 2026 | **BUG-096 dicatat: 96 temuan, 94 ditutup, 1 ditolak, 1 terbuka.** Uji beban jalur tulis ([TEST_BEBAN §16](TEST_BEBAN.md#16-jalur-tulis-19-november-2026)) pada `main` `d7ea442`, pelari `test/beban-jalur-tulis` `76014c2`. 50 pengaduan serentak dari satu akun diterima semuanya padahal batas hariannya 10, pada tiga jalan, dengan puncak 50 permintaan terbang bersamaan. Kiriman beruntun pada server yang sama menerima tepat 10, jadi alat ukurnya benar. Sebabnya hitung lalu tulis tanpa kunci di `assertBelumMelewatiBatasHarian`. Medium, keputusan pengguna. Perbaikan belum dirancang. |
+| 7.70 | 23 November 2026 | **BUG-096 ditutup: 96 temuan, 95 ditutup, 1 ditolak, 0 terbuka.** PR #64, merge lokal `main` `73025b0` (`71eabcf` + `2ff2c89`). Hitung dan tulis kini satu transaksi di bawah `pg_try_advisory_xact_lock` per akun, dan kiriman yang kalah kunci ditolak seketika dengan 429 `PENGIRIMAN_SEDANG_DIPROSES`. Uji e2e serentak merah pada kode lama (20 diterima) dan hijau pada kode baru. Uji beban `batas-harian-serentak` mencatat 4 dari 50 diterima, sebelumnya 50 dari 50. CI cabang pada `2ff2c89` hijau 3 dari 3 job. CI pertama sempat merah karena supertest menutup server di tengah gelombang serentak di Linux + Node 22. CI `main` belum diperiksa. |

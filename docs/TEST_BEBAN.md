@@ -6,7 +6,7 @@
 **Ketersediaan:** diukur 4 November 2026 pada `main` `5cda6fa` — §13.
 **QA-PERF ditutup dengan catatan:** 5 November 2026 — §14.
 **Diukur ulang sesudah PR #17 dan #18:** 9 November 2026 pada `main` `50175c7` — §15. Tak ada kemunduran yang dapat dikaitkan ke kedua PR; pada T1 syarat "< 3 detik" tetap terpenuhi.
-**Jalur tulis:** diukur 19 November 2026 (`main` `d7ea442`, pelari `76014c2`) — §16. Batas harian pengaduan jebol di bawah kiriman serentak ([BUG-096](BUG_REPORTS.md#bug-096)); tak ada tulisan hilang atau berganda.
+**Jalur tulis:** diukur 19 November 2026 (`main` `d7ea442`, pelari `76014c2`) — §16. Batas harian pengaduan jebol di bawah kiriman serentak ([BUG-096](BUG_REPORTS.md#bug-096), ditutup 23 November 2026 lewat PR #64); tak ada tulisan hilang atau berganda.
 **Cabang:** catatan ini hanya ada di `tester`. Kode pelarinya ada di `main`
 (`apps/api/scripts/beban/`, commit `e4f24de`).
 
@@ -1084,7 +1084,8 @@ push), tanpa perubahan kode aplikasi. Dataset T1 (`beban:data -- --survei=744
 
 - **Batas harian pengaduan jebol di bawah kiriman serentak.** 50 dari 50
   pengaduan serentak diterima ketika batasnya 10, pada tiga jalan. Dicatat
-  sebagai [BUG-096](BUG_REPORTS.md#bug-096) (Medium, terbuka).
+  sebagai [BUG-096](BUG_REPORTS.md#bug-096) (Medium). Ditutup 23 November
+  2026 lewat PR #64; pengulangannya di §16.8.
 - **Tidak ada tulisan yang hilang atau berganda** pada keempat skenario.
   Setiap selisih baris sama dengan jumlah jawaban 2xx, dan 1.002 lampiran
   semuanya amplop terenkripsi yang terbuka menjadi PNG asli.
@@ -1231,5 +1232,8 @@ Kedua jalan kecepatan berdurasi itu dibuang dan tidak masuk 16.4.
 - Jalur publik tanpa akun (`POST /survei/:id`), sengaja, karena
   `@BatasPerSurvei` menahannya per survei (§11.3).
 - Beban tulis dan baca bersamaan.
-- Pengulangan sesudah BUG-096 diperbaiki. Skenario `batas-harian-serentak`
-  adalah pagar ukurnya.
+- ~~Pengulangan sesudah BUG-096 diperbaiki.~~ Diukur 23 November 2026 pada
+  cabang perbaikan (`71eabcf`): `batas-harian-serentak` mencatat 4 dari 50
+  diterima, sebelumnya 50 dari 50, dengan puncak serentak 50. Angkanya di
+  bawah 10 karena kiriman yang kalah kunci ditolak seketika, bukan
+  diantrekan.
