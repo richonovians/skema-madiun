@@ -15,7 +15,8 @@ jest.mock('@/features/authentication/services/authStorage', () => ({
 /**
  * Logout yang disengaja menghapus SEMUA draf di peramban (23 November 2026).
  * Inilah jalan keluar warga di komputer bersama, dan teks penyimpanan draf
- * menjanjikannya: "Keluar dari akun akan menghapusnya."
+ * menjanjikannya: "Keluar dari akun akan menghapusnya.", atau saat sesi sudah
+ * berakhir "masuk lalu keluar dari akun".
  */
 beforeEach(() => {
   global.indexedDB = new IDBFactory();

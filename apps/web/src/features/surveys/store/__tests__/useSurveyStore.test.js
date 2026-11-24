@@ -192,6 +192,12 @@ describe('useSurveyStore — draf saat sesi berakhir (401)', () => {
     expect(await ambilDrafSurvei(5)).toEqual({ answers: { 1: '4', 2: 'Cepat' }, pemilik: 10 });
     expect(useSurveyStore.getState().submitError).toMatch(/sesi anda sudah berakhir/i);
     expect(useSurveyStore.getState().submitError).toMatch(/disimpan di peramban ini selama 2 jam/i);
+    // Sesi sudah habis dan menu akun hilang, jadi kalimat penghapusan tidak
+    // boleh menyuruh "keluar" seolah tombolnya ada (24 November 2026).
+    expect(useSurveyStore.getState().submitError).toMatch(
+      /untuk menghapus jawaban itu sekarang, masuk lalu keluar dari akun\./i,
+    );
+    expect(useSurveyStore.getState().submitError).not.toMatch(/keluar dari akun akan menghapusnya/i);
   });
 
   it('401 tanpa pemilik yang diketahui TIDAK menyimpan apa pun', async () => {

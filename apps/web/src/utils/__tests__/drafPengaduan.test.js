@@ -124,7 +124,7 @@ describe('teksDrafTersimpan', () => {
     [
       'sesi',
       true,
-      'Isian dan lampiran Anda disimpan di peramban ini selama 2 jam. Keluar dari akun akan menghapusnya.',
+      'Isian dan lampiran Anda disimpan di peramban ini selama 2 jam. Untuk menghapusnya sekarang, masuk lalu keluar dari akun.',
     ],
     [
       'persetujuan',
