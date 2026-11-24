@@ -561,7 +561,8 @@ baris. `audit_logs` tidak disentuh.
   tetapi belum ada baris TC yang menautkannya, sehingga register tetap 336
   kasus. **Sebagian sudah tertutup pada hari yang sama:** fitur draf kini
   punya TC-FE-053 sampai 060 di `TEST_CASES.md` v4.6 (register 344). Yang
-  belum bertaut tinggal peringatan lima menit sebelum sesi berakhir.
+  belum bertaut tinggal peringatan lima menit sebelum sesi berakhir, dan
+  itu pun tertutup kemudian lewat TC-FE-061 sampai 064 (v4.7, register 348).
 - **Uji peramban manual** untuk draf lintas tab tidak dijalankan di luar
   Playwright.
 - **Batas yang diterima pemilik tugas** tidak diuji sebagai cacat. IndexedDB
