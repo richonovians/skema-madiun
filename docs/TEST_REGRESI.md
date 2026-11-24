@@ -503,3 +503,68 @@ Penyapuan `--tanpa-induk` sesudahnya menemukan 0 notifikasi tanpa induk.
   dijalankan (`TEST_KEAMANAN.md` §6).
 
 Temuan terbuka per 19 November (sore): 0 dari 95.
+
+## 9. Pemeriksaan sesudah PR #66 sampai #68 (24 November 2026)
+
+**Ini bukan regresi penuh.** Bagian ini mencatat suite yang dijalankan untuk
+tiga PR fitur yang masuk `main` sesudah §8 dan sesudah penutupan BUG-097
+sampai BUG-099 (`c5d3d42`). Ketiganya hanya mengubah `apps/web`;
+`git diff c5d3d42 0ce6caf -- apps/api` kosong.
+
+| PR  | Merge `main` | Isi                                                                                                   |
+| --- | ------------ | ----------------------------------------------------------------------------------------------------- |
+| #66 | `0ce115b`    | Isian pengaduan dan jawaban survei disimpan saat sesi berakhir, peringatan lima menit sebelum sesi habis |
+| #67 | `08fe75e`    | Draf pindah ke IndexedDB sehingga bertahan saat tab ditutup, lampiran pengaduan ikut tersimpan       |
+| #68 | `0ce6caf`    | Kalimat penghapusan draf pada keadaan sesi berakhir tidak lagi menyuruh keluar tanpa tombol          |
+
+### 9.1 Hasil
+
+**Tidak ada kegagalan.** Angka lokal diambil pada `e9b804a`, yang pohonnya sama
+persis dengan `0ce6caf`.
+
+| Lapisan                         | Tempat                     | Suite | Uji   | Hasil                          | 19 Nov (§8) |
+| ------------------------------- | -------------------------- | ----- | ----- | ------------------------------ | ----------- |
+| Unit API (Jest)                 | lokal `e9b804a`            | 111   | 1.702 | 1.702 lulus                    | 106 / 1.649 |
+| e2e API (Postgres sungguhan)    | CI `main` `0ce6caf`        | —     | —     | job lulus                      | 58 / 807    |
+| Komponen web (Jest + RTL + MSW) | lokal `e9b804a`            | 279   | 2.339 | 2.339 lulus                    | 271 / 2.258 |
+| E2E web (Playwright, Chrome)    | CI `main` `0ce6caf`        | —     | 182   | 181 lulus, 1 dilewati, 8,9 mnt | 29 / 176    |
+| E2E web, dua spec draf          | lokal `a862287` (cabang #67) | 2   | 5     | 5 lulus                        | —           |
+| ESLint seluruh repo             | lokal `e9b804a`            | —     | —     | kode 0                         | kode 0      |
+| Prettier                        | lokal `e9b804a`            | —     | —     | kode 0 (tidak berlaku untuk `apps/web`) | kode 0 |
+
+CI ketiga merge hijau 3 dari 3 job. Playwright CI pada `0ce115b` mencatat 180
+lulus dan 1 dilewati (9,7 mnt), lalu 181 lulus dan 1 dilewati pada `08fe75e`
+(8,8 mnt) dan `0ce6caf` (8,9 mnt). Pembanding sebelumnya adalah CI `main`
+`c5d3d42` dengan 175 lulus dan 1 dilewati, jadi selisih enam uji berasal dari
+spec baru PR #66 dan #67. Angka Playwright CI diambil dari anotasi check-run
+"Playwright Run Summary".
+
+Uji baru "isian dan lampiran selamat sesudah tab ditutup"
+(`e2e/draf-pengaduan-sesi-habis.spec.js`) dibuktikan merah lebih dulu pada
+kode lama sebelum perbaikannya ditulis. Hal yang sama berlaku untuk uji teks
+PR #68 di `drafPengaduan.test.js` dan `useSurveyStore.test.js` (2 gagal pada
+kode lama, lalu lulus).
+
+### 9.2 Data uji
+
+`bersihkan-data-uji.mjs` (sasaran `skm_db`, lolos palang) dijalankan sesudah
+spec draf lokal dan sesudah verifikasi `e9b804a`, dan keduanya menghapus 0
+baris. `audit_logs` tidak disentuh.
+
+### 9.3 Yang tidak dicakup
+
+- **Playwright penuh dan e2e API tidak dijalankan lokal.** Keduanya hanya
+  dari CI. Angka e2e API lokal terakhir tetap 58 suite / 808 uji pada
+  `c5d3d42`, dan `apps/api` tidak berubah sejak itu.
+- **`TEST_CASES.md` belum memuat kasus uji untuk fitur draf dan peringatan
+  sesi.** Perilakunya dijaga uji komponen dan dua spec Playwright di atas,
+  tetapi belum ada baris TC yang menautkannya, sehingga register tetap 336
+  kasus.
+- **Uji peramban manual** untuk draf lintas tab tidak dijalankan di luar
+  Playwright.
+- **Batas yang diterima pemilik tugas** tidak diuji sebagai cacat. IndexedDB
+  tidak punya penghapusan otomatis, jadi draf melewati masa simpannya bila
+  situs tidak pernah dibuka lagi, dan isi draf tersimpan polos di disk
+  peramban sampai masa simpan habis.
+
+Temuan terbuka per 24 November: 0 dari 99.
