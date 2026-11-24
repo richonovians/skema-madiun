@@ -113,9 +113,19 @@ export function hapusDrafPengaduan() {
 /**
  * Kalimat yang memberi tahu pelapor bahwa isiannya tersimpan, di mana, sampai
  * kapan, dan cara menghapusnya. Kalimat terakhir untuk komputer bersama.
+ *
+ * Pada keadaan `sesi`, sesinya sudah dibersihkan dan menu akun tidak tampil,
+ * sehingga "Keluar dari akun akan menghapusnya" menunjuk tombol yang tidak
+ * ada. Kalimatnya menyebut jalan yang benar-benar tersedia, yaitu masuk lalu
+ * keluar (24 November 2026). Pada `persetujuan` dan `batas_harian` pelapor
+ * masih bersesi dan menu akunnya ada, jadi kalimat lama tetap tepat.
  */
 export function teksDrafTersimpan(keadaan, adaLampiran) {
   const apa = adaLampiran ? 'Isian dan lampiran Anda' : 'Isian Anda';
   const sampai = keadaan === 'batas_harian' ? 'sampai akhir hari besok' : 'selama 2 jam';
-  return `${apa} disimpan di peramban ini ${sampai}. Keluar dari akun akan menghapusnya.`;
+  const hapus =
+    keadaan === 'sesi'
+      ? 'Untuk menghapusnya sekarang, masuk lalu keluar dari akun.'
+      : 'Keluar dari akun akan menghapusnya.';
+  return `${apa} disimpan di peramban ini ${sampai}. ${hapus}`;
 }

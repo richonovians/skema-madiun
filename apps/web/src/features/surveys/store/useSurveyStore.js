@@ -193,7 +193,7 @@ const useSurveyStore = create((set, get) => ({
         // tidak boleh mengaku menyimpan ketika itu terjadi.
         const tersimpan = await simpanDrafSurvei(surveyData.id, answers, pemilik);
         pesan = tersimpan
-          ? 'Sesi Anda sudah berakhir. Jawaban Anda disimpan di peramban ini selama 2 jam. Masuk kembali, lalu buka lagi survei ini. Keluar dari akun akan menghapusnya.'
+          ? 'Sesi Anda sudah berakhir. Jawaban Anda disimpan di peramban ini selama 2 jam. Masuk kembali, lalu buka lagi survei ini. Untuk menghapus jawaban itu sekarang, masuk lalu keluar dari akun.'
           : 'Sesi Anda sudah berakhir. Masuk kembali untuk mengirim jawaban.';
       }
       set({ isSubmitting: false, submitError: pesan, submitErrorCode: kodeGalat(err) });
