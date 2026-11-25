@@ -192,9 +192,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-097](#bug-097) | Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-096 |
 | [BUG-098](#bug-098) | Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
 | [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
-| [BUG-100](#bug-100) | Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Terbuka** | Probe celah pengujian 25 November (catatan terbuka BUG-068) |
+| [BUG-100](#bug-100) | Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Ditutup** | Probe celah pengujian 25 November (catatan terbuka BUG-068) |
 
-**Rekap** — 100 temuan: **98 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-100 (Low).
+**Rekap** — 100 temuan: **99 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5886,6 +5886,24 @@ Kirim zona tetap `Asia/Jakarta` ke kueri alih-alih zona proses, hitung ujung der
 
 **Status 25 November 2026: Terbuka**
 
+**Perbaikan (25 November 2026)**
+
+Commit `f19ffe1` di cabang `fix/bulan-statistik-wib`, dicabangkan dari `main` `f8aa35f` tanpa upstream. Ketiga titik dipindah ke WIB. `agregatPengaduanBulanan` kini mengirim `ZONA_WIB` (`'Asia/Jakarta'`) ke `AT TIME ZONE`, sedangkan `trenBulanan` dan `periodeFromDate` membaca tahun dan bulan lewat `tanggalWib`. `ZONA_WIB` ditambahkan ke `common/waktu/hari-wib.ts`, jadi tidak ada helper kedua. Yang dipakai nama IANA, bukan `'+07'`, karena Postgres membaca zona berbentuk POSIX dengan tanda terbalik.
+
+Uji pencocokan BUG-068 di `test/dashboard.e2e-spec.ts` tidak dapat menangkap cacat ini, sebab di server UTC kedua sisinya sama-sama keliru dan tetap cocok. "Cara lama" di uji itu kini membagi bulan menurut WIB, dan suite itu mendapat uji angka tetap atas tiga baris 2020 yang sudah ada.
+
+Uji nilai merah di bawah `TZ=UTC` pada kode lama. `periode.util.spec.ts` gagal pada 3 uji (`2026-12-31T20:00Z` menghasilkan `2026-Q4`, seharusnya `2027-Q1`), `tren-bulanan.util.spec.ts` pada 3 uji, dan `dashboard.service.spec.ts` pada 1 uji karena zona yang terkirim ke kueri `"UTC"`. Pagar zona, yaitu spy metode `Date` berwaktu lokal pada `trenBulanan` dan `periodeFromDate`, merah di zona mana pun. E2E `dashboard.e2e-spec.ts` di bawah `TZ=UTC` gagal pada 2 uji, dengan `2020-03` berisi 1 padahal seharusnya 0. Asersi `2020-03` sempat salah karena deretnya dimulai di bulan pengaduan pertama. Sesudah asersi itu dibetulkan, merahnya diukur ulang dengan memasang kembali kode produksi lama untuk sementara. Pada kode baru keempat spec unit lulus 78 dari 78 dan e2e lulus 21 dari 21, di `TZ=UTC` maupun `TZ=Asia/Jakarta`.
+
+Verifikasi penuh dengan e2e API lulus. Unit API lulus 111 berkas dan 1.711 uji, e2e API 58 berkas dan 809 uji, komponen web 280 berkas dan 2.348 uji, sedangkan ESLint dan Prettier bersih. Pembersihan data uji menghapus nol baris dari `skm_db`, dan itu benar karena e2e API menulis ke `skm_uji`.
+
+Satu cacat sekelas tidak ikut diperbaiki karena di luar cakupan BUG-100. `getRespondentTrendPercent` di `dashboard.service.ts` (persentase tren responden di dasbor OPD) masih membagi bulan dengan `new Date(tahun, bulan, 1)` menurut zona proses. Ia belum dicatat sebagai temuan.
+
+**Penutupan (25 November 2026)**
+
+PR #70, merge lokal `main` `5aec719` (`f19ffe1`), di-push pengguna. Pohon `5aec719` identik dengan `f19ffe1`. CI cabang pada `f19ffe1` hijau 3 dari 3 job. CI `main` `5aec719` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 8,3 menit. Sejak merge ini bulan dan triwulan statistik pengaduan dibagi menurut WIB di server mana pun.
+
+**Status 25 November 2026 (lanjut): Ditutup**
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -9295,3 +9313,4 @@ hanya dibaca, tidak diubah.
 | 7.72 | 23 November 2026 | **BUG-098 dan BUG-099 dicatat: 99 temuan, 95 ditutup, 1 ditolak, 3 terbuka.** Keduanya temuan sampingan BUG-097. BUG-098 (Low): `generateTicketNo` membaca tanggal dari zona proses, sehingga di server UTC tiket pengaduan 00.00-06.59 WIB bertanggal kemarin. BUG-099 (Low): batas mulai penyaring Log Audit adalah `new Date(startDate)`, yaitu 07.00 WIB di server mana pun, sehingga log 00.00-06.59 WIB pada tanggal mulai tak pernah tampil, termasuk di laptop. Batas akhirnya mengikuti zona proses, dan DTO-nya meloloskan 31 Februari. Perbaikan `86a602f` dan `fab345e` di `fix/batas-harian-wib`, DTO audit kini hanya menerima `YYYY-MM-DD` (keputusan pengguna). Belum push, belum PR, belum merge. Severity usulan penguji; pencatatannya keputusan pengguna. Cabang yang memuat perbaikan BUG-097 sudah di-push, dan CI pada `9a8e84e` hijau 3 dari 3 job. |
 | 7.73 | 23 November 2026 | **BUG-097, BUG-098, dan BUG-099 ditutup: 99 temuan, 98 ditutup, 1 ditolak, 0 terbuka.** PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`). `9a8e84e` (BUG-097) sudah masuk `main` lebih dulu sebagai fast-forward tanpa PR, karena cabangnya dibuat dengan upstream `origin/main`; CI `main` pada commit itu hijau 3 dari 3 job. CI cabang `fab345e` dan CI `main` `c5d3d42` hijau 3 dari 3 job, E2E web `main` 8,8 menit. Batas harian, nomor tiket, dan penyaring Log Audit kini menurut WIB lewat helper `common/waktu/hari-wib.ts`. Tak ada temuan terbuka. |
 | 7.74 | 25 November 2026 | **BUG-100 dicatat: 100 temuan, 98 ditutup, 1 ditolak, 1 terbuka.** Probe celah pengujian pada `main` `f8aa35f`. `agregatPengaduanBulanan` membagi bulan pengaduan dengan zona proses Node, sehingga di server UTC pengaduan 00.00-06.59 WIB tanggal 1 jatuh ke bulan (dan pada awal triwulan, triwulan) sebelumnya di statistik publik. Catatan terbuka penutupan BUG-068 diputuskan pengguna: bulan statistik semestinya WIB. Low, terbuka. |
+| 7.75 | 25 November 2026 | **BUG-100 ditutup: 100 temuan, 99 ditutup, 1 ditolak, 0 terbuka.** PR #70, merge lokal `main` `5aec719` (`f19ffe1`). Bulan dan triwulan statistik pengaduan kini dibagi menurut WIB. Agregat Postgres memakai `ZONA_WIB`, sedangkan `trenBulanan` dan `periodeFromDate` memakai `tanggalWib`. Uji nilai merah di bawah `TZ=UTC` pada kode lama dan hijau di kedua zona pada kode baru. CI cabang `f19ffe1` hijau 3 dari 3 job. CI `main` `5aec719` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 8,3 menit. Temuan sampingan yang belum dicatat: `getRespondentTrendPercent` masih membagi bulan menurut zona proses. Tak ada temuan terbuka. |
