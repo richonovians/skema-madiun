@@ -14,8 +14,23 @@
  * Pola yang sama sudah hidup di `tanggal-kejadian.util.ts`,
  * `cadangan-terjadwal.service.ts`, dan `notifications.service.ts`; ketiganya
  * belum dipindahkan ke sini.
+ *
+ * Bulan statistik pengaduan (BUG-100, 25 November 2026) ikut aturan ini:
+ * `periodeFromDate` dan `trenBulanan` memakai `tanggalWib`, dan agregat
+ * Postgres-nya (`DashboardService.agregatPengaduanBulanan`) memakai
+ * `ZONA_WIB`.
  */
 const SELISIH_WIB_MS = 7 * 60 * 60 * 1000;
+
+/**
+ * Nama zona WIB untuk Postgres (`AT TIME ZONE`), dipakai kueri yang membagi
+ * waktu per hari atau per bulan di sisi basis data. Nama IANA, BUKAN `'+07'`:
+ * Postgres membaca singkatan berbentuk POSIX dengan tanda terbalik, sehingga
+ * `'UTC+7'` di sana berarti tujuh jam di BARAT Greenwich. Asia/Jakarta tak
+ * mengenal waktu musim panas sejak 1964, jadi hasilnya sama dengan selisih
+ * tujuh jam yang dipaku di atas.
+ */
+export const ZONA_WIB = 'Asia/Jakarta';
 
 /** Tanggal kalender; `bulan` ditulis 1-12, bukan 0-11 seperti `Date`. */
 export interface TanggalKalender {

@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { IkmMutu, Role, SurveyStatus } from '@prisma/client';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { tanggalWib } from '../../common/waktu/hari-wib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PenyimpanSinggahanNonaktif } from '../../common/cache/penyimpan-singgahan.nonaktif';
 import type { PenyimpanSinggahan } from '../../common/cache/penyimpan-singgahan.interface';
@@ -384,6 +385,20 @@ describe('DashboardService', () => {
     });
 
     /**
+     * BUG-100 (25 November 2026): bulan agregat dibagi menurut WIB, bukan
+     * zona proses Node. Nilai bulannya sungguhan diuji di
+     * `test/dashboard.e2e-spec.ts`; di sini yang dapat diperiksa hanyalah zona
+     * yang dikirim ke kueri. Di laptop berzona Asia/Jakarta kode lama pun
+     * mengirim 'Asia/Jakarta', jadi merahnya hanya tampak di bawah `TZ=UTC`.
+     */
+    it('BUG-100: zona yang dikirim ke agregat bulanan adalah WIB, di server mana pun', async () => {
+      await service.getStatistics();
+
+      const [, ...nilai] = (prisma.$queryRaw as jest.Mock).mock.calls[0];
+      expect(nilai).toContain('Asia/Jakarta');
+    });
+
+    /**
      * BUG-067 (Low, QA-PERF 3 November 2026). Penyaring Sampah BUG-013 pada
      * distribusi nilai menggapai survei lewat DUA relasi, dan Prisma
      * menerjemahkannya menjadi dua join atas SELURUH tabel `answers`: pada
@@ -507,8 +522,9 @@ describe('DashboardService', () => {
     });
 
     it('complaintTrendBulanan dari agregat bulanan, sampai bulan ini', async () => {
-      const kini = new Date();
-      const bulanIni = `${kini.getFullYear()}-${String(kini.getMonth() + 1).padStart(2, '0')}`;
+      // Bulan ini menurut WIB (BUG-100), sama dengan yang dihitung layanannya.
+      const kini = tanggalWib(new Date());
+      const bulanIni = `${kini.tahun}-${String(kini.bulan).padStart(2, '0')}`;
       (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
         { bulan: bulanIni, jumlah: 2, selesai: 0, detikSelesai: 0 },
       ]);

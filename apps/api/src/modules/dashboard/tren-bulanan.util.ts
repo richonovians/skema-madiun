@@ -1,3 +1,4 @@
+import { tanggalWib } from '../../common/waktu/hari-wib';
 import { buildPeriode } from '../surveys/utils/periode.util';
 import { PeriodePointEntity } from './entities/statistics.entity';
 
@@ -30,9 +31,11 @@ const indeksDariBulan = (bulan: string): number => {
  *   - tampilan Tahunan dijumlahkan frontend dari deret ini, jadi memotongnya
  *     ke dua belas bulan terakhir akan membuat angka tahunan kurang.
  *
- * Bulan ditentukan menurut zona waktu server, sama dengan `periodeFromDate`
- * yang membagi deret triwulan. Karena pembagiannya kini dikerjakan Postgres,
- * zona itu dikirim ke kuerinya -- lihat `DashboardService.agregatPengaduanBulanan`.
+ * Bulan ditentukan menurut WIB, bukan zona server (BUG-100, 25 November
+ * 2026), sama dengan `periodeFromDate` yang membagi deret triwulan. Hitungan
+ * per bulannya dibagi Postgres dengan zona yang sama -- lihat
+ * `DashboardService.agregatPengaduanBulanan`; di sini WIB hanya menentukan
+ * bulan `sekarang`, yaitu ujung deret.
  */
 export function trenBulanan(hitungan: HitunganBulan[], sekarang: Date): PeriodePointEntity[] {
   if (hitungan.length === 0) return [];
@@ -44,7 +47,8 @@ export function trenBulanan(hitungan: HitunganBulan[], sekarang: Date): PeriodeP
     perIndeks.set(i, (perIndeks.get(i) ?? 0) + jumlah);
     if (i < awal) awal = i;
   }
-  const akhir = Math.max(sekarang.getFullYear() * 12 + sekarang.getMonth(), ...perIndeks.keys());
+  const kini = tanggalWib(sekarang);
+  const akhir = Math.max(kini.tahun * 12 + (kini.bulan - 1), ...perIndeks.keys());
 
   const deret: PeriodePointEntity[] = [];
   for (let i = awal; i <= akhir; i++) {

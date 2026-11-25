@@ -1,3 +1,5 @@
+import { tanggalWib } from '../../../common/waktu/hari-wib';
+
 /**
  * Format kanonik periode survei (D5+D8, 2026-08-05): `{tahun}-Q{1-4}` (mis.
  * "2026-Q2"). Dipilih krn (a) tetap muat di `Survey.periode VarChar(20)`
@@ -22,10 +24,15 @@ export function buildPeriode(tahun: number, triwulan: 1 | 2 | 3 | 4): string {
  * Bucket sebuah tanggal ke periode triwulan kanonik (INT-14/D5) -- dipakai
  * entitas TANPA field periode sendiri (mis. `Complaint.createdAt`) supaya
  * tren tetap konsisten granularitas triwulan dgn `Survey.periode`.
+ *
+ * Triwulan menurut WIB, bukan zona proses (BUG-100, 25 November 2026): di
+ * server UTC, pukul 00.00-06.59 WIB pada 1 Januari/April/Juli/Oktober dulu
+ * jatuh ke triwulan sebelumnya.
  */
 export function periodeFromDate(date: Date): string {
-  const triwulan = (Math.floor(date.getMonth() / 3) + 1) as 1 | 2 | 3 | 4;
-  return buildPeriode(date.getFullYear(), triwulan);
+  const { tahun, bulan } = tanggalWib(date);
+  const triwulan = (Math.floor((bulan - 1) / 3) + 1) as 1 | 2 | 3 | 4;
+  return buildPeriode(tahun, triwulan);
 }
 
 /** "2026-Q2" -> "Triwulan II - 2026" (label ramah-baca, dipakai ekspor/tampilan). */

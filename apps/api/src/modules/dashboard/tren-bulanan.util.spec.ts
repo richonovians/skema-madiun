@@ -74,6 +74,46 @@ describe('trenBulanan', () => {
   it('tanpa pengaduan sama sekali mengembalikan deret kosong', () => {
     expect(trenBulanan([], sekarang)).toEqual([]);
   });
+
+  /**
+   * BUG-100 (25 November 2026): ujung deret adalah bulan `sekarang` menurut
+   * WIB, sama dengan bulan yang dihitung Postgres. Di server UTC, pukul
+   * 00.00-06.59 WIB tanggal 1 dulu masih terbaca bulan sebelumnya, sehingga
+   * bulan berjalan hilang dari ujung grafik. Merahnya hanya tampak di bawah
+   * `TZ=UTC`; pagar zona merah di zona mana pun.
+   */
+  describe('BUG-100: bulan `sekarang` menurut WIB', () => {
+    it('1 November 00.30 WIB (31 Oktober 17.30 UTC) sudah November', () => {
+      const hasil = trenBulanan(
+        [{ bulan: '2026-10', jumlah: 1 }],
+        new Date('2026-10-31T17:30:00.000Z'),
+      );
+
+      expect(hasil.map((p) => p.periode)).toEqual(['2026-10', '2026-11']);
+    });
+
+    it('1 Januari 2027 03.00 WIB (31 Desember 20.00 UTC) sudah Januari 2027', () => {
+      const hasil = trenBulanan(
+        [{ bulan: '2026-12', jumlah: 1 }],
+        new Date('2026-12-31T20:00:00.000Z'),
+      );
+
+      expect(hasil.map((p) => p.periode)).toEqual(['2026-12', '2027-01']);
+    });
+
+    it('tak memanggil satu pun metode Date berwaktu lokal', () => {
+      const mata = (['getFullYear', 'getMonth', 'getDate', 'getHours'] as const).map(
+        (m) => [m, jest.spyOn(Date.prototype, m)] as const,
+      );
+      try {
+        trenBulanan([{ bulan: '2026-10', jumlah: 1 }], new Date('2026-10-31T17:30:00.000Z'));
+        const terpanggil = mata.filter(([, s]) => s.mock.calls.length > 0).map(([m]) => m);
+        expect(terpanggil).toEqual([]);
+      } finally {
+        jest.restoreAllMocks();
+      }
+    });
+  });
 });
 
 describe('trenTriwulan', () => {
