@@ -2490,6 +2490,20 @@ sengaja membiarkannya `NULL`.
 > belum dicocokkan dengan basis data: penyaringnya (survei dibuang dan survei
 > yang dibuka kembali) membuat hitungan ulang di luar kode tak sepadan untuk
 > hari ini. Ini celah, bukan lulus.
+>
+> **(25 November 2026) Celah Tren IKM itu kini tertutup.** Tren IKM per triwulan
+> dan `summary.ikm` dihitung ulang langsung dari `skm_db` dengan aturan
+> PermenPANRB (NRR = jumlah nilai ÷ responden per unsur, IKM = 25 × rata-rata
+> NRR), lalu dicocokkan dengan `GET /statistics` di `main` `f8aa35f`. Survei
+> aktif cocok 4 dari 4 periode. Karena `skm_db` tidak punya survei tertutup,
+> cabang snapshot diuji dengan tiga survei SKM `[UJI Tren-IKM]` di periode
+> 2025-Q1: satu ditutup (snapshot 100), satu ditutup lalu dibuka kembali
+> (snapshot 25 tetap ada di `ikm_results` tetapi tidak dihitung, nilai langsung
+> 25 dipakai), dan satu ditutup lalu dibuang (snapshot 50 tidak dihitung). API
+> menjawab 62,5 untuk 2025-Q1, sama dengan hitungan ulang; bila survei yang
+> dibuka kembali terhitung dua kali hasilnya 50, dan bila survei terbuang ikut
+> hasilnya 58,33. `summary.ikm` 69,84 di keduanya. Ketiga survei dimusnahkan
+> sesudahnya dan `ikm_results` kembali kosong.
 
 ---
 

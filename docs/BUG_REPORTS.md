@@ -192,8 +192,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-097](#bug-097) | Batas harian pengaduan berganti hari pukul 07.00 WIB bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-096 |
 | [BUG-098](#bug-098) | Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
 | [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
+| [BUG-100](#bug-100) | Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Terbuka** | Probe celah pengujian 25 November (catatan terbuka BUG-068) |
 
-**Rekap** — 99 temuan: **98 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 100 temuan: **98 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-100 (Low).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5841,6 +5842,50 @@ PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`), di-push pengguna. 
 
 **Status 23 November 2026 (siang): Ditutup**
 
+### BUG-100 — Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Probe celah pengujian 25 November 2026, butir "agregat bulanan statistik WIB atau jam server" (catatan terbuka sejak penutupan BUG-068) |
+| **Tanggal**  | 25 November 2026 |
+| **Lingkungan** | `main` `f8aa35f`, Windows 11 berzona Asia/Jakarta, Node 25.2.1, Postgres 18.4 di kontainer `skm-db` |
+| **Berkas**   | [dashboard.service.ts:561-564](../apps/api/src/modules/dashboard/dashboard.service.ts#L561-L564) (`agregatPengaduanBulanan`), [tren-bulanan.util.ts:47](../apps/api/src/modules/dashboard/tren-bulanan.util.ts#L47) (`trenBulanan`), [periode.util.ts:26](../apps/api/src/modules/surveys/utils/periode.util.ts#L26) (`periodeFromDate`) |
+| **Severity** | Low (usulan penguji). Hanya terjadi bila server berjalan dalam UTC. Jumlah total pengaduan, rata-rata waktu selesai, dan persentase selesai tidak berubah; yang bergeser hanya letak pengaduan di grafik bulanan dan triwulan |
+
+**Gejala**
+
+Bila proses API berjalan dalam UTC, pengaduan yang masuk pukul 00.00 sampai 06.59 WIB pada tanggal 1 dihitung ke bulan sebelumnya pada `complaintTrendBulanan` di `GET /statistics`. Pada tanggal 1 Januari, April, Juli, dan Oktober pengaduan itu juga pindah ke triwulan sebelumnya pada `complaintTrend`, dan pada 1 Januari pindah tahun. Grafik Tren Pengaduan di halaman statistik publik menampilkannya apa adanya. Di laptop pengembangan yang berzona WIB gejala ini tidak terlihat sama sekali.
+
+**Akar masalah**
+
+`agregatPengaduanBulanan` membagi bulan dengan `created_at AT TIME ZONE 'UTC' AT TIME ZONE ${zona}`, dan `zona` dibaca dari `Intl.DateTimeFormat().resolvedOptions().timeZone`, yaitu zona proses Node. Docblock fungsi itu menyebutnya sengaja, demi menyamai jalur lama yang memakai `Date#getMonth()`. Penutupan BUG-068 (13 November) menulis bahwa apakah bulan semestinya selalu WIB "belum diputuskan dan bukan bagian temuan ini". Sesudah itu BUG-097 sampai BUG-099 menetapkan prinsip yang tertulis di `common/waktu/hari-wib.ts`, yaitu WIB, bukan jam server, dengan selisih yang dipaku dan tidak dibaca dari zona proses. Agregat ini tidak ikut dipindah. `trenBulanan` (`sekarang.getMonth()`, ujung deret) dan `periodeFromDate` (`getMonth()`/`getFullYear()`) memakai zona proses yang sama. Pengguna memutuskan pada 25 November 2026 bahwa bulan statistik semestinya WIB, sehingga perilaku ini dicatat sebagai cacat.
+
+**Pembuktian**
+
+Ekspresi pembagi bulan dari baris 564 dijalankan di Postgres untuk empat instan, dengan dua nilai `zona` yang dapat dikirim kode. Repronya ada di `qa-bug-hunt/repros/probe-bulan-wib.sql` (lokal, tidak di-commit) dan hanya membaca `VALUES`.
+
+| Instan | `created_at` (UTC) | Server UTC | Server WIB |
+| --- | --- | --- | --- |
+| 1 Nov 2026 00.30 WIB | `2026-10-31 17:30` | `2026-10` | `2026-11` |
+| 1 Nov 2026 06.59 WIB | `2026-10-31 23:59` | `2026-10` | `2026-11` |
+| 1 Nov 2026 07.00 WIB | `2026-11-01 00:00` | `2026-11` | `2026-11` |
+| 1 Jan 2027 03.00 WIB | `2026-12-31 20:00` | `2026-12` | `2027-01` |
+
+Nilai `zona` yang dikirim kode diukur di Node yang sama: `TZ=UTC` menghasilkan `UTC`, `TZ=Asia/Jakarta` menghasilkan `Asia/Jakarta`. Jalur ujung ke ujung di server UTC tidak dijalankan, karena server dev berjalan dalam WIB.
+
+**Langkah reproduksi**
+
+1. Jalankan API dengan `TZ=UTC` terhadap basis data uji.
+2. Buat satu pengaduan, lalu ubah `created_at`-nya menjadi `2026-10-31 17:30` (1 November 00.30 WIB).
+3. Tunggu singgahan `GET /statistics` (60 detik) habis, lalu baca `complaintTrendBulanan`.
+4. Pengaduan itu terhitung pada `2026-10`, padahal menurut WIB ia masuk bulan November.
+
+**Arah perbaikan (usulan, belum dikerjakan)**
+
+Kirim zona tetap `Asia/Jakarta` ke kueri alih-alih zona proses, hitung ujung deret `trenBulanan` dari bulan WIB lewat `hari-wib.ts`, dan pindahkan `periodeFromDate` ke `getUTC*` dengan selisih WIB yang dipaku. Ujinya mengikuti pola `hari-wib.spec.ts`, yaitu uji nilai yang dijalankan di bawah `TZ=UTC`, karena di laptop WIB uji biasa tetap hijau pada kode lama.
+
+**Status 25 November 2026: Terbuka**
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -9249,3 +9294,4 @@ hanya dibaca, tidak diubah.
 | 7.71 | 23 November 2026 | **BUG-097 dicatat: 97 temuan, 95 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-096. Batas harian pengaduan dihitung sejak tengah malam zona proses (`setHours(0, 0, 0, 0)`), sehingga di server UTC hari barunya dimulai pukul 07.00 WIB. Di laptop berzona Asia/Jakarta cacatnya tak terlihat. Perbaikan `9a8e84e` di `fix/batas-harian-wib` memakai helper `awalHariWib`, dengan uji pagar zona yang merah di zona laptop. Belum push, belum PR, belum merge. Low, usulan penguji; pencatatannya keputusan pengguna. |
 | 7.72 | 23 November 2026 | **BUG-098 dan BUG-099 dicatat: 99 temuan, 95 ditutup, 1 ditolak, 3 terbuka.** Keduanya temuan sampingan BUG-097. BUG-098 (Low): `generateTicketNo` membaca tanggal dari zona proses, sehingga di server UTC tiket pengaduan 00.00-06.59 WIB bertanggal kemarin. BUG-099 (Low): batas mulai penyaring Log Audit adalah `new Date(startDate)`, yaitu 07.00 WIB di server mana pun, sehingga log 00.00-06.59 WIB pada tanggal mulai tak pernah tampil, termasuk di laptop. Batas akhirnya mengikuti zona proses, dan DTO-nya meloloskan 31 Februari. Perbaikan `86a602f` dan `fab345e` di `fix/batas-harian-wib`, DTO audit kini hanya menerima `YYYY-MM-DD` (keputusan pengguna). Belum push, belum PR, belum merge. Severity usulan penguji; pencatatannya keputusan pengguna. Cabang yang memuat perbaikan BUG-097 sudah di-push, dan CI pada `9a8e84e` hijau 3 dari 3 job. |
 | 7.73 | 23 November 2026 | **BUG-097, BUG-098, dan BUG-099 ditutup: 99 temuan, 98 ditutup, 1 ditolak, 0 terbuka.** PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`). `9a8e84e` (BUG-097) sudah masuk `main` lebih dulu sebagai fast-forward tanpa PR, karena cabangnya dibuat dengan upstream `origin/main`; CI `main` pada commit itu hijau 3 dari 3 job. CI cabang `fab345e` dan CI `main` `c5d3d42` hijau 3 dari 3 job, E2E web `main` 8,8 menit. Batas harian, nomor tiket, dan penyaring Log Audit kini menurut WIB lewat helper `common/waktu/hari-wib.ts`. Tak ada temuan terbuka. |
+| 7.74 | 25 November 2026 | **BUG-100 dicatat: 100 temuan, 98 ditutup, 1 ditolak, 1 terbuka.** Probe celah pengujian pada `main` `f8aa35f`. `agregatPengaduanBulanan` membagi bulan pengaduan dengan zona proses Node, sehingga di server UTC pengaduan 00.00-06.59 WIB tanggal 1 jatuh ke bulan (dan pada awal triwulan, triwulan) sebelumnya di statistik publik. Catatan terbuka penutupan BUG-068 diputuskan pengguna: bulan statistik semestinya WIB. Low, terbuka. |
