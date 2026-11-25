@@ -193,8 +193,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-098](#bug-098) | Nomor tiket pengaduan 00.00-06.59 WIB bertanggal kemarin bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
 | [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
 | [BUG-100](#bug-100) | Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Ditutup** | Probe celah pengujian 25 November (catatan terbuka BUG-068) |
+| [BUG-101](#bug-101) | Tren responden "dari bulan lalu" di dasbor Admin OPD membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Terbuka** | Temuan sampingan BUG-100 |
 
-**Rekap** — 100 temuan: **99 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 101 temuan: **99 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-101 (Low).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5904,6 +5905,53 @@ PR #70, merge lokal `main` `5aec719` (`f19ffe1`), di-push pengguna. Pohon `5aec7
 
 **Status 25 November 2026 (lanjut): Ditutup**
 
+### BUG-101 — Tren responden "dari bulan lalu" di dasbor Admin OPD membagi bulan menurut jam server, bukan WIB
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Temuan sampingan BUG-100, saat menyisir metode `Date` berwaktu lokal di modul `dashboard` |
+| **Tanggal**  | 25 November 2026 |
+| **Lingkungan** | `main` `5aec719`, Windows 11 berzona Asia/Jakarta, Node 25.2.1, Jest 29 |
+| **Berkas**   | [dashboard.service.ts:275-278](../apps/api/src/modules/dashboard/dashboard.service.ts#L275-L278) (`getRespondentTrendPercent`), dipakai `getOpdDashboard` sebagai `respondentTrendPercent` |
+| **Severity** | Low (usulan penguji). Hanya terjadi bila server berjalan dalam UTC. Yang bergeser hanya persentase pada kartu Total Responden di dasbor Admin OPD; jumlah responden dan nilai IKM tidak terpengaruh |
+
+**Gejala**
+
+Kartu Total Responden di dasbor Admin OPD menampilkan teks seperti "+12% dari bulan lalu", dihitung dari jumlah respons bulan ini dibanding bulan lalu. Bila proses API berjalan dalam UTC, ada dua gejala.
+
+1. **Batas bulan bergeser tujuh jam.** Bulan baru baru dimulai pukul 07.00 WIB tanggal 1, sehingga respons pukul 00.00 sampai 06.59 WIB tanggal 1 terhitung ke bulan sebelumnya.
+2. **Pada tujuh jam pertama bulan baru, perbandingannya salah bulan.** Antara pukul 00.00 dan 06.59 WIB tanggal 1, "bulan ini" masih berarti bulan sebelumnya menurut server. Dasbor yang dibuka pada jam itu membandingkan bulan yang baru selesai dengan bulan sebelumnya lagi, alih-alih bulan baru dengan bulan yang baru selesai.
+
+Di laptop pengembangan yang berzona WIB gejala ini tidak terlihat.
+
+**Akar masalah**
+
+`getRespondentTrendPercent` menghitung batas bulan dengan `new Date(now.getFullYear(), now.getMonth(), 1)` dan `new Date(now.getFullYear(), now.getMonth() - 1, 1)`. Konstruktor `Date` dengan komponen dan metode `getFullYear`/`getMonth` memakai zona proses. Pola ini sama dengan BUG-097 sampai BUG-100, yang sudah dipindah ke helper `common/waktu/hari-wib.ts` (WIB, bukan jam server, selisih dipaku). Fungsi ini tidak ikut dipindah karena berada di luar cakupan BUG-100, dan dicatat di bagian perbaikan BUG-100.
+
+**Pembuktian**
+
+Uji unit `qa-bug-hunt/repros/bug-101-tren-responden-wib.spec.ts` (lokal, tidak di-commit) memanggil `getRespondentTrendPercent` pada `DashboardService` sungguhan dengan Prisma tiruan dan jam palsu, lalu membaca batas `submittedAt` yang dikirim ke `surveyResponse.count`.
+
+| Saat (WIB) | Instan | Batas "bulan ini" di `TZ=UTC` | Seharusnya |
+| --- | --- | --- | --- |
+| 1 Nov 2026 00.30 | `2026-10-31T17:30Z` | `2026-10-01T00:00Z` (1 Oktober 07.00 WIB) | `2026-10-31T17:00Z` (1 November 00.00 WIB) |
+| 15 Nov 2026 12.00 | `2026-11-15T05:00Z` | `2026-11-01T00:00Z` (1 November 07.00 WIB) | `2026-10-31T17:00Z` |
+
+Di bawah `TZ=UTC` kedua uji merah dengan angka di tabel. Di bawah `TZ=Asia/Jakarta` keduanya lulus. Jalur ujung ke ujung di server UTC tidak dijalankan, karena server dev berjalan dalam WIB.
+
+**Langkah reproduksi**
+
+1. Jalankan API dengan `TZ=UTC` terhadap basis data uji.
+2. Buat satu respons survei untuk OPD uji, lalu ubah `submitted_at`-nya menjadi `2026-10-31 18:00` UTC (1 November 01.00 WIB). Buat satu respons lain bertanggal pertengahan Oktober.
+3. Buka dasbor Admin OPD dengan jam sistem di bulan November.
+4. Respons 1 November 01.00 WIB terhitung ke Oktober, sehingga persentasenya dihitung dari 0 respons November dibanding 2 respons Oktober.
+
+**Arah perbaikan (usulan, belum dikerjakan)**
+
+Hitung awal bulan ini dan bulan lalu dari `tanggalWib(new Date())` lalu `awalTanggalWib(tahun, bulan, 1)` dan `awalTanggalWib(tahun, bulan - 1, 1)`, dengan penanganan Januari ke Desember tahun sebelumnya. `Date.UTC` sudah menggulung bulan 0 ke Desember, tetapi perlu diuji. Ujinya mengikuti pola BUG-100, yaitu uji nilai di bawah `TZ=UTC` ditambah pagar zona yang merah di zona mana pun.
+
+**Status 25 November 2026: Terbuka**
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -9314,3 +9362,4 @@ hanya dibaca, tidak diubah.
 | 7.73 | 23 November 2026 | **BUG-097, BUG-098, dan BUG-099 ditutup: 99 temuan, 98 ditutup, 1 ditolak, 0 terbuka.** PR #65, merge lokal `main` `c5d3d42` (`86a602f` + `fab345e`). `9a8e84e` (BUG-097) sudah masuk `main` lebih dulu sebagai fast-forward tanpa PR, karena cabangnya dibuat dengan upstream `origin/main`; CI `main` pada commit itu hijau 3 dari 3 job. CI cabang `fab345e` dan CI `main` `c5d3d42` hijau 3 dari 3 job, E2E web `main` 8,8 menit. Batas harian, nomor tiket, dan penyaring Log Audit kini menurut WIB lewat helper `common/waktu/hari-wib.ts`. Tak ada temuan terbuka. |
 | 7.74 | 25 November 2026 | **BUG-100 dicatat: 100 temuan, 98 ditutup, 1 ditolak, 1 terbuka.** Probe celah pengujian pada `main` `f8aa35f`. `agregatPengaduanBulanan` membagi bulan pengaduan dengan zona proses Node, sehingga di server UTC pengaduan 00.00-06.59 WIB tanggal 1 jatuh ke bulan (dan pada awal triwulan, triwulan) sebelumnya di statistik publik. Catatan terbuka penutupan BUG-068 diputuskan pengguna: bulan statistik semestinya WIB. Low, terbuka. |
 | 7.75 | 25 November 2026 | **BUG-100 ditutup: 100 temuan, 99 ditutup, 1 ditolak, 0 terbuka.** PR #70, merge lokal `main` `5aec719` (`f19ffe1`). Bulan dan triwulan statistik pengaduan kini dibagi menurut WIB. Agregat Postgres memakai `ZONA_WIB`, sedangkan `trenBulanan` dan `periodeFromDate` memakai `tanggalWib`. Uji nilai merah di bawah `TZ=UTC` pada kode lama dan hijau di kedua zona pada kode baru. CI cabang `f19ffe1` hijau 3 dari 3 job. CI `main` `5aec719` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 8,3 menit. Temuan sampingan yang belum dicatat: `getRespondentTrendPercent` masih membagi bulan menurut zona proses. Tak ada temuan terbuka. |
+| 7.76 | 25 November 2026 | **BUG-101 dicatat: 101 temuan, 99 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-100 pada `main` `5aec719`. `getRespondentTrendPercent` (persentase tren responden di dasbor Admin OPD) membagi bulan dengan `new Date(tahun, bulan, 1)` menurut zona proses, sehingga di server UTC bulan baru dimulai pukul 07.00 WIB dan pada tujuh jam pertama tanggal 1 perbandingannya salah bulan. Uji unit di `qa-bug-hunt/repros/` merah di bawah `TZ=UTC` dan lulus di Asia/Jakarta. Low, usulan penguji; pencatatannya keputusan pengguna. |
