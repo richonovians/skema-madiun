@@ -6,7 +6,7 @@ import {
   type PenyimpanSinggahan,
 } from '../../common/cache/penyimpan-singgahan.interface';
 import { SekaliJalan } from '../../common/cache/sekali-jalan';
-import { ZONA_WIB } from '../../common/waktu/hari-wib';
+import { ZONA_WIB, awalTanggalWib, tanggalWib } from '../../common/waktu/hari-wib';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
@@ -271,11 +271,21 @@ export class DashboardService {
     );
   }
 
-  /** Persentase perubahan jumlah responden bulan ini vs bulan lalu (kalender). Null bila tak ada pembanding. */
+  /**
+   * Persentase perubahan jumlah responden bulan ini vs bulan lalu (kalender).
+   * Null bila tak ada pembanding.
+   *
+   * Bulan kalender menurut WIB, bukan zona server (BUG-101, 25 November 2026).
+   * Dulu batasnya `new Date(tahun, bulan, 1)`, sehingga di server UTC bulan
+   * baru dimulai pukul 07.00 WIB, dan antara 00.00 dan 06.59 WIB tanggal 1
+   * yang dibandingkan masih bulan sebelumnya. `awalTanggalWib` menggulung
+   * bulan 0 ke Desember tahun lalu lewat `Date.UTC`, jadi Januari tak perlu
+   * ditangani sendiri.
+   */
   private async getRespondentTrendPercent(opdId: number): Promise<number | null> {
-    const now = new Date();
-    const startThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const { tahun, bulan } = tanggalWib(new Date());
+    const startThisMonth = awalTanggalWib(tahun, bulan, 1);
+    const startLastMonth = awalTanggalWib(tahun, bulan - 1, 1);
 
     const [thisMonthCount, lastMonthCount] = await Promise.all([
       this.prisma.surveyResponse.count({

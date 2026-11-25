@@ -254,6 +254,78 @@ describe('DashboardService', () => {
     });
   });
 
+  /**
+   * BUG-101 (25 November 2026): persentase "dari bulan lalu" pada kartu Total
+   * Responden membagi bulan menurut WIB, bukan zona proses. Dulu batasnya
+   * `new Date(tahun, bulan, 1)`, sehingga di server UTC bulan baru dimulai
+   * pukul 07.00 WIB, dan antara 00.00 dan 06.59 WIB tanggal 1 "bulan ini"
+   * masih bulan sebelumnya.
+   *
+   * Yang diperiksa adalah batas `submittedAt` yang dikirim ke
+   * `surveyResponse.count`. Uji nilai hanya merah di bawah `TZ=UTC`, karena di
+   * laptop berzona Asia/Jakarta kode lama pun benar; pagar zona merah di zona
+   * mana pun. Dipanggil langsung, bukan lewat `getOpdDashboard`, supaya pagar
+   * zona tak ikut menangkap kode lain di jalur dasbor.
+   */
+  describe('BUG-101: batas bulan tren responden menurut WIB', () => {
+    const trenResponden = () =>
+      (
+        service as unknown as { getRespondentTrendPercent(opdId: number): Promise<number | null> }
+      ).getRespondentTrendPercent(1);
+    const batas = () =>
+      (prisma.surveyResponse.count as jest.Mock).mock.calls.map(
+        ([arg]) => arg.where.submittedAt as { gte: Date; lt?: Date },
+      );
+    const pasangJam = (instan: string) =>
+      jest.useFakeTimers({ now: new Date(instan), doNotFake: ['queueMicrotask', 'nextTick'] });
+
+    afterEach(() => jest.useRealTimers());
+
+    it('1 November 00.30 WIB (31 Oktober 17.30 UTC) sudah bulan November', async () => {
+      pasangJam('2026-10-31T17:30:00.000Z');
+      await trenResponden();
+
+      const [bulanIni, bulanLalu] = batas();
+      expect(bulanIni.gte.toISOString()).toBe('2026-10-31T17:00:00.000Z');
+      expect(bulanLalu.gte.toISOString()).toBe('2026-09-30T17:00:00.000Z');
+      expect(bulanLalu.lt?.toISOString()).toBe('2026-10-31T17:00:00.000Z');
+    });
+
+    it('pertengahan bulan: batasnya pukul 00.00 WIB tanggal 1, bukan 07.00 WIB', async () => {
+      pasangJam('2026-11-15T05:00:00.000Z');
+      await trenResponden();
+
+      expect(batas()[0].gte.toISOString()).toBe('2026-10-31T17:00:00.000Z');
+    });
+
+    it('1 Januari 2027 00.30 WIB: bulan lalu adalah Desember 2026', async () => {
+      pasangJam('2026-12-31T17:30:00.000Z');
+      await trenResponden();
+
+      const [bulanIni, bulanLalu] = batas();
+      expect(bulanIni.gte.toISOString()).toBe('2026-12-31T17:00:00.000Z');
+      expect(bulanLalu.gte.toISOString()).toBe('2026-11-30T17:00:00.000Z');
+    });
+
+    it('tak memanggil satu pun metode Date berwaktu lokal', async () => {
+      pasangJam('2026-10-31T17:30:00.000Z');
+      const mata = (['getFullYear', 'getMonth', 'getDate', 'getHours'] as const).map(
+        (m) => [m, jest.spyOn(Date.prototype, m)] as const,
+      );
+      let terpanggil: string[];
+      try {
+        await trenResponden();
+        // Dibaca SEBELUM dipulihkan: `mockRestore` ikut mengosongkan `mock.calls`.
+        terpanggil = mata.filter(([, s]) => s.mock.calls.length > 0).map(([m]) => m);
+      } finally {
+        // Dipulihkan satu per satu: `restoreAllMocks` ikut mengosongkan mock
+        // Prisma bersama yang dipakai uji sesudahnya.
+        mata.forEach(([, s]) => s.mockRestore());
+      }
+      expect(terpanggil).toEqual([]);
+    });
+  });
+
   describe('getStatistics (D2: publik)', () => {
     it('tanpa data -> summary aman (null/0), bukan error', async () => {
       const result = await service.getStatistics();

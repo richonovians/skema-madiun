@@ -7,7 +7,7 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PENYIMPAN_SINGGAHAN } from '../src/common/cache/penyimpan-singgahan.interface';
 import type { PenyimpanSinggahan } from '../src/common/cache/penyimpan-singgahan.interface';
-import { tanggalWib } from '../src/common/waktu/hari-wib';
+import { awalTanggalWib, tanggalWib } from '../src/common/waktu/hari-wib';
 import { periodeFromDate } from '../src/modules/surveys/utils/periode.util';
 import { devHeaders } from './helpers/auth.helper';
 
@@ -433,11 +433,12 @@ describe('Dashboard & Statistics (e2e)', () => {
       surveiSampahId = survei.id;
       const [skala, teks] = survei.questions;
 
-      const sekarang = new Date();
-      // Rumus yang SAMA dengan `getRespondentTrendPercent`, supaya "bulan lalu"
-      // di sini dan di kode produksi selalu bulan yang sama -- termasuk saat
-      // bulan ini Januari, ketika `getMonth() - 1` berpindah ke tahun lalu.
-      const pertengahanBulanLalu = new Date(sekarang.getFullYear(), sekarang.getMonth() - 1, 15);
+      // Rumus yang SAMA dengan `getRespondentTrendPercent`, yaitu bulan WIB
+      // (BUG-101), supaya "bulan lalu" di sini dan di kode produksi selalu
+      // bulan yang sama -- termasuk saat bulan ini Januari, ketika `bulan - 1`
+      // berpindah ke tahun lalu.
+      const { tahun, bulan } = tanggalWib(new Date());
+      const pertengahanBulanLalu = awalTanggalWib(tahun, bulan - 1, 15);
 
       const responsBulanIni = await prisma.surveyResponse.create({
         data: { surveyId: survei.id },

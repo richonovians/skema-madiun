@@ -18,7 +18,8 @@
  * Bulan statistik pengaduan (BUG-100, 25 November 2026) ikut aturan ini:
  * `periodeFromDate` dan `trenBulanan` memakai `tanggalWib`, dan agregat
  * Postgres-nya (`DashboardService.agregatPengaduanBulanan`) memakai
- * `ZONA_WIB`.
+ * `ZONA_WIB`. Begitu pula batas bulan tren responden dasbor OPD
+ * (`DashboardService.getRespondentTrendPercent`, BUG-101).
  */
 const SELISIH_WIB_MS = 7 * 60 * 60 * 1000;
 
