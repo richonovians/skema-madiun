@@ -1,28 +1,33 @@
 import { readFileSync } from 'node:fs';
-import { test, expect, cariButirAksi } from './fixtures/responsif';
+import type { Page } from '@playwright/test';
+import { test, expect, cariButirAksi, type Peran } from './fixtures/responsif';
 
 /**
- * UNDUHAN QR ADALAH POSTER, BUKAN QR POLOS (22 September 2026, permintaan
- * pengguna).
+ * UNDUHAN QR: POSTER DAN QR POLOS, LEWAT MODAL PILIHAN.
+ *
+ * 22 September 2026: unduhan QR menjadi poster, bukan QR polos. 25 November
+ * 2026 (permintaan pengguna): tombol "Unduh QR" membuka modal pilihan berisi
+ * pratinjau poster survei itu sendiri dan dua tombol -- "QR Polos" dan "QR
+ * dengan Desain" -- sehingga kedua berkas dapat diperoleh.
  *
  * KENAPA UJINYA DI SINI, BUKAN DI JEST. Posternya digambar di `<canvas>`, dan
  * jsdom tidak memiliki canvas sungguhan: `getContext('2d')` mengembalikan null
  * dan `toBlob` tak pernah memanggil balik. Di Jest yang dapat dibuktikan
- * hanyalah data apa yang diserahkan ke penyusun poster (ShareSurveyModal.test)
- * dan bagaimana judul panjang dipecah (posterQrSurvei.test). Bahwa berkas yang
- * benar-benar turun adalah poster -- bukan kotak QR 512px seperti sebelumnya --
- * hanya dapat diukur di peramban.
+ * hanyalah data apa yang diserahkan ke penyusun poster (UnduhQrModal.test)
+ * dan bagaimana judul panjang dipecah (posterQrSurvei.test). Berkas yang
+ * benar-benar turun hanya dapat diukur di peramban.
  *
  * Yang diperiksa dimensinya, bukan isinya. Membandingkan piksel poster akan
  * memerah setiap kali fontanya berubah setebal satu piksel, dan uji yang
  * memerah karena hal begitu akan dimatikan orang dalam sebulan. Dimensi sudah
- * cukup memisahkan yang lama dari yang baru: QR polos persegi 512px, poster
- * 1080x1440.
+ * cukup memisahkan keduanya: QR polos persegi 1024px, poster 1080x1440.
  */
 test.describe.configure({ timeout: 90_000 });
 
 /** Dimensi poster; harus sama dengan LEBAR/TINGGI di utils/posterQrSurvei.js. */
 const POSTER = { lebar: 1080, tinggi: 1440 };
+/** Harus sama dengan QR_PIXEL_SIZE di ShareSurveyModal.jsx. */
+const QR_POLOS = { lebar: 1024, tinggi: 1024 };
 
 /**
  * Baca lebar & tinggi dari kepala PNG.
@@ -38,38 +43,139 @@ function ukuranPng(jalur: string): { lebar: number; tinggi: number } {
   return { lebar: buf.readUInt32BE(16), tinggi: buf.readUInt32BE(20) };
 }
 
-test('unduhan QR pada survei aktif berupa poster, bukan QR polos', async ({
-  page,
-  bukaSebagai,
-}) => {
+/**
+ * Buka modal Bagikan pada survei aktif pertama, lalu modal pilihan unduhan.
+ * Memulangkan `null` bila mesin ini tak punya survei aktif.
+ */
+async function bukaPilihanUnduh(
+  page: Page,
+  bukaSebagai: (peran: Peran, path: string) => Promise<void>,
+) {
   await bukaSebagai('kabupaten', '/admin-kab/surveys');
 
   // "Bagikan" ada di balik menu aksi baris sejak 30 September 2026 (`22b2d03`).
-  // Sampai 26 Oktober uji ini masih mencari tombol lepas, tak menemukannya, dan
-  // melewati dirinya dengan alasan di bawah -- padahal survei aktif ada. KONTROL
-  // di berkas ini sudah dibetulkan untuk menu itu 7 Oktober; uji ini terlewat.
+  // Sampai 26 Oktober uji di berkas ini masih mencari tombol lepas, tak
+  // menemukannya, dan melewati dirinya -- padahal survei aktif ada.
   const bagikan = await cariButirAksi(page, /^bagikan$/i);
-  test.skip(
-    !bagikan,
-    'Tak ada survei AKTIF pada basis data mesin ini -- butir Bagikan memang hanya muncul di sana.',
-  );
-
-  await bagikan!.click();
+  if (!bagikan) return null;
+  await bagikan.click();
 
   // Tombolnya dirender nonaktif sampai QR selesai dibuat di effect asinkron;
-  // menunggu keberadaannya saja akan mengklik tombol mati.
-  const unduh = page.getByRole('button', { name: /unduh qr/i });
-  await expect(unduh).toBeEnabled({ timeout: 15_000 });
+  // menunggu keberadaannya saja akan mengklik tombol mati. Jangkarnya `^...$`
+  // karena kedua tombol di modal pilihan juga diawali "Unduh QR".
+  const unduhQr = page.getByRole('button', { name: /^unduh qr$/i });
+  await expect(unduhQr).toBeEnabled({ timeout: 15_000 });
+  await unduhQr.click();
 
-  const [berkas] = await Promise.all([page.waitForEvent('download'), unduh.click()]);
+  const pilihan = page.getByRole('dialog', { name: /^unduh qr/i });
+  await expect(pilihan).toBeVisible();
+  return { pilihan, unduhQr };
+}
+
+const ALASAN_LEWAT =
+  'Tak ada survei AKTIF pada basis data mesin ini -- butir Bagikan memang hanya muncul di sana.';
+
+test('Unduh QR membuka modal pilihan dengan pratinjau poster survei itu', async ({
+  page,
+  bukaSebagai,
+}) => {
+  const buka = await bukaPilihanUnduh(page, bukaSebagai);
+  test.skip(!buka, ALASAN_LEWAT);
+  const { pilihan } = buka!;
+
+  // Pratinjau adalah poster sungguhan yang selesai digambar, bukan kotak
+  // kosong: ukuran aslinya sama dengan berkas poster yang akan turun.
+  const pratinjau = pilihan.getByRole('img', { name: /pratinjau poster qr/i });
+  await expect(pratinjau).toBeVisible({ timeout: 15_000 });
+  const asli = await pratinjau.evaluate((img: HTMLImageElement) => ({
+    lebar: img.naturalWidth,
+    tinggi: img.naturalHeight,
+  }));
+  expect(asli).toEqual(POSTER);
+
+  await expect(pilihan.getByRole('button', { name: /unduh qr polos/i })).toBeEnabled();
+  await expect(pilihan.getByRole('button', { name: /unduh qr dengan desain/i })).toBeEnabled();
+});
+
+test('"QR dengan Desain" menurunkan poster 1080x1440', async ({ page, bukaSebagai }) => {
+  const buka = await bukaPilihanUnduh(page, bukaSebagai);
+  test.skip(!buka, ALASAN_LEWAT);
+  const tombol = buka!.pilihan.getByRole('button', { name: /unduh qr dengan desain/i });
+  await expect(tombol).toBeEnabled({ timeout: 15_000 });
+
+  const [berkas] = await Promise.all([page.waitForEvent('download'), tombol.click()]);
 
   const jalur = await berkas.path();
   expect(jalur, 'unduhannya tak menghasilkan berkas').toBeTruthy();
-  expect(berkas.suggestedFilename()).toMatch(/^qr-survei-.+\.png$/);
-
-  const ukuran = ukuranPng(jalur as string);
-  expect(ukuran).toEqual({ lebar: POSTER.lebar, tinggi: POSTER.tinggi });
+  expect(berkas.suggestedFilename()).toMatch(/^qr-survei-.+-poster\.png$/);
+  expect(ukuranPng(jalur as string)).toEqual(POSTER);
 });
+
+test('"QR Polos" menurunkan kotak QR 1024x1024 tanpa desain', async ({ page, bukaSebagai }) => {
+  const buka = await bukaPilihanUnduh(page, bukaSebagai);
+  test.skip(!buka, ALASAN_LEWAT);
+  const tombol = buka!.pilihan.getByRole('button', { name: /unduh qr polos/i });
+
+  const [berkas] = await Promise.all([page.waitForEvent('download'), tombol.click()]);
+
+  const jalur = await berkas.path();
+  expect(jalur, 'unduhannya tak menghasilkan berkas').toBeTruthy();
+  expect(berkas.suggestedFilename()).toMatch(/^qr-survei-.+-polos\.png$/);
+  expect(ukuranPng(jalur as string)).toEqual(QR_POLOS);
+});
+
+test('Escape menutup modal pilihan saja dan fokus kembali ke tombol Unduh QR', async ({
+  page,
+  bukaSebagai,
+}) => {
+  const buka = await bukaPilihanUnduh(page, bukaSebagai);
+  test.skip(!buka, ALASAN_LEWAT);
+  const { pilihan, unduhQr } = buka!;
+
+  await page.keyboard.press('Escape');
+
+  await expect(pilihan).toBeHidden();
+  await expect(page.getByRole('dialog', { name: /bagikan survei/i })).toBeVisible();
+  await expect(unduhQr).toBeFocused();
+});
+
+/**
+ * Ponsel terkecil dan ponsel mendatar. Kartu modal ini lebih tinggi daripada
+ * 568px, jadi yang diperiksa: tiap tombol dapat dicapai dengan menggulir latar
+ * dan tak satu pun meluber keluar layar.
+ */
+for (const layar of [
+  { width: 320, height: 568 },
+  { width: 568, height: 320 },
+]) {
+  test(`modal pilihan dapat dipakai pada ${layar.width}x${layar.height}`, async ({
+    page,
+    bukaSebagai,
+  }) => {
+    await page.setViewportSize(layar);
+    const buka = await bukaPilihanUnduh(page, bukaSebagai);
+    test.skip(!buka, ALASAN_LEWAT);
+    const { pilihan } = buka!;
+    await expect(pilihan.getByRole('img', { name: /pratinjau poster qr/i })).toBeVisible({
+      timeout: 15_000,
+    });
+    // Kartu beranimasi `zoom-in-95` 200 ms; ukurannya baru tetap sesudahnya.
+    await page.waitForTimeout(400);
+
+    for (const nama of [/unduh qr dengan desain/i, /unduh qr polos/i, /^tutup$/i]) {
+      const tombol = pilihan.getByRole('button', { name: nama });
+      await tombol.scrollIntoViewIfNeeded();
+      const kotak = await tombol.boundingBox();
+      expect(kotak, `${nama} tak tergambar`).not.toBeNull();
+      expect(kotak!.x, `${nama} meluber ke kiri`).toBeGreaterThanOrEqual(0);
+      expect(kotak!.x + kotak!.width, `${nama} meluber ke kanan`).toBeLessThanOrEqual(layar.width);
+      expect(kotak!.y, `${nama} di atas layar`).toBeGreaterThanOrEqual(0);
+      expect(kotak!.y + kotak!.height, `${nama} di bawah layar`).toBeLessThanOrEqual(
+        layar.height,
+      );
+    }
+  });
+}
 
 /**
  * KONTROL. Uji di atas akan tetap hijau bila tombol Bagikan lenyap dari seluruh

@@ -82,17 +82,15 @@ describe('ShareSurveyModal', () => {
 });
 
 /**
- * UNDUHAN QR ADALAH POSTER, BUKAN QR POLOS (permintaan pengguna 22 September
- * 2026).
+ * "UNDUH QR" MEMBUKA MODAL PILIHAN, TIDAK LANGSUNG MENGUNDUH (25 November 2026,
+ * permintaan pengguna).
  *
- * Berkas lama hanya berisi kotak QR. Dicetak dan ditempel di loket, gambar itu
- * tak memberi tahu apa pun: yang lewat tak tahu survei apa, milik instansi
- * mana, dan tak punya jalan lain bila kameranya menolak memindai.
+ * Sampai hari itu tombolnya langsung menurunkan poster (22 September 2026) dan
+ * QR polos tak dapat diunduh sama sekali. Kini ia membuka `UnduhQrModal`, yang
+ * memuat pratinjau poster dan dua pilihan unduhan; perilaku unduhannya sendiri
+ * diuji di UnduhQrModal.test.jsx.
  *
- * `gambarPosterQr` dipalsukan di sini karena ia menggambar di canvas, dan jsdom
- * tak punya canvas sungguhan. Yang diuji bagian yang memang milik modal ini:
- * data apa yang diserahkan ke penyusun poster, dan apa yang terjadi pada
- * hasilnya. Poster utuhnya diperiksa uji Playwright.
+ * `gambarPosterQr` dipalsukan karena jsdom tak punya canvas sungguhan.
  */
 jest.mock('@/features/surveys/utils/posterQrSurvei', () => ({
   __esModule: true,
@@ -107,14 +105,15 @@ jest.mock('qrcode', () => ({
   default: { toDataURL: jest.fn(() => Promise.resolve('data:image/png;base64,QRPOLOS')) },
 }));
 
-describe('ShareSurveyModal — unduhan poster QR', () => {
+describe('ShareSurveyModal — tombol Unduh QR', () => {
   const posterBlob = new Blob(['poster'], { type: 'image/png' });
+  const asliBuat = URL.createObjectURL;
+  const asliCabut = URL.revokeObjectURL;
 
-  const bukaModal = async (over = {}, props = {}) => {
-    gambarPosterQr.mockResolvedValue(posterBlob);
+  const bukaModal = async (props = {}) => {
     render(
       <ShareSurveyModal
-        survey={{ id: 42, title: 'SKM Loket', status: 'AKTIF', ...over }}
+        survey={{ id: 42, title: 'SKM Loket', status: 'AKTIF' }}
         namaInstansi="Dinas Komunikasi dan Informatika"
         onClose={() => {}}
         {...props}
@@ -124,68 +123,76 @@ describe('ShareSurveyModal — unduhan poster QR', () => {
     // awal dalam keadaan nonaktif sampai QR selesai dibuat di effect yang
     // asinkron; menunggu keberadaannya saja membuat uji ini mengklik tombol
     // mati dan gagal bergantung pada kecepatan mesin.
-    const tombol = screen.getByRole('button', { name: /unduh qr/i });
+    const tombol = screen.getByRole('button', { name: /^unduh qr$/i });
     await waitFor(() => expect(tombol).toBeEnabled());
     return tombol;
   };
 
   beforeEach(() => {
     gambarPosterQr.mockReset();
+    gambarPosterQr.mockResolvedValue(posterBlob);
     simpanBlob.mockReset();
+    // jsdom tak punya createObjectURL; modal pilihan memakainya untuk pratinjau.
+    URL.createObjectURL = jest.fn(() => 'blob:pratinjau-poster');
+    URL.revokeObjectURL = jest.fn();
   });
 
-  it('menyerahkan judul, instansi, dan URL survei ke penyusun poster', async () => {
+  afterAll(() => {
+    URL.createObjectURL = asliBuat;
+    URL.revokeObjectURL = asliCabut;
+  });
+
+  it('membuka modal pilihan dan tidak langsung mengunduh apa pun', async () => {
     const tombol = await bukaModal();
 
     fireEvent.click(tombol);
 
-    await waitFor(() => expect(gambarPosterQr).toHaveBeenCalledTimes(1));
-    expect(gambarPosterQr).toHaveBeenCalledWith(
-      expect.objectContaining({
-        judul: 'SKM Loket',
-        instansi: 'Dinas Komunikasi dan Informatika',
-        url: expect.stringMatching(/\/survei\/42$/),
-        qrDataUrl: 'data:image/png;base64,QRPOLOS',
-      }),
-    );
-  });
-
-  it('menyimpan poster yang tersusun, bukan QR polosnya', async () => {
-    const tombol = await bukaModal();
-
-    fireEvent.click(tombol);
-
-    await waitFor(() => expect(simpanBlob).toHaveBeenCalledTimes(1));
-    expect(simpanBlob).toHaveBeenCalledWith(posterBlob, 'qr-survei-42.png');
-  });
-
-  /**
-   * Kegagalan menyusun poster harus TERLIHAT. Tanpa ini, tombol yang diklik
-   * tanpa hasil apa pun terbaca sebagai peramban yang lambat, dan penggunanya
-   * menunggu berkas yang tak akan pernah turun.
-   */
-  it('menampilkan pesan bila poster gagal disusun, dan tak menyimpan apa pun', async () => {
-    const tombol = await bukaModal();
-    gambarPosterQr.mockRejectedValue(new Error('canvas ditolak'));
-
-    fireEvent.click(tombol);
-
-    expect(await screen.findByText(/gagal menyiapkan poster/i)).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: /unduh qr.*skm loket/i })).toBeInTheDocument();
+    await screen.findByAltText(/pratinjau poster qr/i);
     expect(simpanBlob).not.toHaveBeenCalled();
   });
 
-  /**
-   * KONTROL: tanpa ini, sebuah komponen yang TIDAK PERNAH memanggil penyusun
-   * poster akan membuat uji kegagalan di atas hijau tanpa alasan.
-   */
-  it('KONTROL: poster disusun sekali per klik', async () => {
+  it('menyerahkan QR, URL, dan nama instansi yang sama ke modal pilihan', async () => {
     const tombol = await bukaModal();
 
     fireEvent.click(tombol);
-    await waitFor(() => expect(gambarPosterQr).toHaveBeenCalledTimes(1));
 
+    await waitFor(() => expect(gambarPosterQr).toHaveBeenCalledTimes(1));
+    expect(gambarPosterQr).toHaveBeenCalledWith({
+      qrDataUrl: 'data:image/png;base64,QRPOLOS',
+      judul: 'SKM Loket',
+      instansi: 'Dinas Komunikasi dan Informatika',
+      url: expect.stringMatching(/\/survei\/42$/),
+    });
+  });
+
+  /**
+   * Kedua modal mendengarkan Escape di `window`. Tanpa penahan, satu Escape
+   * menutup keduanya sekaligus dan pengguna terlempar ke halaman, padahal ia
+   * hanya ingin membatalkan pilihan unduhan.
+   */
+  it('Escape saat modal pilihan terbuka hanya menutup modal pilihan', async () => {
+    const onClose = jest.fn();
+    const tombol = await bukaModal({ onClose });
     fireEvent.click(tombol);
-    await waitFor(() => expect(gambarPosterQr).toHaveBeenCalledTimes(2));
+    await screen.findByAltText(/pratinjau poster qr/i);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /unduh qr/i })).not.toBeInTheDocument(),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: /bagikan survei/i })).toBeInTheDocument();
+  });
+
+  it('KONTROL: Escape tanpa modal pilihan tetap menutup modal Bagikan', async () => {
+    const onClose = jest.fn();
+    await bukaModal({ onClose });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
