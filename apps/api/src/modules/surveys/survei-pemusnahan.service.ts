@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { jedaKeJamWib } from '../../common/waktu/hari-wib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { operasiPemusnahanSurvei } from './survey-pemusnahan.util';
 
@@ -56,7 +57,11 @@ export const PEMUSNAHAN_MINIMUM_HARI = 30;
  */
 export const UKURAN_KELOMPOK = 200;
 
-/** Jam server saat pemusnahan berjalan -- jam sepi, dan bukan jam milik audit. */
+/**
+ * Jam WIB saat pemusnahan berjalan -- jam sepi, dan bukan jam milik audit.
+ * Sampai BUG-102 (25 November 2026) ini jam server, sehingga di server UTC
+ * pemusnahan berjalan pukul 11.00 WIB.
+ */
 export const JAM_JALAN = 4;
 
 const MILIDETIK_PER_HARI = 24 * 60 * 60 * 1000;
@@ -115,7 +120,7 @@ export class SurveiPemusnahanService implements OnApplicationBootstrap, OnModule
   }
 
   /**
-   * Milidetik dari `sekarang` sampai `JAM_JALAN` berikutnya, waktu setempat.
+   * Milidetik dari `sekarang` sampai `JAM_JALAN` WIB berikutnya.
    *
    * Dihitung menuju jam tertentu, bukan `setInterval` 24 jam sejak boot: yang
    * kedua membuat jam pemusnahan bergeser mengikuti kapan server terakhir
@@ -123,12 +128,7 @@ export class SurveiPemusnahanService implements OnApplicationBootstrap, OnModule
    * di jam sibuk.
    */
   jedaKeJamJalan(sekarang: Date = new Date()): number {
-    const berikutnya = new Date(sekarang);
-    berikutnya.setHours(JAM_JALAN, 0, 0, 0);
-    if (berikutnya.getTime() <= sekarang.getTime()) {
-      berikutnya.setDate(berikutnya.getDate() + 1);
-    }
-    return berikutnya.getTime() - sekarang.getTime();
+    return jedaKeJamWib(sekarang, JAM_JALAN);
   }
 
   async pangkas(opsi: OpsiPemusnahan = {}): Promise<HasilPemusnahan> {

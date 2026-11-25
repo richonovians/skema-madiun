@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { jedaKeJamWib } from '../../common/waktu/hari-wib';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -58,7 +59,11 @@ export const RETENSI_MINIMUM_HARI = 7;
  */
 export const UKURAN_KELOMPOK = 5000;
 
-/** Jam server saat pemangkasan berjalan -- jam sepi, di luar jam kerja. */
+/**
+ * Jam WIB saat pemangkasan berjalan -- jam sepi, di luar jam kerja. Sampai
+ * BUG-102 (25 November 2026) ini jam server, sehingga di server UTC
+ * pemangkasan berjalan pukul 10.00 WIB.
+ */
 export const JAM_JALAN = 3;
 
 const MILIDETIK_PER_HARI = 24 * 60 * 60 * 1000;
@@ -114,7 +119,7 @@ export class AuditRetensiService implements OnApplicationBootstrap, OnModuleDest
   }
 
   /**
-   * Milidetik dari `sekarang` sampai `JAM_JALAN` berikutnya, waktu setempat.
+   * Milidetik dari `sekarang` sampai `JAM_JALAN` WIB berikutnya.
    *
    * Dihitung menuju jam tertentu, bukan `setInterval` 24 jam sejak boot: yang
    * kedua membuat jam pemangkasan bergeser mengikuti kapan server terakhir
@@ -122,12 +127,7 @@ export class AuditRetensiService implements OnApplicationBootstrap, OnModuleDest
    * di jam sibuk.
    */
   jedaKeJamJalan(sekarang: Date = new Date()): number {
-    const berikutnya = new Date(sekarang);
-    berikutnya.setHours(JAM_JALAN, 0, 0, 0);
-    if (berikutnya.getTime() <= sekarang.getTime()) {
-      berikutnya.setDate(berikutnya.getDate() + 1);
-    }
-    return berikutnya.getTime() - sekarang.getTime();
+    return jedaKeJamWib(sekarang, JAM_JALAN);
   }
 
   async pangkas(opsi: OpsiPangkas = {}): Promise<HasilPangkas> {

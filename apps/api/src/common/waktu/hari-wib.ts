@@ -19,9 +19,12 @@
  * `periodeFromDate` dan `trenBulanan` memakai `tanggalWib`, dan agregat
  * Postgres-nya (`DashboardService.agregatPengaduanBulanan`) memakai
  * `ZONA_WIB`. Begitu pula batas bulan tren responden dasbor OPD
- * (`DashboardService.getRespondentTrendPercent`, BUG-101).
+ * (`DashboardService.getRespondentTrendPercent`, BUG-101) dan jam jalan
+ * pemangkasan log audit serta pemusnahan survei Sampah (`jedaKeJamWib`,
+ * BUG-102).
  */
-const SELISIH_WIB_MS = 7 * 60 * 60 * 1000;
+const JAM_MS = 60 * 60 * 1000;
+const SELISIH_WIB_MS = 7 * JAM_MS;
 
 /**
  * Nama zona WIB untuk Postgres (`AT TIME ZONE`), dipakai kueri yang membagi
@@ -58,6 +61,17 @@ export function tanggalWib(sekarang: Date): TanggalKalender {
   // Geser ke jam dinding WIB, lalu baca komponennya sebagai UTC.
   const wib = new Date(sekarang.getTime() + SELISIH_WIB_MS);
   return { tahun: wib.getUTCFullYear(), bulan: wib.getUTCMonth() + 1, tanggal: wib.getUTCDate() };
+}
+
+/**
+ * Milidetik dari `sekarang` sampai pukul `jam`.00 WIB berikutnya, untuk tugas
+ * terjadwal harian yang harus berjalan di jam sepi (BUG-102, 25 November
+ * 2026). Tepat pada jamnya menunggu sehari penuh, bukan nol: jeda nol membuat
+ * timer menembak seketika lalu menjadwalkan ulang dirinya tanpa henti.
+ */
+export function jedaKeJamWib(sekarang: Date, jam: number): number {
+  const jeda = awalHariWib(sekarang).getTime() + jam * JAM_MS - sekarang.getTime();
+  return jeda > 0 ? jeda : jeda + 24 * JAM_MS;
 }
 
 export function awalHariWib(sekarang: Date): Date {
