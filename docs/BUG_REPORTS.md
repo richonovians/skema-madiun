@@ -194,8 +194,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-099](#bug-099) | Penyaring tanggal Log Audit melewatkan log 00.00-06.59 WIB pada tanggal mulai | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-097 |
 | [BUG-100](#bug-100) | Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Ditutup** | Probe celah pengujian 25 November (catatan terbuka BUG-068) |
 | [BUG-101](#bug-101) | Tren responden "dari bulan lalu" di dasbor Admin OPD membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-100 |
+| [BUG-102](#bug-102) | Pemangkasan log audit dan pemusnahan survei Sampah berjalan di jam kerja bila server berjalan dalam UTC | Low | Terkonfirmasi | **Terbuka** | Sisir jam lokal sesudah BUG-101 |
 
-**Rekap** — 101 temuan: **100 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 102 temuan: **100 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-102 (Low).
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -5966,6 +5967,47 @@ PR #71, merge lokal `main` `acdb2e1` (`6a16662`), di-push pengguna. Pohon `acdb2
 
 **Status 25 November 2026 (lanjut): Ditutup**
 
+### BUG-102 — Pemangkasan log audit dan pemusnahan survei Sampah berjalan di jam kerja bila server berjalan dalam UTC
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Sisir pemakaian metode `Date` berwaktu lokal di `apps/api` sesudah BUG-101 |
+| **Tanggal**  | 25 November 2026 |
+| **Lingkungan** | `main` `acdb2e1`, Windows 11 berzona Asia/Jakarta, Node 25.2.1, Jest 29 |
+| **Berkas**   | [audit-retensi.service.ts:124-131](../apps/api/src/modules/audit/audit-retensi.service.ts#L124-L131) (`jedaKeJamJalan`, `JAM_JALAN = 3`), [survei-pemusnahan.service.ts:125-132](../apps/api/src/modules/surveys/survei-pemusnahan.service.ts#L125-L132) (`jedaKeJamJalan`, `JAM_JALAN = 4`) |
+| **Severity** | Low (usulan penguji). Hanya terjadi bila server berjalan dalam UTC dan fiturnya dinyalakan. Tidak ada data yang salah dihapus; yang bergeser hanya jam jalannya, sehingga penghapusan berkelompok berjalan bersamaan dengan pemakaian halaman Log Aktivitas dan Sampah |
+
+**Gejala**
+
+Bila proses API berjalan dalam UTC, pemangkasan log audit berjalan pukul 10.00 WIB, bukan 03.00, dan pemusnahan survei Sampah pukul 11.00 WIB, bukan 04.00. Keduanya jatuh di jam kerja Admin. Di laptop pengembangan yang berzona WIB jamnya benar.
+
+**Akar masalah**
+
+Kedua `jedaKeJamJalan` menghitung jam berikutnya dengan `setHours(JAM_JALAN, 0, 0, 0)` dan `setDate(getDate() + 1)`, yaitu menurut zona proses. Ini keputusan tertulis, bukan kelalaian: kedua konstanta `JAM_JALAN` disebut "jam server", dan docblock `CadanganTerjadwalService.jedaKeJamJalan` menyebut dirinya berbeda dari `AuditRetensiService` justru karena memakai WIB. Tetapi alasan kedua konstanta itu sendiri adalah "jam sepi, di luar jam kerja", dan docblock `jedaKeJamJalan` menolak `setInterval` agar pemangkasan tidak jatuh di jam sibuk. Di server UTC, jam server tidak memenuhi alasan itu. Pengguna memutuskan pada 25 November 2026 bahwa jam sepi semestinya WIB, sama dengan cadangan terjadwal dan BUG-097 sampai BUG-101.
+
+**Pembuktian**
+
+Uji unit `qa-bug-hunt/repros/bug-102-jam-tugas-terjadwal.spec.ts` (lokal, tidak di-commit) memanggil `jedaKeJamJalan` kedua layanan pada 26 November 02.00 WIB (`2026-11-25T19:00Z`), lalu menghitung jam jalannya dalam WIB.
+
+| Layanan | Jam jalan di `TZ=UTC` | Seharusnya |
+| --- | --- | --- |
+| `AuditRetensiService` | 10.00 WIB (jeda 8 jam) | 03.00 WIB (jeda 1 jam) |
+| `SurveiPemusnahanService` | 11.00 WIB (jeda 9 jam) | 04.00 WIB (jeda 2 jam) |
+
+Di bawah `TZ=UTC` kedua uji merah dengan angka di tabel. Di bawah `TZ=Asia/Jakarta` keduanya lulus. Uji `jedaKeJamJalan` yang sudah ada di kedua spec membangun masukannya dengan `new Date(2026, 8, 30, jam)`, yaitu jam lokal, sehingga ia lulus di zona mana pun dan tidak dapat menangkap cacat ini.
+
+**Langkah reproduksi**
+
+1. Jalankan API dengan `TZ=UTC` dan retensi audit atau pemusnahan Sampah dinyalakan.
+2. Biarkan API hidup sampai log hasil pemangkasan atau pemusnahan muncul.
+3. Log itu bertanda pukul 03.00 atau 04.00 UTC, yaitu 10.00 atau 11.00 WIB.
+
+**Arah perbaikan (usulan, belum dikerjakan)**
+
+Hitung jam berikutnya menurut WIB seperti `CadanganTerjadwalService.jedaKeJamJalan`, atau lewat `awalHariWib` dari `common/waktu/hari-wib.ts` ditambah `JAM_JALAN` jam. Ganti uji `jedaKeJamJalan` yang ada dengan masukan instan UTC, dan tambahkan pagar zona.
+
+**Status 25 November 2026: Terbuka**
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -9378,3 +9420,4 @@ hanya dibaca, tidak diubah.
 | 7.75 | 25 November 2026 | **BUG-100 ditutup: 100 temuan, 99 ditutup, 1 ditolak, 0 terbuka.** PR #70, merge lokal `main` `5aec719` (`f19ffe1`). Bulan dan triwulan statistik pengaduan kini dibagi menurut WIB. Agregat Postgres memakai `ZONA_WIB`, sedangkan `trenBulanan` dan `periodeFromDate` memakai `tanggalWib`. Uji nilai merah di bawah `TZ=UTC` pada kode lama dan hijau di kedua zona pada kode baru. CI cabang `f19ffe1` hijau 3 dari 3 job. CI `main` `5aec719` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 8,3 menit. Temuan sampingan yang belum dicatat: `getRespondentTrendPercent` masih membagi bulan menurut zona proses. Tak ada temuan terbuka. |
 | 7.76 | 25 November 2026 | **BUG-101 dicatat: 101 temuan, 99 ditutup, 1 ditolak, 1 terbuka.** Temuan sampingan BUG-100 pada `main` `5aec719`. `getRespondentTrendPercent` (persentase tren responden di dasbor Admin OPD) membagi bulan dengan `new Date(tahun, bulan, 1)` menurut zona proses, sehingga di server UTC bulan baru dimulai pukul 07.00 WIB dan pada tujuh jam pertama tanggal 1 perbandingannya salah bulan. Uji unit di `qa-bug-hunt/repros/` merah di bawah `TZ=UTC` dan lulus di Asia/Jakarta. Low, usulan penguji; pencatatannya keputusan pengguna. |
 | 7.77 | 25 November 2026 | **BUG-101 ditutup: 101 temuan, 100 ditutup, 1 ditolak, 0 terbuka.** PR #71, merge lokal `main` `acdb2e1` (`6a16662`). Batas bulan tren responden dasbor Admin OPD kini dihitung dengan `tanggalWib` dan `awalTanggalWib`. Uji nilai merah di bawah `TZ=UTC` pada kode lama dan lulus di UTC, Asia/Jakarta, dan America/New_York pada kode baru. CI cabang `6a16662` hijau 3 dari 3 job. CI `main` `acdb2e1` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 9,6 menit. Tak ada temuan terbuka. |
+| 7.78 | 25 November 2026 | **BUG-102 dicatat: 102 temuan, 100 ditutup, 1 ditolak, 1 terbuka.** Sisir jam lokal sesudah BUG-101 pada `main` `acdb2e1`. Pemangkasan log audit dan pemusnahan survei Sampah menjadwalkan diri dengan `setHours` menurut jam server, sehingga di server UTC keduanya berjalan pukul 10.00 dan 11.00 WIB, bukan 03.00 dan 04.00. Jam server itu keputusan tertulis di kode, dan pengguna memutuskan jam sepi semestinya WIB. Uji unit di `qa-bug-hunt/repros/` merah di bawah `TZ=UTC` dan lulus di Asia/Jakarta. Low, usulan penguji; pencatatannya keputusan pengguna. |
