@@ -571,3 +571,89 @@ baris. `audit_logs` tidak disentuh.
   peramban sampai masa simpan habis.
 
 Temuan terbuka per 24 November: 0 dari 99.
+
+## 10. Regresi ulang 25 November 2026 (QA-FINAL-UAT)
+
+**Kode yang diuji:** `main` di `f8aa35f` (sama dengan `origin/main`), pohon
+kerja bersih. Alasan diulang: §9 bukan regresi penuh, dan sejak §8 sembilan
+merge serta satu commit langsung masuk `main`. Yang mengubah `apps/api` ada
+empat, yaitu PR #63, #64, #65, dan commit langsung `9a8e84e`
+(`git diff --stat 0401009 f8aa35f -- apps/api`: 22 berkas). Daftar
+lengkapnya: `git log --merges --first-parent 0401009..f8aa35f`.
+
+| Merge `main` | Isi                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| `018b3ba`    | PR #62, BUG-095: sambungan nginx dev ke host tidak lagi tertelan penerusan Docker Desktop    |
+| `d7ea442`    | Judul blok `apps/web/AGENTS.md` disamakan dengan `next dev` 16.4.6                           |
+| `c1f1e0d`    | PR #63, pelari uji beban jalur tulis                                                         |
+| `73025b0`    | PR #64, BUG-096: batas harian 10 pengaduan tidak lagi jebol oleh kiriman serentak            |
+| `9a8e84e`    | Commit langsung tanpa PR, bagian dari perbaikan BUG-097 (lihat penutupannya)                 |
+| `c5d3d42`    | PR #65, BUG-097 sampai BUG-099: hari dihitung menurut WIB, bukan jam server                  |
+| `0ce115b`    | PR #66, draf isian saat sesi berakhir dan peringatan lima menit sebelum sesi habis           |
+| `08fe75e`    | PR #67, draf di IndexedDB bertahan saat tab ditutup, lampiran ikut tersimpan                 |
+| `0ce6caf`    | PR #68, kalimat penghapusan draf pada keadaan sesi berakhir                                  |
+| `f8aa35f`    | PR #69, modal pilihan unduhan QR (QR polos dan QR dengan desain)                             |
+
+### 10.1 Hasil
+
+**Tidak ada regresi, dan ketujuh langkah lulus dalam satu jalan.** Ini jalan
+Playwright penuh lokal pertama tanpa uji yang goyah, gagal, maupun dilewati.
+
+| Lapisan                         | Suite | Uji   | Hasil                                             | 19 Nov (§8) |
+| ------------------------------- | ----- | ----- | ------------------------------------------------- | ----------- |
+| Unit API (Jest)                 | 111   | 1.702 | 1.702 lulus                                       | 106 / 1.649 |
+| e2e API (Postgres sungguhan)    | 58    | 808   | 808 lulus                                         | 58 / 807    |
+| Komponen web (Jest + RTL + MSW) | 280   | 2.348 | 2.348 lulus                                       | 271 / 2.258 |
+| E2E web (Playwright, Chrome)    | —     | 187   | 187 lulus, 0 goyah, 0 dilewati, 0 gagal           | 29 / 176    |
+| ESLint seluruh repo             | —     | —     | kode 0                                            | kode 0      |
+| Prettier                        | —     | —     | kode 0 (tidak berlaku untuk `apps/web`)           | kode 0      |
+
+Durasi: unit API 73 dtk, e2e API 288 dtk, komponen web 156 dtk, Playwright
+14,0 menit (§8: 23 menit dengan 6 goyah). Seluruh jalan 10.31 sampai 10.54 WIB.
+Perintahnya sama dengan §1, §7, dan §8:
+
+```bash
+E2E_IDENTIFIER=seed-admin-kabupaten \
+  node .claude/skills/verifikasi-penuh/scripts/verifikasi.mjs --e2e-api --e2e-web
+```
+
+Playwright CI `main` `f8aa35f` mencatat 186 lulus dan 1 dilewati. Selisih satu
+uji itu tidak dapat ditunjuk dari sini: reporter `list` tanpa terminal tidak
+mencetak penanda per uji, dan anotasi CI hanya memuat totalnya. Lokal tidak ada
+yang dilewati, jadi uji yang dilewati CI berjalan dan lulus di sini.
+
+Log server memuat `ERROR ... Callback SSO gagal: Tidak dapat menghubungi
+Helpdesk` dan beberapa `WARN ... 400: Validation failed`. Keduanya keluaran uji
+e2e yang sengaja memancing jalur galat, bukan kegagalan.
+
+### 10.2 Lingkungan
+
+Sama dengan §8.2. Sebelum menulis apa pun: `DATABASE_URL` menunjuk
+`localhost:5432/skm_db`, dan yang menjawab Postgres 18.4 di kontainer `skm-db`.
+Ketiga kontainer hidup (`skm-db` dan `skm-redis` sehat). Akun
+`seed-admin-kabupaten` (id 1) memegang `{kabupaten,responden,opd}`, ber-OPD,
+aktif, tidak terhapus. Server dev menjawab 200 di `http://skema.local` dan
+`/api/v1/health`. e2e API menulis ke `skm_uji` lewat `scripts/uji-e2e.ts`.
+
+### 10.3 Data uji
+
+`bersihkan-data-uji.mjs` (sasaran `skm_db`, lolos palang) di akhir jalan
+menghapus 10 pengaduan, 8 survei, 3 respons, 37 notifikasi, dan 1 berkas
+unggahan tak tertaut (71 byte). Pemeriksaan ulang `--dry --tanpa-induk`
+menemukan 0 notifikasi bertaut data uji dan 0 tanpa induk. `audit_logs` tidak
+disentuh.
+
+### 10.4 Yang tidak dicakup
+
+- **Tabel verifikasi perbaikan bug seperti §7.6 tidak diulang** untuk BUG-095
+  sampai BUG-099. Pagarnya ikut lulus di §10.1, tetapi belum dicocokkan satu
+  per satu ke berkas ujinya.
+- **SSO Helpdesk sungguhan** tidak dijalankan di sini. Hasil login sungguhan
+  ada di charter C-09 (`TEST_EXPLORATORY.md`), dan jalur pencabutan peran
+  `opd` lewat klaim `masyarakat` belum pernah dicoba.
+- **Sinkron OPD nyata** tidak dijalankan karena Helpdesk masih menolak token API.
+- **Uji beban** tidak diulang; lihat `TEST_BEBAN.md` §15 dan §16.
+- **UAT stakeholder dan sign-off go-live** di luar dokumen ini dan belum pernah
+  dijalankan (`TEST_KEAMANAN.md` §6).
+
+Temuan terbuka per 25 November: 0 dari 99.
