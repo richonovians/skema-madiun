@@ -7,6 +7,7 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PENYIMPAN_SINGGAHAN } from '../src/common/cache/penyimpan-singgahan.interface';
 import type { PenyimpanSinggahan } from '../src/common/cache/penyimpan-singgahan.interface';
+import { tanggalWib } from '../src/common/waktu/hari-wib';
 import { periodeFromDate } from '../src/modules/surveys/utils/periode.util';
 import { devHeaders } from './helpers/auth.helper';
 
@@ -564,10 +565,15 @@ describe('Dashboard & Statistics (e2e)', () => {
    * selesai dan kedua deret tren; kini Postgres mengagregasinya per bulan.
    *
    * UJI PENCOCOKAN, bukan uji angka tetap: harapannya dihitung DI SINI dengan
-   * cara lama -- memuat semua baris lalu membaginya dengan `Date#getMonth()` --
-   * atas SELURUH tabel di basis data uji, lalu dibandingkan dengan jawaban
-   * endpoint. Uji ini lulus pula sebelum perbaikan; tugasnya menjaga agar
-   * agregat SQL tak pernah berbeda dari bentuk lama.
+   * cara lama -- memuat semua baris lalu membaginya per bulan -- atas SELURUH
+   * tabel di basis data uji, lalu dibandingkan dengan jawaban endpoint. Uji ini
+   * lulus pula sebelum perbaikan; tugasnya menjaga agar agregat SQL tak pernah
+   * berbeda dari bentuk lama.
+   *
+   * Sejak BUG-100 (25 November 2026) "cara lama" itu membagi bulan menurut WIB
+   * (`tanggalWib`), bukan `Date#getMonth()`. Uji pencocokan saja tak dapat
+   * menangkap BUG-100: di server UTC kedua sisinya sama-sama keliru dan tetap
+   * cocok. Karena itu ada uji angka tetap di bawahnya.
    *
    * Tiga baris sengaja jatuh di batas zona waktu: pukul 17.30 dan 18.00 UTC
    * pada hari terakhir bulan adalah tanggal 1 bulan berikutnya menurut WIB.
@@ -630,7 +636,10 @@ describe('Dashboard & Statistics (e2e)', () => {
         triwulan.set(p, (triwulan.get(p) ?? 0) + 1);
       }
 
-      const indeks = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+      const indeks = (d: Date) => {
+        const { tahun, bulan } = tanggalWib(d);
+        return tahun * 12 + (bulan - 1);
+      };
       const bulanan = new Map<number, number>();
       for (const c of semua) {
         const i = indeks(c.createdAt);
@@ -679,6 +688,38 @@ describe('Dashboard & Statistics (e2e)', () => {
       expect(res.body.data.summary.completionRate).toBe(harapan.completionRate);
       expect(res.body.data.complaintTrend).toEqual(harapan.complaintTrend);
       expect(res.body.data.complaintTrendBulanan).toEqual(harapan.complaintTrendBulanan);
+    });
+
+    /**
+     * BUG-100 (25 November 2026): angka tetap, bukan pencocokan. Tahun 2020
+     * hanya diisi tiga baris di atas, jadi hitungan per bulan dan per
+     * triwulannya pasti. Di server UTC kode lama memasukkan baris A ke Maret
+     * (Q1) dan baris C ke Desember 2020 (Q4); di laptop berzona Asia/Jakarta
+     * kode lama pun lulus, jadi merahnya hanya tampak di bawah `TZ=UTC`.
+     */
+    it('BUG-100: pengaduan 00.00-06.59 WIB tanggal 1 jatuh di bulan dan triwulan WIB', async () => {
+      await singgahan.hapus(KUNCI_SINGGAHAN_STATISTIK);
+      const res = await request(app.getHttpServer()).get('/api/v1/statistics');
+      expect(res.status).toBe(200);
+
+      const bulanan = new Map<string, number>(
+        (res.body.data.complaintTrendBulanan as Titik[]).map((t) => [t.periode, t.value]),
+      );
+      // Deretnya dimulai di bulan pengaduan pertama, jadi Maret 2020 boleh
+      // tak ada sama sekali; yang tak boleh adalah berisi.
+      expect(bulanan.get('2020-03') ?? 0).toBe(0);
+      expect(bulanan.get('2020-04')).toBe(1);
+      expect(bulanan.get('2020-06')).toBe(1);
+      expect(bulanan.get('2020-12')).toBe(0);
+      expect(bulanan.get('2021-01')).toBe(1);
+
+      const triwulan = new Map<string, number>(
+        (res.body.data.complaintTrend as Titik[]).map((t) => [t.periode, t.value]),
+      );
+      expect(triwulan.get('2020-Q1')).toBeUndefined();
+      expect(triwulan.get('2020-Q2')).toBe(2);
+      expect(triwulan.get('2020-Q4')).toBeUndefined();
+      expect(triwulan.get('2021-Q1')).toBe(1);
     });
   });
 });

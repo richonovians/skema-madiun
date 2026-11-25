@@ -6,6 +6,7 @@ import {
   type PenyimpanSinggahan,
 } from '../../common/cache/penyimpan-singgahan.interface';
 import { SekaliJalan } from '../../common/cache/sekali-jalan';
+import { ZONA_WIB } from '../../common/waktu/hari-wib';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IkmService } from '../ikm/ikm.service';
@@ -545,12 +546,14 @@ export class DashboardService {
    * 310.000. Kini Postgres yang mengagregasi, dan yang menyeberang paling
    * banyak satu baris per bulan.
    *
-   * ZONA WAKTU SERVER dikirim ke kuerinya, bukan dibiarkan UTC. Jalur lama
-   * membagi bulan dengan `Date#getMonth()`, yaitu menurut zona proses Node;
-   * Postgres menyimpan `created_at` sebagai UTC tanpa zona, jadi tanpa
-   * `AT TIME ZONE` pengaduan pukul 00.00-06.59 WIB tanggal 1 jatuh ke bulan
-   * sebelumnya. Uji pencocokan di `test/dashboard.e2e-spec.ts` menjaga
-   * kesamaannya dengan bentuk lama.
+   * Bulan dibagi menurut WIB (`ZONA_WIB`), bukan dibiarkan UTC dan bukan
+   * menurut zona server. Postgres menyimpan `created_at` sebagai UTC tanpa
+   * zona, jadi tanpa `AT TIME ZONE` pengaduan pukul 00.00-06.59 WIB tanggal 1
+   * jatuh ke bulan sebelumnya. Sampai BUG-100 (25 November 2026) yang dikirim
+   * adalah zona proses Node, sehingga cacat itu tetap hidup di server UTC;
+   * kini bulannya sama dengan batas harian, tiket, dan Log Audit. Uji
+   * pencocokan dan uji angka tetap di `test/dashboard.e2e-spec.ts`
+   * menjaganya.
    *
    * Rata-rata dibentuk pemanggil dari JUMLAH durasi dan JUMLAH pengaduan,
    * bukan dari rata-rata bulanan, supaya bobot tiap pengaduan tetap sama.
@@ -558,10 +561,9 @@ export class DashboardService {
   private async agregatPengaduanBulanan(): Promise<
     (HitunganBulan & { selesai: number; detikSelesai: number })[]
   > {
-    const zona = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     return this.prisma.$queryRaw<(HitunganBulan & { selesai: number; detikSelesai: number })[]>`
       SELECT
-        to_char(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${zona}, 'YYYY-MM') AS bulan,
+        to_char(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${ZONA_WIB}, 'YYYY-MM') AS bulan,
         count(*)::int AS jumlah,
         (count(*) FILTER (
           WHERE status = ${ComplaintStatus.selesai}::complaint_status
