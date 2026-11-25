@@ -4,8 +4,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { copyToClipboard } from '@/utils/clipboard';
-import { simpanBlob } from '@/utils/unduhBerkas';
-import { gambarPosterQr } from '@/features/surveys/utils/posterQrSurvei';
+import UnduhQrModal from './UnduhQrModal';
 import { X, Copy, Check, Download, ExternalLink, Info, AlertTriangle } from 'lucide-react';
 
 /**
@@ -58,8 +57,7 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrError, setQrError] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [sedangMenyusun, setSedangMenyusun] = useState(false);
-  const [galatPoster, setGalatPoster] = useState(null);
+  const [bukaUnduh, setBukaUnduh] = useState(false);
   const urlInputRef = useRef(null);
 
   useEffect(() => {
@@ -88,13 +86,17 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
     };
   }, [url]);
 
+  // Escape DIABAIKAN selagi modal pilihan unduhan terbuka. Kedua modal
+  // mendengarkan `window`; tanpa penahan ini satu Escape menutup keduanya, dan
+  // pengguna yang hanya ingin membatalkan pilihan unduhan terlempar ke halaman.
   useEffect(() => {
+    if (bukaUnduh) return undefined;
     const handler = (e) => {
       if (e.key === 'Escape') onClose?.();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, bukaUnduh]);
 
   // Pola inline lama dipindah ke hooks/useBodyScrollLock.js (2026-08-24).
   useBodyScrollLock();
@@ -132,37 +134,11 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
   };
 
   /**
-   * Unduhan QR adalah POSTER, bukan QR polos (22 September 2026, permintaan
-   * pengguna). Berkas lama hanya berisi kotak QR; ditempel di loket, gambar itu
-   * tak memberi tahu survei apa, milik instansi mana, dan tak memberi jalan
-   * lain bagi yang kameranya menolak memindai.
-   *
-   * Disusun saat DIKLIK, bukan disiapkan bersama QR-nya: kebanyakan yang
-   * membuka modal ini hanya menyalin tautannya, dan menggambar kanvas 1080x1440
-   * untuk mereka semua hanya membakar waktu yang tak diminta siapa pun.
+   * "Unduh QR" membuka modal pilihan, tidak langsung mengunduh (25 November
+   * 2026, permintaan pengguna). Sebelumnya tombol ini langsung menurunkan poster
+   * (22 September 2026) dan QR polos tak dapat diunduh sama sekali. Penyusunan
+   * poster dan kedua unduhannya kini milik UnduhQrModal.
    */
-  const handleUnduh = async () => {
-    if (!qrDataUrl) return;
-    setGalatPoster(null);
-    setSedangMenyusun(true);
-    try {
-      const berkas = await gambarPosterQr({
-        qrDataUrl,
-        judul: survey.title,
-        instansi: namaInstansi,
-        url,
-      });
-      simpanBlob(berkas, `qr-survei-${survey.id}.png`);
-    } catch (err) {
-      // Kegagalan harus TERLIHAT: tombol yang diklik tanpa hasil apa pun
-      // terbaca sebagai peramban yang lambat, dan penggunanya menunggu berkas
-      // yang tak akan pernah turun.
-      setGalatPoster(err.message);
-    } finally {
-      setSedangMenyusun(false);
-    }
-  };
-
   const isActive = survey.status === 'AKTIF';
 
   return (
@@ -285,14 +261,6 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
             )}
           </div>
 
-          {galatPoster && (
-            <div className="px-6 pb-1">
-              <p role="alert" className="text-xs text-red-600 font-medium leading-relaxed">
-                Gagal menyiapkan poster QR: {galatPoster}
-              </p>
-            </div>
-          )}
-
           <div className="px-6 pb-6 pt-2 flex flex-col sm:flex-row gap-2 sm:gap-3 border-t border-slate-100 pt-4">
             <a
               href={url || '#'}
@@ -305,16 +273,27 @@ export default function ShareSurveyModal({ survey, namaInstansi = '', onClose })
             </a>
             <button
               type="button"
-              onClick={handleUnduh}
-              disabled={!qrDataUrl || sedangMenyusun}
+              onClick={() => setBukaUnduh(true)}
+              disabled={!qrDataUrl}
+              aria-haspopup="dialog"
               className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary-hover shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Download size={16} />
-              {sedangMenyusun ? 'Menyiapkan…' : 'Unduh QR'}
+              Unduh QR
             </button>
           </div>
         </div>
       </div>
+
+      {bukaUnduh && qrDataUrl && (
+        <UnduhQrModal
+          survey={survey}
+          url={url}
+          qrDataUrl={qrDataUrl}
+          namaInstansi={namaInstansi}
+          onClose={() => setBukaUnduh(false)}
+        />
+      )}
     </div>
   );
 }
