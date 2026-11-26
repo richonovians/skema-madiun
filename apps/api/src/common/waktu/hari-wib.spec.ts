@@ -1,4 +1,4 @@
-import { awalHariWib, awalTanggalWib, tanggalWib } from './hari-wib';
+import { awalHariWib, awalTanggalWib, jedaKeJamWib, tanggalWib } from './hari-wib';
 
 /**
  * AWAL HARI MENURUT WIB (23 November 2026, batas harian pengaduan).
@@ -65,6 +65,27 @@ describe('awalHariWib', () => {
     });
   });
 
+  describe('jedaKeJamWib (tugas terjadwal harian, BUG-102)', () => {
+    const JAM = 60 * 60 * 1000;
+
+    it('02.00 WIB menuju 03.00 WIB hari yang sama: 1 jam', () => {
+      expect(jedaKeJamWib(new Date('2026-11-25T19:00:00.000Z'), 3)).toBe(1 * JAM);
+    });
+
+    it('sudah lewat jamnya: menuju jam itu besok', () => {
+      // 26 November 10.00 WIB -> 27 November 03.00 WIB
+      expect(jedaKeJamWib(new Date('2026-11-26T03:00:00.000Z'), 3)).toBe(17 * JAM);
+    });
+
+    it('tepat pada jamnya: sehari penuh, bukan nol', () => {
+      expect(jedaKeJamWib(new Date('2026-11-25T20:00:00.000Z'), 3)).toBe(24 * JAM);
+    });
+
+    it('23.30 WIB (16.30 UTC) menuju 03.00 WIB besok, bukan 03.00 UTC', () => {
+      expect(jedaKeJamWib(new Date('2026-11-25T16:30:00.000Z'), 3)).toBe(3.5 * JAM);
+    });
+  });
+
   describe('pagar zona waktu proses', () => {
     const METODE_WAKTU_LOKAL = [
       'getFullYear',
@@ -91,6 +112,7 @@ describe('awalHariWib', () => {
       awalHariWib(new Date('2026-11-22T23:59:00.000Z'));
       awalTanggalWib(2026, 11, 23);
       tanggalWib(new Date('2026-11-22T23:59:00.000Z'));
+      jedaKeJamWib(new Date('2026-11-25T19:00:00.000Z'), 3);
 
       const terpanggil = mata.filter(([, s]) => s.mock.calls.length > 0).map(([m]) => m);
       expect(terpanggil).toEqual([]);

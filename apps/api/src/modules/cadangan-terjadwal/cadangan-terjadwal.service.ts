@@ -93,10 +93,12 @@ export class CadanganTerjadwalService implements OnApplicationBootstrap, OnModul
   /**
    * Milidetik dari `sekarang` sampai jam `BACKUP_JAM` WIB berikutnya.
    *
-   * WIB TERSURAT, bukan jam server -- inilah bedanya dari `AuditRetensiService`.
-   * Server produksi bisa berjalan dalam UTC, dan 02.00 UTC adalah 09.00 WIB:
-   * cadangan akan berjalan di jam kerja. Tepat pada jamnya menunggu sehari
-   * penuh, bukan nol, supaya tak berjalan dua kali beruntun.
+   * WIB TERSURAT, bukan jam server. Server produksi bisa berjalan dalam UTC,
+   * dan 02.00 UTC adalah 09.00 WIB: cadangan akan berjalan di jam kerja. Tepat
+   * pada jamnya menunggu sehari penuh, bukan nol, supaya tak berjalan dua kali
+   * beruntun. `AuditRetensiService` dan `SurveiPemusnahanService` dulu memakai
+   * jam server dan baru ikut WIB sejak BUG-102 (25 November 2026), lewat
+   * `jedaKeJamWib`.
    */
   jedaKeJamJalan(sekarang: Date = new Date()): number {
     const jam = this.config.get<number>('backup.jam') ?? 2;

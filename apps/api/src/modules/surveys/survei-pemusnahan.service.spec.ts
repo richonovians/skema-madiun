@@ -64,8 +64,13 @@ function buat(
   return { service, prisma, config };
 }
 
-/** Waktu SETEMPAT, bukan UTC: penjadwalnya memakai jam server. */
-const setempat = (jam: number, menit = 0) => new Date(2026, 8, 30, jam, menit, 0, 0);
+/**
+ * Jam dinding WIB pada 30 September 2026, sebagai INSTAN (BUG-102, 25 November
+ * 2026). Dulu `new Date(2026, 8, 30, jam)`, yaitu jam setempat, karena
+ * penjadwalnya memakai jam server; masukan semacam itu lulus di zona mana pun
+ * dan tak dapat menangkap jadwal yang mengikuti zona proses.
+ */
+const wib = (jam: number, menit = 0) => new Date(Date.UTC(2026, 8, 30, jam - 7, menit, 0, 0));
 
 describe('SurveiPemusnahanService', () => {
   describe('batasWaktu', () => {
@@ -246,13 +251,13 @@ describe('SurveiPemusnahanService', () => {
     it('menuju JAM_JALAN hari ini bila belum lewat', () => {
       const { service } = buat();
 
-      expect(service.jedaKeJamJalan(setempat(JAM_JALAN - 1))).toBe(60 * 60 * 1000);
+      expect(service.jedaKeJamJalan(wib(JAM_JALAN - 1))).toBe(60 * 60 * 1000);
     });
 
     it('menuju JAM_JALAN besok bila sudah lewat', () => {
       const { service } = buat();
 
-      expect(service.jedaKeJamJalan(setempat(JAM_JALAN + 1))).toBe(23 * 60 * 60 * 1000);
+      expect(service.jedaKeJamJalan(wib(JAM_JALAN + 1))).toBe(23 * 60 * 60 * 1000);
     });
 
     it('tepat di JAM_JALAN berarti besok, bukan jeda nol', () => {
@@ -260,7 +265,27 @@ describe('SurveiPemusnahanService', () => {
       // menembak seketika lagi: satu putaran tanpa henti.
       const { service } = buat();
 
-      expect(service.jedaKeJamJalan(setempat(JAM_JALAN))).toBe(24 * 60 * 60 * 1000);
+      expect(service.jedaKeJamJalan(wib(JAM_JALAN))).toBe(24 * 60 * 60 * 1000);
+    });
+
+    /**
+     * BUG-102: jam jalan menurut WIB. Di server UTC, `setHours` dulu membuat
+     * tugas ini berjalan tujuh jam lebih lambat, di jam kerja. Uji nilai di
+     * atas hanya merah di bawah `TZ=UTC`; pagar ini merah di zona mana pun.
+     */
+    it('BUG-102: tak memanggil satu pun metode Date berwaktu lokal', () => {
+      const { service } = buat();
+      const mata = (
+        ['getFullYear', 'getMonth', 'getDate', 'getHours', 'setHours', 'setDate'] as const
+      ).map((m) => [m, jest.spyOn(Date.prototype, m)] as const);
+      let terpanggil: string[];
+      try {
+        service.jedaKeJamJalan(wib(JAM_JALAN - 1));
+        terpanggil = mata.filter(([, s]) => s.mock.calls.length > 0).map(([m]) => m);
+      } finally {
+        mata.forEach(([, s]) => s.mockRestore());
+      }
+      expect(terpanggil).toEqual([]);
     });
   });
 
