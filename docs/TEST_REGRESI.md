@@ -657,3 +657,76 @@ disentuh.
   dijalankan (`TEST_KEAMANAN.md` §6).
 
 Temuan terbuka per 25 November: 0 dari 99.
+
+## 11. Pemeriksaan sesudah PR #70 sampai #72 (25-26 November 2026)
+
+**Ini bukan regresi penuh.** Bagian ini mencatat suite yang dijalankan untuk
+tiga PR perbaikan yang masuk `main` sesudah regresi §10 (`f8aa35f`). Ketiganya
+menutup temuan dengan akar yang sama, yaitu waktu yang dibagi menurut jam
+server padahal harus menurut WIB (BUG-100, BUG-101, BUG-102). Tak satu pun
+menyentuh `apps/web`. `git diff --stat f8aa35f 41e2102` memuat 15 berkas
+`apps/api` dan satu baris amandemen PRD bab 18.
+
+| PR  | Merge `main` | Cara merge                         | Isi                                                                                                         |
+| --- | ------------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| #70 | `5aec719`    | lokal, `--no-ff`                   | BUG-100, bulan dan triwulan statistik pengaduan dibagi menurut WIB (`ZONA_WIB`, `tanggalWib`)               |
+| #71 | `acdb2e1`    | lokal, `--no-ff`                   | BUG-101, tren responden di dasbor Admin OPD dibagi menurut bulan WIB                                        |
+| #72 | `41e2102`    | tombol GitHub, oleh pengguna       | BUG-102, pemangkasan audit (03.00) dan pemusnahan Sampah (04.00) berjalan menurut jam WIB (`jedaKeJamWib`) |
+
+### 11.1 Hasil
+
+**Tidak ada kegagalan.** Angka lokal diambil pada commit cabang tiap PR dengan
+`verifikasi.mjs --e2e-api`, yang juga menjalankan ESLint dan Prettier (keduanya
+kode 0). Pohon setiap merge identik dengan commit cabangnya
+(`<merge>^{tree}` = `<cabang>^{tree}`), jadi angka itu berlaku untuk isi `main`
+sesudah merge.
+
+| PR  | Commit cabang | Unit API    | e2e API  | Komponen web | CI cabang                | CI `main`                                 |
+| --- | ------------- | ----------- | -------- | ------------ | ------------------------ | ----------------------------------------- |
+| #70 | `f19ffe1`     | 111 / 1.711 | 58 / 809 | 280 / 2.348  | 3/3                      | 3/3, PW 186 lulus + 1 dilewati, 8,3 mnt   |
+| #71 | `6a16662`     | 111 / 1.715 | 58 / 809 | 280 / 2.348  | 3/3, PW 186 + 1 dilewati | 3/3, PW 186 lulus + 1 dilewati, 9,6 mnt   |
+| #72 | `0fb8f63`     | 111 / 1.721 | 58 / 809 | 280 / 2.348  | 3/3, PW 186 + 1 dilewati | 3/3, PW 186 lulus + 1 dilewati, 9,7 mnt   |
+
+Dibanding §10 (111 / 1.702, 58 / 808, 280 / 2.348), unit API bertambah 19 uji
+dan e2e API bertambah satu, semuanya pagar ketiga temuan. Komponen web tidak
+berubah karena `apps/web` tidak disentuh. Playwright CI tetap 186 lulus dan
+1 dilewati, sama dengan CI `f8aa35f`.
+
+### 11.2 Data uji
+
+Jalan ini tidak menulis data uji ke `skm_db`. e2e API memakai `skm_uji` lewat
+`scripts/uji-e2e.ts`, dan Playwright tidak dijalankan lokal. `audit_logs` tidak
+disentuh.
+
+### 11.3 Pelajaran pengujian zona waktu
+
+- **Uji nilai zona waktu hanya merah di bawah `TZ=UTC`.** Laptop penguji
+  berzona Asia/Jakarta, jadi jam setempat dan WIB berimpit dan kode yang keliru
+  tetap lulus. Uji dan repro ketiga temuan dijalankan dengan `TZ=UTC` di awal
+  proses. Mengubah `process.env.TZ` di dalam berkas uji tidak berlaku di Jest 29
+  pada Windows.
+- **Uji lama `jedaKeJamJalan` lulus palsu.** Masukannya dibangun dengan
+  `new Date(y, m, d, jam)`, yang ditafsirkan menurut jam setempat, sama seperti
+  `setHours` di kode yang diuji. Keduanya bergeser bersama di server UTC, dan
+  uji tak pernah melihat selisihnya. Penggantinya membangun masukan sebagai
+  instan WIB yang tersurat (`wib()`).
+- **Uji pencocokan BUG-068 tak dapat menangkap BUG-100.** Uji itu memeriksa
+  bahwa dua perhitungan menghasilkan angka yang sama. Di server UTC kedua sisinya
+  sama-sama membagi bulan menurut jam server, sehingga keduanya cocok walau
+  sama-sama keliru. Pencocokan dua sisi hanya membuktikan konsistensi, bukan
+  kebenaran terhadap WIB.
+
+### 11.4 Yang tidak dicakup
+
+- **Playwright penuh tidak dijalankan lokal.** `apps/web` tidak berubah, jadi
+  Playwright lokal terakhir tetap regresi penuh §10 (`f8aa35f`, 187 lulus,
+  0 goyah). Angka Playwright di atas hanya dari CI.
+- **Tidak ada server berzona UTC sungguhan.** Perilaku di bawah UTC dibuktikan
+  lewat `TZ=UTC` pada proses Jest dan pada runner CI, bukan pada server
+  produksi, yang memang belum ada.
+- **Tugas terjadwal tidak diamati berjalan pada pukul 03.00 dan 04.00 WIB.**
+  Jadwalnya dijaga uji unit atas `jedaKeJamWib` dan kedua service-nya.
+- **Tabel verifikasi per bug seperti §7.6 tidak diulang.** Penutupan dan pagar
+  tiap temuan tercatat di `BUG_REPORTS.md` (riwayat 7.75, 7.77, dan 7.79).
+
+Temuan terbuka per 26 November: 0 dari 102.
