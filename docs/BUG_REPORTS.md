@@ -195,8 +195,9 @@ Cabang lain: `Ditolak` (bukan cacat) · `Ditunda` (diakui, belum dikerjakan)
 | [BUG-100](#bug-100) | Grafik bulanan dan triwulan pengaduan di statistik publik membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Ditutup** | Probe celah pengujian 25 November (catatan terbuka BUG-068) |
 | [BUG-101](#bug-101) | Tren responden "dari bulan lalu" di dasbor Admin OPD membagi bulan menurut jam server, bukan WIB | Low | Terkonfirmasi | **Ditutup** | Temuan sampingan BUG-100 |
 | [BUG-102](#bug-102) | Pemangkasan log audit dan pemusnahan survei Sampah berjalan di jam kerja bila server berjalan dalam UTC | Low | Terkonfirmasi | **Ditutup** | Sisir jam lokal sesudah BUG-101 |
+| [BUG-103](#bug-103) | Lencana "Mutu" di kartu Rata-Rata IKM Kabupaten selalu "-" dan terbaca seperti data gagal dimuat | Low | Terkonfirmasi | Terbuka | Pertanyaan pengguna saat membuka dasbor Admin Kabupaten |
 
-**Rekap** — 102 temuan: **101 ditutup, 1 ditolak, 0 terbuka**. Ditolak: BUG-091.
+**Rekap** — 103 temuan: **101 ditutup, 1 ditolak, 1 terbuka**. Ditolak: BUG-091. Terbuka: BUG-103.
 
 > **(22 Oktober 2026) Baris rekap di atas sebelumnya berbunyi "21 temuan: 10
 > ditutup, 11 terbuka (0 Critical, 0 High, 5 Medium, 6 Low)", dan itu sudah
@@ -6022,6 +6023,47 @@ PR #72, di-merge pengguna lewat tombol GitHub menjadi `main` `41e2102` (`0fb8f63
 
 **Status 26 November 2026: Ditutup**
 
+### BUG-103 — Lencana "Mutu" di kartu Rata-Rata IKM Kabupaten selalu "-" dan terbaca seperti data gagal dimuat
+
+|              |                                                              |
+| ------------ | ------------------------------------------------------------ |
+| **Asal**     | Pertanyaan pengguna saat membuka dasbor Admin Kabupaten ("kenapa mutu tidak muncul?") |
+| **Tanggal**  | 28 November 2026 |
+| **Lingkungan** | `main` `41e2102`, `http://skema.local/admin-kab/dashboard`, Chrome |
+| **Berkas**   | [dashboard.api.js:25-26](../apps/web/src/features/dashboard/services/dashboard.api.js#L25-L26) (`ikmGrade: null`, `ikmLabel: null`), [KabSummaryMetrics.jsx:21](../apps/web/src/features/dashboard/components/kabupaten/KabSummaryMetrics.jsx#L21) dan [:39-41](../apps/web/src/features/dashboard/components/kabupaten/KabSummaryMetrics.jsx#L39-L41) (lencana), [ikm.service.ts:558-561](../apps/api/src/modules/ikm/ikm.service.ts#L558-L561) (`rataRataIkm`) |
+| **Severity** | Low (usulan penguji). Tidak ada angka yang salah dan tidak ada akses yang bocor; yang terganggu hanya kejelasan tampilan di kartu pertama dasbor |
+
+**Gejala**
+
+Kartu "Rata-Rata IKM Kabupaten" menampilkan nilai IKM (misalnya 72.29) dengan lencana `MUTU: -` di pojok kanan atas. Lencana itu tampil di setiap kunjungan, dengan data apa pun dan penyaring periode apa pun. Pengguna membacanya sebagai mutu yang gagal dimuat atau belum dihitung, lalu menanyakannya.
+
+**Akar masalah**
+
+`getKabupatenDashboard` mengisi `ikmGrade` dan `ikmLabel` dengan `null` secara tetap, dan `KabSummaryMetrics` menuliskan `'Mutu: -'` bila `ikmGrade` kosong. Backend `GET /dashboard/ikm` memang tidak mengirim huruf mutu untuk `rataRataIkm`, karena `mutuFromNilai` hanya dipanggil per survei. Jadi lencana itu dirancang untuk diisi tetapi tidak punya sumber data, dan tidak akan pernah berisi selain tanda hubung.
+
+Ini keputusan tertulis, bukan kelalaian. Komentar di `dashboard.api.js:13-16` dan `KabSummaryMetrics.jsx:16-20` menyebut rata-rata gabungan lintas OPD tidak punya padanan huruf mutu resmi, sehingga frontend sengaja tidak menurunkannya sendiri. Uji `RingkasanDashboard.test.jsx` ("menuliskan "Mutu: -" alih-alih mengarang huruf mutu agregat") mengunci perilaku itu, TC-FE-045 lulus dengan memasukkannya ke harapan pada 3 September 2026, dan gladi UAT di `TEST_KEAMANAN.md` mencatatnya sebagai celah yang sudah diketahui. Keputusan menolak mengarang huruf mutu tetap benar. Yang menjadi cacat adalah tampilannya, yaitu lencana berisi tanda hubung yang dipasang permanen di tempat yang dibaca pengguna sebagai status data.
+
+PRD tidak mewajibkan huruf mutu untuk dasbor agregat. FR-RES-03 hanya meminta nilai IKM seluruh OPD, peringkat, dan penyaring periode atau jenis layanan, sedangkan huruf A/B/C/D diwajibkan per OPD lewat FR-RES-01. Temuan ini karena itu tidak berbunyi "mutu kabupaten tidak dihitung".
+
+**Pembuktian**
+
+Tangkapan layar pengguna 28 November 2026 menampilkan kartu dengan `MUTU: -` dan nilai 72.29. Kodenya di `main` `41e2102` menunjukkan `ikmGrade: null` sebagai literal, bukan hasil pemetaan dari respons, sehingga tak ada keadaan data yang membuat lencana terisi.
+
+**Langkah reproduksi**
+
+1. Masuk sebagai Admin Kabupaten dan buka `/admin-kab/dashboard`.
+2. Lihat kartu pertama, "Rata-Rata IKM Kabupaten".
+3. Lencana di pojok kanan atas berbunyi `MUTU: -`, berapa pun nilai IKM-nya dan apa pun penyaringnya.
+
+**Arah perbaikan (usulan, belum dikerjakan; perlu keputusan pemilik produk)**
+
+1. Hapus lencananya. Perubahan hanya di frontend, dan uji `RingkasanDashboard.test.jsx` beserta harapan TC-FE-045 ikut disesuaikan.
+2. Backend mengirim `mutuFromNilai(rataRataIkm)` di `GET /dashboard/ikm`, lalu `dashboard.api.js` meneruskannya. Pilihan ini menuntut pemilik produk menerima predikat A/B/C/D untuk angka gabungan kabupaten. Perlu diputuskan juga cara merata-ratakannya, karena `rataRataIkm` saat ini rata-rata biasa per survei tanpa timbangan jumlah responden, sehingga survei dengan 3 responden berbobot sama dengan survei dengan 300 responden.
+
+Huruf mutu tidak boleh dihitung di frontend pada pilihan mana pun.
+
+**Status 28 November 2026: Terbuka**
+
 ---
 
 ## 4. Ringkasan sesi eksploratori
@@ -9436,3 +9478,4 @@ hanya dibaca, tidak diubah.
 | 7.77 | 25 November 2026 | **BUG-101 ditutup: 101 temuan, 100 ditutup, 1 ditolak, 0 terbuka.** PR #71, merge lokal `main` `acdb2e1` (`6a16662`). Batas bulan tren responden dasbor Admin OPD kini dihitung dengan `tanggalWib` dan `awalTanggalWib`. Uji nilai merah di bawah `TZ=UTC` pada kode lama dan lulus di UTC, Asia/Jakarta, dan America/New_York pada kode baru. CI cabang `6a16662` hijau 3 dari 3 job. CI `main` `acdb2e1` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 9,6 menit. Tak ada temuan terbuka. |
 | 7.78 | 25 November 2026 | **BUG-102 dicatat: 102 temuan, 100 ditutup, 1 ditolak, 1 terbuka.** Sisir jam lokal sesudah BUG-101 pada `main` `acdb2e1`. Pemangkasan log audit dan pemusnahan survei Sampah menjadwalkan diri dengan `setHours` menurut jam server, sehingga di server UTC keduanya berjalan pukul 10.00 dan 11.00 WIB, bukan 03.00 dan 04.00. Jam server itu keputusan tertulis di kode, dan pengguna memutuskan jam sepi semestinya WIB. Uji unit di `qa-bug-hunt/repros/` merah di bawah `TZ=UTC` dan lulus di Asia/Jakarta. Low, usulan penguji; pencatatannya keputusan pengguna. |
 | 7.79 | 26 November 2026 | **BUG-102 ditutup: 102 temuan, 101 ditutup, 1 ditolak, 0 terbuka.** PR #72, merge `main` `41e2102` (`0fb8f63`) lewat tombol GitHub. Pemangkasan log audit dan pemusnahan survei Sampah kini berjalan pukul 03.00 dan 04.00 WIB lewat `jedaKeJamWib`. Uji lama yang memakai jam setempat diganti instan WIB; kode lama merah di bawah `TZ=UTC`, kode baru lulus di tiga zona. CI cabang `0fb8f63` hijau 3 dari 3 job. CI `main` `41e2102` juga hijau 3 dari 3 job, dengan E2E web 186 lulus dan 1 dilewati dalam 9,7 menit. Tak ada temuan terbuka. |
+| 7.80 | 28 November 2026 | **BUG-103 dicatat: 103 temuan, 101 ditutup, 1 ditolak, 1 terbuka.** Pertanyaan pengguna saat membuka dasbor Admin Kabupaten pada `main` `41e2102`. Lencana "Mutu" di kartu Rata-Rata IKM Kabupaten selalu berbunyi `MUTU: -` karena `ikmGrade` dikunci `null` di `dashboard.api.js` dan backend tidak menghitung mutu untuk rata-rata lintas OPD. Menolak mengarang huruf mutu adalah keputusan tertulis dan tetap benar; cacatnya lencana permanen yang terbaca seperti data gagal dimuat. PRD (FR-RES-03) tidak mewajibkan huruf mutu agregat. Penyelesaiannya menunggu keputusan pemilik produk, yaitu menghapus lencana atau menghitung mutu agregat di backend. Low, usulan penguji; pencatatannya keputusan pengguna. |
